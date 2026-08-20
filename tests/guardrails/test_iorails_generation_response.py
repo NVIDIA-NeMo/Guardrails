@@ -31,6 +31,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails, _response_content_for_capture
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -418,3 +419,49 @@ class TestResponseContentForCapture:
     def test_capture_content(self, result, expected):
         """Assistant content is pulled from structured list/str responses and from the bare-dict path; non-str/absent content yields None."""
         assert _response_content_for_capture(result) == expected
+
+
+class TestReasoningDroppedWhenOutputRailsChangeTheAnswer:
+    """Reasoning ships only when the returned content is still the model's own answer.
+
+    Reasoning bypasses output rails by design, so once a rail blocks or rewrites the
+    response the trace no longer describes what the caller receives -- and on a redaction
+    rail it still contains the very text the rail removed.
+    """
+
+    @pytest.mark.asyncio
+    async def test_rewritten_response_drops_reasoning(self, iorails):
+        """An output rail that rewrites the answer clears reasoning_content."""
+        _stub_safe_rails(iorails)
+        iorails.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(RailOutcome.transform([(TransformTarget.BOT_MESSAGE, "Call me at [PHONE]")]))
+        )
+        _stub_model(iorails, LLMResponse(content="Call me at 555-0100", reasoning="the number is 555-0100"))
+
+        result = await iorails.generate_async(messages=_USER, options=GenerationOptions())
+
+        assert result.response == [{"role": "assistant", "content": "Call me at [PHONE]"}]
+        assert result.reasoning_content is None
+
+    @pytest.mark.asyncio
+    async def test_blocked_response_drops_reasoning(self, iorails):
+        """An output rail that blocks returns the refusal with no reasoning attached."""
+        _stub_safe_rails(iorails)
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
+        _stub_model(iorails, LLMResponse(content="unsafe answer", reasoning="the unsafe thinking"))
+
+        result = await iorails.generate_async(messages=_USER, options=GenerationOptions())
+
+        assert result.response == [{"role": "assistant", "content": REFUSAL_MESSAGE}]
+        assert result.reasoning_content is None
+
+    @pytest.mark.asyncio
+    async def test_untouched_response_keeps_reasoning(self, iorails):
+        """Output rails that run and leave the answer alone keep reasoning_content."""
+        _stub_safe_rails(iorails)
+        _stub_model(iorails, LLMResponse(content="Hello", reasoning="thinking step"))
+
+        result = await iorails.generate_async(messages=_USER, options=GenerationOptions())
+
+        assert result.response == [{"role": "assistant", "content": "Hello"}]
+        assert result.reasoning_content == "thinking step"

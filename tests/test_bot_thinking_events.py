@@ -217,6 +217,7 @@ async def test_bot_thinking_none_when_no_reasoning():
 
 @pytest.mark.asyncio
 async def test_bot_thinking_usable_in_output_rail_logic():
+    """An output rail can branch on $bot_thinking; blocking on it keeps the trace off the response."""
     test_reasoning_trace = "This contains sensitive information"
 
     with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
@@ -247,9 +248,11 @@ async def test_bot_thinking_usable_in_output_rail_logic():
         )
 
         assert isinstance(result.response, list)
-        assert result.reasoning_content == test_reasoning_trace
+        # The rail fired, which is what proves $bot_thinking was readable inside rail logic.
         assert result.response[0]["content"] == "I'm sorry, I can't respond to that."
         assert test_reasoning_trace not in result.response[0]["content"]
+        # Reasoning the rail blocked on must not come back in the field either.
+        assert result.reasoning_content is None
 
 
 @pytest.mark.asyncio

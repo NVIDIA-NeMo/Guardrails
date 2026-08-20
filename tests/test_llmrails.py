@@ -1613,3 +1613,54 @@ def test_load_library_sorts_files_for_deterministic_overrides(tmp_path, monkeypa
     rails = LLMRails(config, llm=FakeLLMModel(responses=["unused"]))
 
     assert rails.config.bot_messages["test det msg"] == ["from_a"]
+
+
+# Output rails that block, that rewrite, and that leave the answer alone. Reasoning ships
+# only in the last case: once a rail changes the response the trace no longer describes what
+# the caller receives, and on a redaction rail it still names what the rail removed.
+_OUTPUT_RAIL_CONFIG = "models: []\npassthrough: true\nrails:\n  output:\n    flows:\n      - myrail\n"
+
+_BLOCKING_RAIL = 'define flow myrail\n  if "SECRET" in $bot_message\n    bot refuse to respond\n    stop\n'
+_REWRITING_RAIL = 'define flow myrail\n  $bot_message = "Call me at [PHONE]"\n'
+_INERT_RAIL = "define flow myrail\n  $unused = 1\n"
+
+
+async def _generate_with_output_rail(colang_content: str, reasoning_trace: str, answer: str):
+    """Run one turn whose model emits *reasoning_trace*, through a config carrying one output rail."""
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
+        mock_get_reasoning.return_value = reasoning_trace
+
+        config = RailsConfig.from_content(colang_content=colang_content, yaml_content=_OUTPUT_RAIL_CONFIG)
+        llm_rails = LLMRails(config=config, llm=FakeLLMModel(responses=[answer]))
+
+        return await llm_rails.generate_async(
+            messages=[{"role": "user", "content": "hi"}],
+            options=GenerationOptions(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_generate_async_blocked_response_drops_reasoning():
+    """An output rail that blocks returns the refusal with no reasoning attached."""
+    result = await _generate_with_output_rail(_BLOCKING_RAIL, "the SECRET is 42", "SECRET answer")
+
+    assert result.response[0]["content"] == "I'm sorry, I can't respond to that."
+    assert result.reasoning_content is None
+
+
+@pytest.mark.asyncio
+async def test_generate_async_rewritten_response_drops_reasoning():
+    """An output rail that rewrites the answer clears reasoning_content."""
+    result = await _generate_with_output_rail(_REWRITING_RAIL, "the number is 555-0100", "Call me at 555-0100")
+
+    assert result.response[0]["content"] == "Call me at [PHONE]"
+    assert result.reasoning_content is None
+
+
+@pytest.mark.asyncio
+async def test_generate_async_untouched_response_keeps_reasoning():
+    """Output rails that run and leave the answer alone keep reasoning_content."""
+    result = await _generate_with_output_rail(_INERT_RAIL, "a harmless trace", "The answer is 42")
+
+    assert result.response[0]["content"] == "The answer is 42"
+    assert result.reasoning_content == "a harmless trace"

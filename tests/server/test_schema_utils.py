@@ -256,6 +256,88 @@ def test_bot_message_to_chat_completion():
     assert result.guardrails.config_id == "cfg"
 
 
+# Reasoning a model emits for a greeting; long enough that an accidental
+# substring match against the answer would not pass.
+REASONING = "The user greeted me, so a short warm reply is enough."
+
+
+def test_generation_response_carries_reasoning_content():
+    """Reasoning on the GenerationResponse reaches choices[0].message.reasoning_content."""
+    response = GenerationResponse(
+        response=[{"role": "assistant", "content": "Hello! I'm doing well, thanks."}],
+        reasoning_content=REASONING,
+    )
+    result = generation_response_to_chat_completion(response=response, model="test_model")
+    message = result.choices[0].message
+    assert getattr(message, "reasoning_content", None) == REASONING
+
+
+def test_generation_response_reasoning_leaves_content_clean():
+    """Reasoning is delivered in its own field and never merged back into content."""
+    response = GenerationResponse(
+        response=[{"role": "assistant", "content": "Hello! I'm doing well, thanks."}],
+        reasoning_content=REASONING,
+    )
+    result = generation_response_to_chat_completion(response=response, model="test_model")
+    content = result.choices[0].message.content
+    assert content == "Hello! I'm doing well, thanks."
+    assert "<think>" not in content
+    assert REASONING not in content
+
+
+def test_generation_response_without_reasoning_omits_the_field():
+    """A non-reasoning model produces no reasoning_content key at all, rather than a null one."""
+    response = GenerationResponse(response=[{"role": "assistant", "content": "Hello"}])
+    result = generation_response_to_chat_completion(response=response, model="test_model")
+    assert "reasoning_content" not in result.choices[0].message.model_dump()
+
+
+def test_generation_response_empty_reasoning_omits_the_field():
+    """An empty reasoning string is normalized away instead of serializing as ""."""
+    response = GenerationResponse(response=[{"role": "assistant", "content": "Hello"}], reasoning_content="")
+    result = generation_response_to_chat_completion(response=response, model="test_model")
+    assert "reasoning_content" not in result.choices[0].message.model_dump()
+
+
+def test_generation_response_reasoning_survives_serialization():
+    """The extra field survives the response_model round-trip FastAPI applies before sending."""
+    response = GenerationResponse(
+        response=[{"role": "assistant", "content": "Hello"}],
+        reasoning_content=REASONING,
+    )
+    result = generation_response_to_chat_completion(response=response, model="test_model")
+    served = GuardrailsChatCompletion.model_validate(result.model_dump()).model_dump(exclude_none=True)
+    assert served["choices"][0]["message"]["reasoning_content"] == REASONING
+
+
+def test_generation_response_carries_reasoning_alongside_tool_calls():
+    """Reasoning and tool calls are delivered together rather than one displacing the other."""
+    tool_calls = [
+        {
+            "id": "call_abc",
+            "type": "function",
+            "function": {"name": "get_weather", "arguments": {"city": "Boston"}},
+        }
+    ]
+    response = GenerationResponse(
+        response=[{"role": "assistant", "content": ""}],
+        tool_calls=tool_calls,
+        reasoning_content=REASONING,
+    )
+    result = generation_response_to_chat_completion(response=response, model="test_model")
+    message = result.choices[0].message
+    assert getattr(message, "reasoning_content", None) == REASONING
+    assert message.tool_calls[0].function.name == "get_weather"
+    assert result.choices[0].finish_reason == "tool_calls"
+
+
+def test_bot_message_to_chat_completion_omits_reasoning():
+    """The bare-dict path carries reasoning inline in content, so it emits no reasoning_content key."""
+    bot_message = {"role": "assistant", "content": f"<think>{REASONING}</think>\nHello"}
+    result = bot_message_to_chat_completion(bot_message, model="gpt-4o")
+    assert "reasoning_content" not in result.choices[0].message.model_dump()
+
+
 # ===== Tests for create_error_chat_completion =====
 
 

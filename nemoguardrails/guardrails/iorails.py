@@ -1086,6 +1086,10 @@ class IORails(BaseGuardrails):
             if rewritten is not None:
                 log.info("[%s] Output rails rewrote the response", req_id)
                 response_text = rewritten
+                # The reasoning describes the answer the model produced, not the rewritten
+                # one, and on a redaction rail it still contains what the rail just removed.
+                # A block drops it the same way, by returning through _finalize_refusal.
+                reasoning_content = None
 
         if has_generation_options:
             log_obj = _build_generation_log(records, options, time.monotonic() - t_start)

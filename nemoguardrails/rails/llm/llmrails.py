@@ -45,6 +45,7 @@ from typing_extensions import Self
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.actions.llm.utils import (
     extract_bot_thinking_from_events,
+    extract_generated_bot_message_from_events,
     extract_tool_calls_from_events,
     get_and_clear_response_metadata_contextvar,
     get_colang_history,
@@ -1205,6 +1206,13 @@ class LLMRails(BaseGuardrails):
         tool_calls = extract_tool_calls_from_events(new_events)
         llm_metadata = get_and_clear_response_metadata_contextvar()
         reasoning_content = extract_bot_thinking_from_events(new_events)
+        # Reasoning describes the answer the model produced, and it never passes through
+        # output rails. Once a rail has blocked or rewritten the response, the content being
+        # returned is no longer that answer -- and on a redaction rail the trace still holds
+        # what the rail just removed -- so the trace must not ship with it.
+        if reasoning_content and extract_generated_bot_message_from_events(new_events) != new_message["content"]:
+            reasoning_content = None
+
         # If we have generation options, we prepare a GenerationResponse instance.
         if gen_options:
             # If a prompt was used, we only need to return the content of the message.

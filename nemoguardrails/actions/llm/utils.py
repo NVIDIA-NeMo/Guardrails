@@ -539,6 +539,18 @@ def extract_bot_thinking_from_events(events: list):
             return event.get("content")
 
 
+def extract_generated_bot_message_from_events(events: list):
+    """The message the model generated, before output rails saw it.
+
+    Emitted alongside ``BotThinking`` by the generation action, so the first of each pairs
+    up: they describe the same model call. A blocked turn generates a second pair for the
+    refusal, which is why this stops at the first match rather than the last.
+    """
+    for event in events:
+        if event.get("type") == "BotMessage":
+            return event.get("text")
+
+
 def get_and_clear_response_metadata_contextvar() -> Optional[dict]:
     """Get the current response metadata and clear it from the context.
 
