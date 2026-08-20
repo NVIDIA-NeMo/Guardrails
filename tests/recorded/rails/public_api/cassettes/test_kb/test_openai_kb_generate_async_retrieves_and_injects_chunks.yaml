@@ -1,0 +1,495 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      Host:
+      - api.openai.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: |
+          """
+          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
+          """
+
+          # This is how a conversation between a user and the bot can go:
+          User message: "Hello there!"
+          User intent: express greeting
+          Bot intent: express greeting
+          Bot message: "Hello! How can I assist you today?"
+          User message: "What can you do for me?"
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          Bot message: "As an AI assistant, I can help you with a wide range of tasks. This includes question answering on various topics, generating text for various purposes and providing suggestions based on your preferences."
+          User message: "Tell me a bit about the history of NVIDIA."
+          User intent: ask general question
+          Bot intent: response for general question
+          Bot message: "NVIDIA is a technology company that specializes in designing and manufacturing graphics processing units (GPUs) and other computer hardware. The company was founded in 1993 by Jen-Hsun Huang, Chris Malachowsky, and Curtis Priem."
+          User message: "tell me more"
+          User intent: request more information
+          Bot intent: provide more information
+          Bot message: "Initially, the company focused on developing 3D graphics processing technology for the PC gaming market. In 1999, NVIDIA released the GeForce 256, the world's first GPU, which was a major breakthrough for the gaming industry. The company continued to innovate in the GPU space, releasing new products and expanding into other markets such as professional graphics, mobile devices, and artificial intelligence."
+          User message: "thanks"
+          User intent: express appreciation
+          Bot intent: express appreciation and offer additional help
+          Bot message: "You're welcome. If you have any more questions or if there's anything else I can help you with, please don't hesitate to ask."
+
+
+          # This is how the user talks:
+          User message: "what is nemo guardrails?"
+          User intent: ask about nemo guardrails
+
+
+
+          # This is the current conversation between the user and the bot:
+          # Choose intent from this list: ask about nemo guardrails
+          User message: "Hello there!"
+          User intent: express greeting
+          Bot intent: express greeting
+          Bot message: "Hello! How can I assist you today?"
+          User message: "What can you do for me?"
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          Bot message: "As an AI assistant, I can help you with a wide range of tasks. This includes question answering on various topics, generating text for various purposes and providing suggestions based on your preferences."
+          User message: "What is NeMo Guardrails?"
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: |-
+              NeMo Guardrails (often written as **NVIDIA NeMo Guardrails**) is a framework for building **more reliable, safer conversational AI**—especially chatbots and assistants.
+
+              In practice, it helps you control an AI model’s behavior by adding guardrails such as:
+
+              - **Safety and policy constraints:** Define rules to prevent disallowed content or risky instructions.
+              - **Intent- and topic-based flows:** Steer the conversation using scripted or structured logic.
+              - **Response validation:** Check or constrain what the model is allowed to say.
+              - **Fallback behavior:** If the model is unsure or a request violates rules, it can follow a safe fallback response.
+              - **Grounding and consistency checks (depending on setup):** Ensure responses align with expected formats or provided knowledge.
+
+              A common use case is preventing a general LLM from straying off-topic, revealing sensitive data, or giving instructions you don’t want—by enforcing guardrails around the conversation.
+
+              If you tell me what you’re building (customer support bot, internal assistant, coding helper, etc.), I can explain which kinds of guardrails you’d typically use.
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 583
+          completion_tokens: 228
+          total_tokens: 811
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      Host:
+      - api.openai.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: |
+          """
+          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
+          """
+
+          # This is how a conversation between a user and the bot can go:
+          User intent: express greeting
+          Bot intent: express greeting
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          User intent: ask general question
+          Bot intent: response for general question
+          User intent: request more information
+          Bot intent: provide more information
+          User intent: express appreciation
+          Bot intent: express appreciation and offer additional help
+
+
+          # This is how the bot thinks:
+          User intent: ask about nemo guardrails
+          Bot intent: answer the question
+
+
+
+          # This is the current conversation between the user and the bot:
+          User intent: express greeting
+          Bot intent: express greeting
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          User intent: NeMo Guardrails (often written as **NVIDIA NeMo Guardrails**) is a framework for building **more reliable, safer conversational AI**—especially chatbots and assistants.
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: |-
+              Yes—**NVIDIA NeMo Guardrails** (often written as **NeMo Guardrails**) is a framework you can use to make conversational AI **more reliable and safer**, particularly for **chatbots and assistants**.
+
+              In practice, it helps you add “guardrails” around an LLM so it follows rules such as:
+
+              - **Refusing unsafe requests** (e.g., harmful content)
+              - **Staying within policy boundaries** (industry or internal rules)
+              - **Enforcing conversation structure** (required steps, formats, or workflows)
+              - **Handling missing context** (asking clarifying questions instead of guessing)
+              - **Managing fallback behavior** when the model is uncertain or off-track
+
+              If you tell me what you want to achieve (e.g., compliance filtering, refusal rules, tool-use constraints, or keeping a specific tone/format), I can explain how NeMo Guardrails would fit and what a typical setup looks like.
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 259
+          completion_tokens: 193
+          total_tokens: 452
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/embeddings
+    headers:
+      Host:
+      - api.openai.com
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      Accept:
+      - application/json
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/Python 2.24.0
+    parsed_body:
+      input:
+      - What is NeMo Guardrails?
+      model: text-embedding-3-small
+      encoding_format: base64
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        object: list
+        data:
+        - object: embedding
+          embedding: AOCOvAAA+TwAAF+8AKCMPADA5LwAwJM8AMCkvACAEj0AgHc6AADDOwAgk7wAIEG9AGC7OwBAL7wAgNQ8AKADvQAgNrsAgB68AMBWOwCAlD0AQJY7AMCcPQDge7wAQAa9AEAPuwAggzwAQII8AKAHvAAATjwAQE27AACCPQCACr0AAEi9AMAevADgkTwAgJW8AACvvACgnrsAwOe7ACBtPQAgVjwAwAK9AKABvQBA+DwA4IE7AICxugAAEDgA4A+8AAAFPQAA+jwAgEi8AAC8vADALDsAQFA8AOCqvAAAB7wAABG8AGBHvADgXbsAwHe6AMCPvADglL0AAG47AIDMPABAijwAoHw8AKCbvQBAFL0AYDE8AACruwBAOj0AYNm8ACD6uwDgA70AgAW9AGDcugCgZDwA4JY8AEAyvAAAK70AQDI9AOAHPQCAB70AICK9AADSvADgqrwAQAO9AMARvQAgxrwAoBQ9AGAVPADA1bsAwLC8AABGPQBAybwAoGO8AMA5OwCgcjwAgAE9AKAnvADAnDsAwEG9AMAtvQAAgLwAQEs9AKC3vABgUTsAACU6AMDjvAAA7jwAQOg8AAAWvQDAij0AIBY8AACIPQDgoDwAANK7AGDIuwDAUzwAwIK8AIBOvQCgHDsA4AI8AICRvQBAPzwAQAg9AOBZvAAApTkA4CK9AICBvACgCD0A4AC9AGBVPQCgSrwAIIa9AIBtPADg/LwAYI+9AACevAAAwTwAQCM8AOCJPACA5zwAgD+9AMAXvQAAnjsAoHS8AOBGvADg1LwAIOQ6AMCiOgAAKLwAwKC8AEAsPADAgrsAIB+9ACAuvABgazwA4O+7AICIPABgQL0AIBQ9AIDXuwCA1DwAIJY7ACDMPABgNrwAICO9AGATvQCgMj0AALY8AAAQPQCALbwAoHs8AOBqPABA/rwAwBe8AMDVvAAgbbwAgGw8AGDEuQDA0rwAAAK9AMCXPQCAkb0AgAg9AOCCPAAgPj0AgIy8ACDVPABASb0A4Bk9AGBbOwBAhjwAQIc8AKCFvQCgOTwAAMq7AECOPQBgyrwAACa9AOAvvACgvz0AAEe9AMCWPADgdTwAID28ACBCvQDgKDkAICA8AGATPQDArT0AQIq8AAC+OwAgDboAQAG7AMB/vQCgKz0AAH68AKCUPQDgiTwAIFK8ACASPQDgMz0AoKs8AECNPABg7DsAICg8AOB6PAAgKzwAAAa9AOAzPADA57wAwKi7AGCquwAAJD0AQP46AKBIvQAAej0AwJU8ACBMPAAAvTwAoJC8AABZPABgkzwAYMs7AACIvABAF7oAwDW7AACcPACg37oAQPQ8AACrPQDgN70AwLo6AEA2PQAA0rwAIAM8AOAHvQCgT7sAgBY9AKDFvAAALrwAIBq8AABuPABgqTwAgAG8AECKvACgx7wAoFc9AIABPQAgYb0A4Lu8AIDsuwAA5LwAgDU9AICFOwBALrwAgBM9AMB2vACAoLwAwBW9AMDRPAAAPjkA4GY8AMD3OwAArDoAABM9AEBxPADgq7kAgBS9AKC/vADAwrwAAHw2AGAJPABAeL0AILW8AEAgvQCgaLsAgPW7AAC6vADgDz0A4AK9AODovADgoLwAwFa8AAATvACAhbwAwOe8AICbuwDAP70AYCC9AEBGvQBgO70AwI28AADqvAAA6jwA4Jg8AOAwPQAgybwA4Fo9AEAcvQBAHT0AwDC9AODKvABAobwAwJ88AICQvABArDwAADK8AECnPACAfrwAADI9AIDUuwAALz0A4DK8AMBaPAAAlTwAoCQ8AKCZOgCAw7sAoFG9AKAfvQAgFroA4NQ8AGCTvADgWb0AoFu7AMAfPQAANz0AwDa9AEAevACAeDsAwAG9AABHPQDA0zwAoDo7AIB+vABg2jsAAEQ8AADLvAAggDwAQBq9AGDDPABgTTsAQJS7ACAkvABANz0AQLe7AODWuwCghbwAAKI8AEBzvADAijwAQCi9AAAJPQAAbTwAgHG7AEByPQAgHr0AYKk8AAAJvADAtTsA4Ei6AOAMPQBAlbsAwKc8ACD9vACAdrwA4Je7AAA3vQAACL0AoAK8AMCeuwCAxLwAoDM9ACBBPQDAi7oAoCk7AAC6vAAAZbwAYO28AAAZvQDgUzwAoKK7AOBCvQAggLwAAOs7AOCovABgIr0AALE8ACC0PADgljwAoKo8AGAcPACg6LsAwPe5AIA6PACgzLwAAAw9AIAtOQDgHb0AwDW9AACOOwDACrwAQHE8AIAKuwDgwbwAwC89AKCTvQBgID0AQJ88AGCMPABgHz0AAPA8AKCQOwAAMj0AgBA9AOCxOwAgtzwAAK06AAAWvQAAEDwAoFw8AADWvABghzwAIIy9AOC2PACAiDoA4D69AAByvAAAST0AwAQ9AGDkOwDAOL0AQOW8AABsPQCAwLsAgEk7AKDOvADgZzwAgAg8AACtuwCAHzwAQOw8AEATvQCgFr0A4Ha8AGC3PACgUr0AYBC9AEBsuwAAHLsAABK7AGAgPADgZjwAIJa8AABdvQCgKz0AIN28AMBdvQBgXDwAQGW7AEB5vQAgDz0A4Ko9ACChvADgRj0AYC+9AIBzPACApjwAQGQ8AKANPQBAm7wAgHm8AOA2vQAgnzwAwDe9AKCGuwAgSLwA4OO8AIBeOwCgObwAwP88AIAzPQBAGr0AQLu8AOA9PQDgBT0AgBO8AKAXvQBgtzwAQFa9AABYvACA5zwAoMO6AGChOwBAbrwAwGI8AEBGvABgXbwAwBU8AMBHPQAAUzsAoNs8AIDKuwCgxLsAoOK8AMADPACAHDsAgCi8AEDsvACA7DwA4BM9ACA0vQAA8rwA4HW8AGBRuwAAwbsAYDS8AADcPACgwLwA4Jq6AEDjvADAubwA4FQ9AOCFOwDAhLwAQNM7AEAvPQDAVLwAgCO8ACANPQDAP7wAAGc8AGBNOwAAbLwAINy6AADqPABAHDwAIAy8AGC9PABgxTwA4Lu7AIA/OwCAmbsAYE+6AIC7PACgJbwAYL+8AAACvADA4TwAoOG7AADGvAAgR7wAIFy8AKDBPABgybsAwIi7AEDAvAAASLwA4KK8AOAqPQDAaLwAQDm9AIAFPQBgL7oAwLa8AGBpPAAgBj0AQE08AOBgvADASzwAQJg8AMCcuwAAozwAABI9ACAJvACgDTwAIKc7AOAcPQAgM70AgIY8AMBEPABA0DwA4EO8AGCcPABgPr0AgNI5ACCQPADgu7wAgAo9ACD7ugAAmrsAIBu9AODGvABgFj0AYLk7AICOPAAAZbsA4LC5AEAHPACggDwAgLe8AAC0vABgUzwAAD09AMCsvADgMb0AwGS9ACBuPACAir0AILS6AGD3vAAA1bwAQD49AICQOwAAJLwAoCY8AAAMvQBAqzwAQGC8AGDlPABAzTwAADY8ACDYuwDAjLwAwA89AMAFPADgEj0AoIW8AGDSvAAAorwAABq9AMCQvADAN7wAIAW7AGA3PQBg+rwAIPE8AMBtvQCg/TsAYFM8AMAOPQAAjLwAQCo8AGAKPQDANTwAgI08AEBYvAAAIz0AYNg6ACAIvQBg9zwAgDo9AEAAvQBgxDsAADq8ACCbuQCAz7wAgFs8AEABPQCALTwAwCS8AODkuwBgubwA4AA8AICLPAAghTwAwBW7AACuPADAHrwAYJo8AEA/OgDA4TwA4Nq7AADiOwBAgTwAYK48AMBYvQAA8ToA4Cu7AACFvACg97sAwF48AICwvADgxzsA4Dm8AKAkPQAgMDwAYBy9AMCDvQAgerwAoD+8AIAVPQDA2DsA4JS7AKDRugDAIz0AIJM7AMChvACAAj0AgJC9ACDMvACAtrsAoAs9AMDsOgAAEz0AYL68AACWvADAMrwAAF66ACAVOwAgLz0AABs7AIBOPQBgezwAwL28AMAMvQDAZ70AoJW8ACC7OwDAmTwAgKO8AMBtPQDgxzwAYGO8AGCauwBggDwAQNU8ACAAvQDAaTwAgL68AKBSPQAgL70AoNu8AGA4OwCgSbsAAC48AEAaPQBAyrsA4FU8AKA3OwAAojwAoBs8AAB/vACAPjwAIBY8AAARvACgHT0AwAk7AAAQvQBA9LwAoPE7AMBOvADAwjwAAGK7AMCyPAAAt7wAAP48AGCzvAAAtDsAYCs9AKANvQBgY7wAQG28AMBeuQCgojoAoG26AOA9vQCgwbwAQI+8AGD3uwBgNb0AwA08AAApPQBglbwA4Hq9AAAdPABAkDoAwD48AEAguwDg1jwA4G48AGALvQDASj0AINi7AICJOQDgoLwAwAa8AEBjvACg2jwAwH+7AACWPAAAnTwAAEo9ACCwPACg3rwAAMi8AIBhvAAgmjwAwIe8AIDyPADAHDsAwHi8AEAFvACAYDwAYNg8AKCVvADAi7oAIHw7ACAOvQCgA70AoLq7ACCovADATjwAQIi8AIDpPABgdjwAoGU7ACC5vACgTr0AQIs8AAAePACAcbwAwPe7AKBsOwDgbbwAAJi8AEDGvACgirwAwCK8ACA8vQBgRLoAAKU8AMCBvAAAJ7wAQFe6AEAauwAAijwA4AG9AGD0OwBgx7wA4HE9AOB8vACgVrwAgIg8AGABPACAoLsAQGO9AGAVuwDgaLoAALS8AECMPADAsrsAIFw9AMAqvABAbrwAQGi7AACOvADgh7gA4E08ACDIOgBA5DwAgMS7AMCCOwAAlLwAgAy7AGBzvAAggbwAYFA8AECBPABApzwAwBo8AKD6uwAACz0AgKQ8AEDyPADAhrsAQAq9AMCCuwAgs7wAAMI8AMDzvACA3DsAgPa8AOC8PADgXTwAoMs8AECBuwDgBb0AgNS8AGBmPAAgRTwAQPO7AAByugAgITwAADY8AODTugCgF70A4OY8AKCTuwAAGr0AQLg8AKBYvABA6jwAQP+8AACvOwAAp7sAIKy8AGDNPABgtzwA4FK7AAAFOgAAyDwAAOC8AGA2PAAgwjsAgKK4AGC+uwDAmzwAwKK8AAAVvADg37wAoMg8AIDEPABgiTwAYEs8AGBfOgBAv7sAYN87AIAKvQDA/zwAQDg8AACavADgEL0AIPo7ACACvQAg4roAoDq9AOC1ugAAb70AwO66AEBfvQCAKLwAAGo9AAAsPQAgbToA4IO8ACCtOgCgsjoAwJo8ACBDPADgfDsAIG47AOCWPACgOTwAICW8AIAVPQBgmrkAgBo9AGA1PQCgEjsAwKo8AGBqvQAAZrsA4Gw8AGD6vAAgeDwAQMy6AMAvOwAggjwAYPw7AMBHvQBgObsAgOw7AODBvADgMT0AYMW8ACB6PAAgULwAAFo8AABsPAAA8zwAgC29ACCIvACggz0AwKA8AKD1vADgdL0AoNi8AMBAPACgLD0AALO7AOCNPACA5TwAoAg9AAB6PAAAZTsAoGo8AKAQvABgXjwAAAo9ACAIvQBA1TwAwBK8AMAFPQBAFr0AgNQ8AGBcuwDgTzsAwPe7ACCdvAAggDsAoEW8ACCqPABgwzwAQAK9AIADPACg3bwAID48AMDrOwDAkjwAwPE8ACCkOwCALrwAIBU8AIC9PAAgvzwAwK68AAByvADgMzwAAOg8AABfvADAizwAoIM8AIDOPACAALwAwHK7ACBaPADANzwAgME6AKC9PACgBz0AQOg8AKDiuwBAJDwAIK88AACSuwBAW70A4Bw8AOB2vACAmTwAIFQ8ACBmPABg5zwAABi9AED/vAAgnDwAIFQ7AGDFPABAEToAQH88AGCwPACg6jwAgCg9AECyPADgVjwAQBM7ACCKvADAB70A4Mi7ACCUvADgAb0A4IE8ACAPPQCAED0AoBY9AMCTPABgIb0AQPa7AIC/OQAABr0AoOQ8AMC5vACAzrwAALI8AECOPABA/joAoNg8AEBwPACARjwAYFW7AIBAvADAsjoAYOM6AADOPABAyDoAgNg8AOCavABg0roAwHm6AKCmPACABLwAAIK8AOBEPAAgzzsAwPi8AKA2PQCARzwAgGw8AACqPADgzTsAIJW8AEDevABAcbsAoJk8ACBAvQBg8rkAAD+8AGCfPADgAL0AwCG8AKCAvABAHjwAIJY9ACDzvABAxj0AIOE8AODXuwCArzsAgI28AAABPABghjwAQDs8AOB6uwCAGDwAwF66AOCXvAAgk7wAoCO9AMDmuwBARLwAYM28ACBrvAAA7bwAAIY7ACCRPADA8rsAAKo8AMCuOwDASTwAwD68ACCCvACAr7oAYCA9AKDpPAAAr7wAwLW7AECiugDgEDwA4Bs8ACCGPACgXLsAQO67AKDGPADAT7wAAIM8AOBwvAAgrzwAAKu8AEBbPADg07sAgOq4ACAYuwBgejwAoHS8AOBhPADAo7sAwCa9AIB/PADAg7sAgNw8AMDmPACgFD0AIJY8AEAqvABg+jsAoGo7AEDWOwAA9LYAgIQ8AGDDPABACz0A4GG6AOAIPQDgP7wA4Ms7AGDSuwAAkTwAIGY8AMCnPACAKTwA4Mc8AOCEPAAA4TwAwDC9AOAjvACg4LkAgPY7AIAtPABg3TwA4MG7AMCrvACgXbwAgAY8AEDNuwBguToAoCW7AKDIvAAg4DwAILI5AICuPADgYrwAAKY7AICWPACgAjwAIFq7AGBzPABgVb0AQDc7AGBYOwDA5DwAgI83AKCUvADgvrwAAE48AKDFvACg3DoAYH26AOCpugBgGrsAANK8AIAnPQCgPjwAQJu8ACDhOgAAkjwAYMG8ACBzvADAzLsAYLi8AKDjuwAgKLwAwKS8AIALOAAA/LYAIJK7AOCEPQBgnDwAgCW8AACWvAAAN70AgLA7AGBXuwAgwTsAILs8AADbvABAIroAoPu8AEA1PABgZrwAoCI9AICjvACAJDwAwLM8AOAwvACgabwAYNA7AIARvADgNzwAYLM8AAAAvQCAIzsAoGI7AKDHOwBgdLwAwFS9AKCQuwDg0bsAAKc7AKB2PQBAuLwAwHk8AODGvADAAD0AoIG8AADOOwBAyTsA4JA7AMBqOQDAJrsAADi9AECIvAAgmrwAwLY8AKCEvACgljsAoBQ9ACAoOwDA1rwAALA8AGCpvACAsTsAgJW8AGC1uwCgRDwAAJ88AOA6vQCACr0AAAg8AOCQvACgKrsA4GE8AOBBPADg2ToAgJU9AIANOwCg1LsAoNc8AAD1PABANDwA4Eo7AIDIvACA/zoAIEY8AKACvQBAv7wAgEc7AAAEPQBA4TkA4A49ACDrOwAAKb0AAMQ8AODXugAgM7wAAD+8AIBHvQAAcTwAQJ07AEBEvQAAdbwAgJs8AKCtOQAABr0AoO67AOAxPQCgHb0AILi6AODEugBgd7wAoA+8AADFPAAgnbwAgBS9AMCtOwAg6DwAIM88AEAyvQBAn7wAQAe9AOBDPADgMLwA4CY8AMCqvABgPT0AABu9AIAUOwAg2jwAQFi8AOAMvABggrwAwOo8AACSOQCgZDwAAHq9AIBGvADA+bwAIHs8ACDvuQDASb0AYCI7ACCEOwCgIrwAYFU9AEBpuwCgJ70AACK8AOCPuQAAiDsAAMC8AAC1uwCgvLoAYBQ9AMA6vAAAZLsAYNw7AAA0ugBgVLwAAMe6AIAnPQAADz0AwKO8AMAVvACg2LwAYHK8AICaOgCAXzwAABW9AECLvACgkDsA4BW8AOCouwAATb0AYCC6AEA0PQDAorwA4Bs9AMBoOwDAr7wAwKM8AKDyugDAKDwAgNs6AICxPACABb0AADE9AKB9PAAg5jsA4NK8AOCJPABAnDsAgLw8ACBvPADg8bwAgME8AACUuwDgv7kAIOs8ACCMOwCAjD0AILa7AEAJvADACL0AYAY9AMCkOwBgbbsAoAK7AIAVvADglzwAgHe8AMCcPAAAhLwAgKo7AOAwPQCAIzsAIKK8AGAlPAAgAr0AoB08AIDVPABgcbwAAKc3AOAEvQDgAz0AYM87AAAYPADAJr0A4Bq8AGCmvADAEDwAAEI9AOC9vAAAmLsAAMS5AAAUvQAAmDoAYGU6AICyuwCAH7sAQFG5AIAbvACAyjwAIBU8ACAbPACATroAgKK8AID5OwDgbLwAoN28AAADPADAgTwAYIE8AEAkvADgObwAAPK8AKCjPADA+LoAAC08AEA6OwAgvLwAYJS8AIDUugBg0DsAYDe9
+          index: 0
+        model: text-embedding-3-small
+        usage:
+          prompt_tokens: 7
+          total_tokens: 7
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      Host:
+      - api.openai.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: |
+          """
+          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
+          """
+
+          # This is how a conversation between a user and the bot can go:
+          User message: "Hello there!"
+          User intent: express greeting
+          Bot intent: express greeting
+          Bot message: "Hello! How can I assist you today?"
+          User message: "What can you do for me?"
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          Bot message: "As an AI assistant, I can help you with a wide range of tasks. This includes question answering on various topics, generating text for various purposes and providing suggestions based on your preferences."
+          User message: "Tell me a bit about the history of NVIDIA."
+          User intent: ask general question
+          Bot intent: response for general question
+          Bot message: "NVIDIA is a technology company that specializes in designing and manufacturing graphics processing units (GPUs) and other computer hardware. The company was founded in 1993 by Jen-Hsun Huang, Chris Malachowsky, and Curtis Priem."
+          User message: "tell me more"
+          User intent: request more information
+          Bot intent: provide more information
+          Bot message: "Initially, the company focused on developing 3D graphics processing technology for the PC gaming market. In 1999, NVIDIA released the GeForce 256, the world's first GPU, which was a major breakthrough for the gaming industry. The company continued to innovate in the GPU space, releasing new products and expanding into other markets such as professional graphics, mobile devices, and artificial intelligence."
+          User message: "thanks"
+          User intent: express appreciation
+          Bot intent: express appreciation and offer additional help
+          Bot message: "You're welcome. If you have any more questions or if there's anything else I can help you with, please don't hesitate to ask."
+
+
+
+          # This is some additional context:
+          ```markdown
+          NeMo Guardrails is an open-source toolkit for adding programmable guardrails to
+          LLM-based conversational applications. The unique retrieval marker phrase for this
+          document is "guardrails-kb-marker-7f3a".
+
+          Guardrails (or "rails" for short) control the output of a large language model, such
+          as keeping the bot on topic, following a predefined dialog path, or refusing unsafe
+          requests.
+          ```
+
+
+          # This is how the bot talks:
+          Bot intent: refuse to respond
+          Bot message: "I'm sorry, I can't respond to that."
+
+          Bot intent: inform cannot engage with sensitive content
+          Bot message: "I will not engage with sensitive content."
+
+          Bot intent: inform cannot engage with inappropriate content
+          Bot message: "I will not engage with inappropriate content."
+
+          Bot intent: inform cannot engage in self harm behavior
+          Bot message: "I will not engage in any self harm behavior."
+
+          Bot intent: inform cannot engage in abusive or harmful behavior
+          Bot message: "I will not engage in any abusive or harmful behavior."
+
+
+
+          # This is the current conversation between the user and the bot:
+          User message: "Hello there!"
+          User intent: express greeting
+          Bot intent: express greeting
+          Bot message: "Hello! How can I assist you today?"
+          User message: "What can you do for me?"
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          Bot message: "As an AI assistant, I can help you with a wide range of tasks. This includes question answering on various topics, generating text for various purposes and providing suggestions based on your preferences."
+          User message: "What is NeMo Guardrails?"
+          User intent: NeMo Guardrails (often written as **NVIDIA NeMo Guardrails**) is a framework for building **more reliable, safer conversational AI**—especially chatbots and assistants.
+          Bot intent: general response
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: |-
+              NVIDIA **NeMo Guardrails** is an open-source toolkit you can use to add **programmable “guardrails”** to LLM-based chat or conversational applications. The goal is to make the assistant’s behavior **more reliable and safer**, and to reduce unwanted outputs.
+
+              In practice, NeMo Guardrails can help you:
+              - **Keep the model on topic** (based on what’s appropriate for the conversation)
+              - **Constrain dialog flows** (so the bot follows certain paths/steps when needed)
+              - **Refuse unsafe or disallowed requests** (according to rules you define)
+              - **Control output formatting or policies** in a structured way
+
+              Instead of relying only on prompting, you define rules—often expressed as a combination of configurations and logic—so the system can intercept or correct the model’s responses when they don’t meet your criteria.
+
+              If you tell me what kind of chatbot you’re building (support bot, booking assistant, internal policy bot, etc.), I can suggest which guardrails you’d likely want to start with.
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 810
+          completion_tokens: 215
+          total_tokens: 1025
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/embeddings
+    headers:
+      Host:
+      - api.openai.com
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      Accept:
+      - application/json
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/Python 2.24.0
+    parsed_body:
+      input:
+      - |-
+        # NeMo Guardrails Knowledge Base - Overview
+
+        NeMo Guardrails is an open-source toolkit for adding programmable guardrails to
+        LLM-based conversational applications. The unique retrieval marker phrase for this
+        document is "guardrails-kb-marker-7f3a".
+
+        Guardrails (or "rails" for short) control the output of a large language model, such
+        as keeping the bot on topic, following a predefined dialog path, or refusing unsafe
+        requests.
+      model: text-embedding-3-small
+      encoding_format: base64
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        object: list
+        data:
+        - object: embedding
+          embedding: AGB6vADgdj0AgAM9AMDNOgDAl7wAwNu6ACBTvQCgSz0AQAq9AODjPABgv7sAwDy9ACAeugBgKrwAgPY7AMDdvADggbwAIIs7AOD+OwBAlj0AwKs8AEAkPQDgoTsA4L+7AKC5OwBgQDsAIFI8AEB4PAAggrwAAIG7AGAnPQDg97wAgHa9AED4OwBg5zsA4MC8AMC9OwDAzToA4Ly7AMBYPQAgyrwAIFu9AADZvACAtTwAgC84AMDxPAAALjwAAEK8AOCOOwAAMz0AQBm9AEBkvACAvrwAID89AACBuwDAkbsAgDu8AID/uwAAjDwAIG28AGDavACAWL0AoMC8AMDXPAAASbwAQI+8AMDNvQDgpbwAQJC7AIA7uwCgaj0AIA29AGD+vACAnrwAwKq8AOBqvAAAxzsA4Dg9ACDjvACgkb0A4D89AAAqPABA7LsAoH69AGA6vAAAjrkAIGi8AODXuwCgcLwAwAi9AODBvADAOLwA4Iq8AACWPQBA2ToAoJ68ACAXuQDA0LsAwAY9AGDZOwCArDwAoHm9AIA1vQAAML0AQI89AIARvQAgFjwAQKI8AOCmvQAg87sAYFG9AIA8vQDgXz0AQKo8AKCHPQDAQToAwI68AKC2uwCAKz0AoJE4ACB3vQDgXrsAABa8AOB7vQAgazwAYPA6AGDlPADg5zwAoJS8AIC7ugBgMTwAgAW9AEBLPQAgdbwA4Cm9AGCMuwBA3bwAIF69AOA1vACAPD0AYO08AKDTuQDgwbwAQAm8AECfvQDABrwAoMS8AOC8OgAggb0AwKE8AGDtOgBgcrwA4GK9ACBRPACA0bwAQOq8AKBXvQDgfjsAYFu8AGCjOwDgNrwAIIo9AAAYPACAuzwAIEq8AEDXOwBAG70AoJA8ACALvQAg0jwAgBg8AOCjPADgI70AwJs7AGCEvADg8rwAII28AAAPvQAA6LwAIK48AEDOvACAe7wAYCy9AOAwPQBgcL0AAIC8AMCaOwAgqTsAQD28ACAjvACgJr0AwDs9ACBGPQCAAD0AwCY9AGA4vQAg7jwAoAy9AOCcPQDgFL0AoBC9ACD3PACAkT0AIFa9AMAsPACAyjwA4JW8AODcvADA/7wAAIi8AMCWPADAGz0AQEQ7AEBPugBAALwAgJo8AOBBvQBgXz0AQC+9AOBMPQBADTsAAGY7AGDAPAAACzwAIDs8AOBcPACAOz0AwE+8AIAAPQDgszsAAJU6AODSOwBAoLwAILO8ACAGPABg5bwAwL68AODtvACAVj0AoJ27AMCqPAAA1zoAgIo7ACAjPABgiDsAgDE8AIAtvACgYrwAAEg9AEAaPQDghbsA4BU9AKCAPQAgC70AoA69AKD8PABgrbwAoIG7AOAFvQCgnbwA4A09AAB5vAAAQbwA4G88AAD5OQAg47kAYAm9AMBMvABgBr0AIKE8AICFPAAgc7wAID+8AIDmuADgQr0A4Im8AOBtPAAAyLwAAAM9ACBUvABAnbwAYLy7AOC2PACgszsAgIk8AEDnOwDg+TwA4Lc8AOCzPACABrsAIIa8ACBMOwAgkzwAIDk7AOANPACAobwAgFM9AEDOvABABjwA4By8AECJvAAAJz0AwKm8AMB1vAAAwrwAAHi7AMA1PABgT70AgAS8AGCbvADA+LwAAJy8AMAbvQAgcLwAQF69AIAdvQDghj0A4IE8AOCKPQAAZbwAoI88AGDHvAAgNT0AwEm9AIBFvAAgQToAwNA6AGBvvACg7TwAgJ27AADoPADgMb0AgOc7AGAnPADAOzwAYAu9AOCQvABAAD0AIFI8AKDyuwBgnbwAgDa9ACBJvQBg8rsAACk8AMAzvAAARr0A4I67AKBGPQDgCz0AwB69ACCUvABAYrsAILW8AIAlPQAgC7sAgIS7AMBUvQBAtDwAYNg8AKBJvQCgFTwAoCG9AICSOwBgFLsAADc7AMAPvQAAfbwAgAo7AOACOwBgYrsAQFi9AEAUvQCglbwA4Fy9AACJPACgELsA4KW8AEBSPACAgLwA4AG7AAAZvQBgRrwAQJo5AIAQPQDAhjsA4BE8AGCPvACACjoAAKo7AKAHvQBg3zsAwAe9AECruwCgJ7oAYEE9AKAhPQDgfDwAgC89AECEPADAiDwAQCW8AID7vABA+DwAAO87ACBcvQBguzwAoM88AIBuvAAgnLwAgKU8AEDcPAAgljwA4GS6ACAJPQAA6LsAIAk9AAB5PABgu7sAQNE8AGDtPAAAgb0AoEe9ACDAvABgjTsAAF49AKDEPACADb0A4GY8AACCvQAAxTwAgJI8ACAOPQBghrwAIA89AGBjuwBgGT0AQC89AGAzvADAF7wAwDc8AIC1vABgmrwAAH08AKAbvQAgNz0AoIy9AABDvAAgCDwAQEq9AICIvACAgTwA4CA9AICdNwAAar0AgN+8AKCAPQBg97oAwDk8AAAnuwAgJD0AoCk9AOBBvADAlTsAwIu6AIDFvAAgRb0AwJi8AGCgPADAZr0A4My8AGBEvADAZbwAgIS8AIC7vACgDzwAQFW8AABUvQDAFj0AYAi9AKBPvACAKj0AwOc7AACyuwDAxjwAIPc9AGCnvABAKT0AgIe7AIBauwAghDsAwEG6AOAdPQAAibwA4La8ACDOuwCgmDwA4GC9AICEPACArLsAwBi9AOCEvADAO7wAYOE8AOCBPABAg7wA4O+7AAAxPQBg6zwAILM8AMDDvADAeLwAwIu8AIA1vACAGD0A4B86AAAMvAAgpbwAgEm7ACDzuQAAQbwAIOQ7AMDKPADANzoAgNI8AOBjvAAgRbsAoJu8AMBzPABgBjwAgHg8AIAOvQAgUD0AQOw7ACA0vQCABb0AQOa7AECcugBAwbwAIEO9AAC3OwAgh7wAAOY8AKDAvABgrLwAALc8AMA5PADgg7wAACg8AIAqPQAgz7sAwMu8AIAFPQDAJrwAQLm6AEDmuwCgG7wAIOI6AKAAPQCAdjsAwFW8AACUuwDg1TsAQCm8ACDOvACAmrwAIGO8AEAPPQCAersAwAK9AOCIuwCgMLsAQCu8ACDFOwCgxzwAYDe9AIAuuwBgYjwAQHM8AMC8vADAAbwAwCu9AECbPADAFL0AIES9ACDWOwDgsDwAQJ68AGCzvACgDD0AYI08AACPvADACrsAoBg9AMDIvABA2DsAIDo8AGDTvACgObsAQJI8AAArPQCAJ70AIG68AEA9PAAAEz0AQLO8AAAYOwCAurwAYBc8AKCCPACgNrwAwFw7AIChvAAAFL0AgFu9ACANvAAAajwAYCa8AMDgPABgrLwAwBa8AMDdPABgEbsAQEa9AOAlvADAsTwAAB09AKCevAAggr0AAGe9AMDsOwDA87wAIH48AGA5vQAAQbwAIB49AOBXPACgr7wAwNg8ACDEvABAlzwAwK47AKAHOwDAhzwAQMI8AKC5vADAvbwAQOY8AOCGPAAA5DwAgC+9AOCcvABAJLwAQPG8AECVOgDAw7wAoIW8AOAmPQCgGLwAoO08AOB3vQCAeDwA4JQ8AEBoOAAAG70AAA09AGAAPAAAHjwA4Ow8AECqvABgkLwAoCW8AABbvABAoTsAQIA8AGCSvACgFjsAYHC8AGCyvAAg0TsAgJO8AIDQPABgmrwAwCW9ACDkOwCgsLwA4M08AKCkPACgaz0AAHY7AADcPABgCr0AwHq8AEAgvAAARDwAQIQ8AOCnOwAgujwAQLE8AIC6vADAkrwAYIq8AKCivADgvbwAgKU7AAAmvQAgujwAwPG6AEBLPQBADLwAQAO9ACAfvQBAkjsAwGO8AKC/uQCgijsAwMK7AEC2vABAJD0AQKI7AMAUvQBgIT0AIIC9AOBAvQCgqbwAwA89ACCOOwCgUD0AYMS8AIDfvAAgPzwA4Go8AMDPOwCAHjsAQBU7ACCFPABgTLwAIJG8AGAGvQAgh70AIEy7ACB6vABAvbsAYKK7AGBrPQBAbjwAoCa8AMA7PABgDTwAYPw8AMDbvABgTjwAoBi9AIAPPQDgsjoAgBq8AEApPACA87sAoIk6AEAhPQCAaTsAwIk8ACB+PABAozwAQKo8AICtuwAgdzwAQOw8AEAZOgDgGD0AQIw8ACDpvAAAA70AgGq7AOBhPAAABD0AoLu8AGC1PAAgDjwAwPY8AIAHvQAg6DsAgL48AOBHvQAAnroAwNu6AGAHvQAAvbsAoBu8AOAMvQDAR70A4HK6AGAHvQAARr0A4F08AEA0PQAgdbwAIJ+9AMD2uwCgorsAgJc8AMBfPAAgkjwAIIM8AADvvACg1jwA4O+8AABQuwDAPzwAIGi8AMBBPABgDTwAIEO9AGCyPAAgyjsAQAQ9AICFuwAAhrwAICe9AOAhvQBgWDwA4D68AGAvPABAmDsAYH88AKAWPABgBT0AgOU6AGAtvACgwTsAYJM8AMANvQCAA70AoOA7ACDwvADgZ7wAgCU7AAD2PAAgabwAYPQ8AEDSvABAAL0AoK88ACAZuwBAwzsAQAu8AEALvACgybwAIDC8AMCVvADgOLwAwEo8AACCvABAezwAQJI8AGCVPABg3TwAgMk7AKBQvABAITwAQJe7AEChuwBA8bwAQGE9AMDNvADgo7wAYB+8AMAavACAobwAYAW9AEBnPABAOjwAwDg8AICPPAAg1DwAwAw9AAAbvADg/rsAoLa8AAA4vQBAVDsAQDo8AGAgOwBgYD0AgLi7AEDeuwDAATwAQLU8ACCiuwBghbsAoFE7AMDPvACgCLwAwMI6AODEPAAgqjwAYPe7AOBgPAAg9bsAAFa9AMAXPADgDrwA4BA9AIDYvACAQTwAIHO8AAC7uwCAEj0AAKI8AECgvABANL0A4Ki8AKDZPADgcT0AQAo8AMCgvABAxzwAoDM8AAAIvABA5rwAYAo9AECnvAAgWbwAwJ08AKAMvABAED0AoKO8AMBWvAAAXLwAwAK9AOCtOwDAX7sAAAI8AKAGPABAGz0AYIW9AMAPPQDATLwAQLQ8AICTPABADz0A4JS8AKA0vACAtbwAQP07AEBQuwBgQjwAYCo9AIAzvACgr7sAoNc7AMCbvAAAET0AYGg8AMBdvQBALrsAQE48AABdvQCgQDwAIBq9AGA9OgBgI70AoNc7ACCNvAAgCbwAIMM8AKDvPADALbwAYA69AGAAPQAAvDwA4Nc8AIA3PQAAyDwAwLm7ACCqPAAghTwAoMK7AMACPQDgWLwAoCI9AOAyPQDgjbsAoJs8AAA/vQCg1rwAQME8AEBMuwCgoDwAwEK8AGCiPABgObwAADi9AGDDvACgLDwAAB+8ACAmOQBAubwAgJg8AKCQOwAAuLsAQBc9ACAAPQCgkjoAYKK8AGBCvACALD0AwKO8AGAyvAAgf70AYBS9ACAkPABgcDwAgMS7AODOPAAgEz0AYKk8AMCYPACAtboAwIs7ACDouwDgID0AgJU8AIAAvQDATDwAQCS6AIBuPAAgnrwAQOm5AEAuvAAACTwAIKI8AECovACAcbsAQOm8AODtPADgBD0AIPy7AECbugDg1bwAYBU8AOB7OwDgajwAgFg8AIDzPABgbbwAoEC8AICqPADAeDsAQE08AADxvABg4DwAgII8AGCJPABAnjwAgFg8ACCHPAAgRzwAABY7AECkOwAA1LwAAFO7AIA/PACg3DsA4B89AODXOwDgtjsAoLs7AEARPQDAJ70AII48AIA3vQAgEzsAgFo8AIAkPACAljwAwKq8AGCquwCgSTwAANm7ACABPABAmbwAABE9ACCHPAAgxjwAoK08AOCPuQCgjjwA4CE9AMC+uwBg9LwAALO6AEAPvQBACL0A4B09AIADPQDgfDwAACE9AIAKPAAAXrwA4Nq8AIACOwAAT7wAICA9AOCgvABA1LsAAEk8AKB+PADg5zwAQH08AGCruQAAW7wAIGe8AGD5vABAHjgA4IM8AKB3uwDgNrwAIBk9AIDSvADgHLoAYHA8AOA5ugBAqLwAILu8AKDUugDgI7oAAIi8AEDpPAAAfrwAIAI7AGC9uwBASrsAgBW9AOCOvACACjwAgJM8AAC8vADAfTsAALQ4AMCfuwBgirsAgEu8AABMPADA2zsAgHE9AECVvADAgj0AIMY8AMASvQCAwzwAYFW8AKCIPABgtzwAwKa7AACXvADAojwAIDu8AKCVuwBgObwAgBW9AAAfvACAUrwAQKq8AIBVOwDAYbwAgEU8AIAVPQAASToA4D88AMBNvAAAC7sAIMS8AOC0vACgILwA4C49ACAzPQDgzrsAgLK8AED0vACgazwAYMa8AECZugCg2jwAoBq8AGDGPACA+LwAwFw8AGDkvABgiTwA4PK7AMA0OwCg0LsAoJc7AICDvAAgzrsA4PK7AGACPQAAebsAYPm7AICnOwDAD7sAwDo7AECnPACAuTwAAKM8ACANuwCgjrwAoCE9AMC0OwDgjDsAQNy7AACjvACgmTwAgFm6AAC6PADADzwAIO27AKDqOwDAbjwAYIU8AKDgPABABD0AYCg9AKA5vAAA/jwAYPC8AGB6vADAQLwAAIw7AEBhvAAgDT0AQN47AAAEvAAAy7wAIM46AACYPACAoTwAAEA8AKASvAAgYj0AoDi8AICSPAAg6bwAwOk7ACAfPAAAtjwAYIq5AECYuwBgP70AAJ88AAAFOgAg3TwAYMG8AOBouwCgFLwAgKI8AMAXvQDA8LwAoJ67AMB7vABgEbwAQLK8ACCSPABg/jwAoDC9ACC2vADgrjwAICE7AAA3uwBg7zsAwOy8AIA3PADAxzwAIMW8ACALPQCAjroA4MQ7AMAdPQBgw7sAQBO8ACDeuwAAmbwAoPI8AMCFuwDAZrwAgIW7AEA4vADgozwAYC28AIA1uwAAIjwAIBM9AEAkPADgODwAYNg7AMC8vADA7LwAYNg5AKB3vAAApzwAYMk7AGC6vAAAADwAgNK7AIB9uwBAgLwAoNy7AKDNuwAADr0AYGC7AKByPQDgEr0A4Kk8AOCcOwDg0jwAQKs8AABDOgDA/ToAQKK8AICzOwCg5TwAwDK9AMDGuwCAq7sAACU9AIAGvAAg2LoAgNo8AACTuwDAe70AQB28AGBEvAAgc7wA4FC8AAC/OwAg8zwAQAM8AKCMuwDAW7wAIK68ACANvQAgfjwA4CQ8AKAIPAAgkzwAoEA9AOBiPABAJbwAICY8AOABPQAg3DsAICo8AMAfvQBgzjwAoCy8AKAavQDgcbwAAHu7AOC+PADgbDwA4NI8ACCuPADgubwAgE48AGDRuwAgEbwAgJO8AOAmvQAgZDwA4Ay9AMDDvABAWTwAgH08AOCNvACA47wAwE+8AIAaPQBA3bwAIGO8AEDpPAAAhrwA4Ce8AKDauwDAqLoAADC8ACAPPABgQDsAwDA9AMBuvABgzrwAIJC8AADsPACgYjsAQA48AOCQuwAgFj0A4C68AGAYvAAgmjwAwNS8AOBEOwAA57wAwCs8AMCEPACASTwAoAG9AODAvACgH70A4GU8AEBBOwDARrwA4J07AADvugCgATwAIAc9AAD+PABgL7wAoBi8AMD6uwBAiTwAAAq8AGAuPADAlzsAoAM9AABgPADAHjwAYNw8ACCfvADAkrwAYLy8AGDaPADAtjwAgB68AGC0vABAk7wAgPa7AKBFvADggTwAIIm8AEB7vACAiDwAANm7AOC3uwCA/bwAQEc5ACBJPQAAkrwAwJE8ACCzPACgs7wAALY8AKDlPAAAqjsAABM8AAD+uwDA8bwAoIM8AKAQPQBgHToAYM68AMAAPQDABrwAAKI8AMBnPADgUb0AwDc8AABGvAAADbsAAC48AIBiugAASj0AALS7AGDbvABAhLwA4Bs9AKCPuwDgsbsAAKi5AIAtPABgAz0AgK28AIAgPQCg77kAoAg8AOAfPQDgGroAQP28AOAdugAAGr0AwGA7AKDOPADA4zsAYP68AGD6vAAA9jwAQNm6ACCluwAgrLwAQNe8AGAFvAAAjjwAgCU9AGBevADA7rwAoA28AOAmvQAAS7wAYGc6AKCBugDACDsA4As8AOAzPADgGzwAgF28AADsOwDAeDwAwNa8AIBlPACgIDwAQNS8AMCGPACA7DwAgMS6AACnvABgkbwAQEq9ACBLPQAABrsA4Pc8AICBvABAqLwA4L28AAA/PAAAoDwAoBu9
+          index: 0
+        model: text-embedding-3-small
+        usage:
+          prompt_tokens: 96
+          total_tokens: 96

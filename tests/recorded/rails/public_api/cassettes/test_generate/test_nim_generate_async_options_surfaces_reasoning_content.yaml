@@ -1,0 +1,65 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://integrate.api.nvidia.com/v1/chat/completions
+    headers:
+      Host:
+      - integrate.api.nvidia.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: user
+        content: Say hello in one short sentence.
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Connection:
+      - keep-alive
+      Access-Control-Expose-Headers:
+      - nvcf-reqid
+      Nvcf-Status:
+      - fulfilled
+      Vary:
+      - Origin
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        choices:
+        - index: 0
+          message:
+            content: Hello!
+            role: assistant
+            reasoning_content: "Okay, user just wants a super short \"hello\" in one sentence. Hmm, seems like they're testing\
+              \ if I can follow simple instructions precisely. \n\nLet me keep it minimal - no extra words, just the bare\
+              \ minimum to say hello. \"Hello!\" feels too abrupt though... \"Hi there!\" is warmer but still short. Wait,\
+              \ \"Hello!\" alone is actually perfect - it's the standard one-word greeting. \n\n*checks instructions again*\
+              \ \"One short sentence\" - so even if it's just \"Hello\" that's technically a sentence. And it's exactly what\
+              \ they asked for. \n\nUser probably wants to see if I'll overcomplicate things. Nah, they said \"one short sentence\"\
+              \ so I'll just give the simplest possible greeting. No fluff. \n\n*double-checks* Yep, \"Hello!\" is one word,\
+              \ one sentence, meets all requirements. Done.\n"
+          finish_reason: stop
+          logprobs: null
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        service_tier: null
+        system_fingerprint: null
+        object: chat.completion
+        usage:
+          prompt_tokens: 23
+          completion_tokens: 193
+          total_tokens: 216

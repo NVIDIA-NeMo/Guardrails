@@ -1,0 +1,8 @@
+define user ask about nemo guardrails
+  "what is nemo guardrails?"
+  "what can nemo guardrails do?"
+  "tell me about nemo guardrails"
+
+define flow answer questions about nemo guardrails
+  user ask about nemo guardrails
+  bot answer the question
