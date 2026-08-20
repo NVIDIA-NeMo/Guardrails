@@ -240,7 +240,9 @@ def build_chat_completion_message(
     if content == "" and tool_calls:
         content = None
 
-    # Only pass the key when there is reasoning to report.
+    # Passing reasoning_content=None would add a real None entry to the message's extras,
+    # which changes message equality and puts the key on the wire for callers that do not
+    # exclude nulls. Omitting the key is not the same as sending it empty.
     extra: Dict[str, Any] = {"reasoning_content": reasoning_content} if reasoning_content else {}
 
     if not tool_calls:
