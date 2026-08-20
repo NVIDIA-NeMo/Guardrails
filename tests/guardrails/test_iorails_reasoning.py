@@ -189,6 +189,18 @@ class TestReasoningContent:
         )
 
     @pytest.mark.asyncio
+    async def test_reasoning_only_response_returns_the_think_block(self, iorails):
+        """A response with reasoning and no content returns the <think> block and runs output rails on ''."""
+        messages = [{"role": "user", "content": "hi"}]
+        _stub_safe_rails(iorails)
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="", reasoning="thinking step"))
+
+        result = await iorails.generate_async(messages=messages)
+
+        assert result == {"role": "assistant", "content": "<think>thinking step</think>\n"}
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "", enabled=True)
+
+    @pytest.mark.asyncio
     async def test_malformed_think_tag_opener_only(self, iorails):
         """Opening tag without closing → no extraction, content preserved verbatim."""
         messages = [{"role": "user", "content": "hi"}]

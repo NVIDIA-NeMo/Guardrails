@@ -2273,7 +2273,7 @@ class TestModelEngineChatCompletion:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_raises_on_null_content(self):
-        """content=None with no tool_calls is malformed; chat_completion() raises ModelEngineError."""
+        """content=None with neither tool_calls nor reasoning_content is malformed; chat_completion() raises ModelEngineError."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{"message": {"content": None}}]})
 
@@ -2316,6 +2316,32 @@ class TestModelEngineChatCompletion:
         assert result.tool_calls[0].function.name == "calculate"
         assert result.tool_calls[0].function.arguments == {"expr": "2+2"}
 
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_parses_reasoning_only_response(self):
+        """Reasoning-only responses (content=None, reasoning_content set, no tool_calls) are parsed, not rejected."""
+        engine = ModelEngine(_make_model())
+        engine.call = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "reasoning_content": "the model thought out loud",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ]
+            }
+        )
+
+        result = await engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+        assert result.content == ""
+        assert result.reasoning == "the model thought out loud"
+        assert result.tool_calls is None
+
 
 class TestParseChatCompletion:
     """Direct tests for the _parse_chat_completion helper."""
@@ -2350,10 +2376,75 @@ class TestParseChatCompletion:
         with pytest.raises(ValueError, match="Unexpected /v1/chat/completions response shape"):
             _parse_chat_completion({})
 
-    def test_raises_on_null_content_without_tool_calls(self):
-        """content=None with no tool_calls is malformed and raises ValueError."""
+    def test_raises_on_null_content_without_tool_calls_or_reasoning(self):
+        """content=None with neither tool_calls nor reasoning_content is malformed and raises ValueError."""
         with pytest.raises(ValueError, match="Expected string content, got NoneType"):
             _parse_chat_completion({"choices": [{"message": {"content": None}}]})
+
+    def test_parses_reasoning_only_frame_when_content_none(self):
+        """content=None with reasoning_content and no tool_calls parses, normalizing content to ''."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "reasoning_content": "step one, step two",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ]
+            }
+        )
+        assert result.content == ""
+        assert result.reasoning == "step one, step two"
+        assert result.tool_calls is None
+
+    def test_parses_reasoning_only_frame_truncated_mid_thought(self):
+        """A reasoning-only frame cut short by max_tokens parses and keeps finish_reason='length'."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {"role": "assistant", "content": None, "reasoning_content": "still thinking"},
+                        "finish_reason": "length",
+                    }
+                ]
+            }
+        )
+        assert result.content == ""
+        assert result.reasoning == "still thinking"
+        assert result.finish_reason == "length"
+
+    def test_raises_on_null_content_with_empty_reasoning(self):
+        """Empty-string reasoning_content does not rescue a null content that has no tool_calls."""
+        with pytest.raises(ValueError, match="Expected string content, got NoneType"):
+            _parse_chat_completion({"choices": [{"message": {"content": None, "reasoning_content": ""}}]})
+
+    def test_parses_reasoning_and_tool_calls_when_content_none(self):
+        """A null-content frame carrying both reasoning_content and tool_calls surfaces both."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "reasoning_content": "picking a tool",
+                            "tool_calls": [
+                                {"id": "t1", "type": "function", "function": {"name": "f", "arguments": "{}"}}
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert result.content == ""
+        assert result.reasoning == "picking a tool"
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "t1"
 
     def test_raises_on_non_string_content(self):
         """Content that is neither a string nor None (e.g. an int) raises ValueError with its type."""
