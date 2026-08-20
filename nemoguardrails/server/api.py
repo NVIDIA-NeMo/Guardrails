@@ -42,6 +42,7 @@ from nemoguardrails.exceptions import (
     RailTypeNotConfiguredError,
     StreamingNotSupportedError,
 )
+from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError
 from nemoguardrails.llm.call import _prepend_think_tags
@@ -629,9 +630,15 @@ def _inline_reasoning_as_think_tags(res: GenerationResponse) -> GenerationRespon
         if message.get("role") != "assistant":
             continue
         content = message.get("content")
-        if isinstance(content, str):
-            message["content"] = _prepend_think_tags(content, res.reasoning_content)
-            inlined = True
+        if not isinstance(content, str):
+            continue
+        # IORails only strips inline tags when the provider gave no structured reasoning
+        # (`response.reasoning or _extract_and_remove_think_tags(...)`), so a provider that
+        # sends both leaves a block already in the content; prepending would duplicate it.
+        if "<think>" in content:
+            continue
+        message["content"] = _prepend_think_tags(content, res.reasoning_content)
+        inlined = True
 
     # A tool-call-only message has `content=None`, so there is nowhere to put the
     # trace; keep the field rather than dropping the reasoning on the floor.
@@ -805,8 +812,14 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             state=body.guardrails.state,
         )
 
-        # IORails-only: prefix `content` with `reasoning_content` and think-tags
-        if isinstance(llm_rails, Guardrails) and isinstance(res, GenerationResponse):
+        # IORails-only: prefix `content` with `reasoning_content` and think-tags.
+        # A Guardrails wrapper can fall back to an LLMRails engine, which already
+        # inlines reasoning itself, so the engine check is what scopes this.
+        if (
+            isinstance(llm_rails, Guardrails)
+            and isinstance(llm_rails.rails_engine, IORails)
+            and isinstance(res, GenerationResponse)
+        ):
             res = _inline_reasoning_as_think_tags(res)
 
         # Extract bot message for thread storage if needed

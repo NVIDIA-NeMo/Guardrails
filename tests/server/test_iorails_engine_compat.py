@@ -24,10 +24,13 @@ IORails-compatible content-safety config, so the test does not depend on the glo
 import-time env var.
 """
 
+import asyncio
+
 import pytest
 from fastapi.testclient import TestClient
 
 from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.guardrails import guardrails as guardrails_module
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.server import api
@@ -39,13 +42,15 @@ THINK_PREFIXED_ANSWER = f"<think>{REASONING_TRACE}</think>\n{LLM_ANSWER}"
 
 
 class _StubLLMRails:
-    """Stand-in for a real LLMRails: not a Guardrails instance, and keeps reasoning in the structured field.
+    """Stand-in for a real LLMRails: not an IORails instance, and keeps reasoning in the structured field.
 
     The shipped configs use the `nim` engine, so constructing a real LLMRails would need
-    provider credentials; only the engine dispatch matters here.
+    provider credentials; only the engine dispatch matters here. The signature accepts both
+    the server's `LLMRails(config=..., verbose=...)` call and `Guardrails`' positional
+    `LLMRails(config, llm, verbose)` fallback.
     """
 
-    def __init__(self, config, verbose=False):
+    def __init__(self, config, llm=None, verbose=False):
         self.config = config
         self.events_history_cache = {}
 
@@ -256,3 +261,49 @@ def test_inline_reasoning_folds_only_into_the_assistant_message():
     assert folded.response[0]["content"] == "What is the capital of France?"
     assert folded.response[1]["content"] == THINK_PREFIXED_ANSWER
     assert folded.reasoning_content is None
+
+
+@pytest.fixture
+def guardrails_over_llmrails(monkeypatch, iorails_compatible_config):
+    """Alias LLMRails->Guardrails but force the wrapper onto its LLMRails fallback engine.
+
+    `Guardrails` falls back to LLMRails whenever `IORails.unsupported_reason` returns a reason,
+    so the server can hold a `Guardrails` that is not IORails-backed.
+    """
+    monkeypatch.setattr(api, "LLMRails", Guardrails)
+    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: iorails_compatible_config))
+    monkeypatch.setattr(IORails, "unsupported_reason", classmethod(lambda cls, config, llm=None: "forced fallback"))
+    monkeypatch.setattr(guardrails_module, "LLMRails", _StubLLMRails)
+    yield
+
+
+def test_chat_completion_leaves_reasoning_alone_when_guardrails_wraps_llmrails(guardrails_over_llmrails):
+    """A Guardrails wrapper on its LLMRails fallback engine keeps clean content: the fold is IORails-only."""
+    response = _post_chat_completion()
+
+    assert response.status_code == 200
+    assert response.json()["choices"][0]["message"]["content"] == LLM_ANSWER
+
+
+def test_guardrails_over_llmrails_is_not_iorails_backed(guardrails_over_llmrails):
+    """The fallback fixture really produces a non-IORails engine, so the contrast test above is meaningful."""
+
+    async def _resolve():
+        return await api._get_rails(["content_safety"])
+
+    rails = asyncio.run(_resolve())
+
+    assert isinstance(rails, Guardrails)
+    assert not isinstance(rails.rails_engine, IORails)
+
+
+def test_inline_reasoning_does_not_duplicate_an_existing_think_block():
+    """Content that already carries an inline <think> block is left alone rather than given a second one."""
+    inline = f"<think>inline trace</think>\n{LLM_ANSWER}"
+    res = GenerationResponse(response=[{"role": "assistant", "content": inline}], reasoning_content=REASONING_TRACE)
+
+    folded = api._inline_reasoning_as_think_tags(res)
+
+    assert folded.response[0]["content"] == inline
+    assert folded.response[0]["content"].count("<think>") == 1
+    assert folded.reasoning_content == REASONING_TRACE
