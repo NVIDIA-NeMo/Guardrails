@@ -26,6 +26,7 @@ from openai import (
     OpenAI,
     PermissionDeniedError,
     RateLimitError,
+    UnprocessableEntityError,
 )
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
@@ -204,25 +205,19 @@ def test_openai_client_with_options(openai_client):
     assert response.guardrails["config_id"] == "with_custom_llm"
 
 
-def test_openai_client_with_empty_state(openai_client):
-    """Test OpenAI client with empty state in guardrails."""
-    response = openai_client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": "hi"}],
-        stream=False,
-        extra_body={
-            "guardrails": {
-                "config_id": "with_custom_llm",
-                "state": {},
-            }
-        },
-    )
-
-    assert isinstance(response, ChatCompletion)
-    assert response.object == "chat.completion"
-    assert response.model == "gpt-4o"
-    assert response.choices[0].message.content == "Custom LLM response"
-    assert response.guardrails["config_id"] == "with_custom_llm"
+def test_openai_client_rejects_state(openai_client):
+    with pytest.raises(UnprocessableEntityError, match="Caller-supplied state is not accepted over HTTP"):
+        openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": "hi"}],
+            stream=False,
+            extra_body={
+                "guardrails": {
+                    "config_id": "with_custom_llm",
+                    "state": {},
+                }
+            },
+        )
 
 
 def test_openai_client_with_all_guardrails_fields(openai_client):
@@ -239,7 +234,6 @@ def test_openai_client_with_all_guardrails_fields(openai_client):
                     "rails": {"input": True, "output": True},
                     "log": {"activated_rails": True},
                 },
-                "state": {},
             }
         },
     )

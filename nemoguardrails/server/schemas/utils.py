@@ -370,7 +370,6 @@ def generation_response_to_chat_completion(
             llm_output=response.llm_output,
             output_data=response.output_data,
             log=log_dict,
-            state=response.state,
         ),
     )
 

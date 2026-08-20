@@ -158,7 +158,7 @@ def test_generation_response_to_chat_completion():
     assert result.guardrails.llm_output == {"llm_output": "This is an LLM output"}
     assert result.guardrails.output_data == {"output_data": "This is output data"}
     assert result.guardrails.log is not None
-    assert result.guardrails.state == {"state": "This is a state"}
+    assert "state" not in result.guardrails.model_dump()
 
 
 def test_generation_response_to_chat_completion_with_empty_content():
