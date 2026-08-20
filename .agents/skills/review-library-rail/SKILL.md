@@ -37,14 +37,20 @@ running it later moves the lines your findings cite.
 uv run --locked pre-commit run --files <the PR's changed files>
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
 make test TEST="tests/rails/llm/test_config.py tests/test_runtime_flow_gate_equivalence.py"
+make test TEST="tests/guardrails/test_compiled_rail.py tests/guardrails/test_guardrails.py tests/guardrails/test_rails_manager.py"
+make test TEST="tests/llm/test_call_import_graph.py tests/telemetry/test_usage_reporting.py"
 make test TEST=tests/http/test_library_boundary.py
-make test TEST=<the PR's test files>
+make test TEST="<space-separated PR test files>"
 make test TEST=tests/recorded/rails/library ARGS="--block-network -q"
+make test TEST=tests/recorded/test_cassette_provenance.py
 git diff <merge-base> -- pyproject.toml uv.lock   # usually empty; see below
 ```
 
 A red gate is a finding by itself; report it and keep going. A green gate
-means that dimension is DONE; spend review attention only on what follows.
+proves only that its collected cases passed. Inspect the summary for relevant
+skips, especially optional vendor dependencies and IORails cases; a skipped
+PR path is not a completed dimension. Spend judgment attention on what the
+gates do not encode.
 
 Most rail PRs leave `pyproject.toml` untouched, since a rail's optional
 vendor package is declared in the manifest rather than in packaging. A
@@ -56,20 +62,23 @@ undeclared or unjustified dependency change is the finding.
 
 ## Step 1b: New-rail completeness (presence, not quality)
 
-Gates verify what exists; they cannot flag what is absent. For a PR that
-adds a new rail, check each of these is PRESENT before judging quality:
+The manifest gate detects action packages without an ancestor `rail.py`, but a
+config-only or no-action package can evade that scan. For every new rail,
+confirm the applicable items are present before judging quality:
 
-- `rail.py` with a `RAIL` manifest. A rail without one falls back to legacy
-  loading and silently bypasses every catalog-keyed gate, so its absence
-  makes all green gates above meaningless for this rail.
-- Both-dialect unit tests: block path under Colang 1 AND under
-  `colang_version: "2.x"`. A v2 flow file with no v2 test is unexecuted
-  code; inbound PRs have shipped v2 files that parse but cannot run.
-- A flow-level test of the action raising (vendor down, fail-closed).
-- The recorded outcome triad (allow, block, provider-error) under
-  `tests/recorded/rails/library/` with config dir and `configs.py`
-  constant; recorded coverage is mandatory per
-  `nemoguardrails/library/README.md`.
+- `rail.py` with a `RAIL` manifest. For an ordinary action package the
+  manifest gate enforces this; inspect config-only/no-action contributions
+  explicitly.
+- For a flow-bearing rail, both-dialect unit tests: block path under Colang 1
+  AND under `colang_version: "2.x"`. A v2 flow file with no v2 test is
+  unexecuted code; inbound PRs have shipped v2 files that parse but cannot run.
+- For an executable provider-backed rail, a flow-level test of the action
+  raising (vendor down, fail-closed).
+- A recorded entry under `tests/recorded/rails/library/`, mandatory per
+  `nemoguardrails/library/README.md`. Provider-backed rails cover allow,
+  block, and one recordable provider error. Pure-Python rails cover applicable
+  allow/block or transform behavior without a provider-error case. A
+  config-only manifest covers its public configuration contract.
 - Docs page and example config.
 
 Each missing item is a finding; request it rather than inferring it is
@@ -99,8 +108,12 @@ Each item names the check, where to look, and what "wrong" looks like.
    three permitted resend-safety mechanisms (documented idempotency, an
    idempotency key header, or a stateless scan endpoint), and no comment is
    a finding; no hand-rolled retry
-   loop around `http_call`. Then verify any retry/backoff claims in docs or
-   comments against `nemoguardrails/http/retry.py`: backoff is full-jitter
+   loop around `http_call`. Apply it through
+   `ensure_retrying_http_client`, not by directly constructing
+   `RetryingHTTPClient(injected_client, policy)`: existing retry policy takes
+   precedence, retry must sit inside instrumentation, and duplicate retry or
+   instrumentation layers are rejected. Then verify any retry/backoff claims
+   in docs or comments against `nemoguardrails/http/retry.py`: backoff is full-jitter
    exponential with a lower bound of zero, `Retry-After` is honored only
    within `max_retry_after` and is otherwise discarded rather than capped
    unless `clamp_retry_after=True`, and vendor override headers are ignored
@@ -108,14 +121,16 @@ Each item names the check, where to look, and what "wrong" looks like.
    from guesswork.
 4. **Fail-closed behavior, tested not asserted.** Vendor errors, timeouts,
    and malformed payloads must surface as typed errors or blocks, never a
-   silent allow. There must be a flow-level test of the action raising; a
-   summary or comment claiming fail-closed without a test is a finding.
-5. **Dialect coverage.** The flow-files gate checks structure; behavior
-   needs tests. Both dialects' block path must be exercised end to end in
-   the UNIT suite (`colang_version: "2.x"` variant present?), and a per-rail
-   Colang 2 RECORDED test is itself a finding, since the recorded suite is
-   Colang 1 throughout, with no config under `tests/recorded/` setting
-   `colang_version`. If any surface declares
+   silent allow. For an executable provider-backed rail, there must be a
+   flow-level test of the action raising; a summary or comment claiming
+   fail-closed without a test is a finding.
+5. **Dialect coverage.** For flow-bearing rails, the flow-files gate checks
+   structure; behavior needs tests. Both dialects' block path must be exercised
+   end to end in the UNIT suite (`colang_version: "2.x"` variant present?), and a per-rail
+   duplicate Colang 2 RECORDED test is itself a finding when it produces the
+   same provider traffic. Public-API v2 recordings remain valid when the
+   runtime changes the calls, and IORails parity may reuse a sibling cassette
+   or deliberately run a deterministic no-cassette case. If any surface declares
    a `transform_target`, the transform path also needs a Colang 2 behavior
    test; the flow-gate harness is Colang 1 only, so a v2 transform can be
    entirely unexecuted while the block-path tests pass. Every
@@ -137,9 +152,11 @@ Each item names the check, where to look, and what "wrong" looks like.
    response bodies, URLs with query strings, API keys, or tokens; exception
    messages must not embed payloads. Check `log.` calls and every f-string
    in raised errors.
-8. **Test placement and hygiene.** Deterministic tests in `tests/` with
-   `RecordingHTTPClient` (from `nemoguardrails.testing`) injected via
-   `register_action_param`; recorded suite entries follow the
+8. **Test placement and hygiene.** Deterministic LLMRails tests in `tests/`
+   may inject `RecordingHTTPClient` (from `nemoguardrails.testing`) through
+   `register_action_param`. IORails does not support arbitrary action-param
+   registration; its compiled rail receives the engine-managed HTTP client.
+   Recorded suite entries follow the
    `recorded-tests` skill (vcr-structured, or non-vcr with a defensible
    reason). Nothing enforces that split, so read every suite test in the
    diff that has no `vcr` mark and challenge it against the skill's
@@ -199,13 +216,17 @@ Each item names the check, where to look, and what "wrong" looks like.
     synthetic error forced into `tests/recorded/` violates the placement
     rule, so do not accept "it's covered by the recorded suite" for anything
     but the recordable real error.
-14. **Client ownership and error typing.** Neither is gate-checked; the HTTP
+14. **Client composition, ownership, and error typing.** These are not fully
+    gate-checked; the HTTP
     boundary test is an import-only AST check, so read the code. The action
     must never call `close` or `aclose` on an injected `http_client`; only
     the `factory=` path passed to `http_call` may own a client, and that
     factory must return the fully composed closable client, since wrapping
     an injected client must not transfer ownership
-    (`nemoguardrails/http/request.py`). Vendor failures must surface as
+    (`nemoguardrails/http/request.py`). Verify composition through
+    `ensure_retrying_http_client`: the canonical topology is instrumentation
+    outside retry outside transport, and an existing retry/instrumentation
+    layer is preserved rather than compounded. Vendor failures must surface as
     rail-specific error types (the `errs.py` pattern, exemplar
     `nemoguardrails/library/clavata/errs.py`), not as raw transport or
     vendor SDK exceptions escaping the action.
