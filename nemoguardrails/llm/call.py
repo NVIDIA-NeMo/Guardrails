@@ -454,6 +454,13 @@ def _extract_and_remove_think_tags(response: LLMResponse) -> Optional[str]:
     return None
 
 
+def _prepend_think_tags(content: str, reasoning_content: Optional[str]) -> str:
+    """Re-attach `reasoning_content` to `content` as a leading <think> block, the inverse of `_extract_and_remove_think_tags`."""
+    if not reasoning_content:
+        return content
+    return f"<think>{reasoning_content}</think>\n{content}"
+
+
 def _store_tool_calls(response: LLMResponse) -> None:
     if response.tool_calls:
         tool_calls_var.set([tc.to_dict() for tc in response.tool_calls])
