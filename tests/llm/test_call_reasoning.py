@@ -16,7 +16,12 @@
 import pytest
 
 from nemoguardrails.context import reasoning_trace_var
-from nemoguardrails.llm.call import _store_reasoning_traces, llm_call
+from nemoguardrails.llm.call import (
+    _extract_and_remove_think_tags,
+    _prepend_think_tags,
+    _store_reasoning_traces,
+    llm_call,
+)
 from nemoguardrails.types import LLMResponse
 from tests.utils import FakeLLMModel
 
@@ -285,3 +290,60 @@ Step 3: Formulate the answer"""
         assert stored_trace is None
 
         reasoning_trace_var.set(None)
+
+
+class TestPrependThinkTagsUnit:
+    def test_prepends_reasoning_as_a_leading_think_block(self):
+        """Reasoning is wrapped in <think> tags and joined to the content by a single newline."""
+        assert _prepend_think_tags("Paris.", "Step 1") == "<think>Step 1</think>\nParis."
+
+    def test_returns_content_unchanged_when_reasoning_is_none(self):
+        """Content is passed straight through when there is no reasoning to attach."""
+        assert _prepend_think_tags("Paris.", None) == "Paris."
+
+    def test_returns_content_unchanged_when_reasoning_is_empty(self):
+        """An empty reasoning string attaches nothing rather than an empty <think> block."""
+        assert _prepend_think_tags("Paris.", "") == "Paris."
+
+    def test_prepends_to_empty_content(self):
+        """A tool-call turn with empty content still yields a well-formed <think> block."""
+        assert _prepend_think_tags("", "Step 1") == "<think>Step 1</think>\n"
+
+
+class TestThinkTagRoundTripUnit:
+    @pytest.mark.parametrize(
+        "content, reasoning",
+        [
+            ("Paris.", "The user asked for a capital city."),
+            ("Paris.", "Step 1\nStep 2"),
+            ("Line one\nLine two", "why"),
+        ],
+        ids=["single_line", "multiline_reasoning", "multiline_content"],
+    )
+    def test_prepend_then_extract_restores_both_parts(self, content, reasoning):
+        """Extracting from a prepended string returns the original content and reasoning unchanged."""
+        response = LLMResponse(content=_prepend_think_tags(content, reasoning))
+
+        extracted_reasoning = _extract_and_remove_think_tags(response)
+
+        assert extracted_reasoning == reasoning
+        assert response.content == content
+
+    def test_extract_then_prepend_restores_the_inline_string(self):
+        """Splitting an inline <think> string and re-attaching it reproduces the original string."""
+        original = "<think>because</think>\nParis."
+        response = LLMResponse(content=original)
+
+        extracted_reasoning = _extract_and_remove_think_tags(response)
+
+        assert _prepend_think_tags(response.content, extracted_reasoning) == original
+
+    def test_extract_then_prepend_is_a_no_op_without_think_tags(self):
+        """Content that carries no reasoning survives a full split-and-reattach cycle untouched."""
+        original = "Paris."
+        response = LLMResponse(content=original)
+
+        extracted_reasoning = _extract_and_remove_think_tags(response)
+
+        assert extracted_reasoning is None
+        assert _prepend_think_tags(response.content, extracted_reasoning) == original

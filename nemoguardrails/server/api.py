@@ -34,7 +34,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
-from nemoguardrails import LLMRails, RailsConfig, utils
+from nemoguardrails import Guardrails, LLMRails, RailsConfig, utils
 from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidStateError,
@@ -42,8 +42,10 @@ from nemoguardrails.exceptions import (
     RailTypeNotConfiguredError,
     StreamingNotSupportedError,
 )
+from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError
+from nemoguardrails.llm.call import _prepend_think_tags
 from nemoguardrails.llm.clients._errors import build_error_payload, normalize_error_status
 from nemoguardrails.llm.models.initializer import ModelInitializationError
 from nemoguardrails.rails.llm.config import Model
@@ -586,6 +588,37 @@ def process_chunk(chunk: Any) -> Union[Any, ChunkError]:
     return chunk
 
 
+def _inline_reasoning_as_think_tags(res: GenerationResponse) -> GenerationResponse:
+    """Move `reasoning_content` into the assistant message as a <think> prefix and clear the field."""
+    if not res.reasoning_content:
+        return res
+    if not isinstance(res.response, list):
+        return res
+
+    inlined = False
+    for message in res.response:
+        if message.get("role") != "assistant":
+            continue
+        content = message.get("content")
+        if not isinstance(content, str):
+            continue
+        # IORails only strips inline tags when the provider gave no structured reasoning
+        # (`response.reasoning or _extract_and_remove_think_tags(...)`), so a provider that
+        # sends both leaves a block already in the content; prepending would duplicate it.
+        # TODO: this pattern is copied from `_extract_and_remove_think_tags` in
+        # nemoguardrails/llm/call.py; factor the two onto one shared matcher.
+        if re.search(r"<think>(.*?)</think>", content, re.DOTALL):
+            continue
+        message["content"] = _prepend_think_tags(content, res.reasoning_content)
+        inlined = True
+
+    # A tool-call-only message has `content=None`, so there is nowhere to put the
+    # trace; keep the field rather than dropping the reasoning on the floor.
+    if inlined:
+        res.reasoning_content = None
+    return res
+
+
 @app.post(
     "/v1/chat/completions",
     response_model=GuardrailsChatCompletion,
@@ -736,6 +769,16 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             messages=messages,
             options=generation_options,
         )
+
+        # IORails-only: prefix `content` with `reasoning_content` and think-tags.
+        # A Guardrails wrapper can fall back to an LLMRails engine, which already
+        # inlines reasoning itself, so the engine check is what scopes this.
+        if (
+            isinstance(llm_rails, Guardrails)
+            and isinstance(llm_rails.rails_engine, IORails)
+            and isinstance(res, GenerationResponse)
+        ):
+            res = _inline_reasoning_as_think_tags(res)
 
         # Extract bot message for thread storage if needed
         bot_message = extract_bot_message_from_response(res)
