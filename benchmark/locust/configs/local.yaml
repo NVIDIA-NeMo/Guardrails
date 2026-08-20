@@ -1,8 +1,8 @@
 # Example Locust load test configuration for NeMo Guardrails
 
 # Server details
-host: "http://localhost:8000"
-config_id: "my-guardrails-config"
+host: "http://localhost:9000"
+config_id: "content_safety_local"
 model: "meta/llama-3.3-70b-instruct"
 
 # Load test parameters

@@ -169,12 +169,16 @@ class TestLocustRunner:
             )
 
     def test_check_service_error_response(self, runner):
-        """Test _check_service with non-200 response code"""
+        """Test _check_service with non-200 response code
+
+        Uses 503 rather than 404: a 404 means the host serves no `/health` and
+        falls through to the `/v1/health` probe, covered separately below.
+        """
         with patch("httpx.get") as mock_get:
             mock_response = Mock()
             mock_response.is_error = True
-            mock_response.status_code = 404
-            mock_response.text = '{"detail":"Not Found"}'
+            mock_response.status_code = 503
+            mock_response.text = '{"detail":"Service Unavailable"}'
             mock_response.json.return_value = json.loads(mock_response.text)
             mock_get.return_value = mock_response
 
@@ -227,6 +231,98 @@ class TestLocustRunner:
                 exc_info.value.args[0]
                 == f"Error: response {mock_response.text} couldn't be parsed as JSON: {json_error}"
             )
+
+    def _v1_health_endpoint(self, runner: LocustRunner):
+        """The Guardrails server's health endpoint"""
+        return f"{runner.config.host}/v1/health"
+
+    def _health_404_response(self):
+        """A response from a host that serves no /health endpoint"""
+        response = Mock()
+        response.is_error = True
+        response.status_code = 404
+        response.text = '{"error":{"message":"Not Found"}}'
+        return response
+
+    def test_check_service_falls_back_to_v1_health(self, runner):
+        """The Guardrails server serves /v1/health rather than /health"""
+        with patch("httpx.get") as mock_get:
+            v1_response = Mock()
+            v1_response.is_error = False
+            v1_response.status_code = 200
+            v1_response.json.return_value = {"status": "pass"}
+            mock_get.side_effect = [self._health_404_response(), v1_response]
+
+            # Should not raise
+            runner._check_service()
+
+            assert [call.args[0] for call in mock_get.call_args_list] == [
+                self._service_health_endpoint(runner),
+                self._v1_health_endpoint(runner),
+            ]
+
+    def test_check_service_no_health_endpoint(self, runner):
+        """A host serving neither health path is an error"""
+        with patch("httpx.get") as mock_get:
+            mock_get.side_effect = [self._health_404_response(), self._health_404_response()]
+
+            with pytest.raises(RuntimeError) as exc_info:
+                runner._check_service()
+
+            assert exc_info.value.args[0] == (
+                f"No health endpoint found at {runner.config.host}: tried /health, /v1/health"
+            )
+
+    def test_check_service_fallback_error_response(self, runner):
+        """A non-404 error from the fallback health path is reported"""
+        with patch("httpx.get") as mock_get:
+            v1_response = Mock()
+            v1_response.is_error = True
+            v1_response.status_code = 503
+            v1_response.text = '{"detail":"Service Unavailable"}'
+            mock_get.side_effect = [self._health_404_response(), v1_response]
+
+            with pytest.raises(RuntimeError) as exc_info:
+                runner._check_service()
+
+            assert (
+                exc_info.value.args[0]
+                == f"Error 503 connecting to {self._v1_health_endpoint(runner)}: {v1_response.text}"
+            )
+
+    def test_check_service_fallback_unhealthy(self, runner):
+        """An unhealthy status from the fallback health path is reported"""
+        with patch("httpx.get") as mock_get:
+            v1_response = Mock()
+            v1_response.is_error = False
+            v1_response.status_code = 200
+            v1_response.text = '{"status":"fail"}'
+            v1_response.json.return_value = {"status": "fail"}
+            mock_get.side_effect = [self._health_404_response(), v1_response]
+
+            with pytest.raises(RuntimeError) as exc_info:
+                runner._check_service()
+
+            assert (
+                exc_info.value.args[0]
+                == f"Service at {self._v1_health_endpoint(runner)} is unhealthy: {v1_response.text}"
+            )
+
+    def test_check_service_fallback_invalid_json(self, runner):
+        """An unparseable fallback health response is an error"""
+        with patch("httpx.get") as mock_get:
+            v1_response = Mock()
+            v1_response.is_error = False
+            v1_response.status_code = 200
+            v1_response.text = "not json"
+            json_error = JSONDecodeError("Expecting value", "not json", 0)
+            v1_response.json.side_effect = json_error
+            mock_get.side_effect = [self._health_404_response(), v1_response]
+
+            with pytest.raises(RuntimeError) as exc_info:
+                runner._check_service()
+
+            assert exc_info.value.args[0] == f"Error: response not json couldn't be parsed as JSON: {json_error}"
 
     def test_build_locust_command_basic(self, runner):
         """Test building basic Locust command."""
