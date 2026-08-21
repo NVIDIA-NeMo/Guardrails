@@ -195,9 +195,9 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
     exposes it (NIM, DeepSeek-style). Tool calls are parsed from
     ``message.tool_calls`` (OpenAI shape) into ``LLMResponse.tool_calls`` via
     ``ChatMessage.from_dict``, which normalizes JSON-string arguments into a
-    dict. ``content`` is ``None`` on a tool-call-only response and is
-    normalized to an empty string; a ``None`` content with no tool calls is
-    treated as a malformed response.
+    dict. ``content`` is ``None`` on both a tool-call-only response and a
+    reasoning-only frame, and normalizes to an empty string in each case; a
+    ``None`` content with neither is treated as a malformed response.
     """
     try:
         choice = response["choices"][0]
@@ -208,18 +208,26 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
 
     raw_tool_calls = message.get("tool_calls")
 
+    # Validated like content below: reasoning reaches ``LLMResponse.reasoning``,
+    # which is typed ``Optional[str]``, and a truthy non-string would otherwise
+    # also rescue a null content on the branch below.
+    raw_reasoning = message.get("reasoning_content")
+    if raw_reasoning is not None and not isinstance(raw_reasoning, str):
+        raise ValueError(f"Expected string reasoning_content, got {type(raw_reasoning).__name__}")
+    reasoning = raw_reasoning or None
+
     if content is None:
-        # A tool-call-only response legitimately carries content=None; a null
-        # content with no tool calls is malformed.
-        if not raw_tool_calls:
+        # Tool-call-only and reasoning-only frames both legitimately carry
+        # content=None. The OpenAI schema permits a bare null content too, but
+        # with neither tool calls nor reasoning there is nothing the caller can
+        # act on, so it stays an error rather than a silently empty answer.
+        if not raw_tool_calls and not reasoning:
             raise ValueError("Expected string content, got NoneType")
         content = ""
     elif not isinstance(content, str):
         raise ValueError(f"Expected string content, got {type(content).__name__}")
 
     tool_calls = ChatMessage.from_dict(message).tool_calls if raw_tool_calls else None
-
-    reasoning = message.get("reasoning_content") or None
 
     usage = _parse_usage(response["usage"]) if response.get("usage") else None
 
