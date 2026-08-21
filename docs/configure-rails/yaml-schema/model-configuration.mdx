@@ -139,6 +139,10 @@ You can supply the resource endpoint as `azure_endpoint` (preferred, matches the
 
 Set `AZURE_OPENAI_API_KEY` in the environment, set `api_key_env_var` on the model entry, or pass `parameters.api_key` directly. The framework constructs the deployment URL, sets `api-version` as a query parameter, and authenticates with the `api-key` header.
 
+The Azure preset writes those two values into the same `default_headers` and `default_query` blocks described in [Custom HTTP Headers](#custom-http-headers) and [Model-Level Query Parameters](#model-level-query-parameters), so it validates them against anything you set yourself.
+Setting `default_query['api-version']` to a value that differs from `parameters.api_version` raises an error, as does supplying an `api-key` header in `default_headers` while also setting `parameters.api_key`.
+Supplying only `default_headers['api-key']` is allowed: the preset uses your header and no longer requires `AZURE_OPENAI_API_KEY`.
+
 <Note>
 
 Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD or token-based authentication, configure `engine: openai` manually or use LangChain with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. Refer to [Migrating to 0.22](/reference/0-22#azure-openai) for both alternatives.
@@ -281,6 +285,10 @@ models:
 
 Common parameters vary by provider. For built-in engines, see the OpenAI-compatible client options. For LangChain engines, refer to the corresponding LangChain provider documentation.
 
+Two parameters shape the HTTP request itself rather than the request body: `default_headers` and `default_query`, described in the following sections.
+Both apply to entries in the `models` section only.
+A rail that calls its own service endpoint, such as jailbreak detection configured under `rails.config.jailbreak_detection`, is configured separately and does not read these parameters.
+
 ### Custom HTTP Headers
 
 Set `parameters.default_headers` to attach custom HTTP headers to every request a model sends to its provider endpoint.
@@ -313,10 +321,13 @@ Header names are matched case-insensitively, and a configured header overrides a
 For example, setting `Authorization` under `default_headers` replaces the token built from the API key, which lets you use a custom authentication scheme.
 Configured headers are sent only as HTTP headers and never appear in the request body.
 
-Header values must be strings; a bare numeric or boolean value in YAML, such as `X-Retry: 3`, is converted to its string form.
+Header values must be strings, so quote any value that YAML would otherwise load as a number or a boolean.
+Write `X-Retry: "3"` rather than `X-Retry: 3`.
+An unquoted value is the one case where the two engines differ: IORails converts it to its string form, and LLMRails raises `LLMCallException` on the first model call with the detail `Header value must be str or bytes`.
+
 Keep secrets such as API keys in environment variables through `api_key_env_var` rather than hardcoding them in `default_headers` in a checked-in `config.yml`.
 
-This behavior is the same for both the IORails and LLMRails engines.
+Apart from unquoted non-string values, this behavior is the same for both the IORails and LLMRails engines.
 
 ### Model-Level Query Parameters
 
@@ -352,10 +363,10 @@ Values follow these rules:
 - A boolean uses its lowercase wire form, so `beta: true` becomes `beta=true` rather than `beta=True`.
 - A list repeats the parameter once per element in the configured order, so `tag: [red, blue]` becomes `tag=red&tag=blue`.
 - An empty value becomes a parameter with no value, so `flag:` becomes `flag=`.
-- A nested object is rejected when the engine is initialized, because a query string has no standard encoding for one. Flatten it into separate parameters instead.
+- A nested object is rejected because a query string has no standard encoding for one. Flatten it into separate parameters instead.
 
 Keep secrets such as API keys in environment variables through `api_key_env_var` rather than hardcoding them in `default_query` in a checked-in `config.yml`.
 Provider and proxy access logs commonly record full request URLs, so a query parameter is a poor place for a sensitive value.
 
 For the value types above, this behavior is the same for both the IORails and LLMRails engines.
-The nested-object case differs: IORails rejects the configuration when the engine is initialized, and LLMRails forwards the object as an encoded Python representation that most servers cannot interpret.
+The nested-object case differs: IORails raises a `ValueError` naming the offending key when you construct `Guardrails` or `IORails`, and LLMRails forwards the object as an encoded Python representation that most servers cannot interpret.
