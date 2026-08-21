@@ -34,6 +34,7 @@ from nemoguardrails.guardrails.iorails import IORails, _activated_rail
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMResponse, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
+from tests.guardrails.rail_stubs import rail_failure
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 _USER = [{"role": "user", "content": "hi"}]
@@ -152,6 +153,49 @@ class TestActivatedRails:
         assert rail.type == "input"
         assert rail.executed_actions[0].action_name == "content_safety_check_input"
         assert rail.executed_actions[0].return_value == verdict
+
+    @pytest.mark.asyncio
+    async def test_a_failed_rail_is_logged_as_failed(self, iorails):
+        """A rail that broke reaches the log marked as such, not as a verdict on the content.
+
+        The verdict is derived from a real failed ``RailResult`` rather than written as a
+        literal: what is under test is what ``RailResult.return_value`` puts on the record,
+        not that the log builder copies a dict it was handed.
+        """
+        failed = rail_failure(_CS_INPUT_FLOW)
+        _stub_pipeline(
+            iorails,
+            input_records=[_input_record(is_safe=False, return_value=failed.return_value)],
+            input_safe=False,
+        )
+
+        result = await iorails.generate_async(messages=_USER, options={"log": {"activated_rails": True}})
+
+        assert result.log is not None
+        rail = next(r for r in result.log.activated_rails if r.name == _CS_INPUT_FLOW)
+        assert rail.stop is True
+        assert rail.executed_actions[0].return_value == {"allowed": False, "failed": True}
+
+    @pytest.mark.asyncio
+    async def test_a_decided_block_is_logged_as_not_failed(self, iorails):
+        """The contrast case: an operator reading the log can tell the two apart."""
+        blocked = RailResult.block(reason="unsafe", metadata={"policy_violations": ["Violence"]})
+        _stub_pipeline(
+            iorails,
+            input_records=[_input_record(is_safe=False, return_value=blocked.return_value)],
+            input_safe=False,
+        )
+
+        result = await iorails.generate_async(messages=_USER, options={"log": {"activated_rails": True}})
+
+        assert result.log is not None
+        rail = next(r for r in result.log.activated_rails if r.name == _CS_INPUT_FLOW)
+        assert rail.stop is True
+        assert rail.executed_actions[0].return_value == {
+            "allowed": False,
+            "failed": False,
+            "policy_violations": ["Violence"],
+        }
 
     @pytest.mark.asyncio
     async def test_stop_set_on_blocking_rail(self, iorails):
