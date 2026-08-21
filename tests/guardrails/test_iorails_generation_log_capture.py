@@ -109,7 +109,7 @@ class TestRailRecordCapture:
         assert record.llm_model_name == _CS_MODEL
         assert record.llm_provider_name == "nim"
         assert record.request_id == "req-cs-input"
-        assert record.return_value == {"allowed": True, "policy_violations": []}
+        assert record.return_value == {"allowed": True, "failed": False, "policy_violations": []}
 
     @pytest.mark.asyncio
     async def test_failed_model_call_still_records_the_attempt(self, iorails):
@@ -128,6 +128,8 @@ class TestRailRecordCapture:
         assert record.llm_model_name == _CS_MODEL
         assert record.llm_provider_name == "nim"
         assert record.duration is not None
+        # The log says the rail broke, not that it judged the content unsafe.
+        assert record.return_value == {"allowed": False, "failed": True}
 
 
 class TestGenerationLogEndToEnd:
@@ -155,7 +157,7 @@ class TestGenerationLogEndToEnd:
 
         cs_rail = next(rail for rail in result.log.activated_rails if rail.name == _CS_INPUT)
         assert cs_rail.type == "input"
-        assert cs_rail.executed_actions[0].return_value == {"allowed": True, "policy_violations": []}
+        assert cs_rail.executed_actions[0].return_value == {"allowed": True, "failed": False, "policy_violations": []}
         # The provider's response id is threaded through as request_id.
         cs_call = cs_rail.executed_actions[0].llm_calls[0]
         assert cs_call.request_id == "req-cs"

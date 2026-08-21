@@ -29,6 +29,7 @@ from nemoguardrails.guardrails.iorails import (
     INTERNAL_ERROR_MESSAGE,
     REFUSAL_MESSAGE,
     IORails,
+    _GeneratedTurn,
     _rewritten_bot_message,
     _rewritten_user_message,
 )
@@ -467,6 +468,21 @@ class TestGenerateAsync:
         await iorails.generate_async(messages=messages, options={"llm_params": llm_params})
 
         iorails.engine_registry.model_call.assert_called_once_with("main", messages, **llm_params)
+
+    @pytest.mark.asyncio
+    async def test_a_turn_with_neither_a_response_nor_a_verdict_raises(self, iorails):
+        """A generation bug must surface as an error, not as a plausible-looking guardrail block.
+
+        Both generation paths name the blocking verdict on the one branch that drops the
+        response, so this state is unreachable today; the guard is what keeps a future path
+        from reporting a missing response to the caller as a refusal.
+        """
+        messages = [{"role": "user", "content": "hi"}]
+        iorails._speculative_generation = False
+        iorails._do_generate_sequential = AsyncMock(return_value=_GeneratedTurn(response=None, messages=messages))
+
+        with pytest.raises(RuntimeError, match="without naming a blocking rail"):
+            await iorails.generate_async(messages=messages)
 
     @pytest.mark.asyncio
     async def test_generate_async_propagates_exception(self, iorails):

@@ -136,11 +136,20 @@ class RailResult:
     def return_value(self) -> dict[str, Any]:
         """The rail's structured verdict, as the log's ``ExecutedAction.return_value``.
 
-        The decision is applied last so it wins: ``metadata`` is free-form evidence and a
-        custom action may put an ``allowed`` key in it, which must not be able to record a
-        blocked rail as having allowed the content.
+        The verdict keys are applied last so they win: ``metadata`` is free-form evidence and a
+        custom action may put an ``allowed`` or ``failed`` key in it, which must not be able to
+        record a blocked rail as having allowed the content, nor forge a rail failure.
+
+        ``failed`` is always present, as ``allowed`` is, so a log consumer reads a verdict
+        rather than inferring one from a missing key. Without it a rail that broke and a rail
+        that decided to block are the same record, which is the distinction the client-facing
+        message already draws.
         """
-        return {**self.outcome.metadata, _VERDICT_DECISION_KEY: self.is_safe}
+        return {
+            **self.outcome.metadata,
+            _VERDICT_DECISION_KEY: self.is_safe,
+            _VERDICT_FAILED_KEY: self.failed,
+        }
 
     @classmethod
     def allow(
@@ -249,6 +258,7 @@ def serialize_prompt(messages: list[dict]) -> str:
 
 
 _VERDICT_DECISION_KEY = "allowed"
+_VERDICT_FAILED_KEY = "failed"
 _UNSPECIFIED_REASON = "unspecified"
 
 
