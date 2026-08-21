@@ -233,3 +233,21 @@ class TestLocustSweepConfig:
         """A misspelled batch key should not be silently ignored."""
         with pytest.raises(ValidationError):
             LocustSweepConfig(base_config=self.BASE, bogus=1)
+
+    def test_swept_values_become_single_path_segments(self):
+        """Swept values are used as directory names, so they must not contain separators."""
+        config = LocustSweepConfig(
+            base_config=self.BASE,
+            sweeps={"model": ["meta/llama-3.3-70b-instruct", "../escape", "."]},
+        )
+
+        labels = [label for label, _ in config.expand()]
+
+        assert labels == ["model-meta-llama-3.3-70b-instruct", "model-..-escape", "model-value"]
+        assert not any("/" in label for label in labels)
+
+    def test_numeric_labels_are_left_alone(self):
+        """Sanitising values must not disturb the ordinary concurrency sweep."""
+        config = LocustSweepConfig(base_config=self.BASE, sweeps={"users": [1, 1024]})
+
+        assert [label for label, _ in config.expand()] == ["users-1", "users-1024"]

@@ -18,6 +18,7 @@
 Pydantic models for Locust load test configuration validation.
 """
 
+import re
 from itertools import product
 from typing import Dict, List, Optional, Union
 
@@ -85,6 +86,26 @@ class LocustConfig(BaseModel):
 BATCH_KEYS = ("batch_name", "output_base_dir", "sweeps")
 
 SweepValue = Union[int, float, str]
+
+# Anything outside this set is replaced when a swept value becomes a directory name.
+UNSAFE_LABEL_CHARS = re.compile(r"[^A-Za-z0-9._-]")
+
+
+def label_segment(value: SweepValue) -> str:
+    """Render a swept value as one safe path segment.
+
+    Sweep values reach the filesystem as directory names, and legitimate values
+    contain separators: ``meta/llama-3.3-70b-instruct`` would otherwise nest
+    directories, and a value containing ``..`` would climb out of the batch
+    directory entirely.
+    """
+    segment = UNSAFE_LABEL_CHARS.sub("-", str(value))
+
+    # "", "." and ".." are not usable directory names.
+    if set(segment) <= {"."}:
+        return "value"
+
+    return segment
 
 
 class LocustSweepConfig(BaseModel):
@@ -180,7 +201,7 @@ class LocustSweepConfig(BaseModel):
             overrides = dict(zip(keys, combination))
             # Rebuild rather than model_copy so field constraints still apply to swept values.
             config = LocustConfig(**{**self.base_config.model_dump(), **overrides})
-            label = "_".join(f"{key}-{value}" for key, value in overrides.items())
+            label = "_".join(f"{key}-{label_segment(value)}" for key, value in overrides.items())
             runs.append((label, config))
 
         return runs

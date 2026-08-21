@@ -290,11 +290,16 @@ class LocustSweepRunner:
         return Path(self.config.output_base_dir) / self.config.batch_name
 
     @staticmethod
-    def is_complete(level_path: Path) -> bool:
-        """True when a level already holds a finished result.
+    def is_complete(level_path: Path, expected_config: Optional[LocustConfig] = None) -> bool:
+        """True when a level already holds a finished result for this configuration.
 
         Metadata is written before the run starts, so an exit code is what
         distinguishes a finished level from an interrupted one.
+
+        A level is identified by its swept values alone, so a result can predate
+        an edit to any setting that is not swept. When ``expected_config`` is
+        given, a level recorded under different settings is treated as
+        incomplete rather than silently mixed into the batch.
         """
         metadata_file = level_path / "run_metadata.json"
         if not metadata_file.is_file():
@@ -305,7 +310,24 @@ class LocustSweepRunner:
         except (json.JSONDecodeError, OSError):
             return False
 
-        return metadata.get("exit_code") is not None
+        if metadata.get("exit_code") is None:
+            return False
+
+        if expected_config is not None:
+            expected = json.loads(expected_config.model_dump_json())
+            if metadata.get("config") != expected:
+                log.info("Configuration changed since %s was recorded; re-running it", level_path.name)
+                return False
+
+        return True
+
+    @staticmethod
+    def _hosts_to_check(levels: list[tuple[str, LocustConfig]]) -> list[LocustConfig]:
+        """One config per distinct host in the batch, in the order levels run."""
+        seen: dict[str, LocustConfig] = {}
+        for _, level_config in levels:
+            seen.setdefault(level_config.host, level_config)
+        return list(seen.values())
 
     def run(self, dry_run: bool, resume: bool = False) -> int:
         """Run the whole sweep.
@@ -322,9 +344,13 @@ class LocustSweepRunner:
                 LocustRunner(level_config).run(dry_run=True)
             return 0
 
-        # One health check for the batch rather than one per level.
+        # One health check per distinct host rather than one per level. A sweep
+        # over `host` targets several servers, and each must be reachable before
+        # its levels run; otherwise an unreachable target looks like a level
+        # whose requests merely failed.
         try:
-            LocustRunner(self.config.base_config)._check_service()
+            for level_config in self._hosts_to_check(levels):
+                LocustRunner(level_config)._check_service()
         except RuntimeError as e:
             log.error(str(e))
             return 1
@@ -333,7 +359,7 @@ class LocustSweepRunner:
         for index, (label, level_config) in enumerate(levels, start=1):
             level_path = self.batch_path / label
 
-            if resume and self.is_complete(level_path):
+            if resume and self.is_complete(level_path, level_config):
                 log.info("Level %i/%i (%s) already complete, keeping it", index, len(levels), label)
                 continue
 

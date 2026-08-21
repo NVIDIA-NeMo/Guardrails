@@ -620,6 +620,54 @@ class TestLocustSweepRunner:
 
         assert sweep_runner.is_complete(level) is False
 
+    def test_every_swept_host_is_health_checked(self, tmp_path):
+        """Sweeping host targets several servers, and each must be reachable."""
+        config = LocustSweepConfig(
+            batch_name="hosts",
+            output_base_dir=str(tmp_path / "results"),
+            base_config={"config_id": "test-config", "model": "test-model"},
+            sweeps={"host": ["http://localhost:9000", "http://localhost:9001"]},
+        )
+
+        with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            LocustSweepRunner(config).run(dry_run=False)
+
+            assert mock_check.call_count == 2
+
+    def test_repeated_host_is_checked_once(self, sweep_runner):
+        """Levels sharing a host do not re-check it."""
+        with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+
+            mock_check.assert_called_once()
+
+    def test_resume_reruns_a_level_whose_config_changed(self, sweep_runner):
+        """A level is identified by its swept values, so unswept settings can drift."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+
+            # Change a setting that is not part of the level's identity.
+            sweep_runner.config.base_config.message = "a different prompt"
+
+            mock_run.reset_mock()
+            sweep_runner.run(dry_run=False, resume=True)
+
+            assert mock_run.call_count == 3, "stale results must not be kept under --resume"
+
+    def test_resume_keeps_levels_whose_config_is_unchanged(self, sweep_runner):
+        """The config check must not defeat resume for an unmodified batch."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+
+            mock_run.reset_mock()
+            sweep_runner.run(dry_run=False, resume=True)
+
+            assert mock_run.call_count == 0
+
     def test_dry_run_executes_nothing(self, sweep_runner):
         """Dry-run prints each level's command without running or checking the service."""
         with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
