@@ -58,12 +58,12 @@ jobs:
     if: github.event_name != 'pull_request' || github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           package-manager-cache: false
@@ -89,13 +89,13 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           package-manager-cache: false
@@ -104,7 +104,7 @@ jobs:
         run: npm ci
 
       - name: Restore historical SDK references
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: .fern-cache/fern-ref-sdk
           key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}
@@ -158,13 +158,13 @@ jobs:
     needs: [build-docs]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           package-manager-cache: false
@@ -174,7 +174,7 @@ jobs:
 
       - name: Restore historical SDK references
         id: fern-sdk-cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: .fern-cache/fern-ref-sdk
           key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}
@@ -188,7 +188,7 @@ jobs:
 
       - name: Save historical SDK references
         if: steps.fern-sdk-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: .fern-cache/fern-ref-sdk
           key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}

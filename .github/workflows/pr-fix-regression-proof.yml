@@ -47,7 +47,7 @@ jobs:
             echo "Title does not match the strict fix(...): pattern; skipping." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         if: steps.gate.outputs.is_fix == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -56,7 +56,7 @@ jobs:
 
       - name: Set up Python
         if: steps.gate.outputs.is_fix == 'true'
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 

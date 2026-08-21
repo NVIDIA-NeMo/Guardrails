@@ -17,7 +17,7 @@ jobs:
         # zizmor: ignore[artipacked] -- this job pushes the release tag with
         # `git push origin`, which needs the checkout's persisted credentials;
         # the job uploads no artifacts, so the token is not exposed.
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           ref: develop
           fetch-depth: 0
