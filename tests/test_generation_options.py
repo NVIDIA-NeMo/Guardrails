@@ -88,6 +88,7 @@ def _expected_serialized_outcome(outcome):
         "reason": outcome.reason,
         "metadata": dict(outcome.metadata),
         "transforms": [{"target": spec.target.value, "text": spec.text} for spec in outcome.transforms],
+        "failed": outcome.failed,
     }
 
 

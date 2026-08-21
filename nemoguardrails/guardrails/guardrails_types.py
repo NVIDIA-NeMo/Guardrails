@@ -123,6 +123,11 @@ class RailResult:
         return not self.outcome.is_blocked
 
     @property
+    def failed(self) -> bool:
+        """Whether this block came from a rail that raised rather than one that decided."""
+        return self.outcome.failed
+
+    @property
     def reason(self) -> str | None:
         """The rail's own explanation, when it authored one."""
         return self.outcome.reason

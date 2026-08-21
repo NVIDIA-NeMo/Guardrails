@@ -31,6 +31,8 @@ Fields:
 - ``transforms``: for TRANSFORM, which conversation variables are rewritten
   and to what. Transform outcomes are non-streaming; streaming output paths
   treat the check as non-blocking and do not apply the rewrite.
+- ``failed``: the rail raised instead of returning a verdict, so this BLOCK is
+  the engine's fail-closed envelope rather than the rail's own decision.
 
 Deliberately NOT here (they are rendering, not decision): exception type,
 refusal intent/message, language, and Colang event/context-update channels.
@@ -87,6 +89,7 @@ class RailOutcome:
     reason: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
     transforms: tuple[TransformSpec, ...] = ()
+    failed: bool = False
     __hash__ = None
 
     def __post_init__(self) -> None:
@@ -107,6 +110,8 @@ class RailOutcome:
         targets = [spec.target for spec in self.transforms]
         if len(targets) != len(set(targets)):
             raise ValueError("transforms must not repeat the same TransformTarget")
+        if self.failed and self.decision is not RailDecision.BLOCK:
+            raise ValueError("failed must be set only on a BLOCK decision")
 
     @property
     def is_blocked(self) -> bool:
@@ -138,6 +143,21 @@ class RailOutcome:
         metadata: Mapping[str, Any] | None = None,
     ) -> "RailOutcome":
         return cls(decision=RailDecision.BLOCK, reason=reason, metadata={} if metadata is None else metadata)
+
+    @classmethod
+    def failure(
+        cls,
+        *,
+        reason: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> "RailOutcome":
+        """A block the engine synthesized because the rail raised instead of deciding."""
+        return cls(
+            decision=RailDecision.BLOCK,
+            reason=reason,
+            metadata={} if metadata is None else metadata,
+            failed=True,
+        )
 
     @classmethod
     def transform(

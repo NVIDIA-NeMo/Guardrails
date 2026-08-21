@@ -90,7 +90,12 @@ def rail_error_outcome(span: Optional["Span"], action_name: str, exc: Exception)
     Call this from the ``except`` handler of a rail's own ``try`` -- a ``CompiledRail``'s
     or a tool rail's; both speak ``RailOutcome``, so both fail closed the same way.
 
+    The outcome is a ``failure`` rather than a plain ``block``: it stops the turn either way,
+    but an engine reading it can say the rail broke instead of implying the content was
+    refused, which is the difference between "fix your credentials" and "rephrase your
+    question". This is the only place that distinction is recorded.
+
     Raises:
         Exception: *exc* itself, when it carries an upstream HTTP status.
     """
-    return RailOutcome.block(reason=_blocked_reason_or_reraise(span, action_name, exc))
+    return RailOutcome.failure(reason=_blocked_reason_or_reraise(span, action_name, exc))

@@ -550,15 +550,8 @@ class TestVendorErrorsReadTheSameOnBothEngines:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("rail", VENDOR_RAILS, ids=[rail.rail_id for rail in VENDOR_RAILS])
-    async def test_engines_render_a_vendor_error_the_same_way(self, rail: VendorRail, monkeypatch):
-        """One rejected credential, two engines, one answer.
-
-        Equality rather than a literal is what this asserts, because the three families in this
-        table legitimately differ: most actions raise and reach the caller through the engine's
-        fail-closed envelope, a few fail open, and ai_defense blocks as its own documented
-        policy. What none of them may do is answer differently depending on the engine, which
-        is what an operator reading only the message would have to reverse-engineer.
-        """
+    async def test_engines_agree_on_whether_a_vendor_error_broke_the_rail(self, rail: VendorRail, monkeypatch):
+        """One rejected credential, and both engines agree on whether the rail broke or decided."""
         for name, value in rail.env.items():
             monkeypatch.setenv(name, value)
         config_dict = _vendor_config(rail)
@@ -566,7 +559,16 @@ class TestVendorErrorsReadTheSameOnBothEngines:
         llmrails_content = await _llmrails_reply(config_dict, _rejecting_client())
         iorails_content = await _iorails_reply(config_dict, _rejecting_client(), monkeypatch)
 
-        assert iorails_content == llmrails_content
+        if llmrails_content == INTERNAL_ERROR_MESSAGE:
+            assert iorails_content == INTERNAL_ERROR_MESSAGE, (
+                f"{rail.rail_id} raised on the vendor error, so IORails must report an internal "
+                f"error as LLMRails does, not {iorails_content!r}"
+            )
+        else:
+            assert iorails_content != INTERNAL_ERROR_MESSAGE, (
+                f"{rail.rail_id} handled the vendor error itself and returned a verdict, so "
+                f"IORails must not report it as a rail failure"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

@@ -96,7 +96,9 @@ For each request, IORails runs the rails in the following order:
 4. **Output rails** on the text response.
    A response that contains only tool calls and no text skips the text output rails.
 
-When any rail blocks, IORails returns the refusal message `I'm sorry, I can't respond to that.` for a non-streaming request, and a `guardrails_violation` error payload for a streaming request.
+When a rail blocks, IORails returns the refusal message `I'm sorry, I can't respond to that.` for a non-streaming request, and a `guardrails_violation` error payload for a streaming request.
+When a rail cannot reach a verdict at all, because its provider rejected the credentials or was unreachable, the turn still stops, but the non-streaming message is `I'm sorry, an internal error has occurred.` instead.
+That distinction lets a caller tell a provider outage, which is worth retrying, from a policy decision, which is not.
 
 ## Enable the IORails Engine
 
