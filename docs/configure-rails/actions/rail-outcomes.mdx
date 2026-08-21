@@ -9,7 +9,7 @@ content:
 
 Rail actions return a `RailOutcome` to express an allow, block, or transform decision. This contract separates a rail's decision from the way a runtime presents or enforces that decision.
 
-Actions declared by a rail manifest must return `RailOutcome`. Ordinary custom actions can return other Python values when a Colang flow consumes them explicitly. The runtime does not infer a rail decision from a boolean, number, tuple, or dictionary.
+Actions declared by a [rail manifest](/reference/rail-manifests) must return `RailOutcome`. Ordinary custom actions can return other Python values when a Colang flow consumes them explicitly. The runtime does not infer a rail decision from a boolean, number, tuple, or dictionary.
 
 <Warning title="Breaking Change">
 

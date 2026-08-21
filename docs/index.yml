@@ -583,6 +583,9 @@ navigation:
       - page: Engine Feature Support
         path: reference/engine-feature-support.mdx
         slug: engine-feature-support
+      - page: Rail Manifests
+        path: reference/rail-manifests.mdx
+        slug: rail-manifests
       - folder: _static/python-sdk-reference/guardrails-python-sdk
         title: Python SDK Reference
         collapsed: true
