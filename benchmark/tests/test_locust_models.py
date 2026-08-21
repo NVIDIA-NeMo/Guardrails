@@ -21,7 +21,7 @@ Tests for Locust load test configuration models.
 import pytest
 from pydantic import ValidationError
 
-from benchmark.locust.locust_models import LocustConfig
+from benchmark.locust.locust_models import LocustConfig, LocustSweepConfig
 
 
 class TestLocustConfig:
@@ -147,3 +147,89 @@ class TestLocustConfigHelpers:
         assert config.config_id == "test-config"
         assert config.model == "test-model"
         assert config.users == 100
+
+
+class TestLocustSweepConfig:
+    """Test the LocustSweepConfig model."""
+
+    BASE = {"config_id": "test-config", "model": "test-model"}
+
+    def test_flat_config_is_read_as_a_single_run(self):
+        """Config files written before sweeps existed keep working."""
+        config = LocustSweepConfig(**{**self.BASE, "host": "http://localhost:9000", "users": 64})
+
+        assert config.sweeps is None
+        assert config.base_config.config_id == "test-config"
+        assert config.base_config.users == 64
+        assert config.expand() == [("", config.base_config)]
+
+    def test_nested_config_with_sweep(self):
+        """The nested form mirrors the AIPerf batch layout."""
+        config = LocustSweepConfig(
+            batch_name="sweep_concurrency",
+            base_config=self.BASE,
+            sweeps={"users": [1, 2, 4]},
+        )
+
+        assert config.batch_name == "sweep_concurrency"
+        assert [label for label, _ in config.expand()] == ["users-1", "users-2", "users-4"]
+        assert [run.users for _, run in config.expand()] == [1, 2, 4]
+
+    def test_flat_config_may_carry_a_sweep(self):
+        """A sweep can be added to an existing flat config without restructuring it."""
+        config = LocustSweepConfig(**{**self.BASE, "sweeps": {"users": [8, 16]}})
+
+        assert [run.users for _, run in config.expand()] == [8, 16]
+
+    def test_base_config_supplies_values_not_swept(self):
+        """Sweeping one field leaves the rest of the base configuration intact."""
+        config = LocustSweepConfig(
+            base_config={**self.BASE, "message": "hello", "run_time": 120},
+            sweeps={"users": [1, 2]},
+        )
+
+        for _, run in config.expand():
+            assert run.message == "hello"
+            assert run.run_time == 120
+
+    def test_multiple_sweeps_run_the_cartesian_product(self):
+        """Several swept parameters expand to every combination, as AIPerf does."""
+        config = LocustSweepConfig(
+            base_config=self.BASE,
+            sweeps={"users": [1, 2], "spawn_rate": [4, 8]},
+        )
+
+        assert [label for label, _ in config.expand()] == [
+            "spawn_rate-4_users-1",
+            "spawn_rate-4_users-2",
+            "spawn_rate-8_users-1",
+            "spawn_rate-8_users-2",
+        ]
+
+    def test_output_base_dir_defaults_to_the_base_config(self):
+        """A flat config's output directory is not lost when it is wrapped."""
+        config = LocustSweepConfig(**{**self.BASE, "output_base_dir": "somewhere"})
+
+        assert config.output_base_dir == "somewhere"
+
+    def test_sweep_over_unknown_field_rejected(self):
+        """A swept parameter that is not a LocustConfig field cannot be applied."""
+        with pytest.raises(ValidationError, match="not LocustConfig fields"):
+            LocustSweepConfig(base_config=self.BASE, sweeps={"nonsense": [1]})
+
+    def test_sweep_with_no_values_rejected(self):
+        """An empty sweep list would silently run nothing."""
+        with pytest.raises(ValidationError, match="no values"):
+            LocustSweepConfig(base_config=self.BASE, sweeps={"users": []})
+
+    def test_swept_values_are_validated(self):
+        """Field constraints still apply to values coming from a sweep."""
+        config = LocustSweepConfig(base_config=self.BASE, sweeps={"users": [0]})
+
+        with pytest.raises(ValidationError):
+            config.expand()
+
+    def test_extra_top_level_fields_forbidden(self):
+        """A misspelled batch key should not be silently ignored."""
+        with pytest.raises(ValidationError):
+            LocustSweepConfig(base_config=self.BASE, bogus=1)

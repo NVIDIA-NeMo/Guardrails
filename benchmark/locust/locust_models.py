@@ -18,7 +18,10 @@
 Pydantic models for Locust load test configuration validation.
 """
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from itertools import product
+from typing import Dict, List, Optional, Union
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class LocustConfig(BaseModel):
@@ -76,3 +79,108 @@ class LocustConfig(BaseModel):
             raise ValueError("Host must start with http:// or https://")
         # Remove trailing slash if present
         return v.rstrip("/")
+
+
+# Keys that configure the batch itself rather than an individual Locust run.
+BATCH_KEYS = ("batch_name", "output_base_dir", "sweeps")
+
+SweepValue = Union[int, float, str]
+
+
+class LocustSweepConfig(BaseModel):
+    """A batch of Locust runs sharing one base configuration.
+
+    Accepts the nested form, which mirrors ``benchmark/aiperf``::
+
+        batch_name: sweep_concurrency
+        output_base_dir: locust_results
+        base_config:
+          host: "http://localhost:9000"
+          config_id: content_safety_local
+          model: meta/llama-3.3-70b-instruct
+        sweeps:
+          users: [1, 2, 4]
+
+    It also accepts a flat single-run config, which is the format that
+    predates sweeps, so existing configuration files keep working::
+
+        host: "http://localhost:9000"
+        config_id: content_safety_local
+        model: meta/llama-3.3-70b-instruct
+
+    A flat config may carry a ``sweeps`` block too; the remaining keys are
+    read as the base configuration.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    batch_name: str = Field(
+        default="benchmark",
+        description="Name for this batch of runs, used as a directory under output_base_dir",
+    )
+    output_base_dir: Optional[str] = Field(
+        default=None,
+        description="Base directory for results. Defaults to the base config's output_base_dir",
+    )
+    base_config: LocustConfig = Field(
+        ...,
+        description="Configuration applied to every run, before sweep values override it",
+    )
+    sweeps: Optional[Dict[str, List[SweepValue]]] = Field(
+        default=None,
+        description="Parameters to sweep. Key is a LocustConfig field, value is the list of values to run",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_flat_config(cls, data):
+        """Read a flat single-run config as a batch with one base configuration."""
+        if not isinstance(data, dict) or "base_config" in data:
+            return data
+
+        batch = {key: value for key, value in data.items() if key in BATCH_KEYS}
+        # output_base_dir stays in the base config as well, so LocustConfig keeps its own default.
+        base = {key: value for key, value in data.items() if key not in ("batch_name", "sweeps")}
+        return {**batch, "base_config": base}
+
+    @model_validator(mode="after")
+    def validate_sweeps(self):
+        """Default the output directory and reject sweeps that cannot be applied."""
+        if self.output_base_dir is None:
+            self.output_base_dir = self.base_config.output_base_dir
+
+        if not self.sweeps:
+            return self
+
+        unknown = sorted(set(self.sweeps) - set(LocustConfig.model_fields))
+        if unknown:
+            raise ValueError(f"Sweep parameters are not LocustConfig fields: {unknown}")
+
+        empty = sorted(key for key, values in self.sweeps.items() if not values)
+        if empty:
+            raise ValueError(f"Sweep parameters have no values: {empty}")
+
+        return self
+
+    def expand(self) -> List[tuple[str, LocustConfig]]:
+        """Return a ``(label, config)`` pair for every run in this batch.
+
+        Sweeping several parameters runs their Cartesian product, matching the
+        AIPerf runner. Without a sweep this is the base configuration alone,
+        labelled with the empty string.
+        """
+        if not self.sweeps:
+            return [("", self.base_config)]
+
+        # Sorted so the run order and directory names do not depend on YAML key order.
+        keys = sorted(self.sweeps)
+
+        runs = []
+        for combination in product(*(self.sweeps[key] for key in keys)):
+            overrides = dict(zip(keys, combination))
+            # Rebuild rather than model_copy so field constraints still apply to swept values.
+            config = LocustConfig(**{**self.base_config.model_dump(), **overrides})
+            label = "_".join(f"{key}-{value}" for key, value in overrides.items())
+            runs.append((label, config))
+
+        return runs

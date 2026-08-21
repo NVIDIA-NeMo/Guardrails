@@ -23,6 +23,7 @@ both direct CLI arguments and YAML configuration files.
 
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -35,7 +36,7 @@ import typer
 import yaml
 from pydantic import ValidationError
 
-from benchmark.locust.locust_models import LocustConfig
+from benchmark.locust.locust_models import LocustConfig, LocustSweepConfig
 
 # The mock LLM servers serve `/health`; the Guardrails server serves
 # `/v1/health` (and `/healthz`). Probe both so either target works.
@@ -112,6 +113,21 @@ class LocustRunner:
         if status not in HEALTHY_STATUSES:
             raise RuntimeError(f"Service at {url} is unhealthy: {response.text}")
 
+    @property
+    def ramp_seconds(self) -> int:
+        """Seconds Locust spends spawning users before the measured window starts."""
+        return math.ceil(self.config.users / self.config.spawn_rate)
+
+    @property
+    def total_run_seconds(self) -> int:
+        """Total wall-clock seconds to ask Locust for.
+
+        ``run_time`` is the measured duration, so the ramp is added on top of it
+        rather than taken out of it. Otherwise the measured window shrinks as
+        concurrency rises, which is where the measurement matters most.
+        """
+        return self.ramp_seconds + self.config.run_time
+
     def _build_locust_command(self, output_dir: Optional[Path] = None) -> list[str]:
         """Build the Locust command with all parameters."""
         cmd = ["locust", "-f", str(self.locustfile_path)]
@@ -122,7 +138,11 @@ class LocustRunner:
         # User and spawn rate
         cmd.extend(["--users", str(self.config.users)])
         cmd.extend(["--spawn-rate", str(self.config.spawn_rate)])
-        cmd.extend(["--run-time", f"{self.config.run_time}s"])
+        cmd.extend(["--run-time", f"{self.total_run_seconds}s"])
+
+        # Discard the statistics gathered while ramping, so the reported numbers
+        # describe the requested concurrency rather than the climb towards it.
+        cmd.append("--reset-stats")
 
         # Headless mode
         if self.config.headless:
@@ -135,16 +155,30 @@ class LocustRunner:
                 csv_prefix = output_dir / "stats"
                 cmd.extend(["--html", str(html_file)])
                 cmd.extend(["--csv", str(csv_prefix)])
+                # Keep the time series, so a level that never reached a plateau
+                # can be told apart from one that did.
+                cmd.append("--csv-full-history")
 
         log.debug("Locust command: %s", " ".join(cmd))
         return cmd
 
-    def _save_run_metadata(self, output_dir: Path, command: list[str], start_time: datetime) -> None:
-        """Save metadata about the load test run."""
+    def _save_run_metadata(
+        self,
+        output_dir: Path,
+        command: list[str],
+        start_time: datetime,
+        exit_code: Optional[int] = None,
+    ) -> None:
+        """Save metadata about the load test run.
+
+        ``exit_code`` is None until the run finishes. A sweep treats metadata
+        without an exit code as an incomplete level.
+        """
         metadata = {
             "start_time": start_time.isoformat(),
             "config": self.config.model_dump(),
             "command": " ".join([str(c) for c in command]),
+            "exit_code": exit_code,
         }
 
         metadata_file = output_dir / "run_metadata.json"
@@ -161,7 +195,7 @@ class LocustRunner:
         return output_path
 
     def run(self, dry_run: bool) -> int:
-        """Run the Locust load test."""
+        """Run a single Locust load test into a timestamped directory."""
 
         # For dry-run, print command without creating directories or metadata
         if dry_run:
@@ -181,11 +215,21 @@ class LocustRunner:
             log.error(str(e))
             return 1
 
-        # Build command with output directory
         output_path = self._create_output_path(self.config.output_base_dir)
+        return self.run_level(output_path)
+
+    def run_level(self, output_path: Path) -> int:
+        """Run Locust once, writing results to ``output_path``.
+
+        Returns Locust's exit code, which is non-zero when any request failed.
+        The service health check is not repeated here; a sweep performs it once
+        for the whole batch.
+        """
+        output_path.mkdir(parents=True, exist_ok=True)
         command = self._build_locust_command(output_path)
 
-        # Save metadata
+        # Save metadata up front so an interrupted run still leaves a record.
+        # The exit code is filled in once the run finishes.
         start_time = datetime.now()
         self._save_run_metadata(output_path, command, start_time)
         log.info("Saving metadata to: %s", output_path)
@@ -199,10 +243,11 @@ class LocustRunner:
         # Log test configuration
         log.info("Starting Locust load test")
         log.info("Config: %s", self.config.model_dump_json())
-
-        rampup_seconds = min(int(self.config.users / self.config.spawn_rate), self.config.run_time)
-        steady_state_seconds = self.config.run_time - rampup_seconds
-        log.info("Duration: rampup: %is, steady-state %is", rampup_seconds, steady_state_seconds)
+        log.info(
+            "Duration: rampup: %is, measured %is",
+            self.ramp_seconds,
+            self.config.run_time,
+        )
 
         if not self.config.headless:
             log.info("Web UI will be available at: http://localhost:8089")
@@ -216,6 +261,7 @@ class LocustRunner:
             else:
                 log.error("Load test failed with exit code %s", result.returncode)
 
+            self._save_run_metadata(output_path, command, start_time, exit_code=result.returncode)
             return result.returncode
 
         except KeyboardInterrupt:
@@ -226,8 +272,91 @@ class LocustRunner:
             return 1
 
 
-def _load_config_from_yaml(config_file: Path) -> LocustConfig:
-    """Load and validate configuration from YAML file."""
+class LocustSweepRunner:
+    """Run every level of a sweep, keeping per-level results and exit codes.
+
+    Each level is an independent Locust invocation. A level whose requests
+    failed is a result, not a runner error: its exit code is recorded and the
+    sweep continues, because the levels past saturation are the ones a stress
+    test exists to measure.
+    """
+
+    def __init__(self, config: LocustSweepConfig):
+        self.config = config
+
+    @property
+    def batch_path(self) -> Path:
+        """Directory holding every level of this batch."""
+        return Path(self.config.output_base_dir) / self.config.batch_name
+
+    @staticmethod
+    def is_complete(level_path: Path) -> bool:
+        """True when a level already holds a finished result.
+
+        Metadata is written before the run starts, so an exit code is what
+        distinguishes a finished level from an interrupted one.
+        """
+        metadata_file = level_path / "run_metadata.json"
+        if not metadata_file.is_file():
+            return False
+
+        try:
+            metadata = json.loads(metadata_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return False
+
+        return metadata.get("exit_code") is not None
+
+    def run(self, dry_run: bool, resume: bool = False) -> int:
+        """Run the whole sweep.
+
+        Returns non-zero only when the benchmark could not be run, such as a
+        failed health check. Request failures within a level are reported in
+        that level's metadata instead.
+        """
+        levels = self.config.expand()
+        log.info("Sweep %s: %i levels", self.config.batch_name, len(levels))
+
+        if dry_run:
+            for label, level_config in levels:
+                LocustRunner(level_config).run(dry_run=True)
+            return 0
+
+        # One health check for the batch rather than one per level.
+        try:
+            LocustRunner(self.config.base_config)._check_service()
+        except RuntimeError as e:
+            log.error(str(e))
+            return 1
+
+        exit_codes: dict[str, int] = {}
+        for index, (label, level_config) in enumerate(levels, start=1):
+            level_path = self.batch_path / label
+
+            if resume and self.is_complete(level_path):
+                log.info("Level %i/%i (%s) already complete, keeping it", index, len(levels), label)
+                continue
+
+            log.info("Level %i/%i: %s", index, len(levels), label)
+            exit_codes[label] = LocustRunner(level_config).run_level(level_path)
+
+        failed = sorted(label for label, code in exit_codes.items() if code != 0)
+        if failed:
+            log.warning(
+                "Levels with request failures (recorded, not fatal): %s",
+                ", ".join(failed),
+            )
+        log.info("Sweep complete. Results in %s", self.batch_path)
+        return 0
+
+
+def _load_config_from_yaml(config_file: Path) -> LocustSweepConfig:
+    """Load and validate configuration from YAML file.
+
+    Both the flat single-run format and the nested ``base_config``/``sweeps``
+    batch format are accepted, so configuration files written before sweeps
+    existed keep working.
+    """
     try:
         with open(config_file, "r", encoding="utf-8") as f:
             config_data = yaml.safe_load(f)
@@ -235,7 +364,7 @@ def _load_config_from_yaml(config_file: Path) -> LocustConfig:
         if config_data is None:
             config_data = {}
 
-        config = LocustConfig(**config_data)
+        config = LocustSweepConfig(**config_data)
         return config
 
     except FileNotFoundError:
@@ -268,6 +397,11 @@ def run(
         "--verbose",
         help="Print additional debugging information during run",
     ),
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help="Skip sweep levels that already hold a completed result",
+    ),
 ):
     """
     Run Locust load test using provided config file
@@ -277,9 +411,14 @@ def run(
 
     locust_config = _load_config_from_yaml(config_file)
 
-    # Create and run the test
-    runner = LocustRunner(locust_config)
-    exit_code = runner.run(dry_run)
+    # Without a sweep this is a single run, which keeps its timestamped
+    # output directory rather than a per-level one.
+    if not locust_config.sweeps:
+        if resume:
+            log.warning("--resume applies to sweeps; ignoring it for a single run")
+        exit_code = LocustRunner(locust_config.base_config).run(dry_run)
+    else:
+        exit_code = LocustSweepRunner(locust_config).run(dry_run, resume)
 
     raise typer.Exit(code=exit_code)
 
