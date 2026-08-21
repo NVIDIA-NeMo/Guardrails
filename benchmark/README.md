@@ -190,11 +190,14 @@ The Mock LLM has the following OpenAI-compatible endpoints:
 Mock LLMs are configured using the `.env` file format. These files are passed to the Mock LLM using the `--config-file` argument.
 The Mock LLMs return either a `SAFE_TEXT` or `UNSAFE_TEXT` response to `/v1/completions` or `/v1/chat/completions` inference requests.
 The probability of the `UNSAFE_TEXT` being returned if given by `UNSAFE_PROBABILITY`.
-The latency of each response is also controllable, and works as follows:
+The latency of each response is also controllable.
+Non-streaming responses use the end-to-end `E2E_LATENCY_*` settings.
+Streaming responses instead use `TTFT_*` for the first chunk and `CHUNK_LATENCY_*` for every chunk after it.
+Each of these three groups is sampled the same way, where `*` is the group prefix:
 
-* Latency is first sampled from a normal distribution with mean `LATENCY_MEAN_SECONDS` and standard deviation `LATENCY_STD_SECONDS`.
-* If the sampled value is less than `LATENCY_MIN_SECONDS`, it is set to `LATENCY_MIN_SECONDS`.
-* If the sampled value is greater than `LATENCY_MAX_SECONDS`, it is set to `LATENCY_MAX_SECONDS`.
+* Latency is first sampled from a normal distribution with mean `*_MEAN_SECONDS` and standard deviation `*_STD_SECONDS`.
+* If the sampled value is less than `*_MIN_SECONDS`, it is set to `*_MIN_SECONDS`.
+* If the sampled value is greater than `*_MAX_SECONDS`, it is set to `*_MAX_SECONDS`.
 
 The full list of configuration fields is shown below:
 
@@ -202,7 +205,15 @@ The full list of configuration fields is shown below:
 * `UNSAFE_PROBABILITY`: Probability of an unsafe response. This must be in the range [0, 1].
 * `UNSAFE_TEXT`: String returned as an unsafe response.
 * `SAFE_TEXT`: String returned as a safe response.
-* `LATENCY_MIN_SECONDS`: Minimum latency in seconds.
-* `LATENCY_MAX_SECONDS`: Maximum latency in seconds.
-* `LATENCY_MEAN_SECONDS`: Normal distribution mean from which to sample latency.
-* `LATENCY_STD_SECONDS`: Normal distribution standard deviation from which to sample latency.
+* `E2E_LATENCY_MIN_SECONDS`: Minimum end-to-end latency in seconds.
+* `E2E_LATENCY_MAX_SECONDS`: Maximum end-to-end latency in seconds.
+* `E2E_LATENCY_MEAN_SECONDS`: Normal distribution mean from which to sample end-to-end latency.
+* `E2E_LATENCY_STD_SECONDS`: Normal distribution standard deviation from which to sample end-to-end latency.
+* `TTFT_MIN_SECONDS`: Minimum [time to first token](https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html#time-to-first-token-ttft) in seconds. Streaming responses only.
+* `TTFT_MAX_SECONDS`: Maximum time to first token in seconds. Streaming responses only.
+* `TTFT_MEAN_SECONDS`: Normal distribution mean from which to sample time to first token. Streaming responses only.
+* `TTFT_STD_SECONDS`: Normal distribution standard deviation from which to sample time to first token. Streaming responses only.
+* `CHUNK_LATENCY_MIN_SECONDS`: Minimum [inter-token latency](https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html#inter-token-latency-itl) in seconds. Streaming responses only.
+* `CHUNK_LATENCY_MAX_SECONDS`: Maximum inter-token latency in seconds. Streaming responses only.
+* `CHUNK_LATENCY_MEAN_SECONDS`: Normal distribution mean from which to sample inter-token latency. Streaming responses only.
+* `CHUNK_LATENCY_STD_SECONDS`: Normal distribution standard deviation from which to sample inter-token latency. Streaming responses only.
