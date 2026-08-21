@@ -256,23 +256,23 @@ Provide shared resources to actions:
 # config/config.py
 def init(app: LLMRails):
     # Create shared resources
-    http_client = aiohttp.ClientSession()
     cache = RedisCache()
 
     # Register as action parameters
-    app.register_action_param("http_client", http_client)
     app.register_action_param("cache", cache)
 ```
 
 ```python
 # config/actions.py
 from nemoguardrails.actions import action
+from nemoguardrails.http import HTTPClient, http_call
+
 
 @action()
 async def fetch_with_cache(
     url: str,
-    http_client=None,  # Injected automatically
-    cache=None         # Injected automatically
+    cache=None,
+    http_client: HTTPClient | None = None,
 ):
     # Check cache first
     cached = await cache.get(url)
@@ -280,12 +280,14 @@ async def fetch_with_cache(
         return cached
 
     # Fetch and cache
-    response = await http_client.get(url)
-    data = await response.json()
+    response = await http_call(http_client, "GET", url)
+    data = response.json()
     await cache.set(url, data)
 
     return data
 ```
+
+An injected HTTP client remains caller-owned and must be closed by the application that created it. For the shared-client lifecycle pattern, refer to [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http#client-ownership).
 
 ## Best Practices
 
@@ -345,3 +347,4 @@ async def search_knowledge_base(
 - [Creating Custom Actions](creating-actions) - Create your own actions
 - [Built-in Actions](built-in-actions) - Default actions in the library
 - [Action Parameters](action-parameters) - Special parameters for actions
+- [Outbound HTTP](outbound-http) - Inject and manage the canonical HTTP client

@@ -117,22 +117,29 @@ def init(app: LLMRails):
     app.register_action_param("db_conn", conn)
 ```
 
-## Example: API Client Initialization
+## HTTP Client Lifecycle
+
+The synchronous `init` function has no asynchronous teardown hook. Do not create a long-lived HTTP client in `init` unless another application component owns and closes it.
+
+Create a shared canonical client at the surrounding application lifecycle boundary, register it as an action parameter, and close it at shutdown:
 
 ```python
-import os
-import httpx
-from nemoguardrails import LLMRails
+from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.http import create_http_client
 
-def init(app: LLMRails):
-    # Get API key from custom_data in config.yml
-    api_key = os.environ.get("API_KEY") or app.config.custom_data.get("api_key")
 
-    # Create HTTP client with authentication
-    client = httpx.AsyncClient(
-        base_url="https://api.example.com",
-        headers={"Authorization": f"Bearer {api_key}"}
-    )
+async def run():
+    http_client = create_http_client(timeout=10.0)
+    config = RailsConfig.from_path("config")
+    app = LLMRails(config)
+    app.register_action_param("http_client", http_client)
 
-    app.register_action_param("http_client", client)
+    try:
+        return await app.generate_async(
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+    finally:
+        await http_client.close()
 ```
+
+Actions that accept `http_client: HTTPClient | None = None` can use a shared injected client or let `http_call` create and close a call-scoped fallback. For details, refer to [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http).

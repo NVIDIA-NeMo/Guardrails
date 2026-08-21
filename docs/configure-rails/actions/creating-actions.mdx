@@ -30,7 +30,7 @@ async def my_custom_action():
 |-----------|------|-------------|---------|
 | `name` | `str` | Custom name for the action | Function name |
 | `is_system_action` | `bool` | Always run locally, bypassing the actions server | `False` |
-| `execute_async` | `bool` | Don't block event processing while the action runs (Colang 2.x only) | `False` |
+| `execute_async` | `bool` | Continue event processing while the action runs (Colang 2.x only) | `False` |
 
 ### Custom Action Name
 
@@ -70,7 +70,7 @@ async def check_policy_compliance(context: Optional[dict] = None):
 
 ### Async Execution
 
-When `execute_async=True`, the event processing loop does not wait for the action to complete before continuing. The action runs in the background and the result is picked up later via polling. This is useful for long-running operations where you don't need the result immediately.
+When `execute_async=True`, the event processing loop does not wait for the action to complete before continuing. The action runs in the background, and the event processing loop retrieves the result later by polling. Use this setting for long-running operations when you do not need the result immediately.
 
 <Note>
 
@@ -79,10 +79,17 @@ This flag is only supported in the Colang 2.x runtime. In the Colang 1.0 runtime
 </Note>
 
 ```python
+from nemoguardrails.actions import action
+from nemoguardrails.http import HTTPClient, http_call
+
+
 @action(execute_async=True)
-async def call_external_api(endpoint: str):
+async def call_external_api(
+    endpoint: str,
+    http_client: HTTPClient | None = None,
+):
     """Call an external API without blocking event processing."""
-    response = await http_client.get(endpoint)
+    response = await http_call(http_client, "GET", endpoint)
     return response.json()
 ```
 
@@ -196,18 +203,21 @@ if not $is_safe
 Handle errors gracefully within actions:
 
 ```python
+from nemoguardrails.actions import action
+from nemoguardrails.http import HTTPClient, HTTPTimeoutError, http_call
+
+
 @action()
-async def fetch_data(url: str):
+async def fetch_data(
+    url: str,
+    http_client: HTTPClient | None = None,
+):
     """Fetch data with error handling."""
     try:
-        response = await http_client.get(url)
-        response.raise_for_status()
+        response = await http_call(http_client, "GET", url)
         return response.json()
-    except Exception as e:
-        # Log the error
-        print(f"Error fetching data: {e}")
-        # Return a safe default or raise
-        return None
+    except HTTPTimeoutError as error:
+        raise RuntimeError("External data service timed out") from error
 ```
 
 ## Example Actions
@@ -301,18 +311,24 @@ rails:
 ### External API Action
 
 ```python
-import aiohttp
+from nemoguardrails.actions import action
+from nemoguardrails.http import HTTPClient, http_call
+
 
 @action(execute_async=True)
-async def query_knowledge_base(query: str, top_k: int = 5):
+async def query_knowledge_base(
+    query: str,
+    top_k: int = 5,
+    http_client: HTTPClient | None = None,
+):
     """Query an external knowledge base API."""
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            "https://api.example.com/search",
-            json={"query": query, "limit": top_k}
-        ) as response:
-            data = await response.json()
-            return data.get("results", [])
+    response = await http_call(
+        http_client,
+        "POST",
+        "https://api.example.com/search",
+        json={"query": query, "limit": top_k},
+    )
+    return response.json().get("results", [])
 ```
 
 ## Related Topics
@@ -320,3 +336,4 @@ async def query_knowledge_base(query: str, top_k: int = 5):
 - [Built-in Actions](built-in-actions) - Default actions in the library
 - [Action Parameters](action-parameters) - Special parameters provided automatically
 - [Registering Actions](registering-actions) - Different ways to register actions
+- [Outbound HTTP](outbound-http) - Send external requests through the canonical client boundary
