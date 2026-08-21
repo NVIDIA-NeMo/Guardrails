@@ -197,11 +197,32 @@ class LocustSweepConfig(BaseModel):
         keys = sorted(self.sweeps)
 
         runs = []
+        used: set[str] = set()
         for combination in product(*(self.sweeps[key] for key in keys)):
             overrides = dict(zip(keys, combination, strict=True))
             # Rebuild rather than model_copy so field constraints still apply to swept values.
             config = LocustConfig(**{**self.base_config.model_dump(), **overrides})
-            label = "_".join(f"{key}-{label_segment(value)}" for key, value in overrides.items())
+            label = self._unique_label(overrides, used)
+            used.add(label)
             runs.append((label, config))
 
         return runs
+
+    @staticmethod
+    def _unique_label(overrides: dict, used: set) -> str:
+        """Build a label for one combination that no earlier combination took.
+
+        Sanitising can map distinct values onto the same segment: ``a/b`` and
+        ``a-b`` both become ``a-b``. Without a suffix the two levels would share
+        a directory and the later one would overwrite the earlier one's results.
+        Suffixes are assigned in expansion order, which is deterministic, so
+        --resume still matches a level to its directory.
+        """
+        label = "_".join(f"{key}-{label_segment(value)}" for key, value in overrides.items())
+        if label not in used:
+            return label
+
+        suffix = 2
+        while f"{label}-{suffix}" in used:
+            suffix += 1
+        return f"{label}-{suffix}"

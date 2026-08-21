@@ -251,3 +251,18 @@ class TestLocustSweepConfig:
         config = LocustSweepConfig(base_config=self.BASE, sweeps={"users": [1, 1024]})
 
         assert [label for label, _ in config.expand()] == ["users-1", "users-1024"]
+
+    def test_colliding_labels_get_distinct_directories(self):
+        """Sanitising can map different values onto one segment; levels must not share a directory."""
+        config = LocustSweepConfig(base_config=self.BASE, sweeps={"model": ["a/b", "a-b", "a:b"]})
+
+        labels = [label for label, _ in config.expand()]
+
+        assert labels == ["model-a-b", "model-a-b-2", "model-a-b-3"]
+        assert len(set(labels)) == 3
+
+    def test_label_suffixes_are_stable_across_expansions(self):
+        """Resume matches a level by directory name, so labels must not move between runs."""
+        config = LocustSweepConfig(base_config=self.BASE, sweeps={"model": ["a/b", "a-b"]})
+
+        assert [label for label, _ in config.expand()] == [label for label, _ in config.expand()]

@@ -79,6 +79,10 @@ class LocustRunner:
             raise RuntimeError(f"ConnectError accessing {url}: {e}") from e
         except httpx.TimeoutException as e:
             raise RuntimeError(f"HTTP Timeout accessing {url}: {e}") from e
+        except httpx.HTTPError as e:
+            # Any other transport failure is still the benchmark failing to
+            # start, so report it the same way rather than as a traceback.
+            raise RuntimeError(f"HTTP error accessing {url}: {type(e).__name__}: {e}") from e
 
     def _check_service(self) -> None:
         """Check the server under test is up before running tests.

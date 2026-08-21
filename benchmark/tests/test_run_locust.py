@@ -237,6 +237,14 @@ class TestLocustRunner:
                 == f"Error: response {mock_response.text} couldn't be parsed as JSON: {json_error}"
             )
 
+    def test_check_service_other_transport_error(self, runner):
+        """A transport failure other than connect or timeout is still a controlled error."""
+        with patch("httpx.get") as mock_get:
+            mock_get.side_effect = httpx.ReadError("connection reset")
+
+            with pytest.raises(RuntimeError, match="HTTP error accessing"):
+                runner._check_service()
+
     def _v1_health_endpoint(self, runner: LocustRunner):
         """The Guardrails server's health endpoint"""
         return f"{runner.config.host}/v1/health"
