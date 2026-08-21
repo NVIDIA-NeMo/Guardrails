@@ -154,9 +154,17 @@ Use binding constructors to identify where each action argument comes from:
 
 | Binding | Source |
 | --- | --- |
-| `Binding.context("text", "user_message")` | A runtime context value. |
-| `Binding.surface_param("model_name", "model")` | A parameter supplied with the configured surface. |
+| `Binding.context("text", "user_message")` | A named request conversation value. |
+| `Binding.surface_param("threshold", "threshold")` | A generic parameter supplied with the configured surface. |
 | `Binding.literal("source", "input")` | A constant declared by the manifest. |
+| `Binding.model_param("model_name", "model")` | A model type selected by a configured surface parameter. |
+| `Binding.model("model_name", "llama_guard")` | A fixed model type declared by the manifest. |
+
+Use `Binding.model_param` or `Binding.model` whenever the resolved value identifies a configured model type. These helpers set `resource="model"` so the runtime validates the model before invoking the action. A model resource cannot read its type from request context.
+
+Manifest-driven IORails supplies conversation values only through explicit `Binding.context` entries. Declaring an action parameter named `context` does not inject the complete context dictionary on this execution path. Bind each conversation input the action requires.
+
+The manifest does not bind runtime-owned collaborators. IORails injects `llms`, `llm`, `llm_task_manager`, `config`, `http_client`, `model_caches`, and `events` into actions that declare those parameters.
 
 Set `required=False` on a context or surface-parameter binding only when the action can operate without that value. A surface cannot bind the same action parameter more than once.
 
@@ -253,7 +261,7 @@ Use the following checklist when you author a rail manifest:
 - Keep import targets declarative and point them to the owning implementation modules.
 - Return `RailOutcome` from every declared action.
 - Keep Colang 1.0 and 2.x flows equivalent when both are present.
-- Bind every action parameter that the runtime must supply.
+- Bind every conversation value, configured surface parameter, literal, and model resource that the action requires; declare runtime-owned collaborators only in the action signature.
 - Declare transform targets, dependencies, external services, environment variables, and privacy behavior accurately.
 - Add unit tests for the action and manifest contract and recorded tests for LLM or HTTP boundaries when applicable.
 - Add or update the rail's catalog documentation page.
