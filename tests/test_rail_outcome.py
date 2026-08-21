@@ -68,6 +68,40 @@ def test_block_is_blocked_with_reason_and_metadata():
     assert outcome.transforms == ()
 
 
+def test_failure_is_a_block_marked_failed():
+    """``failure`` is a BLOCK that also records the rail never reached a verdict."""
+    outcome = RailOutcome.failure(reason="content safety check input error: parser blew up")
+
+    assert outcome.decision is RailDecision.BLOCK
+    assert outcome.is_blocked is True
+    assert outcome.failed is True
+    assert outcome.reason == "content safety check input error: parser blew up"
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        pytest.param(RailOutcome.allow(), id="allow"),
+        pytest.param(RailOutcome.block(reason="unsafe"), id="block"),
+        pytest.param(RailOutcome.transform([(TransformTarget.USER_MESSAGE, "masked")]), id="transform"),
+    ],
+)
+def test_a_rails_own_verdict_is_never_marked_failed(outcome):
+    """The three decision factories leave ``failed`` unset, so the flag cannot forge a rail failure."""
+    assert outcome.failed is False
+
+
+def test_failed_requires_a_block_decision():
+    """Only a BLOCK may be marked failed: the fail-closed envelope has no other decision to make."""
+    with pytest.raises(ValueError, match="failed must be set only on a BLOCK decision"):
+        RailOutcome(decision=RailDecision.ALLOW, failed=True)
+
+
+def test_failed_distinguishes_two_otherwise_equal_blocks():
+    """A failed block and a decided block with the same reason do not compare equal."""
+    assert RailOutcome.failure(reason="unsafe") != RailOutcome.block(reason="unsafe")
+
+
 def test_transform_targets_variables():
     outcome = RailOutcome.transform(
         [

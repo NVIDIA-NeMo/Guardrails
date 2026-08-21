@@ -263,10 +263,10 @@ async def test_f5_guardrails_output_blocks_violating_assistant_message(f5_api_ke
 
 
 async def test_f5_guardrails_input_fails_closed_on_401(f5_api_key, monkeypatch, caplog):
-    """A recorded 401 blocks on both engines, but IORails renders the plain refusal."""
-    # LLMRails renders "I'm sorry, an internal error has occurred." here, distinguishing a rail
-    # that failed from a rail that fired. IORails renders one refusal for both, so a caller
-    # cannot tell a provider outage from a genuine block by reading the message.
+    """A recorded 401 blocks on both engines, and both render the internal-error sentence."""
+    # The rail failed rather than fired, and the message says so on either engine. Reserving
+    # the refusal for a rail that actually decided is what lets a caller tell a provider
+    # outage from a genuine block, and so whether the request is worth retrying.
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "invalid-recorded-replay")
 
     # Cleared first: records leak between tests in a module, and a stale error from an earlier
@@ -281,8 +281,8 @@ async def test_f5_guardrails_input_fails_closed_on_401(f5_api_key, monkeypatch, 
 
     assert result.status is RailStatus.BLOCKED
     assert result.rail == "f5 guardrails scan input"
-    assert result.content == REFUSAL
-    assert result.content != INTERNAL_ERROR
+    assert result.content == INTERNAL_ERROR
+    assert result.content != REFUSAL
     # The rail must have failed on the *recorded* 401. This test cannot use rail_ran_cleanly,
     # because it expects a rail error -- so without naming the error, an unreplayed cassette
     # would fail the rail for a different reason and satisfy every assertion above. Matched on

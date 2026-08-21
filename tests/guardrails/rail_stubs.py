@@ -79,6 +79,14 @@ def bot_message_rewrite(text: str) -> RailResult:
     return RailResult(RailOutcome.transform([(TransformTarget.BOT_MESSAGE, text)]))
 
 
+def rail_failure(rail: str) -> RailResult:
+    """The verdict the fail-closed envelope returns when *rail* raised instead of deciding."""
+    return RailResult(
+        RailOutcome.failure(reason=f"{rail} error: provider call failed"),
+        triggered_rail=rail,
+    )
+
+
 @contextmanager
 def rails_compiled_as(rails: Mapping[str, StubRail]) -> Iterator[None]:
     """Compile the named flows to their stubs, and every other configured flow to a plain allow."""

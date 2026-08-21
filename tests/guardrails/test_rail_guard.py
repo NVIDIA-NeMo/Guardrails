@@ -77,6 +77,19 @@ class TestFailsClosed:
         assert outcome.is_blocked
         assert outcome.reason == "content safety check input error: parser blew up"
 
+    def test_unexpected_exception_is_marked_as_a_rail_failure(self):
+        """The block is marked failed, so an engine can tell it from a rail that decided to block."""
+        outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError("parser blew up"))
+
+        assert outcome.failed is True
+
+    @status_bearing_types
+    def test_status_bearing_exception_without_a_status_is_marked_as_a_rail_failure(self, make_exc):
+        """A connection-level failure fails closed, and is marked failed like any other rail error."""
+        outcome = rail_error_outcome(None, ACTION_NAME, make_exc(None))
+
+        assert outcome.failed is True
+
     @status_bearing_types
     def test_status_bearing_exception_without_a_status_blocks(self, make_exc):
         """A connection-level failure carries status=None, so it fails closed rather than propagating."""
@@ -158,10 +171,10 @@ class TestReturnShape:
     """Every rail, compiled or tool, gets the same blocking RailOutcome."""
 
     def test_entry_point_returns_a_rail_outcome(self):
-        """``rail_error_outcome`` yields a blocking RailOutcome with no metadata or transforms."""
+        """``rail_error_outcome`` yields a failed RailOutcome with no metadata or transforms."""
         returned = rail_error_outcome(None, ACTION_NAME, RuntimeError("parser blew up"))
 
-        assert returned == RailOutcome.block(reason="content safety check input error: parser blew up")
+        assert returned == RailOutcome.failure(reason="content safety check input error: parser blew up")
 
 
 class TestLogsAreRedacted:
@@ -305,7 +318,13 @@ class TestToolRailsShareTheEnvelope:
         """A malformed payload fails closed, named after the rail and with credentials removed."""
         result = DummyToolRail(ValueError("bad header sk-abc123secret")).check()
 
-        assert result == RailOutcome.block(reason="tool call validation error: bad header sk-***")
+        assert result == RailOutcome.failure(reason="tool call validation error: bad header sk-***")
+
+    def test_exception_is_marked_as_a_rail_failure(self):
+        """A tool rail's fail-closed block carries the same failed marker a compiled rail's does."""
+        result = DummyToolRail(ValueError("bad payload")).check()
+
+        assert result.failed is True
 
     def test_status_bearing_exception_is_reraised(self):
         """A tool rail is held to the same propagation policy, though no shipped one can raise this."""

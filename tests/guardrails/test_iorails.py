@@ -26,6 +26,7 @@ from aiohttp.test_utils import TestServer
 from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.iorails import (
+    INTERNAL_ERROR_MESSAGE,
     REFUSAL_MESSAGE,
     IORails,
     _rewritten_bot_message,
@@ -35,7 +36,7 @@ from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction
-from tests.guardrails.rail_stubs import bot_message_rewrite, user_message_rewrite
+from tests.guardrails.rail_stubs import bot_message_rewrite, rail_failure, user_message_rewrite
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 
@@ -382,6 +383,76 @@ class TestGenerateAsync:
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         record_blocked.assert_called_once_with(RailDirection.OUTPUT)
+
+    @pytest.mark.asyncio
+    async def test_failed_input_rail_returns_the_internal_error(self, iorails):
+        """A rail that raised renders the internal error, not the refusal a real block gets."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=rail_failure("f5 guardrails scan input"))
+        iorails.engine_registry.model_call = AsyncMock()
+        iorails.rails_manager.is_output_safe = AsyncMock()
+
+        result = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+
+        assert result == {"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}
+        iorails.engine_registry.model_call.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_failed_input_rail_returns_the_internal_error_with_generation_options(self, iorails):
+        """The structured return shape carries the same sentence as the bare one."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=rail_failure("f5 guardrails scan input"))
+        iorails.engine_registry.model_call = AsyncMock()
+        iorails.rails_manager.is_output_safe = AsyncMock()
+
+        result = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}], options=GenerationOptions())
+
+        assert isinstance(result, GenerationResponse)
+        assert result.response == [{"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}]
+
+    @pytest.mark.asyncio
+    async def test_failed_output_rail_returns_the_internal_error(self, iorails):
+        """An output rail that raised is reported the same way an input one is."""
+        messages = [{"role": "user", "content": "hi"}]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="an answer"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=rail_failure("f5 guardrails scan output"))
+
+        result = await iorails.generate_async(messages=messages)
+
+        assert result == {"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}
+
+    @pytest.mark.asyncio
+    async def test_failed_tool_result_rail_returns_the_internal_error(self, iorails):
+        """A tool-result rail that raised short-circuits before generation with the internal error."""
+        iorails.rails_manager.are_tool_results_safe = AsyncMock(return_value=rail_failure("tool result validation"))
+        iorails.rails_manager.is_input_safe = AsyncMock()
+        iorails.engine_registry.model_call = AsyncMock()
+
+        result = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+
+        assert result == {"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}
+        iorails.engine_registry.model_call.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_failed_tool_call_rail_returns_the_internal_error(self, iorails):
+        """A tool-call rail that raised discards the model's tool calls with the internal error."""
+        tool_calls = [
+            ToolCall(
+                id="call_1",
+                type="function",
+                function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}),
+            )
+        ]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="", tool_calls=tool_calls))
+        iorails.rails_manager.are_tool_calls_safe = AsyncMock(return_value=rail_failure("tool call validation"))
+        iorails.rails_manager.is_output_safe = AsyncMock()
+
+        result = await iorails.generate_async(messages=[{"role": "user", "content": "weather?"}])
+
+        assert result == {"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}
+        iorails.rails_manager.is_output_safe.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_dict_options_forwarded(self, iorails):
@@ -1000,6 +1071,10 @@ class TestRefusalMessage:
         assert isinstance(REFUSAL_MESSAGE, str)
         assert len(REFUSAL_MESSAGE) > 0
 
+    def test_the_internal_error_is_not_the_refusal(self):
+        """Aliasing the two would silently undo the distinction the whole fix rests on."""
+        assert INTERNAL_ERROR_MESSAGE != REFUSAL_MESSAGE
+
 
 class TestIORailsConfigToCallURL:
     """End-to-end: from a RailsConfig with a user-supplied base_url to the URL the engine POSTs.
@@ -1256,6 +1331,25 @@ class TestGeneratedTurn:
         assert turn.response is None
         assert turn.messages is REWRITE_MESSAGES
         iorails.engine_registry.model_call.assert_not_called()
+
+    async def test_a_blocked_turn_carries_the_verdict_that_blocked_it(self, iorails):
+        """The caller renders the message from this verdict, so a failed rail must survive the hop."""
+        verdict = rail_failure("f5 guardrails scan input")
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=verdict)
+        iorails.engine_registry.model_call = AsyncMock()
+
+        turn = await iorails._do_generate_sequential(REWRITE_MESSAGES, "req-1", {})
+
+        assert turn.blocked_by is verdict
+
+    async def test_an_unblocked_turn_names_no_blocking_verdict(self, iorails):
+        """Nothing blocked, so there is no verdict for the caller to render a message from."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
+
+        turn = await iorails._do_generate_sequential(REWRITE_MESSAGES, "req-1", {})
+
+        assert turn.blocked_by is None
 
 
 @pytest.mark.asyncio
