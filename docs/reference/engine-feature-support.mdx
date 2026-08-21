@@ -236,18 +236,22 @@ For more information, see the [Observability](/observability) documentation.
 | Default framework (OpenAI-compatible) | ✓ | ✓ | |
 | LangChain integration (opt-in) | ✓ | ✗ | Passing a LangChain LLM routes to LLMRails |
 | Custom LLM injection (`llm=` / `update_llm`) | ✓ | ✗ | A custom `llm` forces LLMRails |
-| Per-model HTTP headers (`parameters.default_headers`) | ✓ | ✓ | Only IORails coerces an unquoted non-string value |
-| Per-model query parameters (`parameters.default_query`) | ✓ | ✓ | Only IORails rejects a nested-object value |
+| Per-model HTTP headers (`parameters.default_headers`) | ✓ | ✓ | Built-in framework; only IORails coerces an unquoted non-string value |
+| Per-model query parameters (`parameters.default_query`) | ✓ | ✓ | Built-in framework; only IORails rejects a nested-object value |
 
 Both engines use the default OpenAI-compatible framework to call models defined in the configuration.
 
 The LangChain integration is opt-in and available on `LLMRails`.
 Passing a custom `llm` to the constructor, including a LangChain model, forces `LLMRails`, because `IORails` resolves its models from the configuration rather than from an injected LLM and does not support `update_llm`.
 
-Both engines attach a model's `parameters.default_headers` and `parameters.default_query` to every request that model sends to its provider endpoint, using the same per-model scope, the same case-insensitive header override, and the same query-value encoding.
+Through the built-in framework, both engines attach a model's `parameters.default_headers` and `parameters.default_query` to every request that model sends to its provider endpoint, using the same per-model scope, the same case-insensitive header override, and the same query-value encoding.
 Two edge cases differ.
 A header value that YAML loads as a number or a boolean is converted to a string by `IORails`, while `LLMRails` raises `LLMCallException` on the first model call; quoting the value keeps both engines the same.
 A nested object under `default_query` raises a `ValueError` from the `IORails` constructor, while `LLMRails` sends it as an encoded Python representation.
+
+Those semantics belong to the built-in framework.
+Under the LangChain framework, `LLMRails` forwards both parameters to the underlying LangChain class, which decides whether it accepts them and how it applies them; `ChatOpenAI`, for example, accepts both.
+An injected `llm` replaces the `main` model, so that entry's parameters are never read.
 For configuration examples, see [Custom HTTP Headers](/configure-guardrails/yaml-schema/model-configuration#custom-http-headers) and [Model-Level Query Parameters](/configure-guardrails/yaml-schema/model-configuration#model-level-query-parameters).
 
 ### Knowledge Base and Embeddings

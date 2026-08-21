@@ -363,7 +363,7 @@ Values follow these rules:
 - A boolean uses its lowercase wire form, so `beta: true` becomes `beta=true` rather than `beta=True`.
 - A list repeats the parameter once per element in the configured order, so `tag: [red, blue]` becomes `tag=red&tag=blue`.
 - An empty value becomes a parameter with no value, so `flag:` becomes `flag=`.
-- A nested object is rejected because a query string has no standard encoding for one. Flatten it into separate parameters instead.
+- A nested object has no standard query-string encoding, so flatten it into separate parameters. This is the one value type the two engines treat differently, as described after this list.
 
 Keep secrets such as API keys in environment variables through `api_key_env_var` rather than hardcoding them in `default_query` in a checked-in `config.yml`.
 Provider and proxy access logs commonly record full request URLs, so a query parameter is a poor place for a sensitive value.
