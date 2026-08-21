@@ -31,7 +31,6 @@ async def my_custom_action():
 | `name` | `str` | Custom name for the action | Function name |
 | `is_system_action` | `bool` | Always run locally, bypassing the actions server | `False` |
 | `execute_async` | `bool` | Don't block event processing while the action runs (Colang 2.x only) | `False` |
-| `output_mapping` | `Callable[[Any], bool]` | Function to interpret the action result for blocking decisions | `default_output_mapping` |
 
 ### Custom Action Name
 
@@ -87,42 +86,13 @@ async def call_external_api(endpoint: str):
     return response.json()
 ```
 
-### Output Mapping
+### Rail Decisions
 
-The `output_mapping` parameter controls how the action's return value is interpreted to determine if output should be blocked. It accepts a callable that takes the return value and returns `True` if the output is **not safe** (should be blocked).
+The `@action` decorator does not interpret an action's return value as a safety decision. Ordinary custom actions can return strings, booleans, numbers, dictionaries, or other Python values for a Colang flow to consume explicitly.
 
-When no `output_mapping` is provided, the default behavior is:
-- **Boolean results**: `True` means allowed, `False` means blocked
-- **Numeric results**: Values below `0.5` are blocked
-- **Other types**: Allowed by default
+When the action itself makes a rail decision, return a [`RailOutcome`](/configure-guardrails/actions/rail-outcomes). It carries an explicit allow, block, or transform decision without relying on implicit boolean or numeric conventions.
 
-```python
-@action(output_mapping=lambda value: value)
-async def check_hallucination(context: Optional[dict] = None):
-    """Return True if hallucination detected (blocked), False if safe."""
-    return detect_hallucination(context.get("bot_message", ""))
-```
-
-```python
-@action(is_system_action=True, output_mapping=lambda value: not value)
-async def check_output_safety(context: Optional[dict] = None):
-    """Return True if safe (allowed), mapped to not-blocked."""
-    return is_safe(context.get("bot_message", ""))
-```
-
-You can also define a custom mapping function for more complex logic:
-
-```python
-def my_custom_mapping(result):
-    if isinstance(result, dict):
-        return result.get("score", 1.0) < 0.7
-    return False
-
-@action(output_mapping=my_custom_mapping)
-async def score_safety(context: Optional[dict] = None):
-    """Return a dict with a safety score."""
-    return {"score": compute_score(context.get("bot_message", ""))}
-```
+If you previously used the removed `output_mapping` decorator parameter, follow the [migration guide](/configure-guardrails/actions/rail-outcomes#migrate-from-output-mapping).
 
 ## Function Parameters
 
@@ -174,6 +144,8 @@ async def search_documents(
 
 Actions can return various types:
 
+Manifest-backed rail actions are the exception. They must return a [`RailOutcome`](/configure-guardrails/actions/rail-outcomes).
+
 ### Simple Return
 
 ```python
@@ -194,14 +166,29 @@ async def get_user_info(user_id: str):
     }
 ```
 
-### Boolean Return (for validation)
+### Boolean Return for Flow Logic
+
+A boolean remains application data until a Colang flow interprets it explicitly:
 
 ```python
+from typing import Optional
+
+from nemoguardrails.actions import action
+
+
 @action(is_system_action=True)
 async def is_safe_content(context: Optional[dict] = None):
     content = context.get("bot_message", "")
-    # Returns True if safe, False if blocked
     return not contains_harmful_content(content)
+```
+
+Branch on the value in the flow:
+
+```text
+$is_safe = execute is_safe_content
+if not $is_safe
+  bot refuse to respond
+  stop
 ```
 
 ## Error Handling
@@ -229,23 +216,52 @@ async def fetch_data(url: str):
 
 ```python
 from typing import Optional
+
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+
 
 @action(is_system_action=True)
 async def check_input_length(context: Optional[dict] = None):
     """Ensure user input is not too long."""
-    user_message = context.get("last_user_message", "")
+    user_message = context.get("user_message", "")
     max_length = 1000
 
     if len(user_message) > max_length:
-        return False  # Block the input
+        return RailOutcome.block(reason="The input exceeds the length limit.")
 
-    return True  # Allow the input
+    return RailOutcome.allow()
+```
+
+Add a Colang 1.0 flow to `rails.co` that consumes the decision:
+
+```text
+define subflow check input length
+  $result = execute check_input_length
+  if $result.is_blocked
+    bot refuse to respond
+    stop
+```
+
+Enable the flow as an input rail in `config.yml`:
+
+```yaml
+rails:
+  input:
+    flows:
+      - check input length
 ```
 
 ### Output Filtering Action
 
 ```python
+import re
+from typing import Optional
+
+from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+
+
 @action(is_system_action=True)
 async def filter_sensitive_data(context: Optional[dict] = None):
     """Check for sensitive data in bot response."""
@@ -253,15 +269,33 @@ async def filter_sensitive_data(context: Optional[dict] = None):
 
     sensitive_patterns = [
         r"\b\d{3}-\d{2}-\d{4}\b",  # SSN pattern
-        r"\b\d{16}\b",              # Credit card pattern
+        r"\b\d{16}\b",  # Credit card pattern
     ]
 
-    import re
     for pattern in sensitive_patterns:
         if re.search(pattern, bot_response):
-            return True  # Contains sensitive data
+            return RailOutcome.block(reason="The response contains sensitive data.")
 
-    return False  # No sensitive data found
+    return RailOutcome.allow()
+```
+
+Add a Colang 1.0 flow to `rails.co` that consumes the decision:
+
+```text
+define subflow filter sensitive data
+  $result = execute filter_sensitive_data
+  if $result.is_blocked
+    bot refuse to respond
+    stop
+```
+
+Enable the flow as an output rail in `config.yml`:
+
+```yaml
+rails:
+  output:
+    flows:
+      - filter sensitive data
 ```
 
 ### External API Action
