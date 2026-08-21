@@ -30,7 +30,7 @@ Each engine is served by a framework that manages the underlying HTTP or SDK cal
 
 | Engine | Framework | Streaming | Tool calls | Reasoning models | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `anthropic` | LangChain (opt-in) | yes | yes | wrapper-dependent | Requires `pip install langchain langchain-anthropic`. |
+| `anthropic` | Built-in | yes | yes | yes | Calls the Anthropic Messages API natively over `httpx`; no LangChain dependency. Default base URL `https://api.anthropic.com/v1`. Set `ANTHROPIC_API_KEY`. Supports extended thinking (reasoning) and tool calls. To use the LangChain path instead, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. |
 | `azure`, `azure_openai` | Built-in | yes | yes | yes | Native support for key-based Azure OpenAI authentication. Set `parameters.azure_endpoint` or `parameters.base_url` to the resource endpoint, plus `azure_deployment` and `api_version`; for Azure AD or token-based authentication, use manual `engine: openai` configuration or opt into LangChain. |
 | `cohere` | LangChain (opt-in) | yes | yes | n/a | Requires `pip install langchain langchain-cohere`. |
 | `google_genai` | LangChain (opt-in) | yes | yes | n/a | Requires `pip install langchain langchain-google-genai`. |

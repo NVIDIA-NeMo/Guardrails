@@ -147,7 +147,7 @@ Azure OpenAI is supported natively on the default framework in v0.22 with key-ba
 
 ### Anthropic
 
-The following example shows how to configure the Anthropic model as the main application LLM:
+The following example shows how to configure an Anthropic Claude model as the main application LLM:
 
 ```yaml
 models:
@@ -156,9 +156,26 @@ models:
     model: claude-3-5-sonnet-20241022
 ```
 
+The built-in default framework calls the Anthropic Messages API (`/v1/messages`) natively over `httpx`, so this engine requires no LangChain dependency and no extra package. Streaming, tool calls, and extended thinking (reasoning) are supported.
+
+Set `ANTHROPIC_API_KEY` in the environment, set `api_key_env_var` on the model entry, or pass `parameters.api_key` directly. The default base URL is `https://api.anthropic.com/v1`.
+
+```yaml
+models:
+  - type: main
+    engine: anthropic
+    model: claude-3-5-sonnet-20241022
+    parameters:
+      max_tokens: 1024
+      anthropic_version: "2023-06-01"
+      base_url: https://api.anthropic.com/v1
+```
+
+The `anthropic_version` parameter sets the `anthropic-version` request header and defaults to `2023-06-01`. Override `base_url` to target a proxy or gateway that speaks the Anthropic Messages API.
+
 <Note>
 
-Anthropic's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
+To use the LangChain path instead of the built-in framework, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
 
 </Note>
 

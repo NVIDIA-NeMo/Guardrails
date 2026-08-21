@@ -18,8 +18,11 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+from nemoguardrails.llm.clients.anthropic import AnthropicClient
+from nemoguardrails.llm.clients.base import BaseClient
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 from nemoguardrails.llm.constants import AZURE_PROVIDERS
+from nemoguardrails.llm.models.anthropic_chat import AnthropicChatModel
 from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.types import LLMModel
 
@@ -30,6 +33,7 @@ _DEFAULT_BASE_URLS: Dict[str, str] = {
     "nim": "https://integrate.api.nvidia.com/v1",
     "nvidia_ai_endpoints": "https://integrate.api.nvidia.com/v1",
     "ollama": "http://localhost:11434/v1",
+    "anthropic": "https://api.anthropic.com/v1",
 }
 
 _API_KEY_ENV_VARS: Dict[str, str] = {
@@ -38,6 +42,7 @@ _API_KEY_ENV_VARS: Dict[str, str] = {
     "nvidia_ai_endpoints": "NVIDIA_API_KEY",
     "azure": "AZURE_OPENAI_API_KEY",
     "azure_openai": "AZURE_OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
 }
 
 _UNSET: Any = object()
@@ -65,7 +70,7 @@ def _resolve_api_key(provider_name: str) -> Optional[str]:
 class DefaultFramework:
     def __init__(self):
         self._providers: Dict[str, Any] = {}
-        self._clients: Dict[tuple, OpenAICompatibleClient] = {}
+        self._clients: Dict[tuple, BaseClient] = {}
 
     def _get_or_create_client(
         self,
@@ -76,7 +81,7 @@ class DefaultFramework:
         max_retries: Optional[int],
         default_headers: Optional[Dict[str, str]],
         default_query: Optional[Dict[str, Any]],
-    ) -> OpenAICompatibleClient:
+    ) -> BaseClient:
         key = (
             base_url,
             api_key or "",
@@ -113,6 +118,9 @@ class DefaultFramework:
         if provider_name in self._providers:
             return self._providers[provider_name](model=model_name, **kwargs)
 
+        if provider_name == "anthropic":
+            return self._create_anthropic_model(model_name, provider_name, kwargs)
+
         if provider_name in AZURE_PROVIDERS:
             self._prepare_azure_kwargs(provider_name, kwargs)
 
@@ -134,8 +142,53 @@ class DefaultFramework:
         client = self._get_or_create_client(
             base_url, api_key, timeout, connect_timeout, max_retries, default_headers, default_query
         )
+        assert isinstance(client, OpenAICompatibleClient)
 
         return OpenAIChatModel(client=client, model=model_name, provider_name=provider_name, **kwargs)
+
+    def _create_anthropic_model(
+        self, model_name: str, provider_name: str, kwargs: Dict[str, Any]
+    ) -> AnthropicChatModel:
+        base_url = kwargs.pop("base_url", None) or _resolve_base_url(provider_name)
+
+        api_key = kwargs.pop("api_key", _UNSET)
+        if api_key is _UNSET:
+            api_key = _resolve_api_key(provider_name)
+
+        timeout = kwargs.pop("timeout", None)
+        connect_timeout = kwargs.pop("connect_timeout", None)
+        max_retries = kwargs.pop("max_retries", None)
+        default_headers = kwargs.pop("default_headers", None)
+        default_query = kwargs.pop("default_query", None)
+        anthropic_version = kwargs.pop("anthropic_version", "2023-06-01")
+
+        pool_key = (
+            base_url,
+            api_key or "",
+            timeout,
+            connect_timeout,
+            max_retries,
+            json.dumps(default_headers or {}, sort_keys=True, default=str),
+            json.dumps(default_query or {}, sort_keys=True, default=str),
+            anthropic_version,
+        )
+        if pool_key not in self._clients:
+            client_kwargs: Dict[str, Any] = {"anthropic_version": anthropic_version}
+            if timeout is not None:
+                client_kwargs["timeout"] = timeout
+            if connect_timeout is not None:
+                client_kwargs["connect_timeout"] = connect_timeout
+            if max_retries is not None:
+                client_kwargs["max_retries"] = max_retries
+            if default_headers is not None:
+                client_kwargs["custom_headers"] = default_headers
+            if default_query is not None:
+                client_kwargs["custom_query"] = default_query
+            self._clients[pool_key] = AnthropicClient(base_url=base_url, api_key=api_key, **client_kwargs)
+
+        client = self._clients[pool_key]
+        assert isinstance(client, AnthropicClient)
+        return AnthropicChatModel(client=client, model=model_name, provider_name=provider_name, **kwargs)
 
     def _prepare_azure_kwargs(self, provider_name: str, kwargs: Dict[str, Any]) -> None:
         """Reshape kwargs in place for the Azure preset.

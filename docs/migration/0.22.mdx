@@ -160,23 +160,23 @@ Choose one remediation path based on your migration goal:
 ## Using LangChain
 
 If your engine's API is not OpenAI-compatible, keep using LangChain.
-This includes Anthropic, Cohere, Vertex AI, Google Generative AI, in-process Hugging Face, TensorRT-LLM, and generic LangChain self-hosted providers.
+This includes Cohere, Vertex AI, Google Generative AI, in-process Hugging Face, TensorRT-LLM, and generic LangChain self-hosted providers. Anthropic is now supported natively on the built-in framework; see [Anthropic](/configure-guardrails/yaml-schema/model-configuration#anthropic).
 
 Install LangChain and the provider package you need, then select the LangChain LLM framework:
 
 ```bash
-pip install langchain langchain-anthropic
+pip install langchain langchain-cohere
 export NEMOGUARDRAILS_LLM_FRAMEWORK=langchain
 ```
 
-The example above installs the Anthropic provider.
-Replace `langchain-anthropic` with the package for your provider.
+The example above installs the Cohere provider.
+Replace `langchain-cohere` with the package for your provider.
 Engine names in `config.yml` stay bare; do not prefix them with `langchain/`.
 
 ```yaml
 - type: main
-  engine: anthropic
-  model: claude-3-5-sonnet-latest
+  engine: cohere
+  model: command-r-plus
   parameters:
     temperature: 0.0
 ```

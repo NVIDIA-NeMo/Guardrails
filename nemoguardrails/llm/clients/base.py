@@ -31,7 +31,7 @@ from nemoguardrails.llm.clients._errors import (
     raise_for_sse_error,
     raise_for_status,
 )
-from nemoguardrails.llm.clients._sse import SSEDecoder
+from nemoguardrails.llm.clients._sse import ServerSentEvent, SSEDecoder
 from nemoguardrails.llm.clients.constants import (
     DEFAULT_CONNECTION_LIMITS,
     DEFAULT_MAX_RETRIES,
@@ -274,8 +274,10 @@ class BaseClient:
                         sse = decoder.decode(line)
                         if sse is None:
                             continue
-                        if sse.data.startswith("[DONE]"):
+                        if self._is_stream_done(sse):
                             return
+                        if self._should_skip_sse(sse):
+                            continue
                         try:
                             parsed = sse.json()
                         except json.JSONDecodeError as err:
@@ -285,11 +287,12 @@ class BaseClient:
                                 **ctx.as_kwargs(),
                             ) from err
                         self._check_sse_error(parsed, response.headers, ctx)
+                        parsed = self._transform_sse_chunk(parsed, sse)
                         first_yielded = True
                         yield HTTPResponse(body=parsed, headers=response_headers, status_code=response_status)
 
                     sse = decoder.decode("")
-                    if sse is not None and not sse.data.startswith("[DONE]"):
+                    if sse is not None and not self._is_stream_done(sse):
                         try:
                             parsed = sse.json()
                         except json.JSONDecodeError as err:
@@ -299,6 +302,7 @@ class BaseClient:
                                 **ctx.as_kwargs(),
                             ) from err
                         self._check_sse_error(parsed, response.headers, ctx)
+                        parsed = self._transform_sse_chunk(parsed, sse)
                         yield HTTPResponse(body=parsed, headers=response_headers, status_code=response_status)
                     return
             except httpx.TimeoutException as err:
@@ -325,6 +329,15 @@ class BaseClient:
                 retries_remaining -= 1
                 retries_attempted += 1
                 continue
+
+    def _is_stream_done(self, sse: ServerSentEvent) -> bool:
+        return sse.data.startswith("[DONE]")
+
+    def _should_skip_sse(self, sse: ServerSentEvent) -> bool:
+        return False
+
+    def _transform_sse_chunk(self, parsed: Dict[str, Any], sse: ServerSentEvent) -> Dict[str, Any]:
+        return parsed
 
     def _check_sse_error(self, parsed: Any, headers: Any, ctx: Optional[ErrorContext] = None) -> None:
         if not isinstance(parsed, dict) or "error" not in parsed:
