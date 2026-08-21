@@ -171,8 +171,16 @@ Three things make the levels comparable:
   CLI exits non-zero only when the benchmark could not run at all, such as a
   failed health check.
 
-A full ladder takes hours. Use `--resume` to skip levels that already hold a
-completed result:
+The ladder above takes about 25 minutes: eleven levels of 120 measured seconds
+plus roughly 130 seconds of ramps. A longer `run_time` or more levels scales
+that up accordingly.
+
+Re-running a batch writes into the same level directories, overwriting the
+previous results in place. This is what makes `--resume` possible, but it also
+means a level from an earlier, longer ladder is left behind rather than
+cleared. Use a different `batch_name` to keep two batches side by side.
+
+Use `--resume` to skip levels that already hold a completed result:
 
 ```bash
 uv run python -m benchmark.locust benchmark/locust/configs/sweep_concurrency.yaml --resume

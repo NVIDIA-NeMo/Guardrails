@@ -198,7 +198,7 @@ class LocustSweepConfig(BaseModel):
 
         runs = []
         for combination in product(*(self.sweeps[key] for key in keys)):
-            overrides = dict(zip(keys, combination))
+            overrides = dict(zip(keys, combination, strict=True))
             # Rebuild rather than model_copy so field constraints still apply to swept values.
             config = LocustConfig(**{**self.base_config.model_dump(), **overrides})
             label = "_".join(f"{key}-{label_segment(value)}" for key, value in overrides.items())
