@@ -203,12 +203,28 @@ def _validate_openai_chat_message(message: Any) -> Any:
     return message
 
 
+def _build_chat_message_validator() -> BeforeValidator:
+    """Build the chat-message before-validator across supported pydantic versions.
+
+    ``json_schema_input_type`` (which keeps the generated JSON schema describing
+    the rich per-role message union instead of a plain object) is only accepted
+    by ``BeforeValidator`` from pydantic 2.9 onwards, while this project supports
+    ``pydantic>=2.5``. On older versions fall back to a plain validator so the
+    module keeps importing; JSON schema generation then describes ``messages``
+    as generic objects.
+    """
+    try:
+        return BeforeValidator(
+            _validate_openai_chat_message,
+            json_schema_input_type=_OpenAIChatMessageInput,
+        )
+    except TypeError:
+        return BeforeValidator(_validate_openai_chat_message)
+
+
 OpenAIChatMessage = Annotated[
     dict[str, Any],
-    BeforeValidator(
-        _validate_openai_chat_message,
-        json_schema_input_type=_OpenAIChatMessageInput,
-    ),
+    _build_chat_message_validator(),
 ]
 
 
