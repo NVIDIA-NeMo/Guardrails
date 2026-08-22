@@ -22,6 +22,14 @@ from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 
 log = logging.getLogger(__name__)
 
+# Upper bound on the text scanned per pattern-detection call. Patterns are
+# vetted against a safe subset at config load time (see
+# nemoguardrails.library.regex.safety), but ambiguous-alternation shapes
+# that static analysis cannot prove safe remain; capping the scan keeps
+# their worst case bounded instead of unbounded (#2203). Matches beyond
+# the cap are not detected and a warning is logged.
+MAX_REGEX_SCAN_CHARS = 200_000
+
 
 class RegexDetectionResult(TypedDict):
     is_match: bool
@@ -81,6 +89,17 @@ async def detect_regex_pattern(
     if not text:
         log.debug("Empty text provided, skipping regex check.")
         return _regex_outcome(source, RegexDetectionResult(is_match=False, text=text, detections=[]))
+
+    if len(text) > MAX_REGEX_SCAN_CHARS:
+        log.warning(
+            "Regex detection text for source %r is %d characters, exceeding the %d character scan cap; "
+            "only the first %d characters are scanned.",
+            source,
+            len(text),
+            MAX_REGEX_SCAN_CHARS,
+            MAX_REGEX_SCAN_CHARS,
+        )
+        text = text[:MAX_REGEX_SCAN_CHARS]
 
     # Match against pre-compiled patterns and collect all matches.
     matched: List[str] = []

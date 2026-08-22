@@ -16,6 +16,10 @@
 import re
 from typing import List, Optional
 
+from nemoguardrails.library.regex.safety import (
+    UnsafeRegexPatternError,
+    ensure_pattern_is_safe,
+)
 from nemoguardrails.manifests.config_schema import (
     Field,
     PrivateAttr,
@@ -42,7 +46,12 @@ class RegexDetectionOptions(RailConfigBaseModel):
 
     @model_validator(mode="after")
     def compile_patterns(self) -> "RegexDetectionOptions":
-        """Pre-compile regex patterns at config load time."""
+        """Pre-compile regex patterns at config load time.
+
+        Beyond syntax validation, each pattern is checked against the
+        documented safe subset so that a configured pattern cannot exhibit
+        catastrophic backtracking at request time (ReDoS, #2203).
+        """
         flags = re.IGNORECASE if self.case_insensitive else 0
         compiled = []
         for i, pattern in enumerate(self.patterns):
@@ -50,6 +59,10 @@ class RegexDetectionOptions(RailConfigBaseModel):
                 compiled.append(re.compile(pattern, flags))
             except re.error as e:
                 raise ValueError(f"Invalid regex pattern at index {i} ({pattern!r}): {e}") from e
+            try:
+                ensure_pattern_is_safe(pattern, flags)
+            except UnsafeRegexPatternError as e:
+                raise ValueError(f"Unsafe regex pattern at index {i} ({pattern!r}): {e}") from e
         object.__setattr__(self, "_compiled_patterns", compiled)
         return self
 
