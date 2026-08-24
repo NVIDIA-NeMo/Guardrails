@@ -351,7 +351,9 @@ result = await rails.check_async(
 )
 ```
 
-For detailed usage, method signatures, and examples, refer to [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages).
+The `LLMRails` and `IORails` engines both implement these methods, and the `Guardrails` facade forwards the call to the engine it selected.
+
+For detailed usage, method signatures, engine differences, and examples, refer to [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages).
 
 ---
 

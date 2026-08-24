@@ -13,6 +13,7 @@ This page lists the metrics emitted by the IORails engine and the instrumented c
 Metrics fall into three families:
 
 - **Request-level metrics** (`guardrails.*`) describe IORails request flow: volume, errors, blocks, latency, and saturation of the streaming and non-streaming admission paths.
+  They cover `generate_async()`, `stream_async()`, and the rails-only [`check_async()`](/run-guardrailed-inference/using-python-apis/check-messages), which shares the non-streaming admission path.
 - **LLM client-side metrics** (`gen_ai.client.*`) describe downstream LLM calls IORails issues.
   These follow the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/) and use the bucket boundaries recommended by that spec.
 - **HTTP client-side metrics** (`http.client.*`) describe outbound requests sent through an explicitly instrumented canonical HTTP client.
@@ -25,7 +26,7 @@ IORails request and LLM metrics require `metrics.enabled: true` and a configured
 | --- | --- | --- | --- | --- |
 | `guardrails.requests` | Counter | `1` | — | Total IORails requests handled, incremented on entry. |
 | `guardrails.requests.errors` | Counter | `1` | `error.type` | Requests that ended in an unhandled error. `error.type` is the exception class name (for example `QueueFull`, `TimeoutError`). |
-| `guardrails.requests.blocked` | Counter | `1` | `rail.type` | Requests blocked by an input or output rail. `rail.type` is `input` or `output`. |
+| `guardrails.requests.blocked` | Counter | `1` | `rail.type` | Requests blocked by an input or output rail. `rail.type` is `Input` or `Output`. |
 | `guardrails.request.duration` | Histogram | `s` | — | End-to-end request duration. For non-streaming requests this includes queue-wait time. |
 | `guardrails.requests.active` | UpDownCounter | `1` | — | Requests currently in flight. Covers both streaming and non-streaming. |
 
@@ -153,7 +154,7 @@ When usage is absent, no observation is recorded; "no observation" is deliberate
 | Label | Used On | Values | Notes |
 | --- | --- | --- | --- |
 | `error.type` | Request, LLM, and HTTP error metrics | Exception class name or HTTP error status | For example `QueueFull`, `TimeoutError`, `HTTPConnectionError`, or `503`. |
-| `rail.type` | `guardrails.requests.blocked` | `input`, `output` | Identifies whether an input or output rail blocked the request. |
+| `rail.type` | `guardrails.requests.blocked` | `Input`, `Output` | Identifies whether an input or output rail blocked the request. Matches the `rail.type` span attribute. |
 | `gen_ai.operation.name` | All `gen_ai.client.*` | For example `chat`, `completion`, `embedding` | OpenTelemetry GenAI operation name. |
 | `gen_ai.provider.name` | All `gen_ai.client.*` | For example `openai`, `anthropic` | OpenTelemetry GenAI provider name. |
 | `gen_ai.request.model` | All `gen_ai.client.*` | For example `gpt-4o-mini` | The model name passed in the request. |

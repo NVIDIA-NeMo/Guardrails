@@ -43,7 +43,7 @@ It runs the built-in NeMoGuard safety models (content safety, topic control, and
 It does not run the Colang dialog runtime, retrieval, custom actions, or accept a custom LLM, and it accepts Colang 1.0 configurations only.
 
 `IORails` has a `start()` and `stop()` lifecycle that initializes and releases the engine's model clients and work queue.
-Both `generate_async()` and `stream_async()` call `start()` automatically (it is idempotent), so a bare `IORails` does not need a manual `start()` before use; call `start()` at service startup to warm the clients and `stop()` at shutdown to release them.
+`generate_async()`, `stream_async()`, and `check_async()` all call `start()` automatically (it is idempotent), so a bare `IORails` does not need a manual `start()` before use; call `start()` at service startup to warm the clients and `stop()` at shutdown to release them.
 When you use the `Guardrails` facade described below, that lifecycle is managed for you through `startup()` and `shutdown()` (or by using `Guardrails` as an async context manager).
 
 ### Choosing an Engine
@@ -147,7 +147,7 @@ Tool calls are returned in the OpenAI-style `tool_calls` field of the response m
 | `generate` / `generate_async` | ✓ | ✓ | |
 | `stream_async` | ✓ | ✓ | |
 | Event-based API (`generate_events` / `process_events`) | ✓ | ✗ | Requires the Colang runtime |
-| `check` / `check_async` (rails-only validation) | ✓ | ✓ | |
+| `check` / `check_async` (rails-only validation) | ✓ | ✓ | Input and output rails only on both engines. Neither runs tool rails |
 | `GenerationOptions` | ✓ | ◐ | IORails supports rail toggles, `llm_params`, and the `log` options that do not need Colang. `output_vars` raises. The separate `state` keyword argument also raises. |
 | `GenerationResponse` (structured response object) | ✓ | ✓ | Returned by both engines when `options` is passed |
 | `GenerationLog` `internal_events` / `colang_history` | ✓ | ✗ | Colang runtime only. IORails raises `NotImplementedError`. |
@@ -169,6 +169,12 @@ For the field-by-field comparison, refer to [Generation Options: IORails and LLM
 
 The event-based API and `explain()` are not available on `IORails`.
 On the `Guardrails` facade, these raise `NotImplementedError` when `IORails` is the active engine.
+
+Both engines accept the same `check` arguments and return the same `RailsResult`, and neither runs tool rails from a check.
+`LLMRails` runs the check through the Colang runtime with the main model call disabled.
+`IORails` runs the rails directly through its rails manager and reuses the `generate_async` admission queue, request span, and request metrics.
+The two differ in what a blocked check reports and in how a direction with no content to check is handled.
+For those differences, refer to [Checking Messages Against Rails: Engine Differences](/run-guardrailed-inference/using-python-apis/check-messages#engine-differences).
 
 ### Streaming
 
@@ -310,13 +316,15 @@ The community and third-party integrations in the [Guardrail Catalog](/configure
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
-| Guardrails server (OpenAI-compatible REST API) | ✓ | ✗ | Bundled server runs LLMRails; use IORails through the Python API |
+| Guardrails server (OpenAI-compatible REST API) | ✓ | ◐ | Runs on LLMRails by default; `NEMO_GUARDRAILS_IORAILS_ENGINE=1` routes supported configurations to IORails |
 | Server-side threads and multi-config | ✓ | ✗ | LLMRails only |
 
-The bundled Guardrails server exposes an OpenAI-compatible REST API and runs on `LLMRails`.
+The bundled Guardrails server exposes an OpenAI-compatible REST API and runs on `LLMRails` by default.
 Server-side threads and multi-config serving are provided through that server.
 
-`IORails` is consumed through the in-process `Guardrails` Python API rather than the bundled server.
+`IORails` is normally consumed through the in-process `Guardrails` Python API.
+Setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` aliases the top-level `LLMRails` import to `Guardrails`, so the server's endpoints, including `/v1/chat/completions` and `/v1/checks`, run on `IORails` for configurations IORails can serve and fall back to `LLMRails` for the rest.
+This path is early release: validate it against your own configurations before depending on it in production.
 
 ### Configuration and Operations
 

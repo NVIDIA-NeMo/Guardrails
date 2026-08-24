@@ -85,24 +85,26 @@ def handler(event, context):
 
 ## When to Use Each API
 
-| API                                             | Use Case                                        |
-| ----------------------------------------------- | ----------------------------------------------- |
-| `generate()` / `generate_async()`               | Standard chat interactions with messages        |
-| `stream_async()`                                | Real-time token streaming                       |
-| `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations |
+| API                                             | Use Case                                              |
+| ----------------------------------------------- | ----------------------------------------------------- |
+| `generate()` / `generate_async()`               | Standard chat interactions with messages              |
+| `stream_async()`                                | Real-time token streaming                             |
+| `check()` / `check_async()`                     | Validating messages against rails, without generation |
+| `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations       |
 
 ## Synchronous vs Asynchronous
 
 The NeMo Guardrails library provides both synchronous and asynchronous methods:
 
-| Synchronous         | Asynchronous              | Description                        |
-| ------------------- | ------------------------- | ---------------------------------- |
-| `generate()`        | `generate_async()`        | Generate responses from messages   |
-| `generate_events()` | `generate_events_async()` | Generate events from event history |
-| -                   | `stream_async()`          | Stream tokens asynchronously       |
+| Synchronous         | Asynchronous              | Description                               |
+| ------------------- | ------------------------- | ----------------------------------------- |
+| `generate()`        | `generate_async()`        | Generate responses from messages          |
+| `check()`           | `check_async()`           | Run rails on messages, without generation |
+| `generate_events()` | `generate_events_async()` | Generate events from event history        |
+| -                   | `stream_async()`          | Stream tokens asynchronously              |
 
 <Note>
 
-Use asynchronous methods (`generate_async`, `stream_async`) in async contexts for better performance. The synchronous `generate()` method cannot be called from within an async context.
+Use asynchronous methods (`generate_async`, `stream_async`, `check_async`) in async contexts for better performance. The synchronous `generate()` and `check()` methods cannot be called from within an async context.
 
 </Note>
