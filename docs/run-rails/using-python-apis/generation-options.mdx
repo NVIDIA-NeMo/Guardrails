@@ -413,40 +413,60 @@ rails.generate(messages=[{"role": "user", "content": "Hello"}])
 
 ### GenerationOptions Support
 
-| Option | LLMRails | IORails | Notes |
-|---|:---:|:---:|---|
-| `rails.input`, `rails.output` | ✓ | ✓ | `IORails` also honors a list of rail names and runs only those rails; `LLMRails` treats any non-empty list as "enabled" |
-| `rails.tool_input`, `rails.tool_output` | ✓ | ✓ | `IORails` also honors a list of rail names |
-| `rails.dialog`, `rails.retrieval` | ✓ | n/a | `IORails` runs no dialog or retrieval rails and ignores both toggles |
-| `llm_params` | ✓ | ✓ | Applied to the main model call only |
-| `log.activated_rails`, `log.llm_calls` | ✓ | ✓ | Requesting either also populates `log.stats` |
-| `log.internal_events`, `log.colang_history` | ✓ | ✗ | `IORails` raises `NotImplementedError` |
-| `output_vars` | ✓ | ✗ | `IORails` raises `ValueError` |
-| `llm_output` | ◐ | ◐ | Accepted by both; the resulting `llm_output` field is `None` on both |
+This table covers `generate()` and `generate_async()`.
+`stream_async()` accepts `options` too, but reads only a subset of it and never yields a `GenerationResponse`; see [Generation Options and Streaming](/run-guardrailed-inference/using-python-apis/streaming#generation-options-and-streaming).
 
-Legend: ✓ supported · ✗ not supported · ◐ accepted but not populated · n/a not applicable to the engine.
+Legend: ✓ supported · ✗ not supported (raises) · ◐ accepted but not populated · n/a not applicable to the engine.
+
+| Field | Type | LLMRails | IORails | Notes |
+|---|---|:---:|:---:|---|
+| `rails.input` | `bool \| list[str]` | ✓ | ✓ | `IORails` runs only the named rails when given a list. `LLMRails` tests truthiness only, so any non-empty list means "all enabled". |
+| `rails.output` | `bool \| list[str]` | ✓ | ✓ | Same list-selection difference as `rails.input`. |
+| `rails.tool_input` | `bool \| list[str]` | ✓ | ✓ | Gates the tool-result rails. Same list-selection difference. |
+| `rails.tool_output` | `bool \| list[str]` | ✓ | ✓ | Gates the tool-call rails. Same list-selection difference. |
+| `rails.dialog` | `bool` | ✓ | n/a | `IORails` runs no dialog rails and ignores the toggle. On `LLMRails`, `dialog: False` suppresses the main LLM call and echoes the supplied message back. |
+| `rails.retrieval` | `bool \| list[str]` | ✓ | n/a | `IORails` runs no retrieval rails and ignores the toggle. |
+| `llm_params` | `dict \| None` | ✓ | ✓ | Applied to the main model call only, never to the rail models. On `IORails` this is also how you pass tool definitions, and it is accepted by `stream_async()`. |
+| `llm_output` | `bool` | ◐ | ◐ | Accepted by both; the resulting `llm_output` field is `None` on both. |
+| `output_vars` | `bool \| list[str] \| None` | ✓ | ✗ | `IORails` raises `ValueError`: it has no Colang context to read. |
+| `log` | `GenerationLogOptions` | ✓ | ◐ | See [GenerationLogOptions Support](#generationlogoptions-support). |
 
 `IORails` raises on the options it cannot honor instead of silently returning empty data, so a request never looks like it succeeded with no findings when the option was never applied.
 
+`state` is a `generate()` keyword argument rather than a `GenerationOptions` field.
+`enforce` is commented out in the source and is not a live field on either engine.
+
+### GenerationLogOptions Support
+
+| Field | Type | LLMRails | IORails | Notes |
+|---|---|:---:|:---:|---|
+| `activated_rails` | `bool` | ✓ | ✓ | `IORails` synthesizes one entry per rail, each with a single `ExecutedAction`; `decisions` is always empty. |
+| `llm_calls` | `bool` | ✓ | ✓ | Token usage, durations, timestamps, request IDs, and model and provider names are populated on both engines. |
+| `internal_events` | `bool` | ✓ | ✗ | `IORails` raises `NotImplementedError`: no Colang runtime. |
+| `colang_history` | `bool` | ✓ | ✗ | `IORails` raises `NotImplementedError`: no Colang runtime. |
+
+`GenerationLog.stats` is not a `GenerationLogOptions` field.
+Both engines populate it whenever you request either `activated_rails` or `llm_calls`.
+
+For the `IORails` log structure and how it differs from the Colang-derived log, see [Log Options on IORails](#log-options-on-iorails).
+
 ### GenerationResponse Field Support
 
-| Field | LLMRails | IORails | Notes |
-|---|:---:|:---:|---|
-| `response` | ✓ | ✓ | `IORails` always returns a one-element message list, never a bare string |
-| `tool_calls` | ✓ | ✓ | Both use the canonical dictionary-argument shape, not the OpenAI JSON-string wire shape |
-| `reasoning_content` | ✓ | ✓ | Taken from the provider reasoning field, or extracted from `<think>` tags |
-| `log` | ✓ | ◐ | `activated_rails`, `llm_calls`, and `stats` only; see [Log Options on IORails](#log-options-on-iorails) |
-| `llm_metadata` | ✓ | ◐ | `IORails` reports the main model call; `LLMRails` reports the most recent model call, which is usually the last output rail |
-| `llm_output` | ◐ | ◐ | `None` on both engines |
-| `output_data` | ✓ | ✗ | Always `None` on `IORails` |
-| `state` | ✓ | ✗ | Always `None` on `IORails` |
+The fields returned when `options` is passed to `generate()` or `generate_async()`.
+`stream_async()` never yields or returns a `GenerationResponse` on either engine.
 
-On the structured path, `IORails` keeps reasoning out of the message content and returns it in `reasoning_content`.
-Without `options`, the bare message dictionary carries reasoning inline as a `<think>` prefix, which is the shape earlier versions returned.
+| Field | Type | LLMRails | IORails | Notes |
+|---|---|:---:|:---:|---|
+| `response` | `str \| list[dict]` | ✓ | ✓ | `IORails` always returns a one-element `[assistant_msg]` list. `LLMRails` returns a plain string when called with `prompt=` instead of `messages=`. |
+| `tool_calls` | `list \| None` | ✓ | ✓ | Both use the canonical `ToolCall.to_dict()` shape with dictionary arguments. The bare-message and streaming paths keep the OpenAI wire shape with `function.arguments` as a JSON string. |
+| `reasoning_content` | `str \| None` | ✓ | ✓ | Provider `reasoning` field, or content extracted from `<think>` tags. On this path `IORails` keeps the message content clean; the bare dictionary returned without `options` inlines reasoning as a `<think>` prefix. No streamed equivalent on either engine. |
+| `log` | `GenerationLog \| None` | ✓ | ◐ | `IORails` populates `activated_rails`, `llm_calls`, and `stats` only. See [Log Options on IORails](#log-options-on-iorails). |
+| `llm_metadata` | `dict \| None` | ✓ | ◐ | Provider metadata blob verbatim, such as `response_headers`. `IORails` reports the main model call; `LLMRails` reports the most recent call, usually the last output rail. No `usage` sub-key on either engine: token usage lives in `log`. `None` when the provider returns no metadata. |
+| `llm_output` | `dict \| None` | ◐ | ◐ | Always `None` on both engines, because `LLMCallInfo.raw_response` is never assigned. |
+| `output_data` | `dict \| None` | ✓ | ✗ | Always `None` on `IORails`; passing `output_vars` raises `ValueError`. |
+| `state` | `dict \| None` | ✓ | ✗ | Always `None` on `IORails`; passing `state` raises `ValueError`. |
 
-`llm_metadata` holds the provider metadata blob verbatim, such as `response_headers`.
-It has no `usage` key on either engine: token usage lives in `log.llm_calls` and `log.stats`.
-It is `None` when the provider returns no metadata.
+Reasoning bypasses the output rails on both engines, so output rails check the final answer rather than the reasoning trace.
 
 ### Blocked Requests
 

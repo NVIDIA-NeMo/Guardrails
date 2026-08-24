@@ -206,8 +206,49 @@ The following `IORails` specifics apply.
 A chunk that carries only provider metadata and no text is not emitted as a standalone empty frame.
 The provider metadata rides on the next text frame or on the terminal frame instead, which keeps per-chunk response headers from flooding the stream.
 
-Neither engine returns a `GenerationResponse` from `stream_async()`.
-Structured responses are a non-streaming feature; see [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options).
+## Generation Options and Streaming
+
+`stream_async()` accepts an `options` argument on both engines, but unlike `generate()` and `generate_async()`, passing it does not change what the iterator yields.
+The chunk shape is governed solely by `include_metadata`: plain strings when it is `False`, and `{"text": ..., "metadata": ...}` dictionaries when it is `True`.
+Neither engine yields or returns a `GenerationResponse` from a stream.
+
+```python
+# Identical chunk shapes: `options` does not select a structured return here.
+async for chunk in rails.stream_async(messages=messages):
+    ...  # str
+
+async for chunk in rails.stream_async(messages=messages, options={"llm_params": {"temperature": 0.2}}):
+    ...  # still str
+```
+
+What each engine reads from `options` while streaming:
+
+| Option | LLMRails | IORails |
+|---|---|---|
+| `llm_params` | Applied to the main model call | Applied to the main model call |
+| `rails.input`, `rails.output`, `rails.tool_input`, `rails.tool_output` | Applied | Applied |
+| `output_vars`, `log.*` | Computed, then discarded with the `GenerationResponse` | Not read |
+
+`LLMRails` runs `generate_async()` in a background task and forwards `options` to it, then discards the `GenerationResponse` that call returns.
+Anything you request through `log` or `output_vars` is therefore computed but unreachable from the stream.
+`IORails` reads only `llm_params` and the four rail toggles in its streaming path.
+
+<Warning>
+
+`IORails` validates `options` in `generate_async()` but not in `stream_async()`.
+`output_vars`, `log.internal_events`, and `log.colang_history` raise on the non-streaming path and are silently ignored on the streaming path.
+Do not rely on a stream rejecting an option that the non-streaming call refuses.
+
+</Warning>
+
+Two `GenerationResponse` fields have no streamed equivalent.
+
+- **`reasoning_content`**: neither engine emits provider reasoning deltas as chunk text. A model that instead embeds `<think>` tags in its content streams them as ordinary text, which means output rails see the reasoning; `IORails` logs a warning once per request when it detects this.
+- **`tool_calls`**: `IORails` emits assembled tool calls as a terminal chunk whose text is a `{"tool_calls": [...]}` JSON string, using the OpenAI wire shape with `function.arguments` as a JSON string. The non-streaming `GenerationResponse.tool_calls` uses dictionary arguments instead. `LLMRails` does not push tool calls into the stream at all; they reach only the discarded `GenerationResponse`.
+
+To obtain a `GenerationResponse` for a request, use `generate_async()`.
+To obtain token usage while streaming, read the `usage` metadata frame described above.
+For the non-streaming option and field tables, see [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options#iorails-and-llmrails-differences).
 
 ## Token Usage Tracking
 

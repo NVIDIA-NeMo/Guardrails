@@ -174,7 +174,7 @@ The event-based API and `explain()` are not available on `IORails`; on the `Guar
 | Output-rail streaming | ✓ | ✓ | |
 | Streaming metadata (`include_metadata=True`) | ✓ | ✓ | Both emit `provider_metadata` per chunk and `usage` on the terminal frame |
 | `include_metadata` with output-rail streaming | ✓ | ✗ | IORails raises `ValueError`; its buffer strategy requires plain string chunks |
-| `GenerationOptions` through the stream | ◐ | ◐ | Both accept `llm_params` and rail toggles; neither returns a `GenerationResponse` from `stream_async` |
+| `GenerationOptions` through the stream | ◐ | ◐ | Both apply `llm_params` and rail toggles; neither yields a `GenerationResponse` from `stream_async`, so `log` and `output_vars` are unreachable |
 | Parallel streaming output rails | ✓ | ✗ | LLMRails streaming-buffer feature |
 
 Both engines stream responses through `stream_async` and support streaming output rails.
@@ -183,7 +183,10 @@ Both accept `include_metadata=True` to receive dictionary-framed chunks such as 
 For the frame shapes, see [Streaming Metadata](/run-guardrailed-inference/using-python-apis/streaming#streaming-metadata).
 
 `IORails` rejects `include_metadata=True` when output-rail streaming is enabled, because its buffer strategy operates on plain string chunks.
-Neither engine returns a `GenerationResponse` from `stream_async`; structured responses are a non-streaming feature.
+
+Neither engine returns a `GenerationResponse` from `stream_async`; structured responses are a non-streaming feature, and passing `options` does not change the chunk shape.
+`IORails` also validates `options` only on the non-streaming path, so the Colang-coupled options that raise in `generate_async` are silently ignored in `stream_async`.
+For details, see [Generation Options and Streaming](/run-guardrailed-inference/using-python-apis/streaming#generation-options-and-streaming).
 
 Parallel streaming output rails, where the output rail validates streamed chunks using the streaming buffer, is an `LLMRails` feature.
 `IORails` runs output rails over the streamed response but does not use the parallel streaming-buffer path, and speculative generation falls back to sequential execution while streaming.
