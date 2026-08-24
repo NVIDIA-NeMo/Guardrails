@@ -236,11 +236,31 @@ For more information, see the [Observability](/observability) documentation.
 | Default framework (OpenAI-compatible) | ✓ | ✓ | |
 | LangChain integration (opt-in) | ✓ | ✗ | Passing a LangChain LLM routes to LLMRails |
 | Custom LLM injection (`llm=` / `update_llm`) | ✓ | ✗ | A custom `llm` forces LLMRails |
+| Per-model HTTP headers (`parameters.default_headers`) | ✓ | ✓ | Built-in framework. Only IORails coerces non-string values. |
+| Per-model query parameters (`parameters.default_query`) | ✓ | ✓ | Built-in framework. Only IORails rejects nested objects at construction. |
 
 Both engines use the default OpenAI-compatible framework to call models defined in the configuration.
 
 The LangChain integration is opt-in and available on `LLMRails`.
 Passing a custom `llm` to the constructor, including a LangChain model, forces `LLMRails`, because `IORails` resolves its models from the configuration rather than from an injected LLM and does not support `update_llm`.
+
+Through the built-in framework, both engines attach a model's `parameters.default_headers` and `parameters.default_query` to every provider request.
+Each parameter has per-model scope.
+Both engines match configured header names case-insensitively and let a configured header override a base header.
+Both engines encode supported scalar query values, lists of scalar values, and empty values the same way.
+Nested-object handling differs as described below.
+Two edge cases differ.
+IORails converts a non-string header value to a string.
+LLMRails raises `LLMCallException` on the first model call instead.
+Quote a scalar header value to keep both engines consistent.
+A nested object under `default_query` raises a `ValueError` from the `IORails` constructor, while `LLMRails` sends it as an encoded Python representation.
+
+These behaviors apply to the built-in framework.
+Under the LangChain framework, `LLMRails` forwards both parameters to the underlying LangChain class.
+The class decides whether it accepts the parameters and how it applies them.
+For example, `ChatOpenAI` accepts both parameters.
+An injected `llm` replaces the `main` model, so `LLMRails` does not read that entry's parameters.
+For configuration examples, refer to [Custom HTTP Headers](/configure-guardrails/yaml-schema/model-configuration#custom-http-headers) and [Model-Level Query Parameters](/configure-guardrails/yaml-schema/model-configuration#model-level-query-parameters).
 
 ### Knowledge Base and Embeddings
 

@@ -44,6 +44,11 @@ Each engine is served by a framework that manages the underlying HTTP or SDK cal
 | `vllm_openai`, `deepseek` | LangChain (opt-in) | yes | yes | yes | Legacy LangChain provider engines. They continue to work when you opt into LangChain. For new configurations, use `engine: openai` with `parameters.base_url` when the wire protocol is OpenAI-compatible. |
 | `<provider_name>` | LangChain (opt-in) | varies | varies | varies | Any community provider exposed through LangChain's chat-model integrations. Use the bare provider name as the engine name. |
 
+Every engine listed with the Built-in framework accepts `parameters.default_headers` and `parameters.default_query` on a model entry.
+These parameters attach custom HTTP headers and query-string parameters to the requests that model sends.
+Use them for multi-tenant routing, request attribution, API versioning, or a custom authentication scheme.
+Refer to [Custom HTTP Headers](/configure-guardrails/yaml-schema/model-configuration#custom-http-headers) and [Model-Level Query Parameters](/configure-guardrails/yaml-schema/model-configuration#model-level-query-parameters).
+
 For migration recipes between the built-in path and the LangChain path, see [Migrating to 0.22](/reference/0-22).
 
 ## LangChain-Backed Providers
