@@ -1,0 +1,275 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Rail Engine Support"
+sidebar-title: "Rail Engine Support"
+description: "Per-rail support matrix showing which built-in guardrail flows run on the LLMRails and IORails engines in the NVIDIA NeMo Guardrails library."
+keywords: ["rail support matrix", "llmrails", "iorails", "guardrail catalog", "rail surfaces", "supported rails"]
+content:
+  type: "reference"
+---
+
+The NVIDIA NeMo Guardrails library ships 33 built-in rails under `nemoguardrails/library`.
+Each rail declares its behavior in a [rail manifest](/reference/rail-manifests), and each manifest exposes one or more *surfaces*.
+A surface is the flow name you list under `rails.input.flows`, `rails.output.flows`, or `rails.retrieval.flows` in `config.yml`.
+
+The 33 manifests declare 78 surfaces in total.
+`LLMRails` runs all 78 through its Colang runtime, in both Colang 1.0 and Colang 2.x.
+`IORails` runs 59 of them by compiling the manifest directly, without Colang.
+
+This page lists every surface and the engine that can run it.
+For capability areas that are not tied to a specific rail, such as streaming, observability, and the generation API, see [Engine Feature Support](/reference/engine-feature-support).
+
+## How to Read This Page
+
+Legend: ✓ supported · ✗ not supported.
+
+The **Flow** column is the exact string you put in `config.yml`.
+The **Notes** column records either the conversation value the rail rewrites or the reason `IORails` cannot run it.
+
+A ✓ in the `IORails` column means the surface is *servable*: nothing in its manifest contract puts it out of reach of the engine.
+Whether a particular configuration actually runs it also depends on that configuration, because `IORails` validates models and optional dependencies at startup.
+See [Configuration-Dependent Refusals](#configuration-dependent-refusals).
+
+## Support Summary
+
+| Direction | Surfaces | LLMRails | IORails |
+|---|---:|---:|---:|
+| Input | 32 | 32 | 31 |
+| Output | 35 | 35 | 28 |
+| Retrieval | 11 | 11 | 0 |
+| **Total** | **78** | **78** | **59** |
+
+`IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
+A configuration that declares one routes to `LLMRails` through the `Guardrails` facade.
+
+## Support Matrix
+
+### Input Surfaces
+
+| Flow | Rail | LLMRails | IORails | Notes |
+|---|---|:---:|:---:|---|
+| `activefence moderation on input` | ActiveFence | ✓ | ✓ | |
+| `activefence moderation on input detailed` | ActiveFence | ✓ | ✓ | |
+| `autoalign check input` | AutoAlign | ✓ | ✓ | Rewrites `user_message` |
+| `ai defense inspect prompt` | Cisco AI Defense | ✓ | ✓ | |
+| `clavata check input` | Clavata | ✓ | ✓ | |
+| `content safety check input` | Content Safety | ✓ | ✓ | |
+| `context bloat detection on input` | Context Bloat Detection | ✓ | ✓ | Rewrites `user_message` |
+| `crowdstrike aidr guard input` | CrowdStrike AIDR | ✓ | ✓ | Rewrites `user_message` |
+| `f5 guardrails scan input` | F5 AI Guardrails | ✓ | ✓ | |
+| `fiddler user safety` | Fiddler Guardrails | ✓ | ✓ | |
+| `gcpnlp moderation` | GCP Text Moderation | ✓ | ✓ | |
+| `gcpnlp moderation detailed` | GCP Text Moderation | ✓ | ✓ | |
+| `gliner detect pii on input` | GLiNER | ✓ | ✓ | |
+| `gliner mask pii on input` | GLiNER | ✓ | ✓ | Rewrites `user_message` |
+| `guardrailsai check input` | Guardrails AI | ✓ | ✓ | |
+| `hf classifier check input` | Hugging Face Classifier | ✓ | ✓ | |
+| `jailbreak detection heuristics` | Jailbreak Detection | ✓ | ✗ | Backend ambiguity, [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285) |
+| `jailbreak detection model` | Jailbreak Detection | ✓ | ✓ | |
+| `llama guard check input` | Llama Guard | ✓ | ✓ | |
+| `pangea ai guard input` | Pangea AI Guard | ✓ | ✓ | Rewrites `user_message`. Deprecated rail |
+| `policyai moderation on input` | PolicyAI | ✓ | ✓ | |
+| `polygraf detect pii on input` | Polygraf PII Detection | ✓ | ✓ | |
+| `polygraf mask pii on input` | Polygraf PII Detection | ✓ | ✓ | Rewrites `user_message` |
+| `detect pii on input` | Private AI | ✓ | ✓ | |
+| `mask pii on input` | Private AI | ✓ | ✓ | Rewrites `user_message` |
+| `protect prompt` | Prompt Security | ✓ | ✓ | Rewrites `user_message` |
+| `regex check input` | Regex Detection | ✓ | ✓ | |
+| `self check input` | Self-Check Input | ✓ | ✓ | |
+| `detect sensitive data on input` | Sensitive Data Detection | ✓ | ✓ | |
+| `mask sensitive data on input` | Sensitive Data Detection | ✓ | ✓ | Rewrites `user_message` |
+| `topic safety check input` | Topic Safety | ✓ | ✓ | |
+| `trend ai guard input` | Trend Micro Vision One AI Guard | ✓ | ✓ | |
+
+### Output Surfaces
+
+| Flow | Rail | LLMRails | IORails | Notes |
+|---|---|:---:|:---:|---|
+| `activefence moderation on output` | ActiveFence | ✓ | ✓ | |
+| `alignscore check facts` | AlignScore Fact Checking | ✓ | ✗ | Reads `relevant_chunks` |
+| `autoalign check output` | AutoAlign | ✓ | ✓ | Rewrites `bot_message` |
+| `autoalign factcheck output` | AutoAlign | ✓ | ✓ | |
+| `autoalign groundedness output` | AutoAlign | ✓ | ✗ | Reads `relevant_chunks_sep` |
+| `ai defense inspect response` | Cisco AI Defense | ✓ | ✓ | |
+| `clavata check output` | Clavata | ✓ | ✓ | |
+| `cleanlab trustworthiness` | Cleanlab | ✓ | ✓ | |
+| `content safety check output` | Content Safety | ✓ | ✓ | |
+| `crowdstrike aidr guard output` | CrowdStrike AIDR | ✓ | ✓ | Rewrites `bot_message` |
+| `f5 guardrails scan output` | F5 AI Guardrails | ✓ | ✓ | |
+| `fiddler bot faithfulness` | Fiddler Guardrails | ✓ | ✗ | Reads `relevant_chunks` |
+| `fiddler bot safety` | Fiddler Guardrails | ✓ | ✓ | |
+| `gliner detect pii on output` | GLiNER | ✓ | ✓ | |
+| `gliner mask pii on output` | GLiNER | ✓ | ✓ | Rewrites `bot_message` |
+| `guardrailsai check output` | Guardrails AI | ✓ | ✓ | |
+| `self check hallucination` | Hallucination Detection | ✓ | ✗ | Reads `_last_bot_prompt` |
+| `hf classifier check output` | Hugging Face Classifier | ✓ | ✓ | |
+| `injection detection` | Injection Detection | ✓ | ✓ | Rewrites `bot_message` |
+| `llama guard check output` | Llama Guard | ✓ | ✓ | |
+| `pangea ai guard output` | Pangea AI Guard | ✓ | ✓ | Rewrites `bot_message`. Deprecated rail |
+| `patronus api check output` | Patronus AI | ✓ | ✗ | Reads `relevant_chunks` |
+| `patronus lynx check output hallucination` | Patronus AI | ✓ | ✗ | Reads `relevant_chunks` |
+| `policyai moderation on output` | PolicyAI | ✓ | ✓ | |
+| `polygraf detect pii on output` | Polygraf PII Detection | ✓ | ✓ | |
+| `polygraf mask pii on output` | Polygraf PII Detection | ✓ | ✓ | Rewrites `bot_message` |
+| `detect pii on output` | Private AI | ✓ | ✓ | |
+| `mask pii on output` | Private AI | ✓ | ✓ | Rewrites `bot_message` |
+| `protect response` | Prompt Security | ✓ | ✓ | Rewrites `bot_message` |
+| `regex check output` | Regex Detection | ✓ | ✓ | |
+| `self check facts` | Self-Check Facts | ✓ | ✗ | Reads `relevant_chunks` |
+| `self check output` | Self-Check Output | ✓ | ✓ | |
+| `detect sensitive data on output` | Sensitive Data Detection | ✓ | ✓ | |
+| `mask sensitive data on output` | Sensitive Data Detection | ✓ | ✓ | Rewrites `bot_message` |
+| `trend ai guard output` | Trend Micro Vision One AI Guard | ✓ | ✓ | |
+
+### Retrieval Surfaces
+
+Retrieval surfaces run against the knowledge-base chunks retrieved for a turn.
+`IORails` has no retrieval pipeline, so all of them are `LLMRails` only.
+
+| Flow | Rail | LLMRails | IORails | Notes |
+|---|---|:---:|:---:|---|
+| `context bloat detection on retrieval` | Context Bloat Detection | ✓ | ✗ | Rewrites `relevant_chunks` |
+| `gliner detect pii on retrieval` | GLiNER | ✓ | ✗ | Reads `relevant_chunks` |
+| `gliner mask pii on retrieval` | GLiNER | ✓ | ✗ | Rewrites `relevant_chunks` |
+| `hf classifier check retrieval` | Hugging Face Classifier | ✓ | ✗ | Rewrites `relevant_chunks` |
+| `polygraf detect pii on retrieval` | Polygraf PII Detection | ✓ | ✗ | Reads `relevant_chunks` |
+| `polygraf mask pii on retrieval` | Polygraf PII Detection | ✓ | ✗ | Rewrites `relevant_chunks` |
+| `detect pii on retrieval` | Private AI | ✓ | ✗ | Reads `relevant_chunks` |
+| `mask pii on retrieval` | Private AI | ✓ | ✗ | Rewrites `relevant_chunks` |
+| `regex check retrieval` | Regex Detection | ✓ | ✗ | Rewrites `relevant_chunks` |
+| `detect sensitive data on retrieval` | Sensitive Data Detection | ✓ | ✗ | Reads `relevant_chunks` |
+| `mask sensitive data on retrieval` | Sensitive Data Detection | ✓ | ✗ | Rewrites `relevant_chunks` |
+
+### Tool Surfaces
+
+Tool rails are not manifest surfaces.
+`IORails` registers them separately as local structural and schema validators that reach no model.
+
+| Flow | Section | LLMRails | IORails | Notes |
+|---|---|:---:|:---:|---|
+| `tool call validation` | `rails.tool_output.flows` | ✓ | ✓ | Validates model-emitted tool calls |
+| `tool result validation` | `rails.tool_input.flows` | ✓ | ✓ | Validates application-returned tool results |
+
+For configuration and behavior, see [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
+
+## Why IORails Refuses a Surface
+
+`IORails` derives its scope from the manifest rather than from a hardcoded list of rail names.
+A surface it cannot run is one whose declared contract the engine cannot satisfy.
+Adding a new rail to the catalog therefore needs no change in the engine.
+
+There are three structural reasons and one temporary one.
+
+| Reason | Surfaces | Explanation |
+|---|---:|---|
+| Reads a conversation value `IORails` does not supply | 11 | `IORails` supplies only `user_message` and `bot_message` to a manifest `Binding.context` entry. A surface that binds `relevant_chunks`, `relevant_chunks_sep`, or `_last_bot_prompt` needs Colang runtime state that the engine does not build. |
+| Rewrites a value the direction cannot apply | 7 | `IORails` can apply a rewrite to `user_message` on input and `bot_message` on output. A retrieval surface that rewrites `relevant_chunks` has nowhere to put the result. |
+| Explicit blocklist | 1 | `jailbreak detection heuristics` shares a manifest with `jailbreak detection model`, so the engine cannot tell whether the configuration needs `torch` and `transformers` installed. Tracked in [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285). |
+
+The checks run in that order and report the first reason that applies, so a retrieval surface that both rewrites and reads `relevant_chunks` is listed under the rewrite reason.
+
+Separately from the per-surface checks, `IORails` accepts only the `input`, `output`, `config`, `tool_input`, and `tool_output` rail sections.
+A configuration that declares `rails.retrieval`, `rails.dialog`, or any other section routes to `LLMRails` regardless of which flows it names.
+
+## Configuration-Dependent Refusals
+
+Beyond the fixed matrix above, `IORails` validates two things per configuration when it compiles a rail at startup.
+`LLMRails` does neither, and reports the same problems at request time instead.
+
+| Check | IORails | LLMRails |
+|---|---|---|
+| Optional dependency installed | Refuses to compile the rail, naming the missing distribution and the extra to install | Imports lazily inside the action, so the failure surfaces on the first request that runs the rail |
+| Model type declared in `models` | Refuses to compile the rail, naming the missing model type and the types the configuration does declare | Fails when the flow executes and the action asks for the model |
+
+Both refusals raise `RailCompilationError`.
+Through the `Guardrails` facade they are fallback conditions: the configuration routes to `LLMRails` and the reason is logged.
+
+The rails that declare an optional dependency are the following:
+
+| Rail | Distributions | Extra |
+|---|---|---|
+| Cleanlab | `cleanlab-studio` | |
+| GCP Text Moderation | `google-cloud-language` | |
+| Guardrails AI | `guardrails-ai` | |
+| Hugging Face Classifier | `transformers` | |
+| Injection Detection | `yara-python` | |
+| Jailbreak Detection | `torch`, `transformers` | |
+| Sensitive Data Detection | `presidio-analyzer`, `presidio-anonymizer`, `spacy` | `sdd` |
+
+Hugging Face Classifier and Jailbreak Detection each offer an in-process backend and a remote endpoint.
+`IORails` enforces the dependency only when the configuration selects the in-process backend.
+
+The surfaces that bind a model type, and so are model-validated at compile time, are the following:
+
+| Flow | Model type | Source |
+|---|---|---|
+| `content safety check input` | Selected by `$model=` | Surface parameter |
+| `content safety check output` | Selected by `$model=` | Surface parameter |
+| `topic safety check input` | Selected by `$model=` | Surface parameter |
+| `llama guard check input` | `llama_guard` | Fixed in the manifest |
+| `llama guard check output` | `llama_guard` | Fixed in the manifest |
+| `patronus lynx check output hallucination` | `patronus_lynx` | Fixed in the manifest |
+
+`IORails` never reaches the model check for `patronus lynx check output hallucination`, because the surface check refuses it first.
+
+A manifest can also declare a model under `requirements.models`, as Self-Check and Hallucination Detection do for `llm`.
+That declaration is descriptive metadata for the catalog.
+Neither engine enforces it at startup, so a missing model surfaces when the rail runs.
+
+## Rail Behavior Differences
+
+The manifest and the action are shared, so both engines reach the same allow, block, or transform decision.
+How each engine acts on that decision differs.
+
+| Behavior | LLMRails | IORails |
+|---|---|---|
+| Block presentation | The Colang flow decides: emit a refusal intent, or raise a configured exception when `enable_rails_exceptions` is set | Returns a fixed refusal message for a non-streaming request, or a `guardrails_violation` payload for a streaming request |
+| Rail raises an exception | The exception propagates out of the flow | The engine's fail-closed envelope converts it to a block, marks the outcome as failed, and returns an internal-error message. An error carrying an upstream HTTP status propagates instead |
+| Transform (mask or rewrite) rails | Applied through the Colang context | Applied by rerunning the remaining rails against the rewritten text. Rewriting rails are ordered ahead of judging rails so a mask reaches the checks behind it |
+| Transform rails with `parallel: true` | Honored independently | Not honored. Configuring any rewriting rail forces both directions sequential and emits a warning, because concurrent rails read the arriving text and a rewrite cannot compose |
+| Transform rails with `speculative_generation: true` | Not applicable, `LLMRails` has no speculative generation | Not honored. A rewriting input rail disables speculative generation and emits a warning, because the model would read the text before the rewrite lands |
+| Retrieval-direction rails | Run against retrieved chunks | Not available |
+
+One transform rule is shared rather than per-engine.
+`RailsConfig` rejects a configuration that combines a rewriting output rail with output-rail streaming unless `rails.output.streaming.stream_first` is `false` and `context_size` is `0`, because a rewrite cannot be applied to chunks that have already been sent.
+That validation runs for both engines.
+
+For the shared decision object that both engines read, see [Rail Outcomes](/configure-guardrails/actions/rail-outcomes).
+
+## Checking Support Programmatically
+
+Ask the engine whether it can serve a whole configuration:
+
+```python
+from nemoguardrails import RailsConfig
+from nemoguardrails.guardrails.iorails import IORails
+
+config = RailsConfig.from_path("path/to/config")
+
+reason = IORails.unsupported_reason(config)
+if reason is None:
+    print("IORails can serve this configuration")
+else:
+    print(f"Falls back to LLMRails: {reason}")
+```
+
+Enumerate the surfaces the installed version declares:
+
+```python
+from nemoguardrails.manifests import RailDirection, default_rail_catalog
+
+catalog = default_rail_catalog()
+
+for (direction, name), surface in sorted(catalog.surfaces().items()):
+    print(f"{direction.value:10} {name}")
+
+input_surfaces = catalog.surfaces(direction=RailDirection.INPUT)
+```
+
+## Related Information
+
+- [Engine Feature Support](/reference/engine-feature-support) compares the two engines on capabilities that are not rail-specific.
+- [Rail Manifests](/reference/rail-manifests) documents the manifest schema that this matrix is derived from.
+- [Guardrail Catalog](/configure-guardrails/guardrail-catalog) documents each rail's configuration and behavior.
+- [Rail Outcomes](/configure-guardrails/actions/rail-outcomes) documents the allow, block, and transform decision that rail actions return.

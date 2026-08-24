@@ -107,6 +107,41 @@ rails:
       - gliner mask pii on output
 ```
 
+### Retrieved Chunks
+
+Both flows also have a retrieval variant that runs against the knowledge-base chunks retrieved for a turn.
+Configure the entities to look for under a `retrieval` key alongside `input` and `output`.
+
+```yaml
+rails:
+  config:
+    gliner:
+      server_endpoint: https://integrate.api.nvidia.com/v1/chat/completions
+      api_key_env_var: NVIDIA_API_KEY
+      threshold: 0.5
+      retrieval:
+        entities:
+          - first_name
+          - last_name
+          - email
+          - phone_number
+  retrieval:
+    flows:
+      # Block a turn whose retrieved chunks contain PII.
+      - gliner detect pii on retrieval
+      # Or mask the PII in the chunks before the LLM sees them.
+      - gliner mask pii on retrieval
+```
+
+Use one of the two retrieval flows, not both.
+
+### Engine Support
+
+The input and output flows run on both `LLMRails` and `IORails`.
+
+`gliner detect pii on retrieval` and `gliner mask pii on retrieval` run on `LLMRails` only, because `IORails` has no retrieval pipeline.
+A configuration that declares a `rails.retrieval` section routes to `LLMRails`.
+
 ## Run the Guardrails Chat CLI
 
 Start an interactive chat session by pointing `--config` at the subdirectory for the flow you want to test:
