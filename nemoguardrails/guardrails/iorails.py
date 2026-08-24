@@ -1075,7 +1075,7 @@ class IORails(BaseGuardrails):
         # Reasoning extraction prefers LLMResponse `reasoning` field if the provider
         # supports it, falling back to extracting <think>...</think> tags otherwise.
         # The fallback mutates response.content to remove reasoning content.
-        reasoning_content = response.reasoning or _extract_and_remove_think_tags(response)
+        reasoning_content = response.reasoning_text or _extract_and_remove_think_tags(response)
         response_text = response.content
 
         # Main LLM returns function calls to make based on available tools and conversation

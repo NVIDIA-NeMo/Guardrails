@@ -291,8 +291,8 @@ def _log_completion(response: LLMResponse) -> None:
     completion_text = _extract_content(response)
     llm_call_info.completion = completion_text
 
-    if response.reasoning:
-        full_completion = f"{response.reasoning}\n---\n{completion_text}"
+    if response.reasoning_text:
+        full_completion = f"{response.reasoning_text}\n---\n{completion_text}"
     else:
         full_completion = completion_text
 
@@ -410,7 +410,7 @@ def _raise_llm_call_exception(
 
 
 def _store_reasoning_traces(response: LLMResponse) -> None:
-    reasoning_content = response.reasoning
+    reasoning_content = response.reasoning_text
 
     if not reasoning_content:
         reasoning_content = _extract_and_remove_think_tags(response)
