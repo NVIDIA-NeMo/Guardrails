@@ -41,7 +41,7 @@ See [Configuration-Dependent Refusals](#configuration-dependent-refusals).
 | **Total** | **78** | **78** | **59** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
-A configuration that declares one routes to `LLMRails` through the `Guardrails` facade.
+A configuration that declares one routes to `LLMRails` by default; see [What Happens to an Unsupported Configuration](#what-happens-to-an-unsupported-configuration).
 
 ## Support Matrix
 
@@ -159,18 +159,31 @@ For configuration and behavior, see [Tool Calling](/configure-guardrails/guardra
 A surface it cannot run is one whose declared contract the engine cannot satisfy.
 Adding a new rail to the catalog therefore needs no change in the engine.
 
-There are three structural reasons and one temporary one.
+Two of the per-surface reasons are structural and one is temporary.
 
 | Reason | Surfaces | Explanation |
 |---|---:|---|
-| Reads a conversation value `IORails` does not supply | 11 | `IORails` supplies only `user_message` and `bot_message` to a manifest `Binding.context` entry. A surface that binds `relevant_chunks`, `relevant_chunks_sep`, or `_last_bot_prompt` needs Colang runtime state that the engine does not build. |
 | Rewrites a value the direction cannot apply | 7 | `IORails` can apply a rewrite to `user_message` on input and `bot_message` on output. A retrieval surface that rewrites `relevant_chunks` has nowhere to put the result. |
+| Reads a conversation value `IORails` does not supply | 11 | `IORails` supplies only `user_message` and `bot_message` to a manifest `Binding.context` entry. A surface that binds `relevant_chunks`, `relevant_chunks_sep`, or `_last_bot_prompt` needs Colang runtime state that the engine does not build. |
 | Explicit blocklist | 1 | `jailbreak detection heuristics` shares a manifest with `jailbreak detection model`, so the engine cannot tell whether the configuration needs `torch` and `transformers` installed. Tracked in [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285). |
 
-The checks run in that order and report the first reason that applies, so a retrieval surface that both rewrites and reads `relevant_chunks` is listed under the rewrite reason.
+The checks run in the order the table lists them and report the first reason that applies, so a retrieval surface that both rewrites and reads `relevant_chunks` is reported under the rewrite reason.
 
-Separately from the per-surface checks, `IORails` accepts only the `input`, `output`, `config`, `tool_input`, and `tool_output` rail sections.
-A configuration that declares `rails.retrieval`, `rails.dialog`, or any other section routes to `LLMRails` regardless of which flows it names.
+A third structural constraint applies to the configuration as a whole rather than to any one surface.
+`IORails` accepts only the `input`, `output`, `config`, `tool_input`, and `tool_output` rail sections, so a configuration that declares `rails.retrieval`, `rails.dialog`, or any other section routes to `LLMRails` by default, regardless of which flows it names.
+
+## What Happens to an Unsupported Configuration
+
+The `Guardrails` facade decides what an unsupported rail means for your application:
+
+| Constructor | Behavior when a configured rail cannot run on `IORails` |
+|---|---|
+| `Guardrails(config)` | Routes the configuration to `LLMRails` and logs the reason. This is the default |
+| `Guardrails(config, require_iorails=True)` | Raises `ValueError` naming the reason, instead of falling back |
+| `Guardrails(config, use_iorails=False)` | Uses `LLMRails` without consulting the rail catalog at all |
+
+Every "routes to `LLMRails`" statement on this page and in the guardrail catalog describes the default.
+Use `require_iorails=True` when you depend on an `IORails`-only capability such as OpenTelemetry metrics and would rather fail at startup than silently lose it.
 
 ## Configuration-Dependent Refusals
 
@@ -183,7 +196,7 @@ Beyond the fixed matrix above, `IORails` validates two things per configuration 
 | Model type declared in `models` | Refuses to compile the rail, naming the missing model type and the types the configuration does declare | Fails when the flow executes and the action asks for the model |
 
 Both refusals raise `RailCompilationError`.
-Through the `Guardrails` facade they are fallback conditions: the configuration routes to `LLMRails` and the reason is logged.
+Through the `Guardrails` facade they are fallback conditions: by default the configuration routes to `LLMRails` and the reason is logged.
 
 The rails that declare an optional dependency are the following:
 

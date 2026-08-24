@@ -269,7 +269,7 @@ The retrieval flows run on `LLMRails` only, because `IORails` has no retrieval p
 | `detect sensitive data on retrieval`, `mask sensitive data on retrieval` | ✓ | ✗ |
 | `detect pii on retrieval`, `mask pii on retrieval` | ✓ | ✗ |
 
-A configuration that declares a `rails.retrieval` section routes to `LLMRails`.
+A configuration that declares a `rails.retrieval` section routes to `LLMRails` by default.
 
 The masking flows rewrite the text they check rather than blocking it.
 On `IORails` a configured rewriting rail turns input and output rails sequential, so each mask reaches the rails behind it.

@@ -166,10 +166,10 @@ If you want to implement a completely different sensitive data detection mechani
 | `detect sensitive data on retrieval`, `mask sensitive data on retrieval` | ✓ | ✗ |
 
 The retrieval flows run on `LLMRails` only, because `IORails` has no retrieval pipeline.
-A configuration that declares a `rails.retrieval` section routes to `LLMRails`.
+A configuration that declares a `rails.retrieval` section routes to `LLMRails` by default.
 
 This rail declares the `sdd` extra, and the two engines report a missing install differently.
-`IORails` refuses to compile the rail at startup and names the extra to install, so the configuration routes to `LLMRails`.
+`IORails` refuses to compile the rail at startup and names the extra to install, so the configuration routes to `LLMRails` by default.
 `LLMRails` imports Presidio lazily inside the action, so the failure surfaces on the first request that runs the rail.
 
 The masking flows rewrite the text they check rather than blocking it.
