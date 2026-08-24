@@ -12,8 +12,8 @@ content:
 The `check_async()` and `check()` methods validate messages against input and output rails without triggering full LLM generation. Use these methods instead of [generation options](/run-guardrailed-inference/using-python-apis/generation-options) when you only need to run rails without generating a response. If you need to run generation while selectively disabling rail categories, see [Generation Options: Disabling Rails](/run-guardrailed-inference/using-python-apis/generation-options#disabling-rails).
 
 Both the `LLMRails` and `IORails` engines implement these methods, and the `Guardrails` facade forwards the call to whichever engine it selected.
-The method signatures, the rail-type selection rules, and the returned `RailsResult` are the same on both engines.
-For the behavior that does differ, refer to [Engine Differences](#engine-differences).
+The method signatures and returned `RailsResult` type are the same on both engines.
+For engine-specific rail selection and execution behavior, refer to [Engine Differences](#engine-differences).
 
 ## Method Signatures
 
@@ -95,7 +95,7 @@ result = await rails.check_async(
 | `RailType.INPUT` | Run input rails |
 | `RailType.OUTPUT` | Run output rails |
 
-On `IORails`, passing an empty list (`rail_types=[]`) runs no rails and returns a passed result.
+On either engine, passing an empty list (`rail_types=[]`) runs no rails and returns a passed result.
 
 <Note>
 
@@ -136,7 +136,8 @@ The `RailStatus` enum represents the three possible outcomes of a rails check.
 ### Which Content Is Reported
 
 The `content` field reports the direction the caller asked about.
-A check that runs output rails reports the assistant text; a check that runs input rails only reports the user text.
+A check that runs output rails reports the assistant text.
+A check that runs input rails only reports the user text.
 
 Both engines compare the reported text against its original value to decide between `PASSED` and `MODIFIED`.
 When a check runs both directions and only the user message is rewritten, the status is `PASSED`, because the reported assistant text is unchanged.
@@ -226,19 +227,19 @@ For more information, refer to [Engine Feature Support](/reference/engine-featur
 
 ## Engine Differences
 
-The API surface is identical on both engines, but the two run the check differently.
+The API surface is identical on both engines, but each engine executes a check differently:
 
 | Behavior | LLMRails | IORails |
 |---|---|---|
 | How the check runs | Through the Colang runtime, as a generation with dialog rails and the unrequested rail types disabled | Directly through the engine's rails manager, with no Colang runtime |
-| Rails that can run | Every configured input and output flow, including community, third-party, and custom-action rails | The input and output rails IORails supports; a configuration outside that set routes to `LLMRails` |
+| Rails that can run | Every configured input and output flow, including community, third-party, and custom-action rails | The input and output rails IORails supports. A configuration outside that set routes to `LLMRails` |
 | Main LLM call | Not made | Not made |
 | Tool rails | Not run | Not run |
 | `BLOCKED` content | The refusal message defined by the configuration's Colang flow | A fixed refusal message that the configuration does not change |
 | Rail that fails to execute | Handled by the Colang runtime's internal-error path | `BLOCKED` with an internal-error message that is distinct from the refusal message |
 | Requested direction with no content to check | An output-only check with no user message runs with an empty user message supplied as context | The direction is skipped and the result is `PASSED` |
 | Admission control | None | Shares the non-streaming admission queue with `generate_async()`, and raises `asyncio.QueueFull` when the queue is full |
-| Tracing and metrics | Spans through a tracing adapter; no OpenTelemetry metrics | The same request span and request metrics as `generate_async()`; refer to [Observability for IORails Checks](#observability-for-iorails-checks) |
+| Tracing and metrics | Spans through a tracing adapter with no OpenTelemetry metrics | The same request span and request metrics as `generate_async()`. Refer to [Observability for IORails Checks](#observability-for-iorails-checks) |
 | Synchronous `check()` | Runs `check_async()` on the calling thread's event loop | Runs `check_async()` on a short-lived engine with tracing and metrics disabled |
 
 ### Blocked Content
@@ -248,7 +249,8 @@ On `IORails`, a blocked check returns the engine's fixed refusal message, `I'm s
 That is the same string the built-in rails use by default, so an unmodified configuration produces the same text on both engines.
 
 `IORails` also distinguishes a rail that fired from a rail that broke.
-When a rail fails to execute, the check returns `BLOCKED` with `I'm sorry, an internal error has occurred.` instead of the refusal message, so an operational failure is not reported to your application as a content refusal.
+When a rail fails to execute, the check returns `BLOCKED` with `I'm sorry, an internal error has occurred.` instead of the refusal message.
+This distinction prevents the application from reporting an operational failure as a content refusal.
 That wording matches the sentence the Colang runtime produces on `LLMRails` when an action fails.
 
 In every case, treat `status` as the decision and `content` as the message to show a user. Do not match on the message text.
@@ -271,7 +273,8 @@ When your application requires that a rail actually ran, assert that the message
 `check_async()` is instrumented like `generate_async()` on the IORails engine.
 
 - Tracing produces one `guardrails.request` SERVER span per check, with one `guardrails.rail` INTERNAL span per rail that runs and a `guardrails.action` span per action.
-  The check makes no main-model call, so the tree has no top-level `chat {model}` CLIENT span; the LLM calls a rail action makes still appear beneath that action.
+  The check makes no main-model call, so the tree has no top-level `chat {model}` CLIENT span.
+  LLM calls from rail actions still appear beneath those actions.
   For more information, refer to [Span Reference](/observability/tracing/span-reference#iorails).
 - Metrics record the check in the request-level instruments: `guardrails.requests`, `guardrails.requests.active`, `guardrails.request.duration`, `guardrails.requests.errors`, and, on a block, `guardrails.requests.blocked` with the `rail.type` label.
   A check rejected by a full admission queue increments `guardrails.nonstream.rejections`.

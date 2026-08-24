@@ -215,7 +215,7 @@ A single request produces one tree.
 Span nesting follows execution, so the parent of an LLM or API span depends on where the call is made.
 
 ```text
-guardrails.request                  SERVER     one per generate_async() or check_async() call
+guardrails.request                  SERVER     one per generate_async(), stream_async(), or check_async() call
 ├─ guardrails.rail                  INTERNAL   one per rail that runs
 │  └─ guardrails.action             INTERNAL   one per action the rail invokes
 │     ├─ chat {model}               CLIENT     LLM call issued by the action (for example a content-safety model)

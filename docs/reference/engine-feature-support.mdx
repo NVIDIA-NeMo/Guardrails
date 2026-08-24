@@ -43,7 +43,9 @@ It runs the built-in NeMoGuard safety models (content safety, topic control, and
 It does not run the Colang dialog runtime, retrieval, custom actions, or accept a custom LLM, and it accepts Colang 1.0 configurations only.
 
 `IORails` has a `start()` and `stop()` lifecycle that initializes and releases the engine's model clients and work queue.
-`generate_async()`, `stream_async()`, and `check_async()` all call `start()` automatically (it is idempotent), so a bare `IORails` does not need a manual `start()` before use; call `start()` at service startup to warm the clients and `stop()` at shutdown to release them.
+`generate_async()`, `stream_async()`, and `check_async()` all call `start()` automatically.
+The operation is idempotent, so a bare `IORails` does not need a manual `start()` before use.
+Call `start()` at service startup to warm the clients and `stop()` at shutdown to release them.
 When you use the `Guardrails` facade described below, that lifecycle is managed for you through `startup()` and `shutdown()` (or by using `Guardrails` as an async context manager).
 
 ### Choosing an Engine
@@ -316,14 +318,15 @@ The community and third-party integrations in the [Guardrail Catalog](/configure
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
-| Guardrails server (OpenAI-compatible REST API) | ✓ | ◐ | Runs on LLMRails by default; `NEMO_GUARDRAILS_IORAILS_ENGINE=1` routes supported configurations to IORails |
+| Guardrails server (OpenAI-compatible REST API) | ✓ | ◐ | Runs on LLMRails by default. `NEMO_GUARDRAILS_IORAILS_ENGINE=1` routes supported configurations to IORails |
 | Server-side threads and multi-config | ✓ | ✗ | LLMRails only |
 
 The bundled Guardrails server exposes an OpenAI-compatible REST API and runs on `LLMRails` by default.
 Server-side threads and multi-config serving are provided through that server.
 
 `IORails` is normally consumed through the in-process `Guardrails` Python API.
-Setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` aliases the top-level `LLMRails` import to `Guardrails`, so the server's endpoints, including `/v1/chat/completions` and `/v1/checks`, run on `IORails` for configurations IORails can serve and fall back to `LLMRails` for the rest.
+Setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` aliases the top-level `LLMRails` import to `Guardrails`.
+The server endpoints, including `/v1/chat/completions` and `/v1/checks`, then run on `IORails` for supported configurations and fall back to `LLMRails` for the rest.
 This path is early release: validate it against your own configurations before depending on it in production.
 
 ### Configuration and Operations
