@@ -131,3 +131,46 @@ Before you begin, install the `yara-python` package or you can install the NeMo 
    *Example Output*
 
    <Code src="../../../examples/configs/injection_detection/demo-out.txt" language="text" title="demo-out.txt" lines="2-2" />
+
+## Agent Threat Rules (ATR)
+
+The NeMo Guardrails library can evaluate input against [Agent Threat Rules (ATR)](https://github.com/Agent-Threat-Rule/agent-threat-rules), an open, MIT-licensed detection standard for AI-agent attacks such as prompt injection, jailbreak, tool poisoning, MCP attacks, and skill compromise.
+
+The rules are bundled inside the [`pyatr`](https://pypi.org/project/pyatr/) package and run locally -- no API key or network call.
+As an input rail, the rail evaluates the user message and flags content matching a rule at or above a configured severity.
+It is intended as a fast, deterministic first gate as part of a defense-in-depth strategy.
+A flagged input emits the standard `bot refuse to respond` intent, so the refusal wording is configured in one place for every rail; set `enable_rails_exceptions` to raise `AtrDetectionRailException` instead.
+
+### Configuring Agent Threat Rules
+
+Install the optional dependency with `pip install "nemoguardrails[atr]"` (or `pip install pyatr`).
+
+To activate the rail, include the `atr detection` input flow:
+
+```yaml
+rails:
+  config:
+    atr:
+      block_severities:
+        - critical
+        - high
+
+  input:
+    flows:
+      - atr detection
+```
+
+Refer to the following table for the `rails.config.atr` field syntax reference:
+
+```{list-table}
+:header-rows: 1
+
+* - Field
+  - Description
+  - Default Value
+
+* - `block_severities`
+  - The ATR match severities that flag the input.
+    Matches below these severities are ignored.
+  - `["critical", "high"]`
+```
