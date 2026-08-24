@@ -312,6 +312,15 @@ response = rails.generate(
 )
 ```
 
+For the message-based call shown above, passing `options` changes the return type.
+Without `options`, `generate()` returns an OpenAI-style message dictionary that you index with `response["content"]`.
+With `options`, it returns a `GenerationResponse` object whose message list you read with `response.response[0]["content"]`.
+For a prompt-based `LLMRails` call, the optionless return and `GenerationResponse.response` are strings instead.
+
+The `IORails` engine also returns a `GenerationResponse` when you pass `options`, but fields that depend on the Colang runtime remain unavailable.
+`output_vars` and `state` raise `ValueError`.
+The `log.internal_events` and `log.colang_history` options raise `NotImplementedError`.
+
 For detailed options, refer to [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options).
 
 ---
@@ -446,10 +455,11 @@ define flow
         options={"log": {"activated_rails": True}}
     )
 
-    print(f"Response: {response['content']}")
+    # `options` was passed, so `response` is a GenerationResponse
+    print(f"Response: {response.response[0]['content']}")
 
     # Print what happened
-    if hasattr(response, 'log'):
+    if response.log:
         response.log.print_summary()
 
 asyncio.run(main())

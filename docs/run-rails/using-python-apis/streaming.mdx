@@ -147,23 +147,42 @@ This feature enables seamless integration of the NeMo Guardrails library with an
 
 ## Streaming Metadata
 
-When using `stream_async()`, you can receive per-chunk metadata (e.g., token usage, finish reason) by setting `include_metadata=True`:
+When using `stream_async()`, you can receive per-chunk metadata (provider metadata and token usage) by setting `include_metadata=True`:
 
 ```python
 async for chunk in rails.stream_async(messages=messages, include_metadata=True):
     print(chunk)
 ```
 
-With `include_metadata=True`, each chunk is a `dict` with a mandatory `"text"` key. The final chunk also includes a `"metadata"` key containing `response_metadata` (finish reason, model name) and `usage_metadata` (token counts):
+With `include_metadata=True`, each chunk is a `dict` with a mandatory `"text"` key.
+A chunk that carries metadata also has a `"metadata"` key, which can hold the following:
+
+- `provider_metadata`: non-standard fields the provider returned with the chunk, such as `response_headers` and vendor extensions.
+- `usage`: normalized token counts as `input_tokens`, `output_tokens`, and `total_tokens`.
+
+For text responses, the stream ends with a single terminal frame that has empty text.
+If the provider attaches usage to a text chunk, the library includes `usage` on that text frame.
+If usage arrives in a chunk without text, `IORails` folds it into the terminal frame, while `LLMRails` emits it on a separate empty frame before the terminal frame.
+
+For example, an `IORails` stream with a final usage-only provider chunk has this shape:
 
 ```python
-{"text": "Hello"}
-{"text": "!"}
+{"text": "Hello", "metadata": {"provider_metadata": {"response_headers": {"...": "..."}}}}
+{"text": "!", "metadata": {"provider_metadata": {"response_headers": {"...": "..."}}}}
 {"text": "", "metadata": {
-    "response_metadata": {"finish_reason": "stop", "model_name": "gpt-4o"},
-    "usage_metadata": {"input_tokens": 75, "output_tokens": 9, "total_tokens": 84}
+    "provider_metadata": {"response_headers": {"...": "..."}},
+    "usage": {"input_tokens": 75, "output_tokens": 9, "total_tokens": 84},
+    "response_metadata": None,
+    "usage_metadata": None
 }}
 ```
+
+The empty terminal frame always includes the `response_metadata` and `usage_metadata` keys.
+They are retained for backward compatibility, and the internal `stream_async()` paths leave both as `None`.
+Read token counts from `usage` instead.
+A caller driving `StreamingHandler` directly can still push these keys, and the handler accumulates them onto the terminal frame.
+
+An `IORails` tool-call response adds an assembled tool-call JSON frame after this empty frame, so the tool-call frame is the final frame in that stream.
 
 Without `include_metadata`, chunks are plain strings (default behavior).
 
@@ -173,9 +192,86 @@ The `include_generation_metadata` parameter is deprecated. Use `include_metadata
 
 </Warning>
 
+### Streaming Metadata on IORails
+
+`IORails` uses the same `provider_metadata` and `usage` keys as `LLMRails`.
+The following `IORails`-specific behaviors apply:
+
+- `IORails` sets `stream_options` to `{"include_usage": True}` on the main model request so the provider returns usage on the terminal chunk. Override it through `llm_params` if your provider needs different behavior.
+
+  ```python
+  async for chunk in rails.stream_async(
+      messages=messages,
+      options={"llm_params": {"stream_options": {"include_usage": False}}},
+      include_metadata=True,
+  ):
+      print(chunk)
+  ```
+
+- `IORails` raises `ValueError` when you combine `include_metadata=True` with output-rail streaming, because its buffer strategy operates on plain string chunks. Either set `include_metadata=False` or disable `rails.output.streaming.enabled`.
+
+On `LLMRails`, `include_metadata=True` preserves metadata only when output-rail streaming is disabled.
+When output-rail streaming is enabled, the buffer yields plain strings and drops `provider_metadata` and `usage`.
+
+A chunk that carries only provider metadata and no text is not emitted as a standalone empty frame.
+The metadata remains visible when the provider also includes it on a content or usage chunk, which keeps repeated response headers from flooding the stream.
+
+## Generation Options and Streaming
+
+`stream_async()` accepts an `options` argument on both engines.
+Unlike `generate()` and `generate_async()`, passing it does not change what the iterator yields.
+The chunk shape is governed solely by `include_metadata`: plain strings when it is `False`, and `{"text": ..., "metadata": ...}` dictionaries when it is `True`.
+Neither engine yields or returns a `GenerationResponse` from a stream.
+
+```python
+# Identical chunk shapes: `options` does not select a structured return here.
+async for chunk in rails.stream_async(messages=messages):
+    ...  # str
+
+async for chunk in rails.stream_async(
+    messages=messages,
+    options={"llm_params": {"temperature": 0.2}},
+):
+    ...  # still str
+```
+
+What each engine reads from `options` while streaming:
+
+| Option | LLMRails | IORails |
+|---|---|---|
+| `llm_params` | Applied to the main model call | Applied to the main model call |
+| `rails.input`, `rails.output`, `rails.tool_input`, `rails.tool_output` | Applied | Applied |
+| `output_vars`, `log.*` | Computed, then discarded with the `GenerationResponse` | Not read |
+
+`LLMRails` runs `generate_async()` in a background task and forwards `options` to it, then discards the `GenerationResponse` that call returns.
+Anything you request through `log` or `output_vars` is therefore computed but unreachable from the stream.
+`IORails` reads only `llm_params` and the four rail toggles in its streaming path.
+
+<Warning>
+
+`IORails` validates `options` in `generate_async()` but not in `stream_async()`.
+`output_vars`, `log.internal_events`, and `log.colang_history` raise on the non-streaming path and are silently ignored on the streaming path.
+Do not rely on a stream rejecting an option that the non-streaming call refuses.
+
+</Warning>
+
+Two `GenerationResponse` fields have no streamed equivalent:
+
+- `reasoning_content`: Neither engine emits provider reasoning deltas as chunk text.
+  A model that embeds `<think>` tags in its content streams them as ordinary text, which means output rails see the reasoning.
+  `IORails` logs one warning per request when it detects this.
+- `tool_calls`: `IORails` emits assembled tool calls as a terminal chunk whose text is a `{"tool_calls": [...]}` JSON string.
+  The string uses the OpenAI wire shape with `function.arguments` as a JSON string, while the non-streaming `GenerationResponse.tool_calls` uses dictionary arguments.
+  `LLMRails` does not push tool calls into the stream, so they reach only the discarded `GenerationResponse`.
+
+To obtain a `GenerationResponse` for a request, use `generate_async()`.
+To obtain token usage while streaming, read the `usage` metadata frame described above.
+For the non-streaming option and field tables, refer to [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options#iorails-and-llmrails-differences).
+
 ## Token Usage Tracking
 
-Token usage statistics are available when streaming responses, depending on provider support. When the provider does not return token usage statistics, the final chunk's `metadata` will contain `response_metadata` and `usage_metadata` set to `None`.
+Token usage statistics are available when streaming responses, depending on provider support.
+When the provider does not return token usage statistics, the terminal chunk's `metadata` has no `usage` key.
 
 ### Accessing Token Usage Information
 
@@ -196,12 +292,20 @@ for llm_call in response.log.llm_calls:
     print(f"Completion tokens: {llm_call.completion_tokens}")
 ```
 
-Alternatively, you can use the `explain()` method to get a summary of token usage:
+Alternatively, on `LLMRails` you can use the `explain()` method to get a summary of token usage:
 
 ```python
 info = rails.explain()
 info.print_llm_calls_summary()
 ```
+
+<Note>
+
+`explain()` is an `LLMRails` method and raises `NotImplementedError` when `IORails` is the active engine.
+On `IORails`, read token usage from `response.log.llm_calls` and `response.log.stats` as shown above, from the streamed `usage` metadata frame, or from the OpenTelemetry token metrics.
+For more information, refer to [Metrics](/observability/metrics).
+
+</Note>
 
 For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see [Generation Options: Detailed Logging Information](/run-guardrailed-inference/using-python-apis/generation-options#detailed-logging-information) and [Logging](/observability/logging).
 

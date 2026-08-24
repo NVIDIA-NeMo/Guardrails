@@ -147,30 +147,53 @@ Tool calls are returned in the OpenAI-style `tool_calls` field of the response m
 | `generate` / `generate_async` | ✓ | ✓ | |
 | `stream_async` | ✓ | ✓ | |
 | Event-based API (`generate_events` / `process_events`) | ✓ | ✗ | Requires the Colang runtime |
-| `check` / `check_async` (rails-only validation) | ✓ | ✗ | LLMRails only |
-| `GenerationOptions` | ✓ | ◐ | IORails uses `llm_params` and rail toggles; no `log` or `output_data` |
-| `GenerationResponse` (structured response object) | ✓ | ✗ | IORails returns an OpenAI-style message dict |
+| `check` / `check_async` (rails-only validation) | ✓ | ✓ | |
+| `GenerationOptions` | ✓ | ◐ | IORails supports rail toggles, `llm_params`, and the `log` options that do not need Colang. `output_vars` raises. The separate `state` keyword argument also raises. |
+| `GenerationResponse` (structured response object) | ✓ | ✓ | Returned by both engines when `options` is passed |
+| `GenerationLog` `internal_events` / `colang_history` | ✓ | ✗ | Colang runtime only. IORails raises `NotImplementedError`. |
+| `output_vars` | ✓ | ✗ | Colang context only. IORails raises `ValueError`. |
+| `output_data` | ✓ | ✗ | IORails leaves it `None`, but reading it does not raise. |
+| Per-rail selection by name in `GenerationOptions` | ✗ | ✓ | IORails runs only the named rails. LLMRails treats a non-empty list as "enabled". |
 | `explain()` / `ExplainInfo` | ✓ | ✗ | LLMRails only |
 
-Both engines expose `generate`, `generate_async`, and `stream_async`.
-`LLMRails` can return a rich `GenerationResponse` and processes the full `GenerationOptions` object, including rail toggles, `llm_params`, logging options, and `output_data`.
-It also exposes the event-based API (`generate_events` and `process_events`), the rails-only validation methods (`check` and `check_async`), and `explain()` for debugging.
+Both engines expose `generate`, `generate_async`, `stream_async`, and the rails-only validation methods `check` and `check_async`.
+For message-based calls, both return an OpenAI-style message dictionary when you call `generate` without `options` and a structured `GenerationResponse` when you pass `options`.
+Prompt-based `LLMRails` calls return strings instead.
+`LLMRails` additionally exposes the event-based API (`generate_events` and `process_events`) and `explain()` for debugging.
 
-`IORails` returns an OpenAI-style message dictionary with `role`, `content`, and optional `tool_calls`, rather than a `GenerationResponse`.
-It accepts `GenerationOptions` but uses only `llm_params` and rail toggles.
-The event-based API, `check` and `check_async`, and `explain()` are not available; on the `Guardrails` facade these raise `NotImplementedError` when `IORails` is the active engine.
+`IORails` builds its `GenerationResponse` without a Colang runtime, so the fields that depend on Colang behave differently.
+It fully supports `response`, `tool_calls`, `reasoning_content`, and `llm_metadata`, and it synthesizes `log.activated_rails`, `log.llm_calls`, and `log.stats` from the record each rail leaves behind.
+The Colang-only options raise rather than returning empty data: `log.internal_events` and `log.colang_history` raise `NotImplementedError`, and `output_vars` and `state` raise `ValueError`.
+`IORails` also supports selecting individual rails by name through the rail toggles, which `LLMRails` does not.
+For the field-by-field comparison, refer to [Generation Options: IORails and LLMRails Differences](/run-guardrailed-inference/using-python-apis/generation-options#iorails-and-llmrails-differences).
+
+The event-based API and `explain()` are not available on `IORails`.
+On the `Guardrails` facade, these raise `NotImplementedError` when `IORails` is the active engine.
 
 ### Streaming
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
 | Output-rail streaming | ✓ | ✓ | |
-| Streaming usage and metadata | ✓ | ✓ | IORails: `include_metadata=True` |
+| Streaming metadata (`include_metadata=True`) | ✓ | ✓ | Both emit `provider_metadata` and normalized `usage` when the provider supplies them |
+| `include_metadata` with output-rail streaming | ◐ | ✗ | LLMRails accepts the option, but its output-rail buffer yields plain strings and drops stream metadata. IORails raises `ValueError`. |
+| `GenerationOptions` through the stream | ◐ | ◐ | Both apply `llm_params` and rail toggles. Neither yields a `GenerationResponse`, so `log` and `output_vars` are unreachable. |
 | Parallel streaming output rails | ✓ | ✗ | LLMRails streaming-buffer feature |
 
 Both engines stream responses through `stream_async` and support streaming output rails.
-Both can include streaming metadata; on `IORails`, pass `include_metadata=True` to receive dictionary-framed chunks such as `{"text": ...}` instead of plain strings.
-`IORails` does not add a separate `metadata` field to each streamed text chunk.
+Both accept `include_metadata=True` to receive dictionary-framed chunks such as `{"text": ...}` instead of plain strings.
+Both surface `provider_metadata` and normalized token `usage` on the frame that receives the data.
+If the provider sends usage in a chunk without text, `IORails` folds it into the terminal frame, while `LLMRails` emits a separate empty frame before the terminal frame.
+`IORails` requests usage on the terminal chunk by default through `stream_options`, which you can override with `llm_params`.
+For the frame shapes, refer to [Streaming Metadata](/run-guardrailed-inference/using-python-apis/streaming#streaming-metadata).
+
+`IORails` rejects `include_metadata=True` when output-rail streaming is enabled, because its buffer strategy operates on plain string chunks.
+`LLMRails` accepts the combination, but its output-rail buffer yields plain strings and drops `provider_metadata` and `usage`.
+
+Neither engine returns a `GenerationResponse` from `stream_async`.
+Structured responses are a non-streaming feature, and passing `options` does not change the chunk shape.
+`IORails` also validates `options` only on the non-streaming path, so the Colang-coupled options that raise in `generate_async` are silently ignored in `stream_async`.
+For details, refer to [Generation Options and Streaming](/run-guardrailed-inference/using-python-apis/streaming#generation-options-and-streaming).
 
 Parallel streaming output rails, where the output rail validates streamed chunks using the streaming buffer, is an `LLMRails` feature.
 `IORails` runs output rails over the streamed response but does not use the parallel streaming-buffer path, and speculative generation falls back to sequential execution while streaming.
@@ -196,12 +219,13 @@ Admission control through an `AsyncWorkQueue` (and a separate semaphore for stre
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
 | Reasoning trace handling (`<think>` tags or reasoning field) | ✓ | ✓ | |
-| `reasoning_content` in a structured response | ✓ | ✗ | Requires `GenerationResponse` |
+| `reasoning_content` in a structured response | ✓ | ✓ | Requires passing `options` so the call returns a `GenerationResponse` |
 
 Both engines preserve model reasoning traces, whether the model returns them in a dedicated reasoning field or inline within `<think>` tags, and both keep reasoning out of the prompt history sent back to the model.
 
-`LLMRails` can expose reasoning in the structured response through `reasoning_content`.
-Because `IORails` returns a message dictionary rather than a `GenerationResponse`, the structured `reasoning_content` field is an `LLMRails` capability.
+Both engines expose reasoning in the structured response through `reasoning_content` when you pass `options` to `generate` or `generate_async`.
+On `IORails`, the structured path keeps the assistant content clean, while the bare message dictionary returned without `options` carries the reasoning inline as a `<think>` prefix.
+Reasoning bypasses the output rails on both engines, so output rails check the final answer rather than the reasoning trace.
 
 ### Multimodal
 
