@@ -31,7 +31,7 @@ from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, RailResult, get_request_id
-from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus
 from nemoguardrails.tracing import constants as tracing_constants
@@ -516,7 +516,8 @@ class TestSpanHierarchy:
                 engine.chat_completion = AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
 
         result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
-        assert result["content"] == REFUSAL_MESSAGE
+        # The rail broke rather than fired, so the caller is told so; the span still carries the error.
+        assert result["content"] == INTERNAL_ERROR_MESSAGE
 
         spans = exporter.get_finished_spans()
         action_spans = [s for s in spans if s.name == "guardrails.action"]

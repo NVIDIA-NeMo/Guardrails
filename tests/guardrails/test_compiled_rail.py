@@ -1285,7 +1285,7 @@ class TestFailsClosed:
 
     @pytest.mark.asyncio
     async def test_action_error_blocks(self, deps, monkeypatch):
-        """An exception inside the action becomes a blocking outcome with a redacted reason."""
+        """An exception inside the action becomes a failed outcome with a redacted reason."""
 
         async def exploding_action(**kwargs):
             raise RuntimeError("parser blew up")
@@ -1294,7 +1294,7 @@ class TestFailsClosed:
 
         outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert outcome == RailOutcome.block(reason="content safety check input error: parser blew up")
+        assert outcome == RailOutcome.failure(reason="content safety check input error: parser blew up")
 
     @pytest.mark.asyncio
     async def test_status_bearing_error_propagates(self, deps, monkeypatch):

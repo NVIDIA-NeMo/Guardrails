@@ -30,6 +30,7 @@ import pytest_asyncio
 from nemoguardrails.exceptions import RailTypeNotConfiguredError
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import (
+    INTERNAL_ERROR_MESSAGE,
     REFUSAL_MESSAGE,
     IORails,
     _determine_rails_from_messages,
@@ -37,7 +38,7 @@ from nemoguardrails.guardrails.iorails import (
 )
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType
-from tests.guardrails.rail_stubs import bot_message_rewrite, user_message_rewrite
+from tests.guardrails.rail_stubs import bot_message_rewrite, rail_failure, user_message_rewrite
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG, TOPIC_SAFETY_CONFIG
 
 SAFE = RailResult.allow()
@@ -467,6 +468,45 @@ class TestCheckAsyncBlockedResult:
         assert result.rail is None
 
 
+class TestCheckAsyncFailedRail:
+    """A rail that failed is reported as an internal error, not as a content refusal."""
+
+    @pytest.mark.asyncio
+    async def test_input_rail_failure_returns_the_internal_error_message(self, iorails):
+        """A failed input rail blocks with the sentence LLMRails uses for a failed action."""
+        _mock_rails(iorails, input_result=rail_failure("f5 guardrails scan input"))
+
+        result = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.content == INTERNAL_ERROR_MESSAGE
+        assert result.rail == "f5 guardrails scan input"
+
+    @pytest.mark.asyncio
+    async def test_output_rail_failure_returns_the_internal_error_message(self, iorails):
+        """A failed output rail renders the same internal error the input side does."""
+        _mock_rails(iorails, output_result=rail_failure("f5 guardrails scan output"))
+
+        result = await iorails.check_async([{"role": "assistant", "content": "hi there"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.content == INTERNAL_ERROR_MESSAGE
+        assert result.rail == "f5 guardrails scan output"
+
+    @pytest.mark.asyncio
+    async def test_a_failed_rail_is_distinguishable_from_a_rail_that_fired(self, iorails):
+        """The two blocks differ in content, which is the whole point of the marker."""
+        _mock_rails(iorails, input_result=rail_failure("f5 guardrails scan input"))
+        failed = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        _mock_rails(iorails, input_result=_unsafe("f5 guardrails scan input"))
+        decided = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert failed.status == decided.status
+        assert failed.rail == decided.rail
+        assert failed.content != decided.content
+
+
 class TestCheckSync:
     """Synchronous check() spins up an ephemeral engine via asyncio.run."""
 
@@ -490,6 +530,16 @@ class TestCheckSync:
 
         assert result.status == RailStatus.BLOCKED
         assert result.rail == "content safety check input"
+
+    def test_check_renders_the_internal_error_for_a_failed_rail(self, iorails_sync):
+        """The sync wrapper carries the failed-rail rendering, not just the async path."""
+        _mock_rails(iorails_sync, input_result=rail_failure("f5 guardrails scan input"))
+
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails_sync):
+            result = iorails_sync.check([{"role": "user", "content": "hello"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.content == INTERNAL_ERROR_MESSAGE
 
     def test_check_with_explicit_rails_skips_output(self, iorails_sync):
         """Sync check() honors rail_types, skipping the output rail."""

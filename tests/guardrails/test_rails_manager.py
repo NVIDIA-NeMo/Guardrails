@@ -519,7 +519,7 @@ class TestSequentialMultiRail:
         mock_jailbreak_nim(httpx_mock, jailbreak=True, score=0.95)
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
-        assert result.return_value == {"allowed": False}
+        assert result.return_value == {"allowed": False, "failed": False}
 
 
 # --- Topic safety via is_input_safe ---
@@ -543,7 +543,7 @@ class TestTopicSafetyIsInputSafe:
         )
         result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
-        assert result.return_value == {"allowed": False}
+        assert result.return_value == {"allowed": False, "failed": False}
 
     @pytest.mark.asyncio
     async def test_model_error(self, topic_safety_rails_manager):
@@ -1170,7 +1170,7 @@ class TestOutcomeToResult:
         result = _rail_result(outcome)
 
         assert result.is_safe is is_safe
-        assert result.return_value == {"allowed": is_safe}
+        assert result.return_value == {"allowed": is_safe, "failed": False}
 
     def test_a_transform_becomes_a_safe_verdict_carrying_its_rewrite(self):
         """A rewrite does not block, and the text it produced survives on the outcome."""
@@ -1762,7 +1762,7 @@ class TestLibraryActionContract:
         with _mocked_reply(UNSAFE_INPUT_JSON):
             result = await content_safety_rails_manager.is_input_safe(MESSAGES)
 
-        assert result.return_value == {"allowed": False, "policy_violations": ["S1: Violence"]}
+        assert result.return_value == {"allowed": False, "failed": False, "policy_violations": ["S1: Violence"]}
 
     @pytest.mark.asyncio
     async def test_topic_safety_reports_its_decision_under_allowed(self, topic_safety_rails_manager):
@@ -1771,7 +1771,7 @@ class TestLibraryActionContract:
             result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
 
         assert result.is_safe is False
-        assert result.return_value == {"allowed": False}
+        assert result.return_value == {"allowed": False, "failed": False}
 
     @pytest.mark.asyncio
     async def test_an_unconfigured_max_tokens_uses_the_library_default(self):

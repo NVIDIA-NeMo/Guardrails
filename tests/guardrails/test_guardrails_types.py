@@ -19,6 +19,7 @@ from typing import Any, ClassVar
 
 import pytest
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
@@ -100,17 +101,29 @@ class TestRailResult:
         """The structured verdict is the decision plus the outcome's metadata, not a stored copy."""
         result = RailResult.block(metadata={"policy_violations": ["S1: Violence"]})
 
-        assert result.return_value == {"allowed": False, "policy_violations": ["S1: Violence"]}
+        assert result.return_value == {"allowed": False, "failed": False, "policy_violations": ["S1: Violence"]}
 
     def test_return_value_of_a_bare_allow_states_only_the_decision(self):
         """A rail with no metadata still yields a verdict the GenerationLog can record."""
-        assert RailResult.allow().return_value == {"allowed": True}
+        assert RailResult.allow().return_value == {"allowed": True, "failed": False}
+
+    def test_return_value_reports_a_rail_that_broke(self):
+        """The log separates a rail that failed from one that decided, as the message does."""
+        failed = RailResult(RailOutcome.failure(reason="content safety check input error: parser blew up"))
+
+        assert failed.return_value == {"allowed": False, "failed": True}
 
     def test_metadata_cannot_overwrite_the_decision(self):
         """A custom action putting ``allowed`` in metadata cannot log a block as an allow."""
         result = RailResult.block(metadata={"allowed": True, "policy_violations": ["S1: Violence"]})
 
-        assert result.return_value == {"allowed": False, "policy_violations": ["S1: Violence"]}
+        assert result.return_value == {"allowed": False, "failed": False, "policy_violations": ["S1: Violence"]}
+
+    def test_metadata_cannot_forge_a_rail_failure(self):
+        """A rail that decided to block cannot log itself as having broken."""
+        result = RailResult.block(metadata={"failed": True})
+
+        assert result.return_value == {"allowed": False, "failed": False}
 
     def test_metadata_participates_in_equality(self):
         """Two blocks differing only in evidence are no longer equal.

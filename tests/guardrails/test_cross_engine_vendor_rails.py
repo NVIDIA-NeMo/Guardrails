@@ -36,7 +36,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.http import HTTPResponse
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -52,6 +52,11 @@ from tests.utils import TestChat
 
 USER_INPUT = "hello there"
 MAIN_OUTPUT = "Hello! How can I help?"
+
+# A rejected vendor credential: the one failure every one of these rails can produce, and the
+# one an operator most needs to tell apart from a content decision.
+VENDOR_ERROR_STATUS = 401
+VENDOR_ERROR_BODY = {"message": "Invalid token"}
 
 PRIVATEAI_CONFIG = {
     "privateai": {
@@ -412,13 +417,18 @@ VENDOR_CASES = [
 ]
 
 
-def _http_response(payload: Any) -> HTTPResponse:
+def _http_response(payload: Any, status_code: int = 200) -> HTTPResponse:
     """Wrap a vendor payload as the HTTP response its action will parse."""
     return HTTPResponse(
-        status_code=200,
+        status_code=status_code,
         headers={"content-type": "application/json"},
         content=json.dumps(payload).encode(),
     )
+
+
+def _rejecting_client() -> RecordingHTTPClient:
+    """A vendor that rejects the call outright, which is what a bad API key looks like."""
+    return RecordingHTTPClient([_http_response(VENDOR_ERROR_BODY, VENDOR_ERROR_STATUS)])
 
 
 def _vendor_config(rail: VendorRail) -> dict:
@@ -533,6 +543,52 @@ class TestVendorRailsAgreeAcrossEngines:
         llmrails_request, iorails_request = llmrails_client.requests[0], iorails_client.requests[0]
         assert (iorails_request.method, iorails_request.url) == (llmrails_request.method, llmrails_request.url)
         assert _stable_body(iorails_request.json, rail) == _stable_body(llmrails_request.json, rail)
+
+
+class TestVendorErrorsReadTheSameOnBothEngines:
+    """A vendor that answers with an error must not read as a content decision on one engine only."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("rail", VENDOR_RAILS, ids=[rail.rail_id for rail in VENDOR_RAILS])
+    async def test_engines_agree_on_whether_a_vendor_error_broke_the_rail(self, rail: VendorRail, monkeypatch):
+        """One rejected credential, and both engines agree on whether the rail broke or decided."""
+        for name, value in rail.env.items():
+            monkeypatch.setenv(name, value)
+        config_dict = _vendor_config(rail)
+
+        llmrails_content = await _llmrails_reply(config_dict, _rejecting_client())
+        iorails_content = await _iorails_reply(config_dict, _rejecting_client(), monkeypatch)
+
+        if llmrails_content == INTERNAL_ERROR_MESSAGE:
+            assert iorails_content == INTERNAL_ERROR_MESSAGE, (
+                f"{rail.rail_id} raised on the vendor error, so IORails must report an internal "
+                f"error as LLMRails does, not {iorails_content!r}"
+            )
+        else:
+            assert iorails_content != INTERNAL_ERROR_MESSAGE, (
+                f"{rail.rail_id} handled the vendor error itself and returned a verdict, so "
+                f"IORails must not report it as a rail failure"
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "rail",
+        [rail for rail in VENDOR_RAILS if rail.rail_id.startswith("f5_")],
+        ids=lambda rail: rail.rail_id,
+    )
+    async def test_a_rejected_f5_credential_is_not_the_refusal(self, rail: VendorRail, monkeypatch):
+        """The reported case, pinned to a literal so equality above cannot agree on the wrong text.
+
+        nvbug 6620440: an F5 401 reached the caller as the refusal a genuine F5 trip produces,
+        so a provider outage was indistinguishable from a safety decision.
+        """
+        for name, value in rail.env.items():
+            monkeypatch.setenv(name, value)
+        config_dict = _vendor_config(rail)
+        iorails_content = await _iorails_reply(config_dict, _rejecting_client(), monkeypatch)
+
+        assert iorails_content == INTERNAL_ERROR_MESSAGE
+        assert iorails_content != REFUSAL_MESSAGE
 
 
 class TestVendorRailsAreReachable:

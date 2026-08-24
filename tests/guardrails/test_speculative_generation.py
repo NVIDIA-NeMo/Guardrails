@@ -28,13 +28,13 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_MESSAGE, IORails
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMResponse, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
-from tests.guardrails.rail_stubs import declared_rewriter, rails_compiled_as
+from tests.guardrails.rail_stubs import declared_rewriter, rail_failure, rails_compiled_as
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG, NEMOGUARDS_SPECULATIVE_CONFIG
 
 MESSAGES = [{"role": "user", "content": "hi"}]
@@ -182,6 +182,49 @@ class TestSpeculativeGeneration:
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         iorails.rails_manager.is_output_safe.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_rails_first_failure_returns_the_internal_error(self, iorails):
+        """A rail that raised is rendered as an internal error on the rails-first branch too."""
+
+        async def failing_rails(messages, *, enabled=True):
+            return rail_failure("f5 guardrails scan input")
+
+        async def generation_still_in_flight(model_type, messages):
+            # Never resolves, so the rails task is the only one that can complete first.
+            # The block path cancels this, which is what ends the wait.
+            await asyncio.Event().wait()
+
+        iorails.rails_manager.is_input_safe = failing_rails
+        iorails.engine_registry.model_call = generation_still_in_flight
+        iorails.rails_manager.is_output_safe = AsyncMock()
+
+        result = await iorails.generate_async(messages=MESSAGES)
+
+        assert result == {"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}
+
+    @pytest.mark.asyncio
+    async def test_gen_first_failure_returns_the_internal_error(self, iorails):
+        """The generation-first branch renders the failure the same way, from the same verdict."""
+        generation_done = asyncio.Event()
+
+        async def rails_failing_after_generation(messages, *, enabled=True):
+            # Created first and so scheduled first, this suspends here until generation has
+            # returned, which is what puts the race the other way round without a clock.
+            await generation_done.wait()
+            return rail_failure("f5 guardrails scan input")
+
+        async def generation_finishing_first(model_type, messages):
+            generation_done.set()
+            return LLMResponse(content="Should be discarded")
+
+        iorails.rails_manager.is_input_safe = rails_failing_after_generation
+        iorails.engine_registry.model_call = generation_finishing_first
+        iorails.rails_manager.is_output_safe = AsyncMock()
+
+        result = await iorails.generate_async(messages=MESSAGES)
+
+        assert result == {"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}
 
     @pytest.mark.asyncio
     async def test_llm_error_cancels_rails(self, iorails):
