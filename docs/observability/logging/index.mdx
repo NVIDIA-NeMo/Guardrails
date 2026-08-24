@@ -14,12 +14,12 @@ This guide covers the various methods for logging, debugging, and understanding 
 
 The NeMo Guardrails library provides multiple ways to inspect and debug guardrails generation:
 
-| Method | Use Case |
-|--------|----------|
-| **Verbose Mode** | Real-time console logging during development |
-| **Explain Method** | Quick summary of the last generation |
-| **Generation Options (log)** | Detailed structured logs returned with responses |
-| **Output Variables** | Return specific context variables |
+| Method | Use Case | Engines |
+|--------|----------|---------|
+| **Verbose Mode** | Real-time console logging during development | `LLMRails`, `IORails` |
+| **Explain Method** | Quick summary of the last generation | `LLMRails` |
+| **Generation Options (log)** | Detailed structured logs returned with responses | `LLMRails`, `IORails` (no Colang fields) |
+| **Output Variables** | Return specific context variables | `LLMRails` |
 
 ## Verbose Mode
 
@@ -55,6 +55,14 @@ Note that `configure_logging` also stops the `nemoguardrails.guardrails` logger 
 A default `Guardrails(config)` construction configures no logging at all, leaving handlers, levels, and formatting to your application.
 
 ## Explain Method
+
+<Note>
+
+`explain()` is an `LLMRails` method.
+It raises `NotImplementedError` when `IORails` is the active engine, because `ExplainInfo` is built from Colang events.
+On `IORails`, use the `log` generation option described below.
+
+</Note>
 
 Get a quick summary of the last generation using the `explain()` method:
 
@@ -95,12 +103,16 @@ response = rails.generate(
 
 ### Log Option Reference
 
-| Option | Description |
-|--------|-------------|
-| `activated_rails` | Detailed information about rails activated during generation |
-| `llm_calls` | Information about all LLM calls (prompt, completion, tokens, timing) |
-| `internal_events` | Array of internal generated events |
-| `colang_history` | Conversation history in Colang format |
+| Option | Description | LLMRails | IORails |
+|--------|-------------|:---:|:---:|
+| `activated_rails` | Detailed information about rails activated during generation | ✓ | ✓ |
+| `llm_calls` | Information about all LLM calls (prompt, completion, tokens, timing) | ✓ | ✓ |
+| `internal_events` | Array of internal generated events | ✓ | ✗ |
+| `colang_history` | Conversation history in Colang format | ✓ | ✗ |
+
+`internal_events` and `colang_history` describe Colang runtime state.
+`IORails` does not run the Colang runtime, so it raises `NotImplementedError` when you set either option to `True` instead of returning an empty value.
+For the `IORails` log structure, see [Generation Options: Log Options on IORails](/run-guardrailed-inference/using-python-apis/generation-options#log-options-on-iorails).
 
 ### Response Structure
 
@@ -174,6 +186,14 @@ print(f"Output rails: {stats.output_rails_duration}s")
 ```
 
 ## Output Variables
+
+<Note>
+
+Output variables are an `LLMRails` capability, because they read the Colang context.
+`IORails` raises `ValueError` when you pass `output_vars`.
+To find which rail blocked a request on `IORails`, read `log.activated_rails` and look for the entry with `stop` set to `True`, or use [`check()` and `check_async()`](/run-guardrailed-inference/using-python-apis/check-messages), which report the blocking rail directly.
+
+</Note>
 
 Return specific context variables using the `output_vars` option:
 
