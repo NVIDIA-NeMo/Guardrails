@@ -50,3 +50,16 @@ Fiddler Guardrails will not block inputs in the event of any API failure.
 ## Notes
 
 For more information about Fiddler Guardrails, please visit the Fiddler Guardrails [documentation](https://docs.fiddler.ai/protection/guardrails).
+
+## Engine Support
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `fiddler user safety` | ✓ | ✓ |
+| `fiddler bot safety` | ✓ | ✓ |
+| `fiddler bot faithfulness` | ✓ | ✗ |
+
+`fiddler bot faithfulness` scores the response against `relevant_chunks`, a conversation value that the Colang retrieval pipeline builds and `IORails` does not.
+A configuration that uses it routes to `LLMRails`, including one that also uses the two safety flows.
+
+For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).

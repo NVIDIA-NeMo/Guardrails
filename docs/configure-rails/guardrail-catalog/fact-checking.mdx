@@ -235,3 +235,22 @@ rails:
 ```
 
 For more details, check out the [Patronus Lynx Integration](/configure-guardrails/guardrail-catalog/third-party/patronus-lynx) page.
+
+## Engine Support
+
+Every rail on this page runs on `LLMRails` only.
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `self check facts` | ✓ | ✗ |
+| `self check hallucination` | ✓ | ✗ |
+| `alignscore check facts` | ✓ | ✗ |
+| `patronus lynx check output hallucination` | ✓ | ✗ |
+
+Fact-checking and grounding rails judge a response against the evidence that produced it, so they read conversation values that the Colang retrieval pipeline builds and `IORails` does not.
+The fact-checking rails read `relevant_chunks`, and hallucination detection reads `_last_bot_prompt`.
+A configuration that uses any of them routes to `LLMRails`.
+
+If you need a grounding check on `IORails`, `autoalign factcheck output` and `cleanlab trustworthiness` both run there, because they judge the response without a retrieval context.
+
+For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).

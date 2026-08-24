@@ -256,3 +256,22 @@ rails:
 ```
 
 For more details, check out the [Private AI Integration](/configure-guardrails/guardrail-catalog/third-party/privateai) page.
+
+## Engine Support
+
+The input and output flows on this page run on both `LLMRails` and `IORails`.
+
+The retrieval flows run on `LLMRails` only, because `IORails` has no retrieval pipeline:
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `gliner detect pii on retrieval`, `gliner mask pii on retrieval` | ✓ | ✗ |
+| `detect sensitive data on retrieval`, `mask sensitive data on retrieval` | ✓ | ✗ |
+| `detect pii on retrieval`, `mask pii on retrieval` | ✓ | ✗ |
+
+A configuration that declares a `rails.retrieval` section routes to `LLMRails`.
+
+The masking flows rewrite the text they check rather than blocking it.
+On `IORails` a configured rewriting rail turns input and output rails sequential, so each mask reaches the rails behind it.
+
+For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).

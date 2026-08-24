@@ -76,3 +76,12 @@ define flow patronus api check output
   if not $evaluation_passed
     bot inform answer unknown
 ```
+
+## Engine Support
+
+`patronus api check output` runs on `LLMRails` only.
+
+The rail sends the retrieved context alongside the question and the answer, so it reads `relevant_chunks`, a conversation value that the Colang retrieval pipeline builds and `IORails` does not.
+A configuration that uses this rail routes to `LLMRails`.
+
+For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).

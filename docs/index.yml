@@ -155,6 +155,9 @@ navigation:
               - page: CrowdStrike AIDR
                 path: configure-rails/guardrail-catalog/community/crowdstrike-aidr.mdx
                 slug: crowdstrike-aidr
+              - page: F5 AI Guardrails
+                path: configure-rails/guardrail-catalog/community/f5-ai-guardrails.mdx
+                slug: f5-ai-guardrails
               - page: Fiddler
                 path: configure-rails/guardrail-catalog/community/fiddler.mdx
                 slug: fiddler
@@ -586,6 +589,9 @@ navigation:
       - page: Engine Feature Support
         path: reference/engine-feature-support.mdx
         slug: engine-feature-support
+      - page: Rail Engine Support
+        path: reference/rail-engine-support.mdx
+        slug: rail-engine-support
       - page: Rail Manifests
         path: reference/rail-manifests.mdx
         slug: rail-manifests

@@ -92,3 +92,12 @@ Installing AlignScore is not supported on Python 3.11.
    ```
 
 By default, the AlignScore server listens on port `5000`. You can change the port using the `--port` option. By default, the AlignScore server loads only the base model. You can load only the large model using `--models=large` or both models using `--models=base --models=large`.
+
+## Engine Support
+
+`alignscore check facts` runs on `LLMRails` only.
+
+The rail compares the bot response against `relevant_chunks`, a conversation value that the Colang retrieval pipeline builds and `IORails` does not.
+A configuration that uses this rail routes to `LLMRails`.
+
+For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).

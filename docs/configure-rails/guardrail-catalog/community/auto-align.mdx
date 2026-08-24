@@ -716,3 +716,20 @@ Specify the fact_check_endpoint to the correct AutoAlign environment.
 Then set to the corresponding subflows for fact check guardrail.
 
 The output of the fact check endpoint provides you with a fact check score that combines the factual correctness of various statements made by the bot response. Then provided with a user set threshold, will log a warning if the bot response is determined to be factually incorrect
+
+## Engine Support
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `autoalign check input` | ✓ | ✓ |
+| `autoalign check output` | ✓ | ✓ |
+| `autoalign factcheck output` | ✓ | ✓ |
+| `autoalign groundedness output` | ✓ | ✗ |
+
+`autoalign groundedness output` reads `relevant_chunks_sep`, a conversation value that the Colang retrieval pipeline builds and `IORails` does not.
+A configuration that uses it routes to `LLMRails`.
+
+`autoalign check input` and `autoalign check output` can rewrite the text they check when AutoAlign returns redacted content.
+On `IORails` a configured rewriting rail turns input and output rails sequential.
+
+For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).

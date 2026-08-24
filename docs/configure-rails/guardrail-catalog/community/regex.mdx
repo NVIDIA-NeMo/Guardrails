@@ -203,3 +203,16 @@ When a regex rail has a regex pattern match, the following steps happen (dependi
 1. Chunks that match any retrieval pattern are **removed** from the retrieval results. Only non-matching chunks are passed to the model as context.
 
 **NOTE:** The matched pattern(s) are available in `result["detections"]` for logging and debugging. They are also logged at `INFO` level by the action.
+
+## Engine Support
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `regex check input` | ✓ | ✓ |
+| `regex check output` | ✓ | ✓ |
+| `regex check retrieval` | ✓ | ✗ |
+
+`regex check retrieval` removes matching chunks from the retrieval results, which rewrites `relevant_chunks`.
+`IORails` has no retrieval pipeline and nowhere to apply that rewrite, so the flow runs on `LLMRails` only.
+
+For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).
