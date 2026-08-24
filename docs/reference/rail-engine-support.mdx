@@ -188,15 +188,17 @@ Use `require_iorails=True` when you depend on an `IORails`-only capability such 
 ## Configuration-Dependent Refusals
 
 Beyond the fixed matrix above, `IORails` validates two things per configuration when it compiles a rail at startup.
-`LLMRails` does neither, and reports the same problems at request time instead.
+Where `LLMRails` does not, it reports the same problem at request time instead.
 
 | Check | IORails | LLMRails |
 |---|---|---|
 | Optional dependency installed | Refuses to compile the rail, naming the missing distribution and the extra to install | Imports lazily inside the action, so the failure surfaces on the first request that runs the rail |
-| Model type declared in `models` | Refuses to compile the rail, naming the missing model type and the types the configuration does declare | Fails when the flow executes and the action asks for the model |
+| Model type named by `$model=` is declared in `models` | Rejected before either engine is constructed | Rejected before either engine is constructed |
+| Model type fixed in the manifest is declared in `models` | Refuses to compile the rail, naming the missing model type and the types the configuration does declare | Fails when the flow executes and the action asks for the model |
 
-Both refusals raise `RailCompilationError`.
-Through the `Guardrails` facade they are fallback conditions: by default the configuration routes to `LLMRails` and the reason is logged.
+A flow that carries a `$model=` parameter is validated by `RailsConfig` rather than by an engine, so loading the configuration raises `InvalidRailsConfigurationError` on both engines.
+The other two refusals come from the `IORails` compiler and raise `RailCompilationError`.
+Through the `Guardrails` facade those two are fallback conditions: by default the configuration routes to `LLMRails` and the reason is logged.
 
 The rails that declare an optional dependency are the following:
 
@@ -213,16 +215,19 @@ The rails that declare an optional dependency are the following:
 Hugging Face Classifier and Jailbreak Detection each offer an in-process backend and a remote endpoint.
 `IORails` enforces the dependency only when the configuration selects the in-process backend.
 
-The surfaces that bind a model type, and so are model-validated at compile time, are the following:
+The surfaces that bind a model type are the following:
 
-| Flow | Model type | Source |
-|---|---|---|
-| `content safety check input` | Selected by `$model=` | Surface parameter |
-| `content safety check output` | Selected by `$model=` | Surface parameter |
-| `topic safety check input` | Selected by `$model=` | Surface parameter |
-| `llama guard check input` | `llama_guard` | Fixed in the manifest |
-| `llama guard check output` | `llama_guard` | Fixed in the manifest |
-| `patronus lynx check output hallucination` | `patronus_lynx` | Fixed in the manifest |
+| Flow | Model type | Source | Validated by |
+|---|---|---|---|
+| `content safety check input` | Selected by `$model=` | Surface parameter | `RailsConfig`, on both engines |
+| `content safety check output` | Selected by `$model=` | Surface parameter | `RailsConfig`, on both engines |
+| `topic safety check input` | Selected by `$model=` | Surface parameter | `RailsConfig`, on both engines |
+| `llama guard check input` | `llama_guard` | Fixed in the manifest | The `IORails` compiler only |
+| `llama guard check output` | `llama_guard` | Fixed in the manifest | The `IORails` compiler only |
+| `patronus lynx check output hallucination` | `patronus_lynx` | Fixed in the manifest | The `IORails` compiler only |
+
+`RailsConfig` reads the `$model=` parameter off the flow name, so it catches only the first three.
+A manifest-fixed model type is invisible to that check, which is why the last three are an `IORails`-only refusal.
 
 `IORails` never reaches the model check for `patronus lynx check output hallucination`, because the surface check refuses it first.
 

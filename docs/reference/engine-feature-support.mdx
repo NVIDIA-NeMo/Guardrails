@@ -319,7 +319,7 @@ The knowledge base, embedding providers, and custom embedding or embedding-searc
 
 `IORails` does not initialize a knowledge base or embeddings; configurations that rely on retrieval route to `LLMRails`.
 
-### Community and Third-Party Rail Catalog
+### Guardrail Catalog Coverage
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -332,7 +332,9 @@ Every built-in rail under `nemoguardrails/library` declares its behavior in a [r
 The 33 built-in rails declare 78 action-backed surfaces in total, where a surface is the flow name you list in `config.yml`.
 
 `LLMRails` runs all 78 through Colang flows, in both Colang 1.0 and Colang 2.x.
-`IORails` runs 59 of them by compiling the manifest and calling the same rail action directly, so community and third-party integrations such as PII detection, ActiveFence, Fiddler, Cleanlab, and Prompt Security are available on both engines.
+`IORails` runs 59 of them by compiling the manifest and calling the same rail action directly, so community and third-party integrations such as ActiveFence, Cleanlab, Fiddler, PII detection, and Prompt Security run on both engines.
+Support is per surface rather than per integration: a rail whose input and output surfaces run on `IORails` can still have a retrieval or groundedness surface that does not, as Fiddler and the PII rails do.
+Check the [per-surface matrix](/reference/rail-engine-support) for the flows you configure.
 
 The 19 surfaces `IORails` cannot run are the ones whose manifest contract it cannot satisfy: 11 read Colang conversation state such as `relevant_chunks`, 7 rewrite retrieved chunks, and 1 is blocklisted pending [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285).
 
