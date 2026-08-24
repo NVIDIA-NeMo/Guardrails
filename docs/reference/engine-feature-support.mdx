@@ -151,7 +151,8 @@ Tool calls are returned in the OpenAI-style `tool_calls` field of the response m
 | `GenerationOptions` | ✓ | ◐ | IORails supports rail toggles, `llm_params`, and the `log` options that do not need Colang; `output_vars` and `state` raise |
 | `GenerationResponse` (structured response object) | ✓ | ✓ | Returned by both engines when `options` is passed |
 | `GenerationLog` `internal_events` / `colang_history` | ✓ | ✗ | Colang runtime only; IORails raises `NotImplementedError` |
-| `output_data` / `output_vars` | ✓ | ✗ | Colang context only; IORails raises `ValueError` |
+| `output_vars` | ✓ | ✗ | Colang context only; IORails raises `ValueError` |
+| `output_data` | ✓ | ✗ | IORails leaves it `None`; reading it does not raise |
 | Per-rail selection by name in `GenerationOptions` | ✗ | ✓ | IORails runs only the named rails; LLMRails treats a non-empty list as "enabled" |
 | `explain()` / `ExplainInfo` | ✓ | ✗ | LLMRails only |
 

@@ -356,7 +356,8 @@ rails.generate(messages=messages, options={
 
 <Note>
 
-`GenerationResponse.llm_output` is currently `None` on both engines, because the raw provider response that populates it is not recorded on the LLM call.
+`GenerationResponse.llm_output` is currently `None` on both engines.
+It is populated from `LLMCallInfo.raw_response`, which no code path assigns.
 `IORails` accepts `llm_output: True` and ignores it.
 To inspect provider-specific response data, use `llm_metadata` or the `log.llm_calls` entries instead.
 

@@ -175,7 +175,9 @@ When the provider sent usage in a chunk of its own, that usage is folded into th
 ```
 
 The terminal frame always includes the `response_metadata` and `usage_metadata` keys.
-They are retained for backward compatibility and are currently always `None`; read token counts from `usage` instead.
+They are retained for backward compatibility, and no library code path populates them, so on `stream_async()` both are `None`.
+Read token counts from `usage` instead.
+A caller driving `StreamingHandler` directly can still push these keys, and the handler accumulates them onto the terminal frame.
 
 Without `include_metadata`, chunks are plain strings (default behavior).
 
