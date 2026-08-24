@@ -16,10 +16,10 @@ The NeMo Guardrails library provides multiple ways to inspect and debug guardrai
 
 | Method | Use Case | Engines |
 |--------|----------|---------|
-| **Verbose Mode** | Real-time console logging during development | `LLMRails`, `IORails` |
-| **Explain Method** | Quick summary of the last generation | `LLMRails` |
-| **Generation Options (log)** | Detailed structured logs returned with responses | `LLMRails`, `IORails` (no Colang fields) |
-| **Output Variables** | Return specific context variables | `LLMRails` |
+| `verbose=True` | Real-time console logging during development | `LLMRails`, `IORails` |
+| `explain()` | Quick summary of the last generation | `LLMRails` |
+| `options.log` | Detailed structured logs returned with responses, including large language model (LLM) calls | `LLMRails`, `IORails` (no Colang fields) |
+| `output_vars` | Return specific context variables | `LLMRails` |
 
 ## Verbose Mode
 
@@ -112,7 +112,7 @@ response = rails.generate(
 
 `internal_events` and `colang_history` describe Colang runtime state.
 `IORails` does not run the Colang runtime, so it raises `NotImplementedError` when you set either option to `True` instead of returning an empty value.
-For the `IORails` log structure, see [Generation Options: Log Options on IORails](/run-guardrailed-inference/using-python-apis/generation-options#log-options-on-iorails).
+For the `IORails` log structure, refer to [Generation Options: Log Options on IORails](/run-guardrailed-inference/using-python-apis/generation-options#log-options-on-iorails).
 
 ### Response Structure
 
@@ -191,7 +191,9 @@ print(f"Output rails: {stats.output_rails_duration}s")
 
 Output variables are an `LLMRails` capability, because they read the Colang context.
 `IORails` raises `ValueError` when you pass `output_vars`.
-To find which rail blocked a request on `IORails`, read `log.activated_rails` and look for the entry with `stop` set to `True`, or use [`check()` and `check_async()`](/run-guardrailed-inference/using-python-apis/check-messages), which report the blocking rail directly.
+To find which rail stopped a request on `IORails`, read `log.activated_rails` and look for the entry with `stop` set to `True`.
+The action's `return_value["failed"]` value distinguishes a rail failure from a policy block.
+You can also use [`check()` and `check_async()`](/run-guardrailed-inference/using-python-apis/check-messages), which report the rail that stopped processing.
 
 </Note>
 

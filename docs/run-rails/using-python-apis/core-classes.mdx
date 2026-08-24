@@ -312,11 +312,14 @@ response = rails.generate(
 )
 ```
 
-Passing `options` changes the return type.
+For the message-based call shown above, passing `options` changes the return type.
 Without `options`, `generate()` returns an OpenAI-style message dictionary that you index with `response["content"]`.
 With `options`, it returns a `GenerationResponse` object whose message list you read with `response.response[0]["content"]`.
+For a prompt-based `LLMRails` call, the optionless return and `GenerationResponse.response` are strings instead.
 
-The `IORails` engine also returns a `GenerationResponse` when you pass `options`, but the fields that depend on the Colang runtime are unavailable: `output_vars` and `state` raise `ValueError`, and the `log.internal_events` and `log.colang_history` options raise `NotImplementedError`.
+The `IORails` engine also returns a `GenerationResponse` when you pass `options`, but fields that depend on the Colang runtime remain unavailable.
+`output_vars` and `state` raise `ValueError`.
+The `log.internal_events` and `log.colang_history` options raise `NotImplementedError`.
 
 For detailed options, refer to [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options).
 
