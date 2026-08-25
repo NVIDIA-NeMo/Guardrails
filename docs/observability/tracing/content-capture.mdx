@@ -42,6 +42,11 @@ On a blocked request, the CLIENT span records the raw model response while the S
 
 Sampling parameters (`gen_ai.request.temperature`, `max_tokens`, and so on) and token-usage attributes are not content, so IORails records them on the CLIENT span whenever tracing is enabled, regardless of the content-capture setting.
 
+A rails-only [`check_async()`](/run-guardrailed-inference/using-python-apis/check-messages) captures the same way: the checked messages land in `guardrails.request.input` and the returned content in `guardrails.request.output`, and every rail that runs records its own `guardrails.rail` attributes.
+A check makes no main-model call, so it produces no CLIENT span for the protected model.
+IORails captures LLM calls from rail actions as usual.
+The synchronous `check()` runs on a short-lived engine with tracing disabled, so it captures nothing.
+
 ## Enabling Content Capture
 
 Content capture is active only when all of the following conditions are true:
