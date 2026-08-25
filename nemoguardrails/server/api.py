@@ -58,6 +58,7 @@ from nemoguardrails.server.exception_handlers import (
     invalid_state_error_handler,
     llm_call_exception_handler,
     model_initialization_error_handler,
+    queue_full_error_handler,
     rail_type_not_configured_error_handler,
     validation_error_handler,
 )
@@ -191,6 +192,7 @@ app = GuardrailsApp(
 )
 
 _EXCEPTION_HANDLERS = (
+    (asyncio.QueueFull, queue_full_error_handler),
     (LLMCallException, llm_call_exception_handler),
     (ModelEngineError, llm_call_exception_handler),
     (HTTPClientError, llm_call_exception_handler),

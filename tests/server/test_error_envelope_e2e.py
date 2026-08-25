@@ -21,8 +21,11 @@
 # excluded so ``TestClient`` still reaches the app), and an IORails rail reaches its model through
 # ``ModelEngine`` over aiohttp (``aioresponses``).
 
+import asyncio
 import json
 from contextlib import contextmanager
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from aioresponses import aioresponses
@@ -321,6 +324,23 @@ class TestRailEngineErrors:
         assert error["code"] == "rate_limit_exceeded"
         assert error["param"] == "messages"
         assert "gpt-4o-mini" not in error["message"]
+
+
+class TestIORailsAdmissionErrors:
+    def test_queue_full_returns_retryable_overload_envelope(self, monkeypatch):
+        rails = SimpleNamespace(generate_async=AsyncMock(side_effect=asyncio.QueueFull("admission queue full")))
+        monkeypatch.setattr(api, "_get_rails", AsyncMock(return_value=rails))
+
+        response = _chat()
+
+        assert response.status_code == 503
+        assert response.headers["retry-after"] == "1"
+        assert response.json()["error"] == {
+            "message": "IORails admission queue is full. Please retry later.",
+            "type": "server_error",
+            "param": None,
+            "code": "queue_full",
+        }
 
 
 # The two upstream failures from QA case P0_0.24.0_NGUARD-745_http_error_openai_sdk_E2E TC-13
