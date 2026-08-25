@@ -4,6 +4,114 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] - 2026-08-25
+
+### 🚀 Features
+
+- *(library)* Add F5 Guardrails integration ([#2105](https://github.com/NVIDIA-NeMo/Guardrails/issues/2105)) 
+- *(service)* Add /v1/health and /healthz endpoints for health checking ([#2169](https://github.com/NVIDIA-NeMo/Guardrails/issues/2169)) 
+- *(actions)* Add RailOutcome rail-result contract ([#2150](https://github.com/NVIDIA-NeMo/Guardrails/issues/2150)) 
+- *(iorails)* Add message checks ([#2059](https://github.com/NVIDIA-NeMo/Guardrails/issues/2059)) 
+- *(library)* Add support for multiple self-check rails ([#1874](https://github.com/NVIDIA-NeMo/Guardrails/issues/1874)) 
+- *(library)* Namespace custom task prompts in self-check ([#2175](https://github.com/NVIDIA-NeMo/Guardrails/issues/2175)) 
+- *(rails)* Add rail manifest contract ([#2157](https://github.com/NVIDIA-NeMo/Guardrails/issues/2157)) 
+- *(library)* Migrate built-in rail configuration to manifests ([#2181](https://github.com/NVIDIA-NeMo/Guardrails/issues/2181)) 
+- *(iorails)* [**breaking**] Support non-streaming GenerationResponse ([#2178](https://github.com/NVIDIA-NeMo/Guardrails/issues/2178)) 
+- *(iorails)* Add streaming usage  ([#2198](https://github.com/NVIDIA-NeMo/Guardrails/issues/2198)) 
+- *(ci)* Add OpenAI API spec conformance tracking ([#2197](https://github.com/NVIDIA-NeMo/Guardrails/issues/2197)) 
+- *(iorails)* Support HTTP headers in Guardrails Config ([#2220](https://github.com/NVIDIA-NeMo/Guardrails/issues/2220)) 
+- *(http)* Add canonical outbound HTTP foundation ([#2209](https://github.com/NVIDIA-NeMo/Guardrails/issues/2209)) 
+- *(http)* Add canonical request lifecycle ([#2210](https://github.com/NVIDIA-NeMo/Guardrails/issues/2210)) 
+- *(llm)* Add shared model telemetry and instrumented decorator ([#2214](https://github.com/NVIDIA-NeMo/Guardrails/issues/2214)) 
+- *(http)* Add client instrumentation and metrics ([#2219](https://github.com/NVIDIA-NeMo/Guardrails/issues/2219)) 
+- *(iorails)* Add CompiledRail compatibility layer for rail actions ([#2253](https://github.com/NVIDIA-NeMo/Guardrails/issues/2253)) 
+- *(iorails)* Support blocking rails ([#2264](https://github.com/NVIDIA-NeMo/Guardrails/issues/2264)) 
+- *(iorails)* Support transform rails ([#2288](https://github.com/NVIDIA-NeMo/Guardrails/issues/2288)) 
+- *(server)* Add output rail checking mode to check endpoint ([#2205](https://github.com/NVIDIA-NeMo/Guardrails/issues/2205)) 
+
+### 🐛 Bug Fixes
+
+- *(ci)* Prove fix PRs ship a failing-first regression test ([#2153](https://github.com/NVIDIA-NeMo/Guardrails/issues/2153)) 
+- *(colang)* Raise ValueError for unbalanced closing bracket in split_args ([#2145](https://github.com/NVIDIA-NeMo/Guardrails/issues/2145)) 
+- *(ci)* Run zizmor via uvx ([#2162](https://github.com/NVIDIA-NeMo/Guardrails/issues/2162)) 
+- *(streaming)* Fail closed when rail actions fail ([#2152](https://github.com/NVIDIA-NeMo/Guardrails/issues/2152)) 
+- *(library)* [**breaking**] Make manifest-declared flows portable across Colang versions ([#2185](https://github.com/NVIDIA-NeMo/Guardrails/issues/2185)) 
+- *(railoutcome)* Make RailDecision JSON serializable ([#2194](https://github.com/NVIDIA-NeMo/Guardrails/issues/2194)) 
+- *(server)* Remove inline config from /v1/checks endpoint ([#2228](https://github.com/NVIDIA-NeMo/Guardrails/issues/2228)) 
+- *(server)* Return OpenAI-compatible HTTP errors ([#1832](https://github.com/NVIDIA-NeMo/Guardrails/issues/1832)) 
+- *(server)* Correct thread and model injection errors ([#2240](https://github.com/NVIDIA-NeMo/Guardrails/issues/2240)) 
+- *(server)* Handle stop and malformed messages ([#2266](https://github.com/NVIDIA-NeMo/Guardrails/issues/2266)) 
+- *(hf-classifier)* Preserve HTTP retry instrumentation ([#2291](https://github.com/NVIDIA-NeMo/Guardrails/issues/2291)) 
+- *(llm)* Preserve streaming usage on final chunks ([#2295](https://github.com/NVIDIA-NeMo/Guardrails/issues/2295)) 
+- *(content-safety)* Surface response parsing errors ([#2294](https://github.com/NVIDIA-NeMo/Guardrails/issues/2294)) 
+- *(checks)* Reject unsatisfiable rail_types with 422 instead of silent pass ([#2276](https://github.com/NVIDIA-NeMo/Guardrails/issues/2276)) 
+- *(iorails)* Propagate `default_query` parameter in HTTP requests ([#2296](https://github.com/NVIDIA-NeMo/Guardrails/issues/2296)) 
+- *(server)* Preserve configured main model fields when request specifies a model ([#2298](https://github.com/NVIDIA-NeMo/Guardrails/issues/2298)) 
+- *(telemetry)* Derive built-in features from manifests ([#2301](https://github.com/NVIDIA-NeMo/Guardrails/issues/2301)) 
+- *(iorails)* Client error message fixes ([#2306](https://github.com/NVIDIA-NeMo/Guardrails/issues/2306)) 
+- *(iorails)* Logger defaults to non-verbose ([#2310](https://github.com/NVIDIA-NeMo/Guardrails/issues/2310)) 
+- *(benchmark)* Let the Locust CLI target the Guardrails server ([#2309](https://github.com/NVIDIA-NeMo/Guardrails/issues/2309)) 
+- *(server)* Inline think-tags when reasoning content present ([#2316](https://github.com/NVIDIA-NeMo/Guardrails/issues/2316)) 
+- *(iorails)* Handle reasoning-only non-streaming responses ([#2317](https://github.com/NVIDIA-NeMo/Guardrails/issues/2317)) 
+- *(iorails)* Distinguish between rails blocking and failures ([#2318](https://github.com/NVIDIA-NeMo/Guardrails/issues/2318)) 
+
+### 🚜 Refactor
+
+- *(self-check)* Name the rail selector variant end-to-end ([#2182](https://github.com/NVIDIA-NeMo/Guardrails/issues/2182)) 
+- *(library)* Make moderation outcomes flow-independent ([#2183](https://github.com/NVIDIA-NeMo/Guardrails/issues/2183)) 
+- *(library)* Make context bloat verdict flow-independent ([#2190](https://github.com/NVIDIA-NeMo/Guardrails/issues/2190)) 
+- *(actions)* Resolve manifest actions lazily ([#2186](https://github.com/NVIDIA-NeMo/Guardrails/issues/2186)) 
+- *(library)* Decouple Llama Guard and Patronus Lynx model injection ([#2236](https://github.com/NVIDIA-NeMo/Guardrails/issues/2236)) 
+- *(library)* Migrate HTTP request helpers ([#2211](https://github.com/NVIDIA-NeMo/Guardrails/issues/2211)) 
+- *(library)* Migrate vendor actions to canonical HTTP clients ([#2212](https://github.com/NVIDIA-NeMo/Guardrails/issues/2212)) 
+- *(iorails)* Decouple llm_call and rail actions from unrelated Colang modules ([#2241](https://github.com/NVIDIA-NeMo/Guardrails/issues/2241)) 
+- *(iorails)* Add LLMModel and HTTP Client support to ModelEngine ([#2246](https://github.com/NVIDIA-NeMo/Guardrails/issues/2246)) 
+- *(iorails)* Migrate from RailAction subclasses to CompiledRail manifest implementation ([#2261](https://github.com/NVIDIA-NeMo/Guardrails/issues/2261)) 
+- *(iorails)* Migrate RailResult to use RailOutcome for rail responses ([#2286](https://github.com/NVIDIA-NeMo/Guardrails/issues/2286)) 
+- *(rails)* Make shared action dependencies explicit ([#2293](https://github.com/NVIDIA-NeMo/Guardrails/issues/2293)) 
+
+### 📚 Documentation
+
+- Add Guardrails 0.23.0 release notes ([#2120](https://github.com/NVIDIA-NeMo/Guardrails/issues/2120)) 
+- *(installation)* Drop Annoy C++ compiler references ([#2148](https://github.com/NVIDIA-NeMo/Guardrails/issues/2148)) 
+- *(guardrail-catalog)* Document running multiple self-check rails ([#2176](https://github.com/NVIDIA-NeMo/Guardrails/issues/2176)) 
+- Add Out of Scope section to SECURITY.md ([#2192](https://github.com/NVIDIA-NeMo/Guardrails/issues/2192)) 
+- Draft documentation for the `hf_classifier` rail ([#1969](https://github.com/NVIDIA-NeMo/Guardrails/issues/1969)) 
+- Clarify agent guidance in AGENTS.md ([#2218](https://github.com/NVIDIA-NeMo/Guardrails/issues/2218)) 
+- Publish community telemetry snapshot ([#2302](https://github.com/NVIDIA-NeMo/Guardrails/issues/2302)) 
+- Add fern versioning ([#2287](https://github.com/NVIDIA-NeMo/Guardrails/issues/2287)) 
+- *(benchmark)* Add Locust mock quickstart ([#2307](https://github.com/NVIDIA-NeMo/Guardrails/issues/2307)) 
+- *(actions)* Document RailOutcome-based rail actions ([#2258](https://github.com/NVIDIA-NeMo/Guardrails/issues/2258)) 
+- *(rails)* Document rail manifests and action-backed surfaces ([#2259](https://github.com/NVIDIA-NeMo/Guardrails/issues/2259)) 
+- *(http)* Document canonical outbound HTTP clients ([#2260](https://github.com/NVIDIA-NeMo/Guardrails/issues/2260)) 
+- *(iorails)* Add default_headers and default_query docs ([#2322](https://github.com/NVIDIA-NeMo/Guardrails/issues/2322)) 
+- *(iorails)* Add GenerationOptions and GenerationResponse sections ([#2328](https://github.com/NVIDIA-NeMo/Guardrails/issues/2328)) 
+- *(iorails)* Add message checks to docs ([#2329](https://github.com/NVIDIA-NeMo/Guardrails/issues/2329)) 
+
+### 🧪 Testing
+
+- Add unit coverage for eval, evaluate, and actions ([#2078](https://github.com/NVIDIA-NeMo/Guardrails/issues/2078)) 
+- *(langchain)* Make provider drift snapshot version-series-aware ([#2149](https://github.com/NVIDIA-NeMo/Guardrails/issues/2149)) 
+- *(recorded)* Add runtime checks; include tests ([#2167](https://github.com/NVIDIA-NeMo/Guardrails/issues/2167)) 
+- *(recorded)* Require cassettes to be sanitizer fixed points ([#2184](https://github.com/NVIDIA-NeMo/Guardrails/issues/2184)) 
+- *(langchain)* Record meta partner chat provider in drift snapshot ([#2191](https://github.com/NVIDIA-NeMo/Guardrails/issues/2191)) 
+- Improve test isolation ([#2204](https://github.com/NVIDIA-NeMo/Guardrails/issues/2204)) 
+- *(rails)* Enforce built-in manifest conformance ([#2189](https://github.com/NVIDIA-NeMo/Guardrails/issues/2189)) 
+- *(frameworks)* Prevent default-framework leak between tests ([#2215](https://github.com/NVIDIA-NeMo/Guardrails/issues/2215)) 
+- *(llm)* Move call tests to module mirrors ([#2265](https://github.com/NVIDIA-NeMo/Guardrails/issues/2265)) 
+
+### ⚙️ Miscellaneous Tasks
+
+- *(docs)* Remove obsolete Sphinx tooling ([#2118](https://github.com/NVIDIA-NeMo/Guardrails/issues/2118)) 
+- Bump to 0.24.0.dev0 ([#2119](https://github.com/NVIDIA-NeMo/Guardrails/issues/2119)) 
+- Migrate to uv ([#2106](https://github.com/NVIDIA-NeMo/Guardrails/issues/2106)) 
+- Replace Pyright with ty  ([#2115](https://github.com/NVIDIA-NeMo/Guardrails/issues/2115)) 
+- Restore uv default dev group ([#2138](https://github.com/NVIDIA-NeMo/Guardrails/issues/2138)) 
+- *(test)* Drop tox orchestration ([#2116](https://github.com/NVIDIA-NeMo/Guardrails/issues/2116)) 
+- Make uv tooling cross-repository compatible ([#2146](https://github.com/NVIDIA-NeMo/Guardrails/issues/2146)) 
+- *(dev-deps)* Upgrade pytest for CVE-2025-71176  ([#2156](https://github.com/NVIDIA-NeMo/Guardrails/issues/2156)) 
+
+
 ## [0.23.0] - 2026-07-01
 
 ### 🚀 Features

@@ -2333,7 +2333,7 @@ wheels = [
 
 [[package]]
 name = "nemoguardrails"
-version = "0.24.0.dev0"
+version = "0.24.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
