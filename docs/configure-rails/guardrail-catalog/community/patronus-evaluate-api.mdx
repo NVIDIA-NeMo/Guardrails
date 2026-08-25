@@ -81,8 +81,9 @@ define flow patronus api check output
 
 `patronus api check output` runs on `LLMRails` only.
 
-The rail sends the retrieved context alongside the question and the answer, so it reads `relevant_chunks`, a conversation value that the Colang retrieval pipeline builds and `IORails` does not.
+The rail sends the retrieved context alongside the question and answer.
+It therefore reads `relevant_chunks`, a conversation value that the Colang retrieval pipeline builds and `IORails` does not.
 A configuration that uses this rail routes to `LLMRails` by default.
 With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
 
-For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).
+For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

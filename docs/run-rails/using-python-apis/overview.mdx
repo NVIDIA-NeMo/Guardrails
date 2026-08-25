@@ -89,7 +89,7 @@ def handler(event, context):
 | ----------------------------------------------- | ----------------------------------------------------- |
 | `generate()` / `generate_async()`               | Standard chat interactions with messages              |
 | `stream_async()`                                | Real-time token streaming                             |
-| `check()` / `check_async()`                     | Validating messages against rails, without generation |
+| `check()` / `check_async()`                     | Validate messages against rails without generation    |
 | `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations       |
 
 ## Synchronous vs Asynchronous
@@ -105,6 +105,6 @@ The NeMo Guardrails library provides both synchronous and asynchronous methods:
 
 <Note>
 
-Use asynchronous methods (`generate_async`, `stream_async`, `check_async`) in async contexts for better performance. The synchronous `generate()` and `check()` methods cannot be called from within an async context.
+Use asynchronous methods (`generate_async()`, `stream_async()`, `check_async()`) in async contexts for better performance. The synchronous `generate()` and `check()` methods cannot be called from within an async context.
 
 </Note>

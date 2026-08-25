@@ -18,7 +18,7 @@ The 33 manifests declare 78 surfaces in total.
 `IORails` runs 59 of them by compiling the manifest directly, without Colang.
 
 This page lists every surface and the engine that can run it.
-For capability areas that are not tied to a specific rail, such as streaming, observability, and the generation API, see [Engine Feature Support](/reference/engine-feature-support).
+For capability areas that are not tied to a specific rail, such as streaming, observability, and the generation API, refer to [Engine Feature Support](/reference/engine-feature-support).
 
 ## How to Read This Page
 
@@ -29,9 +29,11 @@ The **Notes** column records either the conversation value the rail rewrites or 
 
 A ✓ in the `IORails` column means the surface is *servable*: nothing in its manifest contract puts it out of reach of the engine.
 Whether a particular configuration actually runs it also depends on that configuration, because `IORails` validates models and optional dependencies at startup.
-See [Configuration-Dependent Refusals](#configuration-dependent-refusals).
+Refer to [Configuration-Dependent Refusals](#configuration-dependent-refusals).
 
 ## Support Summary
+
+The following table summarizes surface support by direction:
 
 | Direction | Surfaces | LLMRails | IORails |
 |---|---:|---:|---:|
@@ -41,11 +43,14 @@ See [Configuration-Dependent Refusals](#configuration-dependent-refusals).
 | **Total** | **78** | **78** | **59** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
-A configuration that declares one routes to `LLMRails` by default; see [What Happens to an Unsupported Configuration](#what-happens-to-an-unsupported-configuration).
+A configuration that declares one routes to `LLMRails` by default.
+Refer to [What Happens to an Unsupported Configuration](#what-happens-to-an-unsupported-configuration).
 
 ## Support Matrix
 
 ### Input Surfaces
+
+The following table lists the input surfaces:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
@@ -83,6 +88,8 @@ A configuration that declares one routes to `LLMRails` by default; see [What Hap
 | `trend ai guard input` | Trend Micro Vision One AI Guard | ✓ | ✓ | |
 
 ### Output Surfaces
+
+The following table lists the output surfaces:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
@@ -125,7 +132,7 @@ A configuration that declares one routes to `LLMRails` by default; see [What Hap
 ### Retrieval Surfaces
 
 Retrieval surfaces run against the knowledge-base chunks retrieved for a turn.
-`IORails` has no retrieval pipeline, so all of them are `LLMRails` only.
+`IORails` has no retrieval pipeline, so all of them are `LLMRails` only:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
@@ -144,22 +151,22 @@ Retrieval surfaces run against the knowledge-base chunks retrieved for a turn.
 ### Tool Surfaces
 
 Tool rails are not manifest surfaces.
-`IORails` registers them separately as local structural and schema validators that reach no model.
+`IORails` registers them separately as local structural and schema validators that reach no model:
 
 | Flow | Section | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
 | `tool call validation` | `rails.tool_output.flows` | ✓ | ✓ | Validates model-emitted tool calls |
 | `tool result validation` | `rails.tool_input.flows` | ✓ | ✓ | Validates application-returned tool results |
 
-For configuration and behavior, see [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
+For configuration and behavior, refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
 
 ## Why IORails Refuses a Surface
 
 `IORails` derives its scope from the manifest rather than from a hardcoded list of rail names.
-A surface it cannot run is one whose declared contract the engine cannot satisfy.
+A surface is unsupported when the engine cannot satisfy its declared contract.
 Adding a new rail to the catalog therefore needs no change in the engine.
 
-Two of the per-surface reasons are structural and one is temporary.
+Two of the per-surface reasons are structural and one is temporary:
 
 | Reason | Surfaces | Explanation |
 |---|---:|---|
@@ -167,12 +174,13 @@ Two of the per-surface reasons are structural and one is temporary.
 | Reads a conversation value `IORails` does not supply | 11 | `IORails` supplies only `user_message` and `bot_message` to a manifest `Binding.context` entry. A surface that binds `relevant_chunks`, `relevant_chunks_sep`, or `_last_bot_prompt` needs Colang runtime state that the engine does not build. |
 | Explicit blocklist | 1 | `jailbreak detection heuristics` shares a manifest with `jailbreak detection model`, so the engine cannot tell whether the configuration needs `torch` and `transformers` installed. Tracked in [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285). |
 
-The checks run in the order the table lists them and report the first reason that applies, so a retrieval surface that both rewrites and reads `relevant_chunks` is reported under the rewrite reason.
+The checks run in the order the table lists them and report the first reason that applies.
+As a result, a retrieval surface that both rewrites and reads `relevant_chunks` is reported under the rewrite reason.
 
 A third structural constraint applies to the configuration as a whole rather than to any one surface.
 `IORails` accepts only the `input`, `output`, `config`, `tool_input`, and `tool_output` rail sections, so a configuration that declares `rails.retrieval`, `rails.dialog`, or any other section routes to `LLMRails` by default, regardless of which flows it names.
 
-That constraint is checked first, which is why you will not see a per-surface reason for a retrieval flow in practice.
+The engine checks that constraint first, so it does not report a per-surface reason for a retrieval flow.
 `IORails.unsupported_reason()` reports the unsupported rail section and stops, so a configuration with a `rails.retrieval` section reports `config has rails outside the IORails-supported set: ['retrieval']` rather than the rewrite or read reason its surfaces would give.
 The reasons in the table above describe what each surface's manifest declares, which is what the retrieval rows of the matrix record.
 
@@ -180,7 +188,7 @@ The reasons in the table above describe what each surface's manifest declares, w
 
 The `Guardrails` facade decides what an unsupported rail means for your application:
 
-| Constructor | Behavior when a configured rail cannot run on `IORails` |
+| Constructor | Unsupported-Configuration Behavior |
 |---|---|
 | `Guardrails(config)` | Routes the configuration to `LLMRails` and logs the reason. This is the default |
 | `Guardrails(config, require_iorails=True)` | Raises `ValueError` naming the reason, instead of falling back |
@@ -192,7 +200,7 @@ Use `require_iorails=True` when you depend on an `IORails`-only capability such 
 ## Configuration-Dependent Refusals
 
 Beyond the fixed matrix above, `IORails` validates two things per configuration when it compiles a rail at startup.
-Where `LLMRails` does not, it reports the same problem at request time instead.
+Where `LLMRails` does not, it reports the same problem at request time instead:
 
 | Check | IORails | LLMRails |
 |---|---|---|
@@ -221,7 +229,7 @@ Hugging Face Classifier and Jailbreak Detection each offer an in-process backend
 
 The surfaces that bind a model type are the following:
 
-| Flow | Model type | Source | Validated by |
+| Flow | Model Type | Source | Validated by |
 |---|---|---|---|
 | `content safety check input` | Selected by `$model=` | Surface parameter | `RailsConfig`, on both engines |
 | `content safety check output` | Selected by `$model=` | Surface parameter | `RailsConfig`, on both engines |
@@ -242,12 +250,12 @@ Neither engine enforces it at startup, so a missing model surfaces when the rail
 ## Rail Behavior Differences
 
 The manifest and the action are shared, so both engines reach the same allow, block, or transform decision.
-How each engine acts on that decision differs.
+The following table shows how each engine acts on that decision:
 
 | Behavior | LLMRails | IORails |
 |---|---|---|
 | Block presentation | The Colang flow decides: emit a refusal intent, or raise a configured exception when `enable_rails_exceptions` is set | Returns a fixed refusal message for a non-streaming request, or a `guardrails_violation` payload for a streaming request |
-| Rail raises an exception | The exception propagates out of the flow | The engine's fail-closed envelope converts it to a block, marks the outcome as failed, and returns an internal-error message. An error carrying an upstream HTTP status propagates instead |
+| Rail action raises an exception | The Colang runtime converts ordinary action failures to an internal-error response. An `LLMCallException` propagates instead | The engine's fail-closed envelope converts it to a block, marks the outcome as failed, and returns an internal-error message. An error carrying an upstream HTTP status propagates instead |
 | Transform (mask or rewrite) rails | Applied through the Colang context | Applied by rerunning the remaining rails against the rewritten text. Rewriting rails are ordered ahead of judging rails so a mask reaches the checks behind it |
 | Transform rails with `parallel: true` | Honored independently | Not honored. Configuring any rewriting rail forces both directions sequential and emits a warning, because concurrent rails read the arriving text and a rewrite cannot compose |
 | Transform rails with `speculative_generation: true` | Not applicable, `LLMRails` has no speculative generation | Not honored. A rewriting input rail disables speculative generation and emits a warning, because the model would read the text before the rewrite lands |
@@ -257,7 +265,7 @@ One transform rule is shared rather than per-engine.
 `RailsConfig` rejects a configuration that combines a rewriting output rail with output-rail streaming unless `rails.output.streaming.stream_first` is `false` and `context_size` is `0`, because a rewrite cannot be applied to chunks that have already been sent.
 That validation runs for both engines.
 
-For the shared decision object that both engines read, see [Rail Outcomes](/configure-guardrails/actions/rail-outcomes).
+For the shared decision object that both engines read, refer to [Rail Outcomes](/configure-guardrails/actions/rail-outcomes).
 
 ## Checking Support Programmatically
 
@@ -290,6 +298,8 @@ input_surfaces = catalog.surfaces(direction=RailDirection.INPUT)
 ```
 
 ## Related Information
+
+Use the following references for related concepts and configuration:
 
 - [Engine Feature Support](/reference/engine-feature-support) compares the two engines on capabilities that are not rail-specific.
 - [Rail Manifests](/reference/rail-manifests) documents the manifest schema that this matrix is derived from.

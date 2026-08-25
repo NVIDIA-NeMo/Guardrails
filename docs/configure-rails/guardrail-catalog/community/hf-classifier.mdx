@@ -289,7 +289,8 @@ When blocked, **input and output rails** respond with `"I'm sorry, I can't respo
 `IORails` has no retrieval pipeline and nowhere to apply that rewrite, so the flow runs on `LLMRails` only.
 
 This rail declares `transformers` as an optional dependency for its in-process backend.
-`IORails` enforces that only when the configuration selects the local backend: with a vLLM, KServe, or FMS endpoint configured, the rail compiles without `transformers` installed.
+`IORails` enforces this dependency only when the configuration selects the local backend.
+With a vLLM, KServe, or FMS endpoint, the rail compiles without `transformers` installed.
 `LLMRails` imports it lazily and fails on the first request instead.
 
-For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).
+For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

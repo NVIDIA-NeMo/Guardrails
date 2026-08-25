@@ -250,12 +250,13 @@ Every rail in the following table runs on `LLMRails` only.
 Each of these rails judges a response against something outside the response itself, and reads a conversation value that the Colang runtime builds and `IORails` does not.
 
 The three grounding rails read `relevant_chunks`, the retrieved context for the turn.
-`self check hallucination` works differently: it reads `_last_bot_prompt`, the prompt that produced the response, re-runs it at a high temperature, and compares the alternative generations for self-consistency.
-Note that this splits the two hallucination rails: `patronus lynx check output hallucination` grounds against retrieved context, while `self check hallucination` needs no retrieval at all and is unavailable on `IORails` only because the prompt it re-runs is Colang state.
+`self check hallucination` works differently: it reads `_last_bot_prompt`, reruns the prompt at a high temperature, and compares the alternative generations for self-consistency.
+`patronus lynx check output hallucination` grounds the response against retrieved context.
+In contrast, `self check hallucination` needs no retrieval and is unavailable on `IORails` because the prompt it reruns is Colang state.
 
 A configuration that uses any of them routes to `LLMRails` by default.
 With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
 
 If you need a grounding check on `IORails`, `autoalign factcheck output` and `cleanlab trustworthiness` both run there, because they judge the response without a retrieval context.
 
-For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).
+For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

@@ -134,13 +134,14 @@ Before you begin, install the `yara-python` package or you can install the NeMo 
 
 ## Context Bloat Detection
 
-Context bloat detection guards against context-manipulation attacks, where attacker-controlled content is padded, oversized, or repetitively structured to push the system prompt out of the model's attention or to exhaust the token budget.
-It applies to user input and to retrieved knowledge-base chunks, which are the two places an agent takes in text it did not author.
+Context bloat detection guards against context-manipulation attacks.
+Attacker-controlled content can be padded, oversized, or repetitively structured to push the system prompt out of the model's attention or exhaust the token budget.
+The rail applies to user input and retrieved knowledge-base chunks, the two sources of text an agent does not author.
 
 The rail is local and model-free.
-It measures the text against four thresholds and does not call any service.
+It does not call an external service and measures text against four thresholds:
 
-| Check | Configuration field | Default | What it catches |
+| Check | Configuration Field | Default | What It Catches |
 |---|---|---|---|
 | Size cap | `max_chars` | `5000` | Oversized input intended to exhaust the token budget |
 | Shannon entropy floor | `min_entropy` | `3.5` | Low-information padding. English prose runs about 4.0 to 4.5 bits per character |
@@ -175,17 +176,18 @@ rails:
       - context bloat detection on retrieval
 ```
 
-The `action` field selects what happens when a check trips:
+The `action` field selects what happens when a check detects a violation:
 
 | Value | Behavior |
 |---|---|
-| `reject` | Block the turn and return a refusal message. This is the default and the recommended setting for production |
-| `truncate` | Truncate the text to `max_chars` when the size cap trips, and reject when any other check trips |
-| `warn` | Log the detection only. Do not modify or block the text |
+| `reject` | Block the turn and return a refusal message. This is the default and recommended setting for production. |
+| `truncate` | Truncate the text to `max_chars` when the size cap is exceeded, and reject when any other check detects a violation. |
+| `warn` | Log the detection only. Do not modify or block the text. |
 
 <Note>
-  With `action: truncate` the rail rewrites the text it checked rather than blocking it, which affects how the engines schedule it.
-  See [Rail Engine Support](/reference/rail-engine-support) for the details.
+  With `action: truncate`, the rail rewrites the text it checked rather than blocking it.
+  This rewrite affects how the engines schedule the rail.
+  Refer to [Rail Engine Support](/reference/rail-engine-support) for details.
 </Note>
 
 ### Engine Support

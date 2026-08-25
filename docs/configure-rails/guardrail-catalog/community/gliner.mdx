@@ -152,8 +152,9 @@ rails:
       - gliner mask pii on retrieval
 ```
 
-Do not configure both flows in one guardrails configuration.
-The detection flow blocks the turn that the masking flow is trying to make safe, so the mask never takes effect.
+Typically, configure only one retrieval flow.
+If you configure both flows, list `gliner mask pii on retrieval` before `gliner detect pii on retrieval`.
+Retrieval rails run in configuration order, so placing detection first blocks the turn before masking can make the chunks safe.
 
 ### Engine Support
 

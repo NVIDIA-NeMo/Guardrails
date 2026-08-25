@@ -132,13 +132,14 @@ Test with `ConsoleMetricExporter` first to confirm IORails engine emission, then
 ### `LLMRails` Produces No Metrics
 
 Metrics are emitted only by the IORails engine.
-Enable it either by setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` (which redirects `LLMRails(config)` to the IORails engine) or by constructing `Guardrails(config, use_iorails=True)` directly, and use `generate_async`, `stream_async`, or `check_async`.
-Pass `require_iorails=True` to make the constructor raise (instead of silently falling back to LLMRails and emitting no metrics) when the config is incompatible with IORails.
+Select IORails by setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1`, which redirects `LLMRails(config)` to IORails, or by constructing `Guardrails(config, use_iorails=True)` directly.
+Use `generate_async()`, `stream_async()`, or `check_async()` to emit metrics.
+Pass `require_iorails=True` to raise when the configuration is incompatible with IORails instead of silently falling back to `LLMRails`, which emits no metrics.
 
 ### Synchronous `generate()` or `check()` Produces No Metrics
 
 Telemetry is disabled for the ephemeral engine constructed by the synchronous `generate()` and `check()` shims.
-Use `generate_async`, `stream_async`, or `check_async` for production paths.
+Use `generate_async()`, `stream_async()`, or `check_async()` for production paths.
 
 ### `gen_ai.client.token.usage` Is Missing for Streaming Requests
 
