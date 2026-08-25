@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
 from typing import Dict, Optional, Union
 
@@ -162,3 +163,14 @@ async def internal_error_handler(request: Request, exc: Exception) -> Response:
     """Catch-all for unexpected errors."""
     log.exception(exc)
     return _error_response(500, "Internal server error")
+
+
+async def queue_full_error_handler(request: Request, exc: asyncio.QueueFull) -> Response:
+    """Render IORails admission shedding as a retryable overload response."""
+    log.warning("IORails admission queue is full: %s", exc)
+    return _error_response(
+        503,
+        "IORails admission queue is full. Please retry later.",
+        code="queue_full",
+        headers={"retry-after": "1"},
+    )
