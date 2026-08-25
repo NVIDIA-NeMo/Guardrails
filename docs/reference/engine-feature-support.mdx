@@ -136,6 +136,7 @@ Content safety and topic control select their model with a `$model=` parameter o
 The one difference is the local heuristics variant of jailbreak detection.
 `jailbreak detection heuristics` shares a manifest with `jailbreak detection model`, so `IORails` cannot tell whether the configuration needs `torch` and `transformers` installed, and it refuses the flow.
 A configuration that uses it routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
 
 ### Tool Calling
 

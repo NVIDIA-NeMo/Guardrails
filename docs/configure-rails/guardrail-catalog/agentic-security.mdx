@@ -194,3 +194,4 @@ The `action` field selects what happens when a check trips:
 
 `context bloat detection on retrieval` runs on `LLMRails` only, because `IORails` has no retrieval pipeline.
 A configuration that declares a `rails.retrieval` section routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.

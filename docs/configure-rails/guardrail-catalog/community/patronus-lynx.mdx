@@ -166,5 +166,6 @@ define flow patronus lynx check output hallucination
 
 Lynx judges the response against the retrieved context, so the rail reads `relevant_chunks`, a conversation value that the Colang retrieval pipeline builds and `IORails` does not.
 A configuration that uses this rail routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
 
 For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).

@@ -167,6 +167,7 @@ If you want to implement a completely different sensitive data detection mechani
 
 The retrieval flows run on `LLMRails` only, because `IORails` has no retrieval pipeline.
 A configuration that declares a `rails.retrieval` section routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
 
 This rail declares the `sdd` extra, and the two engines report a missing install differently.
 `IORails` refuses to compile the rail at startup and names the extra to install, so the configuration routes to `LLMRails` by default.

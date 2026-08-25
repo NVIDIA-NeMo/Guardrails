@@ -130,6 +130,7 @@ Monitor the availability of your detector if you rely on this rail, and pair it 
 `jailbreak detection heuristics` shares a rail manifest with `jailbreak detection model`, and that manifest declares `torch` and `transformers` as optional dependencies.
 `IORails` cannot tell from the manifest alone which of the two flows a configuration is using, and so cannot tell whether those packages are actually required.
 Rather than guess, it refuses the flow, and a configuration that uses it routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
 This is tracked in [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285).
 
 For the full per-rail matrix, see [Rail Engine Support](/reference/rail-engine-support).

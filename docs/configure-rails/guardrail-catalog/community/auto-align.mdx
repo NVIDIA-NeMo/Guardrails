@@ -728,6 +728,7 @@ The output of the fact check endpoint provides you with a fact check score that 
 
 `autoalign groundedness output` reads `relevant_chunks_sep`, a conversation value that the Colang retrieval pipeline builds and `IORails` does not.
 A configuration that uses it routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
 
 `autoalign check input` and `autoalign check output` can rewrite the text they check when AutoAlign returns redacted content.
 On `IORails` a configured rewriting rail turns input and output rails sequential.

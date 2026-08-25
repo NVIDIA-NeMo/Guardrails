@@ -135,6 +135,7 @@ The integration is fail-closed: a Polygraf failure must not allow potentially-PI
 
 The retrieval flows run on `LLMRails` only, because `IORails` has no retrieval pipeline.
 A configuration that declares a `rails.retrieval` section routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
 
 The masking flows rewrite the text they check rather than blocking it.
 On `IORails` a configured rewriting rail turns input and output rails sequential, so each mask reaches the rails behind it.
