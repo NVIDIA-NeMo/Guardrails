@@ -172,6 +172,10 @@ The checks run in the order the table lists them and report the first reason tha
 A third structural constraint applies to the configuration as a whole rather than to any one surface.
 `IORails` accepts only the `input`, `output`, `config`, `tool_input`, and `tool_output` rail sections, so a configuration that declares `rails.retrieval`, `rails.dialog`, or any other section routes to `LLMRails` by default, regardless of which flows it names.
 
+That constraint is checked first, which is why you will not see a per-surface reason for a retrieval flow in practice.
+`IORails.unsupported_reason()` reports the unsupported rail section and stops, so a configuration with a `rails.retrieval` section reports `config has rails outside the IORails-supported set: ['retrieval']` rather than the rewrite or read reason its surfaces would give.
+The reasons in the table above describe what each surface's manifest declares, which is what the retrieval rows of the matrix record.
+
 ## What Happens to an Unsupported Configuration
 
 The `Guardrails` facade decides what an unsupported rail means for your application:

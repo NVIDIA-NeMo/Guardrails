@@ -110,7 +110,9 @@ rails:
 ### Retrieved Chunks
 
 Both flows also have a retrieval variant that runs against the knowledge-base chunks retrieved for a turn.
-Configure the entities to look for under a `retrieval` key alongside `input` and `output`.
+Configure the entities to look for under a `retrieval` key alongside `input` and `output`, then add one of the two retrieval flows.
+
+Choose the detection flow to block a turn whose retrieved chunks contain PII:
 
 ```yaml
 rails:
@@ -127,13 +129,31 @@ rails:
           - phone_number
   retrieval:
     flows:
-      # Block a turn whose retrieved chunks contain PII.
       - gliner detect pii on retrieval
-      # Or mask the PII in the chunks before the LLM sees them.
+```
+
+Choose the masking flow instead to strip the PII from the chunks and let the turn proceed:
+
+```yaml
+rails:
+  config:
+    gliner:
+      server_endpoint: https://integrate.api.nvidia.com/v1/chat/completions
+      api_key_env_var: NVIDIA_API_KEY
+      threshold: 0.5
+      retrieval:
+        entities:
+          - first_name
+          - last_name
+          - email
+          - phone_number
+  retrieval:
+    flows:
       - gliner mask pii on retrieval
 ```
 
-Use one of the two retrieval flows, not both.
+Do not configure both flows in one guardrails configuration.
+The detection flow blocks the turn that the masking flow is trying to make safe, so the mask never takes effect.
 
 ### Engine Support
 
