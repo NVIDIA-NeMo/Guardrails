@@ -131,3 +131,69 @@ Before you begin, install the `yara-python` package or you can install the NeMo 
    *Example Output*
 
    <Code src="../../../examples/configs/injection_detection/demo-out.txt" language="text" title="demo-out.txt" lines="2-2" />
+
+## Context Bloat Detection
+
+Context bloat detection guards against context-manipulation attacks.
+Attacker-controlled content can be padded, oversized, or repetitively structured to push the system prompt out of the model's attention or exhaust the token budget.
+The rail applies to user input and retrieved knowledge-base chunks, the two sources of text an agent does not author.
+
+The rail is local and model-free.
+It does not call an external service and measures text against four thresholds:
+
+| Check | Configuration Field | Default | What It Catches |
+|---|---|---|---|
+| Size cap | `max_chars` | `5000` | Oversized input intended to exhaust the token budget |
+| Shannon entropy floor | `min_entropy` | `3.5` | Low-information padding. English prose runs about 4.0 to 4.5 bits per character |
+| Repeated n-gram ratio | `max_repetition_ratio` | `0.4` | Padding built from a repeated phrase |
+| Longest single-character run | `max_run_ratio` | `0.1` | Runs such as `AAAAAAA...` or long whitespace padding |
+
+Texts shorter than `min_chars` (default `50`) are checked against the size cap only, because entropy and repetition are not meaningful on a short string.
+
+### Configuring Context Bloat Detection
+
+Add the flow for each direction you want to guard, and set the thresholds under `rails.config.context_bloat_detection`.
+All configuration fields are optional.
+
+```yaml
+rails:
+  config:
+    context_bloat_detection:
+      max_chars: 5000
+      min_chars: 50
+      min_entropy: 3.5
+      max_repetition_ratio: 0.4
+      ngram_size: 3
+      max_run_ratio: 0.1
+      action: reject
+
+  input:
+    flows:
+      - context bloat detection on input
+
+  retrieval:
+    flows:
+      - context bloat detection on retrieval
+```
+
+The `action` field selects what happens when a check detects a violation:
+
+| Value | Behavior |
+|---|---|
+| `reject` | Block the turn and return a refusal message. This is the default and recommended setting for production. |
+| `truncate` | Truncate the text to `max_chars` when the size cap is exceeded, and reject when any other check detects a violation. |
+| `warn` | Log the detection only. Do not modify or block the text. |
+
+<Note>
+  With `action: truncate`, the rail rewrites the text it checked rather than blocking it.
+  This rewrite affects how the engines schedule the rail.
+  Refer to [Rail Engine Support](/reference/rail-engine-support) for details.
+</Note>
+
+### Engine Support
+
+`context bloat detection on input` runs on both `LLMRails` and `IORails`.
+
+`context bloat detection on retrieval` runs on `LLMRails` only, because `IORails` has no retrieval pipeline.
+A configuration that declares a `rails.retrieval` section routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.

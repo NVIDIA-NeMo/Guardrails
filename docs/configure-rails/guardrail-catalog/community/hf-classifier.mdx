@@ -276,3 +276,21 @@ rails:
 ## HF Classifier Rail Behavior
 
 When blocked, **input and output rails** respond with `"I'm sorry, I can't respond to that."` and abort. If `enable_rails_exceptions` is set, an `InputRailException` or `OutputRailException` is raised instead. **Retrieval rails** clear all retrieved chunks if any blocked label is detected. With streaming enabled, the output rail checks the accumulated response after streaming completes.
+
+## Engine Support
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `hf classifier check input` | ✓ | ✓ |
+| `hf classifier check output` | ✓ | ✓ |
+| `hf classifier check retrieval` | ✓ | ✗ |
+
+`hf classifier check retrieval` clears the retrieved chunks when a blocked label is detected, which rewrites `relevant_chunks`.
+`IORails` has no retrieval pipeline and nowhere to apply that rewrite, so the flow runs on `LLMRails` only.
+
+This rail declares `transformers` as an optional dependency for its in-process backend.
+`IORails` enforces this dependency only when the configuration selects the local backend.
+With a vLLM, KServe, or FMS endpoint, the rail compiles without `transformers` installed.
+`LLMRails` imports it lazily and fails on the first request instead.
+
+For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

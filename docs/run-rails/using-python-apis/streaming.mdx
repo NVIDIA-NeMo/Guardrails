@@ -157,7 +157,7 @@ async for chunk in rails.stream_async(messages=messages, include_metadata=True):
 With `include_metadata=True`, each chunk is a `dict` with a mandatory `"text"` key.
 A chunk that carries metadata also has a `"metadata"` key, which can hold the following:
 
-- `provider_metadata`: non-standard fields the provider returned with the chunk, such as `response_headers` and vendor extensions.
+- `provider_metadata`: nonstandard fields the provider returned with the chunk, such as `response_headers` and vendor extensions.
 - `usage`: normalized token counts as `input_tokens`, `output_tokens`, and `total_tokens`.
 
 For text responses, the stream ends with a single terminal frame that has empty text.
@@ -180,7 +180,7 @@ For example, an `IORails` stream with a final usage-only provider chunk has this
 The empty terminal frame always includes the `response_metadata` and `usage_metadata` keys.
 They are retained for backward compatibility, and the internal `stream_async()` paths leave both as `None`.
 Read token counts from `usage` instead.
-A caller driving `StreamingHandler` directly can still push these keys, and the handler accumulates them onto the terminal frame.
+If you use `StreamingHandler` directly, the handler can still push these keys and accumulate them onto the terminal frame.
 
 An `IORails` tool-call response adds an assembled tool-call JSON frame after this empty frame, so the tool-call frame is the final frame in that stream.
 
@@ -197,7 +197,8 @@ The `include_generation_metadata` parameter is deprecated. Use `include_metadata
 `IORails` uses the same `provider_metadata` and `usage` keys as `LLMRails`.
 The following `IORails`-specific behaviors apply:
 
-- `IORails` sets `stream_options` to `{"include_usage": True}` on the main model request so the provider returns usage on the terminal chunk. Override it through `llm_params` if your provider needs different behavior.
+- `IORails` sets `stream_options` to `{"include_usage": True}` on the main model request so the provider returns usage on the terminal chunk.
+  Override it through `llm_params` if your provider needs different behavior.
 
   ```python
   async for chunk in rails.stream_async(
@@ -213,8 +214,9 @@ The following `IORails`-specific behaviors apply:
 On `LLMRails`, `include_metadata=True` preserves metadata only when output-rail streaming is disabled.
 When output-rail streaming is enabled, the buffer yields plain strings and drops `provider_metadata` and `usage`.
 
-A chunk that carries only provider metadata and no text is not emitted as a standalone empty frame.
-The metadata remains visible when the provider also includes it on a content or usage chunk, which keeps repeated response headers from flooding the stream.
+The library does not emit a standalone empty frame for a chunk that carries only provider metadata and no text.
+The metadata remains visible when the provider also includes it on a content or usage chunk.
+This behavior prevents repeated response headers from flooding the stream.
 
 ## Generation Options and Streaming
 
@@ -222,6 +224,10 @@ The metadata remains visible when the provider also includes it on a content or 
 Unlike `generate()` and `generate_async()`, passing it does not change what the iterator yields.
 The chunk shape is governed solely by `include_metadata`: plain strings when it is `False`, and `{"text": ..., "metadata": ...}` dictionaries when it is `True`.
 Neither engine yields or returns a `GenerationResponse` from a stream.
+
+This behavior applies when the engine generates the stream.
+On `LLMRails`, passing an external `generator` bypasses internal generation, so `options` and `include_metadata` do not change the supplied iterator.
+The generator determines the chunk shape, and only configured streaming output rails can wrap it.
 
 ```python
 # Identical chunk shapes: `options` does not select a structured return here.
@@ -235,7 +241,7 @@ async for chunk in rails.stream_async(
     ...  # still str
 ```
 
-What each engine reads from `options` while streaming:
+The following table shows what each engine reads from `options` while streaming:
 
 | Option | LLMRails | IORails |
 |---|---|---|
@@ -243,7 +249,8 @@ What each engine reads from `options` while streaming:
 | `rails.input`, `rails.output`, `rails.tool_input`, `rails.tool_output` | Applied | Applied |
 | `output_vars`, `log.*` | Computed, then discarded with the `GenerationResponse` | Not read |
 
-`LLMRails` runs `generate_async()` in a background task and forwards `options` to it, then discards the `GenerationResponse` that call returns.
+`LLMRails` runs `generate_async()` in a background task and forwards `options` to it.
+It then discards the `GenerationResponse` that the call returns.
 Anything you request through `log` or `output_vars` is therefore computed but unreachable from the stream.
 `IORails` reads only `llm_params` and the four rail toggles in its streaming path.
 
@@ -258,7 +265,7 @@ Do not rely on a stream rejecting an option that the non-streaming call refuses.
 Two `GenerationResponse` fields have no streamed equivalent:
 
 - `reasoning_content`: Neither engine emits provider reasoning deltas as chunk text.
-  A model that embeds `<think>` tags in its content streams them as ordinary text, which means output rails see the reasoning.
+  A model that embeds `<think>` tags in its content streams them as ordinary text, so output rails process the reasoning.
   `IORails` logs one warning per request when it detects this.
 - `tool_calls`: `IORails` emits assembled tool calls as a terminal chunk whose text is a `{"tool_calls": [...]}` JSON string.
   The string uses the OpenAI wire shape with `function.arguments` as a JSON string, while the non-streaming `GenerationResponse.tool_calls` uses dictionary arguments.

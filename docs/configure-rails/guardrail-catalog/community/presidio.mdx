@@ -156,3 +156,24 @@ rails:
 ## Custom Detection
 
 If you want to implement a completely different sensitive data detection mechanism, you can override the default actions [`detect_sensitive_data`](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/sensitive_data_detection/actions.py) and [`mask_sensitive_data`](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/sensitive_data_detection/actions.py).
+
+## Engine Support
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `detect sensitive data on input`, `detect sensitive data on output` | ✓ | ✓ |
+| `mask sensitive data on input`, `mask sensitive data on output` | ✓ | ✓ |
+| `detect sensitive data on retrieval`, `mask sensitive data on retrieval` | ✓ | ✗ |
+
+The retrieval flows run on `LLMRails` only, because `IORails` has no retrieval pipeline.
+A configuration that declares a `rails.retrieval` section routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
+
+This rail declares the `sdd` extra, and the two engines report a missing install differently.
+`IORails` refuses to compile the rail at startup and names the extra to install, so the configuration routes to `LLMRails` by default.
+`LLMRails` imports Presidio lazily inside the action, so the failure surfaces on the first request that runs the rail.
+
+The masking flows rewrite the text they check rather than blocking it.
+`IORails` runs input and output rails sequentially when a configured rail rewrites content, so each mask reaches subsequent rails.
+
+For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

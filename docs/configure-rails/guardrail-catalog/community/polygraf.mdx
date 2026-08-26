@@ -124,3 +124,20 @@ The integration is fail-closed: a Polygraf failure must not allow potentially-PI
 - **Malformed entity span** (Polygraf returns an entry without a known `entity_type`, or with non-integer offsets, or with offsets outside `0 <= start < end <= len(text)`). The actions also fail closed: detection blocks the message and masking redacts the whole payload, rather than silently skipping the malformed span and forwarding the rest.
 - **Default timeout**: `30` seconds per call. Slow or unreachable endpoints cannot hang the rail pipeline.
 - **Missing API key**: if `POLYGRAF_API_KEY` is not set, the integration logs a warning since cloud endpoints typically reject unauthenticated requests, and proceeds to call the endpoint without an `Authorization` header.
+
+## Engine Support
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `polygraf detect pii on input`, `polygraf detect pii on output` | ✓ | ✓ |
+| `polygraf mask pii on input`, `polygraf mask pii on output` | ✓ | ✓ |
+| `polygraf detect pii on retrieval`, `polygraf mask pii on retrieval` | ✓ | ✗ |
+
+The retrieval flows run on `LLMRails` only, because `IORails` has no retrieval pipeline.
+A configuration that declares a `rails.retrieval` section routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
+
+The masking flows rewrite the text they check rather than blocking it.
+`IORails` runs input and output rails sequentially when a configured rail rewrites content, so each mask reaches subsequent rails.
+
+For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

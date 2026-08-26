@@ -93,3 +93,20 @@ If the Private AI detection API request fails, the system will assume PII is pre
 - The integration currently supports PII detection and masking.
 
 For more information on Private AI and its capabilities, please refer to the [Private AI documentation](https://docs.private-ai.com/?utm_medium=github&utm_campaign=nemo-guardrails).
+
+## Engine Support
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `detect pii on input`, `detect pii on output` | ✓ | ✓ |
+| `mask pii on input`, `mask pii on output` | ✓ | ✓ |
+| `detect pii on retrieval`, `mask pii on retrieval` | ✓ | ✗ |
+
+The retrieval flows run on `LLMRails` only, because `IORails` has no retrieval pipeline.
+A configuration that declares a `rails.retrieval` section routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
+
+The masking flows rewrite the text they check rather than blocking it.
+`IORails` runs input and output rails sequentially when a configured rail rewrites content, so each mask reaches subsequent rails.
+
+For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

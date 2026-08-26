@@ -235,3 +235,28 @@ rails:
 ```
 
 For more details, check out the [Patronus Lynx Integration](/configure-guardrails/guardrail-catalog/third-party/patronus-lynx) page.
+
+## Engine Support
+
+Every rail in the following table runs on `LLMRails` only.
+
+| Flow | Reads | LLMRails | IORails |
+|---|---|:---:|:---:|
+| `self check facts` | `relevant_chunks` | ✓ | ✗ |
+| `self check hallucination` | `_last_bot_prompt` | ✓ | ✗ |
+| `alignscore check facts` | `relevant_chunks` | ✓ | ✗ |
+| `patronus lynx check output hallucination` | `relevant_chunks` | ✓ | ✗ |
+
+Each of these rails judges a response against something outside the response itself, and reads a conversation value that the Colang runtime builds and `IORails` does not.
+
+The three grounding rails read `relevant_chunks`, the retrieved context for the turn.
+`self check hallucination` works differently: it reads `_last_bot_prompt`, reruns the prompt at a high temperature, and compares the alternative generations for self-consistency.
+`patronus lynx check output hallucination` grounds the response against retrieved context.
+In contrast, `self check hallucination` needs no retrieval and is unavailable on `IORails` because the prompt it reruns is Colang state.
+
+A configuration that uses any of them routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
+
+If you need a grounding check on `IORails`, `autoalign factcheck output` and `cleanlab trustworthiness` both run there, because they judge the response without a retrieval context.
+
+For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).
