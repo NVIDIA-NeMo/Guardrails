@@ -245,6 +245,14 @@ class TestLocustRunner:
             with pytest.raises(RuntimeError, match="HTTP error accessing"):
                 runner._check_service()
 
+    def test_check_service_invalid_url(self, runner):
+        """InvalidURL does not derive from HTTPError, so it needs naming explicitly."""
+        with patch("httpx.get") as mock_get:
+            mock_get.side_effect = httpx.InvalidURL("Invalid port: 'b:c'")
+
+            with pytest.raises(RuntimeError, match="HTTP error accessing"):
+                runner._check_service()
+
     def _v1_health_endpoint(self, runner: LocustRunner):
         """The Guardrails server's health endpoint"""
         return f"{runner.config.host}/v1/health"
@@ -688,6 +696,49 @@ class TestLocustSweepRunner:
         assert sweep_runner._format_duration(30 * 60) == "30 minutes"
         assert sweep_runner._format_duration(89 * 60) == "89 minutes"
         assert sweep_runner._format_duration(240 * 60) == "4.0 hours"
+
+    def test_resume_does_not_check_hosts_whose_levels_are_all_complete(self, tmp_path):
+        """A finished host going away must not block incomplete levels elsewhere."""
+        config = LocustSweepConfig(
+            batch_name="hosts",
+            output_base_dir=str(tmp_path / "results"),
+            base_config={"config_id": "test-config", "model": "test-model", "run_time": 5},
+            sweeps={"host": ["http://localhost:9000", "http://localhost:9001"]},
+        )
+        sweep = LocustSweepRunner(config)
+
+        # Complete only the first host's level.
+        done, pending = sorted(label for label, _ in config.expand())
+        done_path = sweep.batch_path / done
+        done_path.mkdir(parents=True)
+        completed = next(c for label, c in config.expand() if label == done)
+        (done_path / "run_metadata.json").write_text(
+            json.dumps({"exit_code": 0, "config": json.loads(completed.model_dump_json())})
+        )
+
+        checked = []
+        with (
+            patch.object(LocustRunner, "_check_service", autospec=True) as mock_check,
+            patch("subprocess.run") as mock_run,
+        ):
+            mock_check.side_effect = lambda self: checked.append(self.config.host)
+            mock_run.return_value = Mock(returncode=0)
+
+            assert sweep.run(dry_run=False, resume=True) == 0
+
+        assert len(checked) == 1, f"only the pending host should be checked, got {checked}"
+        assert mock_run.call_count == 1
+
+    def test_resume_with_everything_complete_runs_nothing(self, sweep_runner):
+        """A fully complete batch exits cleanly without probing the server."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+
+        with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
+            assert sweep_runner.run(dry_run=False, resume=True) == 0
+            mock_check.assert_not_called()
+            mock_run.assert_not_called()
 
     def test_dry_run_executes_nothing(self, sweep_runner):
         """Dry-run prints each level's command without running or checking the service."""

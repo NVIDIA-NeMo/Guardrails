@@ -79,9 +79,12 @@ class LocustRunner:
             raise RuntimeError(f"ConnectError accessing {url}: {e}") from e
         except httpx.TimeoutException as e:
             raise RuntimeError(f"HTTP Timeout accessing {url}: {e}") from e
-        except httpx.HTTPError as e:
+        except (httpx.HTTPError, httpx.InvalidURL) as e:
             # Any other transport failure is still the benchmark failing to
             # start, so report it the same way rather than as a traceback.
+            # InvalidURL does not derive from HTTPError, and `host` is only
+            # checked for its scheme, so a value like "http://a:b:c" reaches
+            # httpx and raises it here.
             raise RuntimeError(f"HTTP error accessing {url}: {type(e).__name__}: {e}") from e
 
     def _check_service(self) -> None:
@@ -369,34 +372,43 @@ class LocustSweepRunner:
                 LocustRunner(level_config).run(dry_run=True)
             return 0
 
-        # One health check per distinct host rather than one per level. A sweep
-        # over `host` targets several servers, and each must be reachable before
-        # its levels run; otherwise an unreachable target looks like a level
-        # whose requests merely failed.
+        # Work out what will actually run before checking anything. A resumed
+        # sweep must not be blocked by a host whose levels are all complete and
+        # would be skipped anyway.
+        pending = []
+        for label, level_config in levels:
+            if resume and self.is_complete(self.batch_path / label, level_config):
+                log.info("Level %s already complete, keeping it", label)
+                continue
+            pending.append((label, level_config))
+
+        if not pending:
+            log.info("Every level is already complete; nothing to run")
+            return 0
+
+        # One health check per distinct host among the levels that will run,
+        # rather than one per level. A sweep over `host` targets several
+        # servers, and each must be reachable before its levels run; otherwise
+        # an unreachable target looks like a level whose requests merely failed.
         try:
-            for level_config in self._hosts_to_check(levels):
+            for level_config in self._hosts_to_check(pending):
                 LocustRunner(level_config)._check_service()
         except RuntimeError as e:
             log.error(str(e))
             return 1
 
         exit_codes: dict[str, int] = {}
-        for index, (label, level_config) in enumerate(levels, start=1):
+        for index, (label, level_config) in enumerate(pending, start=1):
             level_path = self.batch_path / label
-
-            if resume and self.is_complete(level_path, level_config):
-                log.info("Level %i/%i (%s) already complete, keeping it", index, len(levels), label)
-                continue
-
             runner = LocustRunner(level_config)
             log.info(
                 "Level %i/%i: %s — %is ramp then %is measured, about %s remaining after it",
                 index,
-                len(levels),
+                len(pending),
                 label,
                 runner.ramp_seconds,
                 level_config.run_time,
-                self._format_duration(self.estimated_seconds(levels[index:])),
+                self._format_duration(self.estimated_seconds(pending[index:])),
             )
             exit_codes[label] = runner.run_level(level_path)
 
