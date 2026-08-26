@@ -13,7 +13,7 @@
 batch_name: sweep_concurrency
 
 # Base directory where all results are stored.
-# Each level lands in <output_base_dir>/<batch_name>/users-<value>/
+# Each level lands in <output_base_dir>/<batch_name>/target_users-<value>/
 output_base_dir: locust_results
 
 # Applied to every level, before the sweep values below override it
@@ -25,7 +25,7 @@ base_config:
   model: "meta/llama-3.3-70b-instruct"
 
   # Load test parameters
-  users: 1                 # Overridden by the sweep below
+  target_users: 1          # Overridden by the sweep below
   spawn_rate: 16           # Users spawned per second
   run_time: 120            # Measured seconds per level, excluding the ramp
 
@@ -38,4 +38,4 @@ base_config:
 # Parameter sweeps. Each parameter can have multiple values.
 # Sweeping more than one parameter runs all combinations (Cartesian product).
 sweeps:
-  users: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+  target_users: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]

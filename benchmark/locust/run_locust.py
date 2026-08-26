@@ -120,7 +120,7 @@ class LocustRunner:
     @property
     def ramp_seconds(self) -> int:
         """Seconds Locust spends spawning users before the measured window starts."""
-        return math.ceil(self.config.users / self.config.spawn_rate)
+        return math.ceil(self.config.target_users / self.config.spawn_rate)
 
     @property
     def total_run_seconds(self) -> int:
@@ -140,7 +140,7 @@ class LocustRunner:
         cmd.extend(["--host", self.config.host])
 
         # User and spawn rate
-        cmd.extend(["--users", str(self.config.users)])
+        cmd.extend(["--users", str(self.config.target_users)])
         cmd.extend(["--spawn-rate", str(self.config.spawn_rate)])
         cmd.extend(["--run-time", f"{self.total_run_seconds}s"])
 

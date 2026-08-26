@@ -152,7 +152,7 @@ base_config:
   run_time: 120
 
 sweeps:
-  users: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+  target_users: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 ```
 
 Sweeping more than one parameter runs every combination. Any `base_config`
@@ -216,16 +216,16 @@ following fields are supported:
 ### Optional Fields
 
 - `host`: Server base URL (default: `http://localhost:8000`)
-- `users`: Target concurrent users to ramp to and then hold (default: `256`, minimum: `1`)
+- `target_users`: Concurrency to ramp to and then hold (default: `256`, minimum: `1`). Also accepted as `users`, the name used before sweeps existed.
 - `spawn_rate`: Users spawned per second while ramping (default: `10`, minimum: `0.1`)
 - `run_time`: Measured seconds at the target, excluding the ramp (default: `60`, minimum: `1`)
 - `message`: Message content to send (default: `"Hello, what can you do?"`)
 - `headless`: Run without web UI (default: `true`)
 - `output_base_dir`: Directory for test results (default: `"locust_results"`)
 
-Together these describe one level: users ramp from 0 to `users` at `spawn_rate`
-per second, taking `ceil(users / spawn_rate)` seconds, and the test then runs
-for `run_time` seconds with `users` active. Locust is asked for the sum of the
+Together these describe one level: users ramp from 0 to `target_users` at
+`spawn_rate` per second, taking `ceil(target_users / spawn_rate)` seconds, and
+the test then runs for `run_time` seconds with `target_users` active. Locust is asked for the sum of the
 two, and `--reset-stats` discards everything gathered during the ramp, so the
 reported numbers cover only the held portion.
 
@@ -281,14 +281,14 @@ so a level can be found again and resumed:
 ```text
 locust_results/
 └── sweep_concurrency/
-    ├── users-1/
+    ├── target_users-1/
     │   ├── report.html
     │   ├── run_metadata.json    # includes the level's Locust exit code
     │   ├── stats_stats.csv
     │   ├── stats_stats_history.csv
     │   ├── stats_failures.csv
     │   └── stats_exceptions.csv
-    ├── users-2/
+    ├── target_users-2/
     └── ...
 ```
 

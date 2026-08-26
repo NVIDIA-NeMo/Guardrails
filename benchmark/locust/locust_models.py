@@ -22,13 +22,13 @@ import re
 from itertools import product
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class LocustConfig(BaseModel):
     """Configuration for a Locust load-test run"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     # Server details
     host: str = Field(
@@ -39,9 +39,10 @@ class LocustConfig(BaseModel):
     model: str = Field(..., description="Model name to use in requests")
 
     # Load test parameters
-    users: int = Field(
+    target_users: int = Field(
         default=256,
         ge=1,
+        validation_alias=AliasChoices("target_users", "users"),
         description="Target number of concurrent users to ramp to and then hold",
     )
     spawn_rate: float = Field(
@@ -87,6 +88,9 @@ BATCH_KEYS = ("batch_name", "output_base_dir", "sweeps")
 
 SweepValue = Union[int, float, str]
 
+# Accepted config spellings that are not the field name itself.
+FIELD_ALIASES = {"users": "target_users"}
+
 # Anything outside this set is replaced when a swept value becomes a directory name.
 UNSAFE_LABEL_CHARS = re.compile(r"[^A-Za-z0-9._-]")
 
@@ -120,7 +124,7 @@ class LocustSweepConfig(BaseModel):
           config_id: content_safety_local
           model: meta/llama-3.3-70b-instruct
         sweeps:
-          users: [1, 2, 4]
+          target_users: [1, 2, 4]
 
     It also accepts a flat single-run config, which is the format that
     predates sweeps, so existing configuration files keep working::
@@ -172,6 +176,8 @@ class LocustSweepConfig(BaseModel):
 
         if not self.sweeps:
             return self
+
+        self.sweeps = {FIELD_ALIASES.get(key, key): values for key, values in self.sweeps.items()}
 
         unknown = sorted(set(self.sweeps) - set(LocustConfig.model_fields))
         if unknown:

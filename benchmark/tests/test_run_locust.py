@@ -60,7 +60,7 @@ def create_config_data(tmp_path):
             "host": host,
             "config_id": config_id,
             "model": model,
-            "users": users,
+            "target_users": users,
             "spawn_rate": spawn_rate,
             "run_time": run_time,
             "message": message,
@@ -357,7 +357,7 @@ class TestLocustRunner:
 
     def test_ramp_seconds_rounds_up(self, runner):
         """A partial ramp second still has to elapse before the plateau starts."""
-        runner.config.users = 10
+        runner.config.target_users = 10
         runner.config.spawn_rate = 3
 
         assert runner.ramp_seconds == 4
@@ -530,7 +530,7 @@ class TestLocustSweepRunner:
                 "run_time": 10,
                 "headless": True,
             },
-            sweeps={"users": [1, 2, 4]},
+            sweeps={"target_users": [1, 2, 4]},
         )
 
     @pytest.fixture
@@ -555,7 +555,7 @@ class TestLocustSweepRunner:
             sweep_runner.run(dry_run=False)
 
         names = sorted(path.name for path in sweep_runner.batch_path.iterdir())
-        assert names == ["users-1", "users-2", "users-4"]
+        assert names == ["target_users-1", "target_users-2", "target_users-4"]
 
     def test_request_failures_do_not_stop_the_sweep(self, sweep_runner):
         """A level past saturation exits non-zero; later levels still run."""
@@ -578,7 +578,7 @@ class TestLocustSweepRunner:
             path.name: json.loads((path / "run_metadata.json").read_text())["exit_code"]
             for path in sweep_runner.batch_path.iterdir()
         }
-        assert recorded == {"users-1": 0, "users-2": 1, "users-4": 0}
+        assert recorded == {"target_users-1": 0, "target_users-2": 1, "target_users-4": 0}
 
     def test_health_check_runs_once_for_the_batch(self, sweep_runner):
         """The server is checked once, not once per level."""
@@ -610,7 +610,7 @@ class TestLocustSweepRunner:
 
     def test_resume_reruns_an_interrupted_level(self, sweep_runner):
         """Metadata without an exit code means the level never finished."""
-        interrupted = sweep_runner.batch_path / "users-2"
+        interrupted = sweep_runner.batch_path / "target_users-2"
         interrupted.mkdir(parents=True)
         (interrupted / "run_metadata.json").write_text(json.dumps({"exit_code": None}))
 
