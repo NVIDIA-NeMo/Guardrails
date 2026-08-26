@@ -12,14 +12,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - *(server)* Add `/v1/health` and `/healthz` health-check endpoints ([#2169](https://github.com/NVIDIA-NeMo/Guardrails/issues/2169))
 - *(actions)* Add the engine-neutral `RailOutcome` allow, block, and transform contract ([#2150](https://github.com/NVIDIA-NeMo/Guardrails/issues/2150))
 - *(iorails)* Add message checks ([#2059](https://github.com/NVIDIA-NeMo/Guardrails/issues/2059))
+- *(iorails)* Support model-level `default_headers` and  `default_query` fields for inference requests ([#2296](https://github.com/NVIDIA-NeMo/Guardrails/issues/2296), [#2220](https://github.com/NVIDIA-NeMo/Guardrails/issues/2220))
 - *(self-check)* Run multiple self-check rails with per-rail namespaced task prompts ([#1874](https://github.com/NVIDIA-NeMo/Guardrails/issues/1874), [#2175](https://github.com/NVIDIA-NeMo/Guardrails/issues/2175))
 - *(rails)* Add the typed rail manifest contract ([#2157](https://github.com/NVIDIA-NeMo/Guardrails/issues/2157))
-- *(iorails)* [**breaking**] Return `GenerationResponse` from non-streaming `generate()` and `generate_async()` calls when options are supplied; pass message lists with `messages=` instead of positionally ([#2178](https://github.com/NVIDIA-NeMo/Guardrails/issues/2178))
+- *(iorails)* [**breaking**] Return `GenerationResponse` when `GenerationOptions` are provided for non-streaming inference. Pass message lists with `messages=` instead of positionally ([#2178](https://github.com/NVIDIA-NeMo/Guardrails/issues/2178))
+- *(iorails)* Add support for all actions without Colang runtime dependency ([#2241](https://github.com/NVIDIA-NeMo/Guardrails/issues/2241), [#2246](https://github.com/NVIDIA-NeMo/Guardrails/issues/2246), [#2253](https://github.com/NVIDIA-NeMo/Guardrails/issues/2253), [#2261](https://github.com/NVIDIA-NeMo/Guardrails/issues/2261), [#2264](https://github.com/NVIDIA-NeMo/Guardrails/issues/2264), [#2288](https://github.com/NVIDIA-NeMo/Guardrails/issues/2288))
 - *(http)* Add the canonical outbound HTTP client and request lifecycle ([#2209](https://github.com/NVIDIA-NeMo/Guardrails/issues/2209), [#2210](https://github.com/NVIDIA-NeMo/Guardrails/issues/2210))
 - *(llm)* Add shared model telemetry and an instrumented model decorator ([#2214](https://github.com/NVIDIA-NeMo/Guardrails/issues/2214))
 - *(http)* Add outbound client tracing and metrics ([#2219](https://github.com/NVIDIA-NeMo/Guardrails/issues/2219))
-- *(iorails)* Execute blocking rail outcomes directly ([#2264](https://github.com/NVIDIA-NeMo/Guardrails/issues/2264))
-- *(iorails)* Apply transforming rail outcomes to input and output content ([#2288](https://github.com/NVIDIA-NeMo/Guardrails/issues/2288))
 - *(server)* Add output-rail checking mode to `/v1/checks` ([#2205](https://github.com/NVIDIA-NeMo/Guardrails/issues/2205))
 
 ### 🐛 Bug Fixes
@@ -29,7 +29,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - *(library)* [**breaking**] Make bundled manifest flows portable across Colang versions; custom Colang 1 flows using legacy space-separated Cleanlab, Fiddler, or GCP action names must switch to snake_case names ([#2185](https://github.com/NVIDIA-NeMo/Guardrails/issues/2185))
 - *(actions)* Make `RailDecision` JSON serializable ([#2194](https://github.com/NVIDIA-NeMo/Guardrails/issues/2194))
 - *(iorails)* Preserve normalized usage and provider metadata in `include_metadata=True` streams ([#2198](https://github.com/NVIDIA-NeMo/Guardrails/issues/2198))
-- *(iorails)* Honor model-level `default_headers` in non-streaming and streaming HTTP requests ([#2220](https://github.com/NVIDIA-NeMo/Guardrails/issues/2220))
 - *(server)* [**breaking**] Remove inline configuration from `/v1/checks`; select a server-loaded configuration with `config_id` or use the server default ([#2228](https://github.com/NVIDIA-NeMo/Guardrails/issues/2228))
 - *(server)* Return OpenAI-compatible HTTP error envelopes while preserving provider status, code, parameter, and retry metadata ([#1832](https://github.com/NVIDIA-NeMo/Guardrails/issues/1832))
 - *(server)* Return HTTP 400 for thread IDs without a datastore and preserve the configured main model API-key field during request model injection ([#2240](https://github.com/NVIDIA-NeMo/Guardrails/issues/2240))
@@ -38,7 +37,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - *(llm)* Preserve streaming usage on terminal chunks ([#2295](https://github.com/NVIDIA-NeMo/Guardrails/issues/2295))
 - *(content-safety)* Surface response parsing errors instead of silently allowing malformed results ([#2294](https://github.com/NVIDIA-NeMo/Guardrails/issues/2294))
 - *(checks)* Reject unsatisfiable `rail_types` with HTTP 422 instead of silently passing ([#2276](https://github.com/NVIDIA-NeMo/Guardrails/issues/2276))
-- *(iorails)* Propagate `default_query` parameters in model HTTP requests ([#2296](https://github.com/NVIDIA-NeMo/Guardrails/issues/2296))
 - *(server)* Preserve configured main model fields when a request specifies a model ([#2298](https://github.com/NVIDIA-NeMo/Guardrails/issues/2298))
 - *(telemetry)* Derive built-in feature reporting from rail manifests ([#2301](https://github.com/NVIDIA-NeMo/Guardrails/issues/2301))
 - *(iorails)* Map provider, timeout, connection, response, and streaming failures to safe client errors while preserving HTTP status and retry metadata ([#2306](https://github.com/NVIDIA-NeMo/Guardrails/issues/2306))
@@ -63,7 +61,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - *(actions)* Resolve manifest actions lazily ([#2186](https://github.com/NVIDIA-NeMo/Guardrails/issues/2186))
 - *(library)* Decouple Llama Guard and Patronus Lynx model injection ([#2236](https://github.com/NVIDIA-NeMo/Guardrails/issues/2236))
 - *(http)* Migrate built-in integration request helpers and vendor actions to the canonical managed HTTP client lifecycle ([#2211](https://github.com/NVIDIA-NeMo/Guardrails/issues/2211), [#2212](https://github.com/NVIDIA-NeMo/Guardrails/issues/2212))
-- *(iorails)* Migrate IORails to manifest-compiled `RailOutcome` actions with shared model and HTTP dependencies ([#2241](https://github.com/NVIDIA-NeMo/Guardrails/issues/2241), [#2246](https://github.com/NVIDIA-NeMo/Guardrails/issues/2246), [#2253](https://github.com/NVIDIA-NeMo/Guardrails/issues/2253), [#2261](https://github.com/NVIDIA-NeMo/Guardrails/issues/2261), [#2286](https://github.com/NVIDIA-NeMo/Guardrails/issues/2286))
+- *(iorails)* Migrate IORails to manifest-compiled `RailOutcome` actions with shared model and HTTP dependencies ([#2286](https://github.com/NVIDIA-NeMo/Guardrails/issues/2286))
 - *(rails)* Make shared action dependencies explicit ([#2293](https://github.com/NVIDIA-NeMo/Guardrails/issues/2293))
 
 ### 📚 Documentation
