@@ -42,17 +42,17 @@ class LocustConfig(BaseModel):
     users: int = Field(
         default=256,
         ge=1,
-        description="Maximum number of concurrent users",
+        description="Target number of concurrent users to ramp to and then hold",
     )
     spawn_rate: float = Field(
         default=10,
         ge=0.1,
-        description="Rate at which users are spawned (users/second)",
+        description="Rate at which users are spawned while ramping to `users` (users/second)",
     )
     run_time: int = Field(
         default=60,
         ge=1,
-        description="Test duration in seconds",
+        description="Measured duration in seconds, held at `users` after the ramp completes",
     )
 
     # Request configuration

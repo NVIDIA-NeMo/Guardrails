@@ -216,20 +216,22 @@ following fields are supported:
 ### Optional Fields
 
 - `host`: Server base URL (default: `http://localhost:8000`)
-- `users`: Maximum concurrent users (default: `256`, minimum: `1`)
-- `spawn_rate`: Users spawned per second (default: `10`, minimum: `0.1`)
-- `run_time`: Test duration in seconds (default: `60`, minimum: `1`)
+- `users`: Target concurrent users to ramp to and then hold (default: `256`, minimum: `1`)
+- `spawn_rate`: Users spawned per second while ramping (default: `10`, minimum: `0.1`)
+- `run_time`: Measured seconds at the target, excluding the ramp (default: `60`, minimum: `1`)
 - `message`: Message content to send (default: `"Hello, what can you do?"`)
 - `headless`: Run without web UI (default: `true`)
 - `output_base_dir`: Directory for test results (default: `"locust_results"`)
 
+Together these describe one level: users ramp from 0 to `users` at `spawn_rate`
+per second, taking `ceil(users / spawn_rate)` seconds, and the test then runs
+for `run_time` seconds with `users` active. Locust is asked for the sum of the
+two, and `--reset-stats` discards everything gathered during the ramp, so the
+reported numbers cover only the held portion.
+
 `host` defaults to port `8000`, which in the quickstart stack is the mock
 application LLM rather than Guardrails, so set it explicitly to the server you
 intend to benchmark.
-
-Note that `run_time` is the measured duration. The ramp implied by `users` and
-`spawn_rate` is added on top of it, so raising concurrency does not shorten the
-measurement.
 
 ### Batch Fields
 

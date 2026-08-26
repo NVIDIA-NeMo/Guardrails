@@ -676,6 +676,19 @@ class TestLocustSweepRunner:
 
             assert mock_run.call_count == 0
 
+    def test_estimate_sums_ramp_and_measured_for_every_level(self, sweep_runner):
+        """The up-front estimate is what tells someone whether to start the run."""
+        levels = sweep_runner.config.expand()
+
+        # 1, 2 and 4 users at spawn_rate 4 each ramp 1s, then 10s measured.
+        assert sweep_runner.estimated_seconds(levels) == 3 * (1 + 10)
+
+    def test_estimate_switches_to_hours_when_long(self, sweep_runner):
+        """A multi-hour ladder should not be reported as "240 minutes"."""
+        assert sweep_runner._format_duration(30 * 60) == "30 minutes"
+        assert sweep_runner._format_duration(89 * 60) == "89 minutes"
+        assert sweep_runner._format_duration(240 * 60) == "4.0 hours"
+
     def test_dry_run_executes_nothing(self, sweep_runner):
         """Dry-run prints each level's command without running or checking the service."""
         with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:

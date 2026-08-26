@@ -326,6 +326,22 @@ class LocustSweepRunner:
         return True
 
     @staticmethod
+    def estimated_seconds(levels: list[tuple[str, LocustConfig]]) -> int:
+        """Wall-clock estimate for a batch: every level's ramp plus its measured window.
+
+        Excludes process start-up per level, so a real run takes slightly longer.
+        """
+        return sum(LocustRunner(config).total_run_seconds for _, config in levels)
+
+    @staticmethod
+    def _format_duration(seconds: int) -> str:
+        """Render an estimate in the units a reader wants: minutes, or hours once it is long."""
+        minutes = seconds / 60
+        if minutes < 90:
+            return f"{minutes:.0f} minutes"
+        return f"{minutes / 60:.1f} hours"
+
+    @staticmethod
     def _hosts_to_check(levels: list[tuple[str, LocustConfig]]) -> list[LocustConfig]:
         """One config per distinct host in the batch, in the order levels run."""
         seen: dict[str, LocustConfig] = {}
@@ -341,7 +357,12 @@ class LocustSweepRunner:
         that level's metadata instead.
         """
         levels = self.config.expand()
-        log.info("Sweep %s: %i levels", self.config.batch_name, len(levels))
+        log.info(
+            "Sweep %s: %i levels, about %s in total",
+            self.config.batch_name,
+            len(levels),
+            self._format_duration(self.estimated_seconds(levels)),
+        )
 
         if dry_run:
             for label, level_config in levels:
@@ -367,8 +388,17 @@ class LocustSweepRunner:
                 log.info("Level %i/%i (%s) already complete, keeping it", index, len(levels), label)
                 continue
 
-            log.info("Level %i/%i: %s", index, len(levels), label)
-            exit_codes[label] = LocustRunner(level_config).run_level(level_path)
+            runner = LocustRunner(level_config)
+            log.info(
+                "Level %i/%i: %s — %is ramp then %is measured, about %s remaining after it",
+                index,
+                len(levels),
+                label,
+                runner.ramp_seconds,
+                level_config.run_time,
+                self._format_duration(self.estimated_seconds(levels[index:])),
+            )
+            exit_codes[label] = runner.run_level(level_path)
 
         failed = sorted(label for label, code in exit_codes.items() if code != 0)
         if failed:
