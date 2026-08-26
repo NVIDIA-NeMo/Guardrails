@@ -1,0 +1,41 @@
+# Concurrency sweep against the local mock stack from benchmark/Procfile.
+#
+# Each level is an independent Locust run at a fixed number of users, so the
+# results show how the server degrades as concurrency rises rather than a
+# single point. Run it from the repository root with:
+#
+#   uv run python -m benchmark.locust benchmark/locust/configs/sweep_concurrency.yaml
+#
+# A level whose requests failed records its exit code and the sweep continues;
+# use --resume to skip levels that already completed.
+
+# Name for this batch of runs (becomes a directory under output_base_dir)
+batch_name: sweep_concurrency
+
+# Base directory where all results are stored.
+# Each level lands in <output_base_dir>/<batch_name>/target_users-<value>/
+output_base_dir: locust_results
+
+# Applied to every level, before the sweep values below override it
+base_config:
+  # Server details. Port 9000 is the Guardrails server; port 8000 would be the
+  # mock application LLM, which ignores the config_id the load test sends.
+  host: "http://localhost:9000"
+  config_id: "content_safety_local"
+  model: "meta/llama-3.3-70b-instruct"
+
+  # Load test parameters
+  target_users: 1          # Overridden by the sweep below
+  spawn_rate: 16           # Users spawned per second
+  run_time: 120            # Measured seconds per level, excluding the ramp
+
+  # Request configuration
+  message: "Hello, what can you do?"
+
+  # Run without the web UI so levels run back to back
+  headless: true
+
+# Parameter sweeps. Each parameter can have multiple values.
+# Sweeping more than one parameter runs all combinations (Cartesian product).
+sweeps:
+  target_users: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]

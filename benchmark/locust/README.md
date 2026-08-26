@@ -127,6 +127,68 @@ while measuring the mock instead of the guardrails you meant to benchmark.
 Note also that [`configs/local.yaml`](configs/local.yaml) ramps to 1024 users
 over 120 seconds. Run the single-user smoke test above before using it.
 
+### Concurrency sweeps
+
+A single run measures one concurrency level. To see how the server degrades as
+load rises, sweep over a list of user counts. Each level is an independent
+Locust run:
+
+```bash
+uv run python -m benchmark.locust benchmark/locust/configs/sweep_concurrency.yaml
+```
+
+[`configs/sweep_concurrency.yaml`](configs/sweep_concurrency.yaml) uses the
+batch form, which mirrors [the AIPerf runner](../aiperf/configs):
+
+```yaml
+batch_name: sweep_concurrency
+output_base_dir: locust_results
+
+base_config:
+  host: "http://localhost:9000"
+  config_id: content_safety_local
+  model: meta/llama-3.3-70b-instruct
+  spawn_rate: 16
+  run_time: 120
+
+sweeps:
+  target_users: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+```
+
+Sweeping more than one parameter runs every combination. Any `base_config`
+field can be swept.
+
+Three things make the levels comparable:
+
+- **The ramp is excluded from the measurement.** `run_time` is the measured
+  window, and the time spent spawning users is added on top of it. At 512 users
+  and a spawn rate of 16/s Locust is asked for 152 seconds so that 120 of them
+  are at full concurrency. Statistics gathered during the ramp are discarded.
+- **Each level keeps its time series**, so a level that never reached a plateau
+  can be told apart from one that did.
+- **A level with failed requests does not stop the sweep.** Its exit code is
+  recorded in that level's `run_metadata.json` and the next level starts. The
+  CLI exits non-zero only when the benchmark could not run at all, such as a
+  failed health check.
+
+The ladder above takes about 25 minutes: eleven levels of 120 measured seconds
+plus roughly 130 seconds of ramps. A longer `run_time` or more levels scales
+that up accordingly.
+
+Re-running a batch writes into the same level directories, overwriting the
+previous results in place. This is what makes `--resume` possible, but it also
+means a level from an earlier, longer ladder is left behind rather than
+cleared. Use a different `batch_name` to keep two batches side by side.
+
+Use `--resume` to skip levels that already hold a completed result:
+
+```bash
+uv run python -m benchmark.locust benchmark/locust/configs/sweep_concurrency.yaml --resume
+```
+
+A level counts as complete only once its exit code has been recorded, so an
+interrupted level is re-run rather than kept.
+
 ### CLI Options
 
 ```bash
@@ -139,6 +201,7 @@ uv run python -m benchmark.locust [OPTIONS] CONFIG_FILE
 **Options:**
 - `--dry-run`: Print commands without executing them
 - `--verbose`: Enable verbose logging and debugging information
+- `--resume`: Skip sweep levels that already hold a completed result
 
 ## Configuration Options
 
@@ -153,16 +216,32 @@ following fields are supported:
 ### Optional Fields
 
 - `host`: Server base URL (default: `http://localhost:8000`)
-- `users`: Maximum concurrent users (default: `256`, minimum: `1`)
-- `spawn_rate`: Users spawned per second (default: `10`, minimum: `0.1`)
-- `run_time`: Test duration in seconds (default: `60`, minimum: `1`)
+- `target_users`: Concurrency to ramp to and then hold (default: `256`, minimum: `1`). Also accepted as `users`, the name used before sweeps existed.
+- `spawn_rate`: Users spawned per second while ramping (default: `10`, minimum: `0.1`)
+- `run_time`: Measured seconds at the target, excluding the ramp (default: `60`, minimum: `1`)
 - `message`: Message content to send (default: `"Hello, what can you do?"`)
 - `headless`: Run without web UI (default: `true`)
 - `output_base_dir`: Directory for test results (default: `"locust_results"`)
 
+Together these describe one level: users ramp from 0 to `target_users` at
+`spawn_rate` per second, taking `ceil(target_users / spawn_rate)` seconds, and
+the test then runs for `run_time` seconds with `target_users` active. Locust is asked for the sum of the
+two, and `--reset-stats` discards everything gathered during the ramp, so the
+reported numbers cover only the held portion.
+
 `host` defaults to port `8000`, which in the quickstart stack is the mock
 application LLM rather than Guardrails, so set it explicitly to the server you
 intend to benchmark.
+
+### Batch Fields
+
+These fields describe a batch of runs rather than a single one. A config file
+that omits them is read as a single run, so existing config files keep working.
+
+- `batch_name`: Directory name for this batch of runs (default: `"benchmark"`)
+- `output_base_dir`: Base directory for batch results (default: taken from the run config)
+- `base_config`: The run configuration applied to every level
+- `sweeps`: Mapping of a `base_config` field to the list of values to run
 
 ## Load Test Behavior
 
@@ -194,6 +273,23 @@ locust_results/
     ├── stats_stats_history.csv   # Statistics over time
     ├── stats_failures.csv        # Failure statistics
     └── stats_exceptions.csv      # Exceptions raised during the run
+```
+
+A sweep instead writes one directory per level, named after the swept value,
+so a level can be found again and resumed:
+
+```text
+locust_results/
+└── sweep_concurrency/
+    ├── target_users-1/
+    │   ├── report.html
+    │   ├── run_metadata.json    # includes the level's Locust exit code
+    │   ├── stats_stats.csv
+    │   ├── stats_stats_history.csv
+    │   ├── stats_failures.csv
+    │   └── stats_exceptions.csv
+    ├── target_users-2/
+    └── ...
 ```
 
 ### Web UI Mode

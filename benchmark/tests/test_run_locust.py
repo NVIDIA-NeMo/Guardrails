@@ -30,8 +30,13 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from benchmark.locust.locust_models import LocustConfig
-from benchmark.locust.run_locust import LocustRunner, _load_config_from_yaml, app
+from benchmark.locust.locust_models import LocustConfig, LocustSweepConfig
+from benchmark.locust.run_locust import (
+    LocustRunner,
+    LocustSweepRunner,
+    _load_config_from_yaml,
+    app,
+)
 
 
 @pytest.fixture
@@ -55,7 +60,7 @@ def create_config_data(tmp_path):
             "host": host,
             "config_id": config_id,
             "model": model,
-            "users": users,
+            "target_users": users,
             "spawn_rate": spawn_rate,
             "run_time": run_time,
             "message": message,
@@ -232,6 +237,22 @@ class TestLocustRunner:
                 == f"Error: response {mock_response.text} couldn't be parsed as JSON: {json_error}"
             )
 
+    def test_check_service_other_transport_error(self, runner):
+        """A transport failure other than connect or timeout is still a controlled error."""
+        with patch("httpx.get") as mock_get:
+            mock_get.side_effect = httpx.ReadError("connection reset")
+
+            with pytest.raises(RuntimeError, match="HTTP error accessing"):
+                runner._check_service()
+
+    def test_check_service_invalid_url(self, runner):
+        """InvalidURL does not derive from HTTPError, so it needs naming explicitly."""
+        with patch("httpx.get") as mock_get:
+            mock_get.side_effect = httpx.InvalidURL("Invalid port: 'b:c'")
+
+            with pytest.raises(RuntimeError, match="HTTP error accessing"):
+                runner._check_service()
+
     def _v1_health_endpoint(self, runner: LocustRunner):
         """The Guardrails server's health endpoint"""
         return f"{runner.config.host}/v1/health"
@@ -330,7 +351,24 @@ class TestLocustRunner:
         assert cmd[0] == "locust"
 
         cmd_string = " ".join(cmd)
-        assert "--host http://localhost:8000 --users 10 --spawn-rate 2.0 --run-time 30s --headless" in cmd_string
+        # 10 users at 2/s ramps for 5s, added on top of the 30s measured window.
+        assert (
+            "--host http://localhost:8000 --users 10 --spawn-rate 2.0 --run-time 35s --reset-stats --headless"
+            in cmd_string
+        )
+
+    def test_ramp_is_added_to_the_measured_window(self, runner):
+        """run_time is the measured duration; the ramp does not eat into it."""
+        assert runner.ramp_seconds == 5
+        assert runner.config.run_time == 30
+        assert runner.total_run_seconds == 35
+
+    def test_ramp_seconds_rounds_up(self, runner):
+        """A partial ramp second still has to elapse before the plateau starts."""
+        runner.config.target_users = 10
+        runner.config.spawn_rate = 3
+
+        assert runner.ramp_seconds == 4
 
     def test_build_locust_command_headless(self, runner, tmp_path):
         """Test building Locust command in headless mode."""
@@ -344,6 +382,7 @@ class TestLocustRunner:
         assert "--only-summary" in cmd
         assert "--html" in cmd
         assert "--csv" in cmd
+        assert "--csv-full-history" in cmd
 
     def test_build_locust_command_non_headless(self, runner):
         """Test building Locust command in web UI mode (non-headless)."""
@@ -355,6 +394,7 @@ class TestLocustRunner:
         assert "--only-summary" not in cmd
         assert "--html" not in cmd
         assert "--csv" not in cmd
+        assert "--csv-full-history" not in cmd
 
     def test_save_run_metadata(self, runner, tmp_path):
         """Test saving run metadata to file."""
@@ -481,6 +521,236 @@ class TestLocustRunner:
             mock_run.assert_not_called()
 
 
+class TestLocustSweepRunner:
+    """Test running a sweep of concurrency levels."""
+
+    @pytest.fixture
+    def sweep_config(self, tmp_path):
+        """A three-level concurrency sweep writing under tmp_path."""
+        return LocustSweepConfig(
+            batch_name="sweep",
+            output_base_dir=str(tmp_path / "results"),
+            base_config={
+                "host": "http://localhost:9000",
+                "config_id": "test-config",
+                "model": "test-model",
+                "spawn_rate": 4,
+                "run_time": 10,
+                "headless": True,
+            },
+            sweeps={"target_users": [1, 2, 4]},
+        )
+
+    @pytest.fixture
+    def sweep_runner(self, sweep_config):
+        return LocustSweepRunner(sweep_config)
+
+    def test_runs_every_level_in_order(self, sweep_runner):
+        """Each swept value becomes its own Locust invocation."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+
+            assert sweep_runner.run(dry_run=False) == 0
+            assert mock_run.call_count == 3
+
+            users = [command[command.index("--users") + 1] for (command,) in (c[0] for c in mock_run.call_args_list)]
+            assert users == ["1", "2", "4"]
+
+    def test_level_directories_are_named_by_swept_value(self, sweep_runner):
+        """Level directories are deterministic, which is what makes resume possible."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+
+        names = sorted(path.name for path in sweep_runner.batch_path.iterdir())
+        assert names == ["target_users-1", "target_users-2", "target_users-4"]
+
+    def test_request_failures_do_not_stop_the_sweep(self, sweep_runner):
+        """A level past saturation exits non-zero; later levels still run."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            # The middle level fails, as an overloaded server would.
+            mock_run.side_effect = [Mock(returncode=0), Mock(returncode=1), Mock(returncode=0)]
+
+            exit_code = sweep_runner.run(dry_run=False)
+
+            assert exit_code == 0, "request failures are a result, not a runner error"
+            assert mock_run.call_count == 3
+
+    def test_exit_code_is_recorded_per_level(self, sweep_runner):
+        """Each level's Locust exit code survives in its metadata."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [Mock(returncode=0), Mock(returncode=1), Mock(returncode=0)]
+            sweep_runner.run(dry_run=False)
+
+        recorded = {
+            path.name: json.loads((path / "run_metadata.json").read_text())["exit_code"]
+            for path in sweep_runner.batch_path.iterdir()
+        }
+        assert recorded == {"target_users-1": 0, "target_users-2": 1, "target_users-4": 0}
+
+    def test_health_check_runs_once_for_the_batch(self, sweep_runner):
+        """The server is checked once, not once per level."""
+        with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+
+            mock_check.assert_called_once()
+
+    def test_failed_health_check_stops_the_sweep(self, sweep_runner):
+        """A sweep that cannot reach the server did not run, so it exits non-zero."""
+        with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
+            mock_check.side_effect = RuntimeError("Service unavailable")
+
+            assert sweep_runner.run(dry_run=False) == 1
+            mock_run.assert_not_called()
+
+    def test_resume_skips_completed_levels(self, sweep_runner):
+        """A completed level is kept rather than re-run."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+            assert mock_run.call_count == 3
+
+            mock_run.reset_mock()
+            sweep_runner.run(dry_run=False, resume=True)
+
+            assert mock_run.call_count == 0
+
+    def test_resume_reruns_an_interrupted_level(self, sweep_runner):
+        """Metadata without an exit code means the level never finished."""
+        interrupted = sweep_runner.batch_path / "target_users-2"
+        interrupted.mkdir(parents=True)
+        (interrupted / "run_metadata.json").write_text(json.dumps({"exit_code": None}))
+
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False, resume=True)
+
+            assert mock_run.call_count == 3
+
+    def test_is_complete_rejects_unreadable_metadata(self, sweep_runner, tmp_path):
+        """Corrupt metadata is treated as incomplete rather than crashing the sweep."""
+        level = tmp_path / "level"
+        level.mkdir()
+        (level / "run_metadata.json").write_text("{not json")
+
+        assert sweep_runner.is_complete(level) is False
+
+    def test_every_swept_host_is_health_checked(self, tmp_path):
+        """Sweeping host targets several servers, and each must be reachable."""
+        config = LocustSweepConfig(
+            batch_name="hosts",
+            output_base_dir=str(tmp_path / "results"),
+            base_config={"config_id": "test-config", "model": "test-model"},
+            sweeps={"host": ["http://localhost:9000", "http://localhost:9001"]},
+        )
+
+        with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            LocustSweepRunner(config).run(dry_run=False)
+
+            assert mock_check.call_count == 2
+
+    def test_repeated_host_is_checked_once(self, sweep_runner):
+        """Levels sharing a host do not re-check it."""
+        with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+
+            mock_check.assert_called_once()
+
+    def test_resume_reruns_a_level_whose_config_changed(self, sweep_runner):
+        """A level is identified by its swept values, so unswept settings can drift."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+
+            # Change a setting that is not part of the level's identity.
+            sweep_runner.config.base_config.message = "a different prompt"
+
+            mock_run.reset_mock()
+            sweep_runner.run(dry_run=False, resume=True)
+
+            assert mock_run.call_count == 3, "stale results must not be kept under --resume"
+
+    def test_resume_keeps_levels_whose_config_is_unchanged(self, sweep_runner):
+        """The config check must not defeat resume for an unmodified batch."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+
+            mock_run.reset_mock()
+            sweep_runner.run(dry_run=False, resume=True)
+
+            assert mock_run.call_count == 0
+
+    def test_estimate_sums_ramp_and_measured_for_every_level(self, sweep_runner):
+        """The up-front estimate is what tells someone whether to start the run."""
+        levels = sweep_runner.config.expand()
+
+        # 1, 2 and 4 users at spawn_rate 4 each ramp 1s, then 10s measured.
+        assert sweep_runner.estimated_seconds(levels) == 3 * (1 + 10)
+
+    def test_estimate_switches_to_hours_when_long(self, sweep_runner):
+        """A multi-hour ladder should not be reported as "240 minutes"."""
+        assert sweep_runner._format_duration(60) == "1 minute"
+        assert sweep_runner._format_duration(90) == "2 minutes"
+        assert sweep_runner._format_duration(30 * 60) == "30 minutes"
+        assert sweep_runner._format_duration(89 * 60) == "89 minutes"
+        assert sweep_runner._format_duration(240 * 60) == "4.0 hours"
+
+    def test_resume_does_not_check_hosts_whose_levels_are_all_complete(self, tmp_path):
+        """A finished host going away must not block incomplete levels elsewhere."""
+        config = LocustSweepConfig(
+            batch_name="hosts",
+            output_base_dir=str(tmp_path / "results"),
+            base_config={"config_id": "test-config", "model": "test-model", "run_time": 5},
+            sweeps={"host": ["http://localhost:9000", "http://localhost:9001"]},
+        )
+        sweep = LocustSweepRunner(config)
+
+        # Complete only the first host's level.
+        done, pending = sorted(label for label, _ in config.expand())
+        done_path = sweep.batch_path / done
+        done_path.mkdir(parents=True)
+        completed = next(c for label, c in config.expand() if label == done)
+        (done_path / "run_metadata.json").write_text(
+            json.dumps({"exit_code": 0, "config": json.loads(completed.model_dump_json())})
+        )
+
+        checked = []
+        with (
+            patch.object(LocustRunner, "_check_service", autospec=True) as mock_check,
+            patch("subprocess.run") as mock_run,
+        ):
+            mock_check.side_effect = lambda self: checked.append(self.config.host)
+            mock_run.return_value = Mock(returncode=0)
+
+            assert sweep.run(dry_run=False, resume=True) == 0
+
+        assert len(checked) == 1, f"only the pending host should be checked, got {checked}"
+        assert mock_run.call_count == 1
+
+    def test_resume_with_everything_complete_runs_nothing(self, sweep_runner):
+        """A fully complete batch exits cleanly without probing the server."""
+        with patch.object(LocustRunner, "_check_service"), patch("subprocess.run") as mock_run:
+            mock_run.return_value = Mock(returncode=0)
+            sweep_runner.run(dry_run=False)
+
+        with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
+            assert sweep_runner.run(dry_run=False, resume=True) == 0
+            mock_check.assert_not_called()
+            mock_run.assert_not_called()
+
+    def test_dry_run_executes_nothing(self, sweep_runner):
+        """Dry-run prints each level's command without running or checking the service."""
+        with patch.object(LocustRunner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
+            assert sweep_runner.run(dry_run=True) == 0
+
+            mock_check.assert_not_called()
+            mock_run.assert_not_called()
+
+
 class TestLoadConfigFromYaml:
     """Test _load_config_from_yaml function."""
 
@@ -490,9 +760,10 @@ class TestLoadConfigFromYaml:
 
         config = _load_config_from_yaml(config_file)
 
-        assert isinstance(config, LocustConfig)
-        assert config.config_id == "test-config"
-        assert config.model == "test-model"
+        assert isinstance(config, LocustSweepConfig)
+        assert config.sweeps is None
+        assert config.base_config.config_id == "test-config"
+        assert config.base_config.model == "test-model"
 
     def test_load_config_file_not_found(self, tmp_path):
         """Test loading non-existent config file."""
