@@ -71,6 +71,10 @@ For a complete record of changes in a release, refer to the
   parameter. Pass message lists with the `messages=` keyword instead of as the
   first positional argument.
 
+- The `/v1/checks` endpoint no longer accepts inline configurations. Select a
+  server-loaded configuration with `config_id`, or omit `config_id` to use the
+  server default.
+
 - The Chat Completions endpoint now validates role-specific messages at the
   HTTP boundary. It rejects internal event messages, unexpected fields,
   unsupported audio requests, and invalid role or content combinations before
@@ -81,6 +85,11 @@ For a complete record of changes in a release, refer to the
   Fiddler, or GCP action names must use the corresponding snake_case action
   names. The packaged flows have already been updated for both Colang 1.0 and
   Colang 2.x.
+
+- The `hf-classifier` installation extra has been removed, and its packages are
+  no longer included in the `all` extra. Install `transformers` and `torch`
+  directly to use the local classifier backend. For more information, refer to
+  [HuggingFace Classifier Integration](/configure-guardrails/guardrail-catalog/third-party/hf-classifier).
 
 <a id="v0-24-0-enhancements"></a>
 ### Enhancements
