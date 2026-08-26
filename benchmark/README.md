@@ -190,11 +190,22 @@ The Mock LLM has the following OpenAI-compatible endpoints:
 Mock LLMs are configured using the `.env` file format. These files are passed to the Mock LLM using the `--config-file` argument.
 The Mock LLMs return either a `SAFE_TEXT` or `UNSAFE_TEXT` response to `/v1/completions` or `/v1/chat/completions` inference requests.
 The probability of the `UNSAFE_TEXT` being returned if given by `UNSAFE_PROBABILITY`.
-The latency of each response is also controllable, and works as follows:
+When streaming, the Mock LLM splits that response on whitespace and returns each element as a chunk, so the chunk count is the number of whitespace-separated words in `SAFE_TEXT` or `UNSAFE_TEXT`.
 
-* Latency is first sampled from a normal distribution with mean `LATENCY_MEAN_SECONDS` and standard deviation `LATENCY_STD_SECONDS`.
-* If the sampled value is less than `LATENCY_MIN_SECONDS`, it is set to `LATENCY_MIN_SECONDS`.
-* If the sampled value is greater than `LATENCY_MAX_SECONDS`, it is set to `LATENCY_MAX_SECONDS`.
+The latency of each inference request is sampled from a truncated normal distribution. There are three latencies:
+
+* `E2E_LATENCY`: end-to-end latency of a non-streaming response.
+* `TTFT`: [time to first token](https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html#time-to-first-token-ttft), the latency before the first chunk of a streaming response.
+* `CHUNK_LATENCY`: [inter-token latency](https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html#inter-token-latency-itl), the latency before each subsequent chunk of a streaming response.
+
+Each has the following parameters, where `*` is one of the latency names above:
+
+* `*_MEAN_SECONDS`: Normal distribution mean (or average) in seconds.
+* `*_STD_SECONDS`: Normal distribution standard deviation in seconds.
+* `*_MIN_SECONDS`: Minimum latency in seconds. Latencies must be non-negative (i.e. >= 0).
+* `*_MAX_SECONDS`: Maximum latency in seconds.
+
+A sampled value below `*_MIN_SECONDS` is set to `*_MIN_SECONDS`, and a value above `*_MAX_SECONDS` is set to `*_MAX_SECONDS`.
 
 The full list of configuration fields is shown below:
 
@@ -202,7 +213,6 @@ The full list of configuration fields is shown below:
 * `UNSAFE_PROBABILITY`: Probability of an unsafe response. This must be in the range [0, 1].
 * `UNSAFE_TEXT`: String returned as an unsafe response.
 * `SAFE_TEXT`: String returned as a safe response.
-* `LATENCY_MIN_SECONDS`: Minimum latency in seconds.
-* `LATENCY_MAX_SECONDS`: Maximum latency in seconds.
-* `LATENCY_MEAN_SECONDS`: Normal distribution mean from which to sample latency.
-* `LATENCY_STD_SECONDS`: Normal distribution standard deviation from which to sample latency.
+* `E2E_LATENCY_MEAN_SECONDS`, `E2E_LATENCY_STD_SECONDS`, `E2E_LATENCY_MIN_SECONDS`, `E2E_LATENCY_MAX_SECONDS`
+* `TTFT_MEAN_SECONDS`, `TTFT_STD_SECONDS`, `TTFT_MIN_SECONDS`, `TTFT_MAX_SECONDS`
+* `CHUNK_LATENCY_MEAN_SECONDS`, `CHUNK_LATENCY_STD_SECONDS`, `CHUNK_LATENCY_MIN_SECONDS`, `CHUNK_LATENCY_MAX_SECONDS`
