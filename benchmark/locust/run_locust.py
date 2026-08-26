@@ -341,7 +341,8 @@ class LocustSweepRunner:
         """Render an estimate in the units a reader wants: minutes, or hours once it is long."""
         minutes = seconds / 60
         if minutes < 90:
-            return f"{minutes:.0f} minutes"
+            rounded = round(minutes)
+            return f"{rounded} minute" if rounded == 1 else f"{rounded} minutes"
         return f"{minutes / 60:.1f} hours"
 
     @staticmethod

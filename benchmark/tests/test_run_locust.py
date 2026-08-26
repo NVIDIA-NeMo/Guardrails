@@ -693,6 +693,8 @@ class TestLocustSweepRunner:
 
     def test_estimate_switches_to_hours_when_long(self, sweep_runner):
         """A multi-hour ladder should not be reported as "240 minutes"."""
+        assert sweep_runner._format_duration(60) == "1 minute"
+        assert sweep_runner._format_duration(90) == "2 minutes"
         assert sweep_runner._format_duration(30 * 60) == "30 minutes"
         assert sweep_runner._format_duration(89 * 60) == "89 minutes"
         assert sweep_runner._format_duration(240 * 60) == "4.0 hours"
