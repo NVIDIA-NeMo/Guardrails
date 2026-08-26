@@ -9,209 +9,140 @@ content:
     type: "reference"
 ---
 
-The following sections summarize and highlight the changes for each release.
+The following sections summarize and highlight the changes for the current release.
 For a complete record of changes in a release, refer to the
 [CHANGELOG.md](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CHANGELOG.md) in the GitHub repository.
 
 ---
 
-<a id="v0-23-0"></a>
-## 0.23.0
+<a id="v0-24-0"></a>
+## 0.24.0
 
-<a id="v0-23-0-features"></a>
+<a id="v0-24-0-features"></a>
 ### Key Features
 
-- `IORails` adds tool-calling rails for OpenAI Chat Completions-style tool
-  traffic. The engine can validate model-emitted tool calls and application
-  tool results in streaming and non-streaming flows, without making extra LLM or
-  provider calls. For more information, refer to
-  [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) and
-  [Engine Feature Support](/reference/engine-feature-support).
+- Rail actions can use `RailOutcome` to return explicit allow, block, and
+  transform decisions. Built-in rails now use declarative rail manifests to
+  describe their configuration, actions, flows, supported surfaces,
+  dependencies, and privacy behavior. For more information, refer to
+  [Rail Outcomes](/configure-guardrails/actions/rail-outcomes) and
+  [Rail Manifests](/reference/rail-manifests).
 
-- The guardrail catalog adds Polygraf PII detection and masking integration.
-  You can configure Polygraf for input, output, and retrieval flows, including
-  fail-closed handling for provider failures or malformed entity spans. For more
-  information, refer to
-  [Polygraf Integration](/configure-guardrails/guardrail-catalog/third-party/polygraf).
+- `IORails` adds `check()` and `check_async()` for running input and output
+  rails without generating a model response. For non-streaming generation, it
+  returns a structured `GenerationResponse` when you pass `GenerationOptions`
+  or an options dictionary; when you omit generation options, it continues to
+  return a role-content message dictionary. For more information, refer to
+  [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages),
+  [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options),
+  and [Engine Feature Support](/reference/engine-feature-support).
 
-- The library adds lightweight Hugging Face classifier rails and a context bloat
-  detection rail. The classifier rails can run on input, output, or retrieval
-  text with local Transformers, vLLM, KServe, or FMS backends. The context bloat
-  rail detects padded, oversized, low-entropy, or repetitive user and retrieval
-  text before it can consume context budget.
+- `IORails` can run all built-in rail actions whose manifests do not require
+  Colang-specific context variables. For the complete per-rail compatibility
+  matrix, refer to [Rail Engine Support](/reference/rail-engine-support).
 
-- The Guardrails server adds `/v1/checks` for standalone guardrail validation.
-  The endpoint accepts stored or inline configurations, runs `check_async`, and
-  returns whether the messages passed, were modified, or were blocked, along
-  with the processed content and blocking rail when available.
+- OpenAI-compatible model configurations can set per-model custom headers and
+  query parameters with `parameters.default_headers` and
+  `parameters.default_query`. The settings apply to both `IORails` and
+  `LLMRails`. For more information, refer to
+  [Custom HTTP Headers](/configure-guardrails/yaml-schema/model-configuration#custom-http-headers)
+  and [Model-Level Query Parameters](/configure-guardrails/yaml-schema/model-configuration#model-level-query-parameters).
 
-- Observability adds opt-in OpenTelemetry content capture and richer LLM span
-  attributes. You can record request, response, rail, and model-call content
-  when tracing is enabled, and LLM spans now include request, response, and usage
-  attributes for both `LLMRails` and `IORails`. For more information, refer to
-  [Capturing Prompt and Response Content](/observability/tracing/content-capture)
-  and [Span Reference](/observability/tracing/span-reference).
+- You can configure multiple self-check input and output rails, each with its
+  own prompt and model selection. The rails run in configuration order and stop
+  when a rail blocks the content. For more information, refer to
+  [LLM Self-Check](/configure-guardrails/guardrail-catalog/self-check).
 
-<a id="v0-23-0-breaking-changes"></a>
+- Actions and built-in integrations can use a canonical asynchronous HTTP
+  boundary with shared client ownership, retries, metrics, tracing, and
+  deterministic testing support. For more information, refer to
+  [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http).
+
+- The Guardrails server adds `GET /v1/health` and `GET /healthz` liveness
+  endpoints. The `/v1/checks` endpoint can also validate assistant messages
+  against output rails without running generation. For more information, refer
+  to [Run the Guardrails Server](/run-guardrailed-inference/using-fastapi-server/run-guardrails-server)
+  and [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages).
+
+- The guardrail catalog adds an F5 AI Guardrails integration for scanning input
+  and output content. It supports configurable retry behavior and fail-open or
+  fail-closed handling for provider errors.
+
+<a id="v0-24-0-breaking-changes"></a>
 ### Breaking Changes
 
-- The NVIDIA NeMo Guardrails library now requires Pydantic `>=2.5,<3.0`.
-  Configuration schemas and validators use Pydantic 2 APIs. Update custom code
-  that imports, subclasses, or depends on Pydantic 1 behavior from the library's
-  configuration models before upgrading.
+- The `output_mapping` parameter and its implicit boolean and numeric mappings
+  have been removed from `@action`. Passing `output_mapping` now raises
+  `TypeError`. Return a `RailOutcome` from rail actions and inspect the outcome
+  explicitly in the consuming flow. For migration examples, refer to
+  [Rail Outcomes](/configure-guardrails/actions/rail-outcomes).
 
-<a id="v0-23-0-enhancements"></a>
+- When you pass `GenerationOptions` or an options dictionary to non-streaming
+  `IORails.generate()` or `IORails.generate_async()`, the methods return a
+  `GenerationResponse`. When you omit generation options, they continue to
+  return a role-content message dictionary. Their signatures now accept
+  `prompt` as the first parameter. Pass message lists with the `messages=`
+  keyword instead of as the first positional argument.
+
+- The `/v1/checks` endpoint no longer accepts inline configurations. Select a
+  server-loaded configuration with `config_id`, or omit `config_id` to use the
+  server default.
+
+- The Chat Completions endpoint now validates role-specific messages at the
+  HTTP boundary. It rejects internal event messages, unexpected fields,
+  unsupported audio requests, and invalid role or content combinations before
+  loading a configuration or dispatching an action. For more information,
+  refer to [Chat Completions](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model).
+
+- Custom Colang 1.0 flows that call the previous space-separated Cleanlab,
+  Fiddler, or GCP action names must use the corresponding snake_case action
+  names. The packaged flows have already been updated for both Colang 1.0 and
+  Colang 2.x.
+
+- The `hf-classifier` installation extra has been removed, and its packages are
+  no longer included in the `all` extra. Install `transformers` and `torch`
+  directly to use the local classifier backend. For more information, refer to
+  [HuggingFace Classifier Integration](/configure-guardrails/guardrail-catalog/third-party/hf-classifier).
+
+<a id="v0-24-0-enhancements"></a>
 ### Enhancements
 
-- The default embedding search implementation now uses exact NumPy search
-  instead of Annoy. Existing default knowledge-base caches are regenerated
-  automatically, and the change removes Annoy's native extension from the
-  default dependency path. For more information, refer to
-  [Embedding Search Providers](/configure-guardrails/other-configurations/embedding-search-providers).
+- IORails generation logs include activated rails, model calls, timing, token
+  usage, and provider metadata when requested. Streaming responses preserve
+  usage metadata on the final chunk, and the default logger no longer emits
+  verbose operational output.
 
-- OpenAI Responses API guidance and compatibility are improved for the LangChain
-  framework path. Function tool calls are surfaced in streaming and
-  non-streaming modes, and Harmony response format models can use the Responses
-  API configuration. For more information, refer to
-  [Model Configuration](/configure-guardrails/yaml-schema/model-configuration#openai-responses-api).
+- Server responses use OpenAI-compatible error envelopes more consistently,
+  preserve configured main-model fields when a request selects a model, and
+  support `developer`, multimodal, tool, refusal, context, and function
+  messages where the Chat Completions contract allows them.
 
-- The public API is refined around the modern `Guardrails` facade and documented
-  top-level imports. Direct access to internal `LLMRails` attributes is
-  deprecated so applications can move toward stable public entry points.
+- The documentation site adds immutable, Git-ref-backed versions so you can
+  switch between the latest documentation and stable release snapshots.
 
-- The Python package is smaller because examples, repository files, and agent
-  instruction files are no longer bundled in the wheel or source distribution.
-  The release also introduces NIM-based example notebooks and retires superseded
-  examples.
-
-<a id="v0-23-0-doc-and-behavior-fixes"></a>
+<a id="v0-24-0-doc-and-behavior-fixes"></a>
 ### Documentation and Behavior Fixes
 
-- Streaming output rails now pass user content correctly, avoid duplicate usage
-  metadata chunks, and do not reuse resolved action parameters across chunks or
-  requests. Regex detection during output streaming now blocks matched content
-  correctly without raising `TypeError`. For more information, refer to
-  [Streaming](/run-guardrailed-inference/using-python-apis/streaming).
+- IORails now distinguishes a policy block from a rail execution failure, and
+  streaming output rails fail closed when an action fails. Content-safety
+  response parsing errors are surfaced instead of being treated as successful
+  checks.
 
-- Tool-call metadata is preserved for `LLMRails` tool rails and processing logs,
-  so tool-aware integrations can inspect tool calls after guardrail execution.
+- The `/v1/checks` endpoint returns HTTP `422` when the requested rail types
+  cannot run for the supplied messages instead of silently returning a passing
+  result.
 
-- Configuration and cache handling are more deterministic. Library files load in
-  a stable order, `EmbeddingsCache.from_dict` preserves `store_config`, and
-  evaluation YAML handling uses safe load and dump behavior.
+- Reasoning-only non-streaming responses are handled correctly, reasoning
+  content is inlined consistently for server responses, and model-level query
+  parameters propagate through IORails requests.
 
-- Colang and generation fixes cover multiline `bot say` flow continuations,
-  `or` line continuations at the end of a file, and task-specific stop-token
-  selection in `generate_value`.
-
----
-
-<a id="v0-22-0"></a>
-## 0.22.0
-
-<a id="v0-22-0-features"></a>
-### Key Features
-
-- LangChain is now optional. `pip install nemoguardrails` no longer pulls
-  LangChain or any provider-specific `langchain-*` packages. The NVIDIA NeMo
-  Guardrails library ships with a built-in client that talks to
-  OpenAI-compatible endpoints directly over `httpx`. Engines whose API isn't
-  OpenAI-compatible (Anthropic, Cohere, Vertex AI, Google Generative AI,
-  in-process Hugging Face, TensorRT-LLM, and others) keep working through
-  LangChain when you opt in with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and
-  install the matching provider package. Most 0.21 configurations keep working
-  unchanged; some shapes need a YAML rewrite. For recipes, refer to
-  [Migrating to v0.22.0](/reference/0-22), the
-  [Supported LLMs](/about-nemo-guardrails-library/supported-llms) matrix, and
-  [Model Configuration](/configure-guardrails/yaml-schema/model-configuration).
-
-- OpenAI-compatible service support is improved in the default framework.
-  The default framework now supports OpenAI-compatible providers directly,
-  includes native Azure OpenAI support through `engine: azure` and
-  `engine: azure_openai`, and documents how to migrate provider-specific
-  LangChain parameters to the new `base_url`-based configuration shape. For
-  more information, refer to
-  [Migrating to v0.22.0](/reference/0-22),
-  [Model Configuration](/configure-guardrails/yaml-schema/model-configuration),
-  [Configuration Reference](/configure-guardrails/configuration-reference), and
-  [Using Docker](/more-deployment-options/using-docker).
-
-- `IORails` adds streaming support, reasoning-model support, and speculative
-  generation support. The optimized input and output rails engine now supports
-  streaming output rails, `stream_async()` integration in chat and server flows,
-  non-streaming and streaming reasoning-model responses, and speculative
-  generation for non-streaming `generate_async()` calls. For more information,
-  refer to
-  [Parallel Rails](/configure-guardrails/yaml-schema/guardrails-configuration#iorails-engine),
-  [Streaming](/run-guardrailed-inference/using-python-apis/streaming), and
-  [Speculative Generation](/configure-guardrails/yaml-schema/guardrails-configuration#speculative-generation).
-
-- `IORails` adds OpenTelemetry observability with logging, tracing, and
-  metrics support. The documentation covers OTLP setup, Prometheus client
-  installation, request-level and token-level metrics, and the recommended
-  `Guardrails` entry point for the optimized input and output rails engine. For
-  more information, refer to
-  [Observability](/observability/observability),
-  [OpenTelemetry Logs](/observability/tracing/opentelemetry-logs),
-  [OpenTelemetry Tracing](/observability/tracing/opentelemetry-integration),
-  [OpenTelemetry Metrics](/observability/metrics/opentelemetry-integration),
-  [Enable Metrics](/observability/metrics/enable-metrics), and the
-  [Metrics Reference](/observability/metrics/reference).
-
-- Anonymous usage reporting is documented with clear privacy boundaries and
-  opt-out controls. The telemetry reference explains what fields are collected,
-  what data is excluded, how local audit files work, and how to opt out with
-  `NEMO_GUARDRAILS_NO_USAGE_STATS=1`, `DO_NOT_TRACK=1`, or the
-  `~/.config/nemoguardrails/do_not_track` file. For more information, refer to
-  [Telemetry](/resources/telemetry).
-
-<a id="v0-22-0-breaking-changes"></a>
-### Breaking Changes
-
-- Moved `AsyncWorkQueue` from the top-level `Guardrails` object to
-  `IORails`. This removes buffering for non-streaming `LLMRails` requests when
-  you use the top-level `Guardrails` object. This change only affects existing implementations that
-  set `NEMO_GUARDRAILS_IORAILS_ENGINE=1` or instantiate `Guardrails` directly.
-
-<a id="v0-22-0-enhancements"></a>
-### Enhancements
-
-- The GLiNER PII connector documentation and notebook are updated for the new
-  GLiNER PII NIM. The examples cover both remote and local deployment modes
-  and API key configuration for the connector. For more information, refer to
-  [GLiNER](/configure-guardrails/guardrail-catalog/third-party/gliner) and
-  [PII Detection](/configure-guardrails/guardrail-catalog/pii-detection).
-
-- Public extension points for LLM integration. Two new protocols, `LLMModel`
-  and `LLMFramework` in `nemoguardrails.types`, let you plug in a custom
-  backend or a whole alternative framework without touching internals. For more
-  information, refer to
-  [Custom LLM Models](/configure-guardrails/custom-initialization/custom-llm-model)
-  and
-  [Custom LLM Frameworks](/configure-guardrails/custom-initialization/custom-llm-framework).
-
-- Public testing surface. The `nemoguardrails.testing` module exposes
-  `FakeLLMModel`, `TestChat`, and pytest fixtures for writing tests against a
-  guardrails configuration without calling a real model.
-
-<a id="v0-22-0-doc-and-behavior-fixes"></a>
-### Documentation and Behavior Fixes
-
-- Fixed the example query and expected output in the Guardrails Agent
-  Middleware integration guide so the example matches the configured blocked
-  response behavior. For more information, refer to
-  [Guardrails Agent Middleware](/integration-with-third-party-libraries/langchain/agent-middleware).
-- A warning about a missing main LLM is now emitted only when generation is
-  actually attempted and the generation path needs the main LLM. Check-only
-  configurations no longer emit the warning during initialization. For more
-  information, refer to
-  [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages).
-- Fixed issues in the [Colang 1.0 Hello World tutorial](/configure-guardrails/colang/colang-1/tutorials/1-hello-world) and companion notebook.
-
----
+- Colang argument parsing now raises `ValueError` for an unbalanced closing
+  bracket instead of accepting malformed input.
 
 ## Previous Releases
 
+- [0.23.0](/nemo/guardrails/v0.23.0/about-nemo-guardrails-library/release-notes)
+- [0.22.0](/nemo/guardrails/v0.22.0/about-nemo-guardrails-library/release-notes)
 - [0.21.0](https://archive.docs.nvidia.com/nemo/guardrails/0.21.0/index.html)
 - [0.20.0](https://archive.docs.nvidia.com/nemo/guardrails/0.20.0/index.html)
 - [0.19.0](https://archive.docs.nvidia.com/nemo/guardrails/0.19.0/index.html)
