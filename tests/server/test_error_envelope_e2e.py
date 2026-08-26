@@ -36,6 +36,7 @@ from openai import InternalServerError, OpenAI
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.exceptions import StreamingCapacityExceededError
 from nemoguardrails.server import api
 
 MAIN_MODEL_URL = "http://upstream.invalid/v1/chat/completions"
@@ -341,6 +342,25 @@ class TestIORailsAdmissionErrors:
             "param": None,
             "code": "queue_full",
         }
+
+    def test_streaming_capacity_returns_its_own_message(self, monkeypatch):
+        """A full streaming semaphore is a different condition from a full admission queue."""
+
+        async def _raise_capacity(*args, **kwargs):
+            raise StreamingCapacityExceededError("Streaming concurrency limit reached")
+            yield  # pragma: no cover - makes this an async generator
+
+        rails = SimpleNamespace(stream_async=_raise_capacity)
+        monkeypatch.setattr(api, "_get_rails", AsyncMock(return_value=rails))
+
+        response = _chat(stream=True)
+
+        assert response.status_code == 503
+        assert response.headers["retry-after"] == "1"
+        error = response.json()["error"]
+        assert error["message"] == "IORails streaming capacity is reached. Please retry later."
+        assert error["code"] == "streaming_capacity"
+        assert "admission queue" not in error["message"]
 
 
 # The two upstream failures from QA case P0_0.24.0_NGUARD-745_http_error_openai_sdk_E2E TC-13

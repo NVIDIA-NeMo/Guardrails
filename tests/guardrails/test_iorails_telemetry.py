@@ -1341,9 +1341,13 @@ class TestStreamAsyncRequestMetrics:
         self, iorails_streaming_input_only_tracing, metric_reader
     ):
         """Streaming equivalent of the non-streaming dual-signal test: a
-        ``QueueFull`` on the semaphore check is BOTH a saturation signal
-        (``stream.rejections``) AND a request error
-        (``requests.errors{error.type=QueueFull}``)
+        ``StreamingCapacityExceededError`` on the semaphore check is BOTH a
+        saturation signal (``stream.rejections``) AND a request error
+        (``requests.errors{error.type=StreamingCapacityExceededError}``).
+
+        The label is the exception class name, so it distinguishes a full
+        streaming semaphore from a full non-streaming admission queue, which
+        still reports ``QueueFull``.
         """
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
@@ -1356,7 +1360,7 @@ class TestStreamAsyncRequestMetrics:
         points = collect_metric_points(metric_reader)
         assert points["guardrails.stream.rejections"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
-        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "QueueFull"
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "StreamingCapacityExceededError"
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
 

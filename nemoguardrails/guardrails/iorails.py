@@ -32,7 +32,11 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
-from nemoguardrails.exceptions import RailTypeNotConfiguredError, StreamingNotSupportedError
+from nemoguardrails.exceptions import (
+    RailTypeNotConfiguredError,
+    StreamingCapacityExceededError,
+    StreamingNotSupportedError,
+)
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.compiled_rail import (
     RailCompilationError,
@@ -1680,7 +1684,7 @@ class IORails(BaseGuardrails):
                 if self._stream_semaphore.locked():
                     if self._metrics_enabled:
                         record_stream_rejected()
-                    raise asyncio.QueueFull("Streaming concurrency limit reached")
+                    raise StreamingCapacityExceededError("Streaming concurrency limit reached")
                 await self._stream_semaphore.acquire()
 
                 tracer = self._tracer if self._tracing_enabled else None

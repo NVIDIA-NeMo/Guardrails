@@ -40,6 +40,7 @@ from nemoguardrails.exceptions import (
     InvalidStateError,
     LLMCallException,
     RailTypeNotConfiguredError,
+    StreamingCapacityExceededError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.guardrails.iorails import IORails
@@ -60,6 +61,7 @@ from nemoguardrails.server.exception_handlers import (
     model_initialization_error_handler,
     queue_full_error_handler,
     rail_type_not_configured_error_handler,
+    streaming_capacity_error_handler,
     validation_error_handler,
 )
 from nemoguardrails.server.schemas.openai import (
@@ -192,6 +194,9 @@ app = GuardrailsApp(
 )
 
 _EXCEPTION_HANDLERS = (
+    # Starlette resolves handlers by walking the exception's MRO, so the
+    # streaming subclass is matched before the QueueFull base below.
+    (StreamingCapacityExceededError, streaming_capacity_error_handler),
     (asyncio.QueueFull, queue_full_error_handler),
     (LLMCallException, llm_call_exception_handler),
     (ModelEngineError, llm_call_exception_handler),

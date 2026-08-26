@@ -28,6 +28,7 @@ from nemoguardrails.exceptions import (
     LLMCallException,
     LLMRateLimitError,
     RailTypeNotConfiguredError,
+    StreamingCapacityExceededError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngineError
@@ -172,5 +173,20 @@ async def queue_full_error_handler(request: Request, exc: asyncio.QueueFull) -> 
         503,
         "IORails admission queue is full. Please retry later.",
         code="queue_full",
+        headers={"retry-after": "1"},
+    )
+
+
+async def streaming_capacity_error_handler(request: Request, exc: StreamingCapacityExceededError) -> Response:
+    """Render IORails streaming capacity shedding as a retryable overload response.
+
+    A full streaming semaphore is a different condition from a full admission
+    queue, so it gets its own message rather than reporting the queue.
+    """
+    log.warning("IORails streaming capacity reached: %s", exc)
+    return _error_response(
+        503,
+        "IORails streaming capacity is reached. Please retry later.",
+        code="streaming_capacity",
         headers={"retry-after": "1"},
     )

@@ -24,7 +24,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from nemoguardrails.exceptions import StreamingNotSupportedError
+from nemoguardrails.exceptions import StreamingCapacityExceededError, StreamingNotSupportedError
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
@@ -495,6 +495,28 @@ class TestStreamAsyncConcurrency:
         iorails_input_only._stream_semaphore = asyncio.Semaphore(0)
 
         with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+            await anext(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+    @pytest.mark.asyncio
+    async def test_semaphore_exhaustion_raises_streaming_specific_error(self, iorails_input_only):
+        """The streaming limit is its own condition, distinct from the admission queue.
+
+        Both surface to the server as overload, but they carry different
+        client-facing messages, so the server has to be able to tell them apart.
+        """
+        _wire_mocks(iorails_input_only)
+        iorails_input_only._stream_semaphore = asyncio.Semaphore(0)
+
+        with pytest.raises(StreamingCapacityExceededError):
+            await anext(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+    @pytest.mark.asyncio
+    async def test_streaming_capacity_error_is_still_queue_full(self, iorails_input_only):
+        """Existing callers that catch ``asyncio.QueueFull`` keep working."""
+        _wire_mocks(iorails_input_only)
+        iorails_input_only._stream_semaphore = asyncio.Semaphore(0)
+
+        with pytest.raises(asyncio.QueueFull):
             await anext(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
     @pytest.mark.asyncio
