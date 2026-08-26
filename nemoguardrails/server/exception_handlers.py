@@ -43,6 +43,11 @@ from nemoguardrails.llm.models.initializer import ModelInitializationError
 
 log = logging.getLogger(__name__)
 
+# How long an overloaded server asks a client to wait before retrying. Long
+# enough that a rejected caller does not immediately add to the overload.
+NONSTREAMING_RETRY_AFTER_SECONDS = 30
+STREAMING_RETRY_AFTER_SECONDS = 30
+
 
 def _error_response(
     status_code: int,
@@ -173,7 +178,7 @@ async def queue_full_error_handler(request: Request, exc: asyncio.QueueFull) -> 
         503,
         "IORails admission queue is full. Please retry later.",
         code="queue_full",
-        headers={"retry-after": "1"},
+        headers={"retry-after": str(NONSTREAMING_RETRY_AFTER_SECONDS)},
     )
 
 
@@ -188,5 +193,5 @@ async def streaming_capacity_error_handler(request: Request, exc: StreamingCapac
         503,
         "IORails streaming capacity is reached. Please retry later.",
         code="streaming_capacity",
-        headers={"retry-after": "1"},
+        headers={"retry-after": str(STREAMING_RETRY_AFTER_SECONDS)},
     )

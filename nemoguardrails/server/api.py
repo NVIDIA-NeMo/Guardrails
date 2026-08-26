@@ -39,6 +39,7 @@ from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidStateError,
     LLMCallException,
+    NonStreamingWorkQueueFull,
     RailTypeNotConfiguredError,
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
@@ -194,9 +195,11 @@ app = GuardrailsApp(
 )
 
 _EXCEPTION_HANDLERS = (
-    # Starlette resolves handlers by walking the exception's MRO, so the
-    # streaming subclass is matched before the QueueFull base below.
+    # The streaming limit is a semaphore rather than a queue, so it is not a
+    # QueueFull at all and carries its own handler.
     (StreamingCapacityExceededError, streaming_capacity_error_handler),
+    (NonStreamingWorkQueueFull, queue_full_error_handler),
+    # Any QueueFull raised outside the paths above still reads as overload.
     (asyncio.QueueFull, queue_full_error_handler),
     (LLMCallException, llm_call_exception_handler),
     (ModelEngineError, llm_call_exception_handler),

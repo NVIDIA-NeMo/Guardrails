@@ -21,7 +21,6 @@
 # excluded so ``TestClient`` still reaches the app), and an IORails rail reaches its model through
 # ``ModelEngine`` over aiohttp (``aioresponses``).
 
-import asyncio
 import json
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -36,8 +35,12 @@ from openai import InternalServerError, OpenAI
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails import Guardrails, RailsConfig
-from nemoguardrails.exceptions import StreamingCapacityExceededError
+from nemoguardrails.exceptions import NonStreamingWorkQueueFull, StreamingCapacityExceededError
 from nemoguardrails.server import api
+from nemoguardrails.server.exception_handlers import (
+    NONSTREAMING_RETRY_AFTER_SECONDS,
+    STREAMING_RETRY_AFTER_SECONDS,
+)
 
 MAIN_MODEL_URL = "http://upstream.invalid/v1/chat/completions"
 
@@ -329,13 +332,13 @@ class TestRailEngineErrors:
 
 class TestIORailsAdmissionErrors:
     def test_queue_full_returns_retryable_overload_envelope(self, monkeypatch):
-        rails = SimpleNamespace(generate_async=AsyncMock(side_effect=asyncio.QueueFull("admission queue full")))
+        rails = SimpleNamespace(generate_async=AsyncMock(side_effect=NonStreamingWorkQueueFull("admission queue full")))
         monkeypatch.setattr(api, "_get_rails", AsyncMock(return_value=rails))
 
         response = _chat()
 
         assert response.status_code == 503
-        assert response.headers["retry-after"] == "1"
+        assert response.headers["retry-after"] == str(NONSTREAMING_RETRY_AFTER_SECONDS)
         assert response.json()["error"] == {
             "message": "IORails admission queue is full. Please retry later.",
             "type": "server_error",
@@ -347,7 +350,7 @@ class TestIORailsAdmissionErrors:
         """A full streaming semaphore is a different condition from a full admission queue."""
 
         async def _raise_capacity(*args, **kwargs):
-            raise StreamingCapacityExceededError("Streaming concurrency limit reached")
+            raise StreamingCapacityExceededError("Streaming concurrency limit of 256 reached")
             yield  # pragma: no cover - makes this an async generator
 
         rails = SimpleNamespace(stream_async=_raise_capacity)
@@ -356,7 +359,7 @@ class TestIORailsAdmissionErrors:
         response = _chat(stream=True)
 
         assert response.status_code == 503
-        assert response.headers["retry-after"] == "1"
+        assert response.headers["retry-after"] == str(STREAMING_RETRY_AFTER_SECONDS)
         error = response.json()["error"]
         assert error["message"] == "IORails streaming capacity is reached. Please retry later."
         assert error["code"] == "streaming_capacity"

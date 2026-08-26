@@ -29,6 +29,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 
+from nemoguardrails.exceptions import StreamingCapacityExceededError
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, RailResult, get_request_id
 from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_MESSAGE, IORails
@@ -939,7 +940,7 @@ class TestStreamAsyncSpanHierarchy:
         # Force all slots unavailable.
         iorails._stream_semaphore = asyncio.Semaphore(0)
 
-        with pytest.raises(asyncio.QueueFull):
+        with pytest.raises(StreamingCapacityExceededError):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         assert exporter.get_finished_spans() == ()
@@ -1179,7 +1180,7 @@ class TestGenerateAsyncRequestMetrics:
         points = collect_metric_points(metric_reader)
         assert points["guardrails.nonstream.rejections"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
-        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "QueueFull"
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "NonStreamingWorkQueueFull"
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
 
@@ -1326,7 +1327,7 @@ class TestStreamAsyncRequestMetrics:
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
-        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+        with pytest.raises(StreamingCapacityExceededError, match="Streaming concurrency limit of 256 reached"):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)
@@ -1354,7 +1355,7 @@ class TestStreamAsyncRequestMetrics:
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
-        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+        with pytest.raises(StreamingCapacityExceededError, match="Streaming concurrency limit of 256 reached"):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)
@@ -1425,7 +1426,7 @@ class TestStreamAsyncRequestMetrics:
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
-        with pytest.raises(asyncio.QueueFull):
+        with pytest.raises(StreamingCapacityExceededError):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)

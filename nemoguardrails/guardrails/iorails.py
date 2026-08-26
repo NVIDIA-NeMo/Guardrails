@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import (
+    NonStreamingWorkQueueFull,
     RailTypeNotConfiguredError,
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
@@ -943,10 +944,12 @@ class IORails(BaseGuardrails):
         with metrics_ctx:
             try:
                 return await self._generate_async_queue.submit(self._run_generate, messages, options=options, **kwargs)
-            except asyncio.QueueFull:
+            except asyncio.QueueFull as e:
                 if self._metrics_enabled:
                     record_nonstream_rejected()
-                raise
+                # Same message, more specific type: the server needs to tell
+                # this apart from a full streaming semaphore.
+                raise NonStreamingWorkQueueFull(*e.args) from e
 
     async def _run_generate(
         self,
@@ -1354,10 +1357,12 @@ class IORails(BaseGuardrails):
         with metrics_ctx:
             try:
                 return await self._generate_async_queue.submit(self._run_check, messages, rail_types)
-            except asyncio.QueueFull:
+            except asyncio.QueueFull as e:
                 if self._metrics_enabled:
                     record_nonstream_rejected()
-                raise
+                # Same message, more specific type: the server needs to tell
+                # this apart from a full streaming semaphore.
+                raise NonStreamingWorkQueueFull(*e.args) from e
 
     async def _run_check(self, messages: LLMMessages, rail_types: Optional[list[RailType]]) -> RailsResult:
         """Queue-worker entry for ``check_async``: wrap the rails in a request span."""
@@ -1684,7 +1689,9 @@ class IORails(BaseGuardrails):
                 if self._stream_semaphore.locked():
                     if self._metrics_enabled:
                         record_stream_rejected()
-                    raise StreamingCapacityExceededError("Streaming concurrency limit reached")
+                    raise StreamingCapacityExceededError(
+                        f"Streaming concurrency limit of {STREAM_MAX_CONCURRENCY} reached"
+                    )
                 await self._stream_semaphore.acquire()
 
                 tracer = self._tracer if self._tracing_enabled else None

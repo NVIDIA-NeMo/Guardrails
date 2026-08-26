@@ -490,11 +490,11 @@ class TestStreamAsyncConcurrency:
 
     @pytest.mark.asyncio
     async def test_semaphore_exhaustion_raises(self, iorails_input_only):
-        """Raises QueueFull when all streaming slots are taken."""
+        """Raises the streaming capacity error when all streaming slots are taken."""
         _wire_mocks(iorails_input_only)
         iorails_input_only._stream_semaphore = asyncio.Semaphore(0)
 
-        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+        with pytest.raises(StreamingCapacityExceededError, match="Streaming concurrency limit of 256 reached"):
             await anext(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
     @pytest.mark.asyncio
@@ -511,12 +511,13 @@ class TestStreamAsyncConcurrency:
             await anext(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
     @pytest.mark.asyncio
-    async def test_streaming_capacity_error_is_still_queue_full(self, iorails_input_only):
-        """Existing callers that catch ``asyncio.QueueFull`` keep working."""
+    async def test_streaming_capacity_error_is_not_a_queue_full(self, iorails_input_only):
+        """The streaming limit is a semaphore, so nothing is queued and nothing is full."""
         _wire_mocks(iorails_input_only)
         iorails_input_only._stream_semaphore = asyncio.Semaphore(0)
 
-        with pytest.raises(asyncio.QueueFull):
+        assert not issubclass(StreamingCapacityExceededError, asyncio.QueueFull)
+        with pytest.raises(StreamingCapacityExceededError):
             await anext(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
     @pytest.mark.asyncio
