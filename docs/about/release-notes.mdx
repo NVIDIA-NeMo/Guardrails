@@ -15,6 +15,116 @@ For a complete record of changes in a release, refer to the
 
 ---
 
+<a id="v0-24-0"></a>
+## 0.24.0
+
+<a id="v0-24-0-features"></a>
+### Key Features
+
+- Rail actions can use `RailOutcome` to return explicit allow, block, and
+  transform decisions. Built-in rails now use declarative rail manifests to
+  describe their configuration, actions, flows, supported surfaces,
+  dependencies, and privacy behavior. For more information, refer to
+  [Rail Outcomes](/configure-guardrails/actions/rail-outcomes) and
+  [Rail Manifests](/reference/rail-manifests).
+
+- `IORails` adds `check()` and `check_async()` for running input and output
+  rails without generating a model response. It also supports structured
+  `GenerationResponse` results for non-streaming generation, blocking outcomes,
+  and content transforms. For more information, refer to
+  [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages),
+  [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options),
+  and [Engine Feature Support](/reference/engine-feature-support).
+
+- You can configure multiple self-check input and output rails, each with its
+  own prompt and model selection. The rails run in configuration order and stop
+  when a rail blocks the content. For more information, refer to
+  [LLM Self-Check](/configure-guardrails/guardrail-catalog/self-check).
+
+- Actions and built-in integrations can use a canonical asynchronous HTTP
+  boundary with shared client ownership, retries, metrics, tracing, and
+  deterministic testing support. For more information, refer to
+  [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http).
+
+- The Guardrails server adds `GET /v1/health` and `GET /healthz` liveness
+  endpoints. The `/v1/checks` endpoint can also validate assistant messages
+  against output rails without running generation. For more information, refer
+  to [Run the Guardrails Server](/run-guardrailed-inference/using-fastapi-server/run-guardrails-server)
+  and [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages).
+
+- The guardrail catalog adds an F5 AI Guardrails integration for scanning input
+  and output content. It supports configurable retry behavior and fail-open or
+  fail-closed handling for provider errors.
+
+<a id="v0-24-0-breaking-changes"></a>
+### Breaking Changes
+
+- The `output_mapping` parameter and its implicit boolean and numeric mappings
+  have been removed from `@action`. Passing `output_mapping` now raises
+  `TypeError`. Return a `RailOutcome` from rail actions and inspect the outcome
+  explicitly in the consuming flow. For migration examples, refer to
+  [Rail Outcomes](/configure-guardrails/actions/rail-outcomes).
+
+- When you pass `options` to non-streaming `IORails.generate()` or
+  `IORails.generate_async()`, the methods return a `GenerationResponse` instead
+  of a message dictionary. Their signatures now accept `prompt` as the first
+  parameter. Pass message lists with the `messages=` keyword instead of as the
+  first positional argument.
+
+- The Chat Completions endpoint now validates role-specific messages at the
+  HTTP boundary. It rejects internal event messages, unexpected fields,
+  unsupported audio requests, and invalid role or content combinations before
+  loading a configuration or dispatching an action. For more information,
+  refer to [Chat Completions](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model).
+
+- Custom Colang 1.0 flows that call the previous space-separated Cleanlab,
+  Fiddler, or GCP action names must use the corresponding snake_case action
+  names. The packaged flows have already been updated for both Colang 1.0 and
+  Colang 2.x.
+
+<a id="v0-24-0-enhancements"></a>
+### Enhancements
+
+- OpenAI-compatible model configurations can set per-model custom headers and
+  query parameters with `parameters.default_headers` and
+  `parameters.default_query`. The settings apply to both `IORails` and
+  `LLMRails`. For more information, refer to
+  [Model Configuration](/configure-guardrails/yaml-schema/model-configuration#custom-http-headers).
+
+- IORails generation logs include activated rails, model calls, timing, token
+  usage, and provider metadata when requested. Streaming responses preserve
+  usage metadata on the final chunk, and the default logger no longer emits
+  verbose operational output.
+
+- Server responses use OpenAI-compatible error envelopes more consistently,
+  preserve configured main-model fields when a request selects a model, and
+  support `developer`, multimodal, tool, refusal, context, and function
+  messages where the Chat Completions contract allows them.
+
+- The documentation site adds immutable, Git-ref-backed versions so you can
+  switch between the latest documentation and stable release snapshots.
+
+<a id="v0-24-0-doc-and-behavior-fixes"></a>
+### Documentation and Behavior Fixes
+
+- IORails now distinguishes a policy block from a rail execution failure, and
+  streaming output rails fail closed when an action fails. Content-safety
+  response parsing errors are surfaced instead of being treated as successful
+  checks.
+
+- The `/v1/checks` endpoint returns HTTP `422` when the requested rail types
+  cannot run for the supplied messages instead of silently returning a passing
+  result.
+
+- Reasoning-only non-streaming responses are handled correctly, reasoning
+  content is inlined consistently for server responses, and model-level query
+  parameters propagate through IORails requests.
+
+- Colang argument parsing now raises `ValueError` for an unbalanced closing
+  bracket instead of accepting malformed input.
+
+---
+
 <a id="v0-23-0"></a>
 ## 0.23.0
 
