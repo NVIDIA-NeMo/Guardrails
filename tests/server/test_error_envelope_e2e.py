@@ -21,6 +21,7 @@
 # excluded so ``TestClient`` still reaches the app), and an IORails rail reaches its model through
 # ``ModelEngine`` over aiohttp (``aioresponses``).
 
+import asyncio
 import json
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -328,6 +329,100 @@ class TestRailEngineErrors:
         assert error["code"] == "rate_limit_exceeded"
         assert error["param"] == "messages"
         assert "gpt-4o-mini" not in error["message"]
+
+
+class TestIORailsOverloadOverHTTP:
+    """Overload as an HTTP client sees it, driven through the real IORails limits.
+
+    ``TestIORailsAdmissionErrors`` raises the exceptions directly, which only
+    proves the handlers are wired up. These cases instead put the real
+    ``asyncio.Semaphore`` and ``asyncio.Queue`` into the state a saturated
+    server reaches, then let the untouched code react: the limit trips inside
+    IORails, IORails chooses the exception, the server maps it, and the client
+    receives the envelope. Neither path reaches a model, so no upstream is
+    mocked.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _isolate_rails_cache(self):
+        api.llm_rails_instances.clear()
+        yield
+        api.llm_rails_instances.clear()
+
+    @staticmethod
+    def _saturate(monkeypatch, kind: str):
+        """Return rails whose streaming or non-streaming capacity is exhausted."""
+        original = api._get_rails
+
+        async def patched(*args, **kwargs):
+            served = await original(*args, **kwargs)
+            # The server holds a Guardrails wrapper; the limits live on the
+            # IORails engine it delegates to.
+            rails = getattr(served, "_rails_engine", served)
+            assert rails.__class__.__name__ == "IORails", f"expected IORails, got {type(rails).__name__}"
+            if kind == "streaming":
+                # No permits, so `locked()` is True for every new stream.
+                rails._stream_semaphore = asyncio.Semaphore(0)
+            else:
+                # A real queue at its bound. `_running` is left True so the
+                # lazy worker start does not drain it back below the limit.
+                queue = rails._generate_async_queue
+                queue._queue = asyncio.Queue(maxsize=1)
+                queue._queue.put_nowait(object())
+                queue._running = True
+            return served
+
+        monkeypatch.setattr(api, "_get_rails", patched)
+
+    def test_streaming_capacity_returns_503_over_http(self, serve_config, monkeypatch):
+        """A saturated streaming semaphore reaches the client as a retryable 503."""
+        serve_config(CONTENT_SAFETY_CONFIG, iorails=True)
+        self._saturate(monkeypatch, "streaming")
+
+        response = _chat(stream=True)
+
+        assert response.status_code == 503
+        assert response.headers["retry-after"] == str(STREAMING_RETRY_AFTER_SECONDS)
+        error = response.json()["error"]
+        assert error["code"] == "streaming_capacity"
+        assert "admission queue" not in error["message"]
+
+    def test_work_queue_full_returns_503_over_http(self, serve_config, monkeypatch):
+        """A full non-streaming work queue reaches the client as a retryable 503."""
+        serve_config(CONTENT_SAFETY_CONFIG, iorails=True)
+        self._saturate(monkeypatch, "nonstreaming")
+
+        response = _chat()
+
+        assert response.status_code == 503
+        assert response.headers["retry-after"] == str(NONSTREAMING_RETRY_AFTER_SECONDS)
+        error = response.json()["error"]
+        assert error["code"] == "queue_full"
+        assert "streaming capacity" not in error["message"]
+
+    def test_the_two_overloads_are_distinguishable_by_the_client(self, serve_config, monkeypatch):
+        """Both shed load, but a client can tell which limit it hit."""
+        serve_config(CONTENT_SAFETY_CONFIG, iorails=True)
+
+        self._saturate(monkeypatch, "streaming")
+        streaming = _chat(stream=True).json()["error"]
+
+        api.llm_rails_instances.clear()
+        self._saturate(monkeypatch, "nonstreaming")
+        non_streaming = _chat().json()["error"]
+
+        assert streaming["code"] != non_streaming["code"]
+        assert streaming["message"] != non_streaming["message"]
+
+    def test_overload_is_not_reported_as_an_internal_error(self, serve_config, monkeypatch):
+        """The regression this PR exists for: shedding used to surface as a 500."""
+        serve_config(CONTENT_SAFETY_CONFIG, iorails=True)
+        self._saturate(monkeypatch, "nonstreaming")
+
+        response = _chat()
+
+        assert response.status_code != 500
+        assert response.json()["error"]["message"] != "Internal server error"
 
 
 class TestIORailsAdmissionErrors:
