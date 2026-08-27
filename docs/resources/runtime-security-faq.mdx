@@ -24,10 +24,11 @@ The NVIDIA NeMo Guardrails microservice is a separate production deployment in t
 
 The library can apply controls at several points in an LLM interaction:
 
-- Input rails inspect a user message before the application returns model output. They normally run before the application LLM is called. With `IORails` speculative generation, input checks race model generation and the library discards the generation if a rail blocks.
+- Input rails inspect an LLM prompt before the application returns model output. They normally run before the application LLM is called. With `IORails` speculative generation, prompt checking runs in parallel with LLM response generation. Because most prompts are safe, this can hide input-rail latency; the library discards the generated response if an input rail blocks the prompt.
 - Retrieval rails inspect or transform retrieved context before the context enters the prompt.
 - Dialog rails use Colang flows to guide a multi-turn interaction.
-- Execution rails control custom actions. Tool rails validate model tool calls and tool results.
+- Execution rails control custom actions.
+- Tool rails validate model tool calls and tool results.
 - Output rails inspect or transform the application LLM response before the library returns it.
 
 The exact sequence depends on the selected engine and configuration. For the full request flow, refer to [Architecture Overview](/about-nemo-guardrails-library/how-it-works), [Guardrail Types](/about-nemo-guardrails-library/rail-types), and [Engine Feature Support](/reference/engine-feature-support).
@@ -40,7 +41,7 @@ For available controls, refer to the [Guardrail Catalog](/configure-guardrails/g
 
 ### Can a rail block, modify, or only record a decision?
 
-Rails and actions can stop a flow, return a configured refusal, or modify content, depending on how you define the flow. The `LLMRails.check()` and `check_async()` methods return a `RailsResult` with a `PASSED`, `MODIFIED`, or `BLOCKED` status.
+Rails and actions can stop a flow, return a configured refusal, or modify content, depending on how you define the flow. The `check()` and `check_async()` methods on `LLMRails` and `IORails` return a `RailsResult` with a `PASSED`, `MODIFIED`, or `BLOCKED` status.
 
 Logging a result without blocking is an application pattern, not a single library-wide observe-only switch. Implement a non-blocking flow or action deliberately, then test that configuration against the enforcement requirements for the deployment. For the validation result contract, refer to [Checking Messages Against Rails](/run-guardrailed-inference/using-python-apis/check-messages). For per-request inspection, refer to [Logging](/observability/logging).
 
@@ -71,11 +72,13 @@ Use Colang flows and custom Python actions when you need organization-specific p
 
 Use defense in depth. Depending on the threat model, combine dedicated jailbreak detection, LLM self-checks, heuristic checks, topic controls, tool validation, and narrowly scoped application permissions. No single rail guarantees protection against every adversarial prompt.
 
-Evaluate both attacks and legitimate inputs so that you measure bypasses and overblocking. Start with [Jailbreak Protection](/configure-guardrails/guardrail-catalog/jailbreak-protection), [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling), and [Vulnerability Scanning](/evaluation/llm-vulnerability-scanning).
+Evaluate both attacks and legitimate inputs so that you measure bypasses and false positives that block legitimate inputs. Start with [Jailbreak Protection](/configure-guardrails/guardrail-catalog/jailbreak-protection), [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling), and [Vulnerability Scanning](/evaluation/llm-vulnerability-scanning).
 
 ### How does PII detection and masking work?
 
 The catalog provides several PII integrations with different entity coverage, dependencies, and configuration options. Depending on the integration, you can detect, block, or mask sensitive data on input, retrieval, or output rails.
+
+When a PII rail masks a prompt or response, run it sequentially before rails that must inspect the masked content. Do not run the masking rail in parallel with those dependent rails, because they must evaluate its transformed output rather than the original content.
 
 Precision and recall depend on the selected detector, entity set, language, threshold, and application data. Test representative safe and sensitive examples before deployment. For available integrations and examples, refer to [PII Detection](/configure-guardrails/guardrail-catalog/pii-detection).
 
@@ -109,35 +112,37 @@ Some rails call separate guardrail models or third-party services. Those control
 
 ### Does the library always fail closed when a guardrail provider fails?
 
-No library-wide failure policy applies to every rail and integration. Error behavior depends on the selected engine, flow, action, and provider integration. Some catalog integrations document an explicit fail-open or fail-closed option; custom actions require you to define the behavior.
+No library-wide failure policy applies to every rail and integration. Error behavior depends on the selected engine, flow, action, and provider integration. Review the selected integration's [Guardrail Catalog entry](/configure-guardrails/guardrail-catalog) for its documented fail-open or fail-closed behavior. For custom actions, you must define the behavior.
 
-For a required security control, test timeouts, provider errors, malformed results, and unavailable dependencies. Return a safe application response when the control cannot reach a trustworthy decision. For flow-level behavior, refer to [Exceptions and Error Handling](/configure-guardrails/exceptions).
+When a security control is required, test how it behaves during timeouts, provider errors, malformed results, and unavailable dependencies. Return a safe application response when the control cannot reach a trustworthy decision. For flow-level behavior, refer to [Exceptions and Error Handling](/configure-guardrails/exceptions).
 
 ## Auditability, Privacy, and Evaluation
 
 ### What decision evidence can I record?
 
-On `LLMRails`, generation options can return structured logs with activated rails, executed actions, LLM calls, internal events, timing statistics, and Colang history. The `explain()` method provides a development-oriented summary of the most recent generation. OpenTelemetry tracing can provide request and rail spans for production correlation.
+When you pass generation options, both `LLMRails` and `IORails` return a structured `GenerationResponse`. Both engines can include activated rails, executed actions, LLM calls, and timing statistics. `LLMRails` can also include internal events and Colang history, and its `explain()` method provides a development-oriented summary of the most recent generation. These Colang-specific fields and `explain()` are not available on `IORails`. For details, refer to [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options). OpenTelemetry tracing can provide request and rail spans for production correlation.
 
 The exact evidence differs by engine and integration. Do not assume that every decision automatically includes a reason code, policy version, tenant ID, or replayable event schema. Add application metadata and configuration version identifiers to your own audit record when those fields are required. For supported signals, refer to [Observability Overview](/observability/observability), [Logging](/observability/logging), and [Tracing](/observability/tracing).
 
 ### Does the library send prompts, responses, or telemetry to NVIDIA?
 
-The library's anonymous usage telemetry describes deployment and feature usage. It excludes prompts, completions, API keys, endpoints, model names, user identifiers, and per-request metrics, and you can opt out before starting the library.
+No prompts or responses are sent to NVIDIA. The library's anonymous usage telemetry describes deployment and feature usage. It excludes prompts, completions, API keys, endpoints, model names, user identifiers, and per-request metrics, and you can opt out before starting the library. For the complete field list, refer to [Data Collected by Telemetry](/resources/telemetry#data-collected-by-telemetry).
 
 This usage telemetry is separate from guardrail model calls and tracing. Content sent to a configured model or third-party service follows that provider's deployment and data-handling contract. OpenTelemetry content capture is off by default; when you enable it, prompts and responses can be stored in your configured tracing backend. For details, refer to [Telemetry](/resources/telemetry) and [Capturing Prompt and Response Content](/observability/tracing/content-capture).
 
 ### How can I test a policy before deployment?
 
-Use `LLMRails.check()` or `check_async()` to run input and output rails without invoking application response generation. Guardrail checks can still call the models or services configured for those rails. The `check` APIs are not available when `IORails` is the active engine.
+Use `check()` or `check_async()` on `LLMRails` or `IORails` to run input and output rails without invoking application response generation. Guardrail checks can still call the models or services configured for those rails.
 
 Add representative allowed, blocked, and modified cases to automated tests. Then evaluate the complete configuration against a versioned interaction dataset and run adversarial scans that match the application's threat model. For the available workflows, refer to [Checking Messages Against Rails](/run-guardrailed-inference/using-python-apis/check-messages), [Evaluate Configuration](/evaluation/evaluate-configuration), and [Vulnerability Scanning](/evaluation/llm-vulnerability-scanning).
 
 ### What performance numbers should I expect?
 
-There is no deployment-independent p50, p95, throughput, or false-positive rate for a guardrails configuration. Results depend on the enabled rails, engine, model providers, network placement, input and output length, streaming settings, concurrency, and hardware.
+There is no deployment-independent p50, p95, or throughput for a guardrails configuration. Results depend on the enabled rails, engine, model providers, network placement, input and output length, streaming settings, concurrency, and hardware.
 
-Benchmark the exact configuration on representative traffic. Record both security quality and operational cost, including policy compliance, false positives and false negatives where labels are available, latency, model calls, token usage, errors, and saturation. Parallel rails, `IORails`, streaming, and caching can change performance, but each has feature or security tradeoffs. For an evaluation framework, refer to [Evaluation Methodology](/evaluation/evaluation-methodology) and [Engine Feature Support](/reference/engine-feature-support).
+Benchmark the exact configuration on representative traffic. Measure operational performance with latency, throughput, model calls, token usage, errors, and saturation. Parallel rails, `IORails`, streaming, and caching can change performance, but each has feature or security tradeoffs. For runtime capabilities and tradeoffs, refer to [Engine Feature Support](/reference/engine-feature-support).
+
+Evaluate guardrail quality separately with a labeled dataset. There is no deployment-independent precision, recall, or false-positive rate. Measure policy compliance, precision, recall, false positives, and false negatives by using the [Evaluation Methodology](/evaluation/evaluation-methodology).
 
 ### How should I manage policy and model changes safely?
 
