@@ -213,6 +213,12 @@ class TestModelEngineBaseUrl:
         engine = ModelEngine(_make_model(engine="openai"))
         assert engine.base_url == _ENGINE_BASE_URLS["openai"]
 
+    @patch.dict("os.environ", {"ORCAROUTER_API_KEY": "test-key"})
+    def test_orcarouter_engine_uses_orcarouter_url(self):
+        """OrcaRouter engine resolves to the OrcaRouter API URL."""
+        engine = ModelEngine(_make_model(engine="orcarouter"))
+        assert engine.base_url == _ENGINE_BASE_URLS["orcarouter"]
+
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     def test_explicit_base_url_overrides_engine_default(self):
         """A base_url in parameters takes priority over engine default."""
@@ -361,6 +367,12 @@ class TestModelEngineApiKey:
         """OpenAI engine reads OPENAI_API_KEY from environment."""
         engine = ModelEngine(_make_model(engine="openai"))
         assert engine.api_key == "openai-key-456"
+
+    @patch.dict("os.environ", {"ORCAROUTER_API_KEY": "orcarouter-key-789"})
+    def test_orcarouter_engine_reads_orcarouter_api_key(self):
+        """OrcaRouter engine reads ORCAROUTER_API_KEY from environment."""
+        engine = ModelEngine(_make_model(engine="orcarouter"))
+        assert engine.api_key == "orcarouter-key-789"
 
     @patch.dict("os.environ", {"MY_CUSTOM_KEY": "custom-key-789"})
     def test_api_key_env_var_overrides_engine_default(self):
