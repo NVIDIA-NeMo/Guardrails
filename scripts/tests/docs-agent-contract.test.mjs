@@ -33,6 +33,7 @@ import {
   withCleanup,
 } from "../../tools/docs-agent/agent.mjs";
 import { isAllowedGithubApiPath, workflowOutput } from "../../tools/docs-agent/github.mjs";
+import { credentialFreeEnvironment } from "../../tools/docs-agent/openshell-runtime.mjs";
 
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
@@ -256,6 +257,37 @@ test("release prompts enforce the release-note and immutable-version contract", 
   }
   assert.match(author, /Do not change the Fern CLI version/u);
   assert.match(reviewer, /Reject changes to any other path/u);
+});
+
+test("keeps the provider credential in one trusted configuration step", () => {
+  const clean = credentialFreeEnvironment({
+    DOCS_AGENT_API_KEY: "repository-secret",
+    GH_TOKEN: "github-token",
+    GITHUB_TOKEN: "github-token",
+    HOME: "/tmp/runner-home",
+    NVIDIA_API_KEY: "provider-secret",
+    OPENAI_API_KEY: "provider-secret",
+    PATH: "/usr/bin",
+  });
+  for (const name of ["DOCS_AGENT_API_KEY", "GH_TOKEN", "GITHUB_TOKEN", "NVIDIA_API_KEY", "OPENAI_API_KEY"]) {
+    assert.equal(clean[name], undefined);
+  }
+
+  for (const file of [
+    "post-merge-documentation.yaml",
+    "release-documentation.yaml",
+    "review-documentation.yaml",
+  ]) {
+    const source = fs.readFileSync(new URL(`../../.github/workflows/${file}`, import.meta.url), "utf8");
+    assert.equal([...source.matchAll(/secrets[.]DOCS_AGENT_API_KEY/gu)].length, 1);
+    const agentSteps = source.split(/\n(?=      - name:)/u).filter((step) => step.includes("tools/docs-agent/agent.mjs"));
+    const configure = agentSteps.filter((step) => step.includes('agent.mjs" configure'));
+    assert.equal(configure.length, 1);
+    assert.match(configure[0], /OPENAI_API_KEY/u);
+    for (const step of agentSteps.filter((step) => !step.includes('agent.mjs" configure'))) {
+      assert.doesNotMatch(step, /OPENAI_API_KEY|DOCS_AGENT_API_KEY/u);
+    }
+  }
 });
 
 test("runs cleanup after a failed short-lived agent operation", async () => {

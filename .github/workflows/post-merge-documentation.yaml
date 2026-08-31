@@ -99,10 +99,13 @@ jobs:
       - name: Install pinned OpenShell runtime
         run: env -u GITHUB_TOKEN -u GH_TOKEN -u OPENAI_API_KEY bash "$TRUSTED_CHECKOUT/scripts/install-doc-agent-openshell.sh"
 
-      - name: Run short-lived author and reviewer sandboxes
-        id: docs-agent
+      - name: Configure isolated inference
         env:
           OPENAI_API_KEY: ${{ secrets.DOCS_AGENT_API_KEY }}
+        run: node "$TRUSTED_CHECKOUT/tools/docs-agent/agent.mjs" configure
+
+      - name: Run short-lived author and reviewer sandboxes
+        id: docs-agent
         run: node "$TRUSTED_CHECKOUT/tools/docs-agent/agent.mjs" post-merge
 
       - name: Upload independent review rejection

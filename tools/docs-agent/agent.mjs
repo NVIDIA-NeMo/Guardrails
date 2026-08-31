@@ -22,11 +22,11 @@ import {
   validateReviewResult,
 } from "./contract.mjs";
 import {
+  configureInference,
   createSandbox,
   deleteSandbox,
   downloadSandboxPath,
   execSandbox,
-  startInference,
 } from "./openshell-runtime.mjs";
 
 export const MODEL_ID = "azure/openai/gpt-5.6-terra";
@@ -580,14 +580,15 @@ async function reviewPullRequest(env) {
 }
 
 export async function main(command, env = process.env) {
-  if (!["post-merge", "release-docs", "review-pr"].includes(command)) {
-    fail("command must be post-merge, release-docs, or review-pr");
+  if (!["configure", "post-merge", "release-docs", "review-pr"].includes(command)) {
+    fail("command must be configure, post-merge, release-docs, or review-pr");
   }
-  const inference = await startInference(env, MODEL_ID);
-  return withCleanup(async () => {
-    if (command === "post-merge" || command === "release-docs") await postMerge(env, command === "release-docs");
-    else await reviewPullRequest(env);
-  }, inference.stop);
+  if (command === "configure") {
+    await configureInference(env, MODEL_ID);
+    return;
+  }
+  if (command === "post-merge" || command === "release-docs") await postMerge(env, command === "release-docs");
+  else await reviewPullRequest(env);
 }
 
 export async function withCleanup(work, cleanup) {

@@ -19,7 +19,7 @@ function required(value, name) {
   return value || fail(`${name} is required`);
 }
 
-function commandEnvironment(env) {
+export function credentialFreeEnvironment(env) {
   const result = { ...env };
   const binaryDirectory = env.XDG_BIN_HOME ?? path.join(required(env.HOME, "HOME"), ".local", "bin");
   result.PATH = [binaryDirectory, env.PATH ?? ""].filter(Boolean).join(path.delimiter);
@@ -74,9 +74,9 @@ async function stopProcess(child) {
   if (!exited) child.kill("SIGKILL");
 }
 
-export async function startInference(env, modelId) {
+export async function configureInference(env, modelId) {
   const providerApiKey = required(env.OPENAI_API_KEY, "OPENAI_API_KEY");
-  const clean = commandEnvironment(env);
+  const clean = credentialFreeEnvironment(env);
   const gatewayDirectory = path.join(required(env.RUNNER_TEMP, "RUNNER_TEMP"), "docs-agent-gateway");
   mkdirSync(gatewayDirectory, { recursive: true });
   const supervisor = run("which", ["openshell-sandbox"], clean, { capture: true });
@@ -87,10 +87,12 @@ export async function startInference(env, modelId) {
   let child;
   try {
     child = spawn("openshell-gateway", ["--config", configuration], {
-      detached: false,
+      detached: true,
       env: clean,
       stdio: ["ignore", log, log],
     });
+    child.on("error", () => undefined);
+    child.unref();
   } finally {
     closeSync(log);
   }
@@ -133,7 +135,6 @@ export async function startInference(env, modelId) {
     await stopProcess(child);
     throw error;
   }
-  return { cleanEnvironment: clean, stop: () => stopProcess(child) };
 }
 
 export function createSandbox(env, input) {
@@ -157,7 +158,7 @@ export function createSandbox(env, input) {
       "--",
       ...input.command,
     ],
-    commandEnvironment(env),
+    credentialFreeEnvironment(env),
   );
 }
 
@@ -180,16 +181,16 @@ export function execSandbox(env, input) {
       "--",
       ...input.command,
     ],
-    commandEnvironment(env),
+    credentialFreeEnvironment(env),
   );
 }
 
 export function downloadSandboxPath(env, name, source, destination) {
-  run("openshell", ["sandbox", "download", name, source, destination], commandEnvironment(env));
+  run("openshell", ["sandbox", "download", name, source, destination], credentialFreeEnvironment(env));
 }
 
 export function deleteSandbox(env, name) {
-  const clean = commandEnvironment(env);
+  const clean = credentialFreeEnvironment(env);
   let present = true;
   try {
     present = run("openshell", ["sandbox", "list", "--names"], clean, { capture: true })

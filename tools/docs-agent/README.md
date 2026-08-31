@@ -20,6 +20,20 @@ Repository administrators must configure:
 The OpenShell release archives, Pi sandbox image, model identifier, rubric copies, and workflow
 actions are pinned in the repository. Update these pins through normal dependency and security review.
 
+The repository exposes only public routing metadata: the NVIDIA API base URL, the selected model
+identifier, the local `inference.local` route, and the Actions secret name. The secret value is not
+stored in Git, workflow arguments, prompts, model configuration, artifacts, or pull requests. GitHub
+injects it as `OPENAI_API_KEY` only into the trusted `Configure isolated inference` step. That step
+passes the value to `openshell provider create` through the subprocess environment, while the command
+line names only the environment variable. Every OpenShell command receives a credential-free
+environment except that one provider-registration call. Later sandbox execution steps do not receive
+the secret at all.
+
+The gateway binds to runner loopback, keeps its configuration and log files under `RUNNER_TEMP` with
+owner-only permissions, and routes sandbox model traffic through `https://inference.local/v1`. The Pi
+configuration contains the inert value `unused`, not the provider credential. The hosted runner removes
+the gateway and provider state when the job ends.
+
 ## Post-merge fast follow
 
 `Docs / Author Post-Merge Fast Follow` runs when a non-documentation pull request merges into
