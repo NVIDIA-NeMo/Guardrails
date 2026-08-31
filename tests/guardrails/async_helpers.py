@@ -89,7 +89,7 @@ def saturate_stream_semaphore(iorails: IORails) -> None:
     """Force ``iorails._stream_semaphore`` into a fully-occupied state by
     swapping in a zero-permit semaphore.  Any subsequent
     ``stream_async()`` call trips ``Semaphore.locked() == True`` and is
-    rejected with ``asyncio.QueueFull``.
+    rejected with ``StreamingCapacityExceededError``.
 
     Cheaper and more future-proof than draining all
     ``STREAM_MAX_CONCURRENCY`` permits one-by-one — the test no longer

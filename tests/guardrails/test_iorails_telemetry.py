@@ -1164,12 +1164,13 @@ class TestGenerateAsyncRequestMetrics:
 
     @pytest.mark.asyncio
     async def test_queuefull_bumps_both_errors_and_nonstream_rejections(self, iorails_tracing, metric_reader):
-        """Dual-signal semantics: a ``QueueFull`` rejection is BOTH a
-        saturation signal (``nonstream.rejections``) AND a request error
-        (``requests.errors{error.type=QueueFull}``).  Dashboards can
-        count either one.  Also bumps the ``requests`` counter and
-        records into the duration histogram — the request ran through
-        the full lifecycle, even if only briefly.
+        """Dual-signal semantics: a ``NonStreamingWorkQueueFullError``
+        rejection is BOTH a saturation signal (``nonstream.rejections``)
+        AND a request error
+        (``requests.errors{error.type=NonStreamingWorkQueueFullError}``).
+        Dashboards can count either one.  Also bumps the ``requests``
+        counter and records into the duration histogram — the request ran
+        through the full lifecycle, even if only briefly.
         """
         _stub_safe_pipeline(iorails_tracing)
         iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
@@ -1319,8 +1320,8 @@ class TestStreamAsyncRequestMetrics:
         self, iorails_streaming_input_only_tracing, metric_reader
     ):
         """A stream that arrives while the semaphore is fully occupied is
-        rejected with ``asyncio.QueueFull`` and the ``stream.rejections``
-        counter increments.
+        rejected with ``StreamingCapacityExceededError`` and the
+        ``stream.rejections`` counter increments.
         """
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
@@ -1348,7 +1349,7 @@ class TestStreamAsyncRequestMetrics:
 
         The label is the exception class name, so it distinguishes a full
         streaming semaphore from a full non-streaming admission queue, which
-        still reports ``QueueFull``.
+        reports ``NonStreamingWorkQueueFullError``.
         """
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())

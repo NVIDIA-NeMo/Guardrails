@@ -928,14 +928,16 @@ class IORails(BaseGuardrails):
         The queue enforces non-streaming concurrency limits
         (``NONSTREAM_MAX_CONCURRENCY`` workers draining up to
         ``NONSTREAM_QUEUE_DEPTH`` pending items).  Callers receive
-        ``asyncio.QueueFull`` when the admission buffer is full and
-        ``guardrails.nonstream.rejections`` increments if metrics are enabled.
+        ``NonStreamingWorkQueueFullError`` when the admission buffer is
+        full and ``guardrails.nonstream.rejections`` increments if metrics
+        are enabled.
 
         Request-level metrics (``guardrails.requests``,
         ``guardrails.request.duration``, ``guardrails.requests.errors``)
         wrap the queue submission, so duration includes queue-wait time
-        (OTEL HTTP semconv).  A ``QueueFull`` rejection shows up in BOTH
-        ``requests.errors{error.type=QueueFull}`` and
+        (OTEL HTTP semconv).  A ``NonStreamingWorkQueueFullError``
+        rejection shows up in BOTH
+        ``requests.errors{error.type=NonStreamingWorkQueueFullError}`` and
         ``nonstream.rejections`` — honest dual-signal reporting.
         """
         messages = self._convert_to_messages(prompt, messages)
@@ -1511,8 +1513,8 @@ class IORails(BaseGuardrails):
                 ``rails.output.streaming.enabled`` is False.
             ValueError: If ``include_metadata=True`` with output rails
                 streaming enabled (BufferStrategy requires plain string chunks).
-            asyncio.QueueFull: If the streaming concurrency limit is
-                reached (load shedding).
+            StreamingCapacityExceededError: If the streaming concurrency
+                limit is reached (load shedding).
         """
         if self._speculative_generation:
             warnings.warn(
@@ -1670,10 +1672,11 @@ class IORails(BaseGuardrails):
 
             Request-level metrics (``guardrails.requests``,
             ``guardrails.request.duration``, ``guardrails.requests.errors``)
-            wrap the entire stream lifecycle, so a ``QueueFull`` on the
-            semaphore check bumps BOTH ``stream.rejections`` and
-            ``requests.errors{error.type=QueueFull}`` — dual-signal
-            semantics matching the non-streaming path.
+            wrap the entire stream lifecycle, so a
+            ``StreamingCapacityExceededError`` on the semaphore check bumps
+            BOTH ``stream.rejections`` and
+            ``requests.errors{error.type=StreamingCapacityExceededError}``
+            — dual-signal semantics matching the non-streaming path.
             """
             # Ensure engines are running (idempotent if already started).
             # Kept outside ``request_metrics`` so duration matches the
