@@ -205,6 +205,13 @@ and ty.
 Update documentation when changing user-visible behavior, public APIs,
 configuration syntax, examples, or installation requirements.
 
+After a non-documentation pull request merges, the post-merge documentation workflow can create one
+draft fast-follow documentation pull request for that exact development pull request. Documentation
+pull requests also receive an advisory, revision-bound quality review. An owner, member, or
+collaborator can request a fresh review by adding a pull request comment containing exactly
+`/review-doc`. See [Short-lived documentation agents](./tools/docs-agent/README.md) for triggers,
+scoring, reviewer selection, security boundaries, configuration, and recovery.
+
 Documentation lives in `docs/` as MDX and is built with Fern. Edit the `.mdx`
 files directly and check changes with `make docs-fern` (`make docs-fern-live`
 serves locally; `make docs-fern-strict` validates links). The Fern CLI version
