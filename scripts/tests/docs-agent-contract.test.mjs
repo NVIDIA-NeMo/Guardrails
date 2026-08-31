@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -18,6 +21,7 @@ import {
 import { selectPostMerge } from "../../tools/docs-agent/select-post-merge.mjs";
 import { manualReviewRequest } from "../../tools/docs-agent/select-review.mjs";
 import { withCleanup } from "../../tools/docs-agent/agent.mjs";
+import { isAllowedGithubApiPath, workflowOutput } from "../../tools/docs-agent/github.mjs";
 
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
@@ -73,6 +77,34 @@ test("accepts only an exact authorized review command", () => {
     }),
     true,
   );
+});
+
+test("allows only the GitHub API endpoints owned by the documentation workflows", () => {
+  assert.equal(isAllowedGithubApiPath("GET", "/repos/NVIDIA-NeMo/Guardrails/pulls/25"), true);
+  assert.equal(
+    isAllowedGithubApiPath("GET", "/repos/NVIDIA-NeMo/Guardrails/pulls/25/files?per_page=100&page=30"),
+    true,
+  );
+  assert.equal(isAllowedGithubApiPath("DELETE", "/repos/NVIDIA-NeMo/Guardrails/git/refs/heads/develop"), false);
+  assert.equal(isAllowedGithubApiPath("GET", "/repos/other/project/pulls/25"), false);
+});
+
+test("writes bounded outputs only to the GitHub runner command directory", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "docs-agent-output-"));
+  const commands = path.join(directory, "_runner_file_commands");
+  const output = path.join(commands, "set_output_1234");
+  fs.mkdirSync(commands);
+  fs.writeFileSync(output, "");
+  try {
+    workflowOutput("head_sha", SHA_A, { GITHUB_OUTPUT: output, RUNNER_TEMP: directory });
+    assert.equal(fs.readFileSync(output, "utf8"), `head_sha=${SHA_A}\n`);
+    assert.throws(
+      () => workflowOutput("head_sha", SHA_A, { GITHUB_OUTPUT: path.join(directory, "outside"), RUNNER_TEMP: directory }),
+      /outside the runner/u,
+    );
+  } finally {
+    fs.rmSync(directory, { force: true, recursive: true });
+  }
 });
 
 test("builds one managed branch per source pull request and merge", () => {

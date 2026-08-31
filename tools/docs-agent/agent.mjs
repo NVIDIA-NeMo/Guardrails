@@ -516,8 +516,8 @@ export async function withCleanup(work, cleanup) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.argv[2]).catch((error) => {
-    console.error(error instanceof Error ? error.message : String(error));
+  main(process.argv[2]).catch(() => {
+    console.error("Documentation agent execution failed. Review the preceding trusted command output.");
     process.exit(1);
   });
 }

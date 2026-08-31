@@ -189,7 +189,9 @@ export function validateQualityScore(value) {
   if (gateFailed && value.decision !== "fail") fail("a nonzero hard gate requires decision fail");
   if (!gateFailed && value.decision === "pass" && value.total < rubric.threshold) fail(`pass requires a total of at least ${rubric.threshold}`);
   if (!isNumber(value.confidence) || value.confidence < 0 || value.confidence > 1) fail("confidence must be between 0 and 1");
-  if (typeof value.rationale !== "string" || !value.rationale.trim()) fail("rationale must be non-empty");
+  if (typeof value.rationale !== "string" || !value.rationale.trim() || value.rationale.length > 4000) {
+    fail("rationale must be non-empty and at most 4000 characters");
+  }
   return value;
 }
 
