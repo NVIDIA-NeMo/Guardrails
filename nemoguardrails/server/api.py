@@ -39,7 +39,7 @@ from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidStateError,
     LLMCallException,
-    NonStreamingWorkQueueFull,
+    NonStreamingWorkQueueFullError,
     RailTypeNotConfiguredError,
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
@@ -198,7 +198,7 @@ _EXCEPTION_HANDLERS = (
     # The streaming limit is a semaphore rather than a queue, so it is not a
     # QueueFull at all and carries its own handler.
     (StreamingCapacityExceededError, streaming_capacity_error_handler),
-    (NonStreamingWorkQueueFull, queue_full_error_handler),
+    (NonStreamingWorkQueueFullError, queue_full_error_handler),
     # Any QueueFull raised outside the paths above still reads as overload.
     (asyncio.QueueFull, queue_full_error_handler),
     (LLMCallException, llm_call_exception_handler),

@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import (
-    NonStreamingWorkQueueFull,
+    NonStreamingWorkQueueFullError,
     RailTypeNotConfiguredError,
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
@@ -949,7 +949,7 @@ class IORails(BaseGuardrails):
                     record_nonstream_rejected()
                 # Same message, more specific type: the server needs to tell
                 # this apart from a full streaming semaphore.
-                raise NonStreamingWorkQueueFull(*e.args) from e
+                raise NonStreamingWorkQueueFullError(*e.args) from e
 
     async def _run_generate(
         self,
@@ -1362,7 +1362,7 @@ class IORails(BaseGuardrails):
                     record_nonstream_rejected()
                 # Same message, more specific type: the server needs to tell
                 # this apart from a full streaming semaphore.
-                raise NonStreamingWorkQueueFull(*e.args) from e
+                raise NonStreamingWorkQueueFullError(*e.args) from e
 
     async def _run_check(self, messages: LLMMessages, rail_types: Optional[list[RailType]]) -> RailsResult:
         """Queue-worker entry for ``check_async``: wrap the rails in a request span."""

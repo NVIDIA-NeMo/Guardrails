@@ -31,7 +31,7 @@ __all__ = [
     "LLMTimeoutError",
     "LLMConnectionError",
     "LLMResponseValidationError",
-    "NonStreamingWorkQueueFull",
+    "NonStreamingWorkQueueFullError",
     "StreamingCapacityExceededError",
     "StreamingNotSupportedError",
     "RailTypeNotConfiguredError",
@@ -89,7 +89,7 @@ class InvalidStateError(ValueError):
     pass
 
 
-class NonStreamingWorkQueueFull(asyncio.QueueFull):
+class NonStreamingWorkQueueFullError(asyncio.QueueFull):
     """Raised when the IORails non-streaming admission queue cannot accept more work.
 
     Subclasses :class:`asyncio.QueueFull` because that is what the underlying
@@ -105,7 +105,7 @@ class StreamingCapacityExceededError(Exception):
     The streaming path is bounded by an :class:`asyncio.Semaphore` rather than
     a queue, so this deliberately does not subclass :class:`asyncio.QueueFull`:
     nothing is queued and nothing is full. It is a distinct overload condition
-    from :class:`NonStreamingWorkQueueFull` and carries its own client-facing
+    from :class:`NonStreamingWorkQueueFullError` and carries its own client-facing
     message.
     """
 

@@ -1180,7 +1180,7 @@ class TestGenerateAsyncRequestMetrics:
         points = collect_metric_points(metric_reader)
         assert points["guardrails.nonstream.rejections"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
-        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "NonStreamingWorkQueueFull"
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "NonStreamingWorkQueueFullError"
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
 

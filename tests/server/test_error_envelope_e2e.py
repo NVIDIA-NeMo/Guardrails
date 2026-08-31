@@ -36,7 +36,7 @@ from openai import InternalServerError, OpenAI
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails import Guardrails, RailsConfig
-from nemoguardrails.exceptions import NonStreamingWorkQueueFull, StreamingCapacityExceededError
+from nemoguardrails.exceptions import NonStreamingWorkQueueFullError, StreamingCapacityExceededError
 from nemoguardrails.server import api
 from nemoguardrails.server.exception_handlers import (
     NONSTREAMING_RETRY_AFTER_SECONDS,
@@ -427,7 +427,9 @@ class TestIORailsOverloadOverHTTP:
 
 class TestIORailsAdmissionErrors:
     def test_queue_full_returns_retryable_overload_envelope(self, monkeypatch):
-        rails = SimpleNamespace(generate_async=AsyncMock(side_effect=NonStreamingWorkQueueFull("admission queue full")))
+        rails = SimpleNamespace(
+            generate_async=AsyncMock(side_effect=NonStreamingWorkQueueFullError("admission queue full"))
+        )
         monkeypatch.setattr(api, "_get_rails", AsyncMock(return_value=rails))
 
         response = _chat()
