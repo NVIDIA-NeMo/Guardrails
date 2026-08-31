@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 from typing import Optional, Union
 
 __all__ = [
@@ -30,6 +31,8 @@ __all__ = [
     "LLMTimeoutError",
     "LLMConnectionError",
     "LLMResponseValidationError",
+    "NonStreamingWorkQueueFullError",
+    "StreamingCapacityExceededError",
     "StreamingNotSupportedError",
     "RailTypeNotConfiguredError",
 ]
@@ -81,6 +84,29 @@ class InvalidStateError(ValueError):
     (`flow_configs`, `rails_config`, in-flight flow execution) and must not come
     from an untrusted caller. Stateful 2.x execution uses `process_events_async`,
     which keeps a live `State` object in the trusted Python process.
+    """
+
+    pass
+
+
+class NonStreamingWorkQueueFullError(asyncio.QueueFull):
+    """Raised when the IORails non-streaming admission queue cannot accept more work.
+
+    Subclasses :class:`asyncio.QueueFull` because that is what the underlying
+    work queue raises, so callers already catching it keep working.
+    """
+
+    pass
+
+
+class StreamingCapacityExceededError(Exception):
+    """Raised when IORails has no free streaming slot for a new request.
+
+    The streaming path is bounded by an :class:`asyncio.Semaphore` rather than
+    a queue, so this deliberately does not subclass :class:`asyncio.QueueFull`:
+    nothing is queued and nothing is full. It is a distinct overload condition
+    from :class:`NonStreamingWorkQueueFullError` and carries its own client-facing
+    message.
     """
 
     pass

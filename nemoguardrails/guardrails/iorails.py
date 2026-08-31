@@ -32,7 +32,12 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
-from nemoguardrails.exceptions import RailTypeNotConfiguredError, StreamingNotSupportedError
+from nemoguardrails.exceptions import (
+    NonStreamingWorkQueueFullError,
+    RailTypeNotConfiguredError,
+    StreamingCapacityExceededError,
+    StreamingNotSupportedError,
+)
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.compiled_rail import (
     RailCompilationError,
@@ -923,14 +928,16 @@ class IORails(BaseGuardrails):
         The queue enforces non-streaming concurrency limits
         (``NONSTREAM_MAX_CONCURRENCY`` workers draining up to
         ``NONSTREAM_QUEUE_DEPTH`` pending items).  Callers receive
-        ``asyncio.QueueFull`` when the admission buffer is full and
-        ``guardrails.nonstream.rejections`` increments if metrics are enabled.
+        ``NonStreamingWorkQueueFullError`` when the admission buffer is
+        full and ``guardrails.nonstream.rejections`` increments if metrics
+        are enabled.
 
         Request-level metrics (``guardrails.requests``,
         ``guardrails.request.duration``, ``guardrails.requests.errors``)
         wrap the queue submission, so duration includes queue-wait time
-        (OTEL HTTP semconv).  A ``QueueFull`` rejection shows up in BOTH
-        ``requests.errors{error.type=QueueFull}`` and
+        (OTEL HTTP semconv).  A ``NonStreamingWorkQueueFullError``
+        rejection shows up in BOTH
+        ``requests.errors{error.type=NonStreamingWorkQueueFullError}`` and
         ``nonstream.rejections`` — honest dual-signal reporting.
         """
         messages = self._convert_to_messages(prompt, messages)
@@ -939,10 +946,12 @@ class IORails(BaseGuardrails):
         with metrics_ctx:
             try:
                 return await self._generate_async_queue.submit(self._run_generate, messages, options=options, **kwargs)
-            except asyncio.QueueFull:
+            except asyncio.QueueFull as e:
                 if self._metrics_enabled:
                     record_nonstream_rejected()
-                raise
+                # Same message, more specific type: the server needs to tell
+                # this apart from a full streaming semaphore.
+                raise NonStreamingWorkQueueFullError(*e.args) from e
 
     async def _run_generate(
         self,
@@ -1350,10 +1359,12 @@ class IORails(BaseGuardrails):
         with metrics_ctx:
             try:
                 return await self._generate_async_queue.submit(self._run_check, messages, rail_types)
-            except asyncio.QueueFull:
+            except asyncio.QueueFull as e:
                 if self._metrics_enabled:
                     record_nonstream_rejected()
-                raise
+                # Same message, more specific type: the server needs to tell
+                # this apart from a full streaming semaphore.
+                raise NonStreamingWorkQueueFullError(*e.args) from e
 
     async def _run_check(self, messages: LLMMessages, rail_types: Optional[list[RailType]]) -> RailsResult:
         """Queue-worker entry for ``check_async``: wrap the rails in a request span."""
@@ -1502,8 +1513,8 @@ class IORails(BaseGuardrails):
                 ``rails.output.streaming.enabled`` is False.
             ValueError: If ``include_metadata=True`` with output rails
                 streaming enabled (BufferStrategy requires plain string chunks).
-            asyncio.QueueFull: If the streaming concurrency limit is
-                reached (load shedding).
+            StreamingCapacityExceededError: If the streaming concurrency
+                limit is reached (load shedding).
         """
         if self._speculative_generation:
             warnings.warn(
@@ -1661,10 +1672,11 @@ class IORails(BaseGuardrails):
 
             Request-level metrics (``guardrails.requests``,
             ``guardrails.request.duration``, ``guardrails.requests.errors``)
-            wrap the entire stream lifecycle, so a ``QueueFull`` on the
-            semaphore check bumps BOTH ``stream.rejections`` and
-            ``requests.errors{error.type=QueueFull}`` — dual-signal
-            semantics matching the non-streaming path.
+            wrap the entire stream lifecycle, so a
+            ``StreamingCapacityExceededError`` on the semaphore check bumps
+            BOTH ``stream.rejections`` and
+            ``requests.errors{error.type=StreamingCapacityExceededError}``
+            — dual-signal semantics matching the non-streaming path.
             """
             # Ensure engines are running (idempotent if already started).
             # Kept outside ``request_metrics`` so duration matches the
@@ -1680,7 +1692,9 @@ class IORails(BaseGuardrails):
                 if self._stream_semaphore.locked():
                     if self._metrics_enabled:
                         record_stream_rejected()
-                    raise asyncio.QueueFull("Streaming concurrency limit reached")
+                    raise StreamingCapacityExceededError(
+                        f"Streaming concurrency limit of {STREAM_MAX_CONCURRENCY} reached"
+                    )
                 await self._stream_semaphore.acquire()
 
                 tracer = self._tracer if self._tracing_enabled else None

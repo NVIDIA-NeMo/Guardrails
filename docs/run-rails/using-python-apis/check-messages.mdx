@@ -239,7 +239,7 @@ The API surface is identical on both engines, but each engine executes a check d
 | `BLOCKED` content | The refusal message defined by the configuration's Colang flow | A fixed refusal message that the configuration does not change |
 | Rail that fails to execute | Handled by the Colang runtime's internal-error path | `BLOCKED` with an internal-error message that is distinct from the refusal message |
 | Requested direction with no content to check | An output-only check with no user message runs with an empty user message supplied as context | The direction is skipped and the result is `PASSED` |
-| Admission control | None | Shares the non-streaming admission queue with `generate_async()`, and raises `asyncio.QueueFull` when the queue is full |
+| Admission control | None | Shares the non-streaming admission queue with `generate_async()`, and raises `NonStreamingWorkQueueFullError` (a subclass of `asyncio.QueueFull`) when the queue is full |
 | Tracing and metrics | Spans through a tracing adapter with no OpenTelemetry metrics | The same request span and request metrics as `generate_async()`. Refer to [Observability for IORails Checks](#observability-for-iorails-checks) |
 | Synchronous `check()` | Runs `check_async()` on the calling thread's event loop | Runs `check_async()` on a short-lived engine with tracing and metrics disabled |
 

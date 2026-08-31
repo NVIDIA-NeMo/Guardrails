@@ -29,6 +29,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 
+from nemoguardrails.exceptions import StreamingCapacityExceededError
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, RailResult, get_request_id
 from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_MESSAGE, IORails
@@ -939,7 +940,7 @@ class TestStreamAsyncSpanHierarchy:
         # Force all slots unavailable.
         iorails._stream_semaphore = asyncio.Semaphore(0)
 
-        with pytest.raises(asyncio.QueueFull):
+        with pytest.raises(StreamingCapacityExceededError):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         assert exporter.get_finished_spans() == ()
@@ -1163,12 +1164,13 @@ class TestGenerateAsyncRequestMetrics:
 
     @pytest.mark.asyncio
     async def test_queuefull_bumps_both_errors_and_nonstream_rejections(self, iorails_tracing, metric_reader):
-        """Dual-signal semantics: a ``QueueFull`` rejection is BOTH a
-        saturation signal (``nonstream.rejections``) AND a request error
-        (``requests.errors{error.type=QueueFull}``).  Dashboards can
-        count either one.  Also bumps the ``requests`` counter and
-        records into the duration histogram — the request ran through
-        the full lifecycle, even if only briefly.
+        """Dual-signal semantics: a ``NonStreamingWorkQueueFullError``
+        rejection is BOTH a saturation signal (``nonstream.rejections``)
+        AND a request error
+        (``requests.errors{error.type=NonStreamingWorkQueueFullError}``).
+        Dashboards can count either one.  Also bumps the ``requests``
+        counter and records into the duration histogram — the request ran
+        through the full lifecycle, even if only briefly.
         """
         _stub_safe_pipeline(iorails_tracing)
         iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
@@ -1179,7 +1181,7 @@ class TestGenerateAsyncRequestMetrics:
         points = collect_metric_points(metric_reader)
         assert points["guardrails.nonstream.rejections"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
-        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "QueueFull"
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "NonStreamingWorkQueueFullError"
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
 
@@ -1318,15 +1320,15 @@ class TestStreamAsyncRequestMetrics:
         self, iorails_streaming_input_only_tracing, metric_reader
     ):
         """A stream that arrives while the semaphore is fully occupied is
-        rejected with ``asyncio.QueueFull`` and the ``stream.rejections``
-        counter increments.
+        rejected with ``StreamingCapacityExceededError`` and the
+        ``stream.rejections`` counter increments.
         """
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
-        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+        with pytest.raises(StreamingCapacityExceededError, match="Streaming concurrency limit of 256 reached"):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)
@@ -1341,22 +1343,26 @@ class TestStreamAsyncRequestMetrics:
         self, iorails_streaming_input_only_tracing, metric_reader
     ):
         """Streaming equivalent of the non-streaming dual-signal test: a
-        ``QueueFull`` on the semaphore check is BOTH a saturation signal
-        (``stream.rejections``) AND a request error
-        (``requests.errors{error.type=QueueFull}``)
+        ``StreamingCapacityExceededError`` on the semaphore check is BOTH a
+        saturation signal (``stream.rejections``) AND a request error
+        (``requests.errors{error.type=StreamingCapacityExceededError}``).
+
+        The label is the exception class name, so it distinguishes a full
+        streaming semaphore from a full non-streaming admission queue, which
+        reports ``NonStreamingWorkQueueFullError``.
         """
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
-        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+        with pytest.raises(StreamingCapacityExceededError, match="Streaming concurrency limit of 256 reached"):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.stream.rejections"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
-        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "QueueFull"
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "StreamingCapacityExceededError"
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
 
@@ -1421,7 +1427,7 @@ class TestStreamAsyncRequestMetrics:
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
-        with pytest.raises(asyncio.QueueFull):
+        with pytest.raises(StreamingCapacityExceededError):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)

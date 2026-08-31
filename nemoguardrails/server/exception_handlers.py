@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
 from typing import Dict, Optional, Union
 
@@ -27,6 +28,7 @@ from nemoguardrails.exceptions import (
     LLMCallException,
     LLMRateLimitError,
     RailTypeNotConfiguredError,
+    StreamingCapacityExceededError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngineError
@@ -40,6 +42,11 @@ from nemoguardrails.llm.clients._errors import (
 from nemoguardrails.llm.models.initializer import ModelInitializationError
 
 log = logging.getLogger(__name__)
+
+# How long an overloaded server asks a client to wait before retrying. Long
+# enough that a rejected caller does not immediately add to the overload.
+NONSTREAMING_RETRY_AFTER_SECONDS = 30
+STREAMING_RETRY_AFTER_SECONDS = 30
 
 
 def _error_response(
@@ -162,3 +169,29 @@ async def internal_error_handler(request: Request, exc: Exception) -> Response:
     """Catch-all for unexpected errors."""
     log.exception(exc)
     return _error_response(500, "Internal server error")
+
+
+async def queue_full_error_handler(request: Request, exc: asyncio.QueueFull) -> Response:
+    """Render IORails admission shedding as a retryable overload response."""
+    log.warning("IORails admission queue is full: %s", exc)
+    return _error_response(
+        503,
+        "IORails admission queue is full. Please retry later.",
+        code="queue_full",
+        headers={"retry-after": str(NONSTREAMING_RETRY_AFTER_SECONDS)},
+    )
+
+
+async def streaming_capacity_error_handler(request: Request, exc: StreamingCapacityExceededError) -> Response:
+    """Render IORails streaming capacity shedding as a retryable overload response.
+
+    A full streaming semaphore is a different condition from a full admission
+    queue, so it gets its own message rather than reporting the queue.
+    """
+    log.warning("IORails streaming capacity reached: %s", exc)
+    return _error_response(
+        503,
+        "IORails streaming capacity is reached. Please retry later.",
+        code="streaming_capacity",
+        headers={"retry-after": str(STREAMING_RETRY_AFTER_SECONDS)},
+    )

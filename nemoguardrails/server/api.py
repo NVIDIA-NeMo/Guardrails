@@ -39,7 +39,9 @@ from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidStateError,
     LLMCallException,
+    NonStreamingWorkQueueFullError,
     RailTypeNotConfiguredError,
+    StreamingCapacityExceededError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.guardrails.iorails import IORails
@@ -58,7 +60,9 @@ from nemoguardrails.server.exception_handlers import (
     invalid_state_error_handler,
     llm_call_exception_handler,
     model_initialization_error_handler,
+    queue_full_error_handler,
     rail_type_not_configured_error_handler,
+    streaming_capacity_error_handler,
     validation_error_handler,
 )
 from nemoguardrails.server.schemas.openai import (
@@ -191,6 +195,12 @@ app = GuardrailsApp(
 )
 
 _EXCEPTION_HANDLERS = (
+    # The streaming limit is a semaphore rather than a queue, so it is not a
+    # QueueFull at all and carries its own handler.
+    (StreamingCapacityExceededError, streaming_capacity_error_handler),
+    (NonStreamingWorkQueueFullError, queue_full_error_handler),
+    # Any QueueFull raised outside the paths above still reads as overload.
+    (asyncio.QueueFull, queue_full_error_handler),
     (LLMCallException, llm_call_exception_handler),
     (ModelEngineError, llm_call_exception_handler),
     (HTTPClientError, llm_call_exception_handler),
