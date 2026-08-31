@@ -14,7 +14,7 @@ const API_PATHS = {
     /^\/repos\/NVIDIA-NeMo\/Guardrails\/issues\/[1-9][0-9]*\/comments\?per_page=100&page=(?:[1-9]|1[0-9]|20)$/u,
     /^\/repos\/NVIDIA-NeMo\/Guardrails\/pulls\/[1-9][0-9]*$/u,
     /^\/repos\/NVIDIA-NeMo\/Guardrails\/pulls\/[1-9][0-9]*\/files\?per_page=100&page=(?:[1-9]|[12][0-9]|30)$/u,
-    /^\/repos\/NVIDIA-NeMo\/Guardrails\/pulls\?state=open&base=develop&head=NVIDIA-NeMo%3Aautomation%2Fpost-merge-docs-pr-[1-9][0-9]*-[0-9a-f]{12}&per_page=10$/u,
+    /^\/repos\/NVIDIA-NeMo\/Guardrails\/pulls\?state=open&base=develop&head=NVIDIA-NeMo%3Aautomation%2F(?:post-merge-docs-pr-[1-9][0-9]*|release-docs-v(?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*))-[0-9a-f]{12}&per_page=10$/u,
   ],
   PATCH: [/^\/repos\/NVIDIA-NeMo\/Guardrails\/issues\/comments\/[1-9][0-9]*$/u],
   POST: [

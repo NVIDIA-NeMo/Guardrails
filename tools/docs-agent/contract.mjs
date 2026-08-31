@@ -7,6 +7,15 @@ import fs from "node:fs";
 const SHA = /^[0-9a-f]{40}$/u;
 const LOGIN = /^(?!-)[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/u;
 const SAFE_PATH = /^[A-Za-z0-9._/-]+$/u;
+const STABLE_VERSION = /^(?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)$/u;
+
+export const RELEASE_DOCUMENTATION_PATHS = [
+  "docs/README.mdx",
+  "docs/about/release-notes.mdx",
+  "fern/docs.yml",
+];
+
+export const RELEASE_SNAPSHOT_PATHS = ["docs/about/release-notes.mdx", "fern/docs.yml"];
 
 export const RUBRICS = {
   "api-reference-v0.1": {
@@ -64,6 +73,22 @@ export function exactSha(value, name = "SHA") {
   return SHA.test(value ?? "") ? value : fail(`${name} must be a lowercase 40-character Git SHA`);
 }
 
+export function stableVersion(value, name = "version") {
+  return STABLE_VERSION.test(value ?? "") ? value : fail(`${name} must use stable X.Y.Z format`);
+}
+
+export function exactTimestamp(value, name = "timestamp") {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(value) ||
+    !Number.isFinite(Date.parse(value)) ||
+    new Date(value).toISOString().replace(".000Z", "Z") !== value
+  ) {
+    fail(`${name} must be an exact UTC timestamp`);
+  }
+  return value;
+}
+
 function safePath(file) {
   return (
     typeof file === "string" &&
@@ -85,6 +110,14 @@ export function isPublicDocumentationPath(file) {
   );
 }
 
+export function isReleaseDocumentationPath(file) {
+  return RELEASE_DOCUMENTATION_PATHS.includes(file);
+}
+
+export function isReleaseSnapshotPath(file) {
+  return RELEASE_SNAPSHOT_PATHS.includes(file);
+}
+
 export function isDocumentationRelatedPath(file) {
   return (
     isPublicDocumentationPath(file) ||
@@ -94,8 +127,10 @@ export function isDocumentationRelatedPath(file) {
     file === "Makefile" ||
     file === "package.json" ||
     file === "package-lock.json" ||
-    file === ".github/workflows/docs-build.yaml" ||
+    /^\.github\/workflows\/(?:docs-build|post-merge-documentation|release-documentation|review-documentation)[.]yaml$/u.test(file) ||
     /^fern\//u.test(file) ||
+    /^tools\/docs-agent\//u.test(file) ||
+    file === "scripts/install-doc-agent-openshell.sh" ||
     /^scripts\/(?:[^/]*fern[^/]*|watch-fern-preview[.]mjs|tests\/)/u.test(file)
   );
 }
@@ -129,6 +164,31 @@ export function managedBranch(sourcePullRequest, mergeSha) {
   const number = Number(sourcePullRequest);
   if (!Number.isSafeInteger(number) || number < 1) fail("Source pull request number is invalid");
   return `automation/post-merge-docs-pr-${number}-${exactSha(mergeSha, "merge SHA").slice(0, 12)}`;
+}
+
+export function managedReleaseBranch(version, mergeSha) {
+  return `automation/release-docs-v${stableVersion(version)}-${exactSha(mergeSha, "merge SHA").slice(0, 12)}`;
+}
+
+export function releaseSnapshotTag(version) {
+  return `fern-docs-snapshot-v${stableVersion(version)}`;
+}
+
+export function releaseVersionFromPull(pull, repository) {
+  const match = /^chore\/release-((?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*))$/u.exec(
+    pull?.head?.ref ?? "",
+  );
+  if (
+    !match ||
+    pull.base?.repo?.full_name !== repository ||
+    pull.base?.ref !== "develop" ||
+    pull.head?.repo?.full_name !== repository ||
+    pull.user?.login !== "github-actions[bot]" ||
+    pull.title !== `chore: prepare for release v${match[1]}`
+  ) {
+    return null;
+  }
+  return match[1];
 }
 
 export function readBoundedFile(file, maximum, allowEmpty = false) {

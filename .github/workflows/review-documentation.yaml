@@ -14,6 +14,9 @@ on:
       - "AI_POLICY.md"
       - "CONTRIBUTING.md"
       - ".github/workflows/docs-build.yaml"
+      - ".github/workflows/post-merge-documentation.yaml"
+      - ".github/workflows/release-documentation.yaml"
+      - ".github/workflows/review-documentation.yaml"
       - "Makefile"
       - "docs/**"
       - "fern/**"
@@ -23,6 +26,8 @@ on:
       - "scripts/fern-ref-sdk-hooks/**"
       - "scripts/tests/**"
       - "scripts/watch-fern-preview.mjs"
+      - "scripts/install-doc-agent-openshell.sh"
+      - "tools/docs-agent/**"
   issue_comment:
     types: [created]
   workflow_dispatch:

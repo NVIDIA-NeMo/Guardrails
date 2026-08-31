@@ -3,10 +3,10 @@
 
 # Short-lived documentation agents
 
-Guardrails uses separate short-lived Pi sandboxes for post-merge documentation authoring and pull
-request documentation review. A sandbox exists only for one workflow job and is deleted after the
-agent finishes or fails. The workflows do not provide the sandbox with a GitHub token or the upstream
-model credential.
+Guardrails uses separate short-lived Pi sandboxes for post-merge documentation authoring, release
+documentation authoring, and pull request documentation review. A sandbox exists only for one
+workflow job and is deleted after the agent finishes or fails. The workflows do not provide the
+sandbox with a GitHub token or the upstream model credential.
 
 ## Repository configuration
 
@@ -15,7 +15,7 @@ Repository administrators must configure:
 - the `DOCS_AGENT_API_KEY` Actions secret for the OpenAI-compatible NVIDIA inference endpoint;
 - the existing `DOCS_FERN_TOKEN` Actions secret for host-side Fern validation; and
 - the `DOCS_MAINTAINERS` Actions variable as a comma-separated list of GitHub usernames that should
-  review generated fast-follow documentation pull requests.
+  review generated fast-follow and release documentation pull requests.
 
 The OpenShell release archives, Pi sandbox image, model identifier, rubric copies, and workflow
 actions are pinned in the repository. Update these pins through normal dependency and security review.
@@ -44,6 +44,35 @@ maintainers and the development pull request author. An empty approved patch cre
 The branch includes the source pull request number and merge commit, so different development pull
 requests never accumulate into the same documentation pull request.
 
+Release preparation pull requests are excluded from this generic workflow and are handled by the
+release-specific workflow.
+
+## Release documentation
+
+`Docs / Prepare Release Documentation` is the documentation stage that follows `Prepare Release`.
+The release workflow first creates a bot-authored `chore/release-X.Y.Z` pull request. After
+maintainers merge that release preparation into `develop`, the documentation workflow verifies the
+bot author, stable version, `release` and `automated` labels, exact generated file set, source
+revisions, merge commit, and merge time.
+
+The short-lived author uses the generated changelog and merged release tree to update exactly:
+
+- `docs/about/release-notes.mdx` with the current release summary and Previous Releases links;
+- `fern/docs.yml` with the immutable version entry; and
+- `docs/README.mdx` with the current versioning example.
+
+The author must include every generated breaking change and must not upgrade the Fern CLI. A second,
+read-only sandbox checks the release summary, links, version entry, snapshot name, file boundary, and
+source grounding. The trusted host creates a local snapshot tag and runs the documentation script
+tests and strict Fern validation before publishing anything.
+
+The write-enabled publisher recreates the approved snapshot as a deterministic commit whose parent
+is the merged release commit. It pushes the annotated, immutable
+`fern-docs-snapshot-vX.Y.Z` tag before opening one draft release documentation pull request. The pull
+request is labeled `documentation`, `release`, and `automated`, and requests review from the
+configured maintainers. A release preparation PR is never handled cumulatively with ordinary
+post-merge documentation.
+
 ## Documentation review
 
 `Docs / Review Documentation` runs automatically when a pull request changes public documentation or
@@ -71,6 +100,11 @@ The review never approves, requests changes, merges, labels, or pushes to the pu
   workflow. The publisher refuses stale output.
 - If a managed documentation branch exists without an open pull request, inspect and remove or recover
   that exact branch before rerunning. The publisher does not overwrite it.
+- Never move or replace a published `fern-docs-snapshot-vX.Y.Z` tag. If review finds a correction
+  after publication, create a new snapshot commit and use `-r2`, `-r3`, and later suffixes as described
+  in `docs/README.mdx`.
+- If a release snapshot tag exists but its managed pull request does not, inspect the exact tag and
+  managed branch. A rerun proceeds only when the deterministic snapshot commit still matches.
 - If a sandbox cleanup fails, remove only the sandbox named in the workflow log before rerunning.
 - If inference is unavailable, the model-bearing job fails closed and publishes no patch or review.
 - If the configured maintainer list is empty or invalid, publication stops before creating a branch.

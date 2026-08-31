@@ -49,6 +49,7 @@ function validateMetadata(value, repository, patch) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail("metadata must be an object");
   if (
     value.version !== 1 ||
+    value.kind !== "post-merge" ||
     value.repository !== repository ||
     value.patch_sha256 !== patchSha256(patch) ||
     !Number.isSafeInteger(value.source_pull_request) ||
