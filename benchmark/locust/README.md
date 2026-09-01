@@ -5,7 +5,8 @@ This directory contains a Locust-based load testing framework for the NeMo Guard
 ## Introduction
 
 The [Locust](https://locust.io/) stress-testing tool ramps up concurrent users making API calls to the `/v1/chat/completions` endpoint of an OpenAI-compatible LLM with configurable parameters.
-This complements [ai-perf](https://github.com/ai-dynamo/aiperf), which measures steady-state performance.  Locust instead focuses on ramping up load potentially beyond what a system can handle, and measure how gracefully it degrades under higher-than-expected load.
+The focus is on ramping load up potentially beyond what a system can handle, and measuring how
+gracefully it degrades under higher-than-expected load.
 
 ## Quickstart
 
