@@ -8,6 +8,10 @@ documentation authoring, and pull request documentation review. A sandbox exists
 workflow job and is deleted after the agent finishes or fails. The workflows do not provide the
 sandbox with a GitHub token or the upstream model credential.
 
+The trusted host embeds `AGENTS.md`, `docs/AGENTS.md`, `AI_POLICY.md`, and `CONTRIBUTING.md` in each
+agent task. The checked-in Writing Style Guide therefore reaches every author and reviewer sandbox
+without a dependency on an external skill collection.
+
 ## Repository configuration
 
 Repository administrators must configure:

@@ -162,7 +162,21 @@ as package coverage.
   changing subtle behavior; when the existing suite does not cover the refactored
   code, keep the equivalence check you used to prove behavior is unchanged.
 
-## Documentation And Generated Files
+## Documentation
+
+Before completing a code change, determine whether it affects a user-visible
+surface. This includes public APIs, CLI or configuration behavior, workflows,
+defaults, errors, examples, installation, and other product behavior.
+
+When documentation is required and the host supports subagents, start a
+documentation subagent in parallel. Direct it to read `docs/AGENTS.md`, provide
+the changed sources and identified reader impact, and require it to update the
+owning documentation and run the documented validation. Continue the primary
+implementation while the documentation work proceeds, then reconcile both
+changes before handoff. If subagents are unavailable, the primary task must
+read `docs/AGENTS.md`, complete the same documentation work, and run its
+validation. Do not omit documentation because parallel execution is
+unavailable.
 
 - Update docs when changing user-visible behavior, public APIs, configuration
   syntax, examples, or installation requirements.
@@ -182,6 +196,24 @@ as package coverage.
 - For notebook documentation, follow `CONTRIBUTING.md`. Do not run
   `build_notebook_docs.py` unless explicitly asked; it currently runs broad git
   staging and pre-commit commands. Use a clean worktree if it must be run.
+
+### NVIDIA DORI Routing
+
+Use the checked-in [Writing Style Guide](docs/AGENTS.md#writing-style-guide) as
+the documentation baseline.
+
+1. Honor an explicit request not to use DORI and continue with the Writing
+   Style Guide.
+2. Check whether the current agent exposes `dori_handle` or `dori_route`
+   together with `dori_collections`.
+3. When those tools are available, list the installed collections. Use DORI
+   only when the collection metadata verifies the NVIDIA documentation Skill
+   Library.
+4. If the tools or verified collection are unavailable, inaccessible, or fail,
+   continue with the Writing Style Guide.
+
+During a normal documentation task, do not inspect a shell-visible DORI CLI,
+prompt for access or setup, install software, or configure the host.
 
 ## Review Mode
 
