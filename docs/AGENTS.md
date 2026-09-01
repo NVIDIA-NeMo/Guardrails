@@ -66,25 +66,6 @@ notes that you create or edit.
 - Do not duplicate the page title as a body H1 because Fern renders the title
   from frontmatter.
 
-## Use DORI for Complete NVIDIA Doc Tools
-
-Follow [NVIDIA DORI Routing](../AGENTS.md#nvidia-dori-routing). Use DORI only
-when the current host exposes the required tools and the NVIDIA documentation
-Skill Library is already available and verified. Complete the documentation
-before the developer opens the pull request.
-
-1. Route the documentation task with the changed source files, user-visible
-   impact, possible documentation owners, and required validation.
-2. Follow the returned workflow and verify behavior against checked-in sources.
-3. When the host supports subagents, run documentation work in parallel with
-   the primary implementation and reconcile both changes before handoff.
-4. When the host does not support subagents, complete the same work in the
-   primary task.
-
-If the tools or verified collection are unavailable, inaccessible, or fail,
-skip DORI and continue with the Writing Style Guide. Do not attempt setup or
-prompt for access during a normal documentation task.
-
 ## Before Editing
 
 - Read the full target page before editing it.

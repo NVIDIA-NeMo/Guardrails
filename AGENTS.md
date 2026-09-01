@@ -197,24 +197,6 @@ unavailable.
   `build_notebook_docs.py` unless explicitly asked; it currently runs broad git
   staging and pre-commit commands. Use a clean worktree if it must be run.
 
-### NVIDIA DORI Routing
-
-Use the checked-in [Writing Style Guide](docs/AGENTS.md#writing-style-guide) as
-the documentation baseline.
-
-1. Honor an explicit request not to use DORI and continue with the Writing
-   Style Guide.
-2. Check whether the current agent exposes `dori_handle` or `dori_route`
-   together with `dori_collections`.
-3. When those tools are available, list the installed collections. Use DORI
-   only when the collection metadata verifies the NVIDIA documentation Skill
-   Library.
-4. If the tools or verified collection are unavailable, inaccessible, or fail,
-   continue with the Writing Style Guide.
-
-During a normal documentation task, do not inspect a shell-visible DORI CLI,
-prompt for access or setup, install software, or configure the host.
-
 ## Review Mode
 
 - When reviewing a branch, compare against the merge base with `develop` and
