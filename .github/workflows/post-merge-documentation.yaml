@@ -118,8 +118,6 @@ jobs:
           retention-days: 3
 
       - name: Validate generated documentation
-        env:
-          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
         run: |
           set -euo pipefail
           if [ ! -s "$DOCS_AGENT_ARTIFACT_DIR/docs.patch" ]; then

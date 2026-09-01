@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -34,6 +35,10 @@ import {
 } from "../../tools/docs-agent/agent.mjs";
 import { isAllowedGithubApiPath, workflowOutput } from "../../tools/docs-agent/github.mjs";
 import { credentialFreeEnvironment } from "../../tools/docs-agent/openshell-runtime.mjs";
+import {
+  remoteBranchCommit,
+  validateManagedBranch,
+} from "../../tools/docs-agent/publish-release.mjs";
 
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
@@ -287,6 +292,76 @@ test("keeps the provider credential in one trusted configuration step", () => {
     for (const step of agentSteps.filter((step) => !step.includes('agent.mjs" configure'))) {
       assert.doesNotMatch(step, /OPENAI_API_KEY|DOCS_AGENT_API_KEY/u);
     }
+  }
+
+  for (const file of ["post-merge-documentation.yaml", "release-documentation.yaml"]) {
+    const source = fs.readFileSync(new URL(`../../.github/workflows/${file}`, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /DOCS_FERN_TOKEN|FERN_TOKEN/u);
+  }
+});
+
+test("validates and resumes an orphaned release-documentation branch", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "docs-agent-release-branch-"));
+  const repository = path.join(directory, "repository");
+  const remote = path.join(directory, "remote.git");
+  const runGit = (args, options = {}) =>
+    String(
+      execFileSync("git", args, {
+        cwd: repository,
+        encoding: options.encoding ?? "utf8",
+        input: options.input,
+      }),
+    ).trim();
+  try {
+    execFileSync("git", ["init", "--bare", remote]);
+    execFileSync("git", ["init", "--initial-branch=develop", repository]);
+    runGit(["config", "user.name", "release-test"]);
+    runGit(["config", "user.email", "release-test@example.com"]);
+    runGit(["config", "commit.gpgsign", "false"]);
+    fs.mkdirSync(path.join(repository, "docs"), { recursive: true });
+    fs.writeFileSync(path.join(repository, "docs", "README.mdx"), "before\n");
+    runGit(["add", "docs/README.mdx"]);
+    runGit(["commit", "--message", "chore: release baseline"]);
+    const mergeSha = runGit(["rev-parse", "HEAD"]);
+    runGit(["remote", "add", "origin", remote]);
+    runGit(["push", "origin", "develop"]);
+    const branch = `automation/release-docs-v0.25.0-${mergeSha.slice(0, 12)}`;
+    runGit(["switch", "--create", branch]);
+    fs.writeFileSync(path.join(repository, "docs", "README.mdx"), "after\n");
+    runGit(["add", "docs/README.mdx"]);
+    runGit(["config", "user.name", "github-actions[bot]"]);
+    runGit(["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"]);
+    runGit(["commit", "--signoff", "--message", "docs: publish v0.25.0 release notes and snapshot"]);
+    const branchSha = runGit(["rev-parse", "HEAD"]);
+    const patch = execFileSync("git", ["diff", "--binary", "--full-index", mergeSha, branchSha], {
+      cwd: repository,
+    });
+    runGit(["push", "origin", `HEAD:refs/heads/${branch}`]);
+    runGit(["switch", "develop"]);
+    const remoteOutput = runGit(["ls-remote", "--heads", "origin", `refs/heads/${branch}`]);
+    assert.equal(remoteBranchCommit(remoteOutput, branch), branchSha);
+    assert.doesNotThrow(() =>
+      validateManagedBranch(
+        repository,
+        branch,
+        branchSha,
+        { merge_sha: mergeSha, release_version: "0.25.0" },
+        patch,
+      ),
+    );
+    assert.throws(
+      () =>
+        validateManagedBranch(
+          repository,
+          branch,
+          branchSha,
+          { merge_sha: mergeSha, release_version: "0.25.0" },
+          Buffer.from("unapproved patch\n"),
+        ),
+      /does not contain the approved patch/u,
+    );
+  } finally {
+    fs.rmSync(directory, { force: true, recursive: true });
   }
 });
 

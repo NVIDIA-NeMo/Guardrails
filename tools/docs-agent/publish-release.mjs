@@ -5,6 +5,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   exactSha,
@@ -113,6 +114,54 @@ function remoteTagCommit(repository, tag) {
   return refs.get(`refs/tags/${tag}^{}`) ?? refs.get(`refs/tags/${tag}`) ?? fail("Remote snapshot tag is invalid");
 }
 
+export function remoteBranchCommit(output, branch) {
+  if (!output) return null;
+  const fields = output.split(/\s+/u);
+  if (fields.length !== 2 || fields[1] !== `refs/heads/${branch}`) fail("Remote managed branch is invalid");
+  return exactSha(fields[0], "remote managed branch commit");
+}
+
+export function validateManagedBranch(repository, branch, commit, metadata, patch) {
+  git(repository, ["fetch", "--no-tags", "origin", `refs/heads/${branch}`], false);
+  if (exactSha(git(repository, ["rev-parse", "FETCH_HEAD"]), "fetched managed branch commit") !== commit) {
+    fail("Managed release-documentation branch changed while validating it");
+  }
+  const ancestry = git(repository, ["rev-list", "--parents", "-n", "1", commit]).split(" ");
+  if (ancestry.length !== 2) fail("Managed release-documentation branch must contain a single-parent commit");
+  const parent = exactSha(ancestry[1], "managed branch parent");
+  if (!gitSucceeds(repository, ["merge-base", "--is-ancestor", metadata.merge_sha, parent])) {
+    fail("Managed release-documentation branch does not descend from the release merge");
+  }
+  const expectedSubject = `docs: publish v${metadata.release_version} release notes and snapshot`;
+  const commitFields = git(repository, ["show", "-s", "--format=%an%x00%ae%x00%s%x00%B", commit]).split("\0");
+  if (
+    commitFields.length !== 4 ||
+    commitFields[0] !== BOT_NAME ||
+    commitFields[1] !== BOT_EMAIL ||
+    commitFields[2] !== expectedSubject ||
+    !commitFields[3].split(/\r?\n/u).includes(SIGN_OFF)
+  ) {
+    fail("Managed release-documentation branch commit identity is invalid");
+  }
+  const branchPatch = execFileSync(
+    "git",
+    ["-c", "core.hooksPath=/dev/null", "-C", repository, "diff", "--binary", "--full-index", parent, commit],
+    { env: GIT_ENV, maxBuffer: 5_242_880 },
+  );
+  if (patchSha256(branchPatch) !== patchSha256(patch)) {
+    fail("Managed release-documentation branch does not contain the approved patch");
+  }
+}
+
+async function reconcilePullRequest(repository, pull, reviewers) {
+  await githubRequest("POST", `/repos/${repository}/issues/${pull.number}/labels`, {
+    labels: ["documentation", "release", "automated"],
+  });
+  await githubRequest("POST", `/repos/${repository}/pulls/${pull.number}/requested_reviewers`, {
+    reviewers,
+  });
+}
+
 function pullBody(metadata, snapshotTag) {
   return `## Description
 
@@ -205,9 +254,19 @@ async function main() {
     fail("The release merge is not an ancestor of current develop");
   }
 
-  const remoteBranch = git(checkout, ["ls-remote", "--heads", "origin", `refs/heads/${branch}`]);
-  if (existing.length === 0 && remoteBranch) fail(`Managed branch already exists without an open pull request: ${branch}`);
-  if (existing.length === 0) {
+  const remoteBranch = remoteBranchCommit(
+    git(checkout, ["ls-remote", "--heads", "origin", `refs/heads/${branch}`]),
+    branch,
+  );
+  if (remoteBranch) {
+    validateManagedBranch(checkout, branch, remoteBranch, metadata, patch);
+    if (existing.length === 1 && existing[0].head?.sha !== remoteBranch) {
+      fail("Managed release-documentation pull request head does not match its branch");
+    }
+  } else if (existing.length === 1) {
+    fail("Managed release-documentation pull request has no remote branch");
+  }
+  if (!remoteBranch) {
     git(checkout, ["switch", "--create", branch], false);
     applyPatch(checkout, patch);
     stagedPaths(checkout, isReleaseDocumentationPath, RELEASE_DOCUMENTATION_PATHS);
@@ -236,14 +295,14 @@ async function main() {
     if (existingTagCommit && existingTagCommit !== snapshotCommit) {
       fail(`Immutable snapshot tag ${tag} already references a different commit`);
     }
-    if (!existingTagCommit && existing.length === 1) fail("Managed pull request exists without its immutable snapshot tag");
     if (!existingTagCommit) {
       git(snapshotCheckout, ["tag", "--annotate", tag, "--message", `Fern docs snapshot for v${metadata.release_version}`], false, datedEnvironment);
     }
-    if (existing.length === 0) {
-      const refs = [`HEAD:refs/heads/${branch}`];
-      if (!existingTagCommit) refs.push(`refs/tags/${tag}:refs/tags/${tag}`);
-      git(checkout, ["push", ...(existingTagCommit ? [] : ["--atomic"]), "origin", ...refs], false);
+    const refs = [];
+    if (!remoteBranch) refs.push(`HEAD:refs/heads/${branch}`);
+    if (!existingTagCommit) refs.push(`refs/tags/${tag}:refs/tags/${tag}`);
+    if (refs.length) {
+      git(checkout, ["push", ...(refs.length === 2 ? ["--atomic"] : []), "origin", ...refs], false);
     }
     if (!existingTagCommit) {
       if (remoteTagCommit(checkout, tag) !== snapshotCommit) fail("Published snapshot tag does not match the approved commit");
@@ -254,6 +313,7 @@ async function main() {
   }
 
   if (existing.length === 1) {
+    await reconcilePullRequest(repositoryName, existing[0], reviewers);
     console.log(existing[0].html_url);
     return;
   }
@@ -264,16 +324,13 @@ async function main() {
     head: branch,
     title: `docs: publish v${metadata.release_version} release notes and Fern snapshot`,
   });
-  await githubRequest("POST", `/repos/${repositoryName}/issues/${pull.number}/labels`, {
-    labels: ["documentation", "release", "automated"],
-  });
-  await githubRequest("POST", `/repos/${repositoryName}/pulls/${pull.number}/requested_reviewers`, {
-    reviewers,
-  });
+  await reconcilePullRequest(repositoryName, pull, reviewers);
   console.log(pull.html_url);
 }
 
-main().catch((_error) => {
-  console.error("Release documentation publication failed. Review preceding trusted command output.");
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((_error) => {
+    console.error("Release documentation publication failed. Review preceding trusted command output.");
+    process.exit(1);
+  });
+}

@@ -123,7 +123,6 @@ jobs:
 
       - name: Validate release documentation and local snapshot
         env:
-          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
           SNAPSHOT_TAG: fern-docs-snapshot-v${{ needs.select.outputs.version }}
         run: |
           set -euo pipefail

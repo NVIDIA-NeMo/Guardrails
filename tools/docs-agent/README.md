@@ -17,9 +17,12 @@ without a dependency on an external skill collection.
 Repository administrators must configure:
 
 - the `DOCS_AGENT_API_KEY` Actions secret for the OpenAI-compatible NVIDIA inference endpoint;
-- the existing `DOCS_FERN_TOKEN` Actions secret for host-side Fern validation; and
 - the `DOCS_MAINTAINERS` Actions variable as a comma-separated list of GitHub usernames that should
   review generated fast-follow and release documentation pull requests.
+
+The authoring workflows run their pre-publication documentation checks without a Fern credential.
+The existing docs build and publishing workflows continue to own `DOCS_FERN_TOKEN`; this automation
+does not read or expose that secret.
 
 The OpenShell release archives, Pi sandbox image, model identifier, rubric copies, and workflow
 actions are pinned in the repository. Update these pins through normal dependency and security review.
