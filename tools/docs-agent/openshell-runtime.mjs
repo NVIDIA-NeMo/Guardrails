@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { execFileSync, spawn } from "node:child_process";
-import { closeSync, mkdirSync, openSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { fail } from "./contract.mjs";
@@ -74,16 +74,52 @@ async function stopProcess(child) {
   if (!exited) child.kill("SIGKILL");
 }
 
+function gatewayDirectory(env) {
+  return path.join(required(env.RUNNER_TEMP, "RUNNER_TEMP"), "docs-agent-gateway");
+}
+
+function processExists(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === "ESRCH") return false;
+    throw error;
+  }
+}
+
+async function stopProcessId(pid) {
+  if (!processExists(pid)) return;
+  process.kill(pid, "SIGTERM");
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (!processExists(pid)) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  process.kill(pid, "SIGKILL");
+}
+
+export async function cleanupInference(env) {
+  const directory = gatewayDirectory(env);
+  const pidFile = path.join(directory, "gateway.pid");
+  if (existsSync(pidFile)) {
+    const pid = Number(readFileSync(pidFile, "utf8").trim());
+    if (!Number.isSafeInteger(pid) || pid < 2) fail("OpenShell gateway PID is invalid");
+    await stopProcessId(pid);
+  }
+  rmSync(directory, { force: true, recursive: true });
+}
+
 export async function configureInference(env, modelId) {
   const providerApiKey = required(env.OPENAI_API_KEY, "OPENAI_API_KEY");
   const clean = credentialFreeEnvironment(env);
-  const gatewayDirectory = path.join(required(env.RUNNER_TEMP, "RUNNER_TEMP"), "docs-agent-gateway");
-  mkdirSync(gatewayDirectory, { recursive: true });
+  const directory = gatewayDirectory(env);
+  rmSync(directory, { force: true, recursive: true });
+  mkdirSync(directory, { mode: 0o700, recursive: true });
   const supervisor = run("which", ["openshell-sandbox"], clean, { capture: true });
-  run("openshell-gateway", ["generate-certs", "--output-dir", gatewayDirectory], clean);
-  const configuration = path.join(gatewayDirectory, "gateway.toml");
-  writeFileSync(configuration, gatewayConfiguration(gatewayDirectory, supervisor), { mode: 0o600 });
-  const log = openSync(path.join(gatewayDirectory, "gateway.log"), "w", 0o600);
+  run("openshell-gateway", ["generate-certs", "--output-dir", directory], clean);
+  const configuration = path.join(directory, "gateway.toml");
+  writeFileSync(configuration, gatewayConfiguration(directory, supervisor), { mode: 0o600 });
+  const log = openSync(path.join(directory, "gateway.log"), "w", 0o600);
   let child;
   try {
     child = spawn("openshell-gateway", ["--config", configuration], {
@@ -92,6 +128,8 @@ export async function configureInference(env, modelId) {
       stdio: ["ignore", log, log],
     });
     child.on("error", () => undefined);
+    if (!Number.isSafeInteger(child.pid) || child.pid < 2) fail("OpenShell gateway did not start");
+    writeFileSync(path.join(directory, "gateway.pid"), `${child.pid}\n`, { mode: 0o600 });
     child.unref();
   } finally {
     closeSync(log);
@@ -133,6 +171,7 @@ export async function configureInference(env, modelId) {
     );
   } catch (error) {
     await stopProcess(child);
+    rmSync(directory, { force: true, recursive: true });
     throw error;
   }
 }

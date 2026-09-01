@@ -36,10 +36,12 @@ line names only the environment variable. Every OpenShell command receives a cre
 environment except that one provider-registration call. Later sandbox execution steps do not receive
 the secret at all.
 
-The gateway binds to runner loopback, keeps its configuration and log files under `RUNNER_TEMP` with
-owner-only permissions, and routes sandbox model traffic through `https://inference.local/v1`. The Pi
-configuration contains the inert value `unused`, not the provider credential. The hosted runner removes
-the gateway and provider state when the job ends.
+The gateway binds to runner loopback, keeps its process marker, configuration, and log files under
+`RUNNER_TEMP` with owner-only permissions, and routes sandbox model traffic through
+`https://inference.local/v1`. The Pi configuration contains the inert value `unused`, not the provider
+credential. The workflow stops the gateway and removes its temporary state immediately after the
+agent phase, before it runs any repository validation. The hosted runner provides a second cleanup
+boundary when the job ends.
 
 ## Post-merge fast follow
 

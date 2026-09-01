@@ -22,6 +22,7 @@ import {
   validateReviewResult,
 } from "./contract.mjs";
 import {
+  cleanupInference,
   configureInference,
   createSandbox,
   deleteSandbox,
@@ -580,8 +581,12 @@ async function reviewPullRequest(env) {
 }
 
 export async function main(command, env = process.env) {
-  if (!["configure", "post-merge", "release-docs", "review-pr"].includes(command)) {
-    fail("command must be configure, post-merge, release-docs, or review-pr");
+  if (!["cleanup", "configure", "post-merge", "release-docs", "review-pr"].includes(command)) {
+    fail("command must be cleanup, configure, post-merge, release-docs, or review-pr");
+  }
+  if (command === "cleanup") {
+    await cleanupInference(env);
+    return;
   }
   if (command === "configure") {
     await configureInference(env, MODEL_ID);

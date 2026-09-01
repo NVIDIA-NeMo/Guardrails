@@ -112,6 +112,10 @@ jobs:
         id: docs-agent
         run: node "$TRUSTED_CHECKOUT/tools/docs-agent/agent.mjs" release-docs
 
+      - name: Tear down isolated inference
+        if: ${{ always() }}
+        run: node "$TRUSTED_CHECKOUT/tools/docs-agent/agent.mjs" cleanup
+
       - name: Upload independent review rejection
         if: ${{ failure() && steps.docs-agent.outcome == 'failure' }}
         uses: actions/upload-artifact@v7.0.1

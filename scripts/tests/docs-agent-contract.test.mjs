@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -34,7 +34,10 @@ import {
   withCleanup,
 } from "../../tools/docs-agent/agent.mjs";
 import { isAllowedGithubApiPath, workflowOutput } from "../../tools/docs-agent/github.mjs";
-import { credentialFreeEnvironment } from "../../tools/docs-agent/openshell-runtime.mjs";
+import {
+  cleanupInference,
+  credentialFreeEnvironment,
+} from "../../tools/docs-agent/openshell-runtime.mjs";
 import {
   remoteBranchCommit,
   validateManagedBranch,
@@ -297,6 +300,34 @@ test("keeps the provider credential in one trusted configuration step", () => {
   for (const file of ["post-merge-documentation.yaml", "release-documentation.yaml"]) {
     const source = fs.readFileSync(new URL(`../../.github/workflows/${file}`, import.meta.url), "utf8");
     assert.doesNotMatch(source, /DOCS_FERN_TOKEN|FERN_TOKEN/u);
+    const agent = source.indexOf(file.startsWith("post-") ? 'agent.mjs" post-merge' : 'agent.mjs" release-docs');
+    const cleanup = source.indexOf('agent.mjs" cleanup');
+    const validation = source.indexOf(file.startsWith("post-") ? "Validate generated documentation" : "Validate release documentation");
+    assert.ok(agent > 0 && cleanup > agent && validation > cleanup);
+  }
+});
+
+test("stops the inference gateway and removes its temporary state", async () => {
+  const runnerTemp = fs.mkdtempSync(path.join(os.tmpdir(), "docs-agent-gateway-test-"));
+  const gateway = path.join(runnerTemp, "docs-agent-gateway");
+  fs.mkdirSync(gateway, { mode: 0o700 });
+  const child = spawn(process.execPath, ["-e", "setInterval(() => undefined, 1000)"], {
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
+  fs.writeFileSync(path.join(gateway, "gateway.pid"), `${child.pid}\n`, { mode: 0o600 });
+  try {
+    await cleanupInference({ RUNNER_TEMP: runnerTemp });
+    assert.equal(fs.existsSync(gateway), false);
+    assert.throws(() => process.kill(child.pid, 0), { code: "ESRCH" });
+  } finally {
+    try {
+      process.kill(child.pid, "SIGKILL");
+    } catch (error) {
+      if (error?.code !== "ESRCH") throw error;
+    }
+    fs.rmSync(runnerTemp, { force: true, recursive: true });
   }
 });
 
