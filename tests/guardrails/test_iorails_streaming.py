@@ -97,7 +97,7 @@ async def _collect(async_iter):
 async def _failing_stream(model_type, messages, **kwargs):
     """Mock stream that raises immediately."""
     raise RuntimeError("LLM exploded")
-    yield  # noqa: unreachable -- makes this an async generator
+    yield  # noqa: F704  # keeps the function an async generator
 
 
 async def _mid_stream_failure(model_type, messages, **kwargs):
