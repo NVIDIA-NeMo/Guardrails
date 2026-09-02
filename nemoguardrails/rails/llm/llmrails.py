@@ -102,6 +102,7 @@ from nemoguardrails.rails.llm.options import (
 )
 from nemoguardrails.rails.llm.utils import (
     get_action_details_from_flow_id,
+    get_content_text,
     get_history_cache_key,
 )
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
@@ -770,10 +771,11 @@ class LLMRails(BaseGuardrails):
             for idx in range(p, len(messages)):
                 msg = messages[idx]
                 if msg["role"] == "user":
+                    user_text = get_content_text(msg["content"])
                     events.append(
                         {
                             "type": "UtteranceUserActionFinished",
-                            "final_transcript": msg["content"],
+                            "final_transcript": user_text,
                         }
                     )
 
@@ -782,7 +784,7 @@ class LLMRails(BaseGuardrails):
                         events.append(
                             {
                                 "type": "UserMessage",
-                                "text": msg["content"],
+                                "text": user_text,
                             }
                         )
 
@@ -817,7 +819,7 @@ class LLMRails(BaseGuardrails):
                         user_message = None
                         for prev_msg in reversed(messages[:idx]):
                             if prev_msg["role"] == "user":
-                                user_message = prev_msg["content"]
+                                user_message = get_content_text(prev_msg["content"])
                                 break
 
                         if user_message:
@@ -852,7 +854,7 @@ class LLMRails(BaseGuardrails):
                     events.append(
                         {
                             "type": "UtteranceUserActionFinished",
-                            "final_transcript": msg["content"],
+                            "final_transcript": get_content_text(msg["content"]),
                         }
                     )
 
