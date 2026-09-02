@@ -20,6 +20,7 @@ import pytest
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.rails.llm.options import (
+    ActivatedRail,
     GenerationLog,
     GenerationResponse,
     GenerationStats,
@@ -435,7 +436,7 @@ def test_only_input_output_validation():
 
 
 def test_generation_log_print_summary(capsys):
-    """Test printing rais stats with dummy data"""
+    """Test printing rails stats with dummy data"""
 
     stats = GenerationStats(
         input_rails_duration=1.0,
@@ -466,6 +467,89 @@ def test_generation_log_print_summary(capsys):
     assert (
         capture_lines[8]
         == "- 4 LLM calls, 8.00s total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
+    )
+
+
+def _dummy_activated_rails(durations: list[float | None]) -> list[ActivatedRail]:
+    names = [
+        ("input", "dummy input rail"),
+        ("dialog", "dummy dialog rail"),
+        ("generation", "dummy generation rail"),
+        ("output", "dummy output rail"),
+    ]
+    return [
+        ActivatedRail(type=rail_type, name=name, duration=duration)
+        for (rail_type, name), duration in zip(names, durations, strict=True)
+    ]
+
+
+def test_generation_log_print_summary_no_total_duration(capsys):
+    """Missing total_duration must not crash, and activated rails still print."""
+    generation_log = GenerationLog(
+        activated_rails=[ActivatedRail(type="tool_output", name="tool output check", duration=0.5)],
+        stats=GenerationStats(),
+    )
+
+    generation_log.print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert "No stats available" in lines
+    assert "- Total time: 10.00s" not in lines
+    assert "- [0.50s] TOOL_OUTPUT (tool output check): 0 actions (n/a), 0 llm calls [n/a]" in lines
+
+
+def test_generation_log_print_summary_no_llm_calls_duration(capsys):
+    """Missing llm_calls_duration prints n/a instead of raising."""
+    stats = GenerationStats(
+        input_rails_duration=1.0,
+        dialog_rails_duration=2.0,
+        generation_rails_duration=3.0,
+        output_rails_duration=4.0,
+        total_duration=10.0,
+        llm_calls_duration=None,
+        llm_calls_count=4,
+        llm_calls_total_prompt_tokens=1000,
+        llm_calls_total_completion_tokens=2000,
+        llm_calls_total_tokens=3000,
+    )
+
+    GenerationLog(activated_rails=[], stats=stats).print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert (
+        "- 4 LLM calls, n/a total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
+        in lines
+    )
+
+
+def test_generation_log_print_summary_no_activated_rail_duration(capsys):
+    """Missing activated_rail.duration prints n/a instead of raising."""
+    stats = GenerationStats(
+        input_rails_duration=1.0,
+        dialog_rails_duration=2.0,
+        generation_rails_duration=3.0,
+        output_rails_duration=4.0,
+        total_duration=10.0,
+        llm_calls_duration=8.0,
+        llm_calls_count=4,
+        llm_calls_total_prompt_tokens=1000,
+        llm_calls_total_completion_tokens=2000,
+        llm_calls_total_tokens=3000,
+    )
+
+    GenerationLog(
+        activated_rails=_dummy_activated_rails([None, None, None, None]),
+        stats=stats,
+    ).print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert "- [n/a] INPUT (dummy input rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [n/a] DIALOG (dummy dialog rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [n/a] GENERATION (dummy generation rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [n/a] OUTPUT (dummy output rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert (
+        "- 4 LLM calls, 8.00s total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
+        in lines
     )
 
 
