@@ -444,6 +444,8 @@ class LLMRails(BaseGuardrails):
         self.runtime.register_actions(self._llm_generation_actions, override=False)
 
         # Next, we initialize the Knowledge Base
+        # Pre-initialize to None so the attribute always exists, even if _init_kb fails.
+        self.kb = None
         # There are still some edge cases not covered by nest_asyncio.
         # Using a separate thread always for now.
         loop = get_or_create_event_loop()
