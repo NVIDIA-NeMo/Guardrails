@@ -37,7 +37,7 @@ jobs:
       version: ${{ steps.select.outputs.version }}
     steps:
       - name: Checkout trusted automation
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.workflow_sha }}
           path: trusted
@@ -57,6 +57,7 @@ jobs:
     if: ${{ needs.select.outputs.automate == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 70
+    environment: docs-agent-inference
     permissions:
       contents: read
     outputs:
@@ -77,7 +78,7 @@ jobs:
       TRUSTED_CHECKOUT: ${{ github.workspace }}/trusted
     steps:
       - name: Checkout trusted automation
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.workflow_sha }}
           path: trusted
@@ -86,7 +87,7 @@ jobs:
           submodules: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
           package-manager-cache: false
@@ -118,7 +119,7 @@ jobs:
 
       - name: Upload independent review rejection
         if: ${{ failure() && steps.docs-agent.outcome == 'failure' }}
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-documentation-rejection-v${{ needs.select.outputs.version }}
           path: ${{ env.DOCS_AGENT_ARTIFACT_DIR }}/review-report.txt
@@ -146,7 +147,7 @@ jobs:
 
       - name: Upload approved release documentation
         id: upload
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-documentation-v${{ needs.select.outputs.version }}-${{ needs.select.outputs.merge_sha }}
           path: ${{ env.DOCS_AGENT_ARTIFACT_DIR }}/
@@ -170,7 +171,7 @@ jobs:
       TRUSTED_CHECKOUT: ${{ github.workspace }}/trusted
     steps:
       - name: Checkout trusted publisher
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.workflow_sha }}
           path: trusted
@@ -179,7 +180,7 @@ jobs:
           submodules: false
 
       - name: Checkout current develop branch
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: develop
           fetch-depth: 0
@@ -189,7 +190,7 @@ jobs:
           submodules: false
 
       - name: Download approved release documentation
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           artifact-ids: ${{ needs.author.outputs.artifact_id }}
           path: approved

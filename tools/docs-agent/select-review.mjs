@@ -22,6 +22,13 @@ export function manualReviewRequest(event) {
   );
 }
 
+export function automaticReviewRequest(pull, repository) {
+  return Boolean(
+    pull?.head?.repo?.full_name === repository ||
+      isAuthorizedAssociation(pull?.author_association),
+  );
+}
+
 async function main() {
   const repository = process.env.GITHUB_REPOSITORY || fail("GITHUB_REPOSITORY is required");
   const eventName = process.env.GITHUB_EVENT_NAME || fail("GITHUB_EVENT_NAME is required");
@@ -29,6 +36,10 @@ async function main() {
   let pull;
   if (eventName === "pull_request_target") {
     pull = event.pull_request;
+    if (!automaticReviewRequest(pull, repository)) {
+      workflowOutput("eligible", false);
+      return;
+    }
   } else if (eventName === "issue_comment") {
     if (!manualReviewRequest(event)) {
       workflowOutput("eligible", false);

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -27,7 +27,10 @@ import {
 } from "../../tools/docs-agent/contract.mjs";
 import { selectPostMerge } from "../../tools/docs-agent/select-post-merge.mjs";
 import { selectRelease } from "../../tools/docs-agent/select-release.mjs";
-import { manualReviewRequest } from "../../tools/docs-agent/select-review.mjs";
+import {
+  automaticReviewRequest,
+  manualReviewRequest,
+} from "../../tools/docs-agent/select-review.mjs";
 import {
   buildReleaseAuthorPrompt,
   buildReleaseCoverageReviewPrompt,
@@ -37,6 +40,7 @@ import { isAllowedGithubApiPath, workflowOutput } from "../../tools/docs-agent/g
 import {
   cleanupInference,
   credentialFreeEnvironment,
+  loopbackGatewayAddress,
 } from "../../tools/docs-agent/openshell-runtime.mjs";
 import {
   remoteBranchCommit,
@@ -92,7 +96,8 @@ test("separates writable public documentation from related review surfaces", () 
 });
 
 test("accepts only an exact authorized review command", () => {
-  assert.equal(isReviewCommand(" /review-doc\n"), true);
+  assert.equal(isReviewCommand("/review-doc"), true);
+  assert.equal(isReviewCommand(" /review-doc\n"), false);
   assert.equal(isReviewCommand("/review-doc please"), false);
   assert.equal(isAuthorizedAssociation("MEMBER"), true);
   assert.equal(isAuthorizedAssociation("CONTRIBUTOR"), false);
@@ -102,6 +107,40 @@ test("accepts only an exact authorized review command", () => {
       issue: { pull_request: { url: "https://api.github.com/example" } },
     }),
     true,
+  );
+});
+
+test("requires a trusted association before automatically reviewing a fork", () => {
+  const repository = "NVIDIA-NeMo/Guardrails";
+  assert.equal(
+    automaticReviewRequest(
+      {
+        author_association: "CONTRIBUTOR",
+        head: { repo: { full_name: repository } },
+      },
+      repository,
+    ),
+    true,
+  );
+  assert.equal(
+    automaticReviewRequest(
+      {
+        author_association: "MEMBER",
+        head: { repo: { full_name: "member/fork" } },
+      },
+      repository,
+    ),
+    true,
+  );
+  assert.equal(
+    automaticReviewRequest(
+      {
+        author_association: "CONTRIBUTOR",
+        head: { repo: { full_name: "external/fork" } },
+      },
+      repository,
+    ),
+    false,
   );
 });
 
@@ -288,6 +327,10 @@ test("keeps the provider credential in one trusted configuration step", () => {
   ]) {
     const source = fs.readFileSync(new URL(`../../.github/workflows/${file}`, import.meta.url), "utf8");
     assert.equal([...source.matchAll(/secrets[.]DOCS_AGENT_API_KEY/gu)].length, 1);
+    assert.equal([...source.matchAll(/^    environment: docs-agent-inference$/gmu)].length, 1);
+    for (const match of source.matchAll(/^\s*uses:\s*(\S+)/gmu)) {
+      assert.match(match[1], /^[^@]+@[0-9a-f]{40}$/u);
+    }
     const agentSteps = source.split(/\n(?=      - name:)/u).filter((step) => step.includes("tools/docs-agent/agent.mjs"));
     const configure = agentSteps.filter((step) => step.includes('agent.mjs" configure'));
     assert.equal(configure.length, 1);
@@ -297,13 +340,161 @@ test("keeps the provider credential in one trusted configuration step", () => {
     }
   }
 
-  for (const file of ["post-merge-documentation.yaml", "release-documentation.yaml"]) {
+  for (const file of [
+    "post-merge-documentation.yaml",
+    "release-documentation.yaml",
+    "review-documentation.yaml",
+  ]) {
     const source = fs.readFileSync(new URL(`../../.github/workflows/${file}`, import.meta.url), "utf8");
     assert.doesNotMatch(source, /DOCS_FERN_TOKEN|FERN_TOKEN/u);
-    const agent = source.indexOf(file.startsWith("post-") ? 'agent.mjs" post-merge' : 'agent.mjs" release-docs');
+    const agentCommand = file.startsWith("post-")
+      ? 'agent.mjs" post-merge'
+      : file.startsWith("release-")
+        ? 'agent.mjs" release-docs'
+        : 'agent.mjs" review-pr';
+    const agent = source.indexOf(agentCommand);
     const cleanup = source.indexOf('agent.mjs" cleanup');
-    const validation = source.indexOf(file.startsWith("post-") ? "Validate generated documentation" : "Validate release documentation");
-    assert.ok(agent > 0 && cleanup > agent && validation > cleanup);
+    const nextBoundary = source.indexOf(
+      file.startsWith("post-")
+        ? "Validate generated documentation"
+        : file.startsWith("release-")
+          ? "Validate release documentation"
+          : "Upload revision-bound review",
+    );
+    assert.ok(agent > 0 && cleanup > agent && nextBoundary > cleanup);
+  }
+
+  const runtime = fs.readFileSync(
+    new URL("../../tools/docs-agent/openshell-runtime.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.match(runtime, /"--credential",\s*"OPENAI_API_KEY"/u);
+  assert.match(runtime, /sensitive: true, timeout: 60_000/u);
+});
+
+test("assigns a code owner to every trusted documentation-agent input", () => {
+  const codeowners = fs.readFileSync(
+    new URL("../../.github/CODEOWNERS", import.meta.url),
+    "utf8",
+  );
+  for (const file of [
+    "/.github/CODEOWNERS",
+    "/.github/workflows/post-merge-documentation.yaml",
+    "/.github/workflows/release-documentation.yaml",
+    "/.github/workflows/review-documentation.yaml",
+    "/AGENTS.md",
+    "/AI_POLICY.md",
+    "/CONTRIBUTING.md",
+    "/docs/AGENTS.md",
+    "/scripts/install-doc-agent-openshell.sh",
+    "/tools/docs-agent/",
+  ]) {
+    assert.match(
+      codeowners,
+      new RegExp(`^${file.replaceAll(".", "[.]")}\\s+@NVIDIA-NeMo/docs_team$`, "mu"),
+    );
+  }
+});
+
+test("accepts only an uncredentialed loopback gateway origin", () => {
+  assert.equal(
+    loopbackGatewayAddress({ OPENSHELL_GATEWAY_ENDPOINT: "http://127.0.0.1:8080" }),
+    "127.0.0.1:8080",
+  );
+  assert.equal(
+    loopbackGatewayAddress({ OPENSHELL_GATEWAY_ENDPOINT: "http://[::1]:8080" }),
+    "[::1]:8080",
+  );
+  for (const endpoint of [
+    "https://127.0.0.1:8080",
+    "http://api.example.com:8080",
+    "http://user:password@127.0.0.1:8080",
+    "http://127.0.0.1:8080/path",
+  ]) {
+    assert.throws(
+      () => loopbackGatewayAddress({ OPENSHELL_GATEWAY_ENDPOINT: endpoint }),
+      /uncredentialed loopback HTTP origin/u,
+    );
+  }
+});
+
+test("keeps a provider credential out of subprocess output and non-provider environments", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "docs-agent-secret-canary-"));
+  const binaryDirectory = path.join(root, "bin");
+  const runnerTemp = path.join(root, "runner-temp");
+  const trace = path.join(root, "trace.txt");
+  const providerCapture = path.join(root, "provider-capture.txt");
+  const runner = path.join(root, "run.mjs");
+  const canary = "docs-agent-secret-canary-value";
+  fs.mkdirSync(binaryDirectory);
+  const executable = (name, source) => {
+    const file = path.join(binaryDirectory, name);
+    fs.writeFileSync(file, source, { mode: 0o700 });
+  };
+  executable(
+    "openshell",
+    `#!/bin/sh
+if [ "$1" = "provider" ] && [ "$2" = "create" ]; then
+  printf '%s\n' "$OPENAI_API_KEY" > "$PROVIDER_CAPTURE_PATH"
+  printf '%s\n' "$OPENAI_API_KEY"
+  printf '%s\n' "$OPENAI_API_KEY" >&2
+elif [ -n "\${OPENAI_API_KEY:-}\${DOCS_AGENT_API_KEY:-}\${GITHUB_TOKEN:-}\${GH_TOKEN:-}\${NVIDIA_API_KEY:-}" ]; then
+  exit 91
+fi
+printf '%s %s secret=%s\n' "$1" "$2" "\${OPENAI_API_KEY:+present}" >> "$TRACE_PATH"
+`,
+  );
+  executable(
+    "openshell-gateway",
+    `#!/bin/sh
+if [ "$1" = "generate-certs" ]; then
+  mkdir -p "$3/jwt"
+  exit 0
+fi
+if [ -n "\${OPENAI_API_KEY:-}\${DOCS_AGENT_API_KEY:-}\${GITHUB_TOKEN:-}\${GH_TOKEN:-}\${NVIDIA_API_KEY:-}" ]; then
+  exit 92
+fi
+while :; do sleep 1; done
+`,
+  );
+  executable("openshell-sandbox", "#!/bin/sh\nexit 0\n");
+  fs.writeFileSync(
+    runner,
+    `import { cleanupInference, configureInference } from ${JSON.stringify(
+      new URL("../../tools/docs-agent/openshell-runtime.mjs", import.meta.url).href,
+    )};
+try {
+  await configureInference(process.env, "azure/openai/gpt-5.6-terra");
+} finally {
+  await cleanupInference(process.env);
+}
+`,
+  );
+  try {
+    const result = spawnSync(process.execPath, [runner], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        DOCS_AGENT_API_KEY: canary,
+        GH_TOKEN: canary,
+        GITHUB_TOKEN: canary,
+        HOME: root,
+        NVIDIA_API_KEY: canary,
+        OPENAI_API_KEY: canary,
+        OPENSHELL_GATEWAY_ENDPOINT: "http://127.0.0.1:8080",
+        PATH: `${binaryDirectory}${path.delimiter}${process.env.PATH ?? ""}`,
+        PROVIDER_CAPTURE_PATH: providerCapture,
+        RUNNER_TEMP: runnerTemp,
+        TRACE_PATH: trace,
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(fs.readFileSync(providerCapture, "utf8"), `${canary}\n`);
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(canary, "u"));
+    assert.equal(fs.readFileSync(trace, "utf8"), "gateway info secret=\nprovider create secret=present\ninference set secret=\n");
+    assert.equal(fs.existsSync(path.join(runnerTemp, "docs-agent-gateway")), false);
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
   }
 });
 
@@ -327,6 +518,22 @@ test("stops the inference gateway and removes its temporary state", async () => 
     } catch (error) {
       if (error?.code !== "ESRCH") throw error;
     }
+    fs.rmSync(runnerTemp, { force: true, recursive: true });
+  }
+});
+
+test("removes temporary gateway state when its process marker is invalid", async () => {
+  const runnerTemp = fs.mkdtempSync(path.join(os.tmpdir(), "docs-agent-invalid-gateway-test-"));
+  const gateway = path.join(runnerTemp, "docs-agent-gateway");
+  fs.mkdirSync(gateway, { mode: 0o700 });
+  fs.writeFileSync(path.join(gateway, "gateway.pid"), "invalid\n", { mode: 0o600 });
+  try {
+    await assert.rejects(
+      cleanupInference({ RUNNER_TEMP: runnerTemp }),
+      /OpenShell gateway PID is invalid/u,
+    );
+    assert.equal(fs.existsSync(gateway), false);
+  } finally {
     fs.rmSync(runnerTemp, { force: true, recursive: true });
   }
 });

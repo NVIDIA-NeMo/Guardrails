@@ -206,11 +206,13 @@ Update documentation when changing user-visible behavior, public APIs,
 configuration syntax, examples, or installation requirements.
 
 After a non-documentation pull request merges, the post-merge documentation workflow can create one
-draft fast-follow documentation pull request for that exact development pull request. Documentation
-pull requests also receive an advisory, revision-bound quality review. An owner, member, or
-collaborator can request a fresh review by adding a pull request comment containing exactly
-`/review-doc`. See [Short-lived documentation agents](./tools/docs-agent/README.md) for triggers,
-scoring, reviewer selection, security boundaries, configuration, and recovery.
+draft fast-follow documentation pull request for that exact development pull request. Eligible
+same-repository documentation pull requests and documentation pull requests from an owner, member, or
+collaborator receive an advisory, revision-bound quality review automatically. An external fork pull
+request requires an owner, member, or collaborator to request the review by adding a pull request
+comment containing exactly `/review-doc`. See [Short-lived documentation
+agents](./tools/docs-agent/README.md) for triggers, scoring, reviewer selection, security boundaries,
+configuration, and recovery.
 
 When maintainers merge the bot-authored pull request from `Prepare Release`, the release documentation
 workflow creates a draft pull request with source-grounded release notes, the immutable Fern version

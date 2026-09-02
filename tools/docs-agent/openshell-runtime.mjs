@@ -28,22 +28,31 @@ export function credentialFreeEnvironment(env) {
 }
 
 function run(command, args, env, options = {}) {
-  return String(
-    execFileSync(command, args, {
-      encoding: "utf8",
-      env,
-      stdio: options.capture ? ["ignore", "pipe", "inherit"] : "inherit",
-      timeout: options.timeout,
-    }) ?? "",
-  ).trim();
+  try {
+    return String(
+      execFileSync(command, args, {
+        encoding: "utf8",
+        env,
+        stdio: options.sensitive
+          ? "ignore"
+          : options.capture
+            ? ["ignore", "pipe", "inherit"]
+            : "inherit",
+        timeout: options.timeout,
+      }) ?? "",
+    ).trim();
+  } catch (error) {
+    if (options.sensitive) fail(`Sensitive ${command} command failed`);
+    throw error;
+  }
 }
 
-function gatewayConfiguration(directory, supervisor) {
+function gatewayConfiguration(directory, supervisor, bindAddress) {
   return `[openshell]
 version = 1
 
 [openshell.gateway]
-bind_address = "127.0.0.1:8080"
+bind_address = ${JSON.stringify(bindAddress)}
 compute_drivers = ["docker"]
 disable_tls = true
 
@@ -64,23 +73,29 @@ enable_bind_mounts = true
 `;
 }
 
-async function stopProcess(child) {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-  child.kill("SIGTERM");
-  const exited = await Promise.race([
-    new Promise((resolve) => child.once("exit", () => resolve(true))),
-    new Promise((resolve) => setTimeout(() => resolve(false), 5000)),
-  ]);
-  if (!exited) child.kill("SIGKILL");
-}
-
 function gatewayDirectory(env) {
   return path.join(required(env.RUNNER_TEMP, "RUNNER_TEMP"), "docs-agent-gateway");
 }
 
-function processExists(pid) {
+export function loopbackGatewayAddress(env) {
+  const endpoint = new URL(required(env.OPENSHELL_GATEWAY_ENDPOINT, "OPENSHELL_GATEWAY_ENDPOINT"));
+  if (
+    endpoint.protocol !== "http:" ||
+    !["127.0.0.1", "[::1]"].includes(endpoint.hostname) ||
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.pathname !== "/" ||
+    endpoint.search ||
+    endpoint.hash
+  ) {
+    fail("OPENSHELL_GATEWAY_ENDPOINT must be an uncredentialed loopback HTTP origin");
+  }
+  return endpoint.host;
+}
+
+function processGroupExists(pid) {
   try {
-    process.kill(pid, 0);
+    process.kill(-pid, 0);
     return true;
   } catch (error) {
     if (error?.code === "ESRCH") return false;
@@ -88,28 +103,45 @@ function processExists(pid) {
   }
 }
 
-async function stopProcessId(pid) {
-  if (!processExists(pid)) return;
-  process.kill(pid, "SIGTERM");
+function signalProcessGroup(pid, signal) {
+  try {
+    process.kill(-pid, signal);
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
+}
+
+async function stopProcessGroup(pid) {
+  if (!processGroupExists(pid)) return;
+  signalProcessGroup(pid, "SIGTERM");
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    if (!processExists(pid)) return;
+    if (!processGroupExists(pid)) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  process.kill(pid, "SIGKILL");
+  signalProcessGroup(pid, "SIGKILL");
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (!processGroupExists(pid)) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  fail(`OpenShell gateway process group ${pid} did not exit after SIGKILL`);
 }
 
 export async function cleanupInference(env) {
   const directory = gatewayDirectory(env);
   const pidFile = path.join(directory, "gateway.pid");
-  if (existsSync(pidFile)) {
-    const pid = Number(readFileSync(pidFile, "utf8").trim());
-    if (!Number.isSafeInteger(pid) || pid < 2) fail("OpenShell gateway PID is invalid");
-    await stopProcessId(pid);
+  try {
+    if (existsSync(pidFile)) {
+      const pid = Number(readFileSync(pidFile, "utf8").trim());
+      if (!Number.isSafeInteger(pid) || pid < 2) fail("OpenShell gateway PID is invalid");
+      await stopProcessGroup(pid);
+    }
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
   }
-  rmSync(directory, { force: true, recursive: true });
 }
 
 export async function configureInference(env, modelId) {
+  const bindAddress = loopbackGatewayAddress(env);
   const providerApiKey = required(env.OPENAI_API_KEY, "OPENAI_API_KEY");
   const clean = credentialFreeEnvironment(env);
   const directory = gatewayDirectory(env);
@@ -118,7 +150,7 @@ export async function configureInference(env, modelId) {
   const supervisor = run("which", ["openshell-sandbox"], clean, { capture: true });
   run("openshell-gateway", ["generate-certs", "--output-dir", directory], clean);
   const configuration = path.join(directory, "gateway.toml");
-  writeFileSync(configuration, gatewayConfiguration(directory, supervisor), { mode: 0o600 });
+  writeFileSync(configuration, gatewayConfiguration(directory, supervisor, bindAddress), { mode: 0o600 });
   const log = openSync(path.join(directory, "gateway.log"), "w", 0o600);
   let child;
   try {
@@ -161,7 +193,7 @@ export async function configureInference(env, modelId) {
         "OPENAI_BASE_URL=https://inference-api.nvidia.com/v1",
       ],
       { ...clean, OPENAI_API_KEY: providerApiKey },
-      { timeout: 60_000 },
+      { sensitive: true, timeout: 60_000 },
     );
     run(
       "openshell",
@@ -170,8 +202,11 @@ export async function configureInference(env, modelId) {
       { timeout: 930_000 },
     );
   } catch (error) {
-    await stopProcess(child);
-    rmSync(directory, { force: true, recursive: true });
+    try {
+      if (child?.pid) await stopProcessGroup(child.pid);
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
     throw error;
   }
 }

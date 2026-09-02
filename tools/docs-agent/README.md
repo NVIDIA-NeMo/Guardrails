@@ -16,16 +16,28 @@ without a dependency on an external skill collection.
 
 Repository administrators must configure:
 
-- the `DOCS_AGENT_API_KEY` Actions secret for the OpenAI-compatible NVIDIA inference endpoint;
+- a `docs-agent-inference` GitHub Environment restricted to the `develop` branch;
+- the `DOCS_AGENT_API_KEY` environment secret, using an NVIDIA NGC service key that grants only the
+  required NIM API endpoint access and has a bounded expiration;
 - the `DOCS_MAINTAINERS` Actions variable as a comma-separated list of GitHub usernames that should
   review generated fast-follow and release documentation pull requests.
+
+Do not keep a duplicate repository-level or organization-level `DOCS_AGENT_API_KEY` secret. Rotate
+the service key on a regular schedule and immediately after any suspected disclosure. Enabling a
+required reviewer on the environment adds a human approval gate to every model-bearing job,
+including post-merge and release documentation runs.
+
+Enable a `develop` branch ruleset that requires pull requests, code-owner approval, and required
+status checks for changes to the credential boundary named in `.github/CODEOWNERS`. Also enable the
+GitHub Actions policy that requires every action to use a full commit SHA.
 
 The authoring workflows run their pre-publication documentation checks without a Fern credential.
 The existing docs build and publishing workflows continue to own `DOCS_FERN_TOKEN`; this automation
 does not read or expose that secret.
 
 The OpenShell release archives, Pi sandbox image, model identifier, rubric copies, and workflow
-actions are pinned in the repository. Update these pins through normal dependency and security review.
+actions are pinned by checksum, digest, version, or full commit SHA in the repository. Update these
+pins through normal dependency and security review.
 
 The repository exposes only public routing metadata: the NVIDIA API base URL, the selected model
 identifier, the local `inference.local` route, and the Actions secret name. The secret value is not
@@ -36,12 +48,14 @@ line names only the environment variable. Every OpenShell command receives a cre
 environment except that one provider-registration call. Later sandbox execution steps do not receive
 the secret at all.
 
-The gateway binds to runner loopback, keeps its process marker, configuration, and log files under
-`RUNNER_TEMP` with owner-only permissions, and routes sandbox model traffic through
+The runtime rejects non-loopback gateway endpoints. The gateway binds to runner loopback, keeps its
+process marker, configuration, and log files under `RUNNER_TEMP` with owner-only permissions, and
+routes sandbox model traffic through
 `https://inference.local/v1`. The Pi configuration contains the inert value `unused`, not the provider
-credential. The workflow stops the gateway and removes its temporary state immediately after the
-agent phase, before it runs any repository validation. The hosted runner provides a second cleanup
-boundary when the job ends.
+credential. Provider registration suppresses command output while the credential is present. Every
+model-bearing workflow stops the complete gateway process group and removes its temporary state
+immediately after the agent phase. The hosted runner provides a second cleanup boundary when the job
+ends.
 
 ## Post-merge fast follow
 
@@ -98,10 +112,12 @@ post-merge documentation.
 
 ## Documentation review
 
-`Docs / Review Documentation` runs automatically when a pull request changes public documentation or
-its checked-in build and navigation surfaces. An owner, member, or collaborator can also add a pull
-request comment containing exactly `/review-doc`. Maintainers can use manual workflow dispatch with a
-pull request number.
+`Docs / Review Documentation` runs automatically when an eligible same-repository pull request, or a
+pull request from an owner, member, or collaborator, changes public documentation or its checked-in
+build and navigation surfaces. An external fork pull request requires an owner, member, or
+collaborator to add a pull request comment containing exactly `/review-doc`. Maintainers can use
+manual workflow dispatch with a pull request number. This gate prevents anonymous pull requests from
+consuming the repository's inference quota without maintainer authorization.
 
 The workflow checks out trusted reviewer code from the base revision and prepares the pull request as
 inert data. The Pi sandbox mounts the pull request read-only, has no direct network policy, and receives

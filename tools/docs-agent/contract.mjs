@@ -136,7 +136,7 @@ export function isDocumentationRelatedPath(file) {
 }
 
 export function isReviewCommand(value) {
-  return typeof value === "string" && value.trim() === "/review-doc";
+  return value === "/review-doc";
 }
 
 export function isAuthorizedAssociation(value) {
