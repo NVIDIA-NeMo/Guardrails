@@ -73,6 +73,15 @@ class OpenAIChatModel:
     def provider_url(self) -> Optional[str]:
         return self._client.provider_url
 
+    @property
+    def api_key(self) -> Optional[str]:
+        """The bearer token/API key used by the underlying HTTP client."""
+        return self._client.api_key
+
+    @api_key.setter
+    def api_key(self, value: Optional[str]) -> None:
+        self._client.api_key = value
+
     def _enrich(self, exc: LLMClientError) -> LLMClientError:
         exc.provider_name = self._provider_name
         exc.model_name = self._model
