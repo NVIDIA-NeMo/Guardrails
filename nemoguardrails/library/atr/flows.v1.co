@@ -1,0 +1,16 @@
+# Colang 2.0 input-rail flow for Agent Threat Rules detection.
+
+define flow atr check input
+  """Evaluate the user message against the Agent Threat Rules (ATR) and
+  block the request when a threat is detected at or above the configured
+  severity level."""
+  $response = execute atr_detection(text=$user_message)
+  $join_separator = ", "
+
+  if $response["is_threat"]
+    if $config.enable_rails_exceptions
+      create event ATRDetectionRailException(message="Input blocked. The user message was flagged by the Agent Threat Rules (ATR) detection rail.")
+      stop
+    else
+      bot say "I'm sorry, your message triggered the following agent threat rule(s): {{ response.detections | join(join_separator) }}. Please rephrase your request."
+      stop
