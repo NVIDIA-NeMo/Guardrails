@@ -2,7 +2,7 @@
 
 The topical rails can be evaluated using the following command:
 
-```nemoguardrails evaluate topical```
+```nemoguardrails eval rail topical```
 
 The following arguments can be passed for an evaluation:
 
@@ -40,13 +40,13 @@ We still need to create the main Colang file for the user intents defined in the
 This will take into account the mapping file above. To achieve this follow the next steps:
 
 1. Download the user intents file from the original dataset repository from [here](https://github.com/rahul051296/small-talk-rasa-stack/blob/master/data/nlu.md).
-2. Move it to the `nemoguardrails/eval/data/topical/chitchat/original_dataset` folder.
+2. Move it to the `nemoguardrails/evaluate/data/topical/chitchat/original_dataset` folder.
 3. Run the conversion script `nemoguardrails/evaluate/data/topical/create_colang_intent_file.py --dataset-name=chitchat --dataset-path=./chitchat/original_dataset/`
 4. The last step will create a `user.co` Colang file in the configured Guardrails app.
 
 To run the topical evaluation on this dataset run:
 
-```nemoguardrails evaluate topical --config=./nemoguardrails/eval/data/topical/chitchat --verbose```
+```nemoguardrails eval rail topical --config=./nemoguardrails/evaluate/data/topical/chitchat --verbose```
 
 ## Banking dataset
 
@@ -61,13 +61,13 @@ We still need to create the main Colang file for the user intents defined in the
 This will take into account the mapping file above. To achieve this follow the next steps:
 
 1. Download the user intents files from the original dataset repository from [here](https://github.com/PolyAI-LDN/task-specific-datasets/tree/master/banking_data) (bot train and test).
-2. Move the two files to the `./nemoguardrails/eval/data/topical/banking/original_dataset` folder.
+2. Move the two files to the `./nemoguardrails/evaluate/data/topical/banking/original_dataset` folder.
 3. Run the conversion script `./nemoguardrails/evaluate/data/topical/create_colang_intent_file.py --dataset-name=banking --dataset-path=./banking/original_dataset/`
 4. The last step will create a `user.co` Colang file in the configured Guardrails app.
 
 To run the topical evaluation on this dataset run:
 
-```nemoguardrails evaluate topical --config=./nemoguardrails/eval/data/topical/banking --verbose```
+```nemoguardrails eval rail topical --config=./nemoguardrails/evaluate/data/topical/banking --verbose```
 
 ## Experiment with a new NLU dataset
 
