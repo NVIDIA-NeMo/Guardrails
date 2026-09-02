@@ -499,6 +499,20 @@ class LLMRails(BaseGuardrails):
             if flow_name not in existing_flows_names:
                 raise InvalidRailsConfigurationError(f"The provided retrieval rail flow `{flow_name}` does not exist")
 
+        for tool_name, flows in self.config.rails.tool_output.per_tool.items():
+            for flow_name in flows:
+                if _normalize_flow_id(flow_name) not in existing_flows_names:
+                    raise InvalidRailsConfigurationError(
+                        f"The provided tool output rail flow `{flow_name}` for tool `{tool_name}` does not exist"
+                    )
+
+        for tool_name, flows in self.config.rails.tool_input.per_tool.items():
+            for flow_name in flows:
+                if _normalize_flow_id(flow_name) not in existing_flows_names:
+                    raise InvalidRailsConfigurationError(
+                        f"The provided tool input rail flow `{flow_name}` for tool `{tool_name}` does not exist"
+                    )
+
         # If both passthrough mode and single call mode are specified, we raise an exception.
         if self.config.passthrough and self.config.rails.dialog.single_call.enabled:
             raise InvalidRailsConfigurationError(
@@ -822,7 +836,7 @@ class LLMRails(BaseGuardrails):
 
                         if user_message:
                             # If tool input rails are configured, group all tool messages
-                            if self.config.rails.tool_input.flows:
+                            if self.config.rails.tool_input.flows or self.config.rails.tool_input.per_tool:
                                 # Collect all tool messages for grouped processing
                                 tool_messages = []
                                 for tool_idx in range(len(messages)):

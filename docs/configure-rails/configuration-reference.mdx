@@ -201,10 +201,12 @@ rails:
 
     tool_output:
         flows: []
+        per_tool: {}
         parallel: false
 
     tool_input:
         flows: []
+        per_tool: {}
         parallel: false
 
     config:
@@ -355,8 +357,76 @@ rails:
 
 #### Tool Rails
 
-Validate tool calls and tool results when you use the IORails engine.
-The `tool_output` rails check the tool calls a model emits, and the `tool_input` rails check the tool results returned to the model.
+Tool rails run at two points: before a model-emitted tool call is executed (`tool_output`), and before a tool result is processed by the model (`tool_input`). Both the LLMRails and IORails engines support tool rails, but with different capabilities.
+
+##### LLMRails Tool Rails
+
+The LLMRails engine supports per-tool scoping via the `per_tool` field. Use `flows` for checks that apply to every tool call, and `per_tool` for checks scoped to a specific tool. Both can be active at the same time — a tool listed in `per_tool` also receives the global `flows`.
+
+```yaml
+rails:
+    tool_output:
+        flows:
+            - check tool call $check=block_pii      # runs for every tool call
+        per_tool:
+            run_sql:
+                - check tool call $check=blocked_tables
+            export_data:
+                - check tool call $check=external_exports
+        parallel: false
+    tool_input:
+        flows: []
+        per_tool:
+            run_sql:
+                - check tool call $check=check_sql_result
+        parallel: false
+```
+
+| Attribute | Type | Default | Description |
+| --- | --- | --- | --- |
+| `rails.tool_output.flows` | list | `[]` | Flow names that run for every tool call |
+| `rails.tool_output.per_tool` | map | `{}` | Tool name to ordered list of flow names; flows run only for the named tool |
+| `rails.tool_output.parallel` | boolean | `false` | Run `flows` and `per_tool` flows concurrently within each evaluation |
+| `rails.tool_input.flows` | list | `[]` | Flow names that run for every tool result |
+| `rails.tool_input.per_tool` | map | `{}` | Tool name to ordered list of flow names; flows run only for results from the named tool |
+| `rails.tool_input.parallel` | boolean | `false` | Run `flows` and `per_tool` flows concurrently within each evaluation |
+
+Flow names listed under `flows` or `per_tool` are validated at configuration load time. A mistyped name raises an error at startup.
+
+###### The `check tool call` built-in flow
+
+The library supplies `check tool call`, which evaluates a tool call or result against a named prompt task. Add a check by defining a prompt task and referencing it with the `$check=` parameter — no custom Colang or Python required.
+
+```yaml
+rails:
+    tool_output:
+        per_tool:
+            run_sql:
+                - check tool call $check=blocked_tables
+
+prompts:
+    - task: blocked_tables
+      content: |-
+          Block this SQL call if it reads from: users, payments, audit_logs.
+
+          Tool call under evaluation:
+          {{ tool_call }}
+
+          Respond with ALLOW or BLOCK on the last line.
+```
+
+The following template variables are available inside prompt tasks:
+
+| Variable | Boundary | Content |
+| --- | --- | --- |
+| `{{ tool_call }}` | `tool_output` | JSON-serialized tool call object |
+| `{{ tool_name }}` | both | Name of the tool being evaluated |
+| `{{ tool_message }}` | `tool_input` | Tool result content |
+| `{{ user_message }}` | both | The user's most recent message |
+
+##### IORails Tool Rails
+
+The IORails engine uses `tool_output` and `tool_input` as structural validators.
 
 ```yaml
 rails:
@@ -369,7 +439,6 @@ rails:
 ```
 
 Each section accepts only its own flow name: `tool_output` accepts `tool call validation`, and `tool_input` accepts `tool result validation`.
-These rails run only on the IORails engine, which accepts the `parallel` field for symmetry with other rails but does not honor it for tool rails.
 For configuration details and behavior, see [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
 
 ### Rails Config Section

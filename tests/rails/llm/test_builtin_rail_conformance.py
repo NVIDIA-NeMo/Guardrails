@@ -27,6 +27,7 @@ CONFIG_SCHEMA_SNAPSHOT = Path(__file__).resolve().parents[3] / "schemas" / "rail
 NON_PORTABLE_DECLARED_FLOWS = {
     "clavata": {"clavata check for"},  # Colang 2.0-specific flow; no portable surface binding
     "hallucination": {"hallucination warning"},  # Colang 2.0-specific flow; no portable surface binding
+    "tool_call_check": {"check tool call"},  # Colang 1 per-tool pipeline flow; no IORails surface
 }
 
 

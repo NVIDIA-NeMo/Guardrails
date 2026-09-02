@@ -41,6 +41,10 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
         "create_event",
         "run_input_rails_in_parallel",
         "run_output_rails_in_parallel",
+        "run_tool_output_rails_in_parallel",
+        "run_tool_input_rails_in_parallel",
+        "run_per_tool_output_flows_in_parallel",
+        "run_per_tool_input_flows_in_parallel",
         "run_flows_in_parallel",
     ]
     ignored_flows = [
@@ -139,6 +143,7 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
                 activated_rail = ActivatedRail(
                     type="tool_output",
                     name=event_data["flow_id"],
+                    tool_name=event_data.get("tool_name"),
                     started_at=event["timestamp"],
                 )
                 generation_log.activated_rails.append(activated_rail)
@@ -147,6 +152,7 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
                 activated_rail = ActivatedRail(
                     type="tool_input",
                     name=event_data["flow_id"],
+                    tool_name=event_data.get("tool_name"),
                     started_at=event["timestamp"],
                 )
                 generation_log.activated_rails.append(activated_rail)
