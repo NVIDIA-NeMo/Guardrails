@@ -112,9 +112,7 @@ class TestContentSafetyParserIntegration:
         )
 
         assert result.is_blocked is False
-        # following assertion fails
-        # assert result.metadata["policy_violations"] == ["S1", "S8"]
-        assert result.metadata["policy_violations"] == []
+        assert result.metadata["policy_violations"] == ["S1", "S8"]
 
     @pytest.mark.parametrize(
         "response,expected_allowed,expected_violations",

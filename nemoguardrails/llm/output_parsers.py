@@ -74,6 +74,16 @@ def verbose_v1_parser(s: str):
 
     return "\n".join(lines)
 
+def _parse_safe_violations(response_text):
+    """Helper function to parse trailing category tokens from safe response."""
+    lower_response = response_text.lower()
+    safe_pos = lower_response.find("safe")
+    if safe_pos != -1:
+        after_safe = response_text[safe_pos + len("safe"):].strip()
+        if after_safe:
+            violations = [v.strip() for v in after_safe.split() if v.strip()]
+            return violations
+    return []
 
 def _parse_unsafe_violations(response_text):
     """Helper function to parse violations from unsafe response."""
@@ -125,7 +135,7 @@ def is_content_safe(response: str) -> Sequence[Union[bool, str]]:
     splited_response = response_lower.split(" ")[:2]
 
     response_actions = {
-        "safe": lambda: [True],
+        "safe": lambda: [True] + _parse_safe_violations(original_response),
         "unsafe": lambda: [False] + _parse_unsafe_violations(original_response),
         "yes": lambda: [False],
         "no": lambda: [True],
