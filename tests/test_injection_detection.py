@@ -30,6 +30,7 @@
 
 import logging
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -283,6 +284,26 @@ def test_load_inline_yara_rules():
     assert len(matches) == 1
     assert matches[0].rule == "test_inline"
     assert matches[0].namespace == inline_rule_name
+
+
+def test_load_inline_yara_rules_missing_name_raises_clear_error():
+    """Requesting a rule name absent from inline `yara_rules` should raise a clear
+    ValueError naming the missing rule, not an opaque KeyError."""
+    inline_rule_name = "custom_rule"
+    inline_rule_content = 'rule custom_rule { strings: $a = "foo" condition: $a }'
+    missing_rule_name = "sqli"
+
+    with pytest.raises(ValueError) as exc_info:
+        _load_rules(
+            Path("."),
+            (missing_rule_name, inline_rule_name),
+            {inline_rule_name: inline_rule_content},
+        )
+
+    message = str(exc_info.value)
+    # The error must name the missing rule and list the available inline rules.
+    assert missing_rule_name in message
+    assert inline_rule_name in message
 
 
 @pytest.mark.asyncio
