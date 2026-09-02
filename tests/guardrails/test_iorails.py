@@ -16,6 +16,8 @@
 """Unit tests for iorails module."""
 
 import asyncio
+import gc
+import warnings
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1075,8 +1077,15 @@ class TestGenerate:
         async def call_generate():
             iorails_sync.generate(messages=[{"role": "user", "content": "hi"}])
 
-        with pytest.raises(RuntimeError):
-            asyncio.run(call_generate())
+        with warnings.catch_warnings(record=True) as recorded_warnings:
+            warnings.simplefilter("always")
+
+            with pytest.raises(RuntimeError, match="cannot be called from a running event loop"):
+                asyncio.run(call_generate())
+
+            gc.collect()
+
+        assert not [warning for warning in recorded_warnings if issubclass(warning.category, RuntimeWarning)]
 
 
 class TestRefusalMessage:
