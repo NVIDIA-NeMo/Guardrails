@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any, Iterator, List
@@ -24,13 +25,15 @@ class Registry(ABC, metaclass=Singleton):
     def __init__(self, enable_validation: bool = True) -> None:
         self.items = defaultdict(str)
         self.enable_validation = enable_validation
+        self._lock = threading.RLock()
 
     @abstractmethod
     def validate(self, name: str, item: Any) -> None:
         pass
 
     def reset(self):
-        self.items = defaultdict(str)
+        with self._lock:
+            self.items = defaultdict(str)
 
     def add(self, name: str, item: Any):
         """Add an item to the registry.
@@ -42,11 +45,12 @@ class Registry(ABC, metaclass=Singleton):
         Raises:
             ValueError: If the item name already exists in the registry.
         """
-        if name in self.items:
-            raise ValueError(f"{name} already exists in the registry")
-        if self.enable_validation:
-            self.validate(name, item)
-        self.items[name] = item
+        with self._lock:
+            if name in self.items:
+                raise ValueError(f"{name} already exists in the registry")
+            if self.enable_validation:
+                self.validate(name, item)
+            self.items[name] = item
 
     def get(self, name: str) -> Any:
         """Get an item by name.
@@ -59,9 +63,10 @@ class Registry(ABC, metaclass=Singleton):
         """
         if name is None:
             raise ValueError("name cannot be None")
-        if name not in self.items:
-            raise KeyError(f"{name} does not exist in the registry")
-        return self.items.get(name)
+        with self._lock:
+            if name not in self.items:
+                raise KeyError(f"{name} does not exist in the registry")
+            return self.items.get(name)
 
     def list(self) -> List[str]:
         """List all items in the registry.
@@ -69,19 +74,24 @@ class Registry(ABC, metaclass=Singleton):
         Returns:
             List[str]: A list of all item names.
         """
-        return list(self.items.keys())
+        with self._lock:
+            return list(self.items.keys())
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(items={self.items.keys()})"
+        with self._lock:
+            return f"{self.__class__.__name__}(items={list(self.items.keys())})"
 
     def __len__(self) -> int:
-        return len(self.items)
+        with self._lock:
+            return len(self.items)
 
     def __iter__(self) -> Iterator[str]:
-        return iter(self.items)
+        with self._lock:
+            return iter(list(self.items))
 
     def __contains__(self, name: str) -> bool:
-        return name in self.items
+        with self._lock:
+            return name in self.items
 
     def __getitem__(self, name: str) -> Any:
         return self.get(name)
