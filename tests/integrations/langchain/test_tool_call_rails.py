@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for tool output rails (Phase 2) functionality."""
+"""Tests for tool call rails (Phase 2) functionality."""
 
 from unittest.mock import patch
 
@@ -50,8 +50,8 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
 
 
 @pytest.mark.asyncio
-async def test_tool_output_rails_basic():
-    """Test basic tool output rails functionality."""
+async def test_tool_call_rails_basic():
+    """Test basic tool call rails functionality."""
 
     test_tool_calls = [
         {
@@ -62,7 +62,7 @@ async def test_tool_output_rails_basic():
         }
     ]
 
-    # Config with tool output rails
+    # Config with tool call rails
     config = RailsConfig.from_content(
         """
         define subflow self check tool calls
@@ -79,7 +79,7 @@ async def test_tool_output_rails_basic():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - self check tool calls
         """,
@@ -101,8 +101,8 @@ async def test_tool_output_rails_basic():
 
 
 @pytest.mark.asyncio
-async def test_tool_output_rails_blocking():
-    """Test that tool output rails can block dangerous tools."""
+async def test_tool_call_rails_blocking():
+    """Test that tool call rails can block dangerous tools."""
 
     test_tool_calls = [
         {
@@ -130,7 +130,7 @@ async def test_tool_output_rails_blocking():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
@@ -161,8 +161,8 @@ async def test_tool_output_rails_blocking():
 
 
 @pytest.mark.asyncio
-async def test_multiple_tool_output_rails():
-    """Test multiple tool output rails working together."""
+async def test_multiple_tool_call_rails():
+    """Test multiple tool call rails working together."""
 
     test_tool_calls = [
         {
@@ -197,7 +197,7 @@ async def test_multiple_tool_output_rails():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - self check tool calls
               - validate tool parameters

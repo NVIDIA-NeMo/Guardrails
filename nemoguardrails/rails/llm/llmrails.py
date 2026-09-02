@@ -821,8 +821,8 @@ class LLMRails(BaseGuardrails):
                                 break
 
                         if user_message:
-                            # If tool input rails are configured, group all tool messages
-                            if self.config.rails.tool_input.flows:
+                            # If tool result rails are configured, group all tool messages
+                            if self.config.rails.tool_result.flows:
                                 # Collect all tool messages for grouped processing
                                 tool_messages = []
                                 for tool_idx in range(len(messages)):
@@ -1024,7 +1024,7 @@ class LLMRails(BaseGuardrails):
         # we move that to the `$bot_message` variable. This is to enable a more
         # convenient interface for text output rails. Tool-call assistant messages
         # must remain in the history so they can be converted into BotToolCalls
-        # events and evaluated by tool output rails.
+        # events and evaluated by tool call rails.
         if (
             messages
             and messages[-1]["role"] == "assistant"

@@ -70,7 +70,7 @@ async def test_tool_calls_preserved_when_rails_block():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
@@ -250,7 +250,7 @@ async def test_complete_fix_integration():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
@@ -383,7 +383,7 @@ async def test_tool_calls_preserve_metadata():
 
 
 @pytest.mark.asyncio
-async def test_tool_output_rails_blocking_behavior():
+async def test_tool_call_rails_blocking_behavior():
     dangerous_tool_calls = [
         ToolCall(
             id="call_dangerous_exec",
@@ -408,7 +408,7 @@ async def test_tool_output_rails_blocking_behavior():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,

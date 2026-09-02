@@ -36,8 +36,8 @@ RailCategory = Literal[
     "retrieval",
     "dialog",
     "execution",
-    "tool_input",
-    "tool_output",
+    "tool_call",
+    "tool_result",
     "config",
 ]
 RailCapability = Literal[

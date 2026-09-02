@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utility functions for input tool rails tests.
+"""Utility functions for tool result rails tests.
 
 This module contains the utility functions that were previously implemented as
 fake test functions in the test file. They provide the actual implementation
-for tool input validation, safety checking, and sanitization.
+for tool result validation, safety checking, and sanitization.
 """
 
 import logging
@@ -30,14 +30,14 @@ log = logging.getLogger(__name__)
 
 
 @action(is_system_action=True)
-async def self_check_tool_input(
+async def self_check_tool_result(
     tool_message: str = None,
     tool_name: str = None,
     tool_call_id: str = None,
     context: Optional[dict] = None,
     **kwargs,
 ) -> bool:
-    """Test implementation of basic tool input validation.
+    """Test implementation of basic tool result validation.
 
     This action performs basic validation of tool results coming from tools:
     - Checks if tool results are valid and safe
@@ -51,7 +51,7 @@ async def self_check_tool_input(
         context: Optional context information
 
     Returns:
-        bool: True if tool input is valid, False to block
+        bool: True if tool result is valid, False to block
     """
     tool_message = tool_message or (context.get("tool_message") if context else "")
     tool_name = tool_name or (context.get("tool_name") if context else "")
@@ -60,7 +60,7 @@ async def self_check_tool_input(
     config = context.get("config") if context else None
     allowed_tools = getattr(config, "allowed_tools", None) if config else None
 
-    log.debug(f"Validating tool input from {tool_name}: {tool_message[:100]}...")
+    log.debug(f"Validating tool result from {tool_name}: {tool_message[:100]}...")
 
     if allowed_tools and tool_name not in allowed_tools:
         log.warning(f"Tool '{tool_name}' not in allowed tools list: {allowed_tools}")
@@ -87,13 +87,13 @@ async def self_check_tool_input(
 
 
 @action(is_system_action=True)
-async def validate_tool_input_safety(
+async def validate_tool_result_safety(
     tool_message: str = None,
     tool_name: str = None,
     context: Optional[dict] = None,
     **kwargs,
 ) -> bool:
-    """Test implementation of tool input safety validation.
+    """Test implementation of tool result safety validation.
 
     This action checks tool results for potentially dangerous content:
     - Detects sensitive information patterns
@@ -106,7 +106,7 @@ async def validate_tool_input_safety(
         context: Optional context information
 
     Returns:
-        bool: True if tool input is safe, False to block
+        bool: True if tool result is safe, False to block
     """
     tool_message = tool_message or (context.get("tool_message") if context else "")
     tool_name = tool_name or (context.get("tool_name") if context else "")
@@ -114,7 +114,7 @@ async def validate_tool_input_safety(
     if not tool_message:
         return True
 
-    log.debug(f"Validating safety of tool input from {tool_name}")
+    log.debug(f"Validating safety of tool result from {tool_name}")
 
     dangerous_patterns = [
         "password",
@@ -145,13 +145,13 @@ async def validate_tool_input_safety(
 
 
 @action(is_system_action=True)
-async def sanitize_tool_input(
+async def sanitize_tool_result(
     tool_message: str = None,
     tool_name: str = None,
     context: Optional[dict] = None,
     **kwargs,
 ) -> str:
-    """Test implementation of tool input sanitization.
+    """Test implementation of tool result sanitization.
 
     This action cleans and sanitizes tool results:
     - Removes or masks sensitive information
@@ -172,7 +172,7 @@ async def sanitize_tool_input(
     if not tool_message:
         return tool_message
 
-    log.debug(f"Sanitizing tool input from {tool_name}")
+    log.debug(f"Sanitizing tool result from {tool_name}")
 
     sanitized = tool_message
 

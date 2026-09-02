@@ -288,7 +288,7 @@ class GuardrailsUsageEvent(TelemetryEvent):
     rail_types_in_use: List[str] = Field(
         default_factory=list,
         alias="railTypesInUse",
-        description="Active rail categories. Possible values: input, output, retrieval, tool_input, tool_output, dialog.",
+        description="Active rail categories. Possible values: input, output, retrieval, tool_call, tool_result, dialog.",
     )
     tracing_enabled: bool = Field(
         default=False,
@@ -488,7 +488,7 @@ def _detect_builtin_features(config: "RailsConfig") -> List[str]:
         return sorted(features)
 
     all_flows = []
-    for rail_group in ["input", "output", "retrieval", "tool_output", "tool_input"]:
+    for rail_group in ["input", "output", "retrieval", "tool_call", "tool_result"]:
         group = getattr(rails, rail_group, None)
         if group is not None:
             all_flows.extend(getattr(group, "flows", []))
@@ -563,8 +563,8 @@ def _collect_usage_data(
                 "input": getattr(getattr(rails, "input", None), "flows", []),
                 "output": getattr(getattr(rails, "output", None), "flows", []),
                 "retrieval": getattr(getattr(rails, "retrieval", None), "flows", []),
-                "tool_output": getattr(getattr(rails, "tool_output", None), "flows", []),
-                "tool_input": getattr(getattr(rails, "tool_input", None), "flows", []),
+                "tool_call": getattr(getattr(rails, "tool_call", None), "flows", []),
+                "tool_result": getattr(getattr(rails, "tool_result", None), "flows", []),
             }
 
             total_rails = 0
