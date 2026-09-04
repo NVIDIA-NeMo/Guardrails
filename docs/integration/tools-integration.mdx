@@ -50,6 +50,19 @@ def get_stock_price(symbol: str) -> str:
 
 For detailed information on creating custom tools, refer to the [LangChain Tools Documentation](https://python.langchain.com/docs/concepts/tools/).
 
+## Tool Call Schema
+
+The NeMo Guardrails library does not define its own tool-call schema. It converts the tool-call payload the underlying model returns into LangChain's `ToolCall` `TypedDict` shape, so every tool call your application handles has the same four fields, whether you call `rails.generate()` directly or wrap a model with `RunnableRails`.
+
+| Field | Type | Role |
+|-------|------|------|
+| `name` | `str` | The name of the tool to invoke, matching a registered tool's `name`. |
+| `args` | `dict` | The arguments to pass to the tool, keyed by parameter name. |
+| `id` | `str` | A unique identifier for this tool call, used to match a later `ToolMessage` result back to it via `tool_call_id`. |
+| `type` | `"tool_call"` | A fixed literal that identifies the dict as a tool call. |
+
+The NeMo Guardrails library only reads `tool_calls` off the model response to decide whether output rails apply. It does not otherwise transform the tool-call arguments or names.
+
 ## Configuration Settings
 
 ### Passthrough Mode
