@@ -509,7 +509,9 @@ guardrails = RunnableRails(config=config, passthrough=True, verbose=True)
 
 ### Why
 
-LangGraph nodes return their full state update atomically. A node that wraps `RunnableRails` or an LLM call can only hand its return value back to the graph edge once the node function returns; it cannot emit partial tokens through the edge while the node is still running. The graph observes the node's final state update, not intermediate chunks, regardless of whether the wrapped call streamed internally.
+This is a `RunnableRails`-specific limitation, not a general LangGraph one. LangGraph itself supports token-level streaming from inside a node through `stream_mode="messages"`, which hooks the LLM's own streaming callbacks independently of what the node returns.
+
+The `chatbot` node in the examples above calls `runnable_with_guardrails.invoke(state)`. `RunnableRails.invoke()` calls `LLMRails.generate()`, which makes a single blocking call and returns one fully formatted result; no incremental LLM callback events fire during it for LangGraph's `messages` mode to observe. `RunnableRails.astream()` does stream token-by-token, but it yields chunks directly to whatever calls it; it does not forward those chunks into LangGraph's callback-based streaming machinery. Calling `astream()` from inside a node, instead of `invoke()`, would still not surface as `messages`-mode events without additional wiring.
 
 No tracking issue currently exists in the [`NVIDIA-NeMo/Guardrails`](https://github.com/NVIDIA-NeMo/Guardrails) repository for LangGraph token streaming support.
 
