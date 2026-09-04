@@ -278,22 +278,29 @@ result = graph.invoke({
 
 ### Failure Handling in Tool-Calling Graphs
 
-The `chatbot` node above has no exception handling around `runnable_with_guardrails.invoke(state)`. If the underlying LLM call fails, a bound tool raises, or a guardrail action itself errors, `RunnableRails` raises a `ValueError` (see [Error Handling](/integration/langchain/runnable-rails#error-handling)), and that exception propagates uncaught through `graph.invoke()` and crashes the run.
+The `chatbot` node above has no exception handling around `runnable_with_guardrails.invoke(state)`. See [Error Handling](/integration/langchain/runnable-rails#error-handling) for what actually raises here: an LLM provider failure (main model or safety-check model) surfaces as a `ValueError` and, if uncaught, crashes `graph.invoke()`. A failure inside a bound tool or a guardrail action, by contrast, does not raise; the runtime converts it into a normal-looking response with the content `"I'm sorry, an internal error has occurred."`, so `graph.invoke()` completes without an exception in that case.
 
-The following variant wraps the same node with a `try`/`except` and returns a fallback message into `state["messages"]` instead of letting the graph crash. Everything else about `create_tool_calling_agent` stays the same; only `chatbot` changes.
+The following variant wraps the same node with a `try`/`except` to catch the LLM-provider-failure case, and also checks the response content for the internal-error message so both failure modes get the same fallback treatment. Everything else about `create_tool_calling_agent` stays the same; only `chatbot` changes.
 
 ```python
 from langchain_core.messages import AIMessage
+
+FALLBACK_MESSAGE = "Sorry, I couldn't process that request."
+INTERNAL_ERROR_TEXT = "I'm sorry, an internal error has occurred."
 
 def chatbot(state: State):
     try:
         result = runnable_with_guardrails.invoke(state)
     except ValueError:
-        return {"messages": [AIMessage(content="Sorry, I couldn't process that request.")]}
+        return {"messages": [AIMessage(content=FALLBACK_MESSAGE)]}
+
+    if result.content == INTERNAL_ERROR_TEXT:
+        return {"messages": [AIMessage(content=FALLBACK_MESSAGE)]}
+
     return {"messages": [result]}
 ```
 
-A rail that blocks the request, as opposed to an outright error, does not raise. It returns the normal `AIMessage` shape described in [Rejection Behavior](/integration/langchain/runnable-rails#rejection-behavior), so `chatbot` does not need a separate branch for that case.
+A rail that blocks the request, as opposed to an outright error, does not raise either. It returns the normal `AIMessage` shape described in [Rejection Behavior](/integration/langchain/runnable-rails#rejection-behavior), with the rail's configured refusal text rather than the internal-error text, so `chatbot` does not need a separate branch for that case.
 
 ---
 
