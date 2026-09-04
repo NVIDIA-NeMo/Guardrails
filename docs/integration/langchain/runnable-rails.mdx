@@ -247,9 +247,14 @@ print(result.response_metadata)     # {}
 
 ### Error Handling
 
-`RunnableRails.invoke()`/`ainvoke()` wrap the underlying rails call in a `try`/`except`. Failures from the LLM call, a bound tool, or a guardrail action itself are not swallowed. They surface as a raised `ValueError` (or a more specific error for a few recognized cases, such as binding tools directly on the LLM), with the original exception chained through `from e`. Your calling code needs to catch these exceptions; `RunnableRails` does not return a structured error payload.
+`RunnableRails.invoke()`/`ainvoke()` wrap the underlying rails call in a `try`/`except`, but whether a failure reaches that `except` block depends on where the failure happens:
 
-In a LangGraph node, an uncaught exception from `runnable_with_guardrails.invoke(state)` propagates as a normal Python exception through `graph.invoke()`. LangGraph does not catch node exceptions for you. Wrap the node body in a `try`/`except` if you want the graph to continue with a fallback message instead of raising. See [Failure Handling in Tool-Calling Graphs](/integration/langchain/langgraph-integration#failure-handling-in-tool-calling-graphs) for an example.
+- **LLM provider failures** (the main model or a safety-check model call itself fails, for example a timeout or an API error) propagate all the way up and surface as a raised `ValueError` (or a more specific error for a few recognized cases, such as binding tools directly on the LLM), with the original exception chained through `from e`.
+- **A registered tool or a guardrail action that raises for any other reason** (a bug in your tool function, a non-LLM network call failing, and so on) does not propagate. The runtime catches it internally and returns an ordinary-looking response with the content `"I'm sorry, an internal error has occurred."` This response has the same shape as a normal, non-blocked answer; it is not distinguishable from a real answer by type, and it does not raise.
+
+Because of this, do not rely on a `try`/`except` around `invoke()`/`ainvoke()` alone to catch every possible failure. Check the response content, or handle the failure inside the tool/action itself, if a distinguishable outcome matters to your application. Your calling code still needs to catch the exceptions that do propagate; `RunnableRails` does not return a structured error payload for those.
+
+In a LangGraph node, an uncaught exception from `runnable_with_guardrails.invoke(state)` propagates as a normal Python exception through `graph.invoke()`. LangGraph does not catch node exceptions for you. Wrap the node body in a `try`/`except` if you want the graph to continue with a fallback message instead of raising, keeping in mind this only catches the LLM-provider-failure case above. See [Failure Handling in Tool-Calling Graphs](/integration/langchain/langgraph-integration#failure-handling-in-tool-calling-graphs) for an example.
 
 ### Custom Input/Output Keys
 
