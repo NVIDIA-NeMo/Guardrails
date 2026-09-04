@@ -302,6 +302,8 @@ The following steps are required to use tool calling with `RunnableRails`:
 
 Avoid Python's built-in `eval()` for evaluating LLM-provided expressions, even with a `__builtins__` whitelist. Sandbox-escape techniques (for example, attribute traversal through `__class__`) can bypass a manually constructed whitelist. Use a restricted expression evaluator such as [`simpleeval`](https://github.com/danthedeckie/simpleeval) instead. `simpleeval` is already a NeMo Guardrails library dependency, so no extra install is required.
 
+Do not map a custom `pow` function into `functions`. `simpleeval`'s built-in `**` operator is guarded by `simpleeval.MAX_POWER` against oversized exponents, but that guard does not apply to a function you supply yourself, so a mapped `pow` lets an expression like `pow(2, 999999999)` consume seconds of CPU time and hundreds of megabytes of memory. Let callers use `**` for exponentiation instead.
+
 </Note>
 
 ```python
@@ -316,7 +318,7 @@ from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
 @tool
 def calculator(expression: str) -> str:
     """Evaluates mathematical expressions like '2 + 2' or 'sqrt(16)'."""
-    evaluator = SimpleEval(functions={"sqrt": math.sqrt, "pow": pow})
+    evaluator = SimpleEval(functions={"sqrt": math.sqrt})
     try:
         return str(evaluator.eval(expression))
     except Exception as e:
