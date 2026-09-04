@@ -208,6 +208,49 @@ guardrails = RunnableRails(config, passthrough=False)
 
 **Tool Calling Requirement**: Set `passthrough=True` for proper tool call handling.
 
+**What `passthrough=False` changes about the prompt**: instead of sending your original messages to the LLM, the library renders its own prompt from the `general` task template, which prepends general instructions and reformats the conversation as a completion-style transcript. For example, a `ChatPromptValue` built from `HumanMessage(content="Hello!")` is not sent to the LLM as-is. The library instead sends a prompt similar to the following:
+
+```text
+Below is a conversation between a helpful AI assistant and a user. The bot is
+designed to generate human-like text based on the input that it receives. The
+bot is talkative and provides lots of specific details. If the bot does not
+know the answer to a question, it truthfully says it does not know.
+
+User: Hello!
+Assistant:
+```
+
+The exact instructions and format depend on your configuration and enabled rails. To inspect the transformed prompt for debugging, set `verbose=True` when creating `RunnableRails`. See [Verbose Logging](/integration/langchain/langgraph-integration#2-verbose-logging), which logs every `Prompt ::` and `Completion ::` pair sent to the LLM.
+
+### Rejection Behavior
+
+When an input or output rail blocks a request, `RunnableRails` does not raise an exception. It returns the rail's configured refusal message in the same output shape you would otherwise get back.
+
+For chain-wrapping (dict) inputs, only a dictionary with the output key is returned:
+
+```json
+{"answer": "I can't assist with that request."}
+```
+
+For LLM-wrapping inputs, such as a `list[BaseMessage]` or `ChatPromptValue`, an `AIMessage` is returned with the refusal text as `content`, no `tool_calls`, and empty `response_metadata`/`additional_kwargs`, since no underlying model call for a final answer was made:
+
+```python
+from langchain_core.messages import HumanMessage
+
+result = guarded_model.invoke([HumanMessage(content="You are stupid")])
+
+print(result)
+# AIMessage(content="I'm sorry, I can't respond to that.")
+print(result.tool_calls)            # []
+print(result.response_metadata)     # {}
+```
+
+### Error Handling
+
+`RunnableRails.invoke()`/`ainvoke()` wrap the underlying rails call in a `try`/`except`. Failures from the LLM call, a bound tool, or a guardrail action itself are not swallowed. They surface as a raised `ValueError` (or a more specific error for a few recognized cases, such as binding tools directly on the LLM), with the original exception chained through `from e`. Your calling code needs to catch these exceptions; `RunnableRails` does not return a structured error payload.
+
+In a LangGraph node, an uncaught exception from `runnable_with_guardrails.invoke(state)` propagates as a normal Python exception through `graph.invoke()`. LangGraph does not catch node exceptions for you. Wrap the node body in a `try`/`except` if you want the graph to continue with a fallback message instead of raising. See [Failure Handling in Tool-Calling Graphs](/integration/langchain/langgraph-integration#failure-handling-in-tool-calling-graphs) for an example.
+
 ### Custom Input/Output Keys
 
 When you use a guardrail configuration to wrap a chain or a `Runnable`, the input and output are either dictionaries or strings. However, a guardrail configuration always operates on a text input from the user and a text output from the LLM. To achieve this, when dictionaries are used, one of the keys from the input dictionary must be designated as the `"input text"` and one of the keys from the output as the `"output text"`.
@@ -240,6 +283,8 @@ When a guardrail is triggered and predefined messages must be returned instead o
 
 `RunnableRails` supports LangChain tool calling with full metadata preservation and streaming. Tool calling requires `passthrough=True` to work properly.
 
+`bind_tools()` is a LangChain method that attaches tool/function definitions to a chat model so the model can request tool calls in its response instead of only returning text. `ToolMessage` is LangChain's message type for returning a tool's result back to the model, keyed to the originating call through `tool_call_id`. See the [LangChain tool calling documentation](https://python.langchain.com/docs/concepts/tool_calling/) for the full concept. The NeMo Guardrails library does not change either of these; `RunnableRails` only adds safety checks around the model calls that use them.
+
 The following steps are required to use tool calling with `RunnableRails`:
 
 - Set `passthrough=True` when creating `RunnableRails` instance.
@@ -248,18 +293,27 @@ The following steps are required to use tool calling with `RunnableRails`:
 
 ### Basic Tool Setup
 
+<Note>
+
+Avoid Python's built-in `eval()` for evaluating LLM-provided expressions, even with a `__builtins__` whitelist. Sandbox-escape techniques (for example, attribute traversal through `__class__`) can bypass a manually constructed whitelist. Use a restricted expression evaluator such as [`simpleeval`](https://github.com/danthedeckie/simpleeval) instead. `simpleeval` is already a NeMo Guardrails library dependency, so no extra install is required.
+
+</Note>
+
 ```python
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+from simpleeval import SimpleEval
+import math
+
 from nemoguardrails import RailsConfig
 from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
 
 @tool
 def calculator(expression: str) -> str:
     """Evaluates mathematical expressions like '2 + 2' or 'sqrt(16)'."""
+    evaluator = SimpleEval(functions={"sqrt": math.sqrt, "pow": pow})
     try:
-        safe_dict = {'sqrt': __import__('math').sqrt, 'pow': pow, '__builtins__': {}}
-        return str(eval(expression, safe_dict))
+        return str(evaluator.eval(expression))
     except Exception as e:
         return f"Error: {e}"
 
