@@ -52,7 +52,7 @@ For detailed information on creating custom tools, refer to the [LangChain Tools
 
 ## Tool Call Schema
 
-The NeMo Guardrails library does not define its own tool-call schema, but the shape you get back depends on how you call it.
+The NVIDIA NeMo Guardrails library does not define its own tool-call schema, but the shape you get back depends on how you call it.
 
 `RunnableRails` converts tool calls into LangChain's `ToolCall` `TypedDict` shape:
 
@@ -77,7 +77,7 @@ Calling `rails.generate()` directly does not go through this conversion. `respon
 
 If your code reads `tool_call["name"]` or `tool_call["args"]` against a direct `rails.generate()` response, it is reading the wrong keys; use `tool_call["function"]["name"]` and `tool_call["function"]["arguments"]` instead, or wrap the model with `RunnableRails` to get the normalized LangChain shape.
 
-The NeMo Guardrails library only reads `tool_calls` off the model response to decide whether output rails apply. It does not otherwise transform the tool-call arguments or names.
+The NVIDIA NeMo Guardrails library only reads `tool_calls` off the model response to decide whether output rails apply. It does not otherwise transform the tool-call arguments or names.
 
 ## Configuration Settings
 
