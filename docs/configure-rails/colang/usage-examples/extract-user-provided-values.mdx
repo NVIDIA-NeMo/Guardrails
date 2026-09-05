@@ -299,3 +299,85 @@ $value = ...
 | String interpolation | `{$var}` in strings | Context variable access |
 | Flow definition | `flow name` | `define flow` |
 | Action execution | `await ActionName()` | `execute action_name()` |
+
+## Store Extracted Values Across Turns
+
+Extraction only puts the value in a flow variable. To keep it available to later turns, write it into the conversation context from a custom action that returns [`ActionResult`](/configure-guardrails/actions/creating-actions):
+
+<Tabs>
+
+<Tab title="Colang 2.0">
+
+~~~python
+from nemoguardrails.actions import action
+from nemoguardrails.actions.actions import ActionResult
+
+
+@action(name="RememberSlotAction")
+async def remember_slot(value: str):
+    return ActionResult(context_updates={"user_name": value})
+~~~
+
+~~~text
+import core
+import llm
+
+flow main
+  activate llm continuation
+  global $user_name
+
+  user provided name
+  $name = ..."Extract the name of the user. Return the name as a single string."
+  await RememberSlotAction(value=$name)
+  bot say "Hello, {$user_name}!"
+
+flow user provided name
+  user said "my name is" or user said "I am" or user said "call me"
+~~~
+
+<Note>
+
+Colang 2.0 keeps this state on the runtime `State` object. `generate()` and `generate_async()` return `None` for that state, and the `output_vars` generation option raises for a Colang 2.0 configuration, so `process_events()` and `process_events_async()` are the only way to hold the state across calls. Pass the state you get back into the next call. The state is an in-process object and is not yet serializable, so it does not survive a restart or move between worker processes.
+
+</Note>
+
+</Tab>
+
+<Tab title="Colang 1.0">
+
+~~~python
+from nemoguardrails.actions import action
+from nemoguardrails.actions.actions import ActionResult
+
+
+@action()
+async def remember_slot(name: str):
+    return ActionResult(context_updates={"user_name": name})
+~~~
+
+~~~text
+define user provide name
+  "My name is John"
+  "I am Alice"
+  "Call me Bob"
+
+define bot greet user
+  "Hello, $user_name!"
+
+define flow
+  user provide name
+  # Extract the name of the user.
+  $name = ...
+  execute remember_slot(name=$name)
+  bot greet user
+~~~
+
+<Note>
+
+Colang 1.0 rebuilds the context from the event history on each call. When you use `generate()` with the full message list, the library caches that history internally and matches the longest prefix of your messages, so context set on an earlier turn is still there on the next one. The cache lives in the process, so it does not survive a restart or move between worker processes. Pass an explicit state to `generate()` if you need to hold the history yourself.
+
+</Note>
+
+</Tab>
+
+</Tabs>
