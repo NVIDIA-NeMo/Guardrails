@@ -2206,6 +2206,7 @@ class TestScopeGateCharacterization:
             ("input", "self check input"),
             ("input", "topic safety check input"),
             ("input", "trend ai guard input"),
+            ("input", "zscaler aiguard moderation on input"),
             ("output", "activefence moderation on output"),
             ("output", "ai defense inspect response"),
             ("output", "autoalign check output"),
@@ -2234,6 +2235,7 @@ class TestScopeGateCharacterization:
             ("output", "regex check output"),
             ("output", "self check output"),
             ("output", "trend ai guard output"),
+            ("output", "zscaler aiguard moderation on output"),
         }
     )
 

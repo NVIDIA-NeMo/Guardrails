@@ -36,6 +36,7 @@ import os
 from typing import Any, Optional
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 
 log = logging.getLogger(__name__)
 
@@ -115,13 +116,33 @@ def _build_block_message(
     return " ".join(parts)
 
 
-@action(is_system_action=True)
+def _outcome_metadata(
+    action_value: str,
+    severity: str,
+    policy_name: str,
+    transaction_id: Optional[str],
+    detectors: dict[str, Any],
+    blocking_detectors: list[str],
+    **extra: Any,
+) -> dict[str, Any]:
+    return {
+        "action": action_value,
+        "severity": severity,
+        "policy_name": policy_name,
+        "transaction_id": transaction_id,
+        "detectors": detectors,
+        "blocking_detectors": blocking_detectors,
+        **extra,
+    }
+
+
+@action(name="call_zscaler_aiguard_api", is_system_action=True)
 async def call_zscaler_aiguard_api(
     text: Optional[str] = None,
     direction: str = "IN",
     policy_id: Optional[int] = None,
     **kwargs,
-) -> dict[str, Any]:
+) -> RailOutcome:
     """
     Scan content using Zscaler AI Guard.
 
@@ -133,24 +154,10 @@ async def call_zscaler_aiguard_api(
             AIGUARD_POLICY_ID environment variable.
 
     Returns:
-        Dict containing:
-            action       - Policy verdict (ALLOW / BLOCK / DETECT)
-            severity     - Severity level of the detection
-            policy_name  - Name of the policy that was evaluated
-            transaction_id - Unique transaction ID for debugging
-            detectors    - Dict of detector names to their verdicts
-            message      - Pre-built human-readable message for exceptions
+        The rail decision with the parsed AI Guard response as metadata.
     """
     if not text:
-        return {
-            "action": "ALLOW",
-            "severity": "NONE",
-            "policy_name": "none",
-            "transaction_id": None,
-            "detectors": {},
-            "blocking_detectors": [],
-            "message": "",
-        }
+        return RailOutcome.allow(metadata=_outcome_metadata("ALLOW", "NONE", "none", None, {}, []))
 
     effective_policy_id = policy_id
     if effective_policy_id is None:
@@ -171,15 +178,10 @@ async def call_zscaler_aiguard_api(
 
         if result is None:
             log.warning("AI Guard returned None — blocking by default")
-            return {
-                "action": "BLOCK",
-                "severity": "UNKNOWN",
-                "policy_name": "unknown",
-                "transaction_id": None,
-                "detectors": {},
-                "blocking_detectors": [],
-                "message": _build_block_message(direction, "UNKNOWN", "unknown", []),
-            }
+            return RailOutcome.block(
+                reason=_build_block_message(direction, "UNKNOWN", "unknown", []),
+                metadata=_outcome_metadata("BLOCK", "UNKNOWN", "unknown", None, {}, []),
+            )
 
         action_val = str(_get_attr(result, "action", "BLOCK")).upper()
         severity = _get_attr(result, "severity", "unknown")
@@ -206,48 +208,55 @@ async def call_zscaler_aiguard_api(
             if det_action == "BLOCK":
                 blocking_detectors.append(name)
 
+        metadata = _outcome_metadata(
+            action_val,
+            severity,
+            policy_name,
+            transaction_id,
+            detectors,
+            blocking_detectors,
+        )
         if action_val == "BLOCK":
             message = _build_block_message(direction, severity, policy_name, blocking_detectors, transaction_id)
-            log.info("AI Guard BLOCKED: %s", message)
-        elif action_val != "ALLOW":
-            message = ""
             log.info(
-                "AI Guard %s [txn=%s, policy=%s, severity=%s]",
+                "AI Guard blocked content: direction=%s severity=%s detector_count=%d",
+                direction,
+                severity,
+                len(blocking_detectors),
+            )
+            return RailOutcome.block(reason=message, metadata=metadata)
+        if action_val == "DETECT":
+            log.info(
+                "AI Guard returned a non-blocking verdict: action=%s direction=%s severity=%s",
                 action_val,
-                transaction_id,
-                policy_name,
+                direction,
                 severity,
             )
-        else:
-            message = ""
-            log.debug(
-                "AI Guard ALLOWED [txn=%s, policy=%s]",
-                transaction_id,
-                policy_name,
-            )
+            return RailOutcome.allow(metadata=metadata)
+        if action_val == "ALLOW":
+            log.debug("AI Guard allowed content: direction=%s", direction)
+            return RailOutcome.allow(metadata=metadata)
 
-        return {
-            "action": action_val,
-            "severity": severity,
-            "policy_name": policy_name,
-            "transaction_id": transaction_id,
-            "detectors": detectors,
-            "blocking_detectors": blocking_detectors,
-            "message": message,
-        }
+        log.warning("AI Guard returned an unknown action; blocking by default")
+        return RailOutcome.block(
+            reason=_build_block_message(direction, severity, policy_name, blocking_detectors, transaction_id),
+            metadata=metadata,
+        )
 
     except (ImportError, EnvironmentError, ValueError):
         raise
     except Exception as e:
-        log.error("AI Guard scan failed: %s — %s", type(e).__name__, e)
+        log.error("AI Guard scan failed: error_type=%s", type(e).__name__)
         message = _build_block_message(direction, "UNKNOWN", "unknown", [])
-        return {
-            "action": "BLOCK",
-            "severity": "UNKNOWN",
-            "policy_name": "unknown",
-            "transaction_id": None,
-            "detectors": {},
-            "blocking_detectors": [],
-            "error": str(e),
-            "message": message,
-        }
+        return RailOutcome.block(
+            reason=message,
+            metadata=_outcome_metadata(
+                "BLOCK",
+                "UNKNOWN",
+                "unknown",
+                None,
+                {},
+                [],
+                error_type=type(e).__name__,
+            ),
+        )

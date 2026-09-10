@@ -20,6 +20,7 @@ from unittest.mock import patch
 import pytest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailDecision, RailOutcome
 from tests.utils import TestChat
 
 input_rail_config = RailsConfig.from_content(
@@ -70,7 +71,7 @@ exceptions_config = RailsConfig.from_content(
 )
 
 
-def _allow_result(**overrides):
+def _allow_result(**overrides) -> RailOutcome:
     """Build a mock AI Guard ALLOW result."""
     base = {
         "action": "ALLOW",
@@ -79,13 +80,12 @@ def _allow_result(**overrides):
         "transaction_id": "txn-test-001",
         "detectors": {},
         "blocking_detectors": [],
-        "message": "",
     }
     base.update(overrides)
-    return base
+    return RailOutcome.allow(metadata=base)
 
 
-def _block_result(direction="IN", blocking_detectors=None, **overrides):
+def _block_result(direction="IN", blocking_detectors=None, reason=None, **overrides) -> RailOutcome:
     """Build a mock AI Guard BLOCK result."""
     if blocking_detectors is None:
         blocking_detectors = ["toxicity"]
@@ -104,10 +104,9 @@ def _block_result(direction="IN", blocking_detectors=None, **overrides):
         "transaction_id": "txn-test-002",
         "detectors": detectors,
         "blocking_detectors": blocking_detectors,
-        "message": message,
     }
     base.update(overrides)
-    return base
+    return RailOutcome.block(reason=reason or message, metadata=base)
 
 
 @pytest.fixture(autouse=True)
@@ -221,14 +220,16 @@ async def test_zscaler_aiguard_api_error_blocks():
     )
 
     async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
-        return {
-            "action": "BLOCK",
-            "severity": "UNKNOWN",
-            "detectors": {},
-            "blocking_detectors": [],
-            "error": "Connection timeout",
-            "message": "Zscaler AI Guard blocked the user prompt. Severity: UNKNOWN. Policy: unknown.",
-        }
+        return RailOutcome.block(
+            reason="Zscaler AI Guard blocked the user prompt. Severity: UNKNOWN. Policy: unknown.",
+            metadata={
+                "action": "BLOCK",
+                "severity": "UNKNOWN",
+                "detectors": {},
+                "blocking_detectors": [],
+                "error_type": "TimeoutError",
+            },
+        )
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
 
@@ -247,21 +248,22 @@ async def test_zscaler_aiguard_detect_action_allows():
     )
 
     async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
-        return {
-            "action": "DETECT",
-            "severity": "LOW",
-            "policy_name": "TestPolicy",
-            "transaction_id": "txn-test-003",
-            "detectors": {
-                "toxicity": {
-                    "action": "DETECT",
-                    "triggered": True,
-                    "severity": "LOW",
-                }
-            },
-            "blocking_detectors": [],
-            "message": "",
-        }
+        return RailOutcome.allow(
+            metadata={
+                "action": "DETECT",
+                "severity": "LOW",
+                "policy_name": "TestPolicy",
+                "transaction_id": "txn-test-003",
+                "detectors": {
+                    "toxicity": {
+                        "action": "DETECT",
+                        "triggered": True,
+                        "severity": "LOW",
+                    }
+                },
+                "blocking_detectors": [],
+            }
+        )
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
 
@@ -305,7 +307,7 @@ async def test_zscaler_aiguard_exception_includes_message():
         return _block_result(
             direction="IN",
             blocking_detectors=["pii", "secrets"],
-            message="Zscaler AI Guard blocked the user prompt. Severity: CRITICAL. Policy: PolicyApp01. Detectors: pii, secrets. Transaction: txn-001.",
+            reason="Zscaler AI Guard blocked the user prompt. Severity: CRITICAL. Policy: PolicyApp01. Detectors: pii, secrets. Transaction: txn-001.",
         )
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
@@ -338,7 +340,7 @@ async def test_zscaler_aiguard_output_exception():
             return _block_result(
                 direction="OUT",
                 blocking_detectors=["pii"],
-                message="Zscaler AI Guard blocked the LLM response. Severity: CRITICAL. Policy: PolicyApp01. Detectors: pii. Transaction: txn-002.",
+                reason="Zscaler AI Guard blocked the LLM response. Severity: CRITICAL. Policy: PolicyApp01. Detectors: pii. Transaction: txn-002.",
             )
         return _allow_result()
 
@@ -446,12 +448,14 @@ async def test_zscaler_aiguard_action_empty_text():
     )
 
     result = await call_zscaler_aiguard_api(text=None, direction="IN")
-    assert result["action"] == "ALLOW"
-    assert result["message"] == ""
+    assert result.decision is RailDecision.ALLOW
+    assert result.metadata["action"] == "ALLOW"
+    assert result.reason is None
 
     result = await call_zscaler_aiguard_api(text="", direction="IN")
-    assert result["action"] == "ALLOW"
-    assert result["message"] == ""
+    assert result.decision is RailDecision.ALLOW
+    assert result.metadata["action"] == "ALLOW"
+    assert result.reason is None
 
 
 @pytest.mark.unit
@@ -484,13 +488,14 @@ async def test_zscaler_aiguard_action_scan_success():
 
         result = await call_zscaler_aiguard_api(text="Hello world", direction="IN")
 
-        assert result["action"] == "ALLOW"
-        assert result["policy_name"] == "DefaultPolicy"
-        assert result["transaction_id"] == "txn-abc-123"
-        assert "toxicity" in result["detectors"]
-        assert "pii" in result["detectors"]
-        assert result["blocking_detectors"] == []
-        assert result["message"] == ""
+        assert result.decision is RailDecision.ALLOW
+        assert result.metadata["action"] == "ALLOW"
+        assert result.metadata["policy_name"] == "DefaultPolicy"
+        assert result.metadata["transaction_id"] == "txn-abc-123"
+        assert "toxicity" in result.metadata["detectors"]
+        assert "pii" in result.metadata["detectors"]
+        assert result.metadata["blocking_detectors"] == []
+        assert result.reason is None
         mock_scan.assert_called_once_with("Hello world", "IN", None)
 
 
@@ -524,14 +529,38 @@ async def test_zscaler_aiguard_action_scan_block():
 
         result = await call_zscaler_aiguard_api(text="My key is AKIAIOSFODNN7EXAMPLE", direction="IN")
 
-        assert result["action"] == "BLOCK"
-        assert result["severity"] == "CRITICAL"
-        assert result["blocking_detectors"] == ["credentials"]
-        assert result["detectors"]["credentials"]["triggered"] is True
-        assert result["detectors"]["toxicity"]["triggered"] is False
-        assert "Severity: CRITICAL" in result["message"]
-        assert "Policy: StrictPolicy" in result["message"]
-        assert "Detectors: credentials" in result["message"]
+        assert result.decision is RailDecision.BLOCK
+        assert result.metadata["action"] == "BLOCK"
+        assert result.metadata["severity"] == "CRITICAL"
+        assert result.metadata["blocking_detectors"] == ["credentials"]
+        assert result.metadata["detectors"]["credentials"]["triggered"] is True
+        assert result.metadata["detectors"]["toxicity"]["triggered"] is False
+        assert "Severity: CRITICAL" in result.reason
+        assert "Policy: StrictPolicy" in result.reason
+        assert "Detectors: credentials" in result.reason
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_zscaler_aiguard_action_unknown_verdict_blocks():
+    """An unrecognized vendor verdict should fail closed."""
+    with patch("nemoguardrails.library.zscaler_aiguard.actions._scan_sync") as mock_scan:
+        mock_scan.return_value = {
+            "action": "REVIEW",
+            "severity": "UNKNOWN",
+            "policyName": "DefaultPolicy",
+            "transactionId": "txn-review-001",
+            "detectorResponses": {},
+        }
+
+        from nemoguardrails.library.zscaler_aiguard.actions import (
+            call_zscaler_aiguard_api,
+        )
+
+        result = await call_zscaler_aiguard_api(text="Hello", direction="IN")
+
+        assert result.decision is RailDecision.BLOCK
+        assert result.metadata["action"] == "REVIEW"
 
 
 @pytest.mark.unit
@@ -547,13 +576,13 @@ async def test_zscaler_aiguard_action_exception_fail_closed():
 
         result = await call_zscaler_aiguard_api(text="Hello", direction="IN")
 
-        assert result["action"] == "BLOCK"
-        assert result["severity"] == "UNKNOWN"
-        assert result["policy_name"] == "unknown"
-        assert result["transaction_id"] is None
-        assert "Connection refused" in result["error"]
-        assert "message" in result
-        assert result["message"] != ""
+        assert result.decision is RailDecision.BLOCK
+        assert result.metadata["action"] == "BLOCK"
+        assert result.metadata["severity"] == "UNKNOWN"
+        assert result.metadata["policy_name"] == "unknown"
+        assert result.metadata["transaction_id"] is None
+        assert result.metadata["error_type"] == "RuntimeError"
+        assert result.reason
 
 
 @pytest.mark.unit
@@ -569,12 +598,12 @@ async def test_zscaler_aiguard_action_none_result_blocks():
 
         result = await call_zscaler_aiguard_api(text="Hello", direction="IN")
 
-        assert result["action"] == "BLOCK"
-        assert result["severity"] == "UNKNOWN"
-        assert result["policy_name"] == "unknown"
-        assert result["transaction_id"] is None
-        assert "message" in result
-        assert result["message"] != ""
+        assert result.decision is RailDecision.BLOCK
+        assert result.metadata["action"] == "BLOCK"
+        assert result.metadata["severity"] == "UNKNOWN"
+        assert result.metadata["policy_name"] == "unknown"
+        assert result.metadata["transaction_id"] is None
+        assert result.reason
 
 
 @pytest.mark.unit
@@ -596,7 +625,7 @@ async def test_zscaler_aiguard_action_policy_id_param():
 
         result = await call_zscaler_aiguard_api(text="Test content", direction="IN", policy_id=900)
 
-        assert result["action"] == "ALLOW"
+        assert result.decision is RailDecision.ALLOW
         mock_scan.assert_called_once_with("Test content", "IN", 900)
 
 
@@ -622,7 +651,7 @@ async def test_zscaler_aiguard_action_policy_id_env():
 
         result = await call_zscaler_aiguard_api(text="Test content", direction="IN")
 
-        assert result["action"] == "ALLOW"
+        assert result.decision is RailDecision.ALLOW
         mock_scan.assert_called_once_with("Test content", "IN", 1234)
 
 
@@ -648,7 +677,7 @@ async def test_zscaler_aiguard_action_policy_id_param_overrides_env():
 
         result = await call_zscaler_aiguard_api(text="Test content", direction="IN", policy_id=5678)
 
-        assert result["action"] == "ALLOW"
+        assert result.decision is RailDecision.ALLOW
         mock_scan.assert_called_once_with("Test content", "IN", 5678)
 
 
