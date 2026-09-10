@@ -282,6 +282,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
         "self_check.output_check",
         "tool_safety_check",
         "topic_safety",
+        "zscaler_aiguard",
     }
     expected_config_keys = {
         "ai_defense",
