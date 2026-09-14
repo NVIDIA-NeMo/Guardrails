@@ -1,0 +1,11 @@
+# Assign documentation maintainers to changes that affect the model-credential boundary.
+/.github/CODEOWNERS                              @NVIDIA-NeMo/docs_team
+/.github/workflows/post-merge-documentation.yaml @NVIDIA-NeMo/docs_team
+/.github/workflows/release-documentation.yaml    @NVIDIA-NeMo/docs_team
+/.github/workflows/review-documentation.yaml     @NVIDIA-NeMo/docs_team
+/AGENTS.md                                       @NVIDIA-NeMo/docs_team
+/AI_POLICY.md                                    @NVIDIA-NeMo/docs_team
+/CONTRIBUTING.md                                 @NVIDIA-NeMo/docs_team
+/docs/AGENTS.md                                  @NVIDIA-NeMo/docs_team
+/scripts/install-doc-agent-openshell.sh           @NVIDIA-NeMo/docs_team
+/tools/docs-agent/                                @NVIDIA-NeMo/docs_team
