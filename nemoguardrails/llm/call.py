@@ -41,6 +41,7 @@ from nemoguardrails.context import (
     tool_calls_var,
 )
 from nemoguardrails.exceptions import LLMCallException, LLMClientError
+from nemoguardrails.llm.token_counter import validate_context_length
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
 from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk, UsageInfo
@@ -71,7 +72,32 @@ async def llm_call(
     stop: Optional[List[str]] = None,
     llm_params: Optional[dict] = None,
     streaming_handler: Optional["StreamingHandler"] = None,
+    context_window_tokens: Optional[int] = None,
+    check_context_length: bool = False,
 ) -> LLMResponse:
+    """Call the LLM with the given prompt.
+
+    Args:
+        llm: The LLM model instance.
+        prompt: The prompt string or list of message dicts.
+        model_name: Model name used for context-length look-up; falls back to
+            the model's own ``model_name`` attribute when omitted.
+        model_provider: Optional provider identifier for logging.
+        stop: Optional list of stop sequences.
+        llm_params: Extra keyword arguments forwarded verbatim to the model
+            call.
+        streaming_handler: If provided, the response is streamed through this
+            handler instead of being returned as a single object.
+        context_window_tokens: Override the context-window size used **only**
+            for pre-call length validation (i.e. passed to
+            ``validate_context_length``). This value is *not* forwarded to the
+            model. Passing this implicitly enables context-length validation
+            even when ``check_context_length`` is False.
+        check_context_length: When True, validate that the assembled prompt
+            fits within the model's context window before calling the model.
+            Defaults to False to preserve backward compatibility with
+            deployments that use custom or unlisted model names.
+    """
     if llm is None:
         raise LLMCallException(ValueError("No LLM provided to llm_call()"))
 
@@ -89,6 +115,14 @@ async def llm_call(
     chat_prompt = _ensure_chat_messages(prompt)
     call_params = dict(llm_params or {})
     stop = call_params.pop("stop", stop)
+
+    # Validate context length only when explicitly requested or when a caller-supplied
+    # window override is present. The check is opt-in (False by default) so that
+    # deployments using custom/unlisted model names are not broken by the conservative
+    # 4096-token fallback. ContextLengthExceededError must propagate directly (not
+    # wrapped in LLMCallException) so callers can handle it specifically.
+    if check_context_length or context_window_tokens is not None:
+        validate_context_length(prompt, model_name=model_name or model.model_name, max_tokens=context_window_tokens)
 
     if streaming_handler:
         return await _stream_llm_call(model, chat_prompt, streaming_handler, stop, call_params)
