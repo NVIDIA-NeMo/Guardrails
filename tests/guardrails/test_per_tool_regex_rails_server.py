@@ -84,6 +84,7 @@ def _write_config(config_dir: Path, config_id: str, mock_port: int) -> None:
                     "tool_output": {
                         "run_sql": {"patterns": [r"DROP\s+TABLE"]},
                         "other_tool": {"patterns": [r"SECRET"]},
+                        "scoped_tool": {"patterns": [r"DROP\s+TABLE"]},
                     },
                     "tool_input": {"run_sql": {"patterns": [r"ssn:\s*\d{3}-\d{2}-\d{4}"]}},
                 }
@@ -92,6 +93,7 @@ def _write_config(config_dir: Path, config_id: str, mock_port: int) -> None:
                 "per_tool": {
                     "run_sql": ["regex check tool call"],
                     "other_tool": ["regex check tool call"],
+                    "scoped_tool": ["regex check tool call $argument=query"],
                 }
             },
             "tool_input": {"per_tool": {"run_sql": ["regex check tool result"]}},
@@ -216,6 +218,21 @@ class TestPerToolCallRegexAgainstRealServer:
         """other_tool's own configured pattern (SECRET) still blocks when it matches,
         proving its check genuinely runs rather than being silently skipped."""
         message = _chat(servers, "run_sql:SELECT 1||other_tool:the SECRET is out")
+        assert "tool_calls" not in message
+        assert message["content"] == "I'm sorry, I can't respond to that."
+
+
+class TestArgumentScopingAgainstRealServer:
+    """scoped_tool's flow is `regex check tool call $argument=query`, so only the
+    `query` argument is checked; a match elsewhere in the same call's arguments must
+    not block."""
+
+    def test_match_outside_scoped_argument_passes(self, servers):
+        message = _chat(servers, 'scoped_tool:{"query": "SELECT 1", "notes": "DROP TABLE users"}')
+        assert message["tool_calls"][0]["function"]["name"] == "scoped_tool"
+
+    def test_match_inside_scoped_argument_blocks(self, servers):
+        message = _chat(servers, 'scoped_tool:{"query": "DROP TABLE users", "notes": "irrelevant"}')
         assert "tool_calls" not in message
         assert message["content"] == "I'm sorry, I can't respond to that."
 

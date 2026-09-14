@@ -17,10 +17,12 @@
 
 Unlike benchmark/mock_llm_server (built for content-safety load testing: text in, text
 out), this mock is purpose-built to emit tool calls. Given a user turn, it returns a
-tool call naming the configured tool, with the user's message as the sole argument
-value -- so a test drives block/allow behavior purely by varying the message it sends,
-without reconfiguring the running server per test case. Given a turn whose last message
-is a tool result, it returns plain text, simulating the model's reply after the tool ran.
+tool call naming the configured tool, with the user's message as the primary argument
+value, so a test drives block/allow behavior purely by varying the message it sends,
+without reconfiguring the running server per test case. Message content can also be a
+JSON object, used as the call's arguments directly, so a test can drive a multi-field
+call. Given a turn whose last message is a tool result, it returns plain text,
+simulating the model's reply after the tool ran.
 """
 
 import json
@@ -96,17 +98,23 @@ def _last_user_content(messages: list[Message]) -> str:
     return ""
 
 
-def _tool_call_specs(messages: list[Message]) -> list[tuple[str, str]]:
-    """One (tool_name, content) pair per tool call to emit.
+def _tool_call_specs(messages: list[Message]) -> list[tuple[str, dict]]:
+    """One (tool_name, arguments) pair per tool call to emit.
 
     A user message containing MOCK_TOOL_CALL_DELIMITER ("||" by default) requests
-    multiple tool calls in one response, one per delimited part -- so a test can drive
+    multiple tool calls in one response, one per delimited part, so a test can drive
     the per-tool fan-out loop by sending e.g. "SELECT 1||DROP TABLE users" and getting
     back two tool calls, one safe and one that should block. A part may itself be
     prefixed "tool_name:content" to name a specific tool for that call (default
-    MOCK_TOOL_NAME otherwise) -- so a test can prove only the tool actually configured
+    MOCK_TOOL_NAME otherwise), so a test can prove only the tool actually configured
     for a per-tool check is the one that gets evaluated, even when a sibling call in the
     same response carries identical, otherwise-matching content under a different name.
+
+    If content (after the optional "tool_name:" prefix) is itself a JSON object, it is
+    used as the arguments dict directly, matching the real OpenAI wire shape where
+    `arguments` is just a JSON-serialized object, so a test can drive a multi-field
+    call (e.g. for `$argument=` scoping) without any bespoke syntax. Otherwise content
+    is wrapped as a single MOCK_TOOL_ARGUMENT_NAME field, as before.
     """
     content = _last_user_content(messages)
     parts = content.split(MOCK_TOOL_CALL_DELIMITER) if MOCK_TOOL_CALL_DELIMITER in content else [content]
@@ -115,7 +123,11 @@ def _tool_call_specs(messages: list[Message]) -> list[tuple[str, str]]:
         if not part:
             continue
         tool_name, sep, rest = part.partition(":")
-        specs.append((tool_name, rest) if sep else (MOCK_TOOL_NAME, part))
+        tool_name, body = (tool_name, rest) if sep else (MOCK_TOOL_NAME, part)
+        if body.lstrip().startswith("{"):
+            specs.append((tool_name, json.loads(body)))
+        else:
+            specs.append((tool_name, {MOCK_TOOL_ARGUMENT_NAME: body}))
     return specs
 
 
@@ -141,9 +153,9 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
             tool_calls=[
                 ToolCall(
                     id=f"call_{uuid.uuid4().hex[:8]}",
-                    function=ToolCallFunction(name=tool_name, arguments=json.dumps({MOCK_TOOL_ARGUMENT_NAME: content})),
+                    function=ToolCallFunction(name=tool_name, arguments=json.dumps(arguments)),
                 )
-                for tool_name, content in _tool_call_specs(request.messages)
+                for tool_name, arguments in _tool_call_specs(request.messages)
             ],
         )
         finish_reason = "tool_calls"
