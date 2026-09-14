@@ -40,8 +40,8 @@ The following table summarizes surface support by direction:
 | Input | 32 | 32 | 31 |
 | Output | 35 | 35 | 28 |
 | Retrieval | 11 | 11 | 0 |
-| Tool_call | 1 | 0 | 1 |
-| Tool_result | 1 | 0 | 1 |
+| Tool_output | 1 | 0 | 1 |
+| Tool_input | 1 | 0 | 1 |
 | **Total** | **80** | **78** | **61** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
@@ -152,24 +152,24 @@ Retrieval surfaces run against the knowledge-base chunks retrieved for a turn.
 | `detect sensitive data on retrieval` | Sensitive Data Detection | ✓ | ✗ | Reads `relevant_chunks` |
 | `mask sensitive data on retrieval` | Sensitive Data Detection | ✓ | ✗ | Rewrites `relevant_chunks` |
 
-### Tool Call Surfaces
+### Tool Output Surfaces
 
-Tool call surfaces run against one tool call at a time, configured under `rails.tool_output.per_tool` and keyed by tool name.
+Tool output surfaces run against one tool call at a time, configured under `rails.tool_output.per_tool` and keyed by tool name.
 Unlike the [Tool Surfaces](#tool-surfaces) below, these are manifest surfaces like any input, output, or retrieval rail.
 Per-tool checks are an `IORails`-only capability by design:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
-| `regex check tool call` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
+| `regex check tool output` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
 
-### Tool Result Surfaces
+### Tool Input Surfaces
 
-Tool result surfaces run against one tool result at a time, configured under `rails.tool_input.per_tool` and keyed by tool name.
+Tool input surfaces run against one tool result at a time, configured under `rails.tool_input.per_tool` and keyed by tool name.
 Per-tool checks are an `IORails`-only capability by design:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
-| `regex check tool result` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
+| `regex check tool input` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
 
 ### Tool Surfaces
 

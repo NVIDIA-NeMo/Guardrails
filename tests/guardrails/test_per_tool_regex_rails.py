@@ -64,7 +64,7 @@ def _other_call(call_id: str = "call_2") -> ToolCall:
 def _llm_params(*tool_names: str) -> dict:
     """Declare *tool_names* with a schema permissive enough to accept any arguments.
 
-    @tool_call_validation blocks a call whose tool isn't declared here, so per-tool
+    @tool_output_validation blocks a call whose tool isn't declared here, so per-tool
     tests that expect the regex check itself to run (not the schema gate) need their
     tool declared.
     """
@@ -116,30 +116,30 @@ class TestConfigSchema:
                 **STACK_CONFIG,
                 "rails": {
                     "config": {"regex_detection": RUN_SQL_PATTERN_CONFIG},
-                    "tool_output": {"per_tool": {"run_sql": ["regex check tool call"]}},
+                    "tool_output": {"per_tool": {"run_sql": ["regex check tool output"]}},
                 },
             }
         )
-        assert config.rails.tool_output.per_tool == {"run_sql": ["regex check tool call"]}
+        assert config.rails.tool_output.per_tool == {"run_sql": ["regex check tool output"]}
 
 
 class TestAreToolCallsSafe:
     @pytest.mark.asyncio
     async def test_matching_tool_and_pattern_blocks(self):
         manager = _build_manager(
-            per_tool_call_flows={"run_sql": ["regex check tool call"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
         )
         result = await manager.are_tool_calls_safe([_sql_call("DROP TABLE users")], _llm_params("run_sql"))
         assert result.is_safe is False
         assert result.records[0].tool_name == "run_sql"
-        assert result.records[0].flow == "regex check tool call"
+        assert result.records[0].flow == "regex check tool output"
         assert result.records[0].rail_type == "tool_output"
         assert result.records[0].return_value["detections"] == [r"DROP\s+TABLE"]
 
     @pytest.mark.asyncio
     async def test_matching_tool_non_matching_pattern_allows(self):
         manager = _build_manager(
-            per_tool_call_flows={"run_sql": ["regex check tool call"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
         )
         result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], _llm_params("run_sql"))
         assert result.is_safe
@@ -148,7 +148,7 @@ class TestAreToolCallsSafe:
     async def test_argument_scoping_excludes_unscoped_field_match(self):
         """$argument= scopes the check away from a matching field it doesn't name."""
         manager = _build_manager(
-            per_tool_call_flows={"run_sql": ["regex check tool call $argument=query"]},
+            per_tool_call_flows={"run_sql": ["regex check tool output $argument=query"]},
             regex_detection=RUN_SQL_PATTERN_CONFIG,
         )
         call = ToolCall(
@@ -165,7 +165,7 @@ class TestAreToolCallsSafe:
     async def test_argument_scoping_includes_scoped_field_match(self):
         """$argument= still catches a match in the field it does name."""
         manager = _build_manager(
-            per_tool_call_flows={"run_sql": ["regex check tool call $argument=query"]},
+            per_tool_call_flows={"run_sql": ["regex check tool output $argument=query"]},
             regex_detection=RUN_SQL_PATTERN_CONFIG,
         )
         call = ToolCall(
@@ -180,7 +180,7 @@ class TestAreToolCallsSafe:
     @pytest.mark.asyncio
     async def test_tool_not_listed_in_per_tool_skips_check(self):
         manager = _build_manager(
-            per_tool_call_flows={"run_sql": ["regex check tool call"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
         )
         result = await manager.are_tool_calls_safe([_other_call()], {})
         assert result.is_safe
@@ -196,10 +196,10 @@ class TestAreToolCallsSafe:
 
     @pytest.mark.asyncio
     async def test_undeclared_tool_blocks_per_tool_regex_check(self):
-        """@tool_call_validation blocks a call whose tool isn't declared in llm_params,
+        """@tool_output_validation blocks a call whose tool isn't declared in llm_params,
         before the per-tool regex check itself ever runs."""
         manager = _build_manager(
-            per_tool_call_flows={"run_sql": ["regex check tool call"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
         )
         result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], {})
         assert_result_blocked(result)
@@ -208,7 +208,7 @@ class TestAreToolCallsSafe:
     async def test_global_flow_blocks_before_per_tool_runs(self):
         manager = _build_manager(
             tool_call_flows=["tool call validation"],
-            per_tool_call_flows={"run_sql": ["regex check tool call"]},
+            per_tool_call_flows={"run_sql": ["regex check tool output"]},
             regex_detection=RUN_SQL_PATTERN_CONFIG,
         )
         # No declared tools in llm_params -> the global allowlist check blocks first.
@@ -238,7 +238,7 @@ class TestAreToolResultsSafe:
     @pytest.mark.asyncio
     async def test_matching_tool_and_pattern_blocks(self):
         manager = _build_manager(
-            per_tool_result_flows={"run_sql": ["regex check tool result"]},
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
         result = await manager.are_tool_results_safe(self._messages("ssn: 123-45-6789"))
@@ -249,7 +249,7 @@ class TestAreToolResultsSafe:
     @pytest.mark.asyncio
     async def test_non_matching_pattern_allows(self):
         manager = _build_manager(
-            per_tool_result_flows={"run_sql": ["regex check tool result"]},
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
         result = await manager.are_tool_results_safe(self._messages("no sensitive data"))
@@ -259,12 +259,35 @@ class TestAreToolResultsSafe:
     async def test_tool_name_resolved_from_prior_call_when_missing(self):
         """A tool message with no `name` still resolves via the matching prior call's id."""
         manager = _build_manager(
-            per_tool_result_flows={"run_sql": ["regex check tool result"]},
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
         result = await manager.are_tool_results_safe(self._messages("ssn: 123-45-6789", name=None))
         assert result.is_safe is False
         assert result.records[0].tool_name == "run_sql"
+
+    @pytest.mark.asyncio
+    async def test_tool_result_not_listed_in_per_tool_skips_check(self):
+        """A result for a tool with no per_tool_result_flows entry resolves fine via
+        call_id, but has nothing configured to check it against, so it must not block."""
+        manager = _build_manager(
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
+            regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
+        )
+        messages = [
+            {"role": "user", "content": "run a query"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "call_1", "type": "function", "function": {"name": "other_tool", "arguments": "{}"}}
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_1", "name": "other_tool", "content": "ssn: 123-45-6789"},
+        ]
+        result = await manager.are_tool_results_safe(messages)
+        assert result.is_safe
+        assert result.records == ()
 
     @pytest.mark.asyncio
     async def test_no_per_tool_configured_is_unaffected(self):
@@ -282,7 +305,7 @@ class TestAreToolResultsSafe:
         request even though the caller asked for no tool-result checking at all.
         """
         manager = _build_manager(
-            per_tool_result_flows={"run_sql": ["regex check tool result"]},
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
         with patch.object(manager.engine_registry, "extract_tool_exchanges", side_effect=RuntimeError("boom")):
@@ -296,7 +319,7 @@ class TestAreToolResultsSafe:
         tool, still resolves to run_sql. A spoofed name cannot steer the result to a
         different (or no) tool's policy and dodge the check that actually applies."""
         manager = _build_manager(
-            per_tool_result_flows={"run_sql": ["regex check tool result"]},
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
         result = await manager.are_tool_results_safe(self._messages("ssn: 123-45-6789", name="list_tables"))
@@ -312,7 +335,7 @@ class TestAreToolResultsSafe:
         applied to it, the same class of bypass as trusting a spoofed name.
         """
         manager = _build_manager(
-            per_tool_result_flows={"run_sql": ["regex check tool result"]},
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
         messages = self._messages("no sensitive data", name=None)
@@ -383,13 +406,13 @@ class TestIORailsWiring:
                 **STACK_CONFIG,
                 "rails": {
                     "config": {"regex_detection": RUN_SQL_PATTERN_CONFIG},
-                    "tool_output": {"per_tool": {"run_sql": ["regex check tool call"]}},
+                    "tool_output": {"per_tool": {"run_sql": ["regex check tool output"]}},
                 },
             }
         )
         rails = IORails(config)
-        assert rails.rails_manager.per_tool_call_flows == {"run_sql": ["regex check tool call"]}
-        assert (SurfaceDirection.TOOL_CALL, "regex check tool call") in rails.rails_manager._per_tool_rails
+        assert rails.rails_manager.per_tool_call_flows == {"run_sql": ["regex check tool output"]}
+        assert (SurfaceDirection.TOOL_OUTPUT, "regex check tool output") in rails.rails_manager._per_tool_rails
 
 
 def _capture_per_tool_manager():
@@ -416,8 +439,8 @@ def _capture_per_tool_manager():
         task_manager=LLMTaskManager(config),
         input_flows=[],
         output_flows=[],
-        per_tool_call_flows={"run_sql": ["regex check tool call"]},
-        per_tool_result_flows={"run_sql": ["regex check tool result"]},
+        per_tool_call_flows={"run_sql": ["regex check tool output"]},
+        per_tool_result_flows={"run_sql": ["regex check tool input"]},
         tracer=provider.get_tracer("test"),
         content_capture_enabled=True,
     )

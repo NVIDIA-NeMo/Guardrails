@@ -38,15 +38,15 @@ _SECTION_HEADINGS = {
     "### Input Surfaces": RailDirection.INPUT,
     "### Output Surfaces": RailDirection.OUTPUT,
     "### Retrieval Surfaces": RailDirection.RETRIEVAL,
-    "### Tool Call Surfaces": RailDirection.TOOL_CALL,
-    "### Tool Result Surfaces": RailDirection.TOOL_RESULT,
+    "### Tool Output Surfaces": RailDirection.TOOL_OUTPUT,
+    "### Tool Input Surfaces": RailDirection.TOOL_INPUT,
 }
 
 # LLMRails has no runtime path for these directions (see nemoguardrails/rails/llm/llm_flows.co):
-# tool-result rails loop per tool message but bind $tool_message, not $tool_result; tool-call
+# tool-input rails loop per tool message but bind $tool_message, not $tool_result; tool-output
 # rails never loop per call at all, only the whole $tool_calls list is bound. Surfaces declared
 # under these directions are IORails-only by design.
-_LLMRAILS_UNSUPPORTED_DIRECTIONS = (RailDirection.TOOL_CALL, RailDirection.TOOL_RESULT)
+_LLMRAILS_UNSUPPORTED_DIRECTIONS = (RailDirection.TOOL_OUTPUT, RailDirection.TOOL_INPUT)
 
 # | `flow name` | Rail | LLMRails | IORails | Notes |
 _ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|[^|]*\|\s*(\S+)\s*\|\s*(\S+)\s*\|")

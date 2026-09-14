@@ -271,8 +271,8 @@ class RailsManager:
 
         self._per_tool_rails: dict[tuple[SurfaceDirection, str], CompiledRail] = {}
         per_tool_configured = (
-            (SurfaceDirection.TOOL_CALL, self.per_tool_call_flows),
-            (SurfaceDirection.TOOL_RESULT, self.per_tool_result_flows),
+            (SurfaceDirection.TOOL_OUTPUT, self.per_tool_call_flows),
+            (SurfaceDirection.TOOL_INPUT, self.per_tool_result_flows),
         )
         for direction, per_tool in per_tool_configured:
             unique_flows = {flow for flows in per_tool.values() for flow in flows}
@@ -428,7 +428,7 @@ class RailsManager:
             tool_definition = toolset.get(tool_name)
             for flow in flows:
                 per_tool_rails[f"{index}:{flow}"] = self._run_per_tool_rail(
-                    SurfaceDirection.TOOL_CALL, flow, tool_call=tool_call, tool_definition=tool_definition
+                    SurfaceDirection.TOOL_OUTPUT, flow, tool_call=tool_call, tool_definition=tool_definition
                 )
         if not per_tool_rails:
             return global_result
@@ -495,7 +495,7 @@ class RailsManager:
             flows = self._enabled_flows(self.per_tool_result_flows.get(tool_name, []), enabled)
             for flow in flows:
                 per_tool_rails[f"{index}:{flow}"] = self._run_per_tool_rail(
-                    SurfaceDirection.TOOL_RESULT, flow, tool_call=matched_call, tool_result=tool_result
+                    SurfaceDirection.TOOL_INPUT, flow, tool_call=matched_call, tool_result=tool_result
                 )
         if not per_tool_rails:
             return global_result
@@ -619,8 +619,8 @@ class RailsManager:
     ) -> RailResult:
         """Dispatch one per-tool rail, passing the resolved ToolCall/ToolResult/Tool through."""
         tool_name = tool_call.function.name or tool_call.type
-        rail_direction = RailDirection.OUTPUT if direction == SurfaceDirection.TOOL_CALL else RailDirection.INPUT
-        rail_type = "tool_output" if direction == SurfaceDirection.TOOL_CALL else "tool_input"
+        rail_direction = RailDirection.OUTPUT if direction == SurfaceDirection.TOOL_OUTPUT else RailDirection.INPUT
+        rail_type = "tool_output" if direction == SurfaceDirection.TOOL_OUTPUT else "tool_input"
         with rail_span(self._tracer, flow, rail_direction) as span:
             rail_execution = await self._per_tool_rails[(direction, flow)].execute(
                 [], tool_call=tool_call, tool_result=tool_result, tool_definition=tool_definition

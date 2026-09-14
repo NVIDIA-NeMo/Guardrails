@@ -32,11 +32,11 @@ from nemoguardrails.utils import camelcase_to_snakecase
 
 LIBRARY_ROOT = Path("nemoguardrails/library")
 
-# LLMRails has no runtime path for these directions: tool-result rails loop per tool
-# message but bind $tool_message (not $tool_result), and tool-call rails never loop
+# LLMRails has no runtime path for these directions: tool-input rails loop per tool
+# message but bind $tool_message (not $tool_result), and tool-output rails never loop
 # per call at all (only the whole $tool_calls list is bound). Surfaces declared under
 # these directions are IORails-only by design and ship no Colang flow definitions.
-_LLMRAILS_UNSUPPORTED_DIRECTIONS = (RailDirection.TOOL_CALL, RailDirection.TOOL_RESULT)
+_LLMRAILS_UNSUPPORTED_DIRECTIONS = (RailDirection.TOOL_OUTPUT, RailDirection.TOOL_INPUT)
 
 V1_EXECUTE_RE = re.compile(r"execute\s+([A-Za-z_][\w ]*?)\s*(?:\(|$)", re.MULTILINE)
 V2_ACTION_RE = re.compile(r"(?:await|start)\s+([A-Z]\w*Action)\b")

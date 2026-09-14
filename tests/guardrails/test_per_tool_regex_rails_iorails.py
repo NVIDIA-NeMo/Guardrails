@@ -38,7 +38,7 @@ from tests.guardrails.test_tool_rails_iorails import (
 
 BASE_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
 
-# @tool_call_validation blocks a call to an undeclared tool, so run_sql is declared here
+# @tool_output_validation blocks a call to an undeclared tool, so run_sql is declared here
 # with a permissive schema -- these tests exercise the per-tool regex check, not schema
 # validation. Declared on the model (models[].parameters.tools) rather than per-request,
 # matching CONFIG_TOOLS_CONFIG in test_tool_rails_iorails.py.
@@ -47,7 +47,7 @@ RUN_SQL_TOOL = {
     "function": {"name": "run_sql", "parameters": {"type": "object", "additionalProperties": True}},
 }
 
-TOOL_CALL_PATTERN_CONFIG = {
+TOOL_OUTPUT_PATTERN_CONFIG = {
     "models": [
         {
             "type": "main",
@@ -58,7 +58,7 @@ TOOL_CALL_PATTERN_CONFIG = {
     ],
     "rails": {
         "config": {"regex_detection": {"tool_output": {"run_sql": {"patterns": [r"DROP\s+TABLE"]}}}},
-        "tool_output": {"per_tool": {"run_sql": ["regex check tool call"]}},
+        "tool_output": {"per_tool": {"run_sql": ["regex check tool output"]}},
     },
 }
 
@@ -74,7 +74,7 @@ STRICT_RUN_SQL_TOOL = {
     },
 }
 
-TOOL_CALL_SCHEMA_CONFIG = {
+TOOL_OUTPUT_SCHEMA_CONFIG = {
     "models": [
         {
             "type": "main",
@@ -85,15 +85,15 @@ TOOL_CALL_SCHEMA_CONFIG = {
     ],
     "rails": {
         "config": {"regex_detection": {"tool_output": {"run_sql": {"patterns": [r"DROP\s+TABLE"]}}}},
-        "tool_output": {"per_tool": {"run_sql": ["regex check tool call"]}},
+        "tool_output": {"per_tool": {"run_sql": ["regex check tool output"]}},
     },
 }
 
-TOOL_RESULT_PATTERN_CONFIG = {
+TOOL_INPUT_PATTERN_CONFIG = {
     **BASE_CONFIG,
     "rails": {
         "config": {"regex_detection": {"tool_input": {"run_sql": {"patterns": [r"ssn:\s*\d{3}-\d{2}-\d{4}"]}}}},
-        "tool_input": {"per_tool": {"run_sql": ["regex check tool result"]}},
+        "tool_input": {"per_tool": {"run_sql": ["regex check tool input"]}},
     },
 }
 
@@ -106,19 +106,19 @@ async def _collect(stream) -> list:
 
 @pytest_asyncio.fixture
 async def call_pattern_iorails():
-    async with started_iorails(TOOL_CALL_PATTERN_CONFIG) as engine:
+    async with started_iorails(TOOL_OUTPUT_PATTERN_CONFIG) as engine:
         yield engine
 
 
 @pytest_asyncio.fixture
 async def schema_pattern_iorails():
-    async with started_iorails(TOOL_CALL_SCHEMA_CONFIG) as engine:
+    async with started_iorails(TOOL_OUTPUT_SCHEMA_CONFIG) as engine:
         yield engine
 
 
 @pytest_asyncio.fixture
 async def result_pattern_iorails():
-    async with started_iorails(TOOL_RESULT_PATTERN_CONFIG) as engine:
+    async with started_iorails(TOOL_INPUT_PATTERN_CONFIG) as engine:
         yield engine
 
 
@@ -144,7 +144,7 @@ class TestNonStreamingPerToolCallRegex:
 
     @pytest.mark.asyncio
     async def test_schema_violation_blocks_before_regex_check(self, schema_pattern_iorails):
-        """@tool_call_validation blocks arguments that violate the declared schema,
+        """@tool_output_validation blocks arguments that violate the declared schema,
         even when the regex pattern itself would not have matched."""
         _inject_json_response(schema_pattern_iorails, _tool_call_payload("run_sql", '{"query": 123}'))
         result = await schema_pattern_iorails.generate_async(messages=MESSAGES)

@@ -189,11 +189,11 @@ def validate_arguments(tool: Tool, arguments: dict) -> str | None:
     return None
 
 
-def tool_call_validation(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Validate a TOOL_CALL action's arguments against the tool's schema before it runs.
+def tool_output_validation(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Validate a TOOL_OUTPUT action's arguments against the tool's schema before it runs.
 
-    Every action bound to a ``TOOL_CALL`` surface must carry this decorator (enforced by
-    ``test_every_tool_call_action_validates_arguments``). Blocks before the action body
+    Every action bound to a ``TOOL_OUTPUT`` surface must carry this decorator (enforced by
+    ``test_every_tool_output_action_validates_arguments``). Blocks before the action body
     runs if the call's tool isn't declared, or its arguments don't match the schema.
     """
 
@@ -209,7 +209,7 @@ def tool_call_validation(func: Callable[..., Any]) -> Callable[..., Any]:
             return RailOutcome.block(reason=reason)
         return await func(*args, **kwargs)
 
-    setattr(wrapper, "_has_tool_call_validation", True)
+    setattr(wrapper, "_has_tool_output_validation", True)
     return wrapper
 
 
