@@ -712,6 +712,20 @@ F5_OUTPUT = RailSpec(
     action="f5_guardrails_scan",
 )
 
+ZSCALER_AIGUARD_INPUT = RailSpec(
+    name="zscaler_aiguard_input",
+    flow="zscaler aiguard moderation on input",
+    direction="input",
+    action="call_zscaler_aiguard_api",
+)
+
+ZSCALER_AIGUARD_OUTPUT = RailSpec(
+    name="zscaler_aiguard_output",
+    flow="zscaler aiguard moderation on output",
+    direction="output",
+    action="call_zscaler_aiguard_api",
+)
+
 ACTIVEFENCE_INPUT = RailSpec(
     name="activefence_input",
     flow="activefence moderation on input",
@@ -2204,6 +2218,20 @@ FIXTURES = [
         F5_OUTPUT,
         allow_return=RailOutcome.allow(metadata={"result": {"outcome": "cleared"}}),
         block_return=RailOutcome.block(metadata={"result": {"outcome": "flagged"}}),
+        include_exception_case=True,
+    ),
+    *_rail_outcome_cases(
+        ZSCALER_AIGUARD_INPUT,
+        allow_return=RailOutcome.allow(metadata={"action": "ALLOW"}),
+        block_return=RailOutcome.block(reason="Zscaler AI Guard blocked the user prompt."),
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+        include_exception_case=True,
+    ),
+    *_rail_outcome_cases(
+        ZSCALER_AIGUARD_OUTPUT,
+        allow_return=RailOutcome.allow(metadata={"action": "ALLOW"}),
+        block_return=RailOutcome.block(reason="Zscaler AI Guard blocked the LLM response."),
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
         include_exception_case=True,
     ),
     _case(

@@ -1,0 +1,25 @@
+# INPUT RAILS
+
+flow zscaler aiguard moderation on input
+  $result = await CallZscalerAiguardApiAction(text=$user_message, direction="IN")
+
+  if $result.is_blocked
+    if $system.config.enable_rails_exceptions
+      $message = $result.reason
+      send ZscalerAiguardInputRailException(message=$message)
+    else
+      bot inform answer unknown
+    abort
+
+# OUTPUT RAILS
+
+flow zscaler aiguard moderation on output
+  $result = await CallZscalerAiguardApiAction(text=$bot_message, direction="OUT")
+
+  if $result.is_blocked
+    if $system.config.enable_rails_exceptions
+      $message = $result.reason
+      send ZscalerAiguardOutputRailException(message=$message)
+    else
+      bot inform answer unknown
+    abort
