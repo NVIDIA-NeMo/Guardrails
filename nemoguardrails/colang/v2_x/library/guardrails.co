@@ -93,7 +93,11 @@ flow run output rails $output_text
   $output_rails_exist = await CheckFlowDefinedAction(flow_id="output rails")
   if $output_rails_exist
     log "found output rails, checking..."
-    await output rails $output_text
-    log "output rails passed"
-
-  $output_rails_in_progress = False
+    when output rails $output_text
+      log "output rails passed"
+      $output_rails_in_progress = False
+    else
+      $output_rails_in_progress = False
+      abort
+  else
+    $output_rails_in_progress = False
