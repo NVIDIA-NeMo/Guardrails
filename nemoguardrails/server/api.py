@@ -82,6 +82,7 @@ from nemoguardrails.server.schemas.utils import (
     resolve_tool_calls,
     warn_if_thread_history_invalid_for_tool_use,
 )
+from nemoguardrails.tool_call_types import ChunkToolCallDelta
 
 try:
     from chainlit.utils import mount_chainlit as _mount_chainlit
@@ -565,7 +566,7 @@ async def _format_streaming_response(
         yield "data: [DONE]\n\n"
 
 
-def process_chunk(chunk: Any) -> Union[Any, ChunkError]:
+def process_chunk(chunk: Any) -> Union[Any, ChunkError, ChunkToolCallDelta]:
     """
     Processes a single chunk from the stream.
 
@@ -574,7 +575,9 @@ def process_chunk(chunk: Any) -> Union[Any, ChunkError]:
         model: The model name (not used in processing but kept for signature consistency).
 
     Returns:
-        Union[Any, StreamingError]: StreamingError instance for errors or the original chunk.
+        Union[Any, ChunkError, ChunkToolCallDelta]: A ChunkError instance for terminal error
+        frames, a ChunkToolCallDelta instance for streaming tool-call frames, or the original
+        chunk for ordinary content tokens.
     """
     # Convert chunk to string for JSON parsing if needed
     chunk_str = chunk if isinstance(chunk, str) else json.dumps(chunk) if isinstance(chunk, dict) else str(chunk)
@@ -584,6 +587,20 @@ def process_chunk(chunk: Any) -> Union[Any, ChunkError]:
         return validated_data  # Return the StreamingError instance directly
     except ValidationError:
         # Not an error, just a normal token
+        pass
+    except json.JSONDecodeError:
+        # Invalid JSON format, treat as normal token
+        pass
+    except Exception as e:
+        log.warning(
+            f"Unexpected error processing stream chunk: {type(e).__name__}: {str(e)}",
+            extra={"chunk": chunk_str},
+        )
+
+    try:
+        return ChunkToolCallDelta.model_validate_json(chunk_str)
+    except ValidationError:
+        # Not a tool-call delta, just a normal token
         pass
     except json.JSONDecodeError:
         # Invalid JSON format, treat as normal token
