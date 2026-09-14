@@ -30,6 +30,26 @@ def say_name(name: str = ""):
     return name
 
 
+@validate_response(validators=["ip_filter"])
+def get_record(name: str = ""):
+    """return a dict response that may contain IP addresses"""
+    return {
+        "host": "server at 10.40.139.92",
+        "note": "no ip here",
+    }
+
+
+@validate_response(validators=["ip_filter"])
+def get_mixed_record(name: str = ""):
+    """return a dict response with non-string values (ints, bools, nested dicts)"""
+    return {
+        "host": "server at 10.40.139.92",
+        "port": 8080,
+        "active": True,
+        "meta": {"region": "us"},
+    }
+
+
 @validate_input("name", validators=["length"], max_len=100)
 @validate_response(validators=["ip_filter", "is_default_resp"])
 class SayQuery:
@@ -56,6 +76,36 @@ def test_func_validation():
 
     # length is smaller than max len validation
     assert say_name(name="IP 10.40.139.92 should be trimmed") == "IP  should be trimmed"
+
+
+def test_ip_filter_on_dict_response():
+    """ip_filter must strip IPs from dict values without raising.
+
+    Regression test: previously the dict branch iterated `for key, value in
+    response_value` (over keys, not items), raising a ValueError on any dict
+    whose keys are longer than two characters.
+    """
+    result = get_record()
+    assert result == {
+        "host": "server at ",
+        "note": "no ip here",
+    }
+
+
+def test_ip_filter_on_dict_with_non_string_values():
+    """ip_filter must skip non-string dict values instead of crashing.
+
+    filter_ip runs re.sub on its argument, which raises TypeError on a
+    non-str. Only string values should be filtered; ints, bools and nested
+    dicts are left untouched.
+    """
+    result = get_mixed_record()
+    assert result == {
+        "host": "server at ",
+        "port": 8080,
+        "active": True,
+        "meta": {"region": "us"},
+    }
 
 
 def test_cls_validation():
