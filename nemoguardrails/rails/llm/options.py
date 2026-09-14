@@ -311,65 +311,70 @@ class GenerationLog(BaseModel):
     def print_summary(self):
         print("\n# General stats\n")
 
-        # Percent accounted so far
-        pc = 0
-        duration = 0
+        if self.stats.total_duration is None:
+            print("No stats available")
+        else:
+            pc = 0
+            duration = 0
 
-        print(f"- Total time: {self.stats.total_duration:.2f}s")
-        if self.stats.input_rails_duration and self.stats.total_duration:
-            _pc = round(100 * self.stats.input_rails_duration / self.stats.total_duration, 2)
-            pc += _pc
-            duration += self.stats.input_rails_duration
+            print(f"- Total time: {self.stats.total_duration:.2f}s")
+            if self.stats.input_rails_duration:
+                _pc = round(100 * self.stats.input_rails_duration / self.stats.total_duration, 2)
+                pc += _pc
+                duration += self.stats.input_rails_duration
 
-            print(f"  - [{self.stats.input_rails_duration:.2f}s][{_pc}%]: INPUT Rails")
-        if self.stats.dialog_rails_duration and self.stats.total_duration:
-            _pc = round(100 * self.stats.dialog_rails_duration / self.stats.total_duration, 2)
-            pc += _pc
-            duration += self.stats.dialog_rails_duration
+                print(f"  - [{self.stats.input_rails_duration:.2f}s][{_pc}%]: INPUT Rails")
+            if self.stats.dialog_rails_duration:
+                _pc = round(100 * self.stats.dialog_rails_duration / self.stats.total_duration, 2)
+                pc += _pc
+                duration += self.stats.dialog_rails_duration
 
-            print(f"  - [{self.stats.dialog_rails_duration:.2f}s][{_pc}%]: DIALOG Rails")
-        if self.stats.generation_rails_duration and self.stats.total_duration:
-            _pc = round(
-                100 * self.stats.generation_rails_duration / self.stats.total_duration,
-                2,
-            )
-            pc += _pc
-            duration += self.stats.generation_rails_duration
+                print(f"  - [{self.stats.dialog_rails_duration:.2f}s][{_pc}%]: DIALOG Rails")
+            if self.stats.generation_rails_duration:
+                _pc = round(
+                    100 * self.stats.generation_rails_duration / self.stats.total_duration,
+                    2,
+                )
+                pc += _pc
+                duration += self.stats.generation_rails_duration
 
-            print(f"  - [{self.stats.generation_rails_duration:.2f}s][{_pc}%]: GENERATION Rails")
-        if self.stats.output_rails_duration and self.stats.total_duration:
-            _pc = round(100 * self.stats.output_rails_duration / self.stats.total_duration, 2)
-            pc += _pc
-            duration += self.stats.output_rails_duration
+                print(f"  - [{self.stats.generation_rails_duration:.2f}s][{_pc}%]: GENERATION Rails")
+            if self.stats.output_rails_duration:
+                _pc = round(100 * self.stats.output_rails_duration / self.stats.total_duration, 2)
+                pc += _pc
+                duration += self.stats.output_rails_duration
 
-            print(f"  - [{self.stats.output_rails_duration:.2f}s][{_pc}%]: OUTPUT Rails")
+                print(f"  - [{self.stats.output_rails_duration:.2f}s][{_pc}%]: OUTPUT Rails")
 
-        processing_overhead = (self.stats.total_duration or 0) - duration
-        if processing_overhead >= 0.01:
-            _pc = round(100 - pc, 2)
-            print(f"  - [{processing_overhead:.2f}s][{_pc}%]: Processing overhead ")
+            processing_overhead = self.stats.total_duration - duration
+            if processing_overhead >= 0.01:
+                _pc = round(100 - pc, 2)
+                print(f"  - [{processing_overhead:.2f}s][{_pc}%]: Processing overhead ")
 
-        if self.stats.llm_calls_count:
-            print(
-                f"- {self.stats.llm_calls_count} LLM calls, "
-                f"{self.stats.llm_calls_duration:.2f}s total duration, "
-                f"{self.stats.llm_calls_total_prompt_tokens} total prompt tokens, "
-                f"{self.stats.llm_calls_total_completion_tokens} total completion tokens, "
-                f"{self.stats.llm_calls_total_tokens} total tokens."
-            )
+            if self.stats.llm_calls_count:
+                dur = f"{self.stats.llm_calls_duration:.2f}s" if self.stats.llm_calls_duration is not None else "n/a"
+                print(
+                    f"- {self.stats.llm_calls_count} LLM calls, "
+                    f"{dur} total duration, "
+                    f"{self.stats.llm_calls_total_prompt_tokens} total prompt tokens, "
+                    f"{self.stats.llm_calls_total_completion_tokens} total completion tokens, "
+                    f"{self.stats.llm_calls_total_tokens} total tokens."
+                )
 
         print("\n# Detailed stats\n")
         for activated_rail in self.activated_rails:
-            action_names = ", ".join(action.action_name for action in activated_rail.executed_actions)
+            action_names = ", ".join(action.action_name for action in activated_rail.executed_actions) or "n/a"
             llm_calls_count = 0
             llm_calls_durations = []
             for action in activated_rail.executed_actions:
                 llm_calls_count += len(action.llm_calls)
                 llm_calls_durations.extend([f"{round(llm_call.duration or 0, 2)}s" for llm_call in action.llm_calls])
+            dur = f"{activated_rail.duration:.2f}s" if activated_rail.duration is not None else "n/a"
+            llm_calls_dur = ", ".join(llm_calls_durations) or "n/a"
             print(
-                f"- [{activated_rail.duration:.2f}s] {activated_rail.type.upper()} ({activated_rail.name}): "
+                f"- [{dur}] {activated_rail.type.upper()} ({activated_rail.name}): "
                 f"{len(activated_rail.executed_actions)} actions ({action_names}), "
-                f"{llm_calls_count} llm calls [{', '.join(llm_calls_durations)}]"
+                f"{llm_calls_count} llm calls [{llm_calls_dur}]"
             )
         print("\n")
 
