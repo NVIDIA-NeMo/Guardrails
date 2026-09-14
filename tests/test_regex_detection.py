@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.actions import ActionResult
-from nemoguardrails.guardrails.tool_schema import ToolResult
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
 from nemoguardrails.library.regex.actions import (
     detect_regex_pattern,
     detect_tool_call_regex_pattern,
@@ -31,6 +31,12 @@ from tests.utils import TestChat
 
 def _tool_call(name: str, arguments: dict, call_id: str = "call_1") -> ToolCall:
     return ToolCall(id=call_id, type="function", function=ToolCallFunction(name=name, arguments=arguments))
+
+
+def _permissive_tool(name: str) -> Tool:
+    """A declared tool whose schema accepts any arguments, for tests that aren't
+    exercising @tool_call_validation's own schema check."""
+    return Tool(name=name, arguments_schema={"type": "object", "additionalProperties": True})
 
 
 @pytest.mark.unit
@@ -713,8 +719,44 @@ async def test_detect_tool_call_regex_pattern_rejects_invalid_source():
 
     with pytest.raises(ValueError, match="source must be 'tool_output'"):
         await detect_tool_call_regex_pattern(
-            source="bogus", tool_call=_tool_call("run_sql", {"query": "hi"}), config=config
+            source="bogus",
+            tool_call=_tool_call("run_sql", {"query": "hi"}),
+            tool_definition=_permissive_tool("run_sql"),
+            config=config,
         )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_detect_tool_call_regex_pattern_blocks_undeclared_tool():
+    """@tool_call_validation blocks before the regex check itself runs."""
+    config = RailsConfig.from_content(yaml_content="models: []", colang_content="")
+
+    result = await detect_tool_call_regex_pattern(
+        source="tool_output",
+        tool_call=_tool_call("run_sql", {"query": "hi"}),
+        tool_definition=None,
+        config=config,
+    )
+
+    assert result.is_blocked is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_detect_tool_call_regex_pattern_blocks_schema_violation():
+    """@tool_call_validation blocks arguments that don't match the declared schema."""
+    config = RailsConfig.from_content(yaml_content="models: []", colang_content="")
+    tool = Tool(name="run_sql", arguments_schema={"type": "object", "properties": {"query": {"type": "string"}}})
+
+    result = await detect_tool_call_regex_pattern(
+        source="tool_output",
+        tool_call=_tool_call("run_sql", {"query": 123}),
+        tool_definition=tool,
+        config=config,
+    )
+
+    assert result.is_blocked is True
 
 
 @pytest.mark.unit
@@ -744,7 +786,10 @@ async def test_detect_tool_call_regex_pattern_allows_when_regex_detection_sectio
     config = RailsConfig.from_content(yaml_content="models: []", colang_content="")
 
     result = await detect_tool_call_regex_pattern(
-        source="tool_output", tool_call=_tool_call("run_sql", {"query": "DROP TABLE users"}), config=config
+        source="tool_output",
+        tool_call=_tool_call("run_sql", {"query": "DROP TABLE users"}),
+        tool_definition=_permissive_tool("run_sql"),
+        config=config,
     )
 
     assert result.is_blocked is False
@@ -774,7 +819,10 @@ async def test_detect_tool_call_regex_pattern_allows_no_regex_configured_tool():
     )
 
     result = await detect_tool_call_regex_pattern(
-        source="tool_output", tool_call=_tool_call("other_tool", {"query": "DROP TABLE users"}), config=config
+        source="tool_output",
+        tool_call=_tool_call("other_tool", {"query": "DROP TABLE users"}),
+        tool_definition=_permissive_tool("other_tool"),
+        config=config,
     )
 
     assert result.is_blocked is False
@@ -797,7 +845,10 @@ async def test_detect_tool_call_regex_pattern_allows_when_no_patterns_configured
     )
 
     result = await detect_tool_call_regex_pattern(
-        source="tool_output", tool_call=_tool_call("run_sql", {"query": "DROP TABLE users"}), config=config
+        source="tool_output",
+        tool_call=_tool_call("run_sql", {"query": "DROP TABLE users"}),
+        tool_definition=_permissive_tool("run_sql"),
+        config=config,
     )
 
     assert result.is_blocked is False

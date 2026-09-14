@@ -172,6 +172,24 @@ def test_every_manifested_action_is_declared_in_its_manifest():
     assert not undeclared, "Manifested actions missing from every manifest's refs:\n" + "\n".join(undeclared)
 
 
+def test_every_tool_call_action_validates_arguments():
+    """Every action bound to a TOOL_CALL surface must carry @tool_call_validation.
+
+    Otherwise a rail could ship a tool-call check that never validates the call's
+    arguments against the declared tool schema, letting a malformed or undeclared
+    tool call reach the check unvalidated.
+    """
+    surfaces = default_rail_catalog().surfaces(RailDirection.TOOL_CALL)
+    violations = []
+
+    for (_, surface_name), surface in surfaces.items():
+        action = resolve_import_ref(surface.action)
+        if not getattr(action, "_has_tool_call_validation", False):
+            violations.append(surface_name)
+
+    assert not violations, "TOOL_CALL surfaces missing @tool_call_validation:\n" + "\n".join(violations)
+
+
 def test_self_check_surfaces_bind_optional_variant():
     manifests = all_rail_manifests()
 

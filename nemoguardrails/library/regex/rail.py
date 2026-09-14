@@ -96,6 +96,7 @@ RAIL = RailManifest(
                     Binding.literal("source", "tool_output"),
                     Binding.surface_param("argument_name", "argument", required=False),
                     Binding.context("tool_call", "tool_call"),
+                    Binding.context("tool_definition", "tool_definition"),
                 ),
             ),
             RailSurface(

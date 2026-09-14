@@ -20,7 +20,7 @@ from typing import List, Optional, TypedDict
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.guardrails.tool_schema import ToolResult, scope_arguments
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, scope_arguments, tool_call_validation
 from nemoguardrails.library.regex.rail_config import RegexDetectionOptions
 from nemoguardrails.types import ToolCall
 
@@ -124,9 +124,11 @@ async def detect_regex_pattern(
 
 
 @action(is_system_action=True)
+@tool_call_validation
 async def detect_tool_call_regex_pattern(
     source: str,
     tool_call: ToolCall,
+    tool_definition: Optional[Tool],
     config: RailsConfig,
     argument_name: Optional[str] = None,
     **kwargs,
@@ -136,6 +138,8 @@ async def detect_tool_call_regex_pattern(
     Args:
         source: Fixed per surface, always "tool_output".
         tool_call: The tool call to check.
+        tool_definition: The declared tool, used only by @tool_call_validation to check
+            the call's arguments against its schema before this function runs.
         config: The rails configuration object.
         argument_name: Narrows the checked arguments to one named argument, from
             `$argument=` on the flow. Absent, the full arguments dict is checked.

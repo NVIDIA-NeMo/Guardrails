@@ -30,12 +30,14 @@ provider-neutral so the per-provider adapters all produce the same shape:
 Completions is the engine implemented today.
 """
 
+import functools
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import Any, Callable, NamedTuple
 
 import jsonschema
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.types import ToolCall
 
 
@@ -185,6 +187,30 @@ def validate_arguments(tool: Tool, arguments: dict) -> str | None:
     if _schema_accepts_no_arguments(tool.arguments_schema):
         return _no_arguments_reason(tool, arguments)
     return None
+
+
+def tool_call_validation(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Validate a TOOL_CALL action's arguments against the tool's schema before it runs.
+
+    Every action bound to a ``TOOL_CALL`` surface must carry this decorator (enforced by
+    ``test_every_tool_call_action_validates_arguments``). Blocks before the action body
+    runs if the call's tool isn't declared, or its arguments don't match the schema.
+    """
+
+    @functools.wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> RailOutcome:
+        tool_call: ToolCall = kwargs["tool_call"]
+        tool_definition: Tool | None = kwargs["tool_definition"]
+        name = tool_call.function.name or tool_call.type
+        if tool_definition is None:
+            return RailOutcome.block(reason=f"tool call '{name}' is not an allowed tool")
+        reason = validate_arguments(tool_definition, tool_call.function.arguments)
+        if reason is not None:
+            return RailOutcome.block(reason=reason)
+        return await func(*args, **kwargs)
+
+    setattr(wrapper, "_has_tool_call_validation", True)
+    return wrapper
 
 
 def scope_arguments(arguments: dict, argument_name: str | None) -> dict:

@@ -38,8 +38,51 @@ from tests.guardrails.test_tool_rails_iorails import (
 
 BASE_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
 
+# @tool_call_validation blocks a call to an undeclared tool, so run_sql is declared here
+# with a permissive schema -- these tests exercise the per-tool regex check, not schema
+# validation. Declared on the model (models[].parameters.tools) rather than per-request,
+# matching CONFIG_TOOLS_CONFIG in test_tool_rails_iorails.py.
+RUN_SQL_TOOL = {
+    "type": "function",
+    "function": {"name": "run_sql", "parameters": {"type": "object", "additionalProperties": True}},
+}
+
 TOOL_CALL_PATTERN_CONFIG = {
-    **BASE_CONFIG,
+    "models": [
+        {
+            "type": "main",
+            "engine": "nim",
+            "model": "meta/llama-3.3-70b-instruct",
+            "parameters": {"tools": [RUN_SQL_TOOL]},
+        }
+    ],
+    "rails": {
+        "config": {"regex_detection": {"tool_output": {"run_sql": {"patterns": [r"DROP\s+TABLE"]}}}},
+        "tool_output": {"per_tool": {"run_sql": ["regex check tool call"]}},
+    },
+}
+
+STRICT_RUN_SQL_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "run_sql",
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    },
+}
+
+TOOL_CALL_SCHEMA_CONFIG = {
+    "models": [
+        {
+            "type": "main",
+            "engine": "nim",
+            "model": "meta/llama-3.3-70b-instruct",
+            "parameters": {"tools": [STRICT_RUN_SQL_TOOL]},
+        }
+    ],
     "rails": {
         "config": {"regex_detection": {"tool_output": {"run_sql": {"patterns": [r"DROP\s+TABLE"]}}}},
         "tool_output": {"per_tool": {"run_sql": ["regex check tool call"]}},
@@ -68,6 +111,12 @@ async def call_pattern_iorails():
 
 
 @pytest_asyncio.fixture
+async def schema_pattern_iorails():
+    async with started_iorails(TOOL_CALL_SCHEMA_CONFIG) as engine:
+        yield engine
+
+
+@pytest_asyncio.fixture
 async def result_pattern_iorails():
     async with started_iorails(TOOL_RESULT_PATTERN_CONFIG) as engine:
         yield engine
@@ -92,6 +141,14 @@ class TestNonStreamingPerToolCallRegex:
         _inject_json_response(call_pattern_iorails, _tool_call_payload("other_tool", '{"query": "DROP TABLE users"}'))
         result = await call_pattern_iorails.generate_async(messages=MESSAGES)
         assert result["tool_calls"][0]["function"]["name"] == "other_tool"
+
+    @pytest.mark.asyncio
+    async def test_schema_violation_blocks_before_regex_check(self, schema_pattern_iorails):
+        """@tool_call_validation blocks arguments that violate the declared schema,
+        even when the regex pattern itself would not have matched."""
+        _inject_json_response(schema_pattern_iorails, _tool_call_payload("run_sql", '{"query": 123}'))
+        result = await schema_pattern_iorails.generate_async(messages=MESSAGES)
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
 
 
 class TestStreamingPerToolCallRegex:

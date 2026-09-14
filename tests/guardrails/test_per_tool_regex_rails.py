@@ -61,6 +61,24 @@ def _other_call(call_id: str = "call_2") -> ToolCall:
     )
 
 
+def _llm_params(*tool_names: str) -> dict:
+    """Declare *tool_names* with a schema permissive enough to accept any arguments.
+
+    @tool_call_validation blocks a call whose tool isn't declared here, so per-tool
+    tests that expect the regex check itself to run (not the schema gate) need their
+    tool declared.
+    """
+    return {
+        "tools": [
+            {
+                "type": "function",
+                "function": {"name": name, "parameters": {"type": "object", "additionalProperties": True}},
+            }
+            for name in tool_names
+        ]
+    }
+
+
 def _build_manager(
     *,
     per_tool_call_flows=None,
@@ -111,7 +129,7 @@ class TestAreToolCallsSafe:
         manager = _build_manager(
             per_tool_call_flows={"run_sql": ["regex check tool call"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
         )
-        result = await manager.are_tool_calls_safe([_sql_call("DROP TABLE users")], {})
+        result = await manager.are_tool_calls_safe([_sql_call("DROP TABLE users")], _llm_params("run_sql"))
         assert result.is_safe is False
         assert result.records[0].tool_name == "run_sql"
         assert result.records[0].flow == "regex check tool call"
@@ -123,7 +141,7 @@ class TestAreToolCallsSafe:
         manager = _build_manager(
             per_tool_call_flows={"run_sql": ["regex check tool call"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
         )
-        result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], {})
+        result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], _llm_params("run_sql"))
         assert result.is_safe
 
     @pytest.mark.asyncio
@@ -140,7 +158,7 @@ class TestAreToolCallsSafe:
                 name="run_sql", arguments={"query": "SELECT 1", "request_id": "DROP TABLE users"}
             ),
         )
-        result = await manager.are_tool_calls_safe([call], {})
+        result = await manager.are_tool_calls_safe([call], _llm_params("run_sql"))
         assert result.is_safe
 
     @pytest.mark.asyncio
@@ -155,7 +173,7 @@ class TestAreToolCallsSafe:
             type="function",
             function=ToolCallFunction(name="run_sql", arguments={"query": "DROP TABLE users", "request_id": "abc"}),
         )
-        result = await manager.are_tool_calls_safe([call], {})
+        result = await manager.are_tool_calls_safe([call], _llm_params("run_sql"))
         assert result.is_safe is False
         assert result.records[0].return_value["text"] == '{"query": "DROP TABLE users"}'
 
@@ -175,6 +193,16 @@ class TestAreToolCallsSafe:
         result = await manager.are_tool_calls_safe([_sql_call("DROP TABLE users")], {})
         assert result.is_safe
         assert result.records == ()
+
+    @pytest.mark.asyncio
+    async def test_undeclared_tool_blocks_per_tool_regex_check(self):
+        """@tool_call_validation blocks a call whose tool isn't declared in llm_params,
+        before the per-tool regex check itself ever runs."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool call"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+        )
+        result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], {})
+        assert_result_blocked(result)
 
     @pytest.mark.asyncio
     async def test_global_flow_blocks_before_per_tool_runs(self):
