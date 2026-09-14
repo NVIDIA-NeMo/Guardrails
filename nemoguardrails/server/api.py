@@ -357,6 +357,104 @@ def _generate_cache_key(config_ids: List[str], model_name: Optional[str] = None)
     return key
 
 
+def _cache_key_matches_config_id(cache_key: str, config_id: str) -> bool:
+    """Return True if ``cache_key`` was built from ``config_id``.
+
+    Keys are ``{id}``, ``{id}:{model}``, or hyphen-joined multi-config variants
+    such as ``{id1}-{id2}:{model}``.
+    """
+    config_part = cache_key.split(":", 1)[0]
+    if config_part == config_id:
+        return True
+    return config_id in config_part.split("-")
+
+
+def _evict_cached_rails_for_config(config_id: str) -> bool:
+    """Drop every cached rails instance that includes ``config_id``.
+
+    ``_get_rails`` stores instances under ``_generate_cache_key``, which appends
+    ``:{model}`` whenever a model is present. Eviction must match those keys,
+    not only the bare config directory name.
+    """
+    matching_keys = [key for key in list(llm_rails_instances) if _cache_key_matches_config_id(key, config_id)]
+    if not matching_keys:
+        return False
+
+    for key in matching_keys:
+        instance = llm_rails_instances.pop(key, None)
+        if instance is not None:
+            llm_rails_events_history_cache[key] = instance.events_history_cache
+
+    log.info("Configuration %s has changed. Clearing cache.", config_id)
+    return True
+
+
+def _config_id_for_watched_path(src_path: str) -> Optional[str]:
+    """Map a changed file under the config root to its config id."""
+    src_path_str = os.path.abspath(src_path)
+    base_path = os.path.abspath(app.rails_config_path)
+    try:
+        rel_path = os.path.relpath(src_path_str, base_path)
+    except ValueError:
+        return None
+
+    if rel_path.startswith(".."):
+        return None
+
+    if app.single_config_mode:
+        return app.single_config_id
+
+    parts = rel_path.split(os.path.sep)
+    if not parts or parts[0] in ("", "."):
+        return None
+    return parts[0]
+
+
+def _should_ignore_watched_path(src_path: str) -> bool:
+    parts = os.path.normpath(src_path).split(os.path.sep)
+    if not parts:
+        return True
+    if parts[-1].startswith("."):
+        return True
+    return ".ipynb_checkpoints" in parts
+
+
+def _snapshot_config_mtimes(config_path: str) -> dict[str, float]:
+    """Return a path -> mtime map for files under the config root."""
+    snapshot: dict[str, float] = {}
+    if not config_path or not os.path.isdir(config_path):
+        return snapshot
+
+    for root, dirs, files in os.walk(config_path):
+        dirs[:] = [
+            directory for directory in dirs if directory != ".ipynb_checkpoints" and not directory.startswith(".")
+        ]
+        for name in files:
+            if name.startswith("."):
+                continue
+            path = os.path.abspath(os.path.join(root, name))
+            try:
+                snapshot[path] = os.path.getmtime(path)
+            except OSError:
+                continue
+    return snapshot
+
+
+def _evict_configs_for_mtime_changes(previous: dict[str, float], current: dict[str, float]) -> None:
+    """Evict configs whose files appeared, disappeared, or changed mtime."""
+    changed_paths = {path for path, mtime in current.items() if previous.get(path) != mtime}
+    changed_paths.update(path for path in previous if path not in current)
+
+    evicted: set[str] = set()
+    for path in changed_paths:
+        if _should_ignore_watched_path(path):
+            continue
+        config_id = _config_id_for_watched_path(path)
+        if config_id and config_id not in evicted:
+            if _evict_cached_rails_for_config(config_id):
+                evicted.add(config_id)
+
+
 def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsConfig:
     """Update the main model in the RailsConfig.
 
@@ -910,54 +1008,77 @@ def register_logger(logger: Callable):
     registered_loggers.append(logger)
 
 
+def _start_config_observer(event_handler, config_path: str):
+    """Start a recursive filesystem observer for the config directory."""
+    from watchdog.observers import Observer
+
+    observer = Observer()
+    observer.schedule(event_handler, config_path, recursive=True)
+    observer.start()
+    return observer
+
+
+def _make_reload_event_handler():
+    """Build the watchdog handler that evicts cached rails on config file changes."""
+    from watchdog.events import FileSystemEventHandler
+
+    class Handler(FileSystemEventHandler):
+        def on_any_event(self, event):
+            if event.is_directory:
+                return None
+
+            if event.event_type not in ("created", "modified", "deleted", "moved"):
+                return None
+
+            src_path_str = str(event.src_path)
+            log.info("Watchdog received %s event for file %s", event.event_type, src_path_str)
+
+            paths = [src_path_str]
+            dest_path = getattr(event, "dest_path", None)
+            if dest_path:
+                paths.append(str(dest_path))
+
+            evicted: set[str] = set()
+            for path in paths:
+                if _should_ignore_watched_path(path):
+                    continue
+                config_id = _config_id_for_watched_path(path)
+                if config_id and config_id not in evicted:
+                    if _evict_cached_rails_for_config(config_id):
+                        evicted.add(config_id)
+
+    return Handler()
+
+
 def start_auto_reload_monitoring():
     """Start a thread that monitors the config folder for changes."""
     try:
-        from watchdog.events import FileSystemEventHandler
-        from watchdog.observers import Observer
-
-        class Handler(FileSystemEventHandler):
-            def on_any_event(self, event):
-                if event.is_directory:
-                    return None
-
-                elif event.event_type == "created" or event.event_type == "modified":
-                    log.info(f"Watchdog received {event.event_type} event for file {event.src_path}")
-
-                    # Compute the relative path
-                    src_path_str = str(event.src_path)
-                    rel_path = os.path.relpath(src_path_str, app.rails_config_path)
-
-                    # The config_id is the first component
-                    parts = rel_path.split(os.path.sep)
-                    config_id = parts[0]
-
-                    if (
-                        not parts[-1].startswith(".")
-                        and ".ipynb_checkpoints" not in parts
-                        and os.path.isfile(src_path_str)
-                    ):
-                        # We just remove the config from the cache so that a new one is used next time
-                        if config_id in llm_rails_instances:
-                            instance = llm_rails_instances[config_id]
-                            del llm_rails_instances[config_id]
-                            if instance:
-                                val = instance.events_history_cache
-                                # We save the events history cache, to restore it on the new instance
-                                llm_rails_events_history_cache[config_id] = val
-
-                            log.info(f"Configuration {config_id} has changed. Clearing cache.")
-
-        observer = Observer()
-        event_handler = Handler()
-        observer.schedule(event_handler, app.rails_config_path, recursive=True)
-        observer.start()
+        event_handler = _make_reload_event_handler()
+        observer = _start_config_observer(event_handler, app.rails_config_path)
+        mtime_snapshot = _snapshot_config_mtimes(app.rails_config_path)
         try:
             while not app.stop_signal:
                 time.sleep(5)
+                # Docker bind-mount inotify can stop delivering events with no
+                # error. Periodic mtime polling keeps reload working if that
+                # happens, and also covers the observer thread dying.
+                current_snapshot = _snapshot_config_mtimes(app.rails_config_path)
+                _evict_configs_for_mtime_changes(mtime_snapshot, current_snapshot)
+                mtime_snapshot = current_snapshot
+
+                if not observer.is_alive():
+                    log.warning(
+                        "Config file observer is no longer alive; restarting. "
+                        "mtime polling continues to evict stale configs."
+                    )
+                    try:
+                        observer = _start_config_observer(event_handler, app.rails_config_path)
+                    except Exception:
+                        log.exception("Failed to restart config file observer")
         finally:
-            observer.stop()
-            observer.join()
+            if observer.is_alive():
+                observer.stop()
+                observer.join()
 
     except ImportError:
         # Since this is running in a separate thread, we just print the error.
