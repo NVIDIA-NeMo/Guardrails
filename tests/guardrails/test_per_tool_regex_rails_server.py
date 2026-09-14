@@ -78,6 +78,12 @@ def _write_config(config_dir: Path, config_id: str, mock_port: int) -> None:
                 "parameters": {"base_url": f"http://127.0.0.1:{mock_port}/v1", "api_key": "unused"},
             }
         ],
+        # The server's /v1/chat/completions gates a request-level "tools" field on
+        # passthrough=True (nemoguardrails/server/api.py) regardless of which engine is
+        # active -- a legacy-LLMRails-only flag that IORails itself never reads for tool
+        # handling (see Guardrails.passthrough_fn, which raises for IORails). Harmless
+        # here, but worth a separate issue: the gate isn't engine-aware.
+        "passthrough": True,
         "rails": {
             "config": {
                 "regex_detection": {
@@ -91,12 +97,12 @@ def _write_config(config_dir: Path, config_id: str, mock_port: int) -> None:
             },
             "tool_output": {
                 "per_tool": {
-                    "run_sql": ["regex check tool call"],
-                    "other_tool": ["regex check tool call"],
-                    "scoped_tool": ["regex check tool call $argument=query"],
+                    "run_sql": ["regex check tool output"],
+                    "other_tool": ["regex check tool output"],
+                    "scoped_tool": ["regex check tool output $argument=query"],
                 }
             },
-            "tool_input": {"per_tool": {"run_sql": ["regex check tool result"]}},
+            "tool_input": {"per_tool": {"run_sql": ["regex check tool input"]}},
         },
     }
     (config_dir / config_id).mkdir(parents=True)
@@ -149,6 +155,33 @@ def servers(tmp_path_factory) -> Iterator[_Servers]:
                     process.wait(timeout=10)
 
 
+# @tool_output_validation blocks a call to an undeclared tool, so every tool these tests
+# call is declared here, per request, matching how a real client would declare tools.
+# run_sql/other_tool use a fully permissive schema; scoped_tool requires `query` to be
+# a string so a real schema violation can be exercised too.
+DECLARED_TOOLS = [
+    {
+        "type": "function",
+        "function": {"name": "run_sql", "parameters": {"type": "object", "additionalProperties": True}},
+    },
+    {
+        "type": "function",
+        "function": {"name": "other_tool", "parameters": {"type": "object", "additionalProperties": True}},
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "scoped_tool",
+            "parameters": {
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+                "additionalProperties": True,
+            },
+        },
+    },
+]
+
+
 def _chat(servers: _Servers, content: str, *, tool_result: bool = False) -> dict:
     if tool_result:
         messages = [
@@ -167,7 +200,7 @@ def _chat(servers: _Servers, content: str, *, tool_result: bool = False) -> dict
 
     response = httpx.post(
         f"{servers.guardrails_url}/v1/chat/completions",
-        json={"model": servers.config_id, "messages": messages},
+        json={"model": servers.config_id, "messages": messages, "tools": DECLARED_TOOLS},
         timeout=10,
     )
     response.raise_for_status()
@@ -223,7 +256,7 @@ class TestPerToolCallRegexAgainstRealServer:
 
 
 class TestArgumentScopingAgainstRealServer:
-    """scoped_tool's flow is `regex check tool call $argument=query`, so only the
+    """scoped_tool's flow is `regex check tool output $argument=query`, so only the
     `query` argument is checked; a match elsewhere in the same call's arguments must
     not block."""
 
@@ -233,6 +266,16 @@ class TestArgumentScopingAgainstRealServer:
 
     def test_match_inside_scoped_argument_blocks(self, servers):
         message = _chat(servers, 'scoped_tool:{"query": "DROP TABLE users", "notes": "irrelevant"}')
+        assert "tool_calls" not in message
+        assert message["content"] == "I'm sorry, I can't respond to that."
+
+
+class TestSchemaValidationAgainstRealServer:
+    def test_schema_violation_blocks_before_regex_check(self, servers):
+        """@tool_output_validation blocks arguments that violate the declared schema
+        (scoped_tool's `query` must be a string), even when the regex pattern itself
+        would not have matched."""
+        message = _chat(servers, 'scoped_tool:{"query": 123, "notes": "irrelevant"}')
         assert "tool_calls" not in message
         assert message["content"] == "I'm sorry, I can't respond to that."
 
