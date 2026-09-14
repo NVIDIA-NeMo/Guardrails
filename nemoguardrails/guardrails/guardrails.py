@@ -36,6 +36,7 @@ from nemoguardrails.guardrails import configure_logging
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
+from nemoguardrails.logging.sensitive_filter import setup_sensitive_data_filter
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse, RailsResult, RailType
@@ -80,6 +81,14 @@ class Guardrails(BaseGuardrails):
         # nemoguardrails.guardrails from the handlers the application installed on the root logger.
         if verbose:
             configure_logging(logging.DEBUG)
+
+        # Redact sensitive data (PII, credentials) from logs to prevent data leaks.
+        # Best-effort: a broken logging setup in the host application must not block
+        # Guardrails from initializing.
+        try:
+            setup_sensitive_data_filter(logging.getLogger())
+        except Exception as e:
+            log.warning(f"Failed to setup sensitive data filter: {e}")
 
         if use_iorails:
             fallback_reason = IORails.unsupported_reason(config, llm)

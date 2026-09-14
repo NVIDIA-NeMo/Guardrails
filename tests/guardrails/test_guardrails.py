@@ -2291,3 +2291,26 @@ class TestScopeGateCharacterization:
     def test_the_refusal_reason_names_the_limitation(self, flow, direction, expected):
         """Each class of refusal reports why, in wording a config author can act on."""
         assert self._surface_reason(flow, direction) == expected
+
+
+class TestGuardrailsSensitiveDataFilterSetup:
+    """__init__ sets up the sensitive-data logging filter, best-effort."""
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_setup_sensitive_data_filter_exception_caught(self, mock_llmrails_class, _nemoguards_rails_config):
+        """A broken logging setup in the host application must not block Guardrails from initializing."""
+        mock_llmrails_class.return_value = MagicMock()
+        with patch(
+            "nemoguardrails.guardrails.guardrails.setup_sensitive_data_filter",
+            side_effect=RuntimeError("filter setup failed"),
+        ):
+            # Should not raise -- the error is caught and logged as a warning.
+            g = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        assert g is not None
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_setup_sensitive_data_filter_called_on_init(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_class.return_value = MagicMock()
+        with patch("nemoguardrails.guardrails.guardrails.setup_sensitive_data_filter") as mock_setup:
+            Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        mock_setup.assert_called_once()
