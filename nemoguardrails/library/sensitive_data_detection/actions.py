@@ -159,7 +159,9 @@ async def detect_sensitive_data(
 
 
 @action(is_system_action=True)
-async def mask_sensitive_data(source: str, text: str, config: RailsConfig) -> RailOutcome:
+async def mask_sensitive_data(
+    source: str, text: str, config: RailsConfig, **kwargs
+) -> RailOutcome:
     """Checks whether the provided text contains any sensitive data.
 
     Args
