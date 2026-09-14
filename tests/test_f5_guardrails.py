@@ -678,8 +678,11 @@ async def test_f5_guardrails_429_exhausted_fail_closed(config_no_backoff, monkey
 
 @pytest.mark.asyncio
 async def test_f5_guardrails_429_no_retry_after_uses_backoff(monkeypatch):
-    """When Retry-After is missing, retry_backoff_seconds * 2**attempt is used."""
+    """When Retry-After is missing, retry_backoff_seconds * 2**attempt is the jitter cap."""
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    # backoff is full jitter, a uniform draw in [0, cap]; pin the draw to the
+    # cap so the delays below are deterministic
+    monkeypatch.setattr("nemoguardrails.http.retry.random.random", lambda: 1.0)
 
     cfg = RailsConfig.from_content(
         yaml_content="""

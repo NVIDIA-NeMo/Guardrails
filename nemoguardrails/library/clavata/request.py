@@ -43,7 +43,6 @@ from .errs import (
 log = logging.getLogger(__name__)
 
 
-_CLAVATA_API_KEY = os.environ.get("CLAVATA_API_KEY")
 _CLAVATA_RETRY_POLICY = RetryPolicy(
     max_attempts=3,
     retryable_methods=frozenset({"POST"}),
@@ -64,7 +63,7 @@ class AuthHeader:
         """
         Converts the auth token into request headers.
         """
-        api_key = self.api_key or _CLAVATA_API_KEY
+        api_key = self.api_key or os.environ.get("CLAVATA_API_KEY")
         if api_key is None:
             raise ClavataPluginConfigurationError(
                 "CLAVATA_API_KEY environment variable is not set. "
@@ -203,27 +202,26 @@ class ClavataClient:
                 )
 
             if response.status_code != 200:
-                raise ClavataPluginAPIError(
-                    f"Clavata call failed with status code {response.status_code}.\nDetails: {response.text}"
-                )
+                raise ClavataPluginAPIError(f"Clavata call failed with status code {response.status_code}.")
 
             try:
                 parsed_response = response.json()
             except HTTPResponseDecodeError as e:
                 raise ClavataPluginValueError(
-                    f"Failed to parse Clavata response as JSON. Status: {response.status_code}, "
-                    f"Content: {response.text}"
+                    f"Failed to parse Clavata response as JSON. Status: {response.status_code}"
                 ) from e
 
             try:
                 return response_model.model_validate(parsed_response)
             except ValidationError as e:
-                raise ClavataPluginValueError(f"Invalid response format from Clavata API. Details: {e}") from e
+                raise ClavataPluginValueError(
+                    f"Invalid response format from Clavata API. Validation errors: {e.error_count()}"
+                ) from e
 
         except ClavataPluginError:
             raise
         except Exception as e:
-            raise ClavataPluginAPIError(f"Failed to make Clavata API request. Error: {e}") from e
+            raise ClavataPluginAPIError(f"Failed to make Clavata API request. Error: {type(e).__name__}") from e
 
     async def create_job(self, text: str, policy_id: str) -> Job:
         """
