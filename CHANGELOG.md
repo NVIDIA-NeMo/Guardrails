@@ -162,6 +162,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Support aiohttp 3.14 in aioresponses mocks ([#2091](https://github.com/NVIDIA-NeMo/Guardrails/issues/2091))
 - Remove flaky streaming timing diagnostic ([#2097](https://github.com/NVIDIA-NeMo/Guardrails/issues/2097))
 
+## [Unreleased]
+
+### 🐛 Bug Fixes
+
+- *(embeddings)* Synchronize batched embedding requests to avoid deadlocks ([#1476](https://github.com/NVIDIA-NeMo/Guardrails/issues/1476))
+
 ## [0.22.0] - 2026-05-22
 
 ### 🚀 Features
