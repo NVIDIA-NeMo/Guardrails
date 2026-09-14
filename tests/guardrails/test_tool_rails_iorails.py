@@ -46,8 +46,8 @@ BASE_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama
 TOOL_CONFIG = {
     **BASE_CONFIG,
     "rails": {
-        "tool_output": {"flows": ["tool call validation"]},
-        "tool_input": {"flows": ["tool result validation"]},
+        "tool_call": {"flows": ["tool call validation"]},
+        "tool_result": {"flows": ["tool result validation"]},
     },
 }
 
@@ -55,8 +55,8 @@ SPECULATIVE_TOOL_CONFIG = {
     **BASE_CONFIG,
     "rails": {
         "input": {"speculative_generation": True},
-        "tool_output": {"flows": ["tool call validation"]},
-        "tool_input": {"flows": ["tool result validation"]},
+        "tool_call": {"flows": ["tool call validation"]},
+        "tool_result": {"flows": ["tool result validation"]},
     },
 }
 
@@ -85,8 +85,8 @@ CONFIG_TOOLS_CONFIG = {
         }
     ],
     "rails": {
-        "tool_output": {"flows": ["tool call validation"]},
-        "tool_input": {"flows": ["tool result validation"]},
+        "tool_call": {"flows": ["tool call validation"]},
+        "tool_result": {"flows": ["tool result validation"]},
     },
 }
 
@@ -262,20 +262,20 @@ class TestRouting:
         assert guardrails.use_iorails_engine is True
         assert isinstance(guardrails.rails_engine, IORails)
 
-    def test_unknown_tool_output_flow_falls_back(self):
-        reason = IORails.unsupported_reason(_config({"tool_output": {"flows": ["make a sandwich"]}}))
+    def test_unknown_tool_call_flow_falls_back(self):
+        reason = IORails.unsupported_reason(_config({"tool_call": {"flows": ["make a sandwich"]}}))
         assert reason is not None
-        assert "tool output" in reason
+        assert "tool call" in reason
 
     def test_misdirected_flow_falls_back(self):
-        # The tool-result validator under tool_output is the wrong direction.
-        reason = IORails.unsupported_reason(_config({"tool_output": {"flows": ["tool result validation"]}}))
+        # The tool-result validator under tool_call is the wrong direction.
+        reason = IORails.unsupported_reason(_config({"tool_call": {"flows": ["tool result validation"]}}))
         assert reason is not None
-        assert "tool output" in reason
+        assert "tool call" in reason
 
     def test_duplicate_tool_flow_falls_back(self):
         reason = IORails.unsupported_reason(
-            _config({"tool_output": {"flows": ["tool call validation", "tool call validation"]}})
+            _config({"tool_call": {"flows": ["tool call validation", "tool call validation"]}})
         )
         assert reason is not None
         assert "duplicate" in reason
@@ -285,7 +285,7 @@ class TestRouting:
         # flow (the tool rails ignore the suffix); they must be caught as a duplicate
         # rather than slipping past and running twice.
         reason = IORails.unsupported_reason(
-            _config({"tool_output": {"flows": ["tool call validation", "tool call validation $model=x"]}})
+            _config({"tool_call": {"flows": ["tool call validation", "tool call validation $model=x"]}})
         )
         assert reason is not None
         assert "duplicate" in reason
@@ -294,12 +294,12 @@ class TestRouting:
         # Why unsupported_reason pre-validates duplicates: IORails.__init__ itself would
         # raise on a dup flow, so without the pre-check Guardrails could not fall back.
         with pytest.raises(RuntimeError):
-            IORails(_config({"tool_output": {"flows": ["tool call validation", "tool call validation"]}}))
+            IORails(_config({"tool_call": {"flows": ["tool call validation", "tool call validation"]}}))
 
     def test_tool_parallel_flag_warns_inert(self):
         # tool_*.parallel is inert (tool rails run sequentially); construction warns
         # rather than silently ignoring it.
-        config = _config({"tool_output": {"flows": ["tool call validation"], "parallel": True}})
+        config = _config({"tool_call": {"flows": ["tool call validation"], "parallel": True}})
         with pytest.warns(UserWarning, match="not honored by IORails"):
             IORails(config)
 
@@ -385,7 +385,7 @@ class TestConfigDeclaredTools:
         chunks = await _collect(iorails_config_tools.stream_async(MESSAGES))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_output_rails"
+        assert violations[0]["error"]["param"] == "tool_call_rails"
 
 
 class TestNonStreamingToolResults:
@@ -437,7 +437,7 @@ class TestStreamingToolCalls:
 
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_output_rails"
+        assert violations[0]["error"]["param"] == "tool_call_rails"
         # The tool-call chunk is suppressed: no chunk carries the tool call.
         assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
 
@@ -457,32 +457,32 @@ class TestStreamingToolCalls:
 class TestStreamingToolResults:
     @pytest.mark.asyncio
     async def test_unlinked_tool_result_blocks_stream(self, iorails):
-        """A guardrails_violation error chunk (param=tool_input_rails) is emitted, and the model is never called."""
+        """A guardrails_violation error chunk (param=tool_result_rails) is emitted, and the model is never called."""
         forbidden_post = _inject_forbidden_transport(iorails)
         chunks = await _collect(iorails.stream_async(make_tool_conversation(result_call_id="call_999")))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_input_rails"
+        assert violations[0]["error"]["param"] == "tool_result_rails"
         assert REFUSAL_MESSAGE not in chunks
         forbidden_post.assert_not_called()
 
 
 class TestPerRequestToggles:
     @pytest.mark.asyncio
-    async def test_tool_output_disabled_skips_tool_call_rail(self, iorails):
-        # An undeclared tool call would normally block; disabling tool_output lets it through.
+    async def test_tool_call_disabled_skips_tool_call_rail(self, iorails):
+        # An undeclared tool call would normally block; disabling tool_call lets it through.
         _inject_json_response(iorails, _tool_call_payload("rm_rf", "{}"))
-        options = {"llm_params": LLM_PARAMS, "rails": {"tool_output": False}}
+        options = {"llm_params": LLM_PARAMS, "rails": {"tool_call": False}}
         result = await iorails.generate_async(messages=MESSAGES, options=options)
         assert result.tool_calls[0]["function"]["name"] == "rm_rf"
 
     @pytest.mark.asyncio
-    async def test_tool_input_disabled_skips_tool_result_rail(self, iorails):
-        # An unlinked tool result would normally block; disabling tool_input lets it through.
+    async def test_tool_result_disabled_skips_tool_result_rail(self, iorails):
+        # An unlinked tool result would normally block; disabling tool_result lets it through.
         _inject_json_response(iorails, _text_payload("ok"))
         result = await iorails.generate_async(
             messages=make_tool_conversation(result_call_id="call_999"),
-            options={"rails": {"tool_input": False}},
+            options={"rails": {"tool_result": False}},
         )
         assert result.response == [{"role": "assistant", "content": "ok"}]
 
@@ -573,5 +573,5 @@ class TestToolRailBlockMetrics:
             chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_output_rails"
+        assert violations[0]["error"]["param"] == "tool_call_rails"
         record_blocked.assert_called_once_with(RailDirection.OUTPUT)
