@@ -22,7 +22,7 @@ shape, not because any model call happens.
 """
 
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
@@ -30,6 +30,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
+from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult
@@ -291,17 +292,30 @@ class TestAreToolResultsSafe:
         result = await manager.are_tool_results_safe(messages)
         assert result.is_safe is False
 
+    @pytest.mark.asyncio
+    async def test_global_only_config_does_not_require_result_linkage(self):
+        """A global-only config (no per-tool result policy enabled) must not impose its
+        own identity-resolution requirement: a custom global rail may intentionally
+        allow an orphan/unresolved result, and the per-tool machinery must not override
+        that just because it happens to run in the same request."""
+        manager = _build_manager(tool_result_flows=["tool result validation"])
+        with patch.object(manager, "_run_tool_result_rail", AsyncMock(return_value=RailResult.allow())):
+            messages = self._messages("no sensitive data", name=None)
+            messages[-1]["tool_call_id"] = "call_unknown"
+            result = await manager.are_tool_results_safe(messages)
+        assert result.is_safe
 
-class TestResolveToolResultName:
-    def test_returns_empty_string_for_ambiguous_call_id(self):
-        """Zero or multiple matching calls: resolves to "" rather than guessing."""
+
+class TestResolveToolCallForResult:
+    def test_returns_none_for_ambiguous_call_id(self):
+        """Zero or multiple matching calls: resolves to None rather than guessing."""
         exchange = ToolExchange(calls=[], results=[])
         tool_result = ToolResult(call_id="call_unknown", name=None, content="hi")
 
-        assert RailsManager._resolve_tool_result_name(exchange, tool_result) == ""
+        assert RailsManager._resolve_tool_call_for_result(exchange, tool_result) is None
 
     def test_ignores_supplied_name_when_call_id_has_no_match(self):
-        """An unresolved call_id resolves to "", even with a name supplied.
+        """An unresolved call_id resolves to None, even with a name supplied.
 
         The supplied name is never trusted on its own: without a verified call_id match,
         there is nothing to corroborate it against, so it cannot select a policy.
@@ -309,7 +323,29 @@ class TestResolveToolResultName:
         exchange = ToolExchange(calls=[], results=[])
         tool_result = ToolResult(call_id="call_unknown", name="run_sql", content="hi")
 
-        assert RailsManager._resolve_tool_result_name(exchange, tool_result) == ""
+        assert RailsManager._resolve_tool_call_for_result(exchange, tool_result) is None
+
+    def test_returns_matching_call_by_id(self):
+        """A unique call_id match resolves to that ToolCall."""
+        call = _sql_call("SELECT 1")
+        exchange = ToolExchange(calls=[call], results=[])
+        tool_result = ToolResult(call_id=call.id, name="run_sql", content="hi")
+
+        assert RailsManager._resolve_tool_call_for_result(exchange, tool_result) is call
+
+    def test_returns_matching_call_by_id_despite_conflicting_name(self):
+        """A conflicting supplied name does not change the call_id-resolved match.
+
+        The supplied name is never trusted for selection, so it is not even compared
+        against the resolved call's own name here; see
+        test_conflicting_supplied_name_does_not_override_call_id for the end-to-end
+        behavior this enables.
+        """
+        call = _sql_call("SELECT 1")
+        exchange = ToolExchange(calls=[call], results=[])
+        tool_result = ToolResult(call_id=call.id, name="list_tables", content="hi")
+
+        assert RailsManager._resolve_tool_call_for_result(exchange, tool_result) is call
 
 
 class TestIORailsWiring:
@@ -334,7 +370,17 @@ def _capture_per_tool_manager():
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     config = RailsConfig.from_content(
-        config={**STACK_CONFIG, "rails": {"config": {"regex_detection": RUN_SQL_PATTERN_CONFIG}}}
+        config={
+            **STACK_CONFIG,
+            "rails": {
+                "config": {
+                    "regex_detection": {
+                        **RUN_SQL_PATTERN_CONFIG,
+                        **RUN_SQL_RESULT_PATTERN_CONFIG,
+                    }
+                }
+            },
+        }
     )
     engine_registry = EngineRegistry(config.models)
     manager = RailsManager(
@@ -343,6 +389,7 @@ def _capture_per_tool_manager():
         input_flows=[],
         output_flows=[],
         per_tool_call_flows={"run_sql": ["regex check tool call"]},
+        per_tool_result_flows={"run_sql": ["regex check tool result"]},
         tracer=provider.get_tracer("test"),
         content_capture_enabled=True,
     )
@@ -358,4 +405,26 @@ class TestPerToolContentCapture:
         assert len(spans) == 1
         payload = json.loads(spans[0].attributes[GuardrailsAttributes.RAIL_INPUT])
         assert payload["tool_name"] == "run_sql"
-        assert "SELECT 1" in payload["tool_call"]
+        assert payload["tool_call"]["function"]["arguments"]["query"] == "SELECT 1"
+
+    @pytest.mark.asyncio
+    async def test_per_tool_result_span_captures_tool_name_and_content(self):
+        manager, exporter = _capture_per_tool_manager()
+        messages = [
+            {"role": "user", "content": "run a query"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "call_1", "type": "function", "function": {"name": "run_sql", "arguments": "{}"}}
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_1", "content": "no sensitive data"},
+        ]
+        await manager.are_tool_results_safe(messages)
+        spans = [s for s in exporter.get_finished_spans() if GuardrailsAttributes.RAIL_INPUT in s.attributes]
+        assert len(spans) == 1
+        payload = json.loads(spans[0].attributes[GuardrailsAttributes.RAIL_INPUT])
+        assert payload["tool_name"] == "run_sql"
+        assert payload["tool_call"]["id"] == "call_1"
+        assert payload["tool_result"]["content"] == "no sensitive data"

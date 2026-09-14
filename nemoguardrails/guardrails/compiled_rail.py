@@ -24,7 +24,6 @@ the returned ``RailOutcome`` is passed back to the caller unchanged.
 
 from __future__ import annotations
 
-import contextvars
 import importlib.metadata
 import inspect
 import logging
@@ -35,6 +34,7 @@ from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget, re
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, current_user_turn_index, last_user_content
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
 from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.manifests import (
     Binding,
@@ -45,6 +45,7 @@ from nemoguardrails.manifests import (
     parse_configured_surface,
     resolve_import_ref,
 )
+from nemoguardrails.types import ToolCall
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -156,20 +157,23 @@ class _ContextParameter:
 
 
 # The conversation variables IORails can supply to explicit context bindings.
-_CONTEXT_KEYS = ("user_message", "bot_message", "tool_name", "tool_call", "tool_result")
-
-# Per-tool-call context, set by RailsManager's per-tool dispatch around one `execute()` call at a time.
-tool_context_var: contextvars.ContextVar[Optional[Mapping[str, str]]] = contextvars.ContextVar(
-    "tool_context", default=None
-)
+_CONTEXT_KEYS = ("user_message", "bot_message", "tool_call", "tool_result", "tool_definition")
 
 
-def _request_context(messages: LLMMessages, bot_response: Optional[str]) -> dict[str, str]:
+def _request_context(
+    messages: LLMMessages,
+    bot_response: Optional[str],
+    tool_call: Optional[ToolCall] = None,
+    tool_result: Optional[ToolResult] = None,
+    tool_definition: Optional[Tool] = None,
+) -> dict[str, Any]:
     """Build the conversation variables for one request."""
     return {
         "user_message": last_user_content(messages),
         "bot_message": bot_response or "",
-        **(tool_context_var.get() or {}),
+        "tool_call": tool_call,
+        "tool_result": tool_result,
+        "tool_definition": tool_definition,
     }
 
 
@@ -226,19 +230,31 @@ class CompiledRail:
         """Execute the rail and return its engine-neutral verdict."""
         return (await self.execute(messages, bot_response)).outcome
 
-    async def execute(self, messages: LLMMessages, bot_response: Optional[str] = None) -> RailExecution:
+    async def execute(
+        self,
+        messages: LLMMessages,
+        bot_response: Optional[str] = None,
+        tool_call: Optional[ToolCall] = None,
+        tool_result: Optional[ToolResult] = None,
+        tool_definition: Optional[Tool] = None,
+    ) -> RailExecution:
         """Execute the rail, returning its verdict and the model calls it made.
 
         A fresh ``processing_log_var`` sink is installed around the action, so ``llm_calls``
         holds this rail's calls and only this rail's — live calls, cache hits and jailbreak's
         NIM call all append there, and a rail that reaches no model appends nothing.
+
+        ``tool_call``/``tool_result``/``tool_definition`` are set only for per-tool dispatch;
+        every other caller omits them.
         """
         sink: list[dict[str, Any]] = []
         token = processing_log_var.set(sink)
         try:
             with action_span(self._deps.tracer, self.surface_name) as span:
                 try:
-                    outcome = require_rail_outcome(await self._invoke(messages, bot_response))
+                    outcome = require_rail_outcome(
+                        await self._invoke(messages, bot_response, tool_call, tool_result, tool_definition)
+                    )
                 except Exception as exc:
                     outcome = rail_error_outcome(span, self.surface_name, exc)
         finally:
@@ -246,7 +262,14 @@ class CompiledRail:
 
         return RailExecution(outcome=outcome, llm_calls=_llm_calls_from(sink))
 
-    async def _invoke(self, messages: LLMMessages, bot_response: Optional[str]) -> Any:
+    async def _invoke(
+        self,
+        messages: LLMMessages,
+        bot_response: Optional[str],
+        tool_call: Optional[ToolCall] = None,
+        tool_result: Optional[ToolResult] = None,
+        tool_definition: Optional[Tool] = None,
+    ) -> Any:
         """Call the action, awaiting it only if it is asynchronous.
 
         Two shipped library actions are plain ``def`` (the guardrails_ai validators), so an
@@ -254,12 +277,19 @@ class CompiledRail:
         envelope would report a working rail as a block. ``ActionDispatcher`` has always made
         the same allowance for LLMRails.
         """
-        result = self._action(**self._call_kwargs(messages, bot_response))
+        result = self._action(**self._call_kwargs(messages, bot_response, tool_call, tool_result, tool_definition))
         return await result if inspect.isawaitable(result) else result
 
-    def _call_kwargs(self, messages: LLMMessages, bot_response: Optional[str]) -> dict[str, Any]:
+    def _call_kwargs(
+        self,
+        messages: LLMMessages,
+        bot_response: Optional[str],
+        tool_call: Optional[ToolCall] = None,
+        tool_result: Optional[ToolResult] = None,
+        tool_definition: Optional[Tool] = None,
+    ) -> dict[str, Any]:
         """Assemble the action's arguments from its declared parameters and the manifest."""
-        context = _request_context(messages, bot_response)
+        context = _request_context(messages, bot_response, tool_call, tool_result, tool_definition)
         kwargs = {name: value for name, value in self._request_dependencies(messages).items() if name in self._accepted}
         for bound in self._bound:
             kwargs[bound.action_param] = bound.value

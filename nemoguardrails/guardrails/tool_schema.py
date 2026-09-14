@@ -116,6 +116,14 @@ class ToolResult:
     content: str | list[dict] | None = None
     is_error: bool = False
 
+    def to_dict(self) -> dict:
+        return {
+            "call_id": self.call_id,
+            "name": self.name,
+            "content": self.content,
+            "is_error": self.is_error,
+        }
+
 
 class ToolExchange(NamedTuple):
     """One assistant turn's tool calls paired with the tool results that answer them."""
@@ -177,3 +185,18 @@ def validate_arguments(tool: Tool, arguments: dict) -> str | None:
     if _schema_accepts_no_arguments(tool.arguments_schema):
         return _no_arguments_reason(tool, arguments)
     return None
+
+
+def scope_arguments(arguments: dict, argument_name: str | None) -> dict:
+    """Narrow *arguments* to one named argument, or return it unchanged.
+
+    ``argument_name`` comes from a flow's ``$argument=<name>`` parameter, frozen at
+    compile time. Narrowing lets a check inspect one user-supplied field without seeing
+    unrelated call metadata that could false-positive.
+
+    TODO: only a single argument name is supported today; add delimiter-separated
+    multi-argument support (e.g. `$argument=a,b`) as a follow-up.
+    """
+    if argument_name is None:
+        return arguments
+    return {argument_name: arguments.get(argument_name)}

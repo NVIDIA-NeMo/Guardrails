@@ -33,9 +33,13 @@ DETECT_REGEX_PATTERN = ActionRef(
     name="detect_regex_pattern",
     target="nemoguardrails.library.regex.actions:detect_regex_pattern",
 )
-DETECT_TOOL_REGEX_PATTERN = ActionRef(
-    name="detect_tool_regex_pattern",
-    target="nemoguardrails.library.regex.actions:detect_tool_regex_pattern",
+DETECT_TOOL_CALL_REGEX_PATTERN = ActionRef(
+    name="detect_tool_call_regex_pattern",
+    target="nemoguardrails.library.regex.actions:detect_tool_call_regex_pattern",
+)
+DETECT_TOOL_RESULT_REGEX_PATTERN = ActionRef(
+    name="detect_tool_result_regex_pattern",
+    target="nemoguardrails.library.regex.actions:detect_tool_result_regex_pattern",
 )
 RAIL = RailManifest(
     name="regex",
@@ -61,7 +65,9 @@ RAIL = RailManifest(
                 "regex check tool result",
             )
         ),
-        actions=RailActions(refs=(DETECT_REGEX_PATTERN, DETECT_TOOL_REGEX_PATTERN)),
+        actions=RailActions(
+            refs=(DETECT_REGEX_PATTERN, DETECT_TOOL_CALL_REGEX_PATTERN, DETECT_TOOL_RESULT_REGEX_PATTERN)
+        ),
         surfaces=(
             RailSurface(
                 name="regex check input",
@@ -85,21 +91,21 @@ RAIL = RailManifest(
             RailSurface(
                 name="regex check tool call",
                 direction=RailDirection.TOOL_CALL,
-                action=DETECT_TOOL_REGEX_PATTERN,
+                action=DETECT_TOOL_CALL_REGEX_PATTERN,
                 bindings=(
                     Binding.literal("source", "tool_output"),
-                    Binding.context("tool_name", "tool_name"),
-                    Binding.context("text", "tool_call"),
+                    Binding.surface_param("argument_name", "argument", required=False),
+                    Binding.context("tool_call", "tool_call"),
                 ),
             ),
             RailSurface(
                 name="regex check tool result",
                 direction=RailDirection.TOOL_RESULT,
-                action=DETECT_TOOL_REGEX_PATTERN,
+                action=DETECT_TOOL_RESULT_REGEX_PATTERN,
                 bindings=(
                     Binding.literal("source", "tool_input"),
-                    Binding.context("tool_name", "tool_name"),
-                    Binding.context("text", "tool_result"),
+                    Binding.context("tool_call", "tool_call"),
+                    Binding.context("tool_result", "tool_result"),
                 ),
             ),
         ),

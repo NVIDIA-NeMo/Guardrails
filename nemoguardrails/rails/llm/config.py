@@ -1512,23 +1512,6 @@ def _get_flow_model(flow_text) -> Optional[str]:
     return parameters.get("model")
 
 
-ARGUMENT_PREFIX = "$argument="
-
-
-def _get_flow_argument(flow_text) -> Optional[str]:
-    """Helper to return the `$argument=` parameter from a flow definition.
-
-    TODO: only a single argument name is supported today; add delimiter-separated
-    multi-argument support (e.g. `$argument=a,b`) as a follow-up.
-    """
-    if ARGUMENT_PREFIX not in flow_text:
-        return None
-    from nemoguardrails.manifests import parse_configured_surface
-
-    _, parameters = parse_configured_surface(flow_text)
-    return parameters.get("argument")
-
-
 def _validate_self_check_rail_prompts(
     rails: list[str], prompts: list[Any], validation_rail: str, default_task: str
 ) -> None:
