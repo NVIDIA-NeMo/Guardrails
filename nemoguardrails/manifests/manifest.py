@@ -64,6 +64,8 @@ class RailDirection(str, Enum):
     INPUT = "input"
     OUTPUT = "output"
     RETRIEVAL = "retrieval"
+    TOOL_OUTPUT = "tool_output"
+    TOOL_INPUT = "tool_input"
 
 
 class RailMetadata(BaseModel):

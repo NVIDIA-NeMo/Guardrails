@@ -13,9 +13,9 @@ The NVIDIA NeMo Guardrails library ships 33 built-in rails under `nemoguardrails
 Each rail declares its behavior in a [rail manifest](/reference/rail-manifests), and each manifest exposes one or more *surfaces*.
 A surface is the flow name you list under `rails.input.flows`, `rails.output.flows`, or `rails.retrieval.flows` in `config.yml`.
 
-The 33 manifests declare 78 surfaces in total.
-`LLMRails` runs all 78 through its Colang runtime, in both Colang 1.0 and Colang 2.x.
-`IORails` runs 59 of them by compiling the manifest directly, without Colang.
+The 33 manifests declare 80 surfaces in total.
+`LLMRails` runs 78 of them through its Colang runtime, in both Colang 1.0 and Colang 2.x.
+`IORails` runs 61 of them by compiling the manifest directly, without Colang.
 
 This page lists every surface and the engine that can run it.
 For capability areas that are not tied to a specific rail, such as streaming, observability, and the generation API, refer to [Engine Feature Support](/reference/engine-feature-support).
@@ -25,7 +25,7 @@ For capability areas that are not tied to a specific rail, such as streaming, ob
 Legend: ✓ supported · ✗ not supported.
 
 The **Flow** column is the exact string you put in `config.yml`.
-The **Notes** column records either the conversation value the rail rewrites or the reason `IORails` cannot run it.
+The **Notes** column records either the conversation value the rail rewrites or the reason `IORails` or `LLMRails` cannot run it.
 
 A ✓ in the `IORails` column means the surface is *servable*: nothing in its manifest contract puts it out of reach of the engine.
 Whether a particular configuration actually runs it also depends on that configuration, because `IORails` validates models and optional dependencies at startup.
@@ -40,11 +40,15 @@ The following table summarizes surface support by direction:
 | Input | 32 | 32 | 31 |
 | Output | 35 | 35 | 28 |
 | Retrieval | 11 | 11 | 0 |
-| **Total** | **78** | **78** | **59** |
+| Tool_output | 1 | 0 | 1 |
+| Tool_input | 1 | 0 | 1 |
+| **Total** | **80** | **78** | **61** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
 A configuration that declares one routes to `LLMRails` by default.
 Refer to [What Happens to an Unsupported Configuration](#what-happens-to-an-unsupported-configuration).
+
+Per-tool checks (the tool-call and tool-result directions) are an `IORails`-only capability by design, so every tool-call and tool-result surface is `IORails` only.
 
 ## Support Matrix
 
@@ -147,6 +151,25 @@ Retrieval surfaces run against the knowledge-base chunks retrieved for a turn.
 | `regex check retrieval` | Regex Detection | ✓ | ✗ | Rewrites `relevant_chunks` |
 | `detect sensitive data on retrieval` | Sensitive Data Detection | ✓ | ✗ | Reads `relevant_chunks` |
 | `mask sensitive data on retrieval` | Sensitive Data Detection | ✓ | ✗ | Rewrites `relevant_chunks` |
+
+### Tool Output Surfaces
+
+Tool output surfaces run against one tool call at a time, configured under `rails.tool_output.per_tool` and keyed by tool name.
+Unlike the [Tool Surfaces](#tool-surfaces) below, these are manifest surfaces like any input, output, or retrieval rail.
+Per-tool checks are an `IORails`-only capability by design:
+
+| Flow | Rail | LLMRails | IORails | Notes |
+|---|---|:---:|:---:|---|
+| `regex check tool output` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
+
+### Tool Input Surfaces
+
+Tool input surfaces run against one tool result at a time, configured under `rails.tool_input.per_tool` and keyed by tool name.
+Per-tool checks are an `IORails`-only capability by design:
+
+| Flow | Rail | LLMRails | IORails | Notes |
+|---|---|:---:|:---:|---|
+| `regex check tool input` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
 
 ### Tool Surfaces
 

@@ -27,10 +27,16 @@ from pathlib import Path
 
 from nemoguardrails.actions.action_dispatcher import ActionDispatcher
 from nemoguardrails.colang import parse_colang_file
-from nemoguardrails.manifests import all_rail_manifests
+from nemoguardrails.manifests import RailDirection, all_rail_manifests
 from nemoguardrails.utils import camelcase_to_snakecase
 
 LIBRARY_ROOT = Path("nemoguardrails/library")
+
+# LLMRails has no runtime path for these directions: tool-input rails loop per tool
+# message but bind $tool_message (not $tool_result), and tool-output rails never loop
+# per call at all (only the whole $tool_calls list is bound). Surfaces declared under
+# these directions are IORails-only by design and ship no Colang flow definitions.
+_LLMRAILS_UNSUPPORTED_DIRECTIONS = (RailDirection.TOOL_OUTPUT, RailDirection.TOOL_INPUT)
 
 V1_EXECUTE_RE = re.compile(r"execute\s+([A-Za-z_][\w ]*?)\s*(?:\(|$)", re.MULTILINE)
 V2_ACTION_RE = re.compile(r"(?:await|start)\s+([A-Z]\w*Action)\b")
@@ -97,9 +103,14 @@ def test_library_flow_files_parse_and_define_declared_flows():
         v2_flows = [flow for _, result in parsed["2.x"] for flow in result["flows"]]
         v2_defined = {flow.name for flow in v2_flows}
         v2_parameterized = {flow.name for flow in v2_flows if flow.parameters}
+        llmrails_unsupported = {
+            surface.name for surface in manifest.spec.surfaces if surface.direction in _LLMRAILS_UNSUPPORTED_DIRECTIONS
+        }
 
         for declared in manifest.spec.flows.flow_names:
             base_name = _base_flow_name(declared)
+            if base_name in llmrails_unsupported:
+                continue
             if base_name not in v2_defined:
                 violations.append(
                     f"{rail_name}: declared flow {base_name!r} is not defined in {manifest.spec.flows.files}"

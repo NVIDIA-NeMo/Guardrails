@@ -658,6 +658,18 @@ class IORails(BaseGuardrails):
             if reason is not None:
                 return reason
 
+        # Per-tool flows are manifest surfaces, like input/output, so check them the same
+        # way rather than let a bad one raise in RailsManager at construction.
+        per_tool_checks = (
+            (config.rails.tool_output.per_tool, SurfaceDirection.TOOL_OUTPUT),
+            (config.rails.tool_input.per_tool, SurfaceDirection.TOOL_INPUT),
+        )
+        for per_tool, direction in per_tool_checks:
+            flows = [flow for tool_flows in per_tool.values() for flow in tool_flows]
+            reason = cls._unservable_rails_reason(flows, direction, deps)
+            if reason is not None:
+                return reason
+
         # A duplicate tool flow raises RuntimeError in RailsManager at construction;
         # surface it here as a fallback reason so the config routes to LLMRails
         # cleanly instead of failing IORails init (matching how unsupported flows
@@ -741,6 +753,8 @@ class IORails(BaseGuardrails):
             output_parallel=config.rails.output.parallel or False,
             tool_call_flows=config.rails.tool_output.flows,
             tool_result_flows=config.rails.tool_input.flows,
+            per_tool_call_flows=config.rails.tool_output.per_tool,
+            per_tool_result_flows=config.rails.tool_input.per_tool,
             tracer=self._tracer,
             content_capture_enabled=self._content_capture_enabled,
         )

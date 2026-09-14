@@ -445,6 +445,10 @@ class ToolOutputRails(BaseModel):
         default_factory=list,
         description="The names of all the flows that implement tool output rails.",
     )
+    per_tool: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Per-tool flows, keyed by tool name. Supplements the global `flows`, which run for every tool call.",
+    )
     parallel: Optional[bool] = Field(
         default=False,
         description="If True, the tool output rails are executed in parallel.",
@@ -461,6 +465,10 @@ class ToolInputRails(BaseModel):
     flows: List[str] = Field(
         default_factory=list,
         description="The names of all the flows that implement tool input rails.",
+    )
+    per_tool: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Per-tool flows, keyed by tool name. Supplements the global `flows`, which run for every tool result.",
     )
     parallel: Optional[bool] = Field(
         default=False,

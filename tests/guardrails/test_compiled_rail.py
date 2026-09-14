@@ -542,7 +542,7 @@ class TestSurfacesOutsideTheTier:
         """
         servable, refused = [], []
         for (direction, name), surface in default_rail_catalog().surfaces().items():
-            if direction is RailDirection.RETRIEVAL:
+            if direction in (RailDirection.RETRIEVAL, RailDirection.TOOL_OUTPUT, RailDirection.TOOL_INPUT):
                 continue
             bucket = refused if unsupported_surface_reason(surface) is not None else servable
             bucket.append((direction, name))

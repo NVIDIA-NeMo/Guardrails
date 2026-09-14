@@ -922,6 +922,22 @@
         "retrieval": {
           "$ref": "#/$defs/RegexDetectionOptions",
           "description": "Configuration for regex patterns to detect on retrieved relevant chunks."
+        },
+        "tool_input": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RegexDetectionOptions"
+          },
+          "description": "Per-tool regex patterns to detect in a tool result's content, keyed by tool name.",
+          "title": "Tool Input",
+          "type": "object"
+        },
+        "tool_output": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RegexDetectionOptions"
+          },
+          "description": "Per-tool regex patterns to detect in a tool call's arguments, keyed by tool name.",
+          "title": "Tool Output",
+          "type": "object"
         }
       },
       "title": "RegexDetection",

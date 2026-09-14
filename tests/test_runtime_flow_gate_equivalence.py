@@ -43,7 +43,7 @@ from nemoguardrails.manifests import (
     resolve_import_ref,
 )
 from nemoguardrails.rails.llm.options import GenerationResponse
-from nemoguardrails.types import LLMResponse
+from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.llama_guard_fixtures import (
     LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
     LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS,
@@ -70,6 +70,8 @@ INJECTION_DETECTION_REFUSAL_PREFIX = (
 )
 USER_INPUT = "hello"
 RELEVANT_CHUNKS = "RELEVANT CHUNKS"
+PROBE_TOOL_NAME = "probe_tool"
+PROBE_TOOL_CALL_ID = "call_1"
 RETRIEVAL_COLANG = """
 define user express greeting
   "hello"
@@ -81,6 +83,13 @@ define flow
 define bot express greeting
   "NORMAL OUTPUT"
 """
+
+
+# LLMRails has no runtime path for these directions (see nemoguardrails/rails/llm/llm_flows.co):
+# tool-input rails bind $tool_message, not $tool_result; tool-output rails never loop per call.
+# A surface here cannot get a FIXTURES entry, so it is excluded from the equivalence check
+# below; its IORails-only coverage lives in IORAILS_ONLY_FIXTURES instead.
+_LLMRAILS_UNSUPPORTED_DIRECTIONS = (RailDirection.TOOL_OUTPUT, RailDirection.TOOL_INPUT)
 
 
 class ObservableOutcome(Enum):
@@ -316,6 +325,22 @@ REGEX_RETRIEVAL = RailSpec(
     direction="retrieval",
     action="detect_regex_pattern",
     interpret=_transform_if_regex_retrieval_match,
+)
+
+REGEX_TOOL_OUTPUT = RailSpec(
+    name="regex_tool_output",
+    flow="regex check tool output",
+    direction="tool_output",
+    action="detect_tool_output_regex_pattern",
+    interpret=_blocked_if_regex_match,
+)
+
+REGEX_TOOL_INPUT = RailSpec(
+    name="regex_tool_input",
+    flow="regex check tool input",
+    direction="tool_input",
+    action="detect_tool_input_regex_pattern",
+    interpret=_blocked_if_regex_match,
 )
 
 PRIVATEAI_DETECT_INPUT = RailSpec(
@@ -2524,7 +2549,12 @@ def _build_config(spec: RailSpec, *, enable_rails_exceptions: bool) -> dict[str,
     if spec.model_type:
         models.append({"type": spec.model_type, "engine": "openai", "model": "placeholder"})
 
-    rails: dict[str, Any] = {spec.direction: {"flows": [spec.flow]}}
+    if spec.direction == "tool_output":
+        rails: dict[str, Any] = {"tool_output": {"per_tool": {PROBE_TOOL_NAME: [spec.flow]}}}
+    elif spec.direction == "tool_input":
+        rails = {"tool_input": {"per_tool": {PROBE_TOOL_NAME: [spec.flow]}}}
+    else:
+        rails = {spec.direction: {"flows": [spec.flow]}}
     if spec.rails_config:
         rails["config"] = spec.rails_config
 
@@ -2657,6 +2687,7 @@ def test_manifest_surfaces_have_flow_gate_equivalence_coverage():
         (surface.direction.value, surface.name)
         for manifest in all_rail_manifests().values()
         for surface in manifest.surfaces
+        if surface.direction not in _LLMRAILS_UNSUPPORTED_DIRECTIONS
     }
     covered = {(case.spec.direction, normalize_configured_surface_name(case.spec.flow)) for case in FIXTURES}
 
@@ -2811,6 +2842,8 @@ _SURFACE_DIRECTIONS = {
     "input": RailDirection.INPUT,
     "output": RailDirection.OUTPUT,
     "retrieval": RailDirection.RETRIEVAL,
+    "tool_output": RailDirection.TOOL_OUTPUT,
+    "tool_input": RailDirection.TOOL_INPUT,
 }
 
 # IORails always has a main model, and compiles a rail whose manifest names a model type only
@@ -2867,7 +2900,42 @@ def _iorails_case_param(case: FlowEquivalenceCase):
     return pytest.param(case, id=case.case_id, marks=marks)
 
 
-IORAILS_FIXTURES = [case for case in FIXTURES if _is_iorails_enabled(case.spec)]
+IORAILS_ONLY_FIXTURES = [
+    _case(
+        "regex_tool_output_allows_no_match",
+        REGEX_TOOL_OUTPUT,
+        RailOutcome.allow(metadata={"is_match": False, "text": "{}", "detections": [], "source": "tool_output"}),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "regex_tool_output_blocks_match",
+        REGEX_TOOL_OUTPUT,
+        RailOutcome.block(
+            metadata={"is_match": True, "text": "secret", "detections": ["secret"], "source": "tool_output"}
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "regex_tool_input_allows_no_match",
+        REGEX_TOOL_INPUT,
+        RailOutcome.allow(metadata={"is_match": False, "text": "hello", "detections": [], "source": "tool_input"}),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "regex_tool_input_blocks_match",
+        REGEX_TOOL_INPUT,
+        RailOutcome.block(
+            metadata={"is_match": True, "text": "secret", "detections": ["secret"], "source": "tool_input"}
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+]
+
+IORAILS_FIXTURES = [case for case in FIXTURES if _is_iorails_enabled(case.spec)] + IORAILS_ONLY_FIXTURES
 LLMRAILS_ONLY_FIXTURES = [case for case in FIXTURES if not _is_iorails_enabled(case.spec)]
 
 
@@ -2908,9 +2976,46 @@ async def _run_flow_iorails(case: FlowEquivalenceCase) -> "_IORailsRun":
         async with iorails:
             for engine in iorails.engine_registry._engines.values():
                 if isinstance(engine, ModelEngine):
-                    engine.chat_completion = AsyncMock(return_value=LLMResponse(content=NORMAL_OUTPUT))
+                    if case.spec.direction == "tool_output":
+                        engine.chat_completion = AsyncMock(
+                            return_value=LLMResponse(
+                                content="",
+                                tool_calls=[
+                                    ToolCall(
+                                        id=PROBE_TOOL_CALL_ID,
+                                        type="function",
+                                        function=ToolCallFunction(name=PROBE_TOOL_NAME, arguments={}),
+                                    )
+                                ],
+                            )
+                        )
+                    else:
+                        engine.chat_completion = AsyncMock(return_value=LLMResponse(content=NORMAL_OUTPUT))
             main_engine = iorails.engine_registry._engines["main"]
-            response = await iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
+            if case.spec.direction == "tool_input":
+                messages = [
+                    {"role": "user", "content": USER_INPUT},
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": PROBE_TOOL_CALL_ID,
+                                "type": "function",
+                                "function": {"name": PROBE_TOOL_NAME, "arguments": "{}"},
+                            }
+                        ],
+                    },
+                    {
+                        "role": "tool",
+                        "tool_call_id": PROBE_TOOL_CALL_ID,
+                        "name": PROBE_TOOL_NAME,
+                        "content": "probe result",
+                    },
+                ]
+            else:
+                messages = [{"role": "user", "content": USER_INPUT}]
+            response = await iorails.generate_async(messages=messages)
 
     if not isinstance(response, dict):
         raise AssertionError(f"Unexpected IORails response type: {response!r}")
@@ -2943,6 +3048,8 @@ def _iorails_decision(run: _IORailsRun) -> FlowDecision:
     content = run.response.get("content")
     if content == REFUSAL_MESSAGE:
         return FlowDecision.BLOCK
+    if run.response.get("tool_calls"):
+        return FlowDecision.ALLOW
     if content != NORMAL_OUTPUT:
         return FlowDecision.TRANSFORM
     if run.user_message_sent != USER_INPUT:

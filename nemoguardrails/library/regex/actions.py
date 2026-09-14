@@ -13,12 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
-from typing import List, TypedDict
+from typing import List, Optional, TypedDict
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, scope_arguments, tool_output_validation
+from nemoguardrails.library.regex.rail_config import RegexDetectionOptions
+from nemoguardrails.types import ToolCall
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +41,30 @@ def _regex_outcome(source: str, result: RegexDetectionResult) -> RailOutcome:
     if result["is_match"]:
         return RailOutcome.block(metadata=metadata)
     return RailOutcome.allow(metadata=metadata)
+
+
+def _match_patterns(source: str, text: str, options: RegexDetectionOptions) -> RegexDetectionResult:
+    """Match *text* against a pattern group's pre-compiled patterns, logging as each miss/hit occurs.
+
+    Extracted from detect_regex_pattern's own matching loop so detect_tool_output_regex_pattern
+    and detect_tool_input_regex_pattern don't duplicate it. detect_regex_pattern's inline loop
+    below is left as-is for now. TODO: refactor it to call this helper too.
+    """
+    compiled_patterns = options.compiled_patterns
+    if not compiled_patterns:
+        log.debug("No regex patterns specified for source: %s", source)
+        return RegexDetectionResult(is_match=False, text=text, detections=[])
+
+    if not text:
+        log.debug("Empty text provided, skipping regex check.")
+        return RegexDetectionResult(is_match=False, text=text, detections=[])
+
+    matched: List[str] = []
+    for compiled, raw_pattern in zip(compiled_patterns, options.patterns):
+        if compiled.search(text):
+            log.info("Regex pattern matched: %s", raw_pattern)
+            matched.append(raw_pattern)
+    return RegexDetectionResult(is_match=bool(matched), text=text, detections=matched)
 
 
 @action(is_system_action=True)
@@ -93,3 +121,77 @@ async def detect_regex_pattern(
         return _regex_outcome(source, RegexDetectionResult(is_match=True, text=text, detections=matched))
 
     return _regex_outcome(source, RegexDetectionResult(is_match=False, text=text, detections=[]))
+
+
+@action(is_system_action=True)
+@tool_output_validation
+async def detect_tool_output_regex_pattern(
+    source: str,
+    tool_call: ToolCall,
+    tool_definition: Optional[Tool],
+    config: RailsConfig,
+    argument_name: Optional[str] = None,
+    **kwargs,
+) -> RailOutcome:
+    """Checks a tool call's arguments against that tool's regex patterns.
+
+    Args:
+        source: Fixed per surface, always "tool_output".
+        tool_call: The tool call to check.
+        tool_definition: The declared tool, used only by @tool_output_validation to check
+            the call's arguments against its schema before this function runs.
+        config: The rails configuration object.
+        argument_name: Narrows the checked arguments to one named argument, from
+            `$argument=` on the flow. Absent, the full arguments dict is checked.
+
+    Returns:
+        RailOutcome with RegexDetectionResult fields in metadata (see detect_regex_pattern).
+    """
+    if source != "tool_output":
+        raise ValueError("source must be 'tool_output'")
+
+    tool_name = tool_call.function.name or tool_call.type
+    text = json.dumps(scope_arguments(tool_call.function.arguments, argument_name))
+
+    regex_config = config.rails.config.regex_detection
+    options = getattr(regex_config, source).get(tool_name)
+    if options is None:
+        log.debug("No regex patterns configured for tool %r under source: %s", tool_name, source)
+        return _regex_outcome(source, RegexDetectionResult(is_match=False, text=text, detections=[]))
+
+    return _regex_outcome(source, _match_patterns(source, text, options))
+
+
+@action(is_system_action=True)
+async def detect_tool_input_regex_pattern(
+    source: str,
+    tool_call: ToolCall,
+    tool_result: ToolResult,
+    config: RailsConfig,
+    **kwargs,
+) -> RailOutcome:
+    """Checks a tool result's content against that tool's regex patterns.
+
+    Args:
+        source: Fixed per surface, always "tool_input".
+        tool_call: The prior call this result answers, used to resolve the tool name.
+        tool_result: The tool result to check.
+        config: The rails configuration object.
+
+    Returns:
+        RailOutcome with RegexDetectionResult fields in metadata (see detect_regex_pattern).
+    """
+    if source != "tool_input":
+        raise ValueError("source must be 'tool_input'")
+
+    tool_name = tool_call.function.name or tool_call.type
+    content = tool_result.content
+    text = content if isinstance(content, str) else json.dumps(content)
+
+    regex_config = config.rails.config.regex_detection
+    options = getattr(regex_config, source).get(tool_name)
+    if options is None:
+        log.debug("No regex patterns configured for tool %r under source: %s", tool_name, source)
+        return _regex_outcome(source, RegexDetectionResult(is_match=False, text=text, detections=[]))
+
+    return _regex_outcome(source, _match_patterns(source, text, options))

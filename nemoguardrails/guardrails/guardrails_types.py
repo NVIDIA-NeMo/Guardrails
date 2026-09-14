@@ -90,6 +90,7 @@ class RailCallRecord:
     started_at: Optional[float] = None
     finished_at: Optional[float] = None
     duration: Optional[float] = None
+    tool_name: Optional[str] = None
 
 
 @dataclass(frozen=True, slots=True)

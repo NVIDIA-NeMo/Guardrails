@@ -38,7 +38,15 @@ _SECTION_HEADINGS = {
     "### Input Surfaces": RailDirection.INPUT,
     "### Output Surfaces": RailDirection.OUTPUT,
     "### Retrieval Surfaces": RailDirection.RETRIEVAL,
+    "### Tool Output Surfaces": RailDirection.TOOL_OUTPUT,
+    "### Tool Input Surfaces": RailDirection.TOOL_INPUT,
 }
+
+# LLMRails has no runtime path for these directions (see nemoguardrails/rails/llm/llm_flows.co):
+# tool-input rails loop per tool message but bind $tool_message, not $tool_result; tool-output
+# rails never loop per call at all, only the whole $tool_calls list is bound. Surfaces declared
+# under these directions are IORails-only by design.
+_LLMRAILS_UNSUPPORTED_DIRECTIONS = (RailDirection.TOOL_OUTPUT, RailDirection.TOOL_INPUT)
 
 # | `flow name` | Rail | LLMRails | IORails | Notes |
 _ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|[^|]*\|\s*(\S+)\s*\|\s*(\S+)\s*\|")
@@ -69,7 +77,10 @@ def _documented_rows() -> dict[tuple[RailDirection, str], tuple[str, str]]:
 def _catalog_rows() -> dict[tuple[RailDirection, str], tuple[str, str]]:
     """Build the same mapping from the shipped manifests."""
     return {
-        key: (SUPPORTED, UNSUPPORTED if unsupported_surface_reason(surface) else SUPPORTED)
+        key: (
+            UNSUPPORTED if key[0] in _LLMRAILS_UNSUPPORTED_DIRECTIONS else SUPPORTED,
+            UNSUPPORTED if unsupported_surface_reason(surface) else SUPPORTED,
+        )
         for key, surface in default_rail_catalog().surfaces().items()
     }
 
@@ -119,10 +130,12 @@ def test_summary_counts_match_the_catalog(catalog):
     text = DOCS_PAGE.read_text(encoding="utf-8")
     for direction in RailDirection:
         total = sum(1 for key in catalog if key[0] is direction)
+        llmrails = sum(1 for key, marks in catalog.items() if key[0] is direction and marks[0] == SUPPORTED)
         servable = sum(1 for key, marks in catalog.items() if key[0] is direction and marks[1] == SUPPORTED)
-        row = f"| {direction.value.capitalize()} | {total} | {total} | {servable} |"
+        row = f"| {direction.value.capitalize()} | {total} | {llmrails} | {servable} |"
         assert row in text, f"{DOCS_PAGE.name} is missing the summary row {row!r}"
 
     total = len(catalog)
+    llmrails = sum(1 for marks in catalog.values() if marks[0] == SUPPORTED)
     servable = sum(1 for marks in catalog.values() if marks[1] == SUPPORTED)
-    assert f"| **Total** | **{total}** | **{total}** | **{servable}** |" in text
+    assert f"| **Total** | **{total}** | **{llmrails}** | **{servable}** |" in text
