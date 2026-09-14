@@ -77,7 +77,7 @@ async def test_tool_output_rails_basic():
 
           if not $allowed
             bot refuse tool execution
-            abort
+            stop
 
         define bot refuse tool execution
           "I cannot execute this tool request due to policy restrictions."
@@ -123,7 +123,7 @@ async def test_tool_output_rails_blocking():
 
           if not $valid
             bot refuse dangerous tool parameters
-            abort
+            stop
 
         define bot refuse dangerous tool parameters
           "I cannot execute this tool request because the parameters may be unsafe."
@@ -166,13 +166,13 @@ async def test_multiple_tool_output_rails():
           $allowed = execute self_check_tool_calls(tool_calls=$tool_calls)
           if not $allowed
             bot refuse tool execution
-            abort
+            stop
 
         define subflow validate tool parameters
           $valid = execute validate_tool_parameters(tool_calls=$tool_calls)
           if not $valid
             bot refuse dangerous tool parameters
-            abort
+            stop
 
         define bot refuse tool execution
           "Tool not allowed."
@@ -214,7 +214,7 @@ async def test_assistant_tool_calls_run_tool_output_rails_when_dialog_disabled()
 
           if not $valid
             bot refuse dangerous tool parameters
-            abort
+            stop
 
         define bot refuse dangerous tool parameters
           "I cannot execute this tool request because the parameters may be unsafe."
@@ -265,7 +265,7 @@ async def test_approved_assistant_tool_calls_are_returned_when_dialog_disabled()
 
           if not $valid
             bot refuse dangerous tool parameters
-            abort
+            stop
 
         define bot refuse dangerous tool parameters
           "I cannot execute this tool request because the parameters may be unsafe."

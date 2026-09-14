@@ -247,6 +247,9 @@ class ActivatedRail(BaseModel):
         default=False,
         description="Whether the rail decided to stop any further processing.",
     )
+    tool_name: Optional[str] = Field(
+        default=None, description="For per-tool rails, the name of the tool being evaluated."
+    )
     additional_info: Optional[dict] = Field(default=None, description="Additional information coming from rail.")
     started_at: Optional[float] = Field(default=None, description="Timestamp for when the rail started.")
     finished_at: Optional[float] = Field(default=None, description="Timestamp for when the rail finished.")
