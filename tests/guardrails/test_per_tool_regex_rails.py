@@ -414,6 +414,17 @@ class TestIORailsWiring:
         assert rails.rails_manager.per_tool_call_flows == {"run_sql": ["regex check tool output"]}
         assert (SurfaceDirection.TOOL_OUTPUT, "regex check tool output") in rails.rails_manager._per_tool_rails
 
+    def test_unsupported_reason_rejects_nonexistent_per_tool_flow(self):
+        """A per-tool flow naming no catalog surface must be caught here, not raise
+        RailCompilationError later when RailsManager tries to compile it."""
+        config = RailsConfig.from_content(
+            config={
+                **STACK_CONFIG,
+                "rails": {"tool_output": {"per_tool": {"run_sql": ["this flow does not exist"]}}},
+            }
+        )
+        assert IORails.unsupported_reason(config) is not None
+
 
 def _capture_per_tool_manager():
     """Build (manager, exporter) with a real tracer and content capture on, per-tool regex wired."""
