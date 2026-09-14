@@ -20,6 +20,20 @@
       "title": "AIDefenseRailConfig",
       "type": "object"
     },
+    "ATRDetection": {
+      "properties": {
+        "block_severities": {
+          "description": "ATR match severities that flag the input. Options are 'critical', 'high', 'medium', and 'low'. Matches below these severities are still returned but do not flag, which keeps false positives low. An explicit empty list flags nothing, giving a monitor-only rail that records matches without blocking.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Block Severities",
+          "type": "array"
+        }
+      },
+      "title": "ATRDetection",
+      "type": "object"
+    },
     "AutoAlignOptions": {
       "description": "List of guardrails that are activated",
       "properties": {
@@ -1123,6 +1137,17 @@
         }
       ],
       "description": "Configuration for Cisco AI Defense."
+    },
+    "atr": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ATRDetection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for Agent Threat Rules detection."
     },
     "autoalign": {
       "$ref": "#/$defs/AutoAlignRailConfig",
