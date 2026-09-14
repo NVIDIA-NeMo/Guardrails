@@ -535,6 +535,8 @@ def __getattr__(name: str):
 def __dir__():
     return sorted(set(globals()) | set(config_exported_names()))
 
+    model_config = ConfigDict(extra="allow")
+
 
 class Rails(BaseModel):
     """Configuration of specific rails."""
