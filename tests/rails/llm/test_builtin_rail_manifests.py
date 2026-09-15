@@ -227,6 +227,8 @@ def test_model_dependent_surfaces_declare_model_bindings():
         (RailDirection.OUTPUT, "llama guard check output"),
         (RailDirection.OUTPUT, "patronus lynx check output hallucination"),
         (RailDirection.INPUT, "topic safety check input"),
+        (RailDirection.TOOL_OUTPUT, "tool safety check output"),
+        (RailDirection.TOOL_INPUT, "tool safety check input"),
     }
     declared = {
         surface_key

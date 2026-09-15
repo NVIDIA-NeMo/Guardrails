@@ -343,6 +343,24 @@ REGEX_TOOL_INPUT = RailSpec(
     interpret=_blocked_if_regex_match,
 )
 
+TOOL_SAFETY_CHECK_OUTPUT = RailSpec(
+    name="tool_safety_check_output",
+    flow="tool safety check output $model=llama_guard $variant=probe",
+    direction="tool_output",
+    action="tool_safety_check_output",
+    model_type="llama_guard",
+    task="tool_safety_check_output $model=llama_guard $variant=probe",
+)
+
+TOOL_SAFETY_CHECK_INPUT = RailSpec(
+    name="tool_safety_check_input",
+    flow="tool safety check input $model=llama_guard $variant=probe",
+    direction="tool_input",
+    action="tool_safety_check_input",
+    model_type="llama_guard",
+    task="tool_safety_check_input $model=llama_guard $variant=probe",
+)
+
 PRIVATEAI_DETECT_INPUT = RailSpec(
     name="privateai_detect_input",
     flow="detect pii on input",
@@ -2933,6 +2951,8 @@ IORAILS_ONLY_FIXTURES = [
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
+    *_rail_outcome_cases(TOOL_SAFETY_CHECK_OUTPUT),
+    *_rail_outcome_cases(TOOL_SAFETY_CHECK_INPUT),
 ]
 
 IORAILS_FIXTURES = [case for case in FIXTURES if _is_iorails_enabled(case.spec)] + IORAILS_ONLY_FIXTURES
