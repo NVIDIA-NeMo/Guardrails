@@ -359,7 +359,7 @@ class LLMTaskManager:
 
         return parsed_text
 
-    def has_output_parser(self, task: Task):
+    def has_output_parser(self, task: Union[str, Task]):
         prompt = get_prompt(self.config, task)
         return prompt.output_parser is not None
 
