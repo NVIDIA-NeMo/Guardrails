@@ -38,11 +38,13 @@ Prometheus scrapes `host.docker.internal:9464`. Edit
 
 ## What is on the dashboard
 
-| Prometheus metric | Panel |
+A single time-series panel with the three admission-queue metrics:
+
+| Series | Query |
 |---|---|
-| `guardrails_nonstream_queued` | Queued vs. active requests, Queue occupancy |
-| `guardrails_nonstream_active` | Queued vs. active requests |
-| `guardrails_nonstream_rejections_total` | Rejected in last 5 minutes, Rejection rate |
+| queued | `guardrails_nonstream_queued` |
+| active | `guardrails_nonstream_active` |
+| rejections/s | `rate(guardrails_nonstream_rejections_total[1m])` |
 
 ## Clean up
 

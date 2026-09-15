@@ -17,22 +17,6 @@
         "includeAll": true,
         "multi": true,
         "current": {"text": "All", "value": "$__all"}
-      },
-      {
-        "name": "queue_depth",
-        "label": "Queue depth limit",
-        "description": "NONSTREAM_QUEUE_DEPTH of the server (default 256). Used only to scale the occupancy gauge.",
-        "type": "textbox",
-        "query": "256",
-        "current": {"text": "256", "value": "256"}
-      },
-      {
-        "name": "max_concurrency",
-        "label": "Worker limit",
-        "description": "NONSTREAM_MAX_CONCURRENCY of the server (default 256). Used only to scale the occupancy gauge.",
-        "type": "textbox",
-        "query": "256",
-        "current": {"text": "256", "value": "256"}
       }
     ]
   },
@@ -40,75 +24,31 @@
     {
       "id": 1,
       "type": "timeseries",
-      "title": "Queued vs. active requests",
-      "description": "guardrails_nonstream_queued: waiting in the admission queue. guardrails_nonstream_active: executing on a worker. Both are gauges read at scrape time. The dashed lines are the configured limits.",
-      "gridPos": {"x": 0, "y": 0, "w": 14, "h": 9},
+      "title": "Non-streaming admission queue",
+      "description": "guardrails_nonstream_queued: requests waiting in the admission queue. guardrails_nonstream_active: requests executing on a worker. Both are gauges read at scrape time. rejections: rate(guardrails_nonstream_rejections_total[1m]), submissions shed with HTTP 503 queue_full per second; any sustained non-zero value means the server is at capacity.",
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 14},
       "datasource": {"type": "prometheus", "uid": "nemoguardrails-prometheus"},
       "fieldConfig": {
-        "defaults": {"unit": "short", "min": 0, "decimals": 0, "custom": {"lineWidth": 2, "fillOpacity": 8, "showPoints": "never"}},
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0,
+          "custom": {"lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "drawStyle": "line", "lineInterpolation": "linear"}
+        },
         "overrides": [
-          {"matcher": {"id": "byName", "options": "queue depth limit"}, "properties": [{"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 6]}}, {"id": "custom.fillOpacity", "value": 0}, {"id": "color", "value": {"mode": "fixed", "fixedColor": "text"}}]},
-          {"matcher": {"id": "byName", "options": "worker limit"}, "properties": [{"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [2, 4]}}, {"id": "custom.fillOpacity", "value": 0}, {"id": "color", "value": {"mode": "fixed", "fixedColor": "text"}}]}
+          {"matcher": {"id": "byFrameRefID", "options": "A"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]},
+          {"matcher": {"id": "byFrameRefID", "options": "B"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]},
+          {"matcher": {"id": "byFrameRefID", "options": "C"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}, {"id": "unit", "value": "reqps"}, {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 6]}}]}
         ]
       },
-      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi"}},
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
       "targets": [
         {"refId": "A", "expr": "sum by (instance) (guardrails_nonstream_queued{instance=~\"$instance\"})", "legendFormat": "queued {{instance}}"},
         {"refId": "B", "expr": "sum by (instance) (guardrails_nonstream_active{instance=~\"$instance\"})", "legendFormat": "active {{instance}}"},
-        {"refId": "C", "expr": "vector($queue_depth)", "legendFormat": "queue depth limit"},
-        {"refId": "D", "expr": "vector($max_concurrency)", "legendFormat": "worker limit"}
-      ]
-    },
-    {
-      "id": 2,
-      "type": "gauge",
-      "title": "Queue occupancy",
-      "description": "guardrails_nonstream_queued as a share of the queue depth limit. Submissions are rejected once this reaches 100%.",
-      "gridPos": {"x": 14, "y": 0, "w": 5, "h": 9},
-      "datasource": {"type": "prometheus", "uid": "nemoguardrails-prometheus"},
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent", "min": 0, "max": 100, "decimals": 0,
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "orange", "value": 80}, {"color": "red", "value": 100}]}
-        },
-        "overrides": []
-      },
-      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "showThresholdMarkers": true, "showThresholdLabels": false},
-      "targets": [
-        {"refId": "A", "expr": "100 * max(guardrails_nonstream_queued{instance=~\"$instance\"}) / $queue_depth", "legendFormat": "queued / limit"}
-      ]
-    },
-    {
-      "id": 3,
-      "type": "stat",
-      "title": "Rejected in last 5 minutes",
-      "description": "increase(guardrails_nonstream_rejections_total[5m]): submissions shed with HTTP 503 queue_full. The sparkline shows the 5-minute window; zero is the healthy state.",
-      "gridPos": {"x": 19, "y": 0, "w": 5, "h": 9},
-      "datasource": {"type": "prometheus", "uid": "nemoguardrails-prometheus"},
-      "fieldConfig": {
-        "defaults": {
-          "unit": "locale", "decimals": 0,
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
-        },
-        "overrides": []
-      },
-      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "area", "justifyMode": "center", "textMode": "value", "text": {"valueSize": 36}},
-      "targets": [
-        {"refId": "A", "expr": "sum(increase(guardrails_nonstream_rejections_total{instance=~\"$instance\"}[5m]))", "legendFormat": "rejections"}
-      ]
-    },
-    {
-      "id": 4,
-      "type": "timeseries",
-      "title": "Rejection rate",
-      "description": "rate(guardrails_nonstream_rejections_total[1m]) per instance. Any sustained non-zero value means the server is shedding load and clients receive HTTP 503 with Retry-After.",
-      "gridPos": {"x": 0, "y": 9, "w": 24, "h": 8},
-      "datasource": {"type": "prometheus", "uid": "nemoguardrails-prometheus"},
-      "fieldConfig": {"defaults": {"unit": "reqps", "min": 0, "decimals": 0, "color": {"mode": "fixed", "fixedColor": "red"}, "custom": {"lineWidth": 2, "fillOpacity": 12, "showPoints": "never"}}, "overrides": []},
-      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi"}},
-      "targets": [
-        {"refId": "A", "expr": "sum by (instance) (rate(guardrails_nonstream_rejections_total{instance=~\"$instance\"}[1m]))", "legendFormat": "{{instance}}"}
+        {"refId": "C", "expr": "sum by (instance) (rate(guardrails_nonstream_rejections_total{instance=~\"$instance\"}[1m]))", "legendFormat": "rejections/s {{instance}}"}
       ]
     }
   ]
