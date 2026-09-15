@@ -245,6 +245,19 @@ The check is intentionally shallow: it reflects only that the server process is 
 Use this endpoint rather than `GET /` for health probes, because `GET /` redirects to the chat UI when the UI is enabled.
 When the server runs behind a path prefix (`--prefix`), the endpoints are served at `<prefix>/v1/health` and `<prefix>/healthz`.
 
+## Metrics
+
+The server can expose the IORails non-streaming admission-queue metrics on a Prometheus scrape endpoint that runs on a separate port (default `9464`).
+Enable it with `--metrics-exporter prometheus`; metrics are not exported by default.
+
+```bash
+NEMO_GUARDRAILS_IORAILS_ENGINE=1 nemoguardrails server --config ./config --metrics-exporter prometheus
+curl http://localhost:9464/metrics
+```
+
+The guardrails configuration must also set `metrics.enabled: true`.
+For the exported metrics, the environment-variable equivalents, and the Grafana setup, refer to [Prometheus and Grafana for the Guardrails Server](/observability/metrics/server-prometheus-grafana).
+
 ## Related Topics
 
 - [Chat with a Guardrailed Model](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model)

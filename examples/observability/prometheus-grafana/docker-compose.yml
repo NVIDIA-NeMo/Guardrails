@@ -1,0 +1,33 @@
+# Prometheus + Grafana for a NeMo Guardrails server running on the host with
+# `--metrics-exporter prometheus`. See README.md for the full walkthrough.
+services:
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    # Bound to loopback: this example is for a local workstation, not a shared host.
+    ports:
+      - "127.0.0.1:9090:9090"
+    # Lets the container reach the Guardrails server on the host as
+    # host.docker.internal on Linux; Docker Desktop provides it already.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      # No default credential ships with the example: Compose refuses to start
+      # until GRAFANA_ADMIN_PASSWORD is set in the shell, and anonymous access
+      # stays off so the dashboard needs that login.
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD before running docker compose}"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    # Bound to loopback so the instance is not reachable from other hosts.
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus

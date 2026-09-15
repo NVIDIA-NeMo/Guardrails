@@ -93,6 +93,9 @@ nemoguardrails server --config examples/configs --port 8000
 | `--disable-chat-ui` | Disable the Chat UI served at the root path. |
 | `--auto-reload` | Enable auto reload when configuration files change. |
 | `--prefix` | A prefix to add to all server paths. Must start with `/`. |
+| `--metrics-exporter` | Expose the IORails non-streaming admission-queue metrics (`guardrails.nonstream.*`) on a scrape endpoint. Supported value: `prometheus`. Overrides `NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER`. Not exported by default. |
+| `--metrics-host` | Interface for the Prometheus scrape endpoint. Overrides `NEMO_GUARDRAILS_SERVER_METRICS_HOST`. Default: `0.0.0.0`. |
+| `--metrics-port` | Port for the Prometheus scrape endpoint. Overrides `NEMO_GUARDRAILS_SERVER_METRICS_PORT`. Default: `9464`. |
 
 ---
 

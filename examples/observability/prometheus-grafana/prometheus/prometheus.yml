@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: nemoguardrails
+    # The Guardrails server exposes /metrics on the metrics port (default 9464),
+    # not on the API port. Replace the target when the server runs elsewhere.
+    static_configs:
+      - targets: ["host.docker.internal:9464"]

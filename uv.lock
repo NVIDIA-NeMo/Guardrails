@@ -2330,9 +2330,12 @@ all = [
     { name = "numpy", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "openai" },
     { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-prometheus" },
+    { name = "opentelemetry-sdk" },
     { name = "pandas" },
     { name = "presidio-analyzer", marker = "python_full_version < '3.13'" },
     { name = "presidio-anonymizer", marker = "python_full_version < '3.13'" },
+    { name = "prometheus-client" },
     { name = "starlette" },
     { name = "streamlit" },
     { name = "tornado" },
@@ -2370,6 +2373,10 @@ server = [
     { name = "aiofiles" },
     { name = "fastapi" },
     { name = "openai" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-prometheus" },
+    { name = "opentelemetry-sdk" },
+    { name = "prometheus-client" },
     { name = "starlette" },
     { name = "uvicorn" },
     { name = "watchdog" },
@@ -2394,8 +2401,10 @@ dev = [
     { name = "langchain-openai" },
     { name = "openai" },
     { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-prometheus" },
     { name = "opentelemetry-sdk" },
     { name = "pre-commit" },
+    { name = "prometheus-client" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -2437,7 +2446,9 @@ test-integration = [
     { name = "langchain-openai" },
     { name = "openai" },
     { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-prometheus" },
     { name = "opentelemetry-sdk" },
+    { name = "prometheus-client" },
     { name = "starlette" },
     { name = "streamlit" },
     { name = "uvicorn" },
@@ -2484,13 +2495,20 @@ requires-dist = [
     { name = "openai", marker = "extra == 'all'", specifier = ">=1.0.0,<3.0.0" },
     { name = "openai", marker = "extra == 'server'", specifier = ">=1.0.0,<3.0.0" },
     { name = "opentelemetry-api", marker = "extra == 'all'", specifier = ">=1.27.0,<2.0.0" },
+    { name = "opentelemetry-api", marker = "extra == 'server'", specifier = ">=1.27.0,<2.0.0" },
     { name = "opentelemetry-api", marker = "extra == 'tracing'", specifier = ">=1.27.0,<2.0.0" },
+    { name = "opentelemetry-exporter-prometheus", marker = "extra == 'all'", specifier = ">=0.48b0,<1.0.0" },
+    { name = "opentelemetry-exporter-prometheus", marker = "extra == 'server'", specifier = ">=0.48b0,<1.0.0" },
+    { name = "opentelemetry-sdk", marker = "extra == 'all'", specifier = ">=1.27.0,<2.0.0" },
+    { name = "opentelemetry-sdk", marker = "extra == 'server'", specifier = ">=1.27.0,<2.0.0" },
     { name = "pandas", marker = "extra == 'all'", specifier = ">=1.4.0,<3.0.0" },
     { name = "pandas", marker = "extra == 'eval'", specifier = ">=1.4.0,<3.0.0" },
     { name = "presidio-analyzer", marker = "python_full_version < '3.13' and extra == 'all'", specifier = ">=2.2" },
     { name = "presidio-analyzer", marker = "python_full_version < '3.13' and extra == 'sdd'", specifier = ">=2.2" },
     { name = "presidio-anonymizer", marker = "python_full_version < '3.13' and extra == 'all'", specifier = ">=2.2" },
     { name = "presidio-anonymizer", marker = "python_full_version < '3.13' and extra == 'sdd'", specifier = ">=2.2" },
+    { name = "prometheus-client", marker = "extra == 'all'", specifier = ">=0.20.0,<2.0.0" },
+    { name = "prometheus-client", marker = "extra == 'server'", specifier = ">=0.20.0,<2.0.0" },
     { name = "prompt-toolkit", specifier = ">=3.0" },
     { name = "protobuf", specifier = ">=5.29.5" },
     { name = "pydantic", specifier = ">=2.5,<3.0" },
@@ -2529,8 +2547,10 @@ dev = [
     { name = "langchain-openai", specifier = ">=0.1.0" },
     { name = "openai", specifier = ">=1.0.0,<3.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.34.1,<2.0.0" },
+    { name = "opentelemetry-exporter-prometheus", specifier = ">=0.55b1,<1.0.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.34.1,<2.0.0" },
     { name = "pre-commit", specifier = ">=3.1.1" },
+    { name = "prometheus-client", specifier = ">=0.20.0,<2.0.0" },
     { name = "pytest", specifier = ">=9.0.3,<10.0.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.0,<2.0.0" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
@@ -2569,7 +2589,9 @@ test-integration = [
     { name = "langchain-openai", specifier = ">=0.1.0" },
     { name = "openai", specifier = ">=1.0.0,<3.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.34.1,<2.0.0" },
+    { name = "opentelemetry-exporter-prometheus", specifier = ">=0.55b1,<1.0.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.34.1,<2.0.0" },
+    { name = "prometheus-client", specifier = ">=0.20.0,<2.0.0" },
     { name = "starlette", specifier = ">=0.49.1" },
     { name = "streamlit", specifier = ">=1.37.0" },
     { name = "uvicorn", specifier = ">=0.23" },
@@ -2909,6 +2931,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fc/92/0b9f56412483a8891d4843890294796c9df8ab42417bd9bad8035d840cb3/opentelemetry_exporter_otlp_proto_http-1.43.0.tar.gz", hash = "sha256:fa8a42bb7d00ee5391f4c0b04d8e6a46c03caa437903296ab73a81dc11ba118f", size = 25406, upload-time = "2026-06-24T15:20:01.515Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/20/b685ed7af2e17c29ffc8af56f1fa8bc2033258fc30fb0d2b722f49d13ba0/opentelemetry_exporter_otlp_proto_http-1.43.0-py3-none-any.whl", hash = "sha256:647f603aa8efdbdb4dbff842e0729d0406a6fff26b295a72d3d60e7d963b2610", size = 21795, upload-time = "2026-06-24T15:19:43.164Z" },
+]
+
+[[package]]
+name = "opentelemetry-exporter-prometheus"
+version = "0.64b0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
+    { name = "prometheus-client" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/97/b3/f778f705289ea5f1c54589ae4494d318c9cede052f18ca33979fda0ef016/opentelemetry_exporter_prometheus-0.64b0.tar.gz", hash = "sha256:96fec79be9527cb9dc994d7e663051df35161eb936fe2d41954725e4595abbc1", size = 16405, upload-time = "2026-06-24T15:20:02.278Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/dd/d95db7ac5bec037b3dcc8ea6fe64cd5dc4bc87017d2e06e7410318e85dc0/opentelemetry_exporter_prometheus-0.64b0-py3-none-any.whl", hash = "sha256:9979a15f8d007d442bc7a6e16f4cbde5e8e0c5e99689887ceb5f33da251f0655", size = 13031, upload-time = "2026-06-24T15:19:44.159Z" },
 ]
 
 [[package]]
@@ -3890,6 +3926,15 @@ dependencies = [
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/17/01/1c3404e8da63a979ae951b8822576bc0e52ca3a46a624ac9439786990c6d/presidio_anonymizer-2.2.362-py3-none-any.whl", hash = "sha256:b2d81542cb797360d18506a1aa73ea0dfacc44abca15248c81dd062f582e6b2b", size = 36603, upload-time = "2026-03-15T12:40:38.651Z" },
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.26.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/73/f1334c29c2af4cd9dba6c7817e61b611bd0215e2eb5565c6064a4de18802/prometheus_client-0.26.0.tar.gz", hash = "sha256:04a91bcf94e2cf74a44a1a874d651a2e853ed354b6e822f3b7487751465d5c2b", size = 92910, upload-time = "2026-07-24T19:36:41.893Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/a3/b69efbf4143b5b9859b977770bbbabcc2796b702fa69dc40271e45cd5a56/prometheus_client-0.26.0-py3-none-any.whl", hash = "sha256:fa93d06737aa02bacd05794768508bb97d2fbee28cb3bca04eaae92f0ca953d6", size = 64494, upload-time = "2026-07-24T19:36:40.854Z" },
 ]
 
 [[package]]

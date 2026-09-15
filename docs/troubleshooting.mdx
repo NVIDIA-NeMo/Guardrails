@@ -110,6 +110,13 @@ The library does not log a warning.
 Verify locally with `ConsoleMetricExporter` first.
 Then ensure `set_meter_provider(...)` runs before constructing `Guardrails(config, use_iorails=True, require_iorails=True)` (or `LLMRails(config, require_iorails=True)` when running with `NEMO_GUARDRAILS_IORAILS_ENGINE=1`).
 
+### `nemoguardrails server` Exports No Metrics
+
+The packaged server does not install a `MeterProvider` unless you ask it to.
+Start it with `--metrics-exporter prometheus` (or set `NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER=prometheus`) and scrape `http://<host>:9464/metrics`.
+Only the `guardrails.nonstream.*` admission-queue metrics are exported through this path.
+Refer to [Prometheus and Grafana for the Guardrails Server](/observability/metrics/server-prometheus-grafana).
+
 ### Metrics Dependency Is Missing
 
 If you see the following warning, the `opentelemetry-api` package is not installed:
