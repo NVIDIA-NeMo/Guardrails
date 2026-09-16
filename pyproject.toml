@@ -56,7 +56,7 @@ server = [
   "watchdog (>=3.0.0)",
   "opentelemetry-api (>=1.27.0,<2.0.0)",
   "opentelemetry-sdk (>=1.27.0,<2.0.0)",
-  "opentelemetry-exporter-prometheus (>=0.48b0,<1.0.0)",
+  "opentelemetry-exporter-prometheus (>=0.63b0,<1.0.0)",
   "prometheus-client (>=0.20.0,<2.0.0)",
 ]
 
@@ -105,7 +105,7 @@ all = [
   "uvicorn (>=0.23)",
   "watchdog (>=3.0.0)",
   "opentelemetry-sdk (>=1.27.0,<2.0.0)",
-  "opentelemetry-exporter-prometheus (>=0.48b0,<1.0.0)",
+  "opentelemetry-exporter-prometheus (>=0.63b0,<1.0.0)",
   "prometheus-client (>=0.20.0,<2.0.0)",
   "chainlit (>=2.11.0,<3.0.0)",
 ]
@@ -129,7 +129,7 @@ test_integration = [
   "yara-python>=4.5.1,<5.0.0",
   "opentelemetry-api>=1.34.1,<2.0.0",
   "opentelemetry-sdk>=1.34.1,<2.0.0",
-  "opentelemetry-exporter-prometheus>=0.55b1,<1.0.0",
+  "opentelemetry-exporter-prometheus>=0.63b0,<1.0.0",
   "prometheus-client>=0.20.0,<2.0.0",
   "fast-langdetect>=1.0.0",
   "openai>=1.0.0,<3.0.0",

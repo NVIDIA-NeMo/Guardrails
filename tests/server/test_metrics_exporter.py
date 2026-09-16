@@ -147,6 +147,30 @@ class TestSettingsFromEnv:
             MetricsExporterSettings.from_env({ENV_EXPORTER: "prometheus", ENV_PORT: raw_port})
 
 
+class TestDisplayHost:
+    @pytest.mark.parametrize(
+        ("host", "shown"),
+        [
+            ("0.0.0.0", "localhost"),
+            ("::", "localhost"),
+            ("", "localhost"),
+            ("127.0.0.1", "127.0.0.1"),
+            ("::1", "[::1]"),
+            ("metrics.internal", "metrics.internal"),
+        ],
+    )
+    def test_wildcards_become_localhost_and_ipv6_is_bracketed(self, host, shown):
+        """The logged scrape URL names a host a client can actually dial."""
+        assert server_metrics._display_host(host) == shown
+
+    def test_url_uses_display_host(self):
+        """A wildcard bind is reported as a localhost URL, not http://0.0.0.0."""
+        with patch.dict("os.environ", {**LOOPBACK_EPHEMERAL, ENV_HOST: "0.0.0.0"}):
+            exporter = start_metrics_exporter()
+        assert exporter.url == f"http://localhost:{exporter.port}/metrics"
+        assert "guardrails_nonstream" in _scrape(exporter.url) or _scrape(exporter.url) == ""
+
+
 class TestExportView:
     def test_only_nonstream_admission_metrics_are_exported(self):
         """The export view keeps the three admission-queue instruments and drops everything else."""
@@ -236,6 +260,18 @@ class TestStartAndShutdown:
             with pytest.raises(MetricsExporterConfigError, match="already configured"):
                 start_metrics_exporter()
         assert get_active_metrics_exporter() is None
+
+    def test_refuses_when_a_noop_meter_provider_was_set_first(self):
+        """A pre-set NoOpMeterProvider looks like the unset state to the module-path check,
+        so the post-install identity check must catch that ours did not take."""
+        from opentelemetry.metrics import NoOpMeterProvider
+
+        otel_metrics.set_meter_provider(NoOpMeterProvider())
+        with patch.dict("os.environ", LOOPBACK_EPHEMERAL):
+            with pytest.raises(MetricsExporterConfigError, match="had no effect"):
+                start_metrics_exporter()
+        assert get_active_metrics_exporter() is None
+        assert server_metrics._installed_provider is None
 
     def test_port_in_use_is_reported_with_the_override_hint(self):
         """A bind failure fails with a message pointing at --metrics-port.
@@ -357,9 +393,16 @@ class TestIORailsEndToEnd:
             iorails = IORails(RailsConfig.from_content(config=config))
 
         gate = asyncio.Event()
+        arrived = asyncio.Event()
 
         async def _blocked_generate(messages, req_id, request_span=None, **kwargs):
-            """Stand-in pipeline that parks the request until the test releases the gate."""
+            """Stand-in pipeline that signals arrival, then parks until the test releases the gate.
+
+            The queue worker increments its busy count before it awaits this
+            coroutine, so ``arrived`` firing already implies
+            ``num_busy_workers() == 1``.
+            """
+            arrived.set()
             await gate.wait()
             return {"role": "assistant", "content": "done"}
 
@@ -370,11 +413,10 @@ class TestIORailsEndToEnd:
 
             with patch.object(iorails, "_do_generate", _blocked_generate):
                 task = asyncio.create_task(iorails.generate_async(messages=[{"role": "user", "content": "hi"}]))
-                # Let the worker pick the item up before observing.
-                for _ in range(50):
-                    await asyncio.sleep(0.01)
-                    if iorails._generate_async_queue.num_busy_workers() == 1:
-                        break
+                # The worker is executing the request once ``arrived`` fires; the
+                # timeout only bounds a hang, it does not pace the handshake.
+                await asyncio.wait_for(arrived.wait(), timeout=10)
+                assert iorails._generate_async_queue.num_busy_workers() == 1
                 busy = await asyncio.to_thread(_scrape, exporter.url)
                 gate.set()
                 await task

@@ -35,8 +35,9 @@ lets an embedded application or a test client cycle the server lifespan
 repeatedly without losing metrics export.
 
 All OpenTelemetry SDK and Prometheus imports are deferred into
-:func:`_load_sdk` so that importing this module never requires the optional
-dependencies; they are pulled in by the ``server`` extra.
+:func:`_require_otel_sdk` and the functions that use them, so importing this
+module never requires the optional dependencies; they are pulled in by the
+``server`` extra.
 """
 
 import logging
@@ -98,7 +99,7 @@ class MetricsExporterSettings:
     @property
     def enabled(self) -> bool:
         """Whether an exporter is configured at all."""
-        return self.exporter is not MetricsExporter.NONE
+        return self.exporter != MetricsExporter.NONE
 
     @classmethod
     def from_env(cls, environ: Optional[Mapping[str, str]] = None) -> "MetricsExporterSettings":
@@ -132,20 +133,24 @@ class MetricsExporterSettings:
         return cls(exporter=exporter, host=host, port=port, service_name=service_name)
 
 
-def _load_sdk():
-    """Import the optional SDK + exporter modules or raise an actionable error."""
+def _require_otel_sdk() -> None:
+    """Raise :class:`MetricsExporterConfigError` unless every optional symbol is importable.
+
+    Callers import the symbols they need right after this check, so the
+    module never holds the optional imports at import time and the error the
+    operator sees names the missing distribution and how to install it.
+    """
     try:
-        from opentelemetry.exporter.prometheus import PrometheusMetricReader
-        from opentelemetry.sdk.metrics import MeterProvider
-        from opentelemetry.sdk.metrics.view import DropAggregation, View
-        from opentelemetry.sdk.resources import Resource
-        from prometheus_client import CollectorRegistry, start_http_server
+        from opentelemetry.exporter.prometheus import PrometheusMetricReader  # noqa: F401
+        from opentelemetry.sdk.metrics import MeterProvider  # noqa: F401
+        from opentelemetry.sdk.metrics.view import DropAggregation, View  # noqa: F401
+        from opentelemetry.sdk.resources import Resource  # noqa: F401
+        from prometheus_client import CollectorRegistry, start_http_server  # noqa: F401
     except ImportError as e:
         raise MetricsExporterConfigError(
             f"{ENV_EXPORTER}=prometheus requires the OpenTelemetry SDK and Prometheus exporter "
             f"(missing: {e.name}). Install them with: {INSTALL_HINT}"
         ) from e
-    return PrometheusMetricReader, MeterProvider, DropAggregation, View, Resource, CollectorRegistry, start_http_server
 
 
 def build_views() -> List["View"]:
@@ -155,7 +160,9 @@ def build_views() -> List["View"]:
     to its default aggregation when none match, so a catch-all drop view must
     be paired with an explicit keep view for every exported pattern.
     """
-    _, _, DropAggregation, View, _, _, _ = _load_sdk()
+    _require_otel_sdk()
+    from opentelemetry.sdk.metrics.view import DropAggregation, View
+
     views = [View(instrument_name=pattern) for pattern in EXPORTED_INSTRUMENT_PATTERNS]
     views.append(View(instrument_name="*", aggregation=DropAggregation()))
     return views
@@ -163,7 +170,11 @@ def build_views() -> List["View"]:
 
 def build_meter_provider(settings: MetricsExporterSettings, registry: "CollectorRegistry") -> "MeterProvider":
     """Build a ``MeterProvider`` that exports the scoped metrics into ``registry``."""
-    PrometheusMetricReader, MeterProvider, _, _, Resource, _, _ = _load_sdk()
+    _require_otel_sdk()
+    from opentelemetry.exporter.prometheus import PrometheusMetricReader
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.resources import Resource
+
     reader = PrometheusMetricReader(registry=registry)
     resource = Resource.create({"service.name": settings.service_name})
     return MeterProvider(resource=resource, metric_readers=[reader], views=build_views())
@@ -205,7 +216,8 @@ def _install_meter_provider(settings: MetricsExporterSettings) -> _InstalledProv
     global _installed_provider
     from opentelemetry import metrics as otel_metrics
 
-    _, _, _, _, _, CollectorRegistry, _ = _load_sdk()
+    _require_otel_sdk()
+    from prometheus_client import CollectorRegistry
 
     if _installed_provider is not None:
         if _installed_provider.service_name != settings.service_name:
@@ -227,8 +239,31 @@ def _install_meter_provider(settings: MetricsExporterSettings) -> _InstalledProv
     registry = CollectorRegistry()
     provider = build_meter_provider(settings, registry)
     otel_metrics.set_meter_provider(provider)
+    # The API only warns when a provider was set before us (for example a
+    # NoOpMeterProvider that the module-path check above cannot tell from the
+    # unset state), so confirm ours actually took.
+    if otel_metrics.get_meter_provider() is not provider:
+        raise MetricsExporterConfigError(
+            "Installing the server's MeterProvider had no effect because another one was set first. "
+            f"Unset {ENV_EXPORTER} and expose that provider yourself, or remove the other MeterProvider setup."
+        )
     _installed_provider = _InstalledProvider(provider=provider, registry=registry, service_name=settings.service_name)
     return _installed_provider
+
+
+# Bind addresses that mean "every interface" rather than a reachable host.
+_WILDCARD_HOSTS = frozenset({"0.0.0.0", "::", ""})
+
+
+def _display_host(host: str) -> str:
+    """Render a listen address as the host a scraper would dial.
+
+    A wildcard bind is not an address a client can connect to, so it is shown
+    as ``localhost``; an IPv6 literal is bracketed so the result is a valid URL.
+    """
+    if host in _WILDCARD_HOSTS:
+        return "localhost"
+    return f"[{host}]" if ":" in host else host
 
 
 class PrometheusMetricsExporter:
@@ -242,7 +277,8 @@ class PrometheusMetricsExporter:
 
     def __init__(self, settings: MetricsExporterSettings, installed: _InstalledProvider):
         """Bind the scrape listener for ``settings`` against ``installed``'s registry."""
-        _, _, _, _, _, _, start_http_server = _load_sdk()
+        _require_otel_sdk()
+        from prometheus_client import start_http_server
 
         self.settings = settings
         self.provider = installed.provider
@@ -262,8 +298,8 @@ class PrometheusMetricsExporter:
 
     @property
     def url(self) -> str:
-        """Scrape URL of the running listener."""
-        return f"http://{self.settings.host}:{self.port}/metrics"
+        """Scrape URL of the running listener, as a client would dial it."""
+        return f"http://{_display_host(self.settings.host)}:{self.port}/metrics"
 
     def shutdown(self) -> None:
         """Stop the listener and join its thread.  The provider keeps collecting

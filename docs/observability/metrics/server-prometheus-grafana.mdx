@@ -52,8 +52,10 @@ For the full metric semantics, refer to [Metric Reference](/observability/metric
    <Note>
    The two gauges observe the admission queue of the first `IORails` instance that starts in the process.
    When a server hosts several configurations, each configuration gets its own instance and queue, but the OpenTelemetry SDK registers one observable gauge per name, so `guardrails_nonstream_queued` and `guardrails_nonstream_active` report only the first instance.
-   `guardrails_nonstream_rejections_total` counts rejections from every instance.
-   Run one configuration per server process when you need per-configuration queue depth.
+   The binding lasts for the life of the process: OpenTelemetry has no API to unregister an observable gauge, so replacing a configuration does not move the gauges to the new instance.
+   With `--auto-reload`, or any other change that rebuilds a configuration, the two gauges keep observing the retired instance's idle queue and read a flat `0` while the live instance does the work.
+   `guardrails_nonstream_rejections_total` is unaffected and counts rejections from every instance, so rejections can climb while the queue depth still reads `0`.
+   Run one configuration per server process when you need per-configuration queue depth, and restart the server after a configuration change to rebind the gauges.
    </Note>
 
 3. Select the IORails engine.
@@ -111,6 +113,12 @@ When Prometheus also runs in Docker, attach both containers to one Docker networ
 
 The CLI flags take precedence over the environment variables.
 `prometheus` is the only supported exporter value.
+
+<Warning title="One process per metrics port">
+The exporter binds the metrics port once per process, so it does not work with `uvicorn --workers N` for `N > 1`: every worker tries to bind the same port, only the first succeeds, and the others fail to start.
+`nemoguardrails server` runs a single worker and is unaffected.
+To scale out, run several server processes with distinct `NEMO_GUARDRAILS_SERVER_METRICS_PORT` values (or one process per container) and scrape each one.
+</Warning>
 
 <Warning title="The endpoint is unauthenticated">
 The scrape endpoint has no authentication, and the default listen interface is `0.0.0.0`.
@@ -184,6 +192,11 @@ A useful alert rule is any sustained non-zero rejection rate: it means the serve
 
 ## Troubleshooting
 
+- **The gauges read `0` while the server is clearly busy.**
+  They bind to the first `IORails` instance that starts in the process and cannot be rebound, so `--auto-reload` and any other configuration swap leave them observing the retired instance.
+  Restart the server to rebind them; `guardrails_nonstream_rejections_total` keeps counting correctly throughout.
+- **Workers fail to start with `Cannot bind the Prometheus metrics endpoint`.**
+  You are running `uvicorn --workers N` with `N > 1`; only one process can own the metrics port. Run one worker per process and give each process its own `NEMO_GUARDRAILS_SERVER_METRICS_PORT`.
 - **`curl` returns no `guardrails_` series.**
   The gauges register when the first `IORails` instance starts, which happens on the first request for that configuration.
   Confirm that `metrics.enabled: true` is set in that configuration and that `NEMO_GUARDRAILS_IORAILS_ENGINE=1` was exported before the server started.
