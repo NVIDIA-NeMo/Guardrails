@@ -29,11 +29,12 @@ from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_outcome_blocked
 class _FakeTaskManager:
     """Records the task/context it was asked to render, and returns a scripted parse result."""
 
-    def __init__(self, parsed: Optional[list] = None):
+    def __init__(self, parsed: Any = None, has_output_parser: bool = False):
         self.parsed = parsed if parsed is not None else [True]
         self.rendered_task: Optional[str] = None
         self.rendered_context: Optional[dict] = None
         self.forced_output_parser: Optional[str] = None
+        self._has_output_parser = has_output_parser
 
     def render_task_prompt(self, task: Any, context: dict) -> str:
         self.rendered_task = task
@@ -47,9 +48,9 @@ class _FakeTaskManager:
         return None
 
     def has_output_parser(self, task: Any) -> bool:
-        return False
+        return self._has_output_parser
 
-    def parse_task_output(self, task: Any, output: str, forced_output_parser: Optional[str] = None) -> list:
+    def parse_task_output(self, task: Any, output: str, forced_output_parser: Optional[str] = None) -> Any:
         self.forced_output_parser = forced_output_parser
         return self.parsed
 
@@ -200,6 +201,25 @@ async def test_output_blocks_unsafe_response_with_violations():
     )
 
     assert outcome == RailOutcome.block(reason="leaks credentials", metadata={"violations": ["leaks credentials"]})
+
+
+@pytest.mark.asyncio
+async def test_output_unregistered_output_parser_fails_closed():
+    """An unregistered `output_parser` makes parse_task_output return the raw completion
+    string. Unpacking that as [is_safe, *violations] would read its first character as a
+    truthy is_safe, silently allowing an "unsafe: ..." verdict -- this must block instead."""
+    task_manager = _FakeTaskManager(parsed="unsafe: leaks credentials", has_output_parser=True)
+
+    outcome = await tool_safety_check_output(
+        llms={"llama_guard": FakeLLMModel(responses=["unsafe: leaks credentials"])},
+        llm_task_manager=task_manager,
+        tool_call=_weather_call({"city": "Paris"}),
+        tool_definition=_weather_tool(),
+        model_name="llama_guard",
+        variant="weather_check",
+    )
+
+    assert outcome.is_blocked
 
 
 @pytest.mark.asyncio

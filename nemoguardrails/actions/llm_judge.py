@@ -71,9 +71,15 @@ async def run_llm_judged_check(
     )
     warn_if_truncated(llm_response, task)
     forced_output_parser = None if llm_task_manager.has_output_parser(task) else "is_content_safe"
-    is_safe, *violations = llm_task_manager.parse_task_output(
+    result = llm_task_manager.parse_task_output(
         task, output=llm_response.content, forced_output_parser=forced_output_parser
     )
+    # An unregistered output_parser name makes parse_task_output return the raw completion
+    # string unparsed. Unpacking that as [is_safe, *violations] would read its first character
+    # as a truthy is_safe, silently allowing an "unsafe: ..." verdict. Fail closed instead.
+    if not isinstance(result, (list, tuple)) or not result or not isinstance(result[0], bool):
+        return RailOutcome.block(reason="the judge model's response could not be parsed into a safety verdict")
+    is_safe, *violations = result
     if is_safe:
         return RailOutcome.allow(metadata={"violations": violations})
     return RailOutcome.block(reason=", ".join(violations) or None, metadata={"violations": violations})
