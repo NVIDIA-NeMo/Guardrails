@@ -8,29 +8,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### 🚀 Features
 
-- *(benchmark)* Add concurrency sweep to the Locust runner ([#2323](https://github.com/NVIDIA-NeMo/Guardrails/issues/2323)) 
-- Nemotron-3.5-content-safety parser  ([#2370](https://github.com/NVIDIA-NeMo/Guardrails/issues/2370)) 
+- *(benchmark)* Add concurrency sweep to the Locust runner ([#2323](https://github.com/NVIDIA-NeMo/Guardrails/issues/2323))
 
 ### 🐛 Bug Fixes
 
-- *(server)* Return overload response for IORails admission shedding ([#2334](https://github.com/NVIDIA-NeMo/Guardrails/issues/2334)) 
-- *(rails)* Load config.py for combined configurations ([#2371](https://github.com/NVIDIA-NeMo/Guardrails/issues/2371)) 
-
-### 📚 Documentation
-
-- Publish v0.24.0 release notes and Fern snapshot ([#2335](https://github.com/NVIDIA-NeMo/Guardrails/issues/2335)) 
-- *(benchmark)* Correct Mock LLM configuration keys ([#2320](https://github.com/NVIDIA-NeMo/Guardrails/issues/2320)) 
-- Add AI runtime security FAQ ([#2290](https://github.com/NVIDIA-NeMo/Guardrails/issues/2290)) 
-- *(benchmark)* Drop AIPerf comparison from Locust README ([#2356](https://github.com/NVIDIA-NeMo/Guardrails/issues/2356)) 
-
-### 🧪 Testing
-
-- Add Nemotron 3.5 Content Safety recorded tests ([#2373](https://github.com/NVIDIA-NeMo/Guardrails/issues/2373)) 
-- Make config path fixture portable ([#2378](https://github.com/NVIDIA-NeMo/Guardrails/issues/2378)) 
-
-### ⚙️ Miscellaneous Tasks
-
-- Bump to 0.25.0.dev0 ([#2337](https://github.com/NVIDIA-NeMo/Guardrails/issues/2337)) 
+- *(content-safety)* Parse Nemotron 3.5 responses ([#2370](https://github.com/NVIDIA-NeMo/Guardrails/issues/2370))
+- *(server)* Return overload response for IORails admission shedding ([#2334](https://github.com/NVIDIA-NeMo/Guardrails/issues/2334))
+- *(rails)* Load config.py for combined configurations ([#2371](https://github.com/NVIDIA-NeMo/Guardrails/issues/2371))
 
 
 ## [0.24.0] - 2026-08-25
