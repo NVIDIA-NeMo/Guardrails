@@ -2333,6 +2333,7 @@ all = [
     { name = "pandas" },
     { name = "presidio-analyzer", marker = "python_full_version < '3.13'" },
     { name = "presidio-anonymizer", marker = "python_full_version < '3.13'" },
+    { name = "pyatr" },
     { name = "starlette" },
     { name = "streamlit" },
     { name = "tornado" },
@@ -2340,6 +2341,9 @@ all = [
     { name = "uvicorn" },
     { name = "watchdog" },
     { name = "yara-python" },
+]
+atr = [
+    { name = "pyatr" },
 ]
 chat-ui = [
     { name = "chainlit" },
@@ -2396,6 +2400,7 @@ dev = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
     { name = "pre-commit" },
+    { name = "pyatr" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -2438,6 +2443,7 @@ test-integration = [
     { name = "openai" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
+    { name = "pyatr" },
     { name = "starlette" },
     { name = "streamlit" },
     { name = "uvicorn" },
@@ -2493,6 +2499,8 @@ requires-dist = [
     { name = "presidio-anonymizer", marker = "python_full_version < '3.13' and extra == 'sdd'", specifier = ">=2.2" },
     { name = "prompt-toolkit", specifier = ">=3.0" },
     { name = "protobuf", specifier = ">=5.29.5" },
+    { name = "pyatr", marker = "extra == 'all'", specifier = ">=0.2.6" },
+    { name = "pyatr", marker = "extra == 'atr'", specifier = ">=0.2.6" },
     { name = "pydantic", specifier = ">=2.5,<3.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.5.2" },
@@ -2513,7 +2521,7 @@ requires-dist = [
     { name = "yara-python", marker = "extra == 'all'", specifier = ">=4.5.1,<5.0.0" },
     { name = "yara-python", marker = "extra == 'jailbreak'", specifier = ">=4.5.1,<5.0.0" },
 ]
-provides-extras = ["tracing", "server", "sdd", "gcp", "jailbreak", "multilingual", "chat-ui", "eval", "all"]
+provides-extras = ["tracing", "server", "sdd", "gcp", "jailbreak", "multilingual", "chat-ui", "atr", "eval", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2531,6 +2539,7 @@ dev = [
     { name = "opentelemetry-api", specifier = ">=1.34.1,<2.0.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.34.1,<2.0.0" },
     { name = "pre-commit", specifier = ">=3.1.1" },
+    { name = "pyatr", specifier = ">=0.2.6" },
     { name = "pytest", specifier = ">=9.0.3,<10.0.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.0,<2.0.0" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
@@ -2570,6 +2579,7 @@ test-integration = [
     { name = "openai", specifier = ">=1.0.0,<3.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.34.1,<2.0.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.34.1,<2.0.0" },
+    { name = "pyatr", specifier = ">=0.2.6" },
     { name = "starlette", specifier = ">=0.49.1" },
     { name = "streamlit", specifier = ">=1.37.0" },
     { name = "uvicorn", specifier = ">=0.23" },
@@ -4139,6 +4149,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e9/e6/78ebbb10a8c8e4b61a59249394a4a594c1a7af95593dc933a349c8d00964/pyasn1_modules-0.4.2.tar.gz", hash = "sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6", size = 307892, upload-time = "2025-03-28T02:41:22.17Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/47/8d/d529b5d697919ba8c11ad626e835d4039be708a35b0d22de83a269a6682c/pyasn1_modules-0.4.2-py3-none-any.whl", hash = "sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a", size = 181259, upload-time = "2025-03-28T02:41:19.028Z" },
+]
+
+[[package]]
+name = "pyatr"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/de/65/61ac4185daf4ffe969528af1c2432af597eaa7fa0ae23ee53b5771ed4b9c/pyatr-0.3.0.tar.gz", hash = "sha256:2e53889c4337f9cadf93889bfda5beb6452462d0a69d34b6ece6079861be8522", size = 704166, upload-time = "2026-08-23T07:34:39.441Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4e/af/fd86404e502bde5123f0ec8729203acc820efb1f0cf3bcc77fa0eacbb1cc/pyatr-0.3.0-py3-none-any.whl", hash = "sha256:feb34dcda3db550ce743761457ebe6fbe2a34fe26b17c8da0c526981517eee24", size = 700295, upload-time = "2026-08-23T07:34:38.327Z" },
 ]
 
 [[package]]
