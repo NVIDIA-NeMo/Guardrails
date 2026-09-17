@@ -92,10 +92,14 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         # Data structures for batching embedding requests
         self._req_queue: Dict[int, str] = {}
         self._req_results: Dict[int, List[float]] = {}
+        self._req_errors: Dict[int, BaseException] = {}
         self._req_idx: int = 0
         self._current_batch_finished_event: Optional[asyncio.Event] = None
         self._current_batch_full_event: Optional[asyncio.Event] = None
+        # Stored so callers can cancel or inspect the active batch task (e.g. shutdown).
+        self._current_batch_task: Optional[asyncio.Task] = None
         self._current_batch_submitted: asyncio.Event = asyncio.Event()
+        self._batch_lock: asyncio.Lock = asyncio.Lock()
 
         # Initialize the batching configuration
         self.use_batching = use_batching
@@ -217,74 +221,119 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self._index = index
         self._embedding_size = int(index.shape[1])
 
-    async def _run_batch(self):
+    async def _run_batch(self, batch_full_event: asyncio.Event, batch_finished_event: asyncio.Event):
         """Runs the current batch of embeddings."""
+        # Initialised here so the except handlers can safely iterate even if
+        # cancellation fires before the lock section populates batch_ids.
+        batch_ids: List[int] = []
+        try:
+            # Wait up to `max_batch_hold` time or until `max_batch_size` is reached.
+            _, pending = await asyncio.wait(
+                [
+                    asyncio.create_task(asyncio.sleep(self.max_batch_hold)),
+                    asyncio.create_task(batch_full_event.wait()),
+                ],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
 
-        # Wait up to `max_batch_hold` time or until `max_batch_size` is reached.
-        if self._current_batch_full_event is None or self._current_batch_finished_event is None:
-            raise RuntimeError("Batch events not initialized. This should not happen.")
+            async with self._batch_lock:
+                # Reset the active batch only if it has not already rolled over.
+                if self._current_batch_finished_event is batch_finished_event:
+                    self._current_batch_finished_event = None
+                    self._current_batch_full_event = None
 
-        done, pending = await asyncio.wait(
-            [
-                asyncio.create_task(asyncio.sleep(self.max_batch_hold)),
-                asyncio.create_task(self._current_batch_full_event.wait()),
-            ],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        for task in pending:
-            task.cancel()
+                # Create the actual batch to be sent for computing.
+                batch_ids = list(self._req_queue.keys())
+                batch = [self._req_queue[req_id] for req_id in batch_ids]
 
-        # Reset the batch event
-        batch_event: asyncio.Event = self._current_batch_finished_event
-        self._current_batch_finished_event = None
+                # Empty the queue up to this point.
+                self._req_queue = {}
 
-        # Create the actual batch to be send for computing
-        batch = []
-        batch_ids = list(self._req_queue.keys())
-        for req_id in batch_ids:
-            batch.append(self._req_queue[req_id])
+                # We allow other batches to start.
+                self._current_batch_submitted.set()
 
-        # Empty the queue up to this point
-        self._req_queue = {}
-
-        # We allow other batches to start
-        self._current_batch_submitted.set()
-
-        # print(f"Running batch of length {len(batch)}")
-
-        # Compute the embeddings
-        embeddings = await self._get_embeddings(batch)
-        for i in range(len(embeddings)):
-            self._req_results[batch_ids[i]] = embeddings[i]
-
-        # Signal that the batch has finished processing
-        batch_event.set()
+            embeddings = await self._get_embeddings(batch)
+            if len(embeddings) < len(batch_ids):
+                shortage_exc = RuntimeError(
+                    f"Embedding model returned {len(embeddings)} embeddings for {len(batch_ids)} inputs."
+                )
+                for req_id in batch_ids[len(embeddings) :]:
+                    self._req_errors[req_id] = shortage_exc
+            for i in range(len(embeddings)):
+                self._req_results[batch_ids[i]] = embeddings[i]
+        except asyncio.CancelledError as exc:
+            # If cancelled before the lock section, batch_ids is still [].
+            # Snapshot and drain the queue without the lock — safe because asyncio
+            # is single-threaded and no await occurs between here and `raise`.
+            if not batch_ids:
+                batch_ids = list(self._req_queue.keys())
+                self._req_queue = {}
+                if self._current_batch_finished_event is batch_finished_event:
+                    self._current_batch_finished_event = None
+                    self._current_batch_full_event = None
+            for req_id in batch_ids:
+                if req_id not in self._req_results and req_id not in self._req_errors:
+                    self._req_errors[req_id] = exc
+            raise
+        except Exception as exc:
+            for req_id in batch_ids:
+                if req_id not in self._req_results and req_id not in self._req_errors:
+                    self._req_errors[req_id] = exc
+        finally:
+            # Unconditionally unblock full-queue waiters in case the lock section
+            # was never reached (early cancellation).
+            self._current_batch_submitted.set()
+            batch_finished_event.set()
 
     async def _batch_get_embeddings(self, text: str) -> List[float]:
-        # As long as the queue is full, we wait for the next batch
-        while len(self._req_queue) >= self.max_batch_size:
-            await self._current_batch_submitted.wait()
+        while True:
+            async with self._batch_lock:
+                if len(self._req_queue) < self.max_batch_size:
+                    req_id = self._req_idx
+                    self._req_idx += 1
+                    self._req_queue[req_id] = text
 
-        req_id = self._req_idx
-        self._req_idx += 1
-        self._req_queue[req_id] = text
+                    if self._current_batch_finished_event is None or self._current_batch_full_event is None:
+                        self._current_batch_finished_event = asyncio.Event()
+                        self._current_batch_full_event = asyncio.Event()
+                        self._current_batch_submitted.clear()
+                        self._current_batch_task = asyncio.create_task(
+                            self._run_batch(
+                                self._current_batch_full_event,
+                                self._current_batch_finished_event,
+                            )
+                        )
 
-        if self._current_batch_finished_event is None or self._current_batch_full_event is None:
-            self._current_batch_finished_event = asyncio.Event()
-            self._current_batch_full_event = asyncio.Event()
-            self._current_batch_submitted.clear()
-            asyncio.ensure_future(self._run_batch())
+                    batch_finished_event = self._current_batch_finished_event
+                    batch_full_event = self._current_batch_full_event
+                    if batch_finished_event is None or batch_full_event is None:
+                        raise RuntimeError("Batch events not initialized. This should not happen.")
 
-        # We check if we reached the max batch size
-        if len(self._req_queue) >= self.max_batch_size:
-            self._current_batch_full_event.set()
+                    # We check if we reached the max batch size
+                    if len(self._req_queue) >= self.max_batch_size:
+                        batch_full_event.set()
 
-        # Wait for the batch to finish
-        await self._current_batch_finished_event.wait()
+                    break
 
-        # Remove the result and return it
-        result = self._req_results[req_id]
-        del self._req_results[req_id]
+                batch_submitted_event = self._current_batch_submitted
+
+            await batch_submitted_event.wait()
+
+        # Wait for the batch to finish; clean up our slot regardless of how we exit.
+        try:
+            await batch_finished_event.wait()
+
+            if req_id in self._req_errors:
+                raise self._req_errors.pop(req_id)
+
+            if req_id not in self._req_results:
+                raise RuntimeError(f"Batch completed without a result for request {req_id}.")
+            result = self._req_results.pop(req_id)
+        finally:
+            self._req_results.pop(req_id, None)
+            self._req_errors.pop(req_id, None)
 
         return result
 
