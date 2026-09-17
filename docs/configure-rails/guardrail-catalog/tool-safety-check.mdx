@@ -1,0 +1,164 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Tool Safety Check"
+sidebar-title: "Tool Safety Check"
+description: "Reference for the LLM-judged per-tool rail that checks a tool call's arguments or a tool result's content against per-tool safety instructions."
+content:
+  type: "reference"
+---
+
+Tool Safety Check judges a tool call's arguments, or a tool result's content, against safety instructions you write per tool, evaluated by a judge LLM. It is scoped per tool through the same `rails.tool_output.per_tool` / `rails.tool_input.per_tool` dispatch mechanism as [Regex Detection](/configure-guardrails/guardrail-catalog/community/regex), so different tools can use different judge models or different instructions.
+
+To use the tool safety check, you should:
+
+1. Include the desired judge model in the models section of the `config.yml` file:
+
+    ```yaml
+    models:
+      - type: main
+        engine: nim
+        model: meta/llama-3.3-70b-instruct
+        parameters:
+          tools: [...]
+
+      - type: llama_guard
+        engine: nim
+        model: meta/llama-guard-3-8b
+    ```
+
+    <Note>
+
+    The `type` is a unique identifier for the model that will be passed to the tool output and tool input rails as a parameter. `tools: [...]` above is a placeholder: replace it with `run_sql`'s actual function declaration and JSON schema, either here (static, applies to every request) or per request in `options.llm_params.tools`. `@tool_output_validation` blocks a call to a tool that isn't declared either way, before the judge ever runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
+
+    </Note>
+
+2. Scope the check to a tool in the `tool_output` and `tool_input` rails sections of the `config.yml` file, naming the judge model with `$model=` and a prompt variant with `$variant=`:
+
+    ```yaml
+    rails:
+      tool_output:
+        per_tool:
+          run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check"]
+      tool_input:
+        per_tool:
+          run_sql: ["tool safety check input $model=llama_guard $variant=run_sql_check"]
+    ```
+
+    You must define the models in the `models` section of the `config.yml` file before using them here. The `tool safety check output` and `tool safety check input` flows check the tool call's arguments and the tool result's content, respectively. The `$model` parameter specifies the judge model, matching the content safety check's convention. The `$variant` parameter selects which prompt to render for this invocation, matching self check's `$variant` concept: it lets you reuse one prompt across multiple tools, or give the same tool multiple distinct checks, entirely through config.
+
+3. Specify the prompt for each `$model=`/`$variant=` task in the `prompts.yml` file:
+
+    ```yaml
+    prompts:
+      - task: "tool_safety_check_output $model=llama_guard $variant=run_sql_check"
+        content: |
+          You are reviewing a call to the `run_sql` tool.
+          Arguments: {{ tool_call_arguments }}
+
+          Block any query that reads from the `payroll` or `ssn` tables, or that
+          contains a DROP, DELETE, or TRUNCATE statement.
+
+          Respond "safe" or "unsafe: <reason>".
+        output_parser: is_content_safe
+
+      - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
+        content: |
+          You are reviewing the result of a call to the `run_sql` tool.
+          Result: {{ tool_result_content }}
+
+          Block any result that contains a full credit card number or SSN.
+
+          Respond "safe" or "unsafe: <reason>".
+        output_parser: is_content_safe
+    ```
+
+    <Warning>
+
+    If a prompt for the exact `$model=`/`$variant=` task name is not defined, an exception will be raised when the configuration is loaded.
+
+    </Warning>
+
+    The `tool safety check output` prompt renders `{{ tool_name }}` and `{{ tool_call_arguments }}` (the call's arguments, JSON-encoded). The `tool safety check input` prompt renders `{{ tool_name }}` and `{{ tool_result_content }}` (the result's content, JSON-encoded if it is a list of content blocks).
+
+4. The output parser is optional. If you omit `output_parser` on the prompt entry, tool safety check falls back to the off-the-shelf `is_content_safe` output parser. You can also use your own parser and register it, or set `output_parser` to a different built-in one:
+
+    This parser works by checking for specific keywords in the response:
+    - If the response includes "safe", the content is considered safe.
+    - If the response includes "unsafe" or "yes", the content is considered unsafe.
+    - If the response includes "no", the content is considered safe.
+
+    Any text after "unsafe:" is recorded as the block reason and surfaced in the rail's metadata.
+
+5. Optionally, narrow which arguments are sent to the judge on the output direction with `$argument=`, the same scoping regex detection supports:
+
+    ```yaml
+    rails:
+      tool_output:
+        per_tool:
+          run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
+    ```
+
+    Only the named argument is sent to the judge, reducing both the data sent to a (possibly third-party) model and the tokens spent per call. `$argument=` is valid on `tool safety check output` only; `tool safety check input` has no argument structure to scope and does not accept it.
+
+The `tool safety check output` and `tool safety check input` rails execute the [`tool_safety_check_output`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/tool_safety_check/actions.py) and [`tool_safety_check_input`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/tool_safety_check/actions.py) actions respectively.
+
+## Complete Example
+
+Here's a comprehensive example configuration, checking a `run_sql` tool's calls and results:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+    parameters:
+      tools: [...]
+
+  - type: llama_guard
+    engine: nim
+    model: meta/llama-guard-3-8b
+
+rails:
+  tool_output:
+    per_tool:
+      run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
+  tool_input:
+    per_tool:
+      run_sql: ["tool safety check input $model=llama_guard $variant=run_sql_check"]
+
+prompts:
+  - task: "tool_safety_check_output $model=llama_guard $variant=run_sql_check"
+    content: |
+      You are reviewing a call to the `run_sql` tool.
+      Arguments: {{ tool_call_arguments }}
+
+      Block any query that reads from the `payroll` or `ssn` tables, or that
+      contains a DROP, DELETE, or TRUNCATE statement.
+
+      Respond "safe" or "unsafe: <reason>".
+    output_parser: is_content_safe
+
+  - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
+    content: |
+      You are reviewing the result of a call to the `run_sql` tool.
+      Result: {{ tool_result_content }}
+
+      Block any result that contains a full credit card number or SSN.
+
+      Respond "safe" or "unsafe: <reason>".
+    output_parser: is_content_safe
+```
+
+## Schema Validation
+
+`tool safety check output` runs behind `@tool_output_validation`: a call to a tool the model has not declared, or whose arguments violate the tool's declared JSON schema, is blocked before the judge model is ever called. `tool safety check input` has no such gate, matching regex detection's asymmetry between the two directions.
+
+## Engine Support
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `tool safety check output` | ✗ | ✓ |
+| `tool safety check input` | ✗ | ✓ |
+
+Per-tool checks are an `IORails`-only capability by design. For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

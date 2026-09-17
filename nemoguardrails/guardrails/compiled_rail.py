@@ -35,6 +35,7 @@ from nemoguardrails.guardrails.guardrails_types import LLMMessages, current_user
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
+from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.manifests import (
     Binding,
@@ -569,6 +570,37 @@ _LOCAL_BACKEND_CHECKS: dict[str, Callable[[Any, Mapping[str, str]], bool]] = {
 }
 
 
+def _reject_invalid_tool_safety_check_prompt(
+    surface: RailSurface,
+    catalog: "RailCatalog",
+    flow: str,
+    deps: RailDependencies,
+    params: Mapping[str, str],
+) -> None:
+    """tool_safety_check only: fail compilation when its resolved task has no prompt, or
+    that prompt declares an output_parser that is not registered.
+
+    Called after `_frozen_parameters`, which already rejects a flow missing `$model=` or
+    `$variant=`, so `params["model"]` and `params["variant"]` are guaranteed present here.
+    """
+    manifest = _owning_manifest(surface, catalog)
+    if manifest is None or manifest.name != "tool_safety_check":
+        return
+
+    direction_suffix = "output" if surface.direction is RailDirection.TOOL_OUTPUT else "input"
+    task = f"tool_safety_check_{direction_suffix} $model={params['model']} $variant={params['variant']}"
+    try:
+        prompt = get_prompt(deps.config, task)
+    except ValueError as exc:
+        raise RailCompilationError(f"{flow!r} has no prompt for task {task!r}: {exc}") from exc
+
+    if prompt.output_parser and prompt.output_parser not in deps.llm_task_manager.output_parsers:
+        raise RailCompilationError(
+            f"{flow!r} declares output_parser {prompt.output_parser!r} for task {task!r}, which is "
+            "not a registered output parser."
+        )
+
+
 def _reject_missing_dependencies(
     surface: RailSurface,
     catalog: "RailCatalog",
@@ -660,6 +692,7 @@ def compile_rail(
     )
     _reject_unconfigured_models(bound, deps, flow)
     _reject_missing_dependencies(surface, catalog, flow, deps.config, params)
+    _reject_invalid_tool_safety_check_prompt(surface, catalog, flow, deps, params)
 
     return CompiledRail(
         flow=flow,

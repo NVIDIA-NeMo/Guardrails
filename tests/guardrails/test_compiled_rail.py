@@ -47,6 +47,7 @@ from nemoguardrails.library.content_safety.actions import (
 )
 from nemoguardrails.library.jailbreak_detection.actions import jailbreak_detection_model
 from nemoguardrails.library.topic_safety.actions import topic_safety_check_input
+from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.manifests import (
@@ -1308,6 +1309,90 @@ class TestFailsClosed:
 
         with pytest.raises(LLMCallException):
             await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+
+
+class TestToolSafetyCheckPromptValidation:
+    """tool_safety_check validates its resolved prompt at compile time, not per request."""
+
+    @staticmethod
+    def _deps(config: RailsConfig) -> RailDependencies:
+        return RailDependencies(
+            llms={"judge": FakeLLMModel(responses=["safe"])},
+            llm_task_manager=LLMTaskManager(config),
+            config=config,
+        )
+
+    @staticmethod
+    def _config(prompts: Optional[list] = None) -> RailsConfig:
+        return RailsConfig.from_content(
+            config={
+                "models": [
+                    {"type": "main", "engine": "openai", "model": "gpt-4"},
+                    {"type": "judge", "engine": "openai", "model": "gpt-4"},
+                ],
+                "prompts": prompts or [],
+            }
+        )
+
+    def test_missing_model_param_raises_at_compile_time(self):
+        with pytest.raises(RailCompilationError, match="model"):
+            compile_rail(
+                "tool safety check output $variant=missing",
+                RailDirection.TOOL_OUTPUT,
+                self._deps(self._config()),
+            )
+
+    def test_missing_variant_param_raises_at_compile_time(self):
+        with pytest.raises(RailCompilationError, match="variant"):
+            compile_rail(
+                "tool safety check output $model=judge",
+                RailDirection.TOOL_OUTPUT,
+                self._deps(self._config()),
+            )
+
+    def test_missing_prompt_raises_at_compile_time(self):
+        with pytest.raises(RailCompilationError, match="has no prompt"):
+            compile_rail(
+                "tool safety check output $model=judge $variant=missing",
+                RailDirection.TOOL_OUTPUT,
+                self._deps(self._config()),
+            )
+
+    def test_unregistered_output_parser_raises_at_compile_time(self):
+        config = self._config(
+            [
+                {
+                    "task": "tool_safety_check_output $model=judge $variant=bad_parser",
+                    "content": "check {{ tool_call_arguments }}",
+                    "output_parser": "not_a_real_parser",
+                }
+            ]
+        )
+
+        with pytest.raises(RailCompilationError, match="not a registered output parser"):
+            compile_rail(
+                "tool safety check output $model=judge $variant=bad_parser",
+                RailDirection.TOOL_OUTPUT,
+                self._deps(config),
+            )
+
+    def test_valid_prompt_compiles(self):
+        config = self._config(
+            [
+                {
+                    "task": "tool_safety_check_output $model=judge $variant=ok",
+                    "content": "check {{ tool_call_arguments }}",
+                }
+            ]
+        )
+
+        rail = compile_rail(
+            "tool safety check output $model=judge $variant=ok",
+            RailDirection.TOOL_OUTPUT,
+            self._deps(config),
+        )
+
+        assert isinstance(rail, CompiledRail)
 
 
 # Invariant 8 (no Colang runtime in the rail path) is asserted in
