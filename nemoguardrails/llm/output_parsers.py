@@ -145,7 +145,7 @@ def nemoguard_parse_prompt_safety(response: str) -> Sequence[Union[bool, str]]:
 
     {
         "User Safety": "unsafe",
-        "Violated Categories": "category1, category2"
+        "Safety Categories": "category1, category2"
     }
 
     Args:
@@ -184,7 +184,7 @@ def nemoguard_parse_response_safety(response: str) -> Sequence[Union[bool, str]]
     {
         "User Safety": "unsafe",
         "Response Safety": "unsafe",
-        "Violated Categories": "category1, category2"
+        "Safety Categories": "category1, category2"
     }
 
     Args:
