@@ -908,6 +908,15 @@ class IORails(BaseGuardrails):
         if sync_config.metrics is not None:
             sync_config.metrics.enabled = False
 
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        else:
+            raise RuntimeError(
+                "IORails.generate() cannot be called from a running event loop. Use generate_async() instead."
+            )
+
         async def _run_sync_iorails():
             """Spin up a short-lived IORails engine for one synchronous generate call."""
             # Avoid counting this sync-API bridge as a separate user-created IORails instance.
