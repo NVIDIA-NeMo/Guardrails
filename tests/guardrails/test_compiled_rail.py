@@ -1334,6 +1334,22 @@ class TestToolSafetyCheckPromptValidation:
             }
         )
 
+    def test_missing_model_param_raises_at_compile_time(self):
+        with pytest.raises(RailCompilationError, match="model"):
+            compile_rail(
+                "tool safety check output $variant=missing",
+                RailDirection.TOOL_OUTPUT,
+                self._deps(self._config()),
+            )
+
+    def test_missing_variant_param_raises_at_compile_time(self):
+        with pytest.raises(RailCompilationError, match="variant"):
+            compile_rail(
+                "tool safety check output $model=judge",
+                RailDirection.TOOL_OUTPUT,
+                self._deps(self._config()),
+            )
+
     def test_missing_prompt_raises_at_compile_time(self):
         with pytest.raises(RailCompilationError, match="has no prompt"):
             compile_rail(
