@@ -24,6 +24,7 @@ from nemoguardrails.guardrails.tool_schema import (
     Tool,
     ToolResult,
     Toolset,
+    scope_arguments,
     tool_output_validation,
     validate_arguments,
 )
@@ -216,6 +217,22 @@ class TestValidateArguments:
 
 def _weather_call(arguments: dict) -> ToolCall:
     return ToolCall(id="call_1", type="function", function=ToolCallFunction(name="get_weather", arguments=arguments))
+
+
+class TestScopeArguments:
+    def test_no_argument_name_returns_full_arguments(self):
+        arguments = {"city": "Paris", "units": "metric"}
+        assert scope_arguments(arguments, None) == arguments
+
+    def test_present_argument_name_narrows_to_that_field(self):
+        arguments = {"city": "Paris", "units": "metric"}
+        assert scope_arguments(arguments, "city") == {"city": "Paris"}
+
+    def test_absent_argument_name_falls_back_to_full_arguments(self):
+        """A call that omits the scoped field (e.g. an optional one) leans toward more
+        scrutiny rather than scoping to a misleading {name: None}."""
+        arguments = {"city": "Paris"}
+        assert scope_arguments(arguments, "units") == arguments
 
 
 class TestToolOutputValidation:

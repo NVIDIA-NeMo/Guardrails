@@ -311,6 +311,16 @@ The rail blocks the request when a tool result:
     provenance.
 </Note>
 
+<Warning>
+    Every tool result must carry a `tool_call_id` that matches a tool call still
+    present earlier in the same request's conversation history. If your
+    application truncates or prunes older turns (for example a sliding context
+    window), and a truncated turn held the call a later result answers, that
+    result becomes unresolvable. With a per-tool policy enabled
+    (`rails.tool_input.per_tool`), an unresolvable result fails closed and blocks
+    the request, since which policy applies can no longer be verified.
+</Warning>
+
 ## Control Rails per Request
 
 Use `options.rails` to enable or disable each tool rail for a single request.

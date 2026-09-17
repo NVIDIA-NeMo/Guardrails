@@ -248,9 +248,17 @@ def scope_arguments(arguments: dict, argument_name: str | None) -> dict:
     compile time. Narrowing lets a check inspect one user-supplied field without seeing
     unrelated call metadata that could false-positive.
 
+    A call that omits the named argument (schema-valid, e.g. an optional field the model
+    didn't set this time) falls back to the full, unscoped arguments rather than
+    ``{argument_name: None}``, so nothing goes unchecked just because one call happened
+    to leave a field out. This leans toward more scrutiny, not less: a check that scoped
+    to that name specifically to *avoid* an unrelated field's content may see it anyway on
+    a call where the named field is absent. A config typo or a name the schema could never
+    produce is caught earlier, at compile time, by ``tool_output_validation``.
+
     TODO: only a single argument name is supported today; add delimiter-separated
     multi-argument support (e.g. `$argument=a,b`) as a follow-up.
     """
-    if argument_name is None:
+    if argument_name is None or argument_name not in arguments:
         return arguments
-    return {argument_name: arguments.get(argument_name)}
+    return {argument_name: arguments[argument_name]}

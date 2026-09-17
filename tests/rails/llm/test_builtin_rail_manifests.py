@@ -173,11 +173,12 @@ def test_every_manifested_action_is_declared_in_its_manifest():
 
 
 def test_every_tool_output_action_validates_arguments():
-    """Every action bound to a TOOL_OUTPUT surface must carry @tool_output_validation.
+    """Every action bound to a TOOL_OUTPUT surface must carry @tool_output_validation and
+    bind tool_call/tool_definition as context.
 
-    Otherwise a rail could ship a tool-call check that never validates the call's
-    arguments against the declared tool schema, letting a malformed or undeclared
-    tool call reach the check unvalidated.
+    The decorator indexes ``kwargs["tool_call"]``/``kwargs["tool_definition"]``
+    unconditionally, so this catches a surface missing either binding here, at
+    catalog-validation time, rather than as a ``KeyError`` on its first real request.
     """
     surfaces = default_rail_catalog().surfaces(RailDirection.TOOL_OUTPUT)
     violations = []
@@ -185,9 +186,13 @@ def test_every_tool_output_action_validates_arguments():
     for (_, surface_name), surface in surfaces.items():
         action = resolve_import_ref(surface.action)
         if not getattr(action, "_has_tool_output_validation", False):
-            violations.append(surface_name)
+            violations.append(f"{surface_name}: missing @tool_output_validation")
+        if Binding.context("tool_call", "tool_call") not in surface.bindings:
+            violations.append(f"{surface_name}: missing Binding.context('tool_call', 'tool_call')")
+        if Binding.context("tool_definition", "tool_definition") not in surface.bindings:
+            violations.append(f"{surface_name}: missing Binding.context('tool_definition', 'tool_definition')")
 
-    assert not violations, "TOOL_OUTPUT surfaces missing @tool_output_validation:\n" + "\n".join(violations)
+    assert not violations, "TOOL_OUTPUT surface problems:\n" + "\n".join(violations)
 
 
 def test_self_check_surfaces_bind_optional_variant():
