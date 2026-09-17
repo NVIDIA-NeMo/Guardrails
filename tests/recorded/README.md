@@ -2,6 +2,11 @@
 
 Recorded tests replay provider traffic through pytest-recording cassettes and must run without live network access by default.
 
+A test belongs in this suite only if it sends at least one real provider
+request; deterministic tests (local actions, injected generators, input
+validation) go in `tests/`. See `.agents/skills/recorded-tests/SKILL.md` for
+the placement rules.
+
 ## Adding a test
 
 Markers are applied once per module via `pytestmark`; do not stack `@pytest.mark.recorded` / `vcr` / `asyncio` on each test. Use a module-level list, and fold in `vcr`/`asyncio` only when every test in the module needs them:
@@ -166,6 +171,22 @@ Snapshot create/fix/review runs must be serial. Use `make record-cassettes` or a
 direct `uv run pytest ... --inline-snapshot=<mode>` command; the default
 `make test` path uses xdist, where inline-snapshot disables update and report
 modes.
+
+How inline snapshots actually behave (so the workflow does not surprise you):
+
+- `--inline-snapshot=create`/`fix` REWRITES THE TEST FILE in place, filling
+  `snapshot()` with the observed value. The resulting diff to your own test
+  is the expected outcome; review it, do not revert it. The same run still
+  reports a teardown error ("the value is now created and you can ignore
+  this message"); a `1 passed, 1 error` result on a create run is normal.
+- An unfilled `snapshot()` never passes silently: under serial runs the test
+  passes but errors at teardown ("your snapshot is missing one value");
+  under xdist (`make test`) the comparison itself fails. Either way, fill it
+  serially or via the make targets.
+- Always snapshot the NORMALIZED form
+  (`assert normalize_*(...) == snapshot(...)`, helpers in
+  `tests/recorded/normalization.py`); snapshotting raw responses churns on
+  every refresh despite cassette scrubbing.
 
 Volatile response fields (ids, timestamps, fingerprints) are scrubbed to fixed sentinels in the cassette, so snapshots assert them directly without needing loose matchers.
 
