@@ -329,6 +329,74 @@ class TestLlmCallDictToChatMessageConversion:
         assert received_prompt == []
 
 
+class TestLlmCallContextLengthValidation:
+    """check_context_length / context_window_tokens opt-in wiring on llm_call."""
+
+    class _Model:
+        model_name = "gpt-4"
+        provider_name = "test"
+        provider_url = None
+
+        async def generate_async(self, prompt, *, stop=None, **kwargs):
+            return LLMResponse(content="ok")
+
+        async def stream_async(self, prompt, *, stop=None, **kwargs):
+            yield LLMResponseChunk(delta_content="ok")
+
+    @pytest.mark.asyncio
+    async def test_disabled_by_default_even_for_oversized_prompt(self):
+        model = self._Model()
+        # gpt-4's window is small (8192 tokens); this prompt would fail validation
+        # if it ran, but check_context_length defaults to False.
+        huge_prompt = "x" * 100_000
+        response = await llm_call(model, huge_prompt)
+
+        assert response.content == "ok"
+
+    @pytest.mark.asyncio
+    async def test_raises_context_length_exceeded_when_enabled(self):
+        from nemoguardrails.llm.token_counter import ContextLengthExceededError
+
+        model = self._Model()
+        huge_prompt = "x" * 100_000
+
+        with pytest.raises(ContextLengthExceededError):
+            await llm_call(model, huge_prompt, check_context_length=True)
+
+    @pytest.mark.asyncio
+    async def test_context_length_exceeded_is_not_wrapped_in_llm_call_exception(self):
+        from nemoguardrails.exceptions import LLMCallException
+        from nemoguardrails.llm.token_counter import ContextLengthExceededError
+
+        model = self._Model()
+        huge_prompt = "x" * 100_000
+
+        try:
+            await llm_call(model, huge_prompt, check_context_length=True)
+        except LLMCallException:
+            pytest.fail("ContextLengthExceededError must propagate directly, not wrapped in LLMCallException")
+        except ContextLengthExceededError:
+            pass
+
+    @pytest.mark.asyncio
+    async def test_passes_within_window(self):
+        model = self._Model()
+        response = await llm_call(model, "a short prompt", check_context_length=True)
+
+        assert response.content == "ok"
+
+    @pytest.mark.asyncio
+    async def test_context_window_tokens_override_implicitly_enables_validation(self):
+        from nemoguardrails.llm.token_counter import ContextLengthExceededError
+
+        model = self._Model()
+        # A prompt well within gpt-4's real window, but larger than a tiny
+        # caller-supplied override -- passing the override alone must trigger
+        # validation even though check_context_length is left at its default.
+        with pytest.raises(ContextLengthExceededError):
+            await llm_call(model, "a moderately long prompt " * 20, context_window_tokens=10)
+
+
 def _make_chunk_model(chunks):
     class _Model:
         model_name = "test-model"
