@@ -582,11 +582,39 @@ async def test_fetch_unknown_engine_no_base_url():
 async def test_fetch_auth_forwarded():
     """Incoming Authorization header is forwarded for OpenAI-compatible providers."""
     mock = _mock_httpx({"data": []})
-    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000", "OPENAI_API_KEY": ""}):
         with patch("httpx.AsyncClient", return_value=mock):
             await fetch_models("openai", {"Authorization": "Bearer user-token"})
     call_headers = mock.get.call_args.kwargs["headers"]
     assert call_headers["Authorization"] == "Bearer user-token"
+
+
+@pytest.mark.asyncio
+async def test_fetch_env_key_precedes_forwarded_auth():
+    """Configured OpenAI key is used before a caller-supplied placeholder token."""
+    mock = _mock_httpx({"data": []})
+    with patch.dict(
+        os.environ,
+        {
+            "MAIN_MODEL_BASE_URL": "http://localhost:8000",
+            "OPENAI_API_KEY": "sk-configured-key",
+        },
+    ):
+        with patch("httpx.AsyncClient", return_value=mock):
+            await fetch_models("openai", {"Authorization": "Bearer not-used"})
+    call_headers = mock.get.call_args.kwargs["headers"]
+    assert call_headers["Authorization"] == "Bearer sk-configured-key"
+
+
+@pytest.mark.asyncio
+async def test_fetch_non_openai_provider_uses_forwarded_auth_without_env_key():
+    """Forwarded auth falls back to provider-specific auth headers when env key is unset."""
+    mock = _mock_httpx({"data": []})
+    with patch.dict(os.environ, {"ANTHROPIC_API_KEY": ""}):
+        with patch("httpx.AsyncClient", return_value=mock):
+            await fetch_models("anthropic", {"Authorization": "Bearer user-token"})
+    call_headers = mock.get.call_args.kwargs["headers"]
+    assert call_headers["x-api-key"] == "user-token"
 
 
 @pytest.mark.asyncio
