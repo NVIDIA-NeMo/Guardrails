@@ -1,0 +1,10 @@
+import core
+import llm
+import guardrails
+import nemoguardrails.library.human_approval
+
+flow main
+  activate llm continuation
+
+flow output rails $output_text
+  await human approval on bot output $output_text
