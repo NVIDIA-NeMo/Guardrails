@@ -22,4 +22,6 @@ flow hf classifier check retrieval $classifier
   $response = await HfClassifierCheckRetrievalAction(classifier=$classifier)
 
   if $response.is_transform
+    # FIX: Added global declaration to propagate the change to calling context
+    global $relevant_chunks
     $relevant_chunks = $response.transform_text["relevant_chunks"]
