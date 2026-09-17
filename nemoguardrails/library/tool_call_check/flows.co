@@ -1,0 +1,13 @@
+flow check tool call
+  """Per-tool LLM guard evaluated against a named prompt task.
+
+  Invoked by the Colang 1 per-tool rail pipeline; Colang 2 tool rails are
+  not yet defined, so this flow is present for manifest completeness only.
+  """
+  $outcome = await CheckToolCallAction(check=$check)
+  if $outcome.is_blocked
+    if $system.config.enable_rails_exceptions
+      send ToolCallCheckException(message=$outcome.reason)
+    else
+      bot say "I'm sorry, I can't allow that tool call."
+    abort
