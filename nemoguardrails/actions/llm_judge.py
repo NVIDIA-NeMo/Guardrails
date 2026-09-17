@@ -75,10 +75,11 @@ async def run_llm_judged_check(
         task, output=llm_response.content, forced_output_parser=forced_output_parser
     )
     # An unregistered output_parser name makes parse_task_output return the raw completion
-    # string unparsed. Unpacking that as [is_safe, *violations] would read its first character
-    # as a truthy is_safe, silently allowing an "unsafe: ..." verdict. Fail closed instead.
+    # string unparsed, so [is_safe, *violations] would read its first character as truthy.
+    # Raise instead, so the engine's fail-closed envelope records this as a failure, not a
+    # genuine block.
     if not isinstance(result, (list, tuple)) or not result or not isinstance(result[0], bool):
-        return RailOutcome.block(reason="the judge model's response could not be parsed into a safety verdict")
+        raise ValueError("the judge model's response could not be parsed into a safety verdict")
     is_safe, *violations = result
     if is_safe:
         return RailOutcome.allow(metadata={"violations": violations})

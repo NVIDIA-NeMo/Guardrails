@@ -204,22 +204,22 @@ async def test_output_blocks_unsafe_response_with_violations():
 
 
 @pytest.mark.asyncio
-async def test_output_unregistered_output_parser_fails_closed():
+async def test_output_unregistered_output_parser_raises():
     """An unregistered `output_parser` makes parse_task_output return the raw completion
     string. Unpacking that as [is_safe, *violations] would read its first character as a
-    truthy is_safe, silently allowing an "unsafe: ..." verdict -- this must block instead."""
+    truthy is_safe, silently allowing an "unsafe: ..." verdict, so this must raise instead,
+    letting the engine's fail-closed envelope record it as a failure, not a genuine block."""
     task_manager = _FakeTaskManager(parsed="unsafe: leaks credentials", has_output_parser=True)
 
-    outcome = await tool_safety_check_output(
-        llms={"llama_guard": FakeLLMModel(responses=["unsafe: leaks credentials"])},
-        llm_task_manager=task_manager,
-        tool_call=_weather_call({"city": "Paris"}),
-        tool_definition=_weather_tool(),
-        model_name="llama_guard",
-        variant="weather_check",
-    )
-
-    assert outcome.is_blocked
+    with pytest.raises(ValueError, match="could not be parsed into a safety verdict"):
+        await tool_safety_check_output(
+            llms={"llama_guard": FakeLLMModel(responses=["unsafe: leaks credentials"])},
+            llm_task_manager=task_manager,
+            tool_call=_weather_call({"city": "Paris"}),
+            tool_definition=_weather_tool(),
+            model_name="llama_guard",
+            variant="weather_check",
+        )
 
 
 @pytest.mark.asyncio
