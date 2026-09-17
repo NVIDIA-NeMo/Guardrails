@@ -6,10 +6,9 @@ content:
   type: "how_to"
 ---
 
-The `nemoguardrails server` command can own the OpenTelemetry SDK for you and expose a Prometheus scrape endpoint on a dedicated port.
-Use this when you run the packaged server and want to monitor its admission queue without writing a Python bootstrap script.
-
-The exporter is scoped to the non-streaming admission queue.
+Use `nemoguardrails server` to expose non-streaming admission-queue metrics on a Prometheus endpoint and visualize them in Grafana.
+The server configures the OpenTelemetry SDK and serves the endpoint on a dedicated port, so you do not need a Python bootstrap script.
+This exporter includes only the three non-streaming admission-queue metrics listed below.
 The server drops every other metric the IORails engine records, so the scrape output stays small and stable while the GenAI semantic conventions are still evolving.
 For application-side setups that export every metric, refer to [OpenTelemetry Metrics Integration](/observability/metrics/opentelemetry-integration).
 
@@ -89,6 +88,8 @@ The environment variables also work when you run the app directly with `uvicorn 
 
 </Tab>
 <Tab title="Docker">
+Install Docker and [build the local `nemoguardrails` image](/more-deployment-options/using-docker#build-the-docker-images) before running this example.
+If your model provider requires credentials, pass its environment variables or mount its credential files in the container as described in the [Docker deployment guide](/more-deployment-options/using-docker).
 
 ```bash
 docker run -p 8000:8000 -p 127.0.0.1:9464:9464 \
@@ -112,7 +113,8 @@ When Prometheus also runs in Docker, attach both containers to one Docker networ
 | `service.name` resource attribute | none | `NEMO_GUARDRAILS_SERVER_METRICS_SERVICE_NAME`, then `OTEL_SERVICE_NAME` | `nemoguardrails-server` |
 
 The CLI flags take precedence over the environment variables.
-`prometheus` is the only supported exporter value.
+Supported exporter values are `prometheus` and `none`.
+Use `--metrics-exporter none` to disable the exporter, including when `NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER=prometheus` is set.
 
 <Warning title="One process per metrics port">
 The exporter binds the metrics port once per process, so it does not work with `uvicorn --workers N` for `N > 1`: every worker tries to bind the same port, only the first succeeds, and the others fail to start.
@@ -129,8 +131,9 @@ The server starts the exporter before it binds the API port and shuts it down wi
 
 ## Verify the Endpoint
 
-Scrape the endpoint directly.
-Send one non-streaming request first; the gauges appear as soon as the first `IORails` instance starts.
+In another terminal, [send a non-streaming chat request](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model#basic-request) using your configuration ID and configured model.
+This starts the metrics-enabled `IORails` instance and registers the queue gauges.
+Then scrape the endpoint:
 
 ```bash
 curl -s http://localhost:9464/metrics | grep guardrails_
@@ -161,8 +164,9 @@ When Prometheus runs in a container and the server runs on the host, target `hos
 
 ## Connect Grafana
 
-The repository ships a ready-to-run bundle in `examples/observability/prometheus-grafana/`.
-It starts Prometheus and Grafana with Docker Compose, provisions the Prometheus data source, and imports a dashboard for the three metrics.
+The `examples/observability/prometheus-grafana/` bundle starts Prometheus and Grafana, provisions the Prometheus data source, and imports a dashboard for the three metrics.
+To use it, install Docker with Docker Compose and clone the [Guardrails repository](https://github.com/NVIDIA-NeMo/Guardrails), or use an existing checkout.
+Run the following commands from the repository root:
 
 ```bash
 cd examples/observability/prometheus-grafana
@@ -185,7 +189,10 @@ To connect an existing Grafana instance instead:
    | Rejections in the last 5 minutes | `sum(increase(guardrails_nonstream_rejections_total[5m]))` |
    | Rejection rate | `sum by (instance) (rate(guardrails_nonstream_rejections_total[1m]))` |
 
-4. Optionally import `examples/observability/prometheus-grafana/grafana/provisioning/dashboards/guardrails-admission-queue.json` through **Dashboards > New > Import** to get the same panels without building them by hand.
+4. Alternatively, import `examples/observability/prometheus-grafana/grafana/provisioning/dashboards/guardrails-admission-queue.json` through **Dashboards** > **New** > **Import**.
+   Before importing, replace both `datasource.uid` values of `nemoguardrails-prometheus` in the JSON with your Prometheus data source's UID.
+   These references configure the panel and the `instance` variable.
+   The imported dashboard contains one time-series panel for queued requests, active requests, and rejection rate; it does not include the five-minute rejection total.
 
 A useful alert rule is any sustained non-zero rejection rate: it means the server is shedding load and clients are receiving HTTP `503` responses with a `Retry-After` header.
 `guardrails_nonstream_queued` approaching the queue depth (default `256`) is the leading indicator.
