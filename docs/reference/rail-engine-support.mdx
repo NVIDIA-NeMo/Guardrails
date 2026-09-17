@@ -9,13 +9,13 @@ content:
   type: "reference"
 ---
 
-The NVIDIA NeMo Guardrails library ships 33 built-in rails under `nemoguardrails/library`.
+The NVIDIA NeMo Guardrails library ships 34 built-in rails under `nemoguardrails/library`.
 Each rail declares its behavior in a [rail manifest](/reference/rail-manifests), and each manifest exposes one or more *surfaces*.
 A surface is the flow name you list under `rails.input.flows`, `rails.output.flows`, or `rails.retrieval.flows` in `config.yml`.
 
-The 33 manifests declare 78 surfaces in total.
-`LLMRails` runs all 78 through its Colang runtime, in both Colang 1.0 and Colang 2.x.
-`IORails` runs 59 of them by compiling the manifest directly, without Colang.
+The 34 manifests declare 80 surfaces in total.
+`LLMRails` runs all 80 through its Colang runtime, in both Colang 1.0 and Colang 2.x.
+`IORails` runs 61 of them by compiling the manifest directly, without Colang.
 
 This page lists every surface and the engine that can run it.
 For capability areas that are not tied to a specific rail, such as streaming, observability, and the generation API, refer to [Engine Feature Support](/reference/engine-feature-support).
@@ -37,10 +37,10 @@ The following table summarizes surface support by direction:
 
 | Direction | Surfaces | LLMRails | IORails |
 |---|---:|---:|---:|
-| Input | 32 | 32 | 31 |
-| Output | 35 | 35 | 28 |
+| Input | 33 | 33 | 32 |
+| Output | 36 | 36 | 29 |
 | Retrieval | 11 | 11 | 0 |
-| **Total** | **78** | **78** | **59** |
+| **Total** | **80** | **80** | **61** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
 A configuration that declares one routes to `LLMRails` by default.
@@ -86,6 +86,7 @@ The following table lists the input surfaces:
 | `mask sensitive data on input` | Sensitive Data Detection | ✓ | ✓ | Rewrites `user_message` |
 | `topic safety check input` | Topic Safety | ✓ | ✓ | |
 | `trend ai guard input` | Trend Micro Vision One AI Guard | ✓ | ✓ | |
+| `zscaler aiguard moderation on input` | Zscaler AI Guard | ✓ | ✓ | |
 
 ### Output Surfaces
 
@@ -128,6 +129,7 @@ The following table lists the output surfaces:
 | `detect sensitive data on output` | Sensitive Data Detection | ✓ | ✓ | |
 | `mask sensitive data on output` | Sensitive Data Detection | ✓ | ✓ | Rewrites `bot_message` |
 | `trend ai guard output` | Trend Micro Vision One AI Guard | ✓ | ✓ | |
+| `zscaler aiguard moderation on output` | Zscaler AI Guard | ✓ | ✓ | |
 
 ### Retrieval Surfaces
 
@@ -223,6 +225,7 @@ The rails that declare an optional dependency are the following:
 | Injection Detection | `yara-python` | |
 | Jailbreak Detection | `torch`, `transformers` | |
 | Sensitive Data Detection | `presidio-analyzer`, `presidio-anonymizer`, `spacy` | `sdd` |
+| Zscaler AI Guard | `zscaler-sdk-python` | |
 
 Hugging Face Classifier and Jailbreak Detection each offer an in-process backend and a remote endpoint.
 `IORails` enforces the dependency only when the configuration selects the in-process backend.

@@ -206,6 +206,9 @@ navigation:
               - page: Trend Micro
                 path: configure-rails/guardrail-catalog/community/trend-micro.mdx
                 slug: trend-micro
+              - page: Zscaler AI Guard
+                path: configure-rails/guardrail-catalog/community/zscaler-aiguard.mdx
+                slug: zscaler-aiguard
       - section: Custom Actions
         path: configure-rails/actions/index.mdx
         slug: actions
