@@ -31,6 +31,7 @@ Completions is the engine implemented today.
 """
 
 import functools
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Callable, NamedTuple
@@ -153,6 +154,22 @@ def _schema_accepts_no_arguments(schema: dict) -> bool:
     return not any(keyword in schema for keyword in ("anyOf", "oneOf", "allOf", "$ref"))
 
 
+def _schema_rejects_argument(schema: dict, argument_name: str) -> bool:
+    """Whether *schema* has no channel that could accept *argument_name*.
+
+    Matches ``patternProperties`` with ``re.search``, since JSON Schema patterns match
+    anywhere in the string. Composition/reference keywords bail out conservatively, same as
+    ``_schema_accepts_no_arguments``.
+    """
+    if argument_name in schema.get("properties", {}):
+        return False
+    if schema.get("additionalProperties") is not False:
+        return False
+    if any(re.search(pattern, argument_name) for pattern in schema.get("patternProperties", {})):
+        return False
+    return not any(keyword in schema for keyword in ("anyOf", "oneOf", "allOf", "$ref"))
+
+
 def _no_arguments_reason(tool: Tool, arguments: dict) -> str | None:
     """Block reason for a tool that accepts no arguments, or ``None`` when the call is allowed.
 
@@ -194,7 +211,9 @@ def tool_output_validation(func: Callable[..., Any]) -> Callable[..., Any]:
 
     Every action bound to a ``TOOL_OUTPUT`` surface must carry this decorator (enforced by
     ``test_every_tool_output_action_validates_arguments``). Blocks before the action body
-    runs if the call's tool isn't declared, or its arguments don't match the schema.
+    runs if the call's tool isn't declared, or its arguments don't match the schema. Raises
+    if the action was bound a ``$argument=`` name (see ``scope_arguments``) the schema
+    doesn't accept, since that is a config defect rather than a per-call decision.
     """
 
     @functools.wraps(func)
@@ -207,6 +226,15 @@ def tool_output_validation(func: Callable[..., Any]) -> Callable[..., Any]:
         reason = validate_arguments(tool_definition, tool_call.function.arguments)
         if reason is not None:
             return RailOutcome.block(reason=reason)
+
+        argument_name = kwargs.get("argument_name")
+        if argument_name is not None:
+            schema = tool_definition.arguments_schema
+            if schema is None:
+                raise ValueError(f"tool '{name}' declares no schema to validate argument '{argument_name}' against")
+            if _schema_rejects_argument(schema, argument_name):
+                raise ValueError(f"argument '{argument_name}' is not declared in tool '{name}' schema")
+
         return await func(*args, **kwargs)
 
     setattr(wrapper, "_has_tool_output_validation", True)

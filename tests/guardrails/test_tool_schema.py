@@ -19,12 +19,15 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.tool_schema import (
     Tool,
     ToolResult,
     Toolset,
+    tool_output_validation,
     validate_arguments,
 )
+from nemoguardrails.types import ToolCall, ToolCallFunction
 
 _WEATHER_SCHEMA = {
     "type": "object",
@@ -209,3 +212,100 @@ class TestValidateArguments:
         reason = validate_arguments(bad, {})
         assert reason is not None
         assert "bad" in reason
+
+
+def _weather_call(arguments: dict) -> ToolCall:
+    return ToolCall(id="call_1", type="function", function=ToolCallFunction(name="get_weather", arguments=arguments))
+
+
+class TestToolOutputValidation:
+    """The @tool_output_validation decorator, focused on its $argument= check."""
+
+    @staticmethod
+    @tool_output_validation
+    async def _action(tool_call, tool_definition, argument_name=None, **kwargs):
+        return RailOutcome.allow()
+
+    @pytest.mark.asyncio
+    async def test_no_argument_name_skips_the_check(self):
+        outcome = await self._action(tool_call=_weather_call({"city": "Paris"}), tool_definition=_weather_tool())
+        assert outcome == RailOutcome.allow()
+
+    @pytest.mark.asyncio
+    async def test_declared_argument_name_passes(self):
+        outcome = await self._action(
+            tool_call=_weather_call({"city": "Paris"}), tool_definition=_weather_tool(), argument_name="city"
+        )
+        assert outcome == RailOutcome.allow()
+
+    @pytest.mark.asyncio
+    async def test_undeclared_name_on_closed_schema_raises(self):
+        closed = Tool(
+            name="get_weather",
+            arguments_schema={
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "additionalProperties": False,
+            },
+        )
+        with pytest.raises(ValueError, match="not declared"):
+            await self._action(
+                tool_call=_weather_call({"city": "Paris"}), tool_definition=closed, argument_name="units"
+            )
+
+    @pytest.mark.asyncio
+    async def test_undeclared_name_matching_pattern_properties_passes(self):
+        """A name matching a patternProperties regex is accepted, same as validate_arguments
+        already accepts a call whose fields match that pattern."""
+        pattern_schema = Tool(
+            name="kv",
+            arguments_schema={
+                "type": "object",
+                "patternProperties": {"^x": {"type": "integer"}},
+                "additionalProperties": False,
+            },
+        )
+        outcome = await self._action(
+            tool_call=ToolCall(id="call_1", type="function", function=ToolCallFunction(name="kv", arguments={"x1": 1})),
+            tool_definition=pattern_schema,
+            argument_name="x1",
+        )
+        assert outcome == RailOutcome.allow()
+
+    @pytest.mark.asyncio
+    async def test_name_not_matching_any_pattern_property_raises(self):
+        """A closed schema with patternProperties still rejects a name none of its
+        patterns match, so it doesn't silently scope to a field the schema never covers."""
+        pattern_schema = Tool(
+            name="kv",
+            arguments_schema={
+                "type": "object",
+                "patternProperties": {"^x": {"type": "integer"}},
+                "additionalProperties": False,
+            },
+        )
+        with pytest.raises(ValueError, match="not declared"):
+            await self._action(
+                tool_call=ToolCall(id="call_1", type="function", function=ToolCallFunction(name="kv", arguments={})),
+                tool_definition=pattern_schema,
+                argument_name="y1",
+            )
+
+    @pytest.mark.asyncio
+    async def test_undeclared_name_on_permissive_schema_passes(self):
+        """additionalProperties left permissive (or true) may accept a field it doesn't list, so it's not evidence of a typo."""
+        permissive = Tool(name="get_weather", arguments_schema={"type": "object", "additionalProperties": True})
+        outcome = await self._action(
+            tool_call=_weather_call({"units": "metric"}), tool_definition=permissive, argument_name="units"
+        )
+        assert outcome == RailOutcome.allow()
+
+    @pytest.mark.asyncio
+    async def test_argument_name_with_no_schema_raises(self):
+        hosted = Tool(name=None, type="web_search")
+        with pytest.raises(ValueError, match="declares no schema"):
+            await self._action(
+                tool_call=ToolCall(id="call_1", type="web_search", function=ToolCallFunction(name="", arguments={})),
+                tool_definition=hosted,
+                argument_name="query",
+            )
