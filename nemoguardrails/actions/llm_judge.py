@@ -69,7 +69,8 @@ async def run_llm_judged_check(
         stop=stop,
         llm_params={"temperature": temperature, "max_tokens": max_tokens},
     )
-    warn_if_truncated(llm_response, task)
+    if warn_if_truncated(llm_response, task):
+        raise ValueError(f"judge model's response was truncated before producing a safety verdict for task {task}")
     forced_output_parser = None if llm_task_manager.has_output_parser(task) else "is_content_safe"
     result = llm_task_manager.parse_task_output(
         task, output=llm_response.content, forced_output_parser=forced_output_parser
@@ -79,7 +80,7 @@ async def run_llm_judged_check(
     # Raise instead, so the engine's fail-closed envelope records this as a failure, not a
     # genuine block.
     if not isinstance(result, (list, tuple)) or not result or not isinstance(result[0], bool):
-        raise ValueError("the judge model's response could not be parsed into a safety verdict")
+        raise ValueError(f"judge model's response could not be parsed into a safety verdict for task {task}")
     is_safe, *violations = result
     if is_safe:
         return RailOutcome.allow(metadata={"violations": violations})

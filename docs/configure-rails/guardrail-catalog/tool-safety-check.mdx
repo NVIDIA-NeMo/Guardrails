@@ -29,7 +29,7 @@ To use the tool safety check, you should:
 
     <Note>
 
-    The `type` is a unique identifier for the model that will be passed to the tool output and tool input rails as a parameter.
+    The `type` is a unique identifier for the model that will be passed to the tool output and tool input rails as a parameter. `tools: [...]` above is a placeholder: replace it with `run_sql`'s actual function declaration and JSON schema, either here (static, applies to every request) or per request in `options.llm_params.tools`. `@tool_output_validation` blocks a call to a tool that isn't declared either way, before the judge ever runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
 
     </Note>
 
@@ -99,9 +99,56 @@ To use the tool safety check, you should:
           run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
     ```
 
-    Only the named argument is sent to the judge, reducing both the data sent to a (possibly third-party) model and the tokens spent per call.
+    Only the named argument is sent to the judge, reducing both the data sent to a (possibly third-party) model and the tokens spent per call. `$argument=` is valid on `tool safety check output` only; `tool safety check input` has no argument structure to scope and does not accept it.
 
 The `tool safety check output` and `tool safety check input` rails execute the [`tool_safety_check_output`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/tool_safety_check/actions.py) and [`tool_safety_check_input`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/tool_safety_check/actions.py) actions respectively.
+
+## Complete Example
+
+Here's a comprehensive example configuration, checking a `run_sql` tool's calls and results:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+    parameters:
+      tools: [...]
+
+  - type: llama_guard
+    engine: nim
+    model: meta/llama-guard-3-8b
+
+rails:
+  tool_output:
+    per_tool:
+      run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
+  tool_input:
+    per_tool:
+      run_sql: ["tool safety check input $model=llama_guard $variant=run_sql_check"]
+
+prompts:
+  - task: "tool_safety_check_output $model=llama_guard $variant=run_sql_check"
+    content: |
+      You are reviewing a call to the `run_sql` tool.
+      Arguments: {{ tool_call_arguments }}
+
+      Block any query that reads from the `payroll` or `ssn` tables, or that
+      contains a DROP, DELETE, or TRUNCATE statement.
+
+      Respond "safe" or "unsafe: <reason>".
+    output_parser: is_content_safe
+
+  - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
+    content: |
+      You are reviewing the result of a call to the `run_sql` tool.
+      Result: {{ tool_result_content }}
+
+      Block any result that contains a full credit card number or SSN.
+
+      Respond "safe" or "unsafe: <reason>".
+    output_parser: is_content_safe
+```
 
 ## Schema Validation
 

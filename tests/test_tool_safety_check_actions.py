@@ -22,7 +22,7 @@ from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
 from nemoguardrails.library.tool_safety_check.actions import tool_safety_check_input, tool_safety_check_output
 from nemoguardrails.testing.fake_model import FakeLLMModel
-from nemoguardrails.types import ToolCall, ToolCallFunction
+from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_outcome_blocked
 
 
@@ -220,6 +220,25 @@ async def test_output_unregistered_output_parser_raises():
             model_name="llama_guard",
             variant="weather_check",
         )
+
+
+@pytest.mark.asyncio
+async def test_output_truncated_response_raises():
+    """A response truncated before any visible output (empty content, finish_reason="length")
+    must raise rather than let a custom output_parser interpret the empty string as safe."""
+    task_manager = _FakeTaskManager()
+
+    with pytest.raises(ValueError, match="truncated"):
+        await tool_safety_check_output(
+            llms={"llama_guard": FakeLLMModel(llm_responses=[LLMResponse(content="", finish_reason="length")])},
+            llm_task_manager=task_manager,
+            tool_call=_weather_call({"city": "Paris"}),
+            tool_definition=_weather_tool(),
+            model_name="llama_guard",
+            variant="weather_check",
+        )
+
+    assert task_manager.forced_output_parser is None, "parsing must not run on a truncated response"
 
 
 @pytest.mark.asyncio
