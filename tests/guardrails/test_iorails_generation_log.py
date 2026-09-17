@@ -301,7 +301,7 @@ class TestActivatedRailHelper:
         """A model-free rail (usage=None) yields an empty llm_calls list; action_name falls back to flow."""
         record = RailCallRecord(
             flow="tool call validation",
-            rail_type="tool_output",
+            rail_type="tool_call",
             is_safe=True,
             action_name=None,
             return_value={"allowed": True},
@@ -309,7 +309,7 @@ class TestActivatedRailHelper:
 
         rail = _activated_rail(record)
 
-        assert rail.type == "tool_output"
+        assert rail.type == "tool_call"
         assert rail.stop is False
         action = rail.executed_actions[0]
         assert action.action_name == "tool call validation"

@@ -32,6 +32,8 @@ def test_generation_options_initialization():
     assert options.rails.output is True
     assert options.rails.retrieval is True
     assert options.rails.dialog is True
+    assert options.rails.tool_call is True
+    assert options.rails.tool_result is True
 
     # rails as list
     options = GenerationOptions(rails=["input", "output"])
@@ -40,12 +42,50 @@ def test_generation_options_initialization():
     assert options.rails.output is True
     assert options.rails.retrieval is False
     assert options.rails.dialog is False
+    assert options.rails.tool_call is False
+    assert options.rails.tool_result is False
 
     # rails as dict
     options = GenerationOptions(rails={"input": True, "output": False})
     assert isinstance(options.rails, GenerationRailsOptions)
     assert options.rails.input is True
     assert options.rails.output is False
+
+
+def test_deprecated_generation_tool_rail_options_migrate():
+    with pytest.warns(DeprecationWarning) as warnings:
+        options = GenerationOptions(rails={"tool_output": False, "tool_input": ["tool result validation"]})
+
+    assert {str(item.message) for item in warnings} == {
+        "rails.tool_output is deprecated; use rails.tool_call instead.",
+        "rails.tool_input is deprecated; use rails.tool_result instead.",
+    }
+    assert options.rails.tool_call is False
+    assert options.rails.tool_result == ["tool result validation"]
+    assert "tool_output" not in options.rails.model_dump()
+    assert "tool_input" not in options.rails.model_dump()
+
+    with pytest.warns(DeprecationWarning, match="Use 'tool_call' instead"):
+        assert options.rails.tool_output is options.rails.tool_call
+    with pytest.warns(DeprecationWarning, match="Use 'tool_result' instead"):
+        assert options.rails.tool_input is options.rails.tool_result
+
+
+def test_deprecated_generation_tool_rail_list_options_migrate():
+    with pytest.warns(DeprecationWarning, match="rails.tool_output"):
+        options = GenerationOptions(rails=["tool_output"])
+
+    assert options.rails.tool_call is True
+    assert options.rails.tool_result is False
+
+
+@pytest.mark.parametrize(
+    ("canonical_name", "deprecated_name"),
+    [("tool_call", "tool_output"), ("tool_result", "tool_input")],
+)
+def test_generation_tool_rail_options_reject_canonical_and_deprecated_names(canonical_name, deprecated_name):
+    with pytest.raises(ValueError, match=f"Cannot configure both rails.{deprecated_name} and rails.{canonical_name}"):
+        GenerationOptions(rails={canonical_name: True, deprecated_name: False})
 
 
 def test_generation_options_validation():
