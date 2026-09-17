@@ -13,16 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
+import time
 from typing import Any
 
 import pytest
 
 from nemoguardrails.registry import Registry
+from nemoguardrails.singleton import Singleton
 
 
 class StubRegistry(Registry):
     def validate(self, name: str, item: Any) -> None:
         pass
+
+
+class SlowValidateRegistry(Registry):
+    def validate(self, name: str, item: Any) -> None:
+        time.sleep(0.005)
 
 
 @pytest.fixture()
@@ -78,3 +86,95 @@ def test_reset(registry):
     registry.add("item1", "value1")
     registry.reset()
     assert len(registry) == 0
+
+
+class TestThreadSafety:
+    def test_singleton_under_concurrent_construction(self):
+        class _SlowSingleton(metaclass=Singleton):
+            construction_count = 0
+
+            def __init__(self):
+                time.sleep(0.01)
+                type(self).construction_count += 1
+
+        Singleton._instances.pop(_SlowSingleton, None)
+
+        start = threading.Event()
+        instances = []
+
+        def worker():
+            start.wait()
+            instances.append(_SlowSingleton())
+
+        threads = [threading.Thread(target=worker) for _ in range(16)]
+        for t in threads:
+            t.start()
+        start.set()
+        for t in threads:
+            t.join()
+
+        assert len(instances) == 16
+        assert all(inst is instances[0] for inst in instances)
+        assert _SlowSingleton.construction_count == 1
+
+    def test_concurrent_add_no_duplicates(self):
+        Singleton._instances.pop(SlowValidateRegistry, None)
+        reg = SlowValidateRegistry(enable_validation=True)
+        reg.reset()
+
+        start = threading.Event()
+        succeeded = []
+        duplicate_rejected = []
+
+        def worker():
+            start.wait()
+            try:
+                reg.add("contested", "value")
+                succeeded.append(True)
+            except ValueError:
+                duplicate_rejected.append(True)
+
+        threads = [threading.Thread(target=worker) for _ in range(16)]
+        for t in threads:
+            t.start()
+        start.set()
+        for t in threads:
+            t.join()
+
+        assert len(succeeded) == 1
+        assert len(duplicate_rejected) == 15
+
+    def test_iter_during_concurrent_mutation(self, registry):
+        registry.reset()
+        for i in range(50):
+            registry.add(f"initial-{i}", i)
+
+        stop = threading.Event()
+        errors = []
+
+        def writer():
+            i = 0
+            while not stop.is_set():
+                try:
+                    registry.add(f"w-{i}", i)
+                except ValueError:
+                    pass
+                i += 1
+
+        def reader():
+            try:
+                for _ in range(100):
+                    for _name in registry:
+                        pass
+            except Exception as e:
+                errors.append(e)
+
+        w = threading.Thread(target=writer)
+        r = threading.Thread(target=reader)
+        w.start()
+        r.start()
+        r.join()
+        stop.set()
+        w.join()
+
+        assert errors == []
