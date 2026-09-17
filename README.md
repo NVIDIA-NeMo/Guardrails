@@ -302,7 +302,7 @@ To the best of our knowledge, the NeMo Guardrails library is the only guardrails
 ## Learn More
 
 - [Documentation](https://docs.nvidia.com/nemo/guardrails)
-- [Getting Started Guide](https://docs.nvidia.com/nemo/guardrails/getting-started)
+- [Getting Started Guide](https://docs.nvidia.com/nemo/guardrails/get-started/installation-guide)
 - [Examples](./examples)
 - [FAQs](https://docs.nvidia.com/nemo/guardrails/faqs.html)
 - [Security Guidelines](https://docs.nvidia.com/nemo/guardrails/security/guidelines.html)
