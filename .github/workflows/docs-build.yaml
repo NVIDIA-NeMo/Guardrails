@@ -74,10 +74,31 @@ jobs:
       - name: Test Fern documentation scripts
         run: make test-docs-scripts
 
+      # The docs check may check out historical refs whose SDK reference the
+      # post-checkout hook regenerates on a cache miss, which needs FERN_TOKEN.
+      # Restoring the cache first keeps the token-free path free of generation.
+      - name: Restore historical SDK references
+        uses: actions/cache/restore@v6
+        with:
+          path: .fern-cache/fern-ref-sdk
+          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}
+          restore-keys: |
+            fern-ref-sdk-${{ runner.os }}-
+
+      # Fork pull requests do not receive repository secrets, so FERN_TOKEN is
+      # empty there and the SDK reference cannot be regenerated. Fall back to the
+      # cache-only docs check instead of failing before any docs are validated;
+      # it never generates, and a cache miss fails with an explicit message.
       - name: Check Fern docs
         env:
           FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
-        run: make docs-fern-strict
+        run: |
+          if [ -n "${FERN_TOKEN}" ]; then
+            make docs-fern-strict
+          else
+            echo "FERN_TOKEN is not available (fork pull request); running the token-free docs check."
+            make docs-fern-check
+          fi
 
   preview-docs:
     name: Publish Fern preview
