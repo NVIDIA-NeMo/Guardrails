@@ -15,14 +15,20 @@
 
 """Minimal OpenAI-compatible mock LLM server for per-tool-rail server integration tests.
 
-Unlike benchmark/mock_llm_server (built for content-safety load testing: text in, text
-out), this mock is purpose-built to emit tool calls. Given a user turn, it returns a
-tool call naming the configured tool, with the user's message as the primary argument
+This mock is purpose-built to emit tool calls. Given a user turn, it returns a tool
+call naming the configured tool, with the user's message as the primary argument
 value, so a test drives block/allow behavior purely by varying the message it sends,
 without reconfiguring the running server per test case. Message content can also be a
 JSON object, used as the call's arguments directly, so a test can drive a multi-field
 call. Given a turn whose last message is a tool result, it returns plain text,
 simulating the model's reply after the tool ran.
+
+A second, optional role, judge mode for LLM-judged rails like tool_safety_check, is
+keyed on request.model rather than message shape, so both the main model and the
+judge model can point at this same running instance under different configured model
+names. In judge mode the response is plain safe/unsafe text (matching the
+is_content_safe output parser), deterministic on a trigger substring in the prompt,
+the same content-driven pattern as the tool-call branch above.
 """
 
 import json
@@ -31,13 +37,15 @@ import time
 import uuid
 from typing import Optional, Union
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 MOCK_MODEL = os.environ.get("MOCK_TOOL_LLM_MODEL", "mock-tool-model")
 MOCK_TOOL_NAME = os.environ.get("MOCK_TOOL_LLM_TOOL_NAME", "run_sql")
 MOCK_TOOL_ARGUMENT_NAME = os.environ.get("MOCK_TOOL_LLM_ARGUMENT_NAME", "query")
 MOCK_TOOL_CALL_DELIMITER = os.environ.get("MOCK_TOOL_LLM_CALL_DELIMITER", "||")
+MOCK_JUDGE_MODEL = os.environ.get("MOCK_TOOL_LLM_JUDGE_MODEL", "")
+MOCK_JUDGE_UNSAFE_TRIGGER = os.environ.get("MOCK_TOOL_LLM_JUDGE_UNSAFE_TRIGGER", "UNSAFE_TRIGGER")
 
 
 class ToolCallFunction(BaseModel):
@@ -90,6 +98,10 @@ class ChatCompletionResponse(BaseModel):
 
 app = FastAPI(title="Mock Tool LLM Server")
 
+# The last request received per model, so a real-subprocess test can assert on the exact
+# rendered prompt it sent, not just the decision it produced.
+_last_requests: dict[str, ChatCompletionRequest] = {}
+
 
 def _last_user_content(messages: list[Message]) -> str:
     for message in reversed(messages):
@@ -141,9 +153,26 @@ async def list_models():
     return {"object": "list", "data": [{"id": MOCK_MODEL, "object": "model"}]}
 
 
+def _judge_verdict(content: str) -> str:
+    if MOCK_JUDGE_UNSAFE_TRIGGER in content:
+        return f"unsafe: contains {MOCK_JUDGE_UNSAFE_TRIGGER}"
+    return "safe"
+
+
+@app.get("/debug/last-request/{model}")
+async def last_request(model: str) -> ChatCompletionRequest:
+    if model not in _last_requests:
+        raise HTTPException(status_code=404, detail=f"no request captured for model {model!r}")
+    return _last_requests[model]
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResponse:
-    if request.messages and request.messages[-1].role == "tool":
+    _last_requests[request.model] = request
+    if MOCK_JUDGE_MODEL and request.model == MOCK_JUDGE_MODEL:
+        response_message = Message(role="assistant", content=_judge_verdict(_last_user_content(request.messages)))
+        finish_reason = "stop"
+    elif request.messages and request.messages[-1].role == "tool":
         response_message = Message(role="assistant", content="ok")
         finish_reason = "stop"
     else:
