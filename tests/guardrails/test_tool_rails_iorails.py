@@ -296,12 +296,16 @@ class TestRouting:
         with pytest.raises(RuntimeError):
             IORails(_config({"tool_output": {"flows": ["tool call validation", "tool call validation"]}}))
 
-    def test_tool_parallel_flag_warns_inert(self):
-        # tool_*.parallel is inert (tool rails run sequentially); construction warns
-        # rather than silently ignoring it.
-        config = _config({"tool_output": {"flows": ["tool call validation"], "parallel": True}})
-        with pytest.warns(UserWarning, match="not honored by IORails"):
-            IORails(config)
+    def test_tool_parallel_flags_are_wired_through(self):
+        config = _config(
+            {
+                "tool_output": {"flows": ["tool call validation"], "parallel": True},
+                "tool_input": {"flows": ["tool result validation"], "parallel": True},
+            }
+        )
+        iorails = IORails(config)
+        assert iorails.rails_manager.tool_output_parallel is True
+        assert iorails.rails_manager.tool_input_parallel is True
 
 
 class TestNonStreamingToolCalls:

@@ -86,6 +86,8 @@ def _build_manager(
     tool_call_flows=None,
     tool_result_flows=None,
     regex_detection=None,
+    tool_output_parallel=False,
+    tool_input_parallel=False,
 ) -> RailsManager:
     config_dict = dict(STACK_CONFIG)
     if regex_detection is not None:
@@ -101,6 +103,8 @@ def _build_manager(
         tool_result_flows=tool_result_flows or [],
         per_tool_call_flows=per_tool_call_flows or {},
         per_tool_result_flows=per_tool_result_flows or {},
+        tool_output_parallel=tool_output_parallel,
+        tool_input_parallel=tool_input_parallel,
     )
 
 
@@ -218,30 +222,29 @@ class TestAreToolCallsSafe:
         assert result.records[0].flow == "tool call validation"
 
 
-class TestAreToolResultsSafe:
-    def _messages(self, content: str, *, name: str | None = "run_sql") -> list:
-        tool_message = {"role": "tool", "tool_call_id": "call_1", "content": content}
-        if name is not None:
-            tool_message["name"] = name
-        return [
-            {"role": "user", "content": "run a query"},
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {"id": "call_1", "type": "function", "function": {"name": "run_sql", "arguments": "{}"}}
-                ],
-            },
-            tool_message,
-        ]
+def _tool_result_messages(content: str, *, name: str | None = "run_sql") -> list:
+    tool_message = {"role": "tool", "tool_call_id": "call_1", "content": content}
+    if name is not None:
+        tool_message["name"] = name
+    return [
+        {"role": "user", "content": "run a query"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "run_sql", "arguments": "{}"}}],
+        },
+        tool_message,
+    ]
 
+
+class TestAreToolResultsSafe:
     @pytest.mark.asyncio
     async def test_matching_tool_and_pattern_blocks(self):
         manager = _build_manager(
             per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
-        result = await manager.are_tool_results_safe(self._messages("ssn: 123-45-6789"))
+        result = await manager.are_tool_results_safe(_tool_result_messages("ssn: 123-45-6789"))
         assert result.is_safe is False
         assert result.records[0].tool_name == "run_sql"
         assert result.records[0].rail_type == "tool_input"
@@ -252,7 +255,7 @@ class TestAreToolResultsSafe:
             per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
-        result = await manager.are_tool_results_safe(self._messages("no sensitive data"))
+        result = await manager.are_tool_results_safe(_tool_result_messages("no sensitive data"))
         assert result.is_safe
 
     @pytest.mark.asyncio
@@ -262,7 +265,7 @@ class TestAreToolResultsSafe:
             per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
-        result = await manager.are_tool_results_safe(self._messages("ssn: 123-45-6789", name=None))
+        result = await manager.are_tool_results_safe(_tool_result_messages("ssn: 123-45-6789", name=None))
         assert result.is_safe is False
         assert result.records[0].tool_name == "run_sql"
 
@@ -292,7 +295,7 @@ class TestAreToolResultsSafe:
     @pytest.mark.asyncio
     async def test_no_per_tool_configured_is_unaffected(self):
         manager = _build_manager()
-        result = await manager.are_tool_results_safe(self._messages("ssn: 123-45-6789"))
+        result = await manager.are_tool_results_safe(_tool_result_messages("ssn: 123-45-6789"))
         assert result.is_safe
         assert result.records == ()
 
@@ -309,7 +312,7 @@ class TestAreToolResultsSafe:
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
         with patch.object(manager.engine_registry, "extract_tool_exchanges", side_effect=RuntimeError("boom")):
-            result = await manager.are_tool_results_safe(self._messages("ssn: 123-45-6789"), enabled=False)
+            result = await manager.are_tool_results_safe(_tool_result_messages("ssn: 123-45-6789"), enabled=False)
         assert result.is_safe
         assert result.records == ()
 
@@ -322,7 +325,7 @@ class TestAreToolResultsSafe:
             per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
-        result = await manager.are_tool_results_safe(self._messages("ssn: 123-45-6789", name="list_tables"))
+        result = await manager.are_tool_results_safe(_tool_result_messages("ssn: 123-45-6789", name="list_tables"))
         assert result.is_safe is False
         assert result.records[0].tool_name == "run_sql"
 
@@ -338,7 +341,7 @@ class TestAreToolResultsSafe:
             per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
-        messages = self._messages("no sensitive data", name=None)
+        messages = _tool_result_messages("no sensitive data", name=None)
         messages[-1]["tool_call_id"] = "call_unknown"
         result = await manager.are_tool_results_safe(messages)
         assert result.is_safe is False
@@ -351,7 +354,7 @@ class TestAreToolResultsSafe:
         that just because it happens to run in the same request."""
         manager = _build_manager(tool_result_flows=["tool result validation"])
         with patch.object(manager, "_run_tool_result_rail", AsyncMock(return_value=RailResult.allow())):
-            messages = self._messages("no sensitive data", name=None)
+            messages = _tool_result_messages("no sensitive data", name=None)
             messages[-1]["tool_call_id"] = "call_unknown"
             result = await manager.are_tool_results_safe(messages)
         assert result.is_safe
@@ -490,3 +493,78 @@ class TestPerToolContentCapture:
         assert payload["tool_name"] == "run_sql"
         assert payload["tool_call"]["id"] == "call_1"
         assert payload["tool_result"]["content"] == "no sensitive data"
+
+
+RUN_SQL_AND_LIST_TABLES_PATTERN_CONFIG = {
+    "tool_output": {
+        "run_sql": {"patterns": [r"DROP\s+TABLE"]},
+        "list_tables": {"patterns": [r"DROP\s+TABLE"]},
+    },
+}
+
+
+class TestParallelPerToolExecution:
+    """Per-tool rails run concurrently when tool_output_parallel/tool_input_parallel is set,
+    same decision-correctness contract as the sequential path above."""
+
+    @pytest.mark.asyncio
+    async def test_multiple_tool_calls_all_safe(self):
+        manager = _build_manager(
+            per_tool_call_flows={
+                "run_sql": ["regex check tool output"],
+                "list_tables": ["regex check tool output"],
+            },
+            regex_detection=RUN_SQL_AND_LIST_TABLES_PATTERN_CONFIG,
+            tool_output_parallel=True,
+        )
+        calls = [
+            _sql_call("SELECT 1", call_id="call_1"),
+            ToolCall(
+                id="call_2",
+                type="function",
+                function=ToolCallFunction(name="list_tables", arguments={"query": "SELECT name FROM tables"}),
+            ),
+        ]
+        result = await manager.are_tool_calls_safe(calls, _llm_params("run_sql", "list_tables"))
+        assert result.is_safe
+
+    @pytest.mark.asyncio
+    async def test_multiple_tool_calls_one_unsafe_blocks(self):
+        manager = _build_manager(
+            per_tool_call_flows={
+                "run_sql": ["regex check tool output"],
+                "list_tables": ["regex check tool output"],
+            },
+            regex_detection=RUN_SQL_AND_LIST_TABLES_PATTERN_CONFIG,
+            tool_output_parallel=True,
+        )
+        calls = [
+            _sql_call("SELECT 1", call_id="call_1"),
+            ToolCall(
+                id="call_2",
+                type="function",
+                function=ToolCallFunction(name="list_tables", arguments={"query": "DROP TABLE x"}),
+            ),
+        ]
+        result = await manager.are_tool_calls_safe(calls, _llm_params("run_sql", "list_tables"))
+        assert result.is_safe is False
+
+    @pytest.mark.asyncio
+    async def test_tool_results_parallel_blocks_on_match(self):
+        manager = _build_manager(
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
+            regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
+            tool_input_parallel=True,
+        )
+        result = await manager.are_tool_results_safe(_tool_result_messages("ssn: 123-45-6789"))
+        assert result.is_safe is False
+
+    @pytest.mark.asyncio
+    async def test_tool_results_parallel_allows_safe_content(self):
+        manager = _build_manager(
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
+            regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
+            tool_input_parallel=True,
+        )
+        result = await manager.are_tool_results_safe(_tool_result_messages("no sensitive data"))
+        assert result.is_safe

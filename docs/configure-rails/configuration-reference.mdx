@@ -368,8 +368,21 @@ rails:
             - tool result validation
 ```
 
-Each section accepts only its own flow name: `tool_output` accepts `tool call validation`, and `tool_input` accepts `tool result validation`.
-These rails run only on the IORails engine, which accepts the `parallel` field for symmetry with other rails but does not honor it for tool rails.
+Each section's `flows` field accepts only its own fixed flow name: `tool_output` accepts `tool call validation`, and `tool_input` accepts `tool result validation`.
+These rails run only on the IORails engine.
+Since each section names at most one flow, `parallel` has no observable effect on them: they always run one at a time regardless of the setting.
+
+Each section also accepts a `per_tool` field, keyed by tool name, scoping a check to one specific tool's calls or results, for example:
+
+```yaml
+rails:
+    tool_output:
+        per_tool:
+            run_sql:
+                - regex check tool output
+```
+
+Unlike the fixed `flows` above, a request can run per-tool checks for several tool calls, or several flows for one tool, at once. `parallel` is honored here: set it to run those checks concurrently instead of one after another.
 For configuration details and behavior, see [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
 
 ### Rails Config Section

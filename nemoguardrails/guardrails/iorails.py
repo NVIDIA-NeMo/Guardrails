@@ -740,14 +740,6 @@ class IORails(BaseGuardrails):
             metrics_enabled=self._metrics_enabled,
             content_capture_enabled=self._content_capture_enabled,
         )
-        # Tool rails are CPU-bound, run sequentially since we're not waiting on IO to complete
-        if config.rails.tool_output.parallel or config.rails.tool_input.parallel:
-            warnings.warn(
-                "rails.tool_output.parallel / rails.tool_input.parallel are not honored by IORails; "
-                "tool rails run sequentially.",
-                stacklevel=2,
-            )
-
         self.rails_manager = RailsManager(
             engine_registry=self.engine_registry,
             task_manager=LLMTaskManager(config),
@@ -755,6 +747,8 @@ class IORails(BaseGuardrails):
             output_flows=config.rails.output.flows,
             input_parallel=config.rails.input.parallel or False,
             output_parallel=config.rails.output.parallel or False,
+            tool_output_parallel=config.rails.tool_output.parallel or False,
+            tool_input_parallel=config.rails.tool_input.parallel or False,
             tool_call_flows=config.rails.tool_output.flows,
             tool_result_flows=config.rails.tool_input.flows,
             per_tool_call_flows=config.rails.tool_output.per_tool,

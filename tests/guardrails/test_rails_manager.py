@@ -768,7 +768,15 @@ class TestRailsManagerToolInit:
             _tool_rails_manager(tool_result_flows=["tool result validation", "tool result validation"])
 
 
-def _tool_rails_manager_with_main(*, tool_call_flows=None, tool_result_flows=None) -> RailsManager:
+def _tool_rails_manager_with_main(
+    *,
+    tool_call_flows=None,
+    tool_result_flows=None,
+    per_tool_call_flows=None,
+    per_tool_result_flows=None,
+    tool_output_parallel: bool = False,
+    tool_input_parallel: bool = False,
+) -> RailsManager:
     """Like ``_tool_rails_manager`` but with a 'main' engine registered.
 
     The request-shaped ``are_tool_*_safe`` methods parse tools / extract results via the
@@ -787,6 +795,10 @@ def _tool_rails_manager_with_main(*, tool_call_flows=None, tool_result_flows=Non
         output_flows=[],
         tool_call_flows=tool_call_flows or [],
         tool_result_flows=tool_result_flows or [],
+        per_tool_call_flows=per_tool_call_flows or {},
+        per_tool_result_flows=per_tool_result_flows or {},
+        tool_output_parallel=tool_output_parallel,
+        tool_input_parallel=tool_input_parallel,
     )
 
 
@@ -1120,6 +1132,84 @@ class TestRunRailsParallel:
             await mgr._run_rails_parallel(rails, RailDirection.INPUT)
 
         assert cancelled.is_set(), "remaining rails should be cancelled on a rail error"
+
+
+class TestParallelPerToolDispatch:
+    """Proves are_tool_calls_safe / are_tool_results_safe actually route to
+    _run_rails_parallel (not _run_tool_rails_sequential) when tool_output_parallel /
+    tool_input_parallel is set, with genuine concurrency, not just a passing decision.
+
+    _run_per_tool_rail is replaced on the manager instance only (an instance attribute
+    shadows the class method for that one object), so this cannot affect any other
+    test's RailsManager.
+    """
+
+    @staticmethod
+    def _mutual_wait_stub(started: dict):
+        """Each call sets its own event, then waits on the other tool's. That can only
+        resolve if both calls are in flight at once; under a sequential regression the
+        second coroutine is never scheduled, so the wait times out and raises."""
+
+        async def stub(direction, flow, tool_call, tool_result=None, tool_definition=None):
+            name = tool_call.function.name
+            started[name].set()
+            other = "list_tables" if name == "run_sql" else "run_sql"
+            await asyncio.wait_for(started[other].wait(), timeout=2)
+            return RailResult.allow()
+
+        return stub
+
+    @pytest.mark.asyncio
+    async def test_tool_calls_run_concurrently(self):
+        mgr = _tool_rails_manager_with_main(
+            per_tool_call_flows={"run_sql": ["regex check tool output"], "list_tables": ["regex check tool output"]},
+            tool_output_parallel=True,
+        )
+        started = {"run_sql": asyncio.Event(), "list_tables": asyncio.Event()}
+        mgr._run_per_tool_rail = self._mutual_wait_stub(started)
+
+        calls = [
+            ToolCall(id="call_1", function=ToolCallFunction(name="run_sql", arguments={"query": "SELECT 1"})),
+            ToolCall(id="call_2", function=ToolCallFunction(name="list_tables", arguments={})),
+        ]
+        llm_params = {
+            "tools": [
+                {"type": "function", "function": {"name": "run_sql", "parameters": {"type": "object"}}},
+                {"type": "function", "function": {"name": "list_tables", "parameters": {"type": "object"}}},
+            ]
+        }
+        result = await mgr.are_tool_calls_safe(calls, llm_params)
+
+        assert result.is_safe
+
+    @pytest.mark.asyncio
+    async def test_tool_results_run_concurrently(self):
+        mgr = _tool_rails_manager_with_main(
+            per_tool_result_flows={
+                "run_sql": ["regex check tool input"],
+                "list_tables": ["regex check tool input"],
+            },
+            tool_input_parallel=True,
+        )
+        started = {"run_sql": asyncio.Event(), "list_tables": asyncio.Event()}
+        mgr._run_per_tool_rail = self._mutual_wait_stub(started)
+
+        messages = [
+            {"role": "user", "content": "run a query and list tables"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "call_1", "type": "function", "function": {"name": "run_sql", "arguments": "{}"}},
+                    {"id": "call_2", "type": "function", "function": {"name": "list_tables", "arguments": "{}"}},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_1", "name": "run_sql", "content": "no sensitive data"},
+            {"role": "tool", "tool_call_id": "call_2", "name": "list_tables", "content": "no sensitive data"},
+        ]
+        result = await mgr.are_tool_results_safe(messages)
+
+        assert result.is_safe
 
 
 class TestTriggeredRail:
