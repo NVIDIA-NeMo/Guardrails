@@ -53,9 +53,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-docs:
-    name: Check Fern docs
-    if: github.event_name != 'pull_request' || github.actor != 'dependabot[bot]'
+  check-fork-docs:
+    name: Check Fern docs (fork PR)
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name != github.repository &&
+      github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -74,10 +77,46 @@ jobs:
       - name: Test Fern documentation scripts
         run: make test-docs-scripts
 
-      # Validate local docs without a publishing credential. SDK generation and
-      # authenticated checks run in the separate preview and publishing jobs.
-      - name: Check Fern docs
+      # Local validation needs neither credentials nor generated SDK references.
+      - name: Check local Fern docs
         run: make docs-fern-check
+
+  build-docs:
+    name: Check Fern docs
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.actor != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Install documentation dependencies
+        run: npm ci
+
+      - name: Test Fern documentation scripts
+        run: make test-docs-scripts
+
+      - name: Restore historical SDK references
+        uses: actions/cache/restore@v6
+        with:
+          path: .fern-cache/fern-ref-sdk
+          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}
+          restore-keys: |
+            fern-ref-sdk-${{ runner.os }}-
+
+      - name: Check Fern docs
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
+        run: make docs-fern-strict
 
   preview-docs:
     name: Publish Fern preview
