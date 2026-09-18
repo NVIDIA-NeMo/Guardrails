@@ -105,14 +105,6 @@ jobs:
       - name: Test Fern documentation scripts
         run: make test-docs-scripts
 
-      - name: Restore historical SDK references
-        uses: actions/cache/restore@v6
-        with:
-          path: .fern-cache/fern-ref-sdk
-          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}
-          restore-keys: |
-            fern-ref-sdk-${{ runner.os }}-
-
       - name: Check Fern docs
         env:
           FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
