@@ -97,13 +97,10 @@ docs-fern: docs-fern-strict
 docs-fern-strict: docs-fern-generate-sdk
 	node scripts/run-fern-with-ref-sdk.mjs check
 
-# Token-free variant for environments without FERN_TOKEN (for example fork
-# pull requests). Historical SDK references must already be in
-# .fern-cache/fern-ref-sdk: FERN_REF_SDK_CACHE_ONLY=1 makes the post-checkout
-# hook fail with an explicit message on a cache miss instead of trying to
-# generate, which would need FERN_TOKEN.
+# Local validation needs no token or generated SDK cache. Comparing redirects
+# with the published site and generating SDK references require authentication.
 docs-fern-check: docs-fern-node-dependencies
-	FERN_REF_SDK_CACHE_ONLY=1 node scripts/run-fern-with-ref-sdk.mjs check
+	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" check --warnings
 
 docs-fern-live: docs-fern-generate-sdk
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs dev
@@ -166,7 +163,7 @@ help:
 		'  test-docs-scripts     Run unit tests for Fern documentation scripts' \
 		'  docs-fern             Check Fern docs using the pinned Fern CLI' \
 		'  docs-fern-strict      Check Fern docs using the pinned Fern CLI' \
-		'  docs-fern-check       Check Fern docs from cached SDK references only (no FERN_TOKEN; fails on a cache miss)' \
+		'  docs-fern-check       Validate local Fern docs without SDK generation (no token required)' \
 		'  docs-fern-live        Serve Fern docs locally' \
 		'  docs-fern-publish-staging Publish Fern docs to the staging instance' \
 		'  docs-fern-publish-public Publish Fern docs to the public instance' \
