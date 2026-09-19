@@ -205,10 +205,7 @@ def _validate_openai_chat_message(message: Any) -> Any:
 
 OpenAIChatMessage = Annotated[
     dict[str, Any],
-    BeforeValidator(
-        _validate_openai_chat_message,
-        json_schema_input_type=_OpenAIChatMessageInput,
-    ),
+    BeforeValidator(_validate_openai_chat_message),
 ]
 
 
