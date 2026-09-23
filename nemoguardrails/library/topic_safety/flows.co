@@ -2,7 +2,7 @@ flow topic safety check input $model
   $response = await TopicSafetyCheckInputAction(model_name=$model)
 
   global $on_topic
-  $on_topic = $response["on_topic"]
+  $on_topic = not $response.is_blocked
 
   if not $on_topic
     if $system.config.enable_rails_exceptions

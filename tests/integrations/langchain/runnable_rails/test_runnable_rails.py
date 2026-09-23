@@ -30,6 +30,7 @@ from langchain_core.runnables.utils import Input, Output
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
 from nemoguardrails.logging.verbose import set_verbose
 from tests.integrations.langchain.utils import FakeLLM
@@ -329,7 +330,7 @@ def test_string_passthrough_mode_on_with_fn_and_without_dialog_rails():
     async def passthrough_fn(context: dict, events: List[dict]):
         return "PARIS."
 
-    model_with_rails.rails.llm_generation_actions.passthrough_fn = passthrough_fn
+    model_with_rails.rails.passthrough_fn = passthrough_fn
 
     prompt = PromptTemplate.from_template("The capital of France is ")
     chain = prompt | model_with_rails
@@ -360,7 +361,7 @@ def test_string_passthrough_mode_on_with_fn_and_with_dialog_rails():
     async def passthrough_fn(context: dict, events: List[dict]):
         return "PARIS."
 
-    model_with_rails.rails.llm_generation_actions.passthrough_fn = passthrough_fn
+    model_with_rails.rails.passthrough_fn = passthrough_fn
 
     prompt = PromptTemplate.from_template("The capital of France is ")
     chain = prompt | model_with_rails
@@ -558,7 +559,7 @@ def test_mocked_rag_with_fact_checking():
         assert "The price is $50" in evidence
         assert "The price is $45" in response
 
-        return 0.0
+        return RailOutcome.block(metadata={"accuracy": 0.0})
 
     guardrails.rails.register_action(self_check_facts)
 

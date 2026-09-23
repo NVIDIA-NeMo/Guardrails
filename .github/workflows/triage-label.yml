@@ -1,0 +1,68 @@
+name: triage auto-label
+
+# Manages the triage-state labels that gate automated review from CodeRabbit
+# and Greptile:
+#   - On open/reopen with no triage label yet: every PR gets
+#     "status: needs triage" (no author-based exception). A PR that already
+#     carries either label keeps it (reopening a triaged PR does not reset it).
+#   - When a maintainer adds "status: triaged", "status: needs triage" is
+#     removed automatically.
+#
+# Uses pull_request_target so it has a write token even on fork PRs. Safe ONLY
+# because no job checks out or executes PR head code -- they read event metadata
+# and call the labels API. Do not add a checkout of the PR head here.
+
+on:
+  # zizmor: ignore[dangerous-triggers] -- see header comment: no job checks out
+  # or executes PR head code, so the write token is never exposed to untrusted
+  # code. pull_request_target is required for a write token on fork PRs.
+  pull_request_target:
+    types: [opened, reopened, labeled]
+
+permissions: {}
+
+jobs:
+  initial-label:
+    if: github.event.action != 'labeled'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const existing = context.payload.pull_request.labels.map(
+              (label) => label.name
+            );
+            if (
+              existing.includes("status: triaged") ||
+              existing.includes("status: needs triage")
+            ) {
+              return;
+            }
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              labels: ["status: needs triage"],
+            });
+
+  clear-needs-triage:
+    if: "github.event.action == 'labeled' && github.event.label.name == 'status: triaged'"
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                name: "status: needs triage",
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }

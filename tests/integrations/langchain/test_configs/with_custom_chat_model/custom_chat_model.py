@@ -15,30 +15,22 @@
 
 from typing import List, Optional
 
-from langchain_core.callbacks.manager import (
-    AsyncCallbackManagerForLLMRun,
-    CallbackManagerForLLMRun,
-)
+from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 
 
 class CustomChatModel(BaseChatModel):
-    def _call(
+    def _generate(
         self,
-        prompt: str,
+        messages: List[BaseMessage],
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
-    ) -> str:
-        pass
-
-    async def _acall(
-        self,
-        prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-    ) -> str:
-        pass
+        **kwargs,
+    ) -> ChatResult:
+        return ChatResult(generations=[ChatGeneration(message=AIMessage(content="Custom chat model response"))])
 
     @property
     def _llm_type(self) -> str:
-        return "custom_llm"
+        return "custom_chat_model"

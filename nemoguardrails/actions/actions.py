@@ -23,7 +23,6 @@ from typing import (
     TypedDict,
     TypeVar,
     Union,
-    cast,
 )
 
 
@@ -31,7 +30,6 @@ class ActionMeta(TypedDict):
     name: str
     is_system_action: bool
     execute_async: bool
-    output_mapping: Optional[Callable[[Any], bool]]
 
 
 # Create a TypeVar to represent the decorated function or class
@@ -42,7 +40,6 @@ def action(
     is_system_action: bool = False,
     name: Optional[str] = None,
     execute_async: bool = False,
-    output_mapping: Optional[Callable[[Any], bool]] = None,
 ) -> Callable[[T], T]:
     """Decorator to mark a function or class as an action.
 
@@ -50,15 +47,12 @@ def action(
         is_system_action (bool): Flag indicating if the action is a system action.
         name (str): The name to associate with the action.
         execute_async: Whether the function should be executed in async mode.
-        output_mapping (Optional[Callable[[Any], bool]]): A function to interpret the action's result.
-            It accepts the return value (e.g. the first element of a tuple) and return True if the output
-            is not safe.
 
     Returns:
         callable: The decorated function or class.
     """
 
-    def decorator(fn_or_cls: Union[Callable, Type]) -> Union[Callable, Type]:
+    def decorator(fn_or_cls: T) -> T:
         """Inner decorator function to add metadata to the action.
 
         Args:
@@ -67,19 +61,20 @@ def action(
         fn_or_cls_target = getattr(fn_or_cls, "__func__", fn_or_cls)
 
         # Action name is optional for the decorator, but mandatory for ActionMeta TypedDict
-        action_name: str = cast(str, name or fn_or_cls.__name__)
+        action_name = name or getattr(fn_or_cls, "__name__", None)
+        if not isinstance(action_name, str) or not action_name:
+            raise ValueError("An explicit name is required for actions without __name__.")
 
         action_meta: ActionMeta = {
             "name": action_name,
             "is_system_action": is_system_action,
             "execute_async": execute_async,
-            "output_mapping": output_mapping,
         }
 
         setattr(fn_or_cls_target, "action_meta", action_meta)
         return fn_or_cls
 
-    return decorator  # pyright: ignore (TODO - resolve how the Actionable Protocol doesn't resolve the issue)
+    return decorator
 
 
 @dataclass

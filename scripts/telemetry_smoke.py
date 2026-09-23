@@ -44,7 +44,7 @@ Pre-flight (do this once, by hand, before driving the script):
 
     unset CI GITHUB_ACTIONS PYTEST_CURRENT_TEST
     NEMO_GUARDRAILS_USAGE_STATS_SERVER=<staging-events-url>/v1.1/events/json \\
-    poetry run python - <<'PY'
+    uv run python - <<'PY'
     import json
     import time
     from nemoguardrails import LLMRails, RailsConfig, telemetry
@@ -72,7 +72,7 @@ registered.
 Driver invocation:
 
     unset CI GITHUB_ACTIONS PYTEST_CURRENT_TEST
-    poetry run python scripts/telemetry_smoke.py \\
+    uv run python scripts/telemetry_smoke.py \\
         --staging-url "$NEMO_GUARDRAILS_SMOKE_STAGING_URL"
 """
 
@@ -82,6 +82,7 @@ import argparse
 import json
 import os
 import secrets
+import shlex
 import shutil
 import socket
 import subprocess
@@ -1366,8 +1367,8 @@ def main() -> int:
     print(f"manifest: {manifest_path}")
     print(f"kibana filter: {kibana_filter}")
     print(
-        "offline verify: poetry run python scripts/kibana_verify_export.py "
-        f"--manifest {manifest_path} --export kibana.json"
+        f"offline verify: uv run python scripts/kibana_verify_export.py "
+        f"--manifest {shlex.quote(str(manifest_path))} --export kibana.json"
     )
 
     return 0 if all(result["verdict"] == "PASS" for result in results) else 1

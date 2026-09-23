@@ -23,6 +23,8 @@ from pydantic import BaseModel, Field
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPClient
 from nemoguardrails.library.clavata.errs import (
     ClavataPluginAPIError,
     ClavataPluginConfigurationError,
@@ -130,6 +132,7 @@ def get_policy_id(
         pass
 
     # Not a valid UUID, try to match the provided alias to a policy ID and return that
+    policy_id = None
     try:
         policy_id = config.policies.get(policy)
         if policy_id is None:
@@ -188,6 +191,12 @@ def is_label_match(
     return bool(labels_to_match.intersection(labels_matched))
 
 
+def _clavata_outcome(policy_matched: bool) -> RailOutcome:
+    if policy_matched:
+        return RailOutcome.block(metadata={"policy_matched": policy_matched})
+    return RailOutcome.allow(metadata={"policy_matched": policy_matched})
+
+
 def get_server_endpoint(config: ClavataRailConfig) -> str:
     """Get the server endpoint from the Clavata config."""
     return str(config.server_endpoint).rstrip("/")
@@ -197,10 +206,12 @@ async def evaluate_with_policy(
     text: str,
     policy_id: str,
     clavata_config: ClavataRailConfig,
+    http_client: HTTPClient | None = None,
 ) -> PolicyResult:
     """Get the policy result for the given source."""
     client = ClavataClient(
         base_endpoint=get_server_endpoint(clavata_config),
+        http_client=http_client,
     )
 
     job = await client.create_job(text, policy_id)
@@ -219,8 +230,9 @@ async def clavata_check(
     labels: Optional[Union[List[str], str]] = None,
     rail: Union[ValidRailsType, None] = None,
     config: Optional[RailsConfig] = None,
+    http_client: HTTPClient | None = None,
     **kwargs: Any,
-) -> bool:
+) -> RailOutcome:
     """Check for matches against a Clavata policy."""
     if not config:
         raise ClavataPluginValueError("Rails config is required.")
@@ -241,9 +253,9 @@ async def clavata_check(
     except ClavataPluginValueError:
         labels = None
 
-    result = await evaluate_with_policy(text, str(policy_id), clavata_config)
+    result = await evaluate_with_policy(text, str(policy_id), clavata_config, http_client=http_client)
 
     if labels:
-        return is_label_match(result, labels, clavata_config)
+        return _clavata_outcome(is_label_match(result, labels, clavata_config))
 
-    return result.policy_matched
+    return _clavata_outcome(result.policy_matched)

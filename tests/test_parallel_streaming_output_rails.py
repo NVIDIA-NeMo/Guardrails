@@ -24,6 +24,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from tests.utils import TestChat
 
@@ -167,8 +168,8 @@ def self_check_output_safety(context=None, **params):
     if context and context.get("bot_message"):
         bot_message_chunk = context.get("bot_message")
         if "UNSAFE" in bot_message_chunk:
-            return False
-    return True
+            return RailOutcome.block()
+    return RailOutcome.allow()
 
 
 @action(is_system_action=True)
@@ -177,8 +178,8 @@ def self_check_output_compliance(context=None, **params):
     if context and context.get("bot_message"):
         bot_message_chunk = context.get("bot_message")
         if "VIOLATION" in bot_message_chunk:
-            return False
-    return True
+            return RailOutcome.block()
+    return RailOutcome.allow()
 
 
 @action(is_system_action=True)
@@ -187,8 +188,8 @@ def self_check_output_quality(context=None, **params):
     if context and context.get("bot_message"):
         bot_message_chunk = context.get("bot_message")
         if "LOWQUALITY" in bot_message_chunk:
-            return False
-    return True
+            return RailOutcome.block()
+    return RailOutcome.allow()
 
 
 @action(is_system_action=True)
@@ -197,25 +198,25 @@ def self_check_output(context=None, **params):
     if context and context.get("bot_message"):
         bot_message_chunk = context.get("bot_message")
         if "BLOCK" in bot_message_chunk:
-            return False
-    return True
+            return RailOutcome.block()
+    return RailOutcome.allow()
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 async def slow_self_check_output_safety(**params):
     """Slow safety check for timing tests."""
     await asyncio.sleep(0.1)
     return self_check_output_safety(**params)
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 async def slow_self_check_output_compliance(**params):
     """Slow compliance check for timing tests."""
     await asyncio.sleep(0.1)
     return self_check_output_compliance(**params)
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 async def slow_self_check_output_quality(**params):
     """Slow quality check for timing tests."""
     await asyncio.sleep(0.1)
@@ -452,9 +453,16 @@ async def test_parallel_streaming_output_rails_multiple_blocking_keywords(
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
 
+@pytest.mark.perf
 @pytest.mark.asyncio
 async def test_parallel_streaming_output_rails_performance_benefits():
-    """Tests that parallel rails execution provides performance benefits over sequential"""
+    """Tests that parallel rails execution provides performance benefits over sequential.
+
+    Wall-clock timing assertion; marked ``perf`` and excluded from the default
+    run. The multi-flow parallel-vs-sequential response equivalence it also
+    checks is covered (always-run) by
+    test_parallel_matches_sequential_with_slow_actions.
+    """
 
     parallel_config = RailsConfig.from_content(
         config={
@@ -604,13 +612,13 @@ async def test_parallel_streaming_output_rails_default_config_behavior(
 async def test_parallel_streaming_output_rails_error_handling():
     """Tests error handling in parallel streaming when rails fail"""
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     def failing_rail(**params):
         raise Exception("Simulated rail failure")
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     def working_rail(**params):
-        return True
+        return RailOutcome.allow()
 
     config = RailsConfig.from_content(
         config={
@@ -790,15 +798,15 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
     using identical content and configurations, except for the parallel flag.
     """
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     def test_self_check_output(context=None, **params):
         """Test check that blocks content containing BLOCK keyword."""
 
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "BLOCK" in bot_message_chunk:
-                return False
-        return True
+                return RailOutcome.block()
+        return RailOutcome.allow()
 
     base_config = {
         "models": [],
@@ -860,19 +868,13 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
     )
     parallel_chat.app.register_action(test_self_check_output)
 
-    import time
-
-    start_time = time.time()
     sequential_chunks = []
     async for chunk in sequential_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         sequential_chunks.append(chunk)
-    sequential_time = time.time() - start_time
 
-    start_time = time.time()
     parallel_chunks = []
     async for chunk in parallel_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         parallel_chunks.append(chunk)
-    parallel_time = time.time() - start_time
 
     # both should produce the same successful output
     sequential_response = "".join(sequential_chunks)
@@ -898,12 +900,6 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
         f"Parallel: {parallel_response}"
     )
 
-    # log timing comparison (parallel should be faster or similar for single rail)
-    print("\nTiming Comparison:")
-    print(f"Sequential: {sequential_time:.4f}s")
-    print(f"Parallel: {parallel_time:.4f}s")
-    print(f"Speedup: {sequential_time / parallel_time:.2f}x")
-
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
 
@@ -911,14 +907,14 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
 async def test_sequential_vs_parallel_streaming_blocking_comparison():
     """Test that both sequential and parallel handle blocking scenarios identically"""
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     def test_self_check_output_blocking(context=None, **params):
         """Test check that blocks content containing BLOCK keyword."""
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "BLOCK" in bot_message_chunk:
-                return False
-        return True
+                return RailOutcome.block()
+        return RailOutcome.allow()
 
     base_config = {
         "models": [],
@@ -1016,13 +1012,16 @@ async def test_sequential_vs_parallel_streaming_blocking_comparison():
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
 
-@pytest.mark.asyncio
-async def test_parallel_vs_sequential_with_slow_actions():
-    """Test that demonstrates real parallel speedup with slow actions"""
+async def _run_slow_actions_sequential_and_parallel():
+    """Run the slow-action output rails both sequentially and in parallel.
+
+    Returns ``(sequential_chunks, parallel_chunks, sequential_time, parallel_time)``.
+    Shared by the functional-equivalence test and the (perf-only) timing test.
+    """
 
     import time
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     async def slow_safety_check(context=None, **params):
         """Slow safety check that simulates real processing time."""
         # simulate 100ms of processing
@@ -1030,28 +1029,28 @@ async def test_parallel_vs_sequential_with_slow_actions():
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "UNSAFE" in bot_message_chunk:
-                return False
-        return True
+                return RailOutcome.block()
+        return RailOutcome.allow()
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     async def slow_compliance_check(context=None, **params):
         """Slow compliance check that simulates real processing time."""
         await asyncio.sleep(0.1)
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "VIOLATION" in bot_message_chunk:
-                return False
-        return True
+                return RailOutcome.block()
+        return RailOutcome.allow()
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     async def slow_quality_check(context=None, **params):
         """Slow quality check that simulates real processing time."""
         await asyncio.sleep(0.1)
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "LOWQUALITY" in bot_message_chunk:
-                return False
-        return True
+                return RailOutcome.block()
+        return RailOutcome.allow()
 
     base_config = {
         "models": [],
@@ -1143,6 +1142,21 @@ async def test_parallel_vs_sequential_with_slow_actions():
         parallel_chunks.append(chunk)
     parallel_time = time.time() - start_time
 
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+
+    return sequential_chunks, parallel_chunks, sequential_time, parallel_time
+
+
+@pytest.mark.asyncio
+async def test_parallel_matches_sequential_with_slow_actions():
+    """Multi-flow parallel output rails must produce the same result as sequential.
+
+    This is the functional (always-run) half of the slow-actions check: it does
+    not assert on wall-clock timing, only that parallel and sequential execution
+    of multiple output rails yield identical, error-free responses.
+    """
+    sequential_chunks, parallel_chunks, _, _ = await _run_slow_actions_sequential_and_parallel()
+
     sequential_response = "".join(sequential_chunks)
     parallel_response = "".join(parallel_chunks)
 
@@ -1159,12 +1173,19 @@ async def test_parallel_vs_sequential_with_slow_actions():
 
     assert sequential_response == parallel_response
 
-    speedup = sequential_time / parallel_time
 
-    print("\nSlow Actions Timing Results:")
-    print(f"Sequential: {sequential_time:.4f}s")
-    print(f"Parallel: {parallel_time:.4f}s")
-    print(f"Speedup: {speedup:.2f}x")
+@pytest.mark.perf
+@pytest.mark.asyncio
+async def test_parallel_vs_sequential_with_slow_actions():
+    """Parallel execution should be meaningfully faster than sequential with slow actions.
+
+    Wall-clock timing assertion; flaky on shared CI runners, so it is marked
+    ``perf`` and excluded from the default run. Functional correctness is covered
+    by test_parallel_matches_sequential_with_slow_actions.
+    """
+    _, _, sequential_time, parallel_time = await _run_slow_actions_sequential_and_parallel()
+
+    speedup = sequential_time / parallel_time
 
     # with slow actions, parallel should be significantly faster
     # we expect at least 1.5x speedup (theoretical max ~3x, but overhead reduces it)
@@ -1172,7 +1193,3 @@ async def test_parallel_vs_sequential_with_slow_actions():
         f"With slow actions, parallel should be at least 1.5x faster than sequential. "
         f"Got speedup of {speedup:.2f}x. Sequential: {sequential_time:.4f}s, Parallel: {parallel_time:.4f}s"
     )
-
-    print(f" Parallel execution achieved {speedup:.2f}x speedup as expected!")
-
-    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})

@@ -5,10 +5,10 @@ define flow hallucination warning
   """Warning rail for hallucination."""
   bot ...
   if $hallucination_warning == True
-    $is_hallucination = execute self_check_hallucination
+    $hallucination_response = execute self_check_hallucination
     $hallucination_warning = False
 
-    if $is_hallucination
+    if $hallucination_response.is_blocked
       bot inform answer prone to hallucination
 
 define bot inform answer prone to hallucination
@@ -19,10 +19,10 @@ define bot inform answer prone to hallucination
 define subflow self check hallucination
   """Output rail for checking hallucinations."""
   if $check_hallucination == True
-    $is_hallucination = execute self_check_hallucination
+    $hallucination_response = execute self_check_hallucination
     $check_hallucination = False
 
-    if $is_hallucination
+    if $hallucination_response.is_blocked
       if $config.enable_rails_exceptions
         create event SelfCheckHallucinationRailException(message="Hallucination detected. The previous answer may not be accurate")
       else

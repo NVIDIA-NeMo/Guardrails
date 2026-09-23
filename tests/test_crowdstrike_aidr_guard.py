@@ -17,6 +17,14 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse
+from nemoguardrails.library.crowdstrike_aidr.actions import (
+    GuardChatCompletionsResult,
+    _crowdstrike_aidr_outcome,
+    crowdstrike_aidr_guard,
+)
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
 input_rail_config = RailsConfig.from_content(
@@ -37,6 +45,94 @@ output_rail_config = RailsConfig.from_content(
               - crowdstrike aidr guard output
     """
 )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("mode", "result", "expected"),
+    [
+        (
+            "input",
+            GuardChatCompletionsResult(
+                blocked=False,
+                transformed=False,
+                guard_output={"messages": []},
+                user_message="hello",
+                bot_message="normal",
+            ),
+            RailOutcome.allow(
+                metadata={
+                    "blocked": False,
+                    "transformed": False,
+                    "guard_output": {"messages": []},
+                    "user_message": "hello",
+                    "bot_message": "normal",
+                }
+            ),
+        ),
+        (
+            "input",
+            GuardChatCompletionsResult(
+                blocked=True,
+                transformed=False,
+                guard_output={"messages": []},
+                user_message="hello",
+                bot_message="normal",
+            ),
+            RailOutcome.block(
+                metadata={
+                    "blocked": True,
+                    "transformed": False,
+                    "guard_output": {"messages": []},
+                    "user_message": "hello",
+                    "bot_message": "normal",
+                }
+            ),
+        ),
+        (
+            "input",
+            GuardChatCompletionsResult(
+                blocked=False,
+                transformed=True,
+                guard_output={"messages": []},
+                user_message="masked user",
+                bot_message="masked bot",
+            ),
+            RailOutcome.transform(
+                [(TransformTarget.USER_MESSAGE, "masked user")],
+                metadata={
+                    "blocked": False,
+                    "transformed": True,
+                    "guard_output": {"messages": []},
+                    "user_message": "masked user",
+                    "bot_message": "masked bot",
+                },
+            ),
+        ),
+        (
+            "output",
+            GuardChatCompletionsResult(
+                blocked=False,
+                transformed=True,
+                guard_output={"messages": []},
+                user_message="masked user",
+                bot_message="masked bot",
+            ),
+            RailOutcome.transform(
+                [(TransformTarget.BOT_MESSAGE, "masked bot")],
+                metadata={
+                    "blocked": False,
+                    "transformed": True,
+                    "guard_output": {"messages": []},
+                    "user_message": "masked user",
+                    "bot_message": "masked bot",
+                },
+            ),
+        ),
+    ],
+)
+def test_crowdstrike_aidr_outcome(mode, result, expected):
+    assert _crowdstrike_aidr_outcome(result, mode) == expected
 
 
 @pytest.mark.unit
@@ -140,6 +236,39 @@ def test_crowdstrike_aidr_guard_error(httpx_mock: HTTPXMock, monkeypatch: pytest
 
     chat >> "Hi!"
     chat << "Hello!"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "response",
+    [
+        HTTPConnectionError("connection failed"),
+        HTTPResponse(status_code=200, content=b"not-json"),
+        HTTPResponse(status_code=200, content=b"{}"),
+    ],
+)
+async def test_crowdstrike_aidr_guard_expected_failures_return_allow(monkeypatch, response):
+    monkeypatch.setenv("CS_AIDR_TOKEN", "test-token")
+
+    outcome = await crowdstrike_aidr_guard(
+        mode="output",
+        config=output_rail_config,
+        context={"user_message": "Hi", "bot_message": "Hello"},
+        http_client=RecordingHTTPClient([response]),
+    )
+
+    assert outcome.is_blocked is False
+    assert outcome.is_transform is False
+    assert outcome.metadata["blocked"] is False
+    assert outcome.metadata["transformed"] is False
+    assert outcome.metadata["user_message"] == "Hi"
+    assert outcome.metadata["bot_message"] == "Hello"
+    messages = outcome.metadata["guard_output"]["messages"]
+    assert [(message.role, message.content) for message in messages[-2:]] == [
+        ("user", "Hi"),
+        ("assistant", "Hello"),
+    ]
 
 
 @pytest.mark.unit

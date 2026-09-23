@@ -1,0 +1,379 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Engine Feature Support"
+sidebar-title: "Engine Feature Support"
+description: "Compare feature support between the LLMRails and IORails engines in the NVIDIA NeMo Guardrails library."
+keywords: ["llmrails", "iorails", "guardrails engines", "feature support", "engine comparison"]
+content:
+  type: "reference"
+---
+
+The NVIDIA NeMo Guardrails library supports two engines: `LLMRails` and `IORails`.
+This page explains what each engine is optimized for, how to select one, and which features each engine supports.
+
+## The LLMRails and IORails Engines
+
+Both engines read the same `RailsConfig` object, but they support different feature sets.
+
+LLMRails is designed for flexibility, and it supports all rail types with Colang 1.0 and 2.x so that you can define custom dialog flows.
+IORails is optimized for low-latency input, output, and tool rails.
+The `Guardrails` facade selects the optimal engine to use, based on the Guardrails configuration.
+
+### LLMRails
+
+`LLMRails` is the full-featured, event-driven engine.
+It runs the complete Colang 1.0 and 2.x runtime, including dialog rails, input and output rails, retrieval (RAG and knowledge base) rails, execution rails (custom Python actions), tool rails, and embeddings.
+It is optimized for flexibility and complete conversational guardrailing, and it is the engine behind every capability that depends on the Colang runtime, custom actions, embeddings, or a custom LLM.
+
+Instantiate it directly:
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+
+config = RailsConfig.from_path("path/to/config")
+rails = LLMRails(config)
+```
+
+### IORails
+
+`IORails` is optimized for accelerated input and output rail inference.
+It includes tool-calling rails.
+It runs most of the built-in guardrail catalog, including the NeMoGuard safety models and community and third-party integrations.
+For each configured flow, it compiles the [rail manifest](/reference/rail-manifests) and calls the rail action directly instead of executing a Colang flow.
+It also adds optional parallel rail execution, admission control through an `AsyncWorkQueue`, OpenTelemetry token metrics, and optional speculative generation.
+It does not run the Colang dialog runtime, retrieval, or custom actions, and it does not accept a custom LLM.
+It accepts Colang 1.0 configurations only.
+
+`IORails` has a `start()` and `stop()` lifecycle that initializes and releases the engine's model clients and work queue.
+`generate_async()`, `stream_async()`, and `check_async()` all call `start()` automatically.
+The operation is idempotent, so a bare `IORails` does not need a manual `start()` before use.
+Call `start()` at service startup to warm the clients and `stop()` at shutdown to release them.
+When you use the `Guardrails` facade described below, that lifecycle is managed for you through `startup()` and `shutdown()` (or by using `Guardrails` as an async context manager).
+
+### Choosing an Engine
+
+The recommended entry point is the `Guardrails` facade, which routes a configuration to the appropriate engine automatically.
+
+```python
+from nemoguardrails import Guardrails, RailsConfig
+
+config = RailsConfig.from_path("path/to/config")
+
+# Auto-route: use IORails when the config is supported, otherwise fall back to LLMRails.
+rails = Guardrails(config)
+
+# Always use LLMRails.
+rails = Guardrails(config, use_iorails=False)
+
+# Require IORails and raise if the config is not supported.
+rails = Guardrails(config, require_iorails=True)
+```
+
+`Guardrails(config)` selects `IORails` when all of the following hold:
+
+- No custom `llm` is passed to the constructor.
+- The configuration is Colang 1.0.
+- The configuration uses only the `input`, `output`, `config`, `tool_input`, and `tool_output` rail sections.
+- Every configured input and output flow compiles. The rail must be servable on `IORails`, its optional dependencies must be installed, and any model type it names must be declared under `models`.
+- Tool flows are in their own direction and are not duplicated. Refer to [Tool Calling](#tool-calling).
+
+Otherwise the facade falls back to `LLMRails` and logs the reason.
+You can inspect that decision directly with `IORails.unsupported_reason(config, llm)`, which returns the human-readable fallback reason, or `None` when `IORails` can handle the config.
+For the per-rail detail behind the third and fourth conditions, refer to [Rail Engine Support](/reference/rail-engine-support).
+
+## Feature Support
+
+Each section below covers one capability area, with a support table followed by a comparison of the two engines.
+
+Legend: ✓ supported · ✗ not supported · ◐ partial (see notes).
+
+### Rail Types
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Input rails | ✓ | ✓ | |
+| Output rails | ✓ | ✓ | |
+| Dialog rails | ✓ | ✗ | Require the Colang runtime, which IORails does not run |
+| Retrieval (RAG and knowledge base) rails | ✓ | ✗ | LLMRails only |
+| Execution rails (custom actions) | ✓ | ✗ | LLMRails only |
+| Tool rails | ✓ | ✓ | IORails validates tool calls and tool results. Refer to [Tool Calling](#tool-calling). |
+| Transform (mask, redact, sanitize) rails | ✓ | ✓ | IORails applies them on `user_message` and `bot_message` only |
+
+`LLMRails` runs every rail direction through the Colang runtime: input, output, dialog, retrieval, and execution (custom action) rails.
+Input and output rails wrap the model call, dialog rails drive multi-turn conversation flows, retrieval rails guard a knowledge base, and execution rails run custom Python actions.
+Execution rails govern those custom actions; validating the model's own tool calls and tool results is covered separately under [Tool calling](#tool-calling).
+
+`IORails` runs input, output, and tool rails only, and it does so without the Colang runtime.
+Input rails run before the model call and output rails run after it.
+Instead of executing a Colang flow, `IORails` compiles each configured flow directly from its [rail manifest](/reference/rail-manifests) and calls the rail action.
+Dialog, retrieval, and execution rails are not available on `IORails`; configurations that use them fall back to `LLMRails`.
+
+For the per-rail breakdown of which built-in flows each engine can run, refer to [Rail Engine Support](/reference/rail-engine-support).
+
+### Colang Language Support
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Colang 1.0 configurations | ✓ | ✓ | |
+| Colang 2.x configurations | ✓ | ✗ | IORails accepts Colang 1.0 only |
+
+`LLMRails` runs both the Colang 1.0 and Colang 2.x runtimes, selecting the runtime from `config.colang_version`.
+
+`IORails` accepts Colang 1.0 configurations only and runs no dialog flows.
+A Colang 2.x configuration is a fallback condition: `Guardrails` routes it to `LLMRails`.
+
+### Built-In NeMoGuard Safety Rails
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Content safety | ✓ | ✓ | Input and output |
+| Topic control | ✓ | ✓ | Input only, on both engines |
+| Jailbreak detection (NIM) | ✓ | ✓ | `jailbreak detection model`, input only |
+| Jailbreak detection (heuristics) | ✓ | ✗ | `jailbreak detection heuristics`. Tracked in [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285). |
+
+Both engines support the built-in NeMoGuard safety models: content safety, topic control, and jailbreak detection.
+Content safety and topic control select their model with a `$model=` parameter on the flow.
+Both engines reject a flow that names a model type the configuration does not declare.
+
+The one difference is the local heuristics variant of jailbreak detection.
+`jailbreak detection heuristics` shares a manifest with `jailbreak detection model`.
+As a result, `IORails` cannot determine whether the configuration needs `torch` and `transformers` installed, and it refuses the flow.
+A configuration that uses it routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
+
+### Tool Calling
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Tool-call passthrough | ✓ | ✓ | |
+| Tool-call validation rail | ✓ | ✓ | IORails flow: `tool call validation` |
+| Tool-result validation rail | ✓ | ✓ | IORails flow: `tool result validation` |
+
+Both engines support passing model tool calls through to the caller and validating tool calls and tool results.
+`LLMRails` handles these through the Colang runtime and tool rails.
+
+`IORails` validates tool calls and tool results through directional flows: `tool call validation` on the tool-output rail and `tool result validation` on the tool-input rail.
+Tool calls are returned in the OpenAI-style `tool_calls` field of the response message.
+
+### Generation and Validation API
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| `generate` / `generate_async` | ✓ | ✓ | |
+| `stream_async` | ✓ | ✓ | |
+| Event-based API (`generate_events` / `process_events`) | ✓ | ✗ | Requires the Colang runtime |
+| `check` / `check_async` (rails-only validation) | ✓ | ✓ | Input and output rails only on both engines. Neither runs tool rails |
+| `GenerationOptions` | ✓ | ◐ | IORails supports rail toggles, `llm_params`, and the `log` options that do not need Colang. `output_vars` raises. The separate `state` keyword argument also raises. |
+| `GenerationResponse` (structured response object) | ✓ | ✓ | Returned by both engines when `options` is passed |
+| `GenerationLog` `internal_events` / `colang_history` | ✓ | ✗ | Colang runtime only. IORails raises `NotImplementedError`. |
+| `output_vars` | ✓ | ✗ | Colang context only. IORails raises `ValueError`. |
+| `output_data` | ✓ | ✗ | IORails leaves it `None`, but reading it does not raise. |
+| Per-rail selection by name in `GenerationOptions` | ✗ | ✓ | IORails runs only the named rails. LLMRails treats a non-empty list as "enabled". |
+| `explain()` / `ExplainInfo` | ✓ | ✗ | LLMRails only |
+
+Both engines expose `generate`, `generate_async`, `stream_async`, and the rails-only validation methods `check` and `check_async`.
+For message-based calls, both return an OpenAI-style message dictionary when you call `generate` without `options` and a structured `GenerationResponse` when you pass `options`.
+Prompt-based `LLMRails` calls return strings instead.
+`LLMRails` additionally exposes the event-based API (`generate_events` and `process_events`) and `explain()` for debugging.
+
+`IORails` builds its `GenerationResponse` without a Colang runtime, so the fields that depend on Colang behave differently.
+It fully supports `response`, `tool_calls`, `reasoning_content`, and `llm_metadata`.
+It synthesizes `log.activated_rails`, `log.llm_calls`, and `log.stats` from each rail's execution record.
+The Colang-only options raise rather than returning empty data: `log.internal_events` and `log.colang_history` raise `NotImplementedError`, and `output_vars` and `state` raise `ValueError`.
+`IORails` also supports selecting individual rails by name through the rail toggles, which `LLMRails` does not.
+For the field-by-field comparison, refer to [Generation Options: IORails and LLMRails Differences](/run-guardrailed-inference/using-python-apis/generation-options#iorails-and-llmrails-differences).
+
+The event-based API and `explain()` are not available on `IORails`.
+On the `Guardrails` facade, these raise `NotImplementedError` when `IORails` is the active engine.
+
+Both engines accept the same `check` arguments and return the same `RailsResult`, and neither runs tool rails from a check.
+`LLMRails` runs the check through the Colang runtime with the main model call disabled.
+`IORails` runs the rails directly through its rails manager and reuses the `generate_async` admission queue, request span, and request metrics.
+The two differ in what a blocked check reports and in how a direction with no content to check is handled.
+For those differences, refer to [Checking Messages Against Rails: Engine Differences](/run-guardrailed-inference/using-python-apis/check-messages#engine-differences).
+
+### Streaming
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Output-rail streaming | ✓ | ✓ | |
+| Streaming metadata (`include_metadata=True`) | ✓ | ✓ | Both emit `provider_metadata` and normalized `usage` when the provider supplies them |
+| `include_metadata` with output-rail streaming | ◐ | ✗ | LLMRails accepts the option, but its output-rail buffer yields plain strings and drops stream metadata. IORails raises `ValueError`. |
+| `GenerationOptions` through the stream | ◐ | ◐ | Both apply `llm_params` and rail toggles. Neither yields a `GenerationResponse`, so `log` and `output_vars` are unreachable. |
+| Parallel streaming output rails | ✓ | ✗ | LLMRails streaming-buffer feature |
+
+Both engines stream responses through `stream_async` and support streaming output rails.
+Both accept `include_metadata=True` to receive dictionary-framed chunks such as `{"text": ...}` instead of plain strings.
+Both surface `provider_metadata` and normalized token `usage` on the frame that receives the data.
+If the provider sends usage in a chunk without text, `IORails` folds it into the terminal frame, while `LLMRails` emits a separate empty frame before the terminal frame.
+`IORails` requests usage on the terminal chunk by default through `stream_options`, which you can override with `llm_params`.
+For the frame shapes, refer to [Streaming Metadata](/run-guardrailed-inference/using-python-apis/streaming#streaming-metadata).
+
+`IORails` rejects `include_metadata=True` when output-rail streaming is enabled, because its buffer strategy operates on plain string chunks.
+`LLMRails` accepts the combination, but its output-rail buffer yields plain strings and drops `provider_metadata` and `usage`.
+
+Neither engine returns a `GenerationResponse` from `stream_async`.
+Structured responses are a non-streaming feature, and passing `options` does not change the chunk shape.
+`IORails` also validates `options` only on the non-streaming path, so the Colang-coupled options that raise in `generate_async` are silently ignored in `stream_async`.
+For details, refer to [Generation Options and Streaming](/run-guardrailed-inference/using-python-apis/streaming#generation-options-and-streaming).
+
+Parallel streaming output rails, where the output rail validates streamed chunks using the streaming buffer, is an `LLMRails` feature.
+`IORails` runs output rails over the streamed response but does not use the parallel streaming-buffer path, and speculative generation falls back to sequential execution while streaming.
+
+### Parallelism and Concurrency
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Parallel rail execution | ✓ | ◐ | `rails.input.parallel` / `rails.output.parallel`. IORails ignores it alongside a transform rail. |
+| Speculative generation | ✗ | ◐ | IORails races input rails with generation for non-streaming requests, except when an input rail rewrites content. |
+| Admission control and concurrency limits | ✗ | ✓ | `AsyncWorkQueue` plus a streaming semaphore |
+
+Both engines run multiple rails in the same direction concurrently when `rails.input.parallel` or `rails.output.parallel` is set; the first rail to block short-circuits the result.
+For YAML examples, see [Parallel Execution of Input and Output Rails](/configure-guardrails/yaml-schema/guardrails-configuration#parallel-execution-of-input-and-output-rails).
+
+`IORails` adds two concurrency capabilities that `LLMRails` does not provide.
+Speculative generation (`rails.input.speculative_generation`) runs input rails concurrently with model generation and discards the generation if an input rail blocks, reducing latency on the safe path; it applies to non-streaming generation only.
+For a configuration example, see [Speculative Generation](/configure-guardrails/yaml-schema/guardrails-configuration#speculative-generation).
+Admission control through an `AsyncWorkQueue` (and a separate semaphore for streaming) bounds the number of in-flight requests and rejects work when the queue is full.
+
+A transform rail disables both `IORails` optimizations because a rewrite must reach the code that reads the text.
+Configuring any rail that rewrites content causes both directions to run sequentially on `IORails`, so each rewrite reaches subsequent rails.
+A rewriting input rail also disables speculative generation, because the model would otherwise read the text before the rewrite lands.
+`IORails` emits a warning in both cases rather than silently dropping the rewrite.
+Refer to [Rail Engine Support](/reference/rail-engine-support) for the rails that rewrite content.
+
+### Reasoning-Model Support
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Reasoning trace handling (`<think>` tags or reasoning field) | ✓ | ✓ | |
+| `reasoning_content` in a structured response | ✓ | ✓ | Requires passing `options` so the call returns a `GenerationResponse` |
+
+Both engines preserve model reasoning traces, whether the model returns them in a dedicated reasoning field or inline within `<think>` tags, and both keep reasoning out of the prompt history sent back to the model.
+
+Both engines expose reasoning in the structured response through `reasoning_content` when you pass `options` to `generate` or `generate_async`.
+On `IORails`, the structured path keeps the assistant content clean, while the bare message dictionary returned without `options` carries the reasoning inline as a `<think>` prefix.
+Reasoning bypasses the output rails on both engines, so output rails check the final answer rather than the reasoning trace.
+
+### Multimodal
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Multimodal (vision) input and output rails | ✓ | ✗ | LLMRails only |
+
+Multimodal (vision) input and output rails, which run safety checks over image content alongside text, are supported by `LLMRails`.
+
+`IORails` does not run multimodal safety rails over image content on its input and output rails; multimodal configurations route to `LLMRails`.
+
+### Observability
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Tracing (OpenTelemetry spans) | ✓ | ✓ | |
+| Metrics (OpenTelemetry token and duration) | ✗ | ✓ | LLMRails surfaces token statistics through logging |
+| Prometheus export | ✗ | ✓ | Through the OpenTelemetry metrics exporter |
+| Logging (verbose and call statistics) | ✓ | ✓ | |
+| Content capture (span content) | ✓ | ✓ | |
+
+Both engines support OpenTelemetry tracing and content capture on spans, and both emit logs.
+`LLMRails` surfaces token usage and timing through its logging and statistics output and verbose mode.
+
+OpenTelemetry token and duration metrics (for example, `gen_ai.client.token.usage` and `gen_ai.client.operation.duration`) are an `IORails` capability, and those metrics can be exported to Prometheus through an OpenTelemetry metrics exporter.
+For more information, see the [Observability](/observability) documentation.
+
+### LLM Frameworks and Providers
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Default framework (OpenAI-compatible) | ✓ | ✓ | |
+| LangChain integration (opt-in) | ✓ | ✗ | Passing a LangChain LLM routes to LLMRails |
+| Custom LLM injection (`llm=` / `update_llm`) | ✓ | ✗ | A custom `llm` forces LLMRails |
+| Per-model HTTP headers (`parameters.default_headers`) | ✓ | ✓ | Built-in framework. Only IORails coerces non-string values. |
+| Per-model query parameters (`parameters.default_query`) | ✓ | ✓ | Built-in framework. Only IORails rejects nested objects at construction. |
+
+Both engines use the default OpenAI-compatible framework to call models defined in the configuration.
+
+The LangChain integration is opt-in and available on `LLMRails`.
+Passing a custom `llm` to the constructor, including a LangChain model, forces `LLMRails`, because `IORails` resolves its models from the configuration rather than from an injected LLM and does not support `update_llm`.
+
+Through the built-in framework, both engines attach a model's `parameters.default_headers` and `parameters.default_query` to every provider request.
+Each parameter has per-model scope.
+Both engines match configured header names case-insensitively and let a configured header override a base header.
+Both engines encode supported scalar query values, lists of scalar values, and empty values the same way.
+Nested-object handling differs as described below.
+Two edge cases differ.
+IORails converts a non-string header value to a string.
+LLMRails raises `LLMCallException` on the first model call instead.
+Quote a scalar header value to keep both engines consistent.
+A nested object under `default_query` raises a `ValueError` from the `IORails` constructor, while `LLMRails` sends it as an encoded Python representation.
+
+These behaviors apply to the built-in framework.
+Under the LangChain framework, `LLMRails` forwards both parameters to the underlying LangChain class.
+The class decides whether it accepts the parameters and how it applies them.
+For example, `ChatOpenAI` accepts both parameters.
+An injected `llm` replaces the `main` model, so `LLMRails` does not read that entry's parameters.
+For configuration examples, refer to [Custom HTTP Headers](/configure-guardrails/yaml-schema/model-configuration#custom-http-headers) and [Model-Level Query Parameters](/configure-guardrails/yaml-schema/model-configuration#model-level-query-parameters).
+
+### Knowledge Base and Embeddings
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Knowledge base, embeddings, and custom providers | ✓ | ✗ | LLMRails only |
+
+The knowledge base, embedding providers, and custom embedding or embedding-search providers are part of the Colang retrieval pipeline and are supported by `LLMRails`.
+
+`IORails` does not initialize a knowledge base or embeddings; configurations that rely on retrieval route to `LLMRails`.
+
+### Guardrail Catalog Coverage
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Input surfaces (32 in the catalog) | ✓ | ◐ | 31 of 32 run on IORails |
+| Output surfaces (35 in the catalog) | ✓ | ◐ | 28 of 35 run on IORails |
+| Retrieval surfaces (11 in the catalog) | ✓ | ✗ | IORails has no retrieval pipeline |
+| Rails that rewrite content (mask, redact, sanitize) | ✓ | ✓ | IORails runs them sequentially. Refer to [Parallelism and Concurrency](#parallelism-and-concurrency). |
+
+Every built-in rail under `nemoguardrails/library` declares its behavior in a [rail manifest](/reference/rail-manifests).
+The 33 built-in rails declare 78 action-backed surfaces in total, where a surface is the flow name you list in `config.yml`.
+
+`LLMRails` runs all 78 through Colang flows, in both Colang 1.0 and Colang 2.x.
+`IORails` runs 59 surfaces by compiling each manifest and calling the same rail action directly.
+As a result, community and third-party integrations such as ActiveFence, Cleanlab, Fiddler, PII detection, and Prompt Security run on both engines.
+Support is determined per surface rather than per integration.
+For example, a rail can have input and output surfaces that run on `IORails` and a retrieval or groundedness surface that does not.
+Check the [per-surface matrix](/reference/rail-engine-support) for the flows you configure.
+
+The 19 surfaces `IORails` cannot run have manifest contracts that the engine cannot satisfy.
+Of these surfaces, 11 read Colang conversation state such as `relevant_chunks`, 7 rewrite retrieved chunks, and 1 is blocklisted pending [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285).
+
+`IORails` derives this scope from the manifests rather than from a hardcoded list, so adding a rail to the catalog needs no engine change.
+
+For the per-surface matrix and the configuration-dependent refusals, refer to [Rail Engine Support](/reference/rail-engine-support).
+
+### Server and Deployment
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Guardrails server (OpenAI-compatible REST API) | ✓ | ◐ | Runs on LLMRails by default. `NEMO_GUARDRAILS_IORAILS_ENGINE=1` routes supported configurations to IORails |
+| Server-side threads and multi-config | ✓ | ✗ | LLMRails only |
+
+The bundled Guardrails server exposes an OpenAI-compatible REST API and runs on `LLMRails` by default.
+Server-side threads and multi-config serving are provided through that server.
+
+`IORails` is normally consumed through the in-process `Guardrails` Python API.
+Setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` aliases the top-level `LLMRails` import to `Guardrails`.
+The server endpoints, including `/v1/chat/completions` and `/v1/checks`, then run on `IORails` for supported configurations and fall back to `LLMRails` for the rest.
+This path is early release: validate it against your own configurations before depending on it in production.
+
+### Configuration and Operations
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Configuration serialization and conversation state | ✓ | ✗ | IORails is stateless |
+| `.railsignore` and multi-config loading | ✓ | ✓ | Shared configuration-loading layer |
+
+`LLMRails` supports configuration serialization and maintains conversation state across turns, which the event-based and `process_events` APIs build on.
+
+`IORails` is stateless and does not serialize conversation state.
+Configuration loading, including `.railsignore` and multi-config loading, is handled by a shared layer and behaves the same for both engines.

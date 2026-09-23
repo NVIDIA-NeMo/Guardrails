@@ -20,15 +20,15 @@ define flow check with context update
     stop
 
 define flow check output safety with exception
-  $is_safe = execute check_output_safety_action
+  $outcome = execute check_output_safety_action
 
-  if not $is_safe
+  if $outcome.is_blocked
     create event OutputSafetyException(message="Output blocked by safety check")
     stop
 
 define flow check output length with exception
-  $is_valid_length = execute check_output_length_action
+  $outcome = execute check_output_length_action
 
-  if not $is_valid_length
+  if $outcome.is_blocked
     create event OutputLengthException(message="Output blocked due to length")
     stop

@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 try:
     import redis  # type: ignore
 except ImportError:
-    redis = None  # type: ignore
+    redis = None
 
 from nemoguardrails.rails.llm.config import EmbeddingsCacheConfig
 
@@ -231,7 +231,11 @@ class EmbeddingsCache:
         store_config: dict = store_config_raw if isinstance(store_config_raw, dict) else {}
         cache_store = CacheStore.from_name(d.get("store"))(**store_config)
 
-        return cls(key_generator=key_generator, cache_store=cache_store)
+        return cls(
+            key_generator=key_generator,
+            cache_store=cache_store,
+            store_config=store_config,
+        )
 
     @classmethod
     def from_config(cls, config: EmbeddingsCacheConfig):

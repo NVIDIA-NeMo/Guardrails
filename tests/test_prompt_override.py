@@ -16,6 +16,7 @@
 import os
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.llm import prompts as prompts_module
 from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.types import Task
 
@@ -28,3 +29,19 @@ def test_custom_llm_registration():
     prompt = get_prompt(config, Task.GENERATE_USER_INTENT)
 
     assert prompt.content == "<<This is a placeholder for a custom prompt for generating the user intent>>"
+
+
+def test_load_prompts_sorts_files_for_deterministic_overrides(tmp_path, monkeypatch):
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    (prompts_dir / "z.yml").write_text("prompts:\n- task: generate_user_intent\n  content: z\n", encoding="utf-8")
+    (prompts_dir / "a.yml").write_text("prompts:\n- task: generate_user_intent\n  content: a\n", encoding="utf-8")
+
+    def walk(_path):
+        yield str(prompts_dir), [], ["z.yml", "a.yml"]
+
+    monkeypatch.setattr(prompts_module, "CURRENT_DIR", str(tmp_path))
+    monkeypatch.setattr(prompts_module.os, "walk", walk)
+    monkeypatch.delenv("PROMPTS_DIR", raising=False)
+
+    assert [prompt.content for prompt in prompts_module._load_prompts()] == ["a", "z"]

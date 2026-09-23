@@ -14,7 +14,7 @@
 # limitations under the License.
 import json
 import re
-from typing import Sequence, Union
+from typing import List, Sequence, Union
 
 
 def _replace_prefix(s: str, prefix: str, repl: str):
@@ -154,20 +154,20 @@ def nemoguard_parse_prompt_safety(response: str) -> Sequence[Union[bool, str]]:
     Returns:
         Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
         and the remaining elements are strings representing violated policies, if any.
+
+    Raises:
+        ValueError: If the model response cannot be parsed as a content safety verdict.
     """
     try:
         # try parsing it as json
         parsed_json_result = json.loads(response)
-        assert "User Safety" in parsed_json_result
         result = parsed_json_result["User Safety"].lower()
         if "Safety Categories" in parsed_json_result:
             safety_categories = [cat.strip() for cat in parsed_json_result["Safety Categories"].split(",")]
         else:
             safety_categories = []
-    except Exception:
-        # If there is an error, and we can't parse the response, we return unsafe assuming this is a potential jailbreaking attempt
-        result = "unsafe"
-        safety_categories = ["JSON parsing failed"]
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as exc:
+        raise ValueError("Failed to parse content safety model response") from exc
 
     is_safe = result == "safe"
     if is_safe:
@@ -193,20 +193,20 @@ def nemoguard_parse_response_safety(response: str) -> Sequence[Union[bool, str]]
     Returns:
         Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
         and the remaining elements are strings representing violated policies, if any.
+
+    Raises:
+        ValueError: If the model response cannot be parsed as a content safety verdict.
     """
     try:
         # try parsing it as json
         parsed_json_result = json.loads(response)
-        assert "Response Safety" in parsed_json_result
         result = parsed_json_result["Response Safety"].lower()
         if "Safety Categories" in parsed_json_result:
             safety_categories = [cat.strip() for cat in parsed_json_result["Safety Categories"].split(",")]
         else:
             safety_categories = []
-    except Exception:
-        # If there is an error, and we can't parse the response, we return unsafe assuming this is a potential jailbreaking attempt
-        result = "unsafe"
-        safety_categories = ["JSON parsing failed"]
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as exc:
+        raise ValueError("Failed to parse content safety model response") from exc
 
     is_safe = result == "safe"
     if is_safe:
@@ -318,3 +318,147 @@ def nemotron_reasoning_parse_response_safety(
         return [True]
     else:
         return [False]
+
+
+_THINK_OPEN_TAG = "<think>"
+
+_CONTENT_SAFETY_PARSE_ERROR = "Failed to parse content safety model response"
+
+_VERDICT_FIELDS = ("User Safety", "Response Safety")
+
+
+def _verdict_mention_pattern(field_name: str) -> str:
+    """Helper function to build the pattern matching one verdict field anywhere in the text."""
+    return rf"{re.escape(field_name)}\s*:\s*(safe|unsafe)\b"
+
+
+def _verdict_line_pattern(field_name: str) -> str:
+    """Helper function to build the pattern matching one verdict field at the start of a line."""
+    # Anchored to the start of a line, so prose that merely mentions the field cannot be
+    # mistaken for a verdict. Built from the mention pattern so the two cannot drift apart.
+    return rf"^\s*{_verdict_mention_pattern(field_name)}"
+
+
+def _reject_duplicate_verdicts(response: str) -> None:
+    """Helper function to reject a response that states either verdict field more than once.
+
+    Args:
+        response: The model response text, with any reasoning trace already stripped.
+
+    Raises:
+        ValueError: If either field appears more than once. Both fields are checked whichever
+            one is being read: a model that states a verdict twice has broken its own output
+            contract, so no statement in the response can be trusted. Taking the first match
+            would let a later contradicting verdict be silently discarded, which fails open
+            when the discarded one is the unsafe verdict. A repeat counts wherever it appears,
+            not only where it starts a line, since `User Safety: safe; User Safety: unsafe`
+            contradicts itself just as much as the same two verdicts on separate lines.
+    """
+    for field_name in _VERDICT_FIELDS:
+        if len(re.findall(_verdict_mention_pattern(field_name), response, re.IGNORECASE)) > 1:
+            raise ValueError(_CONTENT_SAFETY_PARSE_ERROR)
+
+
+def _extract_safety_verdict(response: str, field_name: str) -> str:
+    """Helper function to extract the safe/unsafe verdict for a given field.
+
+    Args:
+        response: The model response text, with or without a reasoning trace.
+        field_name: The field to look for (e.g. "User Safety" or "Response Safety").
+
+    Returns:
+        The extracted verdict, either "safe" or "unsafe".
+
+    Raises:
+        ValueError: If the field is absent, carries a value other than safe or unsafe, is
+            stated more than once, or the reasoning trace is unterminated.
+    """
+    cleaned_response = _strip_think_tags(response)
+
+    # Reasoning traces may be truncated due to token limits.
+    # Make sure both think-tags were found and removed
+    if _THINK_OPEN_TAG in cleaned_response:
+        raise ValueError(_CONTENT_SAFETY_PARSE_ERROR)
+
+    # Checked after the strip, because a reasoning trace quotes the verdict lines back before
+    # restating them: counting duplicates first would reject every reasoning-enabled response.
+    _reject_duplicate_verdicts(cleaned_response)
+
+    match = re.search(_verdict_line_pattern(field_name), cleaned_response, re.IGNORECASE | re.MULTILINE)
+    if match is None:
+        raise ValueError(_CONTENT_SAFETY_PARSE_ERROR)
+
+    return match.group(1).lower()
+
+
+def _extract_safety_categories(response: str) -> List[str]:
+    """Helper function to extract the violated safety categories.
+
+    Args:
+        response: The model response text, with or without a reasoning trace.
+
+    Returns:
+        The categories listed by the model, or an empty list when it omitted the line.
+    """
+    cleaned_response = _strip_think_tags(response)
+
+    match = re.search(r"^\s*Safety Categories\s*:\s*(.*)$", cleaned_response, re.IGNORECASE | re.MULTILINE)
+    if match is None:
+        return []
+
+    return [category.strip() for category in match.group(1).split(",") if category.strip()]
+
+
+def nemotron_content_safety_parse_prompt_safety(response: str) -> Sequence[Union[bool, str]]:
+    """Analyzes a response from the Nemotron Content Safety models and determines if the user input is safe.
+
+    These models emit plain lines rather than JSON. `Response Safety` is present only when the request
+    carried an assistant turn, and `Safety Categories` only when a verdict is unsafe:
+
+        User Safety: unsafe
+        Response Safety: safe
+        Safety Categories: Criminal Planning/Confessions, Violence
+
+    Args:
+        response (str): The response string to analyze.
+
+    Returns:
+        Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the
+        content (True if safe, False otherwise), and the remaining elements are strings representing violated
+        safety categories, if any.
+
+    Raises:
+        ValueError: If the model response cannot be parsed as a content safety verdict, including
+            when either verdict field is stated more than once.
+    """
+    if _extract_safety_verdict(response, "User Safety") == "safe":
+        return [True]
+
+    return [False] + _extract_safety_categories(response)
+
+
+def nemotron_content_safety_parse_response_safety(
+    response: str,
+) -> Sequence[Union[bool, str]]:
+    """Analyzes a response from the Nemotron Content Safety models and determines if the bot response is safe.
+
+    Reads `Response Safety` and never falls back to `User Safety`: the models rate the two turns
+    independently, so an unsafe user turn must not block a safe refusal.
+
+    Args:
+        response (str): The response string to analyze.
+
+    Returns:
+        Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the
+        content (True if safe, False otherwise), and the remaining elements are strings representing violated
+        safety categories, if any.
+
+    Raises:
+        ValueError: If the model response cannot be parsed as a content safety verdict. A response with no
+            `Response Safety` line is unparseable rather than safe, as is one that states either verdict
+            field more than once.
+    """
+    if _extract_safety_verdict(response, "Response Safety") == "safe":
+        return [True]
+
+    return [False] + _extract_safety_categories(response)

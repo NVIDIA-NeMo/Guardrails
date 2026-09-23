@@ -1,0 +1,57 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: nonexistent-self-check-model
+      messages:
+      - role: user
+        content: |-
+          Return "unsafe" only if the user input is unsafe.
+          Otherwise return "safe".
+          User input: hello
+      temperature: 0.001
+      max_tokens: 32
+  response:
+    status:
+      code: 404
+      message: Not Found
+    headers:
+      content-type:
+      - application/json; charset=utf-8
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Origin
+      access-control-expose-headers:
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        error:
+          message: The model `nonexistent-self-check-model` does not exist or you do not have access to it.
+          type: invalid_request_error
+          param: null
+          code: model_not_found

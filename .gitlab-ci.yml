@@ -9,18 +9,15 @@ stages:
     - tests
     - build
     - docker-test
-    - deploy
 sast:
     stage: tests
 include:
     - template: Security/SAST.gitlab-ci.yml
-    - project: "sw-gpu-doctools/docs-ci"
-      ref: main
-      file: "nemo-guardrails-toolkit/docs-ci.yaml"
 
 variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
-    POETRY_VERSION: "1.8.2"
+    UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
+    UV_VERSION: "0.11.26"
     IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
     LATEST_TAG: $CI_REGISTRY_IMAGE:latest
 
@@ -29,17 +26,15 @@ cache:
     paths:
         - .venv/
         - .cache/pip
-        - poetry.lock
-        - pyproject.toml
+        - .cache/uv
 
 # Jobs templates
 
 .install-deps-template: &install-deps
     before_script:
-        - pip install poetry==$POETRY_VERSION
-        - poetry --version
-        - poetry config virtualenvs.in-project true
-        - poetry install --extras all --with dev
+        - pip install uv==$UV_VERSION
+        - uv --version
+        - uv sync --locked --extra all --group dev
 
 .test-template: &test
     <<: *install-deps
@@ -72,6 +67,7 @@ build:
     services:
         - docker:19.03.12-dind
     variables:
+        DOCKER_BUILDKIT: "1"
         DOCKER_DRIVER: overlay2
         DOCKER_TLS_CERTDIR: "/certs"
     before_script:

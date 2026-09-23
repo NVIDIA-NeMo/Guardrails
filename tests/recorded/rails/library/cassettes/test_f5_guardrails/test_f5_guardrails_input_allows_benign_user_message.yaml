@@ -1,0 +1,116 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://us1.calypsoai.app/backend/v1/scans
+    headers:
+      Content-Type:
+      - application/json
+    parsed_body:
+      input: Can you explain your return policy?
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Vary:
+      - Accept-Encoding
+      Server:
+      - istio-envoy
+      Via:
+      - 1.1 85b75ba75ad5fe49a29d3e06c3780f30.cloudfront.net (CloudFront)
+      Alt-Svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        result:
+          scannerResults:
+          - scannerId: 019513f3-45f9-707b-aa90-8584d73229e8
+            scannerVersionMeta:
+              id: 019e4a43-4614-703c-9c7a-e4f3a9016524
+              createdAt: '2026-05-21T11:19:43.380243+00:00'
+              createdBy: system
+              name: 2026-05-v2
+              published: true
+              description: |-
+                We released a system update that significantly
+                improves AI Guardrails performance, with up to:
+                • 1.6x greater throughput
+                • 9x increased context window size
+                • 4% higher detection accuracy
+            outcome: passed
+            data:
+              type: custom
+            customConfig: false
+            startedDate: '2026-07-13T11:55:43.013027+00:00'
+            completedDate: '2026-07-13T11:55:43.078722+00:00'
+            scanDirection: request
+          - scannerId: 019514eb-a704-7025-b7b2-eb1333853e8b
+            scannerVersionMeta:
+              id: 019e4a43-45d8-7072-97d2-2f28b271daa9
+              createdAt: '2026-05-21T11:19:43.320460+00:00'
+              createdBy: system
+              name: 2026-05-v2
+              published: true
+              description: |-
+                We released a system update that significantly
+                improves AI Guardrails performance, with up to:
+                • 1.6x greater throughput
+                • 9x increased context window size
+                • 4% higher detection accuracy
+            outcome: passed
+            data:
+              type: custom
+            customConfig: false
+            startedDate: '2026-07-13T11:55:43.013027+00:00'
+            completedDate: '2026-07-13T11:55:43.057077+00:00'
+            scanDirection: request
+          - scannerId: 019620d4-e065-7014-8f56-c1002045c205
+            scannerVersionMeta:
+              id: 019e4a43-4529-7093-b2af-63d017966bf0
+              createdAt: '2026-05-21T11:19:43.145591+00:00'
+              createdBy: system
+              name: 2026-05-v2
+              published: true
+              description: |-
+                We released a system update that significantly
+                improves AI Guardrails performance, with up to:
+                • 1.6x greater throughput
+                • 9x increased context window size
+                • 4% higher detection accuracy
+            outcome: passed
+            data:
+              type: custom
+            customConfig: false
+            startedDate: '2026-07-13T11:55:43.013027+00:00'
+            completedDate: '2026-07-13T11:55:43.098316+00:00'
+            scanDirection: request
+          - scannerId: 019620d5-12a6-702f-8660-cb0d069cb054
+            scannerVersionMeta:
+              id: 019e4a43-459f-70b8-bbb1-46017a1105a7
+              createdAt: '2026-05-21T11:19:43.263737+00:00'
+              createdBy: system
+              name: 2026-05-v2
+              published: true
+              description: |-
+                We released a system update that significantly
+                improves AI Guardrails performance, with up to:
+                • 1.6x greater throughput
+                • 9x increased context window size
+                • 4% higher detection accuracy
+            outcome: passed
+            data:
+              type: custom
+            customConfig: false
+            startedDate: '2026-07-13T11:55:43.013027+00:00'
+            completedDate: '2026-07-13T11:55:43.121221+00:00'
+            scanDirection: request
+          outcome: cleared
+        redactedInput: Can you explain your return policy?

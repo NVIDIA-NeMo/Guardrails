@@ -23,6 +23,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.imports import check_optional_dependency
 from tests.utils import TestChat
 
@@ -107,6 +108,121 @@ async def test_streaming_action_execution_failure():
     assert "failing safety check" in error["error"]["message"]
     assert "Action failing_rail_action failed with status: failed" in error["error"]["message"]
     assert error["error"]["param"] == "failing safety check"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action_error",
+    [
+        pytest.param(RuntimeError("Action execution failed"), id="runtime-error"),
+        pytest.param(LLMCallException(RuntimeError("LLM call failed")), id="llm-call-error"),
+    ],
+)
+async def test_sequential_streaming_action_execution_failure(action_error: Exception):
+    """Test fail-closed behavior in sequential streaming when a rail action fails."""
+
+    @action(is_system_action=True)
+    def failing_rail_action(**params):
+        raise action_error
+
+    config = RailsConfig.from_content(
+        config={
+            "models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"}],
+            "rails": {
+                "output": {
+                    "parallel": False,
+                    "flows": ["failing safety check"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 4,
+                    },
+                }
+            },
+        },
+        colang_content="""
+        define user express greeting
+          "hi"
+        define flow
+          user express greeting
+          bot express greeting
+
+        define subflow failing safety check
+          execute failing_rail_action
+        """,
+    )
+
+    llm_completions = [
+        'bot express greeting\n  "Hello there! How can I help you?"',
+    ]
+
+    chat = TestChat(config, llm_completions=llm_completions, streaming=True)
+    chat.app.register_action(failing_rail_action)
+
+    chunks = await collect_streaming_chunks(chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]))
+
+    internal_error_chunks = find_internal_error_chunks(chunks)
+    assert len(internal_error_chunks) == 1
+    error = internal_error_chunks[0]["error"]
+    assert error == {
+        "message": "Internal error in failing safety check rail: Action failing_rail_action failed with status: failed",
+        "type": "internal_error",
+        "param": "failing safety check",
+        "code": "rail_execution_failure",
+    }
+
+
+@pytest.mark.asyncio
+async def test_sequential_streaming_invalid_rail_outcome():
+    """Test fail-closed behavior when a sequential streaming rail returns an invalid result."""
+
+    @action(is_system_action=True)
+    def invalid_rail_action(**params):
+        return False
+
+    config = RailsConfig.from_content(
+        config={
+            "models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"}],
+            "rails": {
+                "output": {
+                    "parallel": False,
+                    "flows": ["invalid safety check"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 4,
+                    },
+                }
+            },
+        },
+        colang_content="""
+        define user express greeting
+          "hi"
+        define flow
+          user express greeting
+          bot express greeting
+
+        define subflow invalid safety check
+          execute invalid_rail_action
+        """,
+    )
+
+    llm_completions = [
+        'bot express greeting\n  "Hello there! How can I help you?"',
+    ]
+
+    chat = TestChat(config, llm_completions=llm_completions, streaming=True)
+    chat.app.register_action(invalid_rail_action)
+
+    chunks = await collect_streaming_chunks(chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]))
+
+    internal_error_chunks = find_internal_error_chunks(chunks)
+    assert len(internal_error_chunks) == 1
+    error = internal_error_chunks[0]["error"]
+    assert error == {
+        "message": "Internal error in invalid safety check rail: Rail action must return RailOutcome, got bool",
+        "type": "internal_error",
+        "param": "invalid safety check",
+        "code": "rail_execution_failure",
+    }
 
 
 @pytest.mark.asyncio

@@ -6,11 +6,33 @@ flow clavata check for $text $policy $labels=""
   """Check if the input text is benign."""
   $is_match = await ClavataCheckAction(text=$text, policy=$policy, labels=$labels)
 
-  if $is_match
+  if $is_match.is_blocked
     if $system.config.enable_rails_exceptions
       global $msg
       $msg = "Interaction blocked by clavata check with policy={$policy} and text={$text}"
       send ClavataPolicyMatchException(message=$msg)
+    else
+      bot refuse to respond
+    abort
+
+flow clavata check input
+  """Check if the user input is benign."""
+  $is_match = await ClavataCheckAction(text=$user_message, rail="input")
+
+  if $is_match.is_blocked
+    if $system.config.enable_rails_exceptions
+      send ClavataPolicyMatchException(message="Interaction blocked by clavata check on input.")
+    else
+      bot refuse to respond
+    abort
+
+flow clavata check output
+  """Check if the bot output is benign."""
+  $is_match = await ClavataCheckAction(text=$bot_message, rail="output")
+
+  if $is_match.is_blocked
+    if $system.config.enable_rails_exceptions
+      send ClavataPolicyMatchException(message="Interaction blocked by clavata check on output.")
     else
       bot refuse to respond
     abort

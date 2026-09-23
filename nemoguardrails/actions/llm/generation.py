@@ -36,11 +36,8 @@ from nemoguardrails.actions.llm.utils import (
     get_last_bot_intent_event,
     get_last_user_intent_event,
     get_last_user_utterance_event,
-    get_multiline_response,
     get_retrieved_relevant_chunks,
     get_top_k_nonempty_lines,
-    llm_call,
-    strip_quotes,
 )
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow, Spec, SpecOp
@@ -53,6 +50,8 @@ from nemoguardrails.context import (
 )
 from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
 from nemoguardrails.kb.kb import KnowledgeBase
+from nemoguardrails.llm.call import llm_call
+from nemoguardrails.llm.completion_parsing import get_multiline_response, strip_quotes
 from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
@@ -110,7 +109,7 @@ class LLMGenerationActions:
 
         # If set, in passthrough mode, this function will be used instead of
         # calling the LLM with the user input.
-        self.passthrough_fn: Optional[Callable[..., Awaitable[str]]] = None
+        self._passthrough_fn: Optional[Callable[..., Awaitable[str]]] = None
 
     def _extract_user_message_example(self, flow: Flow) -> None:
         """Heuristic to extract user message examples from a flow."""
@@ -120,7 +119,7 @@ class LLMGenerationActions:
 
         el = elements[1]
         if isinstance(el, SpecOp):
-            spec_op: SpecOp = cast(SpecOp, el)
+            spec_op: SpecOp = el
 
             if spec_op.op == "match":
                 # The SpecOp.spec type is Union[Spec, dict]. Convert Dict to Spec if it's provided
@@ -170,7 +169,7 @@ class LLMGenerationActions:
         if not isinstance(el, SpecOp):
             return
 
-        spec_op: SpecOp = cast(SpecOp, el)
+        spec_op: SpecOp = el
         spec: Dict[str, Any] = (
             asdict(spec_op.spec)  # TODO! Refactor this function as it's duplicated in many places
             if isinstance(spec_op.spec, Spec)
@@ -478,8 +477,8 @@ class LLMGenerationActions:
                     else:
                         raise ValueError(f"Unsupported type for raw prompt: {type(raw_prompt)}")
 
-                if self.passthrough_fn:
-                    raw_output = await self.passthrough_fn(context=context, events=events)
+                if self._passthrough_fn:
+                    raw_output = await self._passthrough_fn(context=context, events=events)
 
                     # If the passthrough action returns a single value, we consider that
                     # to be the text output
@@ -860,9 +859,9 @@ class LLMGenerationActions:
             # If we are in passthrough mode, we just use the input for prompting
             if self.config.passthrough:
                 # If we have a passthrough function, we use that.
-                if self.passthrough_fn:
+                if self._passthrough_fn:
                     prompt = None
-                    raw_output = await self.passthrough_fn(context=context, events=events)
+                    raw_output = await self._passthrough_fn(context=context, events=events)
 
                     # If the passthrough action returns a single value, we consider that
                     # to be the text output
@@ -1286,7 +1285,9 @@ class LLMGenerationActions:
                 llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_INTENT_STEPS_MESSAGE.value))
 
                 gen_options: Optional[GenerationOptions] = generation_options_var.get()
-                llm_params = (gen_options and gen_options.llm_params) or {}
+                llm_params = (
+                    gen_options.llm_params if gen_options is not None and gen_options.llm_params is not None else {}
+                )
                 additional_params = {
                     **llm_params,
                     "temperature": self.config.lowest_temperature,

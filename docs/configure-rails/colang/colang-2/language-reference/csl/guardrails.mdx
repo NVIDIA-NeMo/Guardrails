@@ -1,0 +1,17 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Guardrail Flows"
+description: "Flows to guardrail user inputs and LLM responses."
+---
+
+
+Flows to guardrail user inputs and LLM responses.
+
+```text
+# Check user utterances before they get further processed
+flow run input rails $input_text
+
+# Check llm responses before they get further processed
+flow run output rails $output_text
+```

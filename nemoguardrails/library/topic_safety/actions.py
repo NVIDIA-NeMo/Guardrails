@@ -14,10 +14,10 @@
 # limitations under the License.
 
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from nemoguardrails.actions.actions import action
-from nemoguardrails.actions.llm.utils import llm_call
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.cache import CacheInterface
 from nemoguardrails.llm.cache.utils import (
@@ -27,6 +27,7 @@ from nemoguardrails.llm.cache.utils import (
     extract_llm_stats_for_cache,
     get_from_cache_and_restore_stats,
 )
+from nemoguardrails.llm.call import llm_call
 from nemoguardrails.llm.filters import to_chat_messages
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -40,7 +41,6 @@ TOPIC_SAFETY_OUTPUT_RESTRICTION = (
     'You must respond with "on-topic" or "off-topic".'
 )
 TOPIC_SAFETY_TEMPERATURE = 0.01
-TOPIC_SAFETY_MAX_TOKENS = 10
 
 
 @action()
@@ -49,15 +49,17 @@ async def topic_safety_check_input(
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     events: Optional[List[dict]] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
-) -> dict:
-    _MAX_TOKENS = TOPIC_SAFETY_MAX_TOKENS
-    user_input: str = ""
+) -> RailOutcome:
+    user_input = user_message or ""
+    conversation_history: List[dict] = []
 
     if context is not None:
-        user_input = context.get("user_message", "")
+        if user_message is None:
+            user_input = context.get("user_message", "")
         model_name = model_name or context.get("model", None)
 
     if events is not None:
@@ -105,8 +107,6 @@ async def topic_safety_check_input(
 
     llm_call_info_var.set(LLMCallInfo(task=task))
 
-    max_tokens = max_tokens or _MAX_TOKENS
-
     messages = []
     messages.append({"type": "system", "content": system_prompt})
     messages.extend(conversation_history)
@@ -121,7 +121,11 @@ async def topic_safety_check_input(
             log.debug(f"Topic safety cache hit for model '{model_name}'")
             return cached_result
 
-    response = await llm_call(llm, messages, stop=stop, llm_params={"temperature": TOPIC_SAFETY_TEMPERATURE})
+    llm_params: Dict[str, Any] = {"temperature": TOPIC_SAFETY_TEMPERATURE}
+    if max_tokens:
+        llm_params["max_tokens"] = max_tokens
+
+    response = await llm_call(llm, messages, stop=stop, llm_params=llm_params)
     result = response.content
 
     if result.lower().strip() == "off-topic":
@@ -129,7 +133,7 @@ async def topic_safety_check_input(
     else:
         on_topic = True
 
-    final_result = {"on_topic": on_topic}
+    final_result = RailOutcome.allow() if on_topic else RailOutcome.block()
 
     if cache:
         cache_key = create_normalized_cache_key(messages)

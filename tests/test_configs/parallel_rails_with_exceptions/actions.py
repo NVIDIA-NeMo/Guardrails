@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 
 
 @action(is_system_action=True)
@@ -56,7 +57,7 @@ async def check_output_safety_action(context: dict):
     unsafe_terms = ["harmful", "dangerous", "unsafe", "violence"]
     is_safe = not any(term in bot_message.lower() for term in unsafe_terms)
 
-    return is_safe
+    return RailOutcome.allow() if is_safe else RailOutcome.block()
 
 
 @action(is_system_action=True)
@@ -66,4 +67,4 @@ async def check_output_length_action(context: dict):
     max_length = 500
     is_valid = len(bot_message) <= max_length
 
-    return is_valid
+    return RailOutcome.allow() if is_valid else RailOutcome.block()

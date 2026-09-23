@@ -1,0 +1,9 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-5-pro
+    parameters:
+      # Route calls to OpenAI's /v1/responses endpoint instead of
+      # /v1/chat/completions. Honored only under the LangChain framework
+      # (NEMOGUARDRAILS_LLM_FRAMEWORK=langchain); see README.md.
+      use_responses_api: true

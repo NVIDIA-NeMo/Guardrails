@@ -13,13 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import Any, Dict, Optional
 
 import pytest
-from aioresponses import aioresponses
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.http import HTTPResponse
 from nemoguardrails.library.clavata.request import (
     CreateJobResponse,
     Job,
@@ -27,6 +28,7 @@ from nemoguardrails.library.clavata.request import (
     Result,
     SectionReport,
 )
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
 
@@ -53,6 +55,21 @@ BASE_COLANG = """
     define bot refuse to respond
       "I cannot respond to that request."
 """
+
+
+@pytest.fixture
+def http_client() -> RecordingHTTPClient:
+    return RecordingHTTPClient()
+
+
+def add_clavata_response(client: RecordingHTTPClient, response: Dict[str, Any]) -> None:
+    client.add_response(
+        HTTPResponse(
+            status_code=200,
+            headers={"Content-Type": "application/json"},
+            content=json.dumps(response).encode(),
+        )
+    )
 
 
 @pytest.mark.unit
@@ -87,7 +104,7 @@ def test_clavata_no_active_policy_check(monkeypatch):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_clavata_input_policy_check(monkeypatch):
+async def test_clavata_input_policy_check(monkeypatch, http_client):
     """Test that input policy checks block messages about animal sounds."""
     monkeypatch.setenv("CLAVATA_API_KEY", "test_api_key")
 
@@ -116,27 +133,24 @@ async def test_clavata_input_policy_check(monkeypatch):
         ],
     )
 
-    # Mock response from Clavata API
-    with aioresponses() as m:
-        chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action_param("http_client", http_client)
 
-        # Use the factory to create a response with a matching policy and label
-        mock_response = create_clavata_response(labels={"DogBarking": True})
+    # Use the factory to create a response with a matching policy and label
+    mock_response = create_clavata_response(labels={"DogBarking": True})
+    add_clavata_response(http_client, mock_response)
 
-        m.post(
-            "https://gateway.app.clavata.ai:8443/v1/jobs",
-            payload=mock_response,
-            status=200,
-        )
-
-        chat >> "Woof woof"
-        # Block given the policy matched
-        await chat.bot_async("I cannot respond to that request.")
+    chat >> "Woof woof"
+    # Block given the policy matched
+    await chat.bot_async("I cannot respond to that request.")
+    assert http_client.requests[0].method == "POST"
+    assert http_client.requests[0].url == "https://gateway.app.clavata.ai:8443/v1/jobs"
+    assert http_client.requests[0].headers == {"Authorization": "Bearer test_api_key"}
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_clavata_label_match_logic_any(monkeypatch):
+async def test_clavata_label_match_logic_any(monkeypatch, http_client):
     """Test that label_match_logic: ANY works correctly when at least one label matches."""
     monkeypatch.setenv("CLAVATA_API_KEY", "test_api_key")
 
@@ -170,28 +184,23 @@ async def test_clavata_label_match_logic_any(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
-        chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action_param("http_client", http_client)
 
-        # One matching label
-        mock_response = create_clavata_response(
-            labels={"DogBarking": False, "CatMeowing": False, "CowMooing": True},
-        )
+    # One matching label
+    mock_response = create_clavata_response(
+        labels={"DogBarking": False, "CatMeowing": False, "CowMooing": True},
+    )
+    add_clavata_response(http_client, mock_response)
 
-        m.post(
-            "https://gateway.app.clavata.ai:8443/v1/jobs",
-            payload=mock_response,
-            status=200,
-        )
-
-        chat >> "Moo"
-        # Block given ANY logic is used and one label matches
-        await chat.bot_async("I cannot respond to that request.")
+    chat >> "Moo"
+    # Block given ANY logic is used and one label matches
+    await chat.bot_async("I cannot respond to that request.")
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_clavata_label_match_logic_any_no_match(monkeypatch):
+async def test_clavata_label_match_logic_any_no_match(monkeypatch, http_client):
     """Test that label_match_logic: ANY allows messages when no specified labels match."""
     monkeypatch.setenv("CLAVATA_API_KEY", "test_api_key")
 
@@ -224,27 +233,22 @@ async def test_clavata_label_match_logic_any_no_match(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
-        chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action_param("http_client", http_client)
 
-        mock_response = create_clavata_response(
-            labels={"DogBarking": False, "CatMeowing": False, "HorseNeighing": False},
-        )
+    mock_response = create_clavata_response(
+        labels={"DogBarking": False, "CatMeowing": False, "HorseNeighing": False},
+    )
+    add_clavata_response(http_client, mock_response)
 
-        m.post(
-            "https://gateway.app.clavata.ai:8443/v1/jobs",
-            payload=mock_response,
-            status=200,
-        )
-
-        chat >> "Hey"
-        # Pass given no labels matched
-        await chat.bot_async("Hello there!")
+    chat >> "Hey"
+    # Pass given no labels matched
+    await chat.bot_async("Hello there!")
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_clavata_label_match_logic_all(monkeypatch):
+async def test_clavata_label_match_logic_all(monkeypatch, http_client):
     """Test that label_match_logic: ALL requires all specified labels to match."""
     monkeypatch.setenv("CLAVATA_API_KEY", "test_api_key")
 
@@ -278,32 +282,27 @@ async def test_clavata_label_match_logic_all(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
-        chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action_param("http_client", http_client)
 
-        mock_response = create_clavata_response(
-            labels={
-                "DogBarking": True,
-                "CatMeowing": True,
-                "CowMooing": True,
-                "HorseNeighing": False,
-            },
-        )
+    mock_response = create_clavata_response(
+        labels={
+            "DogBarking": True,
+            "CatMeowing": True,
+            "CowMooing": True,
+            "HorseNeighing": False,
+        },
+    )
+    add_clavata_response(http_client, mock_response)
 
-        m.post(
-            "https://gateway.app.clavata.ai:8443/v1/jobs",
-            payload=mock_response,
-            status=200,
-        )
-
-        chat >> "Woof woof, meow, moo."
-        # Block given all specified labels matched and we're using ALL logic
-        await chat.bot_async("I cannot respond to that request.")
+    chat >> "Woof woof, meow, moo."
+    # Block given all specified labels matched and we're using ALL logic
+    await chat.bot_async("I cannot respond to that request.")
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_clavata_label_match_logic_all_partial_match(monkeypatch):
+async def test_clavata_label_match_logic_all_partial_match(monkeypatch, http_client):
     """Test that label_match_logic: ALL allows messages when only some labels match."""
     monkeypatch.setenv("CLAVATA_API_KEY", "test_api_key")
 
@@ -337,27 +336,22 @@ async def test_clavata_label_match_logic_all_partial_match(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
-        chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action_param("http_client", http_client)
 
-        mock_response = create_clavata_response(
-            labels={"DogBarking": True, "CatMeowing": True, "CowMooing": False},
-        )
+    mock_response = create_clavata_response(
+        labels={"DogBarking": True, "CatMeowing": True, "CowMooing": False},
+    )
+    add_clavata_response(http_client, mock_response)
 
-        m.post(
-            "https://gateway.app.clavata.ai:8443/v1/jobs",
-            payload=mock_response,
-            status=200,
-        )
-
-        chat >> "Hi! I want to talk about dogs and cats but not cows."
-        # Pass given not all specified labels matched
-        await chat.bot_async("Hello there!")
+    chat >> "Hi! I want to talk about dogs and cats but not cows."
+    # Pass given not all specified labels matched
+    await chat.bot_async("Hello there!")
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_clavata_empty_labels(monkeypatch):
+async def test_clavata_empty_labels(monkeypatch, http_client):
     """Test that any policy match blocks the message even if no labels are specified."""
     monkeypatch.setenv("CLAVATA_API_KEY", "test_api_key")
 
@@ -387,25 +381,20 @@ async def test_clavata_empty_labels(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
-        chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action_param("http_client", http_client)
 
-        mock_response = create_clavata_response(labels={"SomeLabel": True})
+    mock_response = create_clavata_response(labels={"SomeLabel": True})
+    add_clavata_response(http_client, mock_response)
 
-        m.post(
-            "https://gateway.app.clavata.ai:8443/v1/jobs",
-            payload=mock_response,
-            status=200,
-        )
-
-        chat >> "Hi! I want to talk about something that matches the policy."
-        # Block given the policy matched
-        await chat.bot_async("I cannot respond to that request.")
+    chat >> "Hi! I want to talk about something that matches the policy."
+    # Block given the policy matched
+    await chat.bot_async("I cannot respond to that request.")
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_clavata_policy_no_match(monkeypatch):
+async def test_clavata_policy_no_match(monkeypatch, http_client):
     """Test that when the policy doesn't match at all, the message passes through."""
     monkeypatch.setenv("CLAVATA_API_KEY", "test_api_key")
 
@@ -434,21 +423,16 @@ async def test_clavata_policy_no_match(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
-        chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action_param("http_client", http_client)
 
-        # No policy match
-        mock_response = create_clavata_response()
+    # No policy match
+    mock_response = create_clavata_response()
+    add_clavata_response(http_client, mock_response)
 
-        m.post(
-            "https://gateway.app.clavata.ai:8443/v1/jobs",
-            payload=mock_response,
-            status=200,
-        )
-
-        chat >> "Hi! I want to talk about something innocent."
-        # Pass given no policy match
-        await chat.bot_async("Hello there!")
+    chat >> "Hi! I want to talk about something innocent."
+    # Pass given no policy match
+    await chat.bot_async("Hello there!")
 
 
 def create_clavata_response(

@@ -1,0 +1,150 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      Host:
+      - api.openai.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: Say hello in a few words.
+      stream: true
+      stream_options:
+        include_usage: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - text/event-stream; charset=utf-8
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta:
+            role: assistant
+            content: ''
+            refusal: null
+          finish_reason: null
+        usage: null
+        obfuscation: fPT
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta:
+            content: Hello
+          finish_reason: null
+        usage: null
+        obfuscation: ''
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta:
+            content: ' there'
+          finish_reason: null
+        usage: null
+        obfuscation: 6WN4WFhWhL2mMOa
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta:
+            content: '!'
+          finish_reason: null
+        usage: null
+        obfuscation: SCIC
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta:
+            content: ' 👋'
+          finish_reason: null
+        usage: null
+        obfuscation: VLR
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta: {}
+          finish_reason: stop
+        usage: null
+        obfuscation: 7v6fP3w7ifPCZ1F
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        choices: []
+        usage:
+          prompt_tokens: 13
+          completion_tokens: 8
+          total_tokens: 21
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        obfuscation: aXOvx
+      - '[DONE]'

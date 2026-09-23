@@ -43,6 +43,10 @@ define subflow generate user intent
   execute generate_user_intent
 
 
+define subflow mask blocked user input
+  create event mask_prev_user_message(intent="unanswerable message")
+
+
 define subflow run input rails
   """Runs all the input rails in a sequential order. """
   $input_flows = $config.rails.input.flows

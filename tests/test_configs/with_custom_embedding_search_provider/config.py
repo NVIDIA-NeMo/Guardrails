@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List
+from typing import List, Optional
 
 from nemoguardrails import LLMRails
 from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
@@ -39,7 +39,7 @@ class SimpleEmbeddingSearchProvider(EmbeddingsIndex):
         """Adds multiple items to the index."""
         self.items.extend(items)
 
-    async def search(self, text: str, max_results: int) -> List[IndexItem]:
+    async def search(self, text: str, max_results: int, threshold: Optional[float] = None) -> List[IndexItem]:
         """Searches the index for the closes matches to the provided text."""
         results = []
         for item in self.items:

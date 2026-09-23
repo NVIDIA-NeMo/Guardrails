@@ -60,8 +60,8 @@ from typing import TYPE_CHECKING, Any, Dict
 if TYPE_CHECKING:
     from nemoguardrails.tracing import InteractionLog
 try:
-    from opentelemetry import trace  # type: ignore
-    from opentelemetry.trace import NoOpTracerProvider  # type: ignore
+    from opentelemetry import trace
+    from opentelemetry.trace import NoOpTracerProvider
 
 except ImportError:
     raise ImportError(
@@ -100,7 +100,7 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         """
 
         # validate that OpenTelemetry is properly configured
-        provider = trace.get_tracer_provider()  # type: ignore
+        provider = trace.get_tracer_provider()
         if provider is None or isinstance(provider, NoOpTracerProvider):
             warnings.warn(
                 "No OpenTelemetry TracerProvider configured. Traces will not be exported. "
@@ -111,7 +111,7 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
                 stacklevel=2,
             )
 
-        self.tracer = trace.get_tracer(  # type: ignore
+        self.tracer = trace.get_tracer(
             service_name,
             instrumenting_library_version=version("nemoguardrails"),
             schema_url="https://opentelemetry.io/schemas/1.26.0",

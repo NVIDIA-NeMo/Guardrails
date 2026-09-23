@@ -1,4 +1,6 @@
 {
+  "labels": ["status: triaged"],
+  "triggerOnDrafts": false,
   "triggerOnUpdates": true,
   "shouldUpdateDescription": false,
   "fixWithAI": true,

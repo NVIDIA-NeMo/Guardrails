@@ -5,11 +5,11 @@ flow hallucination warning
   """Warning rail for hallucination."""
   bot said something
   if $hallucination_warning == True
-    $is_hallucination = await SelfCheckHallucinationAction()
+    $hallucination_response = await SelfCheckHallucinationAction()
     global $hallucination_warning
     $hallucination_warning = False
 
-    if $is_hallucination
+    if $hallucination_response.is_blocked
       bot inform answer prone to hallucination
 
 flow bot inform answer prone to hallucination
@@ -20,11 +20,11 @@ flow bot inform answer prone to hallucination
 flow self check hallucination
   """Output rail for checking hallucinations."""
   if $check_hallucination == True
-    $is_hallucination = await SelfCheckHallucinationAction()
+    $hallucination_response = await SelfCheckHallucinationAction()
     global $check_hallucination
     $check_hallucination = False
 
-    if $is_hallucination
+    if $hallucination_response.is_blocked
       if $system.config.enable_rails_exceptions
         send SelfCheckHallucinationRailException(message="Hallucination detected. The previous answer may not be accurate")
       else

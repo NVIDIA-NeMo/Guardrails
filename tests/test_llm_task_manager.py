@@ -368,3 +368,15 @@ def test_get_task_model_fallback_to_main():
     result = get_task_model(config, "some_other_task")
     assert result is not None
     assert result.type == "main"
+
+
+def test_register_filter_requires_name_for_callable_instance():
+    class CallableFilter:
+        def __call__(self, value):
+            return value
+
+    config = RailsConfig.from_content(config={"models": []})
+    task_manager = LLMTaskManager(config)
+
+    with pytest.raises(ValueError, match="explicit name"):
+        task_manager.register_filter(CallableFilter())

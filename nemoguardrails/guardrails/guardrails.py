@@ -22,10 +22,12 @@ LLM responses with programmable guardrails.
 """
 
 import logging
-from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast, overload
+import warnings
+from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast
 
 from typing_extensions import Self
 
+from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang.runtime import Runtime
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.embeddings.index import EmbeddingsIndex
@@ -36,13 +38,13 @@ from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.options import GenerationResponse, RailsResult, RailType
+from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse, RailsResult, RailType
 from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
 
-class Guardrails:
+class Guardrails(BaseGuardrails):
     """Top-level interface for NeMo Guardrails functionality."""
 
     config: RailsConfig
@@ -65,16 +67,21 @@ class Guardrails:
         config contains flows IORails does not support), the wrapper falls back to
         LLMRails and logs a warning. Set ``require_iorails=True`` to raise a
         ``ValueError`` instead — use this when IORails-only features such as
-        OpenTelemetry metrics are required.
+        OpenTelemetry metrics are required. A config with per-tool rails
+        (``rails.tool_output.per_tool`` / ``rails.tool_input.per_tool``) always raises
+        instead of falling back, since LLMRails does not run them at all.
+
+        ``verbose=True`` also routes this package's logs to stderr through ``configure_logging``;
+        without it, handlers, levels and formatting are left to the calling application.
         """
 
         self.config = config
         self.verbose = verbose
 
+        # configure_logging attaches a handler and stops the package logger propagating, detaching
+        # nemoguardrails.guardrails from the handlers the application installed on the root logger.
         if verbose:
             configure_logging(logging.DEBUG)
-        else:
-            configure_logging(logging.INFO)
 
         if use_iorails:
             fallback_reason = IORails.unsupported_reason(config, llm)
@@ -82,6 +89,12 @@ class Guardrails:
                 self._rails_engine = IORails(config)
                 self.use_iorails_engine = True
             else:
+                if config.rails.tool_output.per_tool or config.rails.tool_input.per_tool:
+                    raise ValueError(
+                        f"IORails cannot be used: {fallback_reason}. Configured per-tool rails "
+                        "(rails.tool_output.per_tool / rails.tool_input.per_tool) are IORails-only; "
+                        "LLMRails does not run them, so falling back would silently disable them."
+                    )
                 message = (
                     f"use_iorails=True was requested but IORails cannot be used: {fallback_reason}. "
                     "Falling back to LLMRails; IORails-only features (such as OpenTelemetry "
@@ -124,23 +137,60 @@ class Guardrails:
         llmrails = cast(LLMRails, self.rails_engine)
         return llmrails.runtime
 
-    @staticmethod
-    def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
-        """Return messages in standard format, converting a prompt string if needed.
+    @property
+    def explain_info(self) -> Optional[ExplainInfo]:
+        """Deprecated. Use ``explain()`` instead.
 
-        If messages is provided, returns it as-is.
-        If prompt is provided, wraps it as [{"role": "user", "content": prompt}].
+        Direct access can return ``None`` for an uninitialized accumulator;
+        ``explain()`` guarantees a non-None ExplainInfo. Only supported for LLMRails.
         """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support explain_info attribute access")
 
-        # Priority: messages first, then prompt
-        if messages:
-            return messages
+        warnings.warn(
+            "Guardrails.explain_info is deprecated and will be removed in the next release. "
+            "Use Guardrails.explain() instead, which guarantees a valid ExplainInfo.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails._explain_info
 
-        if prompt:
-            # Convert string prompt to standard format
-            return [{"role": "user", "content": prompt}]
+    @explain_info.setter
+    def explain_info(self, value: Optional[ExplainInfo]) -> None:
+        """Deprecated. Setting ``explain_info`` is no longer supported; use ``explain()`` to read it."""
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support explain_info attribute access")
 
-        raise ValueError("Neither prompt nor messages provided for generation")
+        warnings.warn(
+            "Setting Guardrails.explain_info is deprecated and will be removed in the next release. "
+            "explain_info is an internal accumulator; use Guardrails.explain() to read it.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        llmrails = cast(LLMRails, self.rails_engine)
+        llmrails._explain_info = value
+
+    @property
+    def passthrough_fn(self) -> Optional[Callable]:
+        """The optional passthrough function that bypasses LLM generation.
+
+        Only supported for LLMRails. When set, the rails pipeline calls this
+        function instead of the main LLM for generating responses.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support passthrough_fn attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.passthrough_fn
+
+    @passthrough_fn.setter
+    def passthrough_fn(self, fn: Optional[Callable]) -> None:
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support passthrough_fn attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        llmrails.passthrough_fn = fn
 
     async def _ensure_started(self) -> None:
         """Lazy initialization: call startup() on first use if not already started."""
@@ -148,50 +198,38 @@ class Guardrails:
             await self.startup()
 
     def generate(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
+        self,
+        prompt: str | None = None,
+        messages: LLMMessages | None = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate an LLM response synchronously with guardrails applied.
         Supported in both IORails and LLMRails
         """
-
-        generate_messages = self._convert_to_messages(prompt, messages)
-        return self.rails_engine.generate(messages=generate_messages, **kwargs)
-
-    @overload
-    async def generate_async(self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs) -> str: ...
-
-    @overload
-    async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
-    ) -> dict: ...
-
-    @overload
-    async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
-    ) -> GenerationResponse: ...
-
-    @overload
-    async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
-    ) -> tuple[dict, dict]: ...
+        return self.rails_engine.generate(prompt=prompt, messages=messages, options=options, **kwargs)
 
     async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
+        self,
+        prompt: str | None = None,
+        messages: LLMMessages | None = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
     ) -> str | dict | GenerationResponse | tuple[dict, dict]:
         """Generate an LLM response asynchronously with guardrails applied.
         Supported by both LLMRails and IORails
         """
         await self._ensure_started()
 
-        generate_messages = self._convert_to_messages(prompt, messages)
-        return await self.rails_engine.generate_async(messages=generate_messages, **kwargs)
+        return await self.rails_engine.generate_async(prompt=prompt, messages=messages, options=options, **kwargs)
 
     def stream_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
     ) -> AsyncIterator[str | dict]:
         """Generate an LLM response asynchronously with streaming support."""
 
-        stream_messages = self._convert_to_messages(prompt, messages)
+        # TODO: Move prompt/message normalization into IORails when streaming GenerationOptions added
+        stream_messages = IORails._convert_to_messages(prompt, messages)
 
         async def _with_startup(iterator: AsyncIterator[str | dict]) -> AsyncIterator[str | dict]:
             await self._ensure_started()
@@ -236,6 +274,30 @@ class Guardrails:
         # self.rails_engine must be LLMRails since we raise above if we're using IORails
         llmrails = cast(LLMRails, self.rails_engine)
         llmrails.update_llm(llm)
+
+    @property
+    def events_history_cache(self) -> dict:
+        """Per-session events history cache.
+
+        Used by the server to persist conversation state across requests.
+        For LLMRails this is stored by reference; assigning replaces the dict
+        object, not its contents.
+
+        IORails is stateless, return empty cache and drop cache-store writes
+        """
+        if isinstance(self.rails_engine, IORails):
+            return {}
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.events_history_cache
+
+    @events_history_cache.setter
+    def events_history_cache(self, value: dict) -> None:
+        if isinstance(self.rails_engine, IORails):
+            return
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        llmrails.events_history_cache = value
 
     async def generate_events_async(self, events: List[dict]) -> List[dict]:
         """Generate the next events based on the provided history.
@@ -293,13 +355,10 @@ class Guardrails:
         rail_types: Optional[List[RailType]] = None,
     ) -> RailsResult:
         """Run rails on messages based on their content (asynchronous).
-        Only supported for LLMRails.
+        Supported by both LLMRails and IORails.
         """
-        if isinstance(self.rails_engine, IORails):
-            raise NotImplementedError("IORails doesn't support check_async()")
-
-        llmrails = cast(LLMRails, self.rails_engine)
-        return await llmrails.check_async(messages, rail_types=rail_types)
+        await self._ensure_started()
+        return await self.rails_engine.check_async(messages, rail_types=rail_types)
 
     def check(
         self,
@@ -307,13 +366,9 @@ class Guardrails:
         rail_types: Optional[List[RailType]] = None,
     ) -> RailsResult:
         """Synchronous version of check_async.
-        Only supported for LLMRails.
+        Supported by both LLMRails and IORails.
         """
-        if isinstance(self.rails_engine, IORails):
-            raise NotImplementedError("IORails doesn't support check()")
-
-        llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.check(messages, rail_types=rail_types)
+        return self.rails_engine.check(messages, rail_types=rail_types)
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration.

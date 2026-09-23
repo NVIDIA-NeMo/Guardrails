@@ -81,8 +81,8 @@ async def _run_chat_v1_0(
             # If we have streaming from a locally loaded config, we initialize the handler.
             if streaming and not server_url and rails_app:
                 try:
-                    bot_message_list = []
-                    async for chunk in rails_app.stream_async(messages=history):
+                    bot_message_list: list[str] = []
+                    async for chunk in rails_app.stream_async(messages=history, include_metadata=False):
                         if isinstance(chunk, str) and chunk.startswith('{"error"'):
                             try:
                                 error_data = json.loads(chunk)
@@ -93,7 +93,7 @@ async def _run_chat_v1_0(
                             break
 
                         console.print("[green]" + f"{chunk}" + "[/]", end="")
-                        bot_message_list.append(chunk)
+                        bot_message_list.append(cast(str, chunk))
 
                     bot_message_text = "".join(bot_message_list)
                     bot_message = {"role": "assistant", "content": bot_message_text}
@@ -474,7 +474,8 @@ async def _run_chat_v2_x(rails_app: LLMRails):
                 and chat_state.output_events[0]["counter"] == 0
             ):
                 # If there are no pending actions, we stop
-                check_task.cancel()
+                if check_task is not None:
+                    check_task.cancel()
                 check_task = None
                 if chat_state.output_state is not None:
                     debugger.set_output_state(chat_state.output_state)

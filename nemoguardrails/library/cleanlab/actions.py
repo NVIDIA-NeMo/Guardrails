@@ -14,41 +14,45 @@
 # limitations under the License.
 import logging
 import os
-from typing import Dict, Optional, Union
+from typing import Optional
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 
 log = logging.getLogger(__name__)
 
+CLEANLAB_TRUSTWORTHINESS_THRESHOLD = 0.6
 
-def cleanlab_output_mapping(result: dict) -> bool:
-    """Block if the trustworthiness score is below 0.6."""
 
-    score = result.get("trustworthiness_score", 1)
-    return score < 0.6
+def _cleanlab_outcome(trustworthiness_score: float) -> RailOutcome:
+    if trustworthiness_score < CLEANLAB_TRUSTWORTHINESS_THRESHOLD:
+        return RailOutcome.block(metadata={"trustworthiness_score": trustworthiness_score})
+    return RailOutcome.allow(metadata={"trustworthiness_score": trustworthiness_score})
 
 
 @action(
-    name="call cleanlab api",
+    name="call_cleanlab_api",
     is_system_action=True,
-    output_mapping=cleanlab_output_mapping,
 )
 async def call_cleanlab_api(
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
     **kwargs,
-) -> Union[ValueError, ImportError, Dict]:
+) -> RailOutcome:
     api_key = os.environ.get("CLEANLAB_API_KEY")
 
     if api_key is None:
         raise ValueError("CLEANLAB_API_KEY environment variable not set.")
 
     try:
-        from cleanlab_studio import Studio
+        from cleanlab_studio import Studio  # type: ignore[reportMissingImports]
     except ImportError:
         raise ImportError("Please install cleanlab-studio using 'pip install --upgrade cleanlab-studio' command")
 
-    bot_response = context.get("bot_message")
-    user_input = context.get("user_message")
+    context = context or {}
+    bot_response = bot_message if bot_message is not None else context.get("bot_message")
+    user_input = user_message if user_message is not None else context.get("user_message")
 
     studio = Studio(api_key)
     cleanlab_tlm = studio.TLM()
@@ -60,4 +64,4 @@ async def call_cleanlab_api(
         raise ValueError("Cannot compute trustworthiness score without a valid response from the LLM")
 
     log.info(f"Trustworthiness Score: {trustworthiness_score}")
-    return {"trustworthiness_score": trustworthiness_score}
+    return _cleanlab_outcome(trustworthiness_score)

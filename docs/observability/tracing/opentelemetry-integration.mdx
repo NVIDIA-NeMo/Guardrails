@@ -1,0 +1,108 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "OpenTelemetry Integration"
+sidebar-title: "OpenTelemetry"
+description: "Configure OpenTelemetry SDK with OTLP exporters for production monitoring backends."
+content:
+  type: "how_to"
+---
+
+The NVIDIA NeMo Guardrails library follows OpenTelemetry best practices. The library uses only the API, and the host application configures the SDK. The following sections explain how to install and configure the OpenTelemetry SDK.
+
+## Installation
+
+Choose one of the following options for installing the library with tracing support, the OpenTelemetry SDK, and the OpenTelemetry Protocol (OTLP) exporter.
+
+- For basic tracing support in the NeMo Guardrails library:
+
+  ```bash
+  pip install nemoguardrails[tracing]
+  ```
+
+- For development with the OpenTelemetry SDK:
+
+  ```bash
+  pip install nemoguardrails[tracing] opentelemetry-sdk
+  ```
+
+- For production with the OpenTelemetry SDK and the OpenTelemetry Protocol (OTLP) exporter:
+
+  ```bash
+  pip install nemoguardrails[tracing] opentelemetry-sdk opentelemetry-exporter-otlp
+  ```
+
+## Configuration Examples
+
+The following examples show how to configure the library with the OpenTelemetry SDK for development and production use cases.
+
+### Console Output (Development)
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.resources import Resource
+
+# Configure OpenTelemetry before NeMo Guardrails
+resource = Resource.create({"service.name": "my-guardrails-app"})
+tracer_provider = TracerProvider(resource=resource)
+trace.set_tracer_provider(tracer_provider)
+
+console_exporter = ConsoleSpanExporter()
+tracer_provider.add_span_processor(BatchSpanProcessor(console_exporter))
+
+# Configure NeMo Guardrails
+from nemoguardrails import LLMRails, RailsConfig
+
+config_yaml = """
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+tracing:
+  enabled: true
+  adapters:
+    - name: OpenTelemetry
+"""
+
+config = RailsConfig.from_content(yaml_content=config_yaml)
+
+rails = LLMRails(config)
+```
+
+### OTLP Exporter (Production)
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+
+resource = Resource.create({"service.name": "my-guardrails-app"})
+tracer_provider = TracerProvider(resource=resource)
+trace.set_tracer_provider(tracer_provider)
+
+otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
+tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+
+# Use with NeMo Guardrails as above
+```
+
+## OpenTelemetry Ecosystem Compatibility
+
+The library works with the entire OpenTelemetry ecosystem, including the following components.
+
+| Component | Examples |
+| --- | --- |
+| Exporters | Jaeger, Zipkin, Prometheus, New Relic, Datadog, AWS X-Ray, and Google Cloud Trace. |
+| Collectors | OpenTelemetry Collector and vendor-specific collectors. |
+| Backends | Any system that accepts OpenTelemetry traces. |
+
+Refer to the [OpenTelemetry Registry](https://opentelemetry.io/ecosystem/registry/) for the complete list.
+
+## Exporting Logs
+
+To also forward guardrails Python log records into your OpenTelemetry backend with trace correlation, see [OpenTelemetry Logs](/observability/tracing/opentelemetry-logs).

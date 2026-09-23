@@ -22,8 +22,13 @@ from nemoguardrails.utils import new_uuid
 
 log = logging.getLogger(__name__)
 
+
+class _EndOfStream:
+    pass
+
+
 # sentinel object to indicate end of stream
-END_OF_STREAM = object()
+END_OF_STREAM = _EndOfStream()
 
 
 class StreamingHandler(AsyncIterator):
@@ -184,7 +189,7 @@ class StreamingHandler(AsyncIterator):
 
     async def _process(
         self,
-        chunk: Union[str, object],
+        chunk: Union[str, _EndOfStream],
         metadata: Optional[Dict[str, Any]] = None,
     ):
         """Process a chunk of text.
@@ -197,8 +202,8 @@ class StreamingHandler(AsyncIterator):
             self.current_metadata.update(metadata)
 
         if self.enable_buffer:
-            if chunk is not END_OF_STREAM:
-                self.buffer += chunk if chunk is not None else ""
+            if isinstance(chunk, str):
+                self.buffer += chunk
                 lines = [line.strip() for line in self.buffer.split("\n")]
                 lines = [line for line in lines if len(line) > 0 and line[0] != "#"]
                 if len(lines) > self.k > 0:
@@ -207,7 +212,7 @@ class StreamingHandler(AsyncIterator):
         else:
             prev_completion = self.completion
 
-            if chunk is not None and chunk is not END_OF_STREAM:
+            if isinstance(chunk, str):
                 self.completion += chunk
                 # Check if the completion contains one of the stop chunks
                 for stop_chunk in self.stop:
@@ -240,7 +245,7 @@ class StreamingHandler(AsyncIterator):
                 # not ones directly pushed by the user
                 if chunk is not None:
                     if self.include_metadata:
-                        chunk_dict = {"text": chunk if chunk is not END_OF_STREAM else END_OF_STREAM}
+                        chunk_dict: Dict[str, Any] = {"text": chunk if chunk is not END_OF_STREAM else END_OF_STREAM}
                         if chunk is END_OF_STREAM:
                             metadata = self.current_metadata.copy() if self.current_metadata else {}
                             metadata.setdefault("response_metadata", None)
@@ -249,6 +254,8 @@ class StreamingHandler(AsyncIterator):
                         elif self.current_metadata:
                             chunk_dict["metadata"] = self.current_metadata.copy()
                         await self.queue.put(chunk_dict)
+                        if chunk is not END_OF_STREAM and "usage" in chunk_dict.get("metadata", {}):
+                            self.current_metadata.pop("usage", None)
                     else:
                         await self.queue.put(chunk)
 
@@ -259,7 +266,7 @@ class StreamingHandler(AsyncIterator):
 
     async def push_chunk(
         self,
-        chunk: Union[str, None],
+        chunk: Union[str, _EndOfStream, None],
         metadata: Optional[Dict[str, Any]] = None,
     ):
         """Push a new string chunk to the stream.
@@ -288,7 +295,7 @@ class StreamingHandler(AsyncIterator):
 
         # Process prefix: accumulate until the expected prefix is received, then remove it.
         if self.prefix:
-            if chunk is not None and chunk is not END_OF_STREAM:
+            if isinstance(chunk, str):
                 self.current_chunk += chunk
             if self.current_chunk.startswith(self.prefix):
                 self.current_chunk = self.current_chunk[len(self.prefix) :]
@@ -299,7 +306,7 @@ class StreamingHandler(AsyncIterator):
                     self.current_chunk = ""
         # Process suffix/stop tokens: accumulate and check whether the current chunk ends with one.
         elif self.suffix or self.stop:
-            if chunk is not None and chunk is not END_OF_STREAM:
+            if isinstance(chunk, str):
                 self.current_chunk += chunk
             _chunks = []
             if self.suffix:
@@ -315,7 +322,7 @@ class StreamingHandler(AsyncIterator):
                         skip_processing = True
                         break
 
-            if skip_processing and chunk is not END_OF_STREAM:
+            if skip_processing and isinstance(chunk, str):
                 return
             else:
                 if chunk is END_OF_STREAM:

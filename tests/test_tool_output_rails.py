@@ -13,14 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from unittest.mock import patch
 
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.utils import FakeLLMModel, TestChat
+
+
+def _tool_arguments(func: dict) -> dict:
+    """Parse OpenAI-style tool call arguments (JSON string or dict)."""
+    arguments = func.get("arguments", {})
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            return {}
+    return arguments if isinstance(arguments, dict) else {}
 
 
 @action(is_system_action=True)
@@ -31,7 +44,7 @@ async def validate_tool_parameters(tool_calls, context=None, **kwargs):
 
     for tool_call in tool_calls:
         func = tool_call.get("function", {})
-        args = func.get("arguments", {})
+        args = _tool_arguments(func)
         for param_value in args.values():
             if isinstance(param_value, str):
                 if any(pattern.lower() in param_value.lower() for pattern in dangerous_patterns):
@@ -190,3 +203,113 @@ async def test_multiple_tool_output_rails():
 
         assert result["tool_calls"] is not None
         assert result["tool_calls"][0]["name"] == "test_tool"
+
+
+@pytest.mark.asyncio
+async def test_assistant_tool_calls_run_tool_output_rails_when_dialog_disabled():
+    config = RailsConfig.from_content(
+        """
+        define subflow validate tool parameters
+          $valid = execute validate_tool_parameters(tool_calls=$tool_calls)
+
+          if not $valid
+            bot refuse dangerous tool parameters
+            abort
+
+        define bot refuse dangerous tool parameters
+          "I cannot execute this tool request because the parameters may be unsafe."
+        """,
+        """
+        models: []
+        passthrough: true
+        rails:
+          tool_output:
+            flows:
+              - validate tool parameters
+        """,
+    )
+    rails = LLMRails(config)
+    rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+
+    messages = [
+        {"role": "user", "content": "Use the requested tool"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_bad",
+                    "type": "function",
+                    "function": {
+                        "name": "dangerous_tool",
+                        "arguments": '{"param": "eval(\'malicious code\')"}',
+                    },
+                }
+            ],
+        },
+    ]
+
+    result = await rails.generate_async(messages=messages, options={"rails": {"dialog": False}})
+
+    assert isinstance(result, GenerationResponse)
+    assert isinstance(result.response, list)
+    assert "parameters may be unsafe" in result.response[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_approved_assistant_tool_calls_are_returned_when_dialog_disabled():
+    config = RailsConfig.from_content(
+        """
+        define subflow validate tool parameters
+          $valid = execute validate_tool_parameters(tool_calls=$tool_calls)
+
+          if not $valid
+            bot refuse dangerous tool parameters
+            abort
+
+        define bot refuse dangerous tool parameters
+          "I cannot execute this tool request because the parameters may be unsafe."
+        """,
+        """
+        models: []
+        passthrough: true
+        rails:
+          tool_output:
+            flows:
+              - validate tool parameters
+        """,
+    )
+    rails = LLMRails(config)
+    rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+
+    messages = [
+        {"role": "user", "content": "Use the requested tool"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_safe",
+                    "type": "function",
+                    "function": {
+                        "name": "safe_tool",
+                        "arguments": '{"param": "safe value"}',
+                    },
+                }
+            ],
+        },
+    ]
+
+    result = await rails.generate_async(messages=messages, options={"rails": {"dialog": False}})
+
+    assert isinstance(result, GenerationResponse)
+    assert result.tool_calls == [
+        {
+            "id": "call_safe",
+            "type": "function",
+            "function": {
+                "name": "safe_tool",
+                "arguments": '{"param": "safe value"}',
+            },
+        }
+    ]

@@ -1,0 +1,2 @@
+define subflow streaming output rail
+  $allowed = execute self_check_streaming_output

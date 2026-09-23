@@ -1,0 +1,10 @@
+define user express greeting
+  "hello"
+  "hi"
+
+define bot express greeting
+  "Hello from recorded dialog."
+
+define flow
+  user express greeting
+  bot express greeting

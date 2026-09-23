@@ -1,0 +1,70 @@
+name: Refactor Proposal
+description: Propose a maintainer-led refactor for discussion
+title: "refactor: "
+labels: ["refactoring", "status: needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Refactors are maintainer-led and are not accepted as unsolicited pull requests.
+
+        Use this form to explain the problem and proposed direction. Maintainers decide whether the refactor should happen, what plan is acceptable, and who, if anyone, should be assigned to implement it.
+  - type: checkboxes
+    attributes:
+      label: Required checks
+      description: Confirm before submitting this proposal.
+      options:
+        - label: I searched existing issues and pull requests for related refactor proposals.
+          required: true
+        - label: I understand that opening this issue does not mean a refactor PR will be accepted.
+          required: true
+        - label: I understand that a refactor PR should not be opened unless a maintainer approves the plan and assigns the work.
+          required: true
+  - type: textarea
+    attributes:
+      label: Problem
+      description: What is hard to maintain, unsafe, confusing, or blocking today?
+      placeholder: Describe the current design problem and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed direction
+      description: What structural direction do you think maintainers should consider?
+      placeholder: Keep this high level unless maintainers have asked for detailed design.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Migration and compatibility notes
+      description: What public APIs, config formats, docs, or user workflows could be affected?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Validation plan
+      description: What tests, docs checks, or compatibility checks would be needed?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Risks
+      description: List known risks, open questions, and possible alternatives.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Relevant branch or files
+      description: Optional. Share a WIP branch, affected files, or investigation notes if useful.
+    validations:
+      required: false
+  - type: dropdown
+    attributes:
+      label: Are you interested in helping after maintainer approval?
+      description: This does not assign you to the work. Maintainers decide ownership after triage.
+      options:
+        - I am only proposing this for maintainer consideration.
+        - I can help with investigation if maintainers ask.
+        - I can help implement after maintainers approve a plan and assign the work.
+    validations:
+      required: true

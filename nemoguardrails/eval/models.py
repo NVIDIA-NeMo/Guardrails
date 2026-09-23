@@ -16,7 +16,7 @@
 import os
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 
 from nemoguardrails.eval.utils import load_dict_from_path
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -96,7 +96,8 @@ class InteractionSet(BaseModel):
         description="A list of tags that should be associated with the interactions. Useful for filtering when reporting.",
     )
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def instantiate_expected_output(cls, values: Any):
         """Creates the right instance of the expected output."""
         type_mapping = {
@@ -132,18 +133,18 @@ class EvalConfig(BaseModel):
         description="The prompts that should be used for the various LLM tasks.",
     )
 
-    @root_validator(pre=False, skip_on_failure=True)
-    def validate_policy_ids(cls, values: Any):
+    @model_validator(mode="after")
+    def validate_policy_ids(self) -> "EvalConfig":
         """Validates the policy ids used in the interactions."""
-        policy_ids = {policy.id for policy in values.get("policies")}
-        for interaction_set in values.get("interactions"):
+        policy_ids = {policy.id for policy in self.policies}
+        for interaction_set in self.interactions:
             for expected_output in interaction_set.expected_output:
                 if expected_output.policy not in policy_ids:
                     raise ValueError(f"Invalid policy id {expected_output.policy} used in interaction set.")
             for policy_id in interaction_set.include_policies + interaction_set.exclude_policies:
                 if policy_id not in policy_ids:
                     raise ValueError(f"Invalid policy id {policy_id} used in interaction set.")
-        return values
+        return self
 
     @classmethod
     def from_path(
@@ -159,7 +160,7 @@ class EvalConfig(BaseModel):
         else:
             raise ValueError(f"Invalid config path {config_path}.")
 
-        return cls.parse_obj(config_obj)
+        return cls.model_validate(config_obj)
 
 
 class ComplianceCheckLog(BaseModel):
@@ -322,4 +323,4 @@ class EvalOutput(BaseModel):
         else:
             raise ValueError(f"Invalid config path {output_path}.")
 
-        return cls.parse_obj(output_obj)
+        return cls.model_validate(output_obj)

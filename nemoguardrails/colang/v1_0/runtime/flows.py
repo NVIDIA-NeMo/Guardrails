@@ -22,7 +22,15 @@ from typing import Dict, List, Optional
 
 from nemoguardrails.colang.v1_0.runtime.eval import eval_expression
 from nemoguardrails.colang.v1_0.runtime.sliding import slide
-from nemoguardrails.utils import new_event_dict, new_uuid
+
+# _normalize_flow_id / _get_flow_params are re-exported for backward compatibility;
+# they are pure string helpers and now live in nemoguardrails.utils.
+from nemoguardrails.utils import (  # noqa: F401
+    _get_flow_params,
+    _normalize_flow_id,
+    new_event_dict,
+    new_uuid,
+)
 
 
 @dataclass
@@ -686,39 +694,6 @@ def compute_context(history: List[dict]):
     return context
 
 
-def _get_flow_params(flow_id: str) -> dict:
-    """Return the arguments in a flow id as a dictionary.
-
-    Args:
-        flow_id: The flow id.
-
-    Returns:
-        A dictionary of arguments in the flow id.
-    """
-    flow_id = flow_id.strip()
-    params = {}
-
-    if "(" in flow_id and ")" in flow_id:
-        arg_string = flow_id.split("(")[1].split(")")[0]
-    elif "$" in flow_id:
-        arg_string = flow_id.split("$")[1]
-    else:
-        return params
-
-    for arg in arg_string.split(","):
-        arg = arg.strip()
-        if "=" in arg:
-            key, value = arg.split("=")
-            # Remove single or double quotes from the value
-            if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
-                value = value[1:-1]
-            params[key] = value
-        else:
-            params[arg] = None
-
-    return params
-
-
 def _flow_id_has_params(flow_id: str) -> bool:
     """Check if a flow ID contains arguments.
 
@@ -731,25 +706,3 @@ def _flow_id_has_params(flow_id: str) -> bool:
         True if the flow ID contains arguments, False otherwise.
     """
     return all(x in flow_id for x in "()") or all(x in flow_id for x in "$")
-
-
-def _normalize_flow_id(flow_id: str) -> str:
-    """Normalize the flow id by removing the arguments from the id.
-
-    Args:
-        flow_id(str): The flow id.
-
-    Example:
-
-        flow_id = "flow_id_v1(arg1, arg2)"
-        _normalize_flow_id(flow_id) -> "flow_id_v1"
-
-    """
-    flow_id = flow_id.strip()
-    if "(" in flow_id:
-        flow_id = flow_id.split("(")[0]
-
-    elif "$" in flow_id:
-        flow_id = flow_id.split("$")[0]
-
-    return flow_id.strip()

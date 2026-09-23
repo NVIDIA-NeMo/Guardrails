@@ -3,7 +3,7 @@
 flow ai defense inspect prompt $input_text
   """Check if the prompt is safe according to AI Defense."""
   $result = await AiDefenseInspectAction(user_prompt=$input_text)
-  if $result["is_blocked"]
+  if $result.is_blocked
     if $system.config.enable_rails_exceptions
       send AIDefenseRailException(message="Prompt not allowed. The prompt was blocked by the 'ai defense inspect prompt' flow.")
     else
@@ -16,7 +16,7 @@ flow ai defense inspect prompt $input_text
 flow ai defense inspect response $output_text
   """Check if the response is safe according to AI Defense."""
   $result = await AiDefenseInspectAction(bot_response=$output_text)
-  if $result["is_blocked"]
+  if $result.is_blocked
     if $system.config.enable_rails_exceptions
       send AIDefenseRailException(message="Response not allowed. The response was blocked by the 'ai defense inspect response' flow.")
     else

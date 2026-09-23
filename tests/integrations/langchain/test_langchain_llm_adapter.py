@@ -18,9 +18,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage
 
+from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.integrations.langchain.llm_adapter import (
     LangChainFramework,
     LangChainLLMAdapter,
+    _infer_provider_from_module,
     _langchain_chunk_to_llm_response_chunk,
     _langchain_response_to_llm_response,
 )
@@ -28,7 +30,164 @@ from nemoguardrails.integrations.langchain.message_utils import (
     chatmessage_to_langchain_message,
     chatmessages_to_langchain_messages,
 )
+from nemoguardrails.llm.call import llm_call
 from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk, Role, ToolCall, ToolCallFunction
+
+
+class MockOpenAILLM:
+    __module__ = "langchain_openai.chat_models"
+
+
+class MockAnthropicLLM:
+    __module__ = "langchain_anthropic.chat_models"
+
+
+class MockNVIDIALLM:
+    __module__ = "langchain_nvidia_ai_endpoints.chat_models"
+
+
+class MockCommunityOllama:
+    __module__ = "langchain_community.chat_models.ollama"
+
+
+class MockUnknownLLM:
+    __module__ = "some_custom_package.models"
+
+
+def test_infer_provider_openai():
+    llm = MockOpenAILLM()
+    provider = _infer_provider_from_module(llm)
+    assert provider == "openai"
+
+
+def test_infer_provider_anthropic():
+    llm = MockAnthropicLLM()
+    provider = _infer_provider_from_module(llm)
+    assert provider == "anthropic"
+
+
+def test_infer_provider_nvidia_ai_endpoints():
+    llm = MockNVIDIALLM()
+    provider = _infer_provider_from_module(llm)
+    assert provider == "nvidia_ai_endpoints"
+
+
+def test_infer_provider_community_ollama():
+    llm = MockCommunityOllama()
+    provider = _infer_provider_from_module(llm)
+    assert provider == "ollama"
+
+
+def test_infer_provider_unknown():
+    llm = MockUnknownLLM()
+    provider = _infer_provider_from_module(llm)
+    assert provider is None
+
+
+def test_infer_provider_checks_base_classes():
+    class BaseOpenAI:
+        __module__ = "langchain_openai.chat_models"
+
+    class CustomWrapper(BaseOpenAI):
+        __module__ = "my_custom_wrapper.llms"
+
+    llm = CustomWrapper()
+    provider = _infer_provider_from_module(llm)
+    assert provider == "openai"
+
+
+def test_infer_provider_multiple_inheritance():
+    class BaseNVIDIA:
+        __module__ = "langchain_nvidia_ai_endpoints.chat_models"
+
+    class Mixin:
+        __module__ = "some_mixin.utils"
+
+    class MultipleInheritance(Mixin, BaseNVIDIA):
+        __module__ = "custom_package.models"
+
+    llm = MultipleInheritance()
+    provider = _infer_provider_from_module(llm)
+    assert provider == "nvidia_ai_endpoints"
+
+
+def test_infer_provider_deeply_nested_inheritance():
+    class Original:
+        __module__ = "langchain_anthropic.chat_models"
+
+    class Wrapper1(Original):
+        __module__ = "wrapper1.models"
+
+    class Wrapper2(Wrapper1):
+        __module__ = "wrapper2.models"
+
+    class Wrapper3(Wrapper2):
+        __module__ = "wrapper3.models"
+
+    llm = Wrapper3()
+    provider = _infer_provider_from_module(llm)
+    assert provider == "anthropic"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("llm_params", [None, {}])
+async def test_llm_call_stop_tokens_passed_without_llm_params(llm_params):
+    mock_llm = MagicMock()
+    mock_llm.model_name = "gpt-4"
+    bound_llm = AsyncMock()
+    bound_llm.ainvoke.return_value = MagicMock(content="response")
+    mock_llm.bind.return_value = bound_llm
+
+    wrapped = LangChainLLMAdapter(mock_llm)
+    await llm_call(wrapped, "prompt", stop=["User:"], llm_params=llm_params)
+
+    mock_llm.bind.assert_called_once_with(stop=["User:"])
+
+
+@pytest.mark.asyncio
+async def test_llm_call_exception_enrichment_with_model_and_provider():
+    mock_llm = MockOpenAILLM()
+    mock_llm.model_name = "gpt-4"
+    mock_llm.ainvoke = AsyncMock(side_effect=ConnectionError("Connection refused"))
+
+    wrapped = LangChainLLMAdapter(mock_llm)
+    with pytest.raises(LLMCallException) as exc_info:
+        await llm_call(wrapped, "test prompt")
+
+    exc_str = str(exc_info.value)
+    assert "gpt-4" in exc_str
+    assert "provider=openai" in exc_str
+    assert "Connection refused" in exc_str
+    assert isinstance(exc_info.value.inner_exception, ConnectionError)
+
+
+@pytest.mark.asyncio
+async def test_llm_call_exception_without_provider():
+    mock_llm = MockUnknownLLM()
+    mock_llm.model_name = "custom-model"
+    mock_llm.ainvoke = AsyncMock(side_effect=ValueError("Invalid request"))
+
+    wrapped = LangChainLLMAdapter(mock_llm)
+    with pytest.raises(LLMCallException) as exc_info:
+        await llm_call(wrapped, "test prompt")
+
+    exc_str = str(exc_info.value)
+    assert "custom-model" in exc_str
+    assert "Invalid request" in exc_str
+
+
+@pytest.mark.asyncio
+async def test_llm_call_kwargs_flow_through_to_generate():
+    mock_llm = MagicMock()
+    mock_llm.model_name = "gpt-4"
+    bound_llm = AsyncMock()
+    bound_llm.ainvoke.return_value = MagicMock(content="response")
+    mock_llm.bind.return_value = bound_llm
+
+    wrapped = LangChainLLMAdapter(mock_llm)
+    await llm_call(wrapped, "prompt", llm_params={"temperature": 0.5, "max_tokens": 100})
+
+    mock_llm.bind.assert_called_once_with(temperature=0.5, max_tokens=100)
 
 
 class TestLangChainLLMAdapter:
@@ -182,6 +341,68 @@ class TestLangChainLLMAdapter:
         assert all(isinstance(r, LLMResponseChunk) for r in results)
         assert results[0].delta_content == "hel"
         assert results[1].delta_content == "lo"
+
+    @pytest.mark.asyncio
+    async def test_stream_finalizes_tool_calls_on_responses_api_completed(self):
+        # Responses-API streaming closes a tool-call turn with status "completed"
+        # (-> finish_reason "stop"), not "tool_calls". The terminal chunk must
+        # still finalize the accumulated fragments and report "tool_calls".
+        chunks = [
+            AIMessageChunk(
+                content="",
+                tool_call_chunks=[{"name": "search", "args": '{"q": "wea', "id": "tc_1", "index": 0}],
+            ),
+            AIMessageChunk(
+                content="",
+                tool_call_chunks=[{"name": None, "args": 'ther"}', "id": None, "index": 0}],
+            ),
+            AIMessageChunk(content="", response_metadata={"status": "completed", "id": "resp_x"}),
+        ]
+
+        async def mock_astream(*args, **kwargs):
+            for c in chunks:
+                yield c
+
+        mock_llm = MagicMock()
+        mock_llm.astream = mock_astream
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        results = [chunk async for chunk in adapter.stream_async("find weather")]
+
+        terminal = results[-1]
+        assert terminal.finish_reason == "tool_calls"
+        assert terminal.delta_tool_calls is not None
+        assert len(terminal.delta_tool_calls) == 1
+        assert terminal.delta_tool_calls[0].function.name == "search"
+        assert terminal.delta_tool_calls[0].function.arguments == {"q": "weather"}
+
+    @pytest.mark.asyncio
+    async def test_stream_truncated_tool_call_preserves_length_finish_reason(self):
+        # A tool call cut off by the token limit ends with finish_reason "length"
+        # and incomplete JSON args. It must NOT be relabeled "tool_calls" (which
+        # would mask the truncation behind an empty-args call). finish_reason stays
+        # "length" and no tool calls are surfaced.
+        chunks = [
+            AIMessageChunk(
+                content="",
+                tool_call_chunks=[{"name": "search", "args": '{"q": "wea', "id": "tc_1", "index": 0}],
+            ),
+            AIMessageChunk(content="", response_metadata={"finish_reason": "length"}),
+        ]
+
+        async def mock_astream(*args, **kwargs):
+            for c in chunks:
+                yield c
+
+        mock_llm = MagicMock()
+        mock_llm.astream = mock_astream
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        results = [chunk async for chunk in adapter.stream_async("find weather")]
+
+        terminal = results[-1]
+        assert terminal.finish_reason == "length"
+        assert terminal.delta_tool_calls is None
 
     @pytest.mark.asyncio
     async def test_generate_passes_kwargs_via_bind(self):
@@ -511,6 +732,113 @@ class TestConversionHelpers:
 
         assert isinstance(result, LLMResponseChunk)
         assert result.delta_content == "raw string"
+
+
+class TestResponsesApiFinishReason:
+    """The OpenAI Responses API reports terminal state via ``status`` /
+    ``incomplete_details`` rather than a per-choice ``finish_reason``."""
+
+    def test_response_completed_status_maps_to_stop(self):
+        response = AIMessage(
+            content=[{"type": "text", "text": "pong"}],
+            response_metadata={
+                "id": "resp_abc",
+                "object": "response",
+                "status": "completed",
+                "model": "gpt-4o-mini-2024-07-18",
+            },
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "stop"
+        assert result.request_id == "resp_abc"
+        assert result.model == "gpt-4o-mini-2024-07-18"
+
+    def test_response_incomplete_max_tokens_maps_to_length(self):
+        response = AIMessage(
+            content=[{"type": "text", "text": "The ocean"}],
+            response_metadata={
+                "id": "resp_def",
+                "status": "incomplete",
+                "incomplete_details": {"reason": "max_output_tokens"},
+                "model": "gpt-4o-mini-2024-07-18",
+            },
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "length"
+
+    def test_response_incomplete_content_filter(self):
+        response = AIMessage(
+            content="",
+            response_metadata={
+                "status": "incomplete",
+                "incomplete_details": {"reason": "content_filter"},
+            },
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "content_filter"
+
+    def test_response_failed_status_maps_to_error(self):
+        response = AIMessage(content="", response_metadata={"status": "failed"})
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "error"
+
+    def test_response_incomplete_unknown_reason_maps_to_other(self):
+        response = AIMessage(
+            content="",
+            response_metadata={"status": "incomplete", "incomplete_details": {"reason": "mystery"}},
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "other"
+
+    def test_explicit_finish_reason_takes_precedence_over_status(self):
+        # Chat completions still wins: a real finish_reason is never overridden
+        # by status-derived inference.
+        response = AIMessage(
+            content="",
+            response_metadata={"finish_reason": "stop", "status": "completed"},
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "stop"
+
+    def test_response_tool_call_with_completed_status_maps_to_tool_calls(self):
+        # A Responses-API tool-call turn reports status "completed"; finish_reason
+        # must still surface as "tool_calls" so consumers can branch on it.
+        response = AIMessage(
+            content="",
+            tool_calls=[{"name": "fn", "args": {"x": 1}, "id": "tc1", "type": "tool_call"}],
+            response_metadata={"status": "completed", "model": "gpt-4o-mini"},
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "tool_calls"
+        assert result.tool_calls is not None and len(result.tool_calls) == 1
+
+    def test_chunk_completed_status_maps_to_stop(self):
+        chunk = AIMessageChunk(
+            content="",
+            response_metadata={
+                "id": "resp_stream",
+                "object": "response",
+                "status": "completed",
+                "model": "gpt-4o-mini-2024-07-18",
+            },
+        )
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.finish_reason == "stop"
+        assert result.request_id == "resp_stream"
+
+    def test_chunk_non_terminal_status_yields_no_finish_reason(self):
+        chunk = AIMessageChunk(content="pon", response_metadata={"status": "in_progress"})
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.finish_reason is None
 
 
 class TestChatMessageToLangChain:

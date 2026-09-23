@@ -1,0 +1,396 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Logging and Debugging Guardrails Generated Responses"
+sidebar-title: "Logging"
+description: "Debug guardrails with verbose mode, explain method, and generation log options."
+content:
+  type: "how_to"
+---
+
+This guide covers the various methods for logging, debugging, and understanding what happens during guardrails generation.
+
+## Overview
+
+The NeMo Guardrails library provides multiple ways to inspect and debug guardrails generation:
+
+| Method | Use Case | Engines |
+|--------|----------|---------|
+| `verbose=True` | Real-time console logging during development | `LLMRails`, `IORails` |
+| `explain()` | Quick summary of the last generation | `LLMRails` |
+| `options.log` | Detailed structured logs returned with responses, including large language model (LLM) calls | `LLMRails`, `IORails` (no Colang fields) |
+| `output_vars` | Return specific context variables | `LLMRails` |
+
+## Verbose Mode
+
+Enable detailed console logging by setting `verbose=True` when creating the `LLMRails` instance:
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+
+config = RailsConfig.from_path("path/to/config")
+rails = LLMRails(config, verbose=True)
+```
+
+This outputs detailed information about:
+
+- LLM calls and their prompts/completions
+- Rail activations and decisions
+- Action executions
+- Flow transitions
+
+### Verbose mode on `Guardrails` and `LLMRails`
+
+The two entry points interpret `verbose=True` differently.
+
+| Entry point | Effect of `verbose=True` |
+|-------------|--------------------------|
+| `LLMRails(config, verbose=True)` | Adds a verbose console handler at `INFO` to the root logger and logs LLM prompts and completions. |
+| `Guardrails(config, verbose=True)` | Calls `configure_logging(logging.DEBUG)`, attaching a stderr handler to the `nemoguardrails.guardrails` logger and setting it to `DEBUG`. |
+
+When `Guardrails` falls back to `LLMRails` — because an `llm` was passed, or the config contains flows IORails does not support — both apply, because `verbose` is forwarded to the `LLMRails` instance it creates.
+
+Note that `configure_logging` also stops the `nemoguardrails.guardrails` logger propagating to the root logger; see [OpenTelemetry logs](/observability/tracing/opentelemetry-logs) for what that means for handlers you attach yourself.
+
+A default `Guardrails(config)` construction configures no logging at all, leaving handlers, levels, and formatting to your application.
+
+## Explain Method
+
+<Note>
+
+`explain()` is an `LLMRails` method.
+It raises `NotImplementedError` when `IORails` is the active engine, because `ExplainInfo` is built from Colang events.
+On `IORails`, use the `log` generation option described below.
+
+</Note>
+
+Get a quick summary of the last generation using the `explain()` method:
+
+```python
+response = rails.generate(messages=[
+    {"role": "user", "content": "Hello!"}
+])
+
+info = rails.explain()
+info.print_llm_calls_summary()
+```
+
+The `ExplainInfo` object provides methods to inspect:
+
+- LLM calls summary
+- Colang history
+- Generated events
+
+## Generation Options: Log
+
+For detailed structured logging, use the `log` generation option. This returns comprehensive information about what happened during generation.
+
+### Enabling Log Options
+
+```python
+response = rails.generate(
+    messages=[{"role": "user", "content": "Hello!"}],
+    options={
+        "log": {
+            "activated_rails": True,
+            "llm_calls": True,
+            "internal_events": True,
+            "colang_history": True
+        }
+    }
+)
+```
+
+### Log Option Reference
+
+| Option | Description | LLMRails | IORails |
+|--------|-------------|:---:|:---:|
+| `activated_rails` | Detailed information about rails activated during generation | ✓ | ✓ |
+| `llm_calls` | Information about all LLM calls (prompt, completion, tokens, timing) | ✓ | ✓ |
+| `internal_events` | Array of internal generated events | ✓ | ✗ |
+| `colang_history` | Conversation history in Colang format | ✓ | ✗ |
+
+`internal_events` and `colang_history` describe Colang runtime state.
+`IORails` does not run the Colang runtime, so it raises `NotImplementedError` when you set either option to `True` instead of returning an empty value.
+For the `IORails` log structure, refer to [Generation Options: Log Options on IORails](/run-guardrailed-inference/using-python-apis/generation-options#log-options-on-iorails).
+
+### Response Structure
+
+```text
+{
+  "response": [...],
+  "log": {
+    "activated_rails": [...],
+    "stats": {...},
+    "llm_calls": [...],
+    "internal_events": [...],
+    "colang_history": "..."
+  }
+}
+```
+
+### Using print_summary()
+
+The log object has a `print_summary()` method for a human-readable overview:
+
+```python
+response.log.print_summary()
+```
+
+**Example output:**
+
+```text
+# General stats
+
+- Total time: 2.85s
+  - [0.56s][19.64%]: INPUT Rails
+  - [1.40s][49.02%]: DIALOG Rails
+  - [0.58s][20.22%]: GENERATION Rails
+  - [0.31s][10.98%]: OUTPUT Rails
+- 5 LLM calls, 2.74s total duration, 1641 total prompt tokens, 103 total completion tokens, 1744 total tokens.
+
+# Detailed stats
+
+- [0.56s] INPUT (self check input): 1 actions (self_check_input), 1 llm calls [0.56s]
+- [0.43s] DIALOG (generate user intent): 1 actions (generate_user_intent), 1 llm calls [0.43s]
+- [0.96s] DIALOG (generate next step): 1 actions (generate_next_step), 1 llm calls [0.95s]
+- [0.58s] GENERATION (generate bot message): 2 actions (retrieve_relevant_chunks, generate_bot_message), 1 llm calls [0.49s]
+- [0.31s] OUTPUT (self check output): 1 actions (self_check_output), 1 llm calls [0.31s]
+```
+
+### Accessing Detailed Data
+
+Access specific log components programmatically:
+
+```python
+# Access LLM calls
+for call in response.log.llm_calls:
+    print(f"Task: {call.task}")
+    print(f"Duration: {call.duration}s")
+    print(f"Prompt tokens: {call.prompt_tokens}")
+    print(f"Completion tokens: {call.completion_tokens}")
+    print(f"Total tokens: {call.total_tokens}")
+
+# Access activated rails
+for rail in response.log.activated_rails:
+    print(f"Type: {rail.type}, Name: {rail.name}")
+    print(f"Decisions: {rail.decisions}")
+    print(f"Duration: {rail.duration}s")
+
+# Access stats
+stats = response.log.stats
+print(f"Total duration: {stats.total_duration}s")
+print(f"Input rails: {stats.input_rails_duration}s")
+print(f"Dialog rails: {stats.dialog_rails_duration}s")
+print(f"Output rails: {stats.output_rails_duration}s")
+```
+
+## Output Variables
+
+<Note>
+
+Output variables are an `LLMRails` capability, because they read the Colang context.
+`IORails` raises `ValueError` when you pass `output_vars`.
+To find which rail stopped a request on `IORails`, read `log.activated_rails` and look for the entry with `stop` set to `True`.
+The action's `return_value["failed"]` value distinguishes a rail failure from a policy block.
+You can also use [`check()` and `check_async()`](/run-guardrailed-inference/using-python-apis/check-messages), which report the rail that stopped processing.
+
+</Note>
+
+Return specific context variables using the `output_vars` option:
+
+### Return Specific Variables
+
+```python
+response = rails.generate(
+    messages=[{"role": "user", "content": "Hello!"}],
+    options={
+        "output_vars": ["triggered_input_rail", "triggered_output_rail"]
+    }
+)
+
+print(response.output_data)
+# {'triggered_input_rail': None, 'triggered_output_rail': None}
+```
+
+### Return All Context Variables
+
+Set `output_vars` to `True` to return the complete context:
+
+```python
+response = rails.generate(
+    messages=[{"role": "user", "content": "Hello!"}],
+    options={
+        "output_vars": True
+    }
+)
+
+# Access all context data
+print(response.output_data.keys())
+```
+
+### Common Output Variables
+
+| Variable | Description |
+|----------|-------------|
+| `last_user_message` | The last user message |
+| `last_bot_message` | The last bot message |
+| `triggered_input_rail` | Name of input rail that triggered (if any) |
+| `triggered_output_rail` | Name of output rail that triggered (if any) |
+| `relevant_chunks` | Retrieved knowledge base chunks |
+| `allowed` | Whether the input was allowed |
+
+## Combining Log and Output Variables
+
+Use both options together for comprehensive debugging:
+
+```python
+response = rails.generate(
+    messages=[{"role": "user", "content": "Tell me about the company."}],
+    options={
+        "output_vars": ["triggered_input_rail", "relevant_chunks"],
+        "log": {
+            "activated_rails": True,
+            "llm_calls": True
+        }
+    }
+)
+
+# Check if any rail was triggered
+if response.output_data.get("triggered_input_rail"):
+    print(f"Input blocked by: {response.output_data['triggered_input_rail']}")
+
+# Inspect what happened
+response.log.print_summary()
+```
+
+## Debugging Common Issues
+
+### Input Blocked Unexpectedly
+
+```python
+response = rails.generate(
+    messages=[{"role": "user", "content": "Your message"}],
+    options={
+        "output_vars": ["triggered_input_rail"],
+        "log": {"activated_rails": True}
+    }
+)
+
+if response.output_data.get("triggered_input_rail"):
+    # Find the input rail that blocked
+    for rail in response.log.activated_rails:
+        if rail.type == "input" and rail.stop:
+            print(f"Blocked by: {rail.name}")
+            # Check the LLM decision
+            for action in rail.executed_actions:
+                for llm_call in action.llm_calls:
+                    print(f"Prompt: {llm_call.prompt}")
+                    print(f"Completion: {llm_call.completion}")
+```
+
+### Understanding Flow Execution
+
+```python
+response = rails.generate(
+    messages=[{"role": "user", "content": "Hello!"}],
+    options={
+        "log": {
+            "internal_events": True,
+            "colang_history": True
+        }
+    }
+)
+
+# View internal events
+for event in response.log.internal_events:
+    print(f"{event['type']}: {event}")
+
+# View Colang history
+print(response.log.colang_history)
+```
+
+### Analyzing LLM Performance
+
+```python
+response = rails.generate(
+    messages=[{"role": "user", "content": "Hello!"}],
+    options={"log": {"llm_calls": True}}
+)
+
+total_tokens = 0
+total_duration = 0
+
+for call in response.log.llm_calls:
+    print(f"Task: {call.task}")
+    print(f"  Duration: {call.duration:.2f}s")
+    print(f"  Tokens: {call.total_tokens}")
+    total_tokens += call.total_tokens
+    total_duration += call.duration
+
+print(f"\nTotal: {total_tokens} tokens in {total_duration:.2f}s")
+```
+
+## Server API Logging
+
+When using the server API, include options in the request body:
+
+```json
+{
+    "config_id": "my_config",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "options": {
+        "output_vars": ["triggered_input_rail"],
+        "log": {
+            "activated_rails": true,
+            "llm_calls": true
+        }
+    }
+}
+```
+
+## Complete Debugging Example
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+
+# Enable verbose mode for console output
+config = RailsConfig.from_path("path/to/config")
+rails = LLMRails(config, verbose=True)
+
+# Generate with full logging
+response = rails.generate(
+    messages=[{"role": "user", "content": "What is the company policy?"}],
+    options={
+        "output_vars": True,
+        "log": {
+            "activated_rails": True,
+            "llm_calls": True,
+            "internal_events": True,
+            "colang_history": True
+        }
+    }
+)
+
+# Print summary
+print("=== Generation Summary ===")
+response.log.print_summary()
+
+# Check for blocked content
+print("\n=== Rail Triggers ===")
+print(f"Input rail triggered: {response.output_data.get('triggered_input_rail')}")
+print(f"Output rail triggered: {response.output_data.get('triggered_output_rail')}")
+
+# Analyze LLM calls
+print("\n=== LLM Calls ===")
+for call in response.log.llm_calls:
+    print(f"{call.task}: {call.total_tokens} tokens, {call.duration:.2f}s")
+
+# View final response
+print(f"\n=== Response ===")
+print(response.response[0]["content"])
+```
+
+## Related Resources
+
+- [Tracing](/observability/tracing) - Production monitoring and observability with OpenTelemetry

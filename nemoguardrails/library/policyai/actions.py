@@ -27,35 +27,28 @@ import logging
 import os
 from typing import Optional
 
-import aiohttp
-
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPClient, http_call
 
 log = logging.getLogger(__name__)
 
 
-def call_policyai_api_mapping(result: dict) -> bool:
-    """
-    Mapping for call_policyai_api.
-
-    Expects result to be a dict with:
-      - "assessment": "SAFE" or "UNSAFE"
-      - "category": the violation category (if UNSAFE)
-      - "severity": severity level 0-3
-
-    Block (return True) if:
-      1. Assessment is "UNSAFE"
-    """
-    assessment = result.get("assessment", "SAFE")
-    return assessment == "UNSAFE"
+def _policyai_outcome(metadata: dict) -> RailOutcome:
+    metadata = dict(metadata)
+    reason = metadata.pop("reason", None)
+    if metadata["assessment"] == "UNSAFE":
+        return RailOutcome.block(reason=reason, metadata=metadata)
+    return RailOutcome.allow(reason=reason, metadata=metadata)
 
 
-@action(is_system_action=True, output_mapping=call_policyai_api_mapping)
+@action(is_system_action=True)
 async def call_policyai_api(
     text: Optional[str] = None,
     tag_name: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
-):
+) -> RailOutcome:
     """
     Call the PolicyAI API to evaluate content.
 
@@ -65,11 +58,8 @@ async def call_policyai_api(
                   If not provided, uses POLICYAI_TAG_NAME env var or "prod".
 
     Returns:
-        dict with:
-          - assessment: "SAFE" or "UNSAFE"
-          - category: the violation category (if UNSAFE)
-          - severity: severity level 0-3
-          - reason: explanation for the decision
+        RailOutcome indicating whether the content is blocked. Assessment, category,
+        severity, and exception_message are metadata; reason is stored on RailOutcome.reason.
     """
     api_key = os.environ.get("POLICYAI_API_KEY")
 
@@ -99,61 +89,53 @@ async def call_policyai_api(
         ],
     }
 
-    timeout = aiohttp.ClientTimeout(total=30)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(
-            url=url,
-            headers=headers,
-            json=data,
-        ) as response:
-            if response.status != 200:
-                raise ValueError(
-                    f"PolicyAI call failed with status code {response.status}.\nDetails: {await response.text()}"
-                )
-            response_json = await response.json()
-            log.info(json.dumps(response_json, indent=2))
+    response = await http_call(
+        http_client,
+        "POST",
+        url,
+        headers=headers,
+        json=data,
+        timeout=30,
+        raise_for_status=False,
+    )
+    if response.status_code != 200:
+        raise ValueError(f"PolicyAI call failed with status code {response.status_code}.\nDetails: {response.text}")
+    response_json = response.json()
+    log.info(json.dumps(response_json, indent=2))
 
-            # PolicyAI returns results in "data" array for tag-based evaluation
-            results = response_json.get("data", [])
+    results = response_json.get("data", [])
 
-            # Fail-closed: If no policies are attached to the tag, raise an error
-            # rather than silently allowing content through
-            if not results:
-                raise ValueError(
-                    f"PolicyAI returned no policy results for tag '{tag_name}'. "
-                    "Ensure policies are attached to this tag."
-                )
+    if not results:
+        raise ValueError(
+            f"PolicyAI returned no policy results for tag '{tag_name}'. Ensure policies are attached to this tag."
+        )
 
-            # Check if all policies failed evaluation
-            successful_results = [r for r in results if r.get("status") != "failed"]
-            if not successful_results:
-                raise ValueError(
-                    f"All PolicyAI policy evaluations failed for tag '{tag_name}'. Check policy configurations."
-                )
+    successful_results = [r for r in results if r.get("status") != "failed"]
+    if not successful_results:
+        raise ValueError(f"All PolicyAI policy evaluations failed for tag '{tag_name}'. Check policy configurations.")
 
-            # Aggregate results - if ANY policy returns UNSAFE, overall is UNSAFE
-            overall_assessment = "SAFE"
-            triggered_category = "Safe"
-            max_severity = 0
-            reason = "Content passed all policy checks"
+    overall_assessment = "SAFE"
+    triggered_category = "Safe"
+    max_severity = 0
+    reason = "Content passed all policy checks"
 
-            for result in successful_results:
-                assessment = result.get("assessment", "SAFE")
-                if assessment == "UNSAFE":
-                    overall_assessment = "UNSAFE"
-                    triggered_category = result.get("category", "Unknown")
-                    max_severity = max(max_severity, result.get("severity", 0))
-                    reason = result.get("reason", "Policy violation detected")
-                    break  # Stop at first UNSAFE result
+    for result in successful_results:
+        assessment = result.get("assessment", "SAFE")
+        if assessment == "UNSAFE":
+            overall_assessment = "UNSAFE"
+            triggered_category = result.get("category", "Unknown")
+            max_severity = max(max_severity, result.get("severity", 0))
+            reason = result.get("reason", "Policy violation detected")
+            break
 
-            # Pre-format exception message for Colang 1.x compatibility
-            # (Colang 1.x doesn't support string concatenation in create event)
-            exception_message = f"PolicyAI moderation triggered. Content violated policy: {triggered_category}"
+    exception_message = f"PolicyAI moderation triggered. Content violated policy: {triggered_category}"
 
-            return {
-                "assessment": overall_assessment,
-                "category": triggered_category,
-                "severity": max_severity,
-                "reason": reason,
-                "exception_message": exception_message,
-            }
+    return _policyai_outcome(
+        {
+            "assessment": overall_assessment,
+            "category": triggered_category,
+            "severity": max_severity,
+            "reason": reason,
+            "exception_message": exception_message,
+        }
+    )

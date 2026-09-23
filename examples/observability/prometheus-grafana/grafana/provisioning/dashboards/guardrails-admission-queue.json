@@ -1,0 +1,55 @@
+{
+  "uid": "nemoguardrails-admission-queue",
+  "title": "NeMo Guardrails - Non-Streaming Admission Queue",
+  "tags": ["nemoguardrails"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "label": "Instance",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "nemoguardrails-prometheus"},
+        "query": "label_values(guardrails_nonstream_active, instance)",
+        "includeAll": true,
+        "multi": true,
+        "current": {"text": "All", "value": "$__all"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Non-streaming admission queue",
+      "description": "guardrails_nonstream_queued: requests waiting in the admission queue. guardrails_nonstream_active: requests executing on a worker. Both are gauges read at scrape time. rejections: rate(guardrails_nonstream_rejections_total[1m]), submissions shed with HTTP 503 queue_full per second; any sustained non-zero value means the server is at capacity.",
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 14},
+      "datasource": {"type": "prometheus", "uid": "nemoguardrails-prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0,
+          "custom": {"lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "drawStyle": "line", "lineInterpolation": "linear"}
+        },
+        "overrides": [
+          {"matcher": {"id": "byFrameRefID", "options": "A"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]},
+          {"matcher": {"id": "byFrameRefID", "options": "B"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]},
+          {"matcher": {"id": "byFrameRefID", "options": "C"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}, {"id": "unit", "value": "reqps"}, {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 6]}}]}
+        ]
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "expr": "sum by (instance) (guardrails_nonstream_queued{instance=~\"$instance\"})", "legendFormat": "queued {{instance}}"},
+        {"refId": "B", "expr": "sum by (instance) (guardrails_nonstream_active{instance=~\"$instance\"})", "legendFormat": "active {{instance}}"},
+        {"refId": "C", "expr": "sum by (instance) (rate(guardrails_nonstream_rejections_total{instance=~\"$instance\"}[1m]))", "legendFormat": "rejections/s {{instance}}"}
+      ]
+    }
+  ]
+}

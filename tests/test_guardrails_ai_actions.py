@@ -20,6 +20,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
+
+
+def _config_with_guardrails_ai(guardrails_ai):
+    config = Mock()
+    config.rails.config.guardrails_ai = guardrails_ai
+    return config
+
 
 class TestGuardrailsAIIntegration:
     """Test suite for Guardrails AI integration with current implementation."""
@@ -27,13 +35,11 @@ class TestGuardrailsAIIntegration:
     def test_module_imports_without_guardrails(self):
         """Test that modules can be imported even without guardrails package."""
         from nemoguardrails.library.guardrails_ai.actions import (
-            guardrails_ai_validation_mapping,
             validate_guardrails_ai,
         )
         from nemoguardrails.library.guardrails_ai.registry import VALIDATOR_REGISTRY
 
         assert callable(validate_guardrails_ai)
-        assert callable(guardrails_ai_validation_mapping)
         assert isinstance(VALIDATOR_REGISTRY, dict)
 
     def test_validator_registry_structure(self):
@@ -61,31 +67,9 @@ class TestGuardrailsAIIntegration:
             assert "default_params" in validator_info
             assert isinstance(validator_info["default_params"], dict)
 
-    def test_validation_mapping_function(self):
-        """Test the validation mapping function with current interface."""
-        from nemoguardrails.library.guardrails_ai.actions import (
-            guardrails_ai_validation_mapping,
-        )
-
-        mock_result = Mock()
-        mock_result.validation_passed = True
-        result1 = {"validation_result": mock_result}
-        mapped1 = guardrails_ai_validation_mapping(result1)
-        assert mapped1 is True
-
-        mock_result2 = Mock()
-        mock_result2.validation_passed = False
-        result2 = {"validation_result": mock_result2}
-        mapped2 = guardrails_ai_validation_mapping(result2)
-        assert mapped2 is False
-
-        result3 = {"validation_result": {"validation_passed": True}}
-        mapped3 = guardrails_ai_validation_mapping(result3)
-        assert mapped3 is True
-
     @patch("nemoguardrails.library.guardrails_ai.actions._get_guard")
-    def test_validate_guardrails_ai_input_returns_valid_key(self, mock_get_guard):
-        """Test that validate_guardrails_ai_input returns both validation_result and valid."""
+    def test_validate_guardrails_ai_input_returns_allow_outcome(self, mock_get_guard):
+        """Test that validate_guardrails_ai_input returns validation metadata."""
         from nemoguardrails.library.guardrails_ai.actions import validate_guardrails_ai_input
 
         mock_guard = Mock()
@@ -103,14 +87,11 @@ class TestGuardrailsAIIntegration:
             text="Hello, this is safe",
         )
 
-        assert "validation_result" in result
-        assert "valid" in result
-        assert result["validation_result"] == mock_validation_result
-        assert result["valid"] is True
+        assert result == RailOutcome.allow(metadata={"validation_result": mock_validation_result, "valid": True})
 
     @patch("nemoguardrails.library.guardrails_ai.actions._get_guard")
-    def test_validate_guardrails_ai_output_returns_valid_key(self, mock_get_guard):
-        """Test that validate_guardrails_ai_output returns both validation_result and valid."""
+    def test_validate_guardrails_ai_output_returns_block_outcome(self, mock_get_guard):
+        """Test that validate_guardrails_ai_output returns validation metadata."""
         from nemoguardrails.library.guardrails_ai.actions import validate_guardrails_ai_output
 
         mock_guard = Mock()
@@ -128,10 +109,93 @@ class TestGuardrailsAIIntegration:
             text="Blocked content",
         )
 
-        assert "validation_result" in result
-        assert "valid" in result
-        assert result["validation_result"] == mock_validation_result
-        assert result["valid"] is False
+        assert result == RailOutcome.block(metadata={"validation_result": mock_validation_result, "valid": False})
+
+    @patch("nemoguardrails.library.guardrails_ai.actions.validate_guardrails_ai")
+    @pytest.mark.parametrize(
+        ("action_name", "validation_passed"),
+        [
+            ("validate_guardrails_ai_input", False),
+            ("validate_guardrails_ai_output", True),
+        ],
+    )
+    def test_actions_return_opposite_outcomes(self, mock_validate, action_name, validation_passed):
+        """Test the block input and allow output outcome branches."""
+        from nemoguardrails.library.guardrails_ai import actions
+
+        validation_result = {"validation_passed": validation_passed}
+        mock_validate.return_value = {"validation_result": validation_result}
+        guardrails_ai = Mock()
+        guardrails_ai.get_validator_config.return_value = Mock(parameters={}, metadata={})
+
+        result = getattr(actions, action_name)(
+            validator="toxic_language",
+            config=_config_with_guardrails_ai(guardrails_ai),
+            text="content",
+        )
+
+        expected_factory = RailOutcome.allow if validation_passed else RailOutcome.block
+        assert result == expected_factory(metadata={"validation_result": validation_result, "valid": validation_passed})
+
+    def test_validation_passed_rejects_unknown_result_shape(self):
+        """Test that an unknown validation result shape fails closed."""
+        from nemoguardrails.library.guardrails_ai.actions import _guardrails_ai_validation_passed
+
+        assert _guardrails_ai_validation_passed({"validation_result": None}) is False
+
+    @pytest.mark.parametrize(
+        "action_name",
+        ["validate_guardrails_ai_input", "validate_guardrails_ai_output"],
+    )
+    def test_actions_require_text(self, action_name):
+        """Test that input and output validation require text."""
+        from nemoguardrails.library.guardrails_ai import actions
+
+        with pytest.raises(ValueError, match="Either 'text' or 'context' must be provided"):
+            getattr(actions, action_name)(
+                validator="toxic_language",
+                config=_config_with_guardrails_ai(Mock()),
+            )
+
+    def test_output_action_requires_rails_config(self):
+        """Test that output validation requires RailsConfig."""
+        from nemoguardrails.library.guardrails_ai.actions import validate_guardrails_ai_output
+
+        with pytest.raises(ValueError, match="Rails config is required"):
+            validate_guardrails_ai_output(validator="toxic_language", text="content")
+
+    @pytest.mark.parametrize(
+        "action_name",
+        ["validate_guardrails_ai_input", "validate_guardrails_ai_output"],
+    )
+    def test_actions_require_guardrails_ai_config(self, action_name):
+        """Test that input and output validation require Guardrails AI config."""
+        from nemoguardrails.library.guardrails_ai import actions
+
+        with pytest.raises(ValueError, match="Guardrails AI config is required"):
+            getattr(actions, action_name)(
+                validator="toxic_language",
+                config=_config_with_guardrails_ai(None),
+                text="content",
+            )
+
+    @pytest.mark.parametrize(
+        "action_name",
+        ["validate_guardrails_ai_input", "validate_guardrails_ai_output"],
+    )
+    def test_actions_require_configured_validator(self, action_name):
+        """Test that input and output validation require a configured validator."""
+        from nemoguardrails.library.guardrails_ai import actions
+
+        guardrails_ai = Mock()
+        guardrails_ai.get_validator_config.return_value = None
+
+        with pytest.raises(ValueError, match="Guardrails AI validator 'unknown' is not configured"):
+            getattr(actions, action_name)(
+                validator="unknown",
+                config=_config_with_guardrails_ai(guardrails_ai),
+                text="content",
+            )
 
     @patch("nemoguardrails.library.guardrails_ai.actions._get_guard")
     def test_validate_guardrails_ai_success(self, mock_get_guard):

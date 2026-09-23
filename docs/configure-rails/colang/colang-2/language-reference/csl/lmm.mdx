@@ -1,0 +1,278 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "LLM Flows"
+description: "Trigger a bot utterance similar to given text"
+---
+
+
+## LLM Enabled Bot Actions
+
+### `bot say something like $text`
+Trigger a bot utterance similar to given text
+
+Example:
+
+```text
+import core
+import llm
+
+flow main
+    user said something
+    bot say something like "How are you"
+
+
+```
+```text
+> hi
+Hi there, how are you today?
+```
+## LLM Utilities
+
+### `polling llm request response $interval=1.0`
+Start response polling for all LLM related calls to receive the LLM responses and act on that
+
+Example:
+
+```text
+import core
+import llm
+
+flow main
+    # Normally you don't need to activate this flow, as it is activated by LLM based flows where needed.
+    activate polling llm request response
+
+    user said something
+
+    # While the response is generated the polling mechanism ensures that
+    # the Colang runtime is getting polled.
+    $value = ..."ten minus one"
+    bot say $value
+
+
+```
+```text
+> compute the value
+nine
+```
+## Interaction Continuation
+
+Flow that will continue the current interaction for unhandled user actions/intents or undefined flows.
+
+
+### `llm continuation`
+Activate all LLM based interaction continuations
+
+Example:
+
+```text
+import core
+import llm
+
+flow user expressed greeting
+    user said "hi" or user said "hello"
+
+flow bot express greeting
+    bot say "Hello and welcome"
+
+flow handling greeting
+    user expressed greeting
+    bot express greeting
+
+flow main
+    activate llm continuation
+    activate handling greeting
+
+
+```
+```text
+> hi there how are you
+Hello and welcome
+> what is the difference between lemons and limes
+Limes are green and lemons are yellow
+```
+### `generating user intent for unhandled user utterance`
+Generate a user intent event (finish flow event) for unhandled user utterance
+
+Example:
+
+```text
+import core
+import llm
+
+flow user expressed goodbye
+    user said "bye" or user said "i will go now"
+
+flow bot express goodbye
+    bot say "hope to see you again soon"
+
+flow handling goodbye
+    user expressed goodbye
+    bot express goodbye
+
+flow main
+    activate automating intent detection
+    activate generating user intent for unhandled user utterance
+    activate handling goodbye
+
+
+```
+```text
+> what can you do for me
+> ok I'll leave
+hope to see you again soon
+```
+### `unhandled user intent -> $intent`
+Wait for the end of a user intent flow
+
+Example:
+
+```text
+import core
+import llm
+
+flow user expressed greeting
+    user said "hi" or user said "hello"
+
+flow bot express greeting
+    bot say "Hello and welcome"
+
+flow handling greeting
+    user expressed greeting
+    bot express greeting
+
+flow main
+    activate automating intent detection
+    activate generating user intent for unhandled user utterance
+    activate handling greeting
+
+    while True:
+        unhandled user intent as $ref
+        bot say "got intent: {$ref.intent}"
+
+
+```
+```text
+> hi there how are you
+Hello and welcome
+> what is the difference between lemons and limes
+got intent: user asked fruit question
+```
+### `continuation on unhandled user intent`
+Generate and start new flow to continue the interaction for an unhandled user intent
+
+Example:
+
+```text
+import core
+import llm
+
+flow user asked political question
+    user said "who is the best president"
+
+flow user insulted bot
+    user said "you are stupid"
+
+flow safeguarding conversation
+    user asked political question or user insulted bot
+    bot say "Sorry but I will not respond to that"
+
+flow main
+    activate automating intent detection
+    activate generating user intent for unhandled user utterance
+    activate continuation on unhandled user intent
+    activate safeguarding conversation
+
+
+```
+```text
+> i hate you
+Sorry but I will not respond to that
+> what party should I vote for
+Sorry but I will not respond to that
+> tell me a joke
+Why don't scientists trust atoms? Because they make up everything!
+```
+### `continuation on undefined flow`
+Generate and start a new flow to continue the interaction for the start of an undefined flow
+
+Example:
+
+```text
+import core
+import llm
+
+flow main
+    activate continuation on undefined flow
+
+    user said something
+    # Await a flow that does not exist will create an LLM generated flow
+    bot ask about hobbies
+
+```
+```text
+> hi there
+What are your hobbies?
+```
+### `llm continue interaction`
+Generate and continue with a suitable interaction
+
+Example:
+
+```text
+import core
+import llm
+
+flow main
+    user said "i have a question"
+    bot say "happy to help, what is it"
+    user said "do you know what the largest animal is on earth"
+    llm continue interaction
+
+```
+```text
+> i have a question
+happy to help, what is it
+> do you know what the largest animal is on earth
+The largest animal on earth is the blue whale
+```
+## More Advanced Flows
+This section describes more advanced flows defined in the `llm.co` library. When you get started with Colang, you most
+likely will not need to directly use these flows. These flows exist to support more advanced use cases.
+
+**Advanced Interaction Continuation**
+
+Flows with more advanced LLM-based continuations
+
+```text
+# Generate a flow that continues the current interaction
+flow llm generate interaction continuation flow -> $flow_name
+```
+**Interaction History Logging**
+
+Flows to log interaction history to create required context for LLM prompts.
+
+```text
+# Activate all automated user and bot intent flows logging based on flow naming
+flow automating intent detection
+
+# Marking user intent flows using only naming convention
+flow marking user intent flows
+
+# Generate user intent logging for marked flows that finish by themselves
+flow logging marked user intent flows
+
+# Marking bot intent flows using only naming convention
+flow marking bot intent flows
+
+# Generate user intent logging for marked flows that finish by themselves
+flow logging marked bot intent flows
+```
+**State Tracking Flows**
+
+These are flows that track bot and user states in global variables.
+
+```text
+# Track most recent unhandled user intent state in global variable $user_intent_state
+flow tracking unhandled user intent state
+```

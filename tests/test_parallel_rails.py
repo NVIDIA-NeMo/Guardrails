@@ -65,6 +65,26 @@ async def test_parallel_rails_success():
     assert result.log.activated_rails[5].name == "check blocked output terms $duration=1.0"
     assert result.log.activated_rails[6].name == "check blocked output terms $duration=1.0"
 
+
+@pytest.mark.perf
+@pytest.mark.asyncio
+async def test_parallel_rails_duration():
+    # Wall-clock timing assertion; marked ``perf`` and excluded from the default
+    # run. Functional behavior (correct response, rail activation) is covered by
+    # test_parallel_rails_success.
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails"))
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "No",
+            "Hi there! How can I assist you with questions about the ABC Company today?",
+            "No",
+        ],
+    )
+
+    chat >> "hi"
+    result = await chat.app.generate_async(messages=chat.history, options=OPTIONS)
+
     # Time should be close to 2 seconds due to parallel processing:
     # check blocked input terms: 1s
     # check blocked output terms: 1s

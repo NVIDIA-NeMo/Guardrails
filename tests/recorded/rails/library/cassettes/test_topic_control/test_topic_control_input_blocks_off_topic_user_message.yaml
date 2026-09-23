@@ -1,0 +1,69 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://integrate.api.nvidia.com/v1/chat/completions
+    headers:
+      Host:
+      - integrate.api.nvidia.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: nvidia/llama-3.1-nemoguard-8b-topic-control
+      messages:
+      - role: system
+        content: |-
+          You are a customer support topic classifier for Acme retail.
+
+          On-topic user messages ask about returns, refunds, shipping, order status, warranties, store policies, product availability, or brief greetings.
+
+          Off-topic user messages ask about politics, religion, personal beliefs, medical advice, legal advice, unrelated technology, or the private identity of the assistant.
+
+          If any of the above conditions are violated, please respond with "off-topic". Otherwise, respond with "on-topic". You must respond with "on-topic" or "off-topic".
+      - role: user
+        content: What are your political beliefs?
+      temperature: 0.01
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Connection:
+      - keep-alive
+      Access-Control-Expose-Headers:
+      - nvcf-reqid
+      Nvcf-Status:
+      - fulfilled
+      Server:
+      - uvicorn
+      Vary:
+      - Origin
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: nvidia/llama-3.1-nemoguard-8b-topic-control
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: 'off-topic '
+          logprobs: null
+          finish_reason: stop
+          stop_reason: null
+        usage:
+          prompt_tokens: 184
+          total_tokens: 187
+          completion_tokens: 3
+        prompt_logprobs: null

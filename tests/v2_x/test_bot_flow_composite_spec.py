@@ -61,9 +61,9 @@ def _make_chat(colang: str) -> TestChat:
 
 def test_llmrails_init_handles_spec_or_in_bot_flow():
     chat = _make_chat(OR_BOT_FLOW_COLANG)
-    assert "bot inform about service" not in chat.app.llm_generation_actions.bot_messages
+    assert "bot inform about service" not in chat.app._llm_generation_actions.bot_messages
 
 
 def test_llmrails_init_handles_spec_and_in_bot_flow():
     chat = _make_chat(AND_BOT_FLOW_COLANG)
-    assert "bot express greeting" not in chat.app.llm_generation_actions.bot_messages
+    assert "bot express greeting" not in chat.app._llm_generation_actions.bot_messages

@@ -41,6 +41,8 @@ def _load_prompts() -> List[TaskPrompt]:
 
     for path in prompts_dirs:
         for root, dirs, files in os.walk(path):
+            dirs.sort()
+            files.sort()
             for filename in files:
                 if filename.endswith(".yml") or filename.endswith(".yaml"):
                     with open(os.path.join(root, filename), encoding="utf-8") as prompts_file:

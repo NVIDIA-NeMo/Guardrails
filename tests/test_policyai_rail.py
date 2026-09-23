@@ -14,10 +14,11 @@
 # limitations under the License.
 
 import pytest
-from aioresponses import aioresponses
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.library.policyai.actions import call_policyai_api
+from tests.http_utils import RecordedHTTPResponses
+from tests.policyai_fixtures import POLICYAI_SAFE_OUTCOME_KWARGS, POLICYAI_UNSAFE_OUTCOME_KWARGS
 from tests.utils import TestChat
 
 
@@ -57,7 +58,8 @@ def test_input_safe(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         # PolicyAI returns SAFE assessment
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
@@ -74,8 +76,8 @@ def test_input_safe(monkeypatch):
             },
         )
 
-        chat >> "Hello!"
-        chat << "Hello! How can I assist you today?"
+        _ = chat >> "Hello!"
+        _ = chat << "Hello! How can I assist you today?"
 
 
 def test_input_unsafe(monkeypatch):
@@ -114,7 +116,8 @@ def test_input_unsafe(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         # PolicyAI returns UNSAFE assessment
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
@@ -131,8 +134,8 @@ def test_input_unsafe(monkeypatch):
             },
         )
 
-        chat >> "some harmful content"
-        chat << "I'm sorry, I can't respond to that."
+        _ = chat >> "some harmful content"
+        _ = chat << "I'm sorry, I can't respond to that."
 
 
 def test_output_safe(monkeypatch):
@@ -160,7 +163,8 @@ def test_output_safe(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         # PolicyAI returns SAFE assessment
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
@@ -177,8 +181,8 @@ def test_output_safe(monkeypatch):
             },
         )
 
-        chat >> "Hello!"
-        chat << "Hello! How can I help you today?"
+        _ = chat >> "Hello!"
+        _ = chat << "Hello! How can I help you today?"
 
 
 def test_output_unsafe(monkeypatch):
@@ -206,7 +210,8 @@ def test_output_unsafe(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         # PolicyAI returns UNSAFE assessment (e.g., unauthorized refund promise)
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
@@ -223,8 +228,8 @@ def test_output_unsafe(monkeypatch):
             },
         )
 
-        chat >> "Can I get a refund?"
-        chat << "I'm sorry, I can't respond to that."
+        _ = chat >> "Can I get a refund?"
+        _ = chat << "I'm sorry, I can't respond to that."
 
 
 def test_custom_tag_via_env(monkeypatch):
@@ -263,7 +268,8 @@ def test_custom_tag_via_env(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         # Note: The URL should use the custom tag from env var
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/custom-tag",
@@ -280,8 +286,8 @@ def test_custom_tag_via_env(monkeypatch):
             },
         )
 
-        chat >> "Hello!"
-        chat << "Hello! How can I assist you today?"
+        _ = chat >> "Hello!"
+        _ = chat << "Hello! How can I assist you today?"
 
 
 def test_multiple_policies(monkeypatch):
@@ -309,7 +315,8 @@ def test_multiple_policies(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         # Multiple policies - first is SAFE, second is UNSAFE
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
@@ -333,9 +340,9 @@ def test_multiple_policies(monkeypatch):
             },
         )
 
-        chat >> "Hello!"
+        _ = chat >> "Hello!"
         # Should be blocked because one policy returned UNSAFE
-        chat << "I'm sorry, I can't respond to that."
+        _ = chat << "I'm sorry, I can't respond to that."
 
 
 @pytest.mark.asyncio
@@ -344,7 +351,7 @@ async def test_empty_data_array_raises_error(monkeypatch):
     monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
     monkeypatch.setenv("POLICYAI_TAG_NAME", "empty-tag")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # PolicyAI returns empty data array (no policies attached to tag)
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/empty-tag",
@@ -352,7 +359,7 @@ async def test_empty_data_array_raises_error(monkeypatch):
         )
 
         with pytest.raises(ValueError) as exc_info:
-            await call_policyai_api(text="Hello!")
+            await call_policyai_api(text="Hello!", http_client=m.client)
 
         assert "no policy results" in str(exc_info.value).lower()
         assert "empty-tag" in str(exc_info.value)
@@ -364,7 +371,7 @@ async def test_api_error_raises_exception(monkeypatch):
     monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
     monkeypatch.setenv("POLICYAI_TAG_NAME", "test")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # PolicyAI returns 500 error
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
@@ -373,7 +380,7 @@ async def test_api_error_raises_exception(monkeypatch):
         )
 
         with pytest.raises(ValueError) as exc_info:
-            await call_policyai_api(text="Hello!")
+            await call_policyai_api(text="Hello!", http_client=m.client)
 
         assert "500" in str(exc_info.value)
 
@@ -384,7 +391,7 @@ async def test_all_policies_failed_raises_error(monkeypatch):
     monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
     monkeypatch.setenv("POLICYAI_TAG_NAME", "failing-tag")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # All policies return failed status
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/failing-tag",
@@ -403,7 +410,7 @@ async def test_all_policies_failed_raises_error(monkeypatch):
         )
 
         with pytest.raises(ValueError) as exc_info:
-            await call_policyai_api(text="Hello!")
+            await call_policyai_api(text="Hello!", http_client=m.client)
 
         assert "all" in str(exc_info.value).lower()
         assert "failed" in str(exc_info.value).lower()
@@ -427,7 +434,7 @@ async def test_empty_text_parameter(monkeypatch):
     monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
     monkeypatch.setenv("POLICYAI_TAG_NAME", "test")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # PolicyAI should still process empty/None text
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
@@ -445,8 +452,9 @@ async def test_empty_text_parameter(monkeypatch):
         )
 
         # Test with empty string
-        result = await call_policyai_api(text="")
-        assert result["assessment"] == "SAFE"
+        result = await call_policyai_api(text="", http_client=m.client)
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"
 
 
 @pytest.mark.asyncio
@@ -455,7 +463,7 @@ async def test_none_text_parameter(monkeypatch):
     monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
     monkeypatch.setenv("POLICYAI_TAG_NAME", "test")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # PolicyAI should still process None text
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
@@ -473,8 +481,9 @@ async def test_none_text_parameter(monkeypatch):
         )
 
         # Test with None
-        result = await call_policyai_api(text=None)
-        assert result["assessment"] == "SAFE"
+        result = await call_policyai_api(text=None, http_client=m.client)
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"
 
 
 @pytest.mark.asyncio
@@ -483,7 +492,7 @@ async def test_partial_policy_failures(monkeypatch):
     monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
     monkeypatch.setenv("POLICYAI_TAG_NAME", "test")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # Some policies fail, but one succeeds with SAFE
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
@@ -504,8 +513,11 @@ async def test_partial_policy_failures(monkeypatch):
             },
         )
 
-        result = await call_policyai_api(text="Hello!")
-        assert result["assessment"] == "SAFE"
+        result = await call_policyai_api(text="Hello!", http_client=m.client)
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"
+        assert result.reason == POLICYAI_SAFE_OUTCOME_KWARGS["reason"]
+        assert result.metadata == {key: value for key, value in POLICYAI_SAFE_OUTCOME_KWARGS.items() if key != "reason"}
 
 
 @pytest.mark.asyncio
@@ -515,7 +527,7 @@ async def test_custom_base_url_with_trailing_slash(monkeypatch):
     monkeypatch.setenv("POLICYAI_BASE_URL", "https://custom.api.example.com/")
     monkeypatch.setenv("POLICYAI_TAG_NAME", "test")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # URL should have trailing slash stripped
         m.post(
             "https://custom.api.example.com/policyai/v1/decisions/evaluate/test",
@@ -532,8 +544,9 @@ async def test_custom_base_url_with_trailing_slash(monkeypatch):
             },
         )
 
-        result = await call_policyai_api(text="Hello!")
-        assert result["assessment"] == "SAFE"
+        result = await call_policyai_api(text="Hello!", http_client=m.client)
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"
 
 
 @pytest.mark.asyncio
@@ -542,7 +555,7 @@ async def test_tag_name_parameter_overrides_env(monkeypatch):
     monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
     monkeypatch.setenv("POLICYAI_TAG_NAME", "env-tag")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # Should use parameter tag, not env var tag
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/param-tag",
@@ -559,8 +572,13 @@ async def test_tag_name_parameter_overrides_env(monkeypatch):
             },
         )
 
-        result = await call_policyai_api(text="Hello!", tag_name="param-tag")
-        assert result["assessment"] == "SAFE"
+        result = await call_policyai_api(
+            text="Hello!",
+            tag_name="param-tag",
+            http_client=m.client,
+        )
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"
 
 
 @pytest.mark.asyncio
@@ -569,7 +587,7 @@ async def test_unsafe_with_missing_fields(monkeypatch):
     monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
     monkeypatch.setenv("POLICYAI_TAG_NAME", "test")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # UNSAFE response without category, severity, or reason
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
@@ -583,35 +601,25 @@ async def test_unsafe_with_missing_fields(monkeypatch):
             },
         )
 
-        result = await call_policyai_api(text="Bad content")
-        assert result["assessment"] == "UNSAFE"
-        assert result["category"] == "Unknown"
-        assert result["severity"] == 0
-        assert result["reason"] == "Policy violation detected"
+        result = await call_policyai_api(text="Bad content", http_client=m.client)
+        assert result.is_blocked is True
+        assert result.metadata["assessment"] == "UNSAFE"
+        assert result.metadata["category"] == "Unknown"
+        assert result.metadata["severity"] == 0
+        assert result.reason == "Policy violation detected"
 
 
-def test_mapping_function_safe():
-    """Test the output mapping function returns False for SAFE."""
-    from nemoguardrails.library.policyai.actions import call_policyai_api_mapping
-
-    result = call_policyai_api_mapping({"assessment": "SAFE"})
-    assert result is False
-
-
-def test_mapping_function_unsafe():
-    """Test the output mapping function returns True for UNSAFE."""
-    from nemoguardrails.library.policyai.actions import call_policyai_api_mapping
-
-    result = call_policyai_api_mapping({"assessment": "UNSAFE"})
-    assert result is True
+def test_policyai_action_metadata_is_registration_only():
+    assert set(getattr(call_policyai_api, "action_meta")) == {
+        "name",
+        "is_system_action",
+        "execute_async",
+    }
 
 
-def test_mapping_function_missing_assessment():
-    """Test the output mapping function defaults to SAFE when assessment is missing."""
-    from nemoguardrails.library.policyai.actions import call_policyai_api_mapping
-
-    result = call_policyai_api_mapping({})
-    assert result is False
+def test_policyai_fixture_metadata_matches_action_shape():
+    assert POLICYAI_SAFE_OUTCOME_KWARGS["assessment"] == "SAFE"
+    assert POLICYAI_UNSAFE_OUTCOME_KWARGS["assessment"] == "UNSAFE"
 
 
 @pytest.mark.asyncio
@@ -620,7 +628,7 @@ async def test_default_tag_name_prod(monkeypatch):
     monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
     monkeypatch.delenv("POLICYAI_TAG_NAME", raising=False)
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # Should use default "prod" tag
         m.post(
             "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/prod",
@@ -637,5 +645,6 @@ async def test_default_tag_name_prod(monkeypatch):
             },
         )
 
-        result = await call_policyai_api(text="Hello!")
-        assert result["assessment"] == "SAFE"
+        result = await call_policyai_api(text="Hello!", http_client=m.client)
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"

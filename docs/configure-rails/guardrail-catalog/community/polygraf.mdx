@@ -1,0 +1,143 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Polygraf Integration"
+---
+[Polygraf](https://polygraf.ai/) offers a state-of-the-art PII detection and masking API designed to help identify and protect sensitive information in your text. This integration enables NeMo Guardrails to use Polygraf for PII detection and masking in input, output, and retrieval flows.
+
+## Setup
+
+1. Obtain a Polygraf API key and set it as an environment variable so the integration can authenticate cloud requests:
+
+    ```bash
+    export POLYGRAF_API_KEY="your-polygraf-api-key"
+    ```
+
+2. Pick the endpoint that matches your deployment:
+
+    - For **Polygraf cloud**, use `https://governance.api.polygraf.ai/gcp/pii/text-detect`.
+    - For **self-hosted** deployments, set this to your service endpoint (the local default is typically `http://localhost:8000/v1/pii/text-detect`).
+
+3. Update your `config.yml` file to include the Polygraf settings.
+
+    **PII detection config**
+
+    ```yaml
+    rails:
+      config:
+        polygraf:
+          server_endpoint: "https://governance.api.polygraf.ai/gcp/pii/text-detect"
+          input:
+            entities:  # If no entity is specified here, any detected PII will trigger the rail.
+              - Email
+              - Person
+              - Phone
+          output:
+            entities:
+              - Email
+              - Person
+              - Phone
+      input:
+        flows:
+          - polygraf detect pii on input
+      output:
+        flows:
+          - polygraf detect pii on output
+    ```
+
+    The detection flow blocks the input, output, or retrieval text if PII is detected and an entity match is configured.
+
+    **PII masking config**
+
+    ```yaml
+    rails:
+      config:
+        polygraf:
+          server_endpoint: "https://governance.api.polygraf.ai/gcp/pii/text-detect"
+          input:
+            entities:
+              - Email
+              - Person
+              - Phone
+          output:
+            entities:
+              - Email
+              - Person
+              - Phone
+      input:
+        flows:
+          - polygraf mask pii on input
+      output:
+        flows:
+          - polygraf mask pii on output
+    ```
+
+    The masking flow replaces detected PII spans with `<EntityType>` placeholders. For example, `Hi John, my email is john@example.com` becomes `Hi <Person>, my email is <Email>`.
+
+### Retrieval Flows
+
+To detect or mask PII in retrieved documents, configure the `retrieval` entities and enable the retrieval flow variant:
+
+```yaml
+rails:
+  config:
+    polygraf:
+      server_endpoint: "https://governance.api.polygraf.ai/gcp/pii/text-detect"
+      retrieval:
+        entities:
+          - Email
+          - Person
+          - Phone
+
+  retrieval:
+    flows:
+      - polygraf detect pii on retrieval
+      # or for masking:
+      # - polygraf mask pii on retrieval
+```
+
+## Usage
+
+Once configured, the Polygraf integration can automatically:
+
+1. Detect or mask PII in user inputs before they are processed by the LLM.
+2. Detect or mask PII in LLM outputs before they are sent back to the user.
+3. Detect or mask PII in retrieved chunks before they are sent to the LLM.
+
+The `polygraf_detect_pii` and `polygraf_mask_pii` actions in `nemoguardrails/library/polygraf/actions.py` handle the PII detection and masking processes, respectively.
+
+## Entity Types
+
+You can customize the PII handling behavior by modifying the `entities` lists under `input`, `output`, and `retrieval`. Entity labels should match the labels returned by your Polygraf deployment. Common entities include:
+
+- `Person`
+- `Email`
+- `Phone`
+
+For a complete list of supported entity types, refer to the [Polygraf documentation](https://polygraf.ai/api-agents/).
+
+## Failure Handling
+
+The integration is fail-closed: a Polygraf failure must not allow potentially-PII text to pass through the rail.
+
+- **Provider/network failure** (timeout, DNS, TLS, non-200 response, invalid JSON, malformed response shape). The underlying HTTP helper raises `ValueError`, which the actions catch internally. `polygraf detect pii on …` returns `True` (the rail blocks the message). `polygraf mask pii on …` replaces the entire payload with the `<REDACTED>` placeholder. The actions log a structural warning (failure category only); request bodies, response bodies, and entity values are never logged.
+- **Malformed entity span** (Polygraf returns an entry without a known `entity_type`, or with non-integer offsets, or with offsets outside `0 <= start < end <= len(text)`). The actions also fail closed: detection blocks the message and masking redacts the whole payload, rather than silently skipping the malformed span and forwarding the rest.
+- **Default timeout**: `30` seconds per call. Slow or unreachable endpoints cannot hang the rail pipeline.
+- **Missing API key**: if `POLYGRAF_API_KEY` is not set, the integration logs a warning since cloud endpoints typically reject unauthenticated requests, and proceeds to call the endpoint without an `Authorization` header.
+
+## Engine Support
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `polygraf detect pii on input`, `polygraf detect pii on output` | ✓ | ✓ |
+| `polygraf mask pii on input`, `polygraf mask pii on output` | ✓ | ✓ |
+| `polygraf detect pii on retrieval`, `polygraf mask pii on retrieval` | ✓ | ✗ |
+
+The retrieval flows run on `LLMRails` only, because `IORails` has no retrieval pipeline.
+A configuration that declares a `rails.retrieval` section routes to `LLMRails` by default.
+With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling back.
+
+The masking flows rewrite the text they check rather than blocking it.
+`IORails` runs input and output rails sequentially when a configured rail rewrites content, so each mask reaches subsequent rails.
+
+For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

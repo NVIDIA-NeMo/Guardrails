@@ -19,3 +19,19 @@ import pytest
 @pytest.fixture(autouse=True)
 def _langchain_tests_use_langchain(langchain_framework):
     pass
+
+
+@pytest.fixture(autouse=True)
+def _restore_langchain_provider_registries():
+    from nemoguardrails.integrations.langchain.providers.providers import (
+        _chat_providers,
+        _llm_providers,
+    )
+
+    chat_providers = _chat_providers.copy()
+    llm_providers = _llm_providers.copy()
+    yield
+    _chat_providers.clear()
+    _chat_providers.update(chat_providers)
+    _llm_providers.clear()
+    _llm_providers.update(llm_providers)

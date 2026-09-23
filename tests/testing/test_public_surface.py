@@ -16,7 +16,7 @@
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.testing import FakeLLMModel, TestChat
+from nemoguardrails.testing import FakeLLMModel, RecordingHTTPClient, TestChat
 from nemoguardrails.types import LLMResponse
 
 
@@ -38,8 +38,9 @@ def test_public_imports_are_re_exported():
     from nemoguardrails import testing as testing_pkg
 
     assert testing_pkg.FakeLLMModel is FakeLLMModel
+    assert testing_pkg.RecordingHTTPClient is RecordingHTTPClient
     assert testing_pkg.TestChat is TestChat
-    assert set(testing_pkg.__all__) == {"FakeLLMModel", "TestChat"}
+    assert set(testing_pkg.__all__) == {"FakeLLMModel", "RecordingHTTPClient", "TestChat"}
 
 
 def test_shim_re_exports_remain_compatible():

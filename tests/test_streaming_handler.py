@@ -733,6 +733,29 @@ async def test_metadata_accumulation_across_chunks():
 
 
 @pytest.mark.asyncio
+async def test_raw_usage_metadata_chunk_is_not_repeated_on_final_chunk():
+    streaming_handler = StreamingHandler(include_metadata=True)
+    streaming_consumer = StreamingConsumer(streaming_handler)
+    usage = {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}
+
+    try:
+        await streaming_handler.push_chunk("Hello")
+        await streaming_handler.push_chunk("", metadata={"usage": usage})
+        await streaming_handler.push_chunk(None)
+
+        chunks = await streaming_consumer.get_chunks()
+        usage_chunks = [chunk for chunk in chunks if chunk.get("metadata", {}).get("usage")]
+
+        assert len(usage_chunks) == 1
+        assert usage_chunks[0]["metadata"]["usage"] == usage
+        assert "usage" not in chunks[-1]["metadata"]
+        assert chunks[-1]["metadata"]["response_metadata"] is None
+        assert chunks[-1]["metadata"]["usage_metadata"] is None
+    finally:
+        await streaming_consumer.cancel()
+
+
+@pytest.mark.asyncio
 async def test_metadata_defaults_when_provider_returns_no_metadata():
     """Test that the final chunk includes metadata with None values when include_metadata=True
     but the provider does not return any metadata."""

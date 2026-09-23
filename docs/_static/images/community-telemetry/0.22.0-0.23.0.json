@@ -1,0 +1,119 @@
+{
+  "snapshot": {
+    "start_utc": "2026-05-22T11:19:23.257Z",
+    "end_utc": "2026-08-18T11:29:16.664Z",
+    "versions": [
+      "0.22.0",
+      "0.23.0"
+    ],
+    "estimated_unique_startup_sessions": 665798,
+    "startup_records": 1150378
+  },
+  "rail_types": [
+    {
+      "key": "input",
+      "label": "Input",
+      "sessions": 619589
+    },
+    {
+      "key": "output",
+      "label": "Output",
+      "sessions": 407195
+    },
+    {
+      "key": "retrieval",
+      "label": "Retrieval",
+      "sessions": 2037
+    },
+    {
+      "key": "tool_output",
+      "label": "Tool output",
+      "sessions": 1573
+    },
+    {
+      "key": "dialog",
+      "label": "Dialog",
+      "sessions": 1567
+    },
+    {
+      "key": "tool_input",
+      "label": "Tool input",
+      "sessions": 1522
+    }
+  ],
+  "builtin_features": {
+    "top_n": 10,
+    "omitted_document_occurrences": 500,
+    "values": [
+      {
+        "key": "self_check",
+        "label": "Self-check",
+        "sessions": 432827
+      },
+      {
+        "key": "jailbreak_detection",
+        "label": "Jailbreak detection",
+        "sessions": 67273
+      },
+      {
+        "key": "content_safety",
+        "label": "Content safety",
+        "sessions": 11097
+      },
+      {
+        "key": "sensitive_data_detection",
+        "label": "Sensitive data detection",
+        "sessions": 7868
+      },
+      {
+        "key": "injection_detection",
+        "label": "Injection detection",
+        "sessions": 4929
+      },
+      {
+        "key": "topic_safety",
+        "label": "Topic safety",
+        "sessions": 4330
+      },
+      {
+        "key": "llama_guard",
+        "label": "Llama Guard",
+        "sessions": 3065
+      },
+      {
+        "key": "regex",
+        "label": "Regex",
+        "sessions": 2516
+      },
+      {
+        "key": "factchecking",
+        "label": "Fact-checking",
+        "sessions": 595
+      },
+      {
+        "key": "gliner",
+        "label": "GLiNER",
+        "sessions": 464
+      }
+    ]
+  },
+  "configured_rails": {
+    "unit": "startup_records",
+    "excluded_zero_records": 93680,
+    "eligible_startup_records": 1056698,
+    "buckets": [
+      {
+        "label": "1 rail",
+        "records": 345715
+      },
+      {
+        "label": "2 rails",
+        "records": 438445
+      },
+      {
+        "label": "3+ rails",
+        "records": 272538
+      }
+    ]
+  }
+}

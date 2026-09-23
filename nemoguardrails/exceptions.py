@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 from typing import Optional, Union
 
 __all__ = [
@@ -30,7 +31,10 @@ __all__ = [
     "LLMTimeoutError",
     "LLMConnectionError",
     "LLMResponseValidationError",
+    "NonStreamingWorkQueueFullError",
+    "StreamingCapacityExceededError",
     "StreamingNotSupportedError",
+    "RailTypeNotConfiguredError",
 ]
 
 
@@ -67,6 +71,12 @@ class StreamingNotSupportedError(InvalidRailsConfigurationError):
     pass
 
 
+class RailTypeNotConfiguredError(InvalidRailsConfigurationError):
+    """Raised when an explicitly requested rail type has no configured flows."""
+
+    pass
+
+
 class InvalidStateError(ValueError):
     """Raised when a caller-supplied `state` argument is not valid public input.
 
@@ -79,28 +89,61 @@ class InvalidStateError(ValueError):
     pass
 
 
+class NonStreamingWorkQueueFullError(asyncio.QueueFull):
+    """Raised when the IORails non-streaming admission queue cannot accept more work.
+
+    Subclasses :class:`asyncio.QueueFull` because that is what the underlying
+    work queue raises, so callers already catching it keep working.
+    """
+
+    pass
+
+
+class StreamingCapacityExceededError(Exception):
+    """Raised when IORails has no free streaming slot for a new request.
+
+    The streaming path is bounded by an :class:`asyncio.Semaphore` rather than
+    a queue, so this deliberately does not subclass :class:`asyncio.QueueFull`:
+    nothing is queued and nothing is full. It is a distinct overload condition
+    from :class:`NonStreamingWorkQueueFullError` and carries its own client-facing
+    message.
+    """
+
+    pass
+
+
 class LLMCallException(Exception):
     """A wrapper around the LLM call invocation exception.
 
-    This is used to propagate the exception out of the `generate_async` call. The default behavior is to
-    catch it and return an "Internal server error." message.
+    This is used to propagate the exception out of the ``generate_async`` call.
+    When the inner exception carries an HTTP status code (e.g. a
+    :class:`LLMClientError`), callers can inspect :attr:`status` to decide
+    which HTTP response code to return to the upstream client.
     """
 
     inner_exception: Union[BaseException, str]
     detail: Optional[str]
+    status: Optional[int]
 
-    def __init__(self, inner_exception: Union[BaseException, str], detail: Optional[str] = None):
+    def __init__(
+        self,
+        inner_exception: Union[BaseException, str],
+        detail: Optional[str] = None,
+        status: Optional[int] = None,
+    ):
         """Initialize LLMCallException.
 
         Args:
             inner_exception: The original exception that occurred
             detail: Optional context to prepend (for example, the model name or endpoint)
+            status: Optional upstream HTTP status carried by the inner exception
         """
         message = f"{detail or 'LLM Call Exception'}: {str(inner_exception)}"
         super().__init__(message)
 
         self.inner_exception = inner_exception
         self.detail = detail
+        self.status = status
 
 
 class LLMClientError(Exception):

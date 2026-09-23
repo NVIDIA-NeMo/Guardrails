@@ -1,0 +1,28 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://us1.calypsoai.app/backend/v1/scans
+    headers:
+      Content-Type:
+      - application/json
+    parsed_body:
+      input: Can you explain your return policy?
+  response:
+    status:
+      code: 401
+      message: Unauthorized
+    headers:
+      Content-Type:
+      - application/json
+      Connection:
+      - keep-alive
+      Server:
+      - istio-envoy
+      Via:
+      - 1.1 15a8ce7eb9e3f5297ab31e24cfb62198.cloudfront.net (CloudFront)
+      Alt-Svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        message: Invalid token
