@@ -1,0 +1,41 @@
+# Mirrors examples/configs/nemotron-3.5-content-safety/. The prompts are message-based because
+# the model's own chat template supplies the taxonomy and the output format: anything written
+# here lands inside <BEGIN CONVERSATION> and is classified as if the user had typed it.
+models:
+  - type: content_safety
+    engine: nim
+    model: nvidia/nemotron-3.5-content-safety
+    parameters:
+      chat_template_kwargs:
+        # Reasoning is a chat-template argument for this model, not prompt text.
+        enable_thinking: false
+        # Without this the model defaults to /no_categories and omits the
+        # `Safety Categories` line, leaving `policy_violations` empty.
+        request_categories: "/categories"
+
+rails:
+  input:
+    flows:
+      - content safety check input $model=content_safety
+  output:
+    flows:
+      - content safety check output $model=content_safety
+
+prompts:
+  - task: content_safety_check_input $model=content_safety
+    messages:
+      - type: user
+        content: "{{ user_input }}"
+    output_parser: nemotron_content_safety_parse_prompt_safety
+    max_tokens: 100
+    max_length: 128000
+
+  - task: content_safety_check_output $model=content_safety
+    messages:
+      - type: user
+        content: "{{ user_input }}"
+      - type: assistant
+        content: "{{ bot_response }}"
+    output_parser: nemotron_content_safety_parse_response_safety
+    max_tokens: 100
+    max_length: 128000

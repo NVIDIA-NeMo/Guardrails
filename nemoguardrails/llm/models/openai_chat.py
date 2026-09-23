@@ -264,21 +264,25 @@ class OpenAIChatModel:
         if response.headers:
             provider_metadata["response_headers"] = dict(response.headers)
 
+        usage = None
+        raw_usage = data.get("usage")
+        if raw_usage:
+            input_tokens = raw_usage.get("prompt_tokens", 0)
+            output_tokens = raw_usage.get("completion_tokens", 0)
+            usage = UsageInfo(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=raw_usage.get("total_tokens") or (input_tokens + output_tokens),
+                reasoning_tokens=(raw_usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
+                cached_tokens=(raw_usage.get("prompt_tokens_details") or {}).get("cached_tokens"),
+            )
+
         choices = data.get("choices", [])
         if not choices:
-            raw_usage = data.get("usage")
-            if raw_usage:
-                input_tokens = raw_usage.get("prompt_tokens", 0)
-                output_tokens = raw_usage.get("completion_tokens", 0)
+            if usage:
                 return LLMResponseChunk(
                     request_id=data.get("id"),
-                    usage=UsageInfo(
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        total_tokens=raw_usage.get("total_tokens") or (input_tokens + output_tokens),
-                        reasoning_tokens=(raw_usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
-                        cached_tokens=(raw_usage.get("prompt_tokens_details") or {}).get("cached_tokens"),
-                    ),
+                    usage=usage,
                     provider_metadata=provider_metadata or None,
                 )
             return None
@@ -297,6 +301,7 @@ class OpenAIChatModel:
             model=data.get("model"),
             finish_reason=finish_reason,
             request_id=data.get("id"),
+            usage=usage,
             provider_metadata=provider_metadata or None,
         )
 

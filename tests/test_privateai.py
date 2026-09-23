@@ -13,15 +13,149 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 
 import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.http import HTTPResponse
+from nemoguardrails.library.privateai.actions import detect_pii, mask_pii
+from nemoguardrails.library.privateai.request import private_ai_request
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
 PAI_API_KEY_PRESENT = os.getenv("PAI_API_KEY") is not None
+
+
+def _response(payload=None, *, status: int = 200, content: bytes | None = None) -> HTTPResponse:
+    return HTTPResponse(
+        status_code=status,
+        headers={"content-type": "application/json"},
+        content=content if content is not None else json.dumps(payload).encode(),
+    )
+
+
+def _privateai_config() -> RailsConfig:
+    return RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                privateai:
+                  server_endpoint: http://privateai.example/process
+                  input:
+                    entities:
+                      - NAME
+                  output:
+                    entities:
+                      - NAME
+        """,
+    )
+
+
+@pytest.mark.asyncio
+async def test_private_ai_request_uses_shared_client():
+    response_payload = [{"processed_text": "Hello [NAME_1].", "entities_present": ["NAME"]}]
+    client = RecordingHTTPClient([_response(response_payload)])
+
+    result = await private_ai_request(
+        "Hello John.",
+        ["NAME"],
+        "https://api.private-ai.com/cloud/v3/process/text",
+        api_key="secret",
+        http_client=client,
+    )
+
+    assert result == response_payload
+    request = client.requests[0]
+    assert request.method == "POST"
+    assert request.url == "https://api.private-ai.com/cloud/v3/process/text"
+    assert request.headers == {
+        "Content-Type": "application/json",
+        "x-api-key": "secret",
+    }
+    assert request.json == {
+        "text": ["Hello John."],
+        "link_batch": False,
+        "entity_detection": {
+            "accuracy": "high_automatic",
+            "return_entity": False,
+            "entity_types": [{"type": "ENABLE", "value": ["NAME"]}],
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_private_ai_request_omits_optional_cloud_fields():
+    client = RecordingHTTPClient([_response([])])
+
+    await private_ai_request(
+        "Hello.",
+        [],
+        "http://privateai.example/process",
+        http_client=client,
+    )
+
+    request = client.requests[0]
+    assert request.headers == {"Content-Type": "application/json"}
+    assert "entity_types" not in request.json["entity_detection"]
+
+
+@pytest.mark.asyncio
+async def test_private_ai_request_requires_cloud_api_key():
+    with pytest.raises(ValueError, match="'api_key' is required"):
+        await private_ai_request(
+            "Hello.",
+            [],
+            "https://api.private-ai.com/cloud/v3/process/text",
+            http_client=RecordingHTTPClient(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_private_ai_request_raises_for_non_200():
+    client = RecordingHTTPClient([_response({}, status=503)])
+
+    with pytest.raises(ValueError, match="Private AI call failed with status code 503"):
+        await private_ai_request(
+            "Hello.",
+            [],
+            "http://privateai.example/process",
+            http_client=client,
+        )
+
+
+@pytest.mark.asyncio
+async def test_private_ai_request_raises_for_invalid_json():
+    client = RecordingHTTPClient([_response(content=b"not-json")])
+
+    with pytest.raises(ValueError, match="Failed to parse Private AI response as JSON"):
+        await private_ai_request(
+            "Hello.",
+            [],
+            "http://privateai.example/process",
+            http_client=client,
+        )
+
+
+@pytest.mark.asyncio
+async def test_privateai_actions_forward_shared_client():
+    client = RecordingHTTPClient(
+        [
+            _response([{"entities_present": ["NAME"]}]),
+            _response([{"processed_text": "Hello [NAME_1]."}]),
+        ]
+    )
+    config = _privateai_config()
+
+    detection = await detect_pii("input", "Hello John.", config, http_client=client)
+    masking = await mask_pii("output", "Hello John.", config, http_client=client)
+
+    assert detection.is_blocked
+    assert masking.transforms[0].text == "Hello [NAME_1]."
+    assert len(client.requests) == 2
 
 
 @action()

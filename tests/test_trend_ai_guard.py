@@ -17,6 +17,10 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse
+from nemoguardrails.library.trend_micro.actions import trend_ai_guard
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
 input_rail_config = RailsConfig.from_content(
@@ -97,6 +101,31 @@ def test_trend_ai_guard_error(httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "response",
+    [
+        HTTPConnectionError("connection failed"),
+        HTTPResponse(status_code=200, content=b"not-json"),
+        HTTPResponse(status_code=200, content=b"{}"),
+    ],
+)
+async def test_trend_ai_guard_fail_open_covers_request_and_response_failures(monkeypatch, response):
+    monkeypatch.setenv("V1_API_KEY", "test-token")
+
+    outcome = await trend_ai_guard(
+        config=input_rail_config,
+        text="Hello",
+        http_client=RecordingHTTPClient([response]),
+    )
+
+    assert outcome == RailOutcome.allow(
+        reason="An error occurred while calling the Trend Micro AI Guard API.",
+        metadata={"action": "Allow"},
+    )
+
+
+@pytest.mark.unit
 def test_trend_ai_guard_missing_env_var():
     chat = TestChat(input_rail_config, llm_completions=[])
 
@@ -116,7 +145,7 @@ def test_trend_ai_guard_malformed_response(httpx_mock: HTTPXMock, monkeypatch: p
 
     # Should fail open
     chat >> "What is the air-speed velocity of an unladen swallow?"
-    chat << "I'm sorry, an internal error has occurred."
+    chat << "What do you mean? An African or a European swallow?"
 
 
 @pytest.mark.unit

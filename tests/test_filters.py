@@ -16,11 +16,40 @@
 import textwrap
 
 from nemoguardrails.llm.filters import (
+    co_v2,
     first_turns,
     last_turns,
     to_chat_messages,
     user_assistant_sequence,
 )
+
+
+def test_co_v2_hides_rail_action_results():
+    events = [
+        {
+            "type": "AnyRailActionFinished",
+            "uid": "rail-action",
+            "action_name": "AnyRailAction",
+            "return_value": "internal result",
+            "is_rail_action": True,
+        }
+    ]
+
+    assert co_v2(events) == ""
+
+
+def test_co_v2_keeps_non_rail_action_results():
+    events = [
+        {
+            "type": "CustomActionFinished",
+            "uid": "custom-action",
+            "action_name": "CustomAction",
+            "return_value": "custom result",
+            "is_rail_action": False,
+        }
+    ]
+
+    assert co_v2(events) == "  # custom result\n"
 
 
 def test_first_turns():

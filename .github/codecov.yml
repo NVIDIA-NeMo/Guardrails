@@ -2,15 +2,19 @@ coverage:
   status:
     project:
       default:
-        informational: true
+        target: auto
+        threshold: 0.25%
+        informational: false
     patch:
       default:
+        target: 90%
+        threshold: 0%
         informational: true
 
 comment:
   layout: " diff, flags, files"
   behavior: default
-  require_changes: false # if true: only post the comment if coverage changes
+  require_changes: "coverage_drop OR uncovered_patch"
   require_base: false # [true :: must have a base report to post]
   require_head: true # [true :: must have a head report to post]
   hide_project_coverage: false # [true :: only show coverage on the git diff aka patch coverage]

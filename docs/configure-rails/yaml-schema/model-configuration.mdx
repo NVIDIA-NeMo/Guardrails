@@ -1,0 +1,380 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Model Configuration for NeMo Guardrails"
+sidebar-title: "Models"
+description: "Configure LLM engines, embedding models, and task-specific models in config.yml."
+content:
+  type: "reference"
+---
+
+In this page, learn how to configure the `models` section in your Guardrails `config.yml` file. For a complete reference of all configuration options, refer to the [Configuration YAML Schema Reference](/configure-guardrails/configuration-reference).
+
+## NVIDIA NIM Configuration
+
+The NVIDIA NeMo Guardrails library integrates with NVIDIA NIM microservices:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+```
+
+This provides access to:
+
+- Locally deployed NIMs. You can run models on your own infrastructure with optimized inference.
+- NVIDIA API Catalog. You can access hosted models on [build.nvidia.com](https://build.nvidia.com/models).
+- Specialized NIMs. Includes NemoGuard Content Safety, Topic Control, and Jailbreak Detect.
+
+### Local NIM Deployment
+
+For locally deployed NIMs, specify the base URL:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    parameters:
+      base_url: http://localhost:8000/v1
+```
+
+---
+
+## Task-Specific Models
+
+Configure different models for specific tasks:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+
+  - type: self_check_input
+    engine: nim
+    model: meta/llama3-8b-instruct
+
+  - type: self_check_output
+    engine: nim
+    model: meta/llama-3.1-70b-instruct
+
+  - type: generate_user_intent
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+```
+
+---
+
+## Configuration Examples
+
+### OpenAI Chat Completions
+
+The following example shows how to configure the OpenAI model as the main application LLM using the chat completions endpoint:
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o
+```
+
+### OpenAI Responses API
+
+Use the [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses) (`/v1/responses`) when an OpenAI model or option requires it. For example, some models, such as `gpt-5-pro`, require the Responses API, and recent OpenAI models support options such as `reasoning_effort` through the Responses API.
+
+The NVIDIA NeMo Guardrails library supports this option through the LangChain framework. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`, install `langchain-openai`, and set `use_responses_api: true` in the model's `parameters` block:
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o
+    parameters:
+      use_responses_api: true
+```
+
+<Note>
+
+The built-in default framework does not support the Responses API. It calls `/v1/chat/completions` and forwards `use_responses_api` as an unknown request field, so the flag has no effect. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
+
+</Note>
+
+Function tool calls work over the Responses API in streaming and non-streaming modes. The adapter surfaces function calls on `LLMResponse.tool_calls` and `LLMResponseChunk.delta_tool_calls`, and reports `finish_reason` as `tool_calls`.
+
+Built-in Responses API tools, such as `web_search`, `file_search`, `code_interpreter`, and `computer_use`, are not surfaced as tool calls. The API returns those tools as response output items, not function calls, so only function-tool passthrough is supported.
+
+Self-hosted servers that expose an OpenAI-compatible `/v1/responses` endpoint, such as vLLM, work with the same flag plus `parameters.base_url`. Confirm that your server implements `/v1/responses` before you enable the flag. Models that use the [Harmony response format](https://github.com/openai/harmony), such as `gpt-oss` or `gpt-oss-safeguard`, should use the Responses API.
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: openai/gpt-oss-120b
+    api_key_env_var: THIS_CAN_BE_ANY_KEY
+    parameters:
+      base_url: http://localhost:8000/v1
+      use_responses_api: true
+```
+
+A complete example is available in [`examples/configs/llm/openai-responses-api`](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/llm/openai-responses-api).
+
+### Azure OpenAI
+
+The following example shows how to configure the Azure OpenAI model as the main application LLM using the Azure OpenAI API:
+
+```yaml
+models:
+  - type: main
+    engine: azure
+    model: gpt-4
+    parameters:
+      azure_endpoint: https://my-resource.openai.azure.com/
+      azure_deployment: my-gpt4-deployment
+      api_version: "2024-02-15-preview"
+```
+
+You can supply the resource endpoint as `azure_endpoint` (preferred, matches the OpenAI Python SDK) or `base_url` (v0.21-compatibility alias). Both fields accept only the resource URL. The framework composes the deployment path. Setting both raises an error.
+
+Set `AZURE_OPENAI_API_KEY` in the environment, set `api_key_env_var` on the model entry, or pass `parameters.api_key` directly. The framework constructs the deployment URL, sets `api-version` as a query parameter, and authenticates with the `api-key` header.
+
+The Azure preset adds those two values to the `default_headers` and `default_query` blocks described in [Custom HTTP Headers](#custom-http-headers) and [Model-Level Query Parameters](#model-level-query-parameters).
+It validates these blocks against values that you set.
+Setting `default_query['api-version']` to a value that differs from `parameters.api_version` raises an error.
+Supplying an `api-key` header in `default_headers` while also setting `parameters.api_key` or `api_key_env_var` also raises an error.
+You can supply only `default_headers['api-key']`: the preset uses your header and no longer requires `AZURE_OPENAI_API_KEY`.
+
+<Note>
+
+Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD or token-based authentication, configure `engine: openai` manually or use LangChain with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. Refer to [Migrating to 0.22](/reference/0-22#azure-openai) for both alternatives.
+
+</Note>
+
+### Anthropic
+
+The following example shows how to configure the Anthropic model as the main application LLM:
+
+```yaml
+models:
+  - type: main
+    engine: anthropic
+    model: claude-3-5-sonnet-20241022
+```
+
+<Note>
+
+Anthropic's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
+
+</Note>
+
+### vLLM (OpenAI-Compatible)
+
+vLLM exposes an OpenAI-compatible API, so the recommended configuration uses `engine: openai` pointed at the vLLM endpoint. The built-in client handles it with no LangChain dependency.
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: meta-llama/Llama-3.1-8B-Instruct
+    parameters:
+      base_url: http://localhost:5000/v1
+      api_key: EMPTY
+```
+
+The following example shows how to configure Llama Guard as a guardrail model using the same pattern:
+
+```yaml
+models:
+  - type: llama_guard
+    engine: openai
+    model: meta-llama/LlamaGuard-7b
+    parameters:
+      base_url: http://localhost:5000/v1
+      api_key: EMPTY
+```
+
+When self-hosted vLLM does not enforce authentication, set `parameters.api_key` to a non-empty placeholder such as `EMPTY`. If your deployment requires a real token, replace `parameters.api_key` with the literal token, or omit it and set `api_key_env_var` at the top level of the model entry, not inside `parameters`:
+
+```yaml
+- type: main
+  engine: openai
+  model: meta-llama/Llama-3.1-8B-Instruct
+  api_key_env_var: MY_VLLM_API_KEY
+  parameters:
+    base_url: http://localhost:5000/v1
+```
+
+<Note>
+
+Set the referenced environment variable before calling `RailsConfig.from_content` or `RailsConfig.from_path`. Otherwise, config loading fails with `Model API Key environment variable 'X' not set.`. A Pydantic validator on the model schema performs the check eagerly.
+
+</Note>
+
+<Note>
+
+The legacy `engine: vllm_openai` with `parameters.openai_api_base` form is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For new configurations, prefer the form above.
+
+</Note>
+
+### Other OpenAI-Compatible Endpoints
+
+The same `engine: openai` plus `parameters.base_url` pattern works for any provider whose wire protocol is OpenAI-compatible. Examples include OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek's hosted API at `https://api.deepseek.com/v1`, TGI deployments that expose `/v1/chat/completions`, and the `llama.cpp` server with `--api`. Provide `parameters.base_url` and either `parameters.api_key` or a top-level `api_key_env_var`.
+
+### Google Vertex AI
+
+The following example shows how to configure the Google Vertex AI model as the main application LLM:
+
+```yaml
+models:
+  - type: main
+    engine: vertexai
+    model: gemini-1.0-pro
+```
+
+<Note>
+
+Vertex AI's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-google-vertexai`. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
+
+</Note>
+
+### Complete Example
+
+The following example shows how to configure the main application LLM, embeddings model, and a dedicated NemoGuard model for input and output checking:
+
+```yaml
+models:
+  # Main application LLM
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-70b-instruct
+    parameters:
+      temperature: 0.7
+      max_tokens: 2000
+
+  # Embeddings for knowledge base
+  - type: embeddings
+    engine: FastEmbed
+    model: all-MiniLM-L6-v2
+
+  # Dedicated model for input checking
+  - type: self_check_input
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+  # Dedicated model for output checking
+  - type: self_check_output
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+```
+
+---
+
+## Model Parameters
+
+Pass additional parameters to the underlying LLM client. For engines served by the built-in client, such as any OpenAI-compatible endpoint, the runtime forwards parameters to the OpenAI-compatible HTTP request. Examples include `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, and `default_headers`. For LangChain engines, parameters follow the conventions of the underlying LangChain class.
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-4
+    parameters:
+      temperature: 0.7
+      max_tokens: 1000
+      top_p: 0.9
+```
+
+Common parameters vary by provider. For built-in engines, see the OpenAI-compatible client options. For LangChain engines, refer to the corresponding LangChain provider documentation.
+
+Two parameters shape the HTTP request itself rather than the request body: `default_headers` and `default_query`, described in the following sections.
+Both apply to entries in the `models` section only.
+Configure a rail that calls its own service endpoint separately, such as jailbreak detection under `rails.config.jailbreak_detection`.
+The rail does not read these model parameters.
+
+### Custom HTTP Headers
+
+Set `parameters.default_headers` to attach custom HTTP headers to every request a model sends to its provider endpoint.
+This is useful for multi-tenant routing, request attribution, or correlation IDs.
+Headers are configured per model: each model sends only the headers declared in its own `parameters` block, so a header you want on several models must be repeated under each one.
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+    parameters:
+      default_headers:
+        X-Tenant-Id: acme-corp
+        X-Routing-Pool: main-llm
+        X-Correlation-Source: guardrails-app
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+    parameters:
+      default_headers:
+        X-Tenant-Id: acme-corp
+        X-Routing-Pool: safety-pool
+        X-Team: trust-and-safety
+```
+
+The configured headers apply on top of the request's base headers.
+The built-in clients set `Content-Type` on every request.
+When you configure an API key, they also set an `Authorization` bearer token derived from that key.
+Header names are matched case-insensitively, and a configured header overrides a base header of the same name.
+For example, setting `Authorization` under `default_headers` replaces the token built from the API key, which lets you use a custom authentication scheme.
+Configured headers are sent only as HTTP headers and never appear in the request body.
+
+Header values must be strings, so quote any scalar value that YAML would otherwise load as a number or a boolean.
+Write `X-Retry: "3"` rather than `X-Retry: 3`.
+Do not use a list or nested object as a header value.
+For any non-string header value, IORails converts the value to its string form, while LLMRails raises `LLMCallException` on the first model call before sending the request.
+
+Keep secrets such as API keys in environment variables through `api_key_env_var` rather than hardcoding them in `default_headers` in a checked-in `config.yml`.
+
+Apart from invalid non-string values, this behavior is the same for both the IORails and LLMRails engines.
+
+### Model-Level Query Parameters
+
+Set `parameters.default_query` to attach query-string parameters to every request a model sends to its provider endpoint.
+This is useful for API versioning, multi-tenant routing, or trace correlation when the provider or gateway reads the query string rather than the headers.
+Query parameters are configured per model: each model sends only the parameters declared in its own `parameters` block, so a parameter you want on several models must be repeated under each one.
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+    parameters:
+      default_query:
+        tenant: acme-corp
+        routing-pool: main-llm
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+    parameters:
+      default_query:
+        tenant: acme-corp
+        routing-pool: safety-pool
+```
+
+The configured parameters are appended to the chat-completions URL, so the main model above posts to `/v1/chat/completions?tenant=acme-corp&routing-pool=main-llm`.
+Configured parameters appear only in the URL and never in the request body.
+
+Values follow these rules:
+
+- A string or a number is used as written, so `retries: 3` becomes `retries=3`.
+- A boolean uses its lowercase wire form, so `beta: true` becomes `beta=true` rather than `beta=True`.
+- A list of scalar values repeats the parameter once per element in the configured order, so `tag: [red, blue]` becomes `tag=red&tag=blue`.
+- An empty value becomes a parameter with no value, so `flag:` becomes `flag=`.
+- A nested object has no standard query-string encoding. This restriction applies when the object is a direct value or an item in a list. Flatten the object into separate parameters. The two engines treat this value type differently, as described after this list.
+
+Keep secrets such as API keys in environment variables through `api_key_env_var` rather than hardcoding them in `default_query` in a checked-in `config.yml`.
+Provider and proxy access logs commonly record full request URLs, so a query parameter is a poor place for a sensitive value.
+
+Both engines encode strings, numbers, booleans, lists of scalar values, and empty values the same way.
+The nested-object case differs.
+IORails raises a `ValueError` naming the offending key when you construct `Guardrails` or `IORails`.
+LLMRails forwards the object as an encoded Python representation that most servers cannot interpret.

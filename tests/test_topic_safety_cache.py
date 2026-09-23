@@ -54,7 +54,7 @@ async def test_topic_safety_cache_stores_result(fake_llm_topic, mock_task_manage
         model_caches={"test_model": cache},
     )
 
-    assert result["on_topic"] is True
+    assert result.is_blocked is False
     assert cache.size() == 1
 
 
@@ -143,7 +143,7 @@ async def test_topic_safety_cache_miss(fake_llm_topic, mock_task_manager):
         model_caches={"test_model": cache},
     )
 
-    assert result["on_topic"] is True
+    assert result.is_blocked is False
     assert cache.size() == 2
 
     llm_call_info = llm_call_info_var.get()
@@ -160,4 +160,4 @@ async def test_topic_safety_without_cache(fake_llm_topic, mock_task_manager):
         events=[],
     )
 
-    assert result["on_topic"] is True
+    assert result.is_blocked is False

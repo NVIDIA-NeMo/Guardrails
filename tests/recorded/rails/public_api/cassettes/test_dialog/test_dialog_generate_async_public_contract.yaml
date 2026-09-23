@@ -1,0 +1,338 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      Host:
+      - api.openai.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: |
+          """
+          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
+          """
+
+          # This is how a conversation between a user and the bot can go:
+          User message: "Hello there!"
+          User intent: express greeting
+          Bot intent: express greeting
+          Bot message: "Hello! How can I assist you today?"
+          User message: "What can you do for me?"
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          Bot message: "As an AI assistant, I can help you with a wide range of tasks. This includes question answering on various topics, generating text for various purposes and providing suggestions based on your preferences."
+          User message: "Tell me a bit about the history of NVIDIA."
+          User intent: ask general question
+          Bot intent: response for general question
+          Bot message: "NVIDIA is a technology company that specializes in designing and manufacturing graphics processing units (GPUs) and other computer hardware. The company was founded in 1993 by Jen-Hsun Huang, Chris Malachowsky, and Curtis Priem."
+          User message: "tell me more"
+          User intent: request more information
+          Bot intent: provide more information
+          Bot message: "Initially, the company focused on developing 3D graphics processing technology for the PC gaming market. In 1999, NVIDIA released the GeForce 256, the world's first GPU, which was a major breakthrough for the gaming industry. The company continued to innovate in the GPU space, releasing new products and expanding into other markets such as professional graphics, mobile devices, and artificial intelligence."
+          User message: "thanks"
+          User intent: express appreciation
+          Bot intent: express appreciation and offer additional help
+          Bot message: "You're welcome. If you have any more questions or if there's anything else I can help you with, please don't hesitate to ask."
+
+
+          # This is how the user talks:
+          User message: "hello"
+          User intent: express greeting
+
+
+
+          # This is the current conversation between the user and the bot:
+          # Choose intent from this list: express greeting
+          User message: "Hello there!"
+          User intent: express greeting
+          Bot intent: express greeting
+          Bot message: "Hello! How can I assist you today?"
+          User message: "What can you do for me?"
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          Bot message: "As an AI assistant, I can help you with a wide range of tasks. This includes question answering on various topics, generating text for various purposes and providing suggestions based on your preferences."
+          User message: "hello"
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: Hello! How can I assist you today?
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 568
+          completion_tokens: 12
+          total_tokens: 580
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      Host:
+      - api.openai.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: |
+          """
+          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
+          """
+
+          # This is how a conversation between a user and the bot can go:
+          User intent: express greeting
+          Bot intent: express greeting
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          User intent: ask general question
+          Bot intent: response for general question
+          User intent: request more information
+          Bot intent: provide more information
+          User intent: express appreciation
+          Bot intent: express appreciation and offer additional help
+
+
+          # This is how the bot thinks:
+          User intent: express greeting
+          Bot intent: express greeting
+
+
+
+          # This is the current conversation between the user and the bot:
+          User intent: express greeting
+          Bot intent: express greeting
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          User intent: Hello! How can I assist you today?
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: Hi! 👋 How can I help you today?
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 228
+          completion_tokens: 14
+          total_tokens: 242
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      Host:
+      - api.openai.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: |
+          """
+          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
+          """
+
+          # This is how a conversation between a user and the bot can go:
+          User message: "Hello there!"
+          User intent: express greeting
+          Bot intent: express greeting
+          Bot message: "Hello! How can I assist you today?"
+          User message: "What can you do for me?"
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          Bot message: "As an AI assistant, I can help you with a wide range of tasks. This includes question answering on various topics, generating text for various purposes and providing suggestions based on your preferences."
+          User message: "Tell me a bit about the history of NVIDIA."
+          User intent: ask general question
+          Bot intent: response for general question
+          Bot message: "NVIDIA is a technology company that specializes in designing and manufacturing graphics processing units (GPUs) and other computer hardware. The company was founded in 1993 by Jen-Hsun Huang, Chris Malachowsky, and Curtis Priem."
+          User message: "tell me more"
+          User intent: request more information
+          Bot intent: provide more information
+          Bot message: "Initially, the company focused on developing 3D graphics processing technology for the PC gaming market. In 1999, NVIDIA released the GeForce 256, the world's first GPU, which was a major breakthrough for the gaming industry. The company continued to innovate in the GPU space, releasing new products and expanding into other markets such as professional graphics, mobile devices, and artificial intelligence."
+          User message: "thanks"
+          User intent: express appreciation
+          Bot intent: express appreciation and offer additional help
+          Bot message: "You're welcome. If you have any more questions or if there's anything else I can help you with, please don't hesitate to ask."
+
+
+
+
+          # This is how the bot talks:
+          Bot intent: inform cannot engage with sensitive content
+          Bot message: "I will not engage with sensitive content."
+
+          Bot intent: inform cannot engage with inappropriate content
+          Bot message: "I will not engage with inappropriate content."
+
+          Bot intent: inform cannot engage in self harm behavior
+          Bot message: "I will not engage in any self harm behavior."
+
+          Bot intent: inform cannot engage in abusive or harmful behavior
+          Bot message: "I will not engage in any abusive or harmful behavior."
+
+          Bot intent: express greeting
+          Bot message: "Hello from recorded dialog."
+
+
+
+          # This is the current conversation between the user and the bot:
+          User message: "Hello there!"
+          User intent: express greeting
+          Bot intent: express greeting
+          Bot message: "Hello! How can I assist you today?"
+          User message: "What can you do for me?"
+          User intent: ask about capabilities
+          Bot intent: respond about capabilities
+          Bot message: "As an AI assistant, I can help you with a wide range of tasks. This includes question answering on various topics, generating text for various purposes and providing suggestions based on your preferences."
+          User message: "hello"
+          User intent: Hello! How can I assist you today?
+          Bot intent: general response
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: Hello! How can I assist you today?
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 677
+          completion_tokens: 12
+          total_tokens: 689
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null

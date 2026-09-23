@@ -18,8 +18,7 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.kb.kb import KnowledgeBase
 from tests.utils import TestChat
 
-RAILS_CONFIG = RailsConfig.from_content(
-    """
+COLANG_CONTENT = """
 import llm
 import core
 
@@ -37,12 +36,16 @@ flow bot express greeting
 flow greeting
     user express greeting
     bot express greeting
-""",
-    yaml_content="""
+"""
+
+YAML_CONTENT = """
     colang_version: 2.x
     models: []
-    """,
-)
+    """
+
+
+def rails_config():
+    return RailsConfig.from_content(COLANG_CONTENT, yaml_content=YAML_CONTENT)
 
 
 def test_relevant_chunk_inserted_in_prompt():
@@ -51,7 +54,7 @@ def test_relevant_chunk_inserted_in_prompt():
     mock_kb.search_relevant_chunks.return_value = [{"title": "Test Title", "body": "Test Body"}]
 
     chat = TestChat(
-        RAILS_CONFIG,
+        rails_config(),
         llm_completions=[
             " user express greeting",
             ' bot respond to aditional context\nbot action: "Hello is there anything else" ',
@@ -71,16 +74,16 @@ def test_relevant_chunk_inserted_in_prompt():
     after_llm_calls = len(rails.explain().llm_calls)
     llm_call_count = after_llm_calls - before_llm_calls
 
-    info = rails.explain()
+    llm_calls = rails.explain().llm_calls[before_llm_calls:after_llm_calls]
     assert llm_call_count == 2
-    assert "Test Body" in info.llm_calls[-1].prompt
-    assert "markdown" in info.llm_calls[-1].prompt
-    assert "context" in info.llm_calls[-1].prompt
+    assert "Test Body" in llm_calls[-1].prompt
+    assert "markdown" in llm_calls[-1].prompt
+    assert "context" in llm_calls[-1].prompt
 
 
 def test_relevant_chunk_inserted_in_prompt_no_kb():
     chat = TestChat(
-        RAILS_CONFIG,
+        rails_config(),
         llm_completions=[
             " user express greeting",
             ' bot respond to aditional context\nbot action: "Hello is there anything else" ',
@@ -96,7 +99,7 @@ def test_relevant_chunk_inserted_in_prompt_no_kb():
     after_llm_calls = len(rails.explain().llm_calls)
     llm_call_count = after_llm_calls - before_llm_calls
 
-    info = rails.explain()
+    llm_calls = rails.explain().llm_calls[before_llm_calls:after_llm_calls]
     assert llm_call_count == 2
-    assert "markdown" not in info.llm_calls[1].prompt
-    assert "context" not in info.llm_calls[1].prompt
+    assert "markdown" not in llm_calls[1].prompt
+    assert "context" not in llm_calls[1].prompt

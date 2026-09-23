@@ -1,0 +1,339 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Creating Custom Actions"
+sidebar-title: "Creating Actions"
+description: "Create custom actions using the @action decorator to integrate Python logic."
+keywords: ["nemo guardrails create action", "guardrails action decorator", "custom python action guardrails", "async action guardrails"]
+content:
+  type: "how_to"
+---
+
+This section describes how to create custom actions in the `actions.py` file.
+
+## The `@action` Decorator
+
+Use the `@action` decorator from `nemoguardrails.actions` to define custom actions:
+
+```python
+from nemoguardrails.actions import action
+
+@action()
+async def my_custom_action():
+    """A simple custom action."""
+    return "result"
+```
+
+## Decorator Parameters
+
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| `name` | `str` | Custom name for the action | Function name |
+| `is_system_action` | `bool` | Always run locally, bypassing the actions server | `False` |
+| `execute_async` | `bool` | Continue event processing while the action runs (Colang 2.x only) | `False` |
+
+### Custom Action Name
+
+Override the default action name:
+
+```python
+@action(name="validate_user_input")
+async def check_input(text: str):
+    """Validates user input."""
+    return len(text) > 0
+```
+
+Call from Colang:
+
+```text
+$is_valid = execute validate_user_input(text=$user_message)
+```
+
+### System Actions
+
+When `is_system_action=True`, the action always runs locally, even when an `actions_server_url` is configured. This is important for actions that need access to special parameters like `context`, `llm`, `config`, and `events`, which are only injected for locally-run actions.
+
+<Note>
+
+When no `actions_server_url` is configured, all actions run locally and receive special parameters regardless of the `is_system_action` setting. The flag only affects behavior when an actions server is in use.
+
+</Note>
+
+```python
+@action(is_system_action=True)
+async def check_policy_compliance(context: Optional[dict] = None):
+    """Check if message complies with policy."""
+    message = context.get("last_user_message", "")
+    # Validation logic
+    return True
+```
+
+### Async Execution
+
+When `execute_async=True`, the event processing loop does not wait for the action to complete before continuing. The action runs in the background, and the event processing loop retrieves the result later by polling. Use this setting for long-running operations when you do not need the result immediately.
+
+<Note>
+
+This flag is only supported in the Colang 2.x runtime. In the Colang 1.0 runtime, it is stored in metadata but has no effect.
+
+</Note>
+
+```python
+from nemoguardrails.actions import action
+from nemoguardrails.http import HTTPClient, http_call
+
+
+@action(execute_async=True)
+async def call_external_api(
+    endpoint: str,
+    http_client: HTTPClient | None = None,
+):
+    """Call an external API without blocking event processing."""
+    response = await http_call(http_client, "GET", endpoint)
+    return response.json()
+```
+
+### Rail Decisions
+
+The `@action` decorator does not interpret an action's return value as a safety decision. Ordinary custom actions can return strings, booleans, numbers, dictionaries, or other Python values for a Colang flow to consume explicitly.
+
+When the action itself makes a rail decision, return a [`RailOutcome`](/configure-guardrails/actions/rail-outcomes). It carries an explicit allow, block, or transform decision without relying on implicit boolean or numeric conventions.
+
+If you previously used the removed `output_mapping` decorator parameter, follow the [migration guide](/configure-guardrails/actions/rail-outcomes#migrate-from-output-mapping).
+
+## Function Parameters
+
+Actions can accept parameters of the following types:
+
+| Type | Example |
+|------|---------|
+| `str` | `"hello"` |
+| `int` | `42` |
+| `float` | `3.14` |
+| `bool` | `True` |
+| `list` | `["a", "b", "c"]` |
+| `dict` | `{"key": "value"}` |
+
+### Basic Parameters
+
+```python
+@action()
+async def greet_user(name: str, formal: bool = False):
+    """Generate a greeting."""
+    if formal:
+        return f"Good day, {name}."
+    return f"Hello, {name}!"
+```
+
+Call from Colang:
+
+```text
+$greeting = execute greet_user(name="Alice", formal=True)
+```
+
+### Optional Parameters with Defaults
+
+```python
+@action()
+async def search_documents(
+    query: str,
+    max_results: int = 10,
+    include_metadata: bool = False
+):
+    """Search documents with optional parameters."""
+    results = perform_search(query, limit=max_results)
+    if include_metadata:
+        return {"results": results, "count": len(results)}
+    return results
+```
+
+## Return Values
+
+Actions can return various types:
+
+Manifest-backed rail actions are the exception. They must return a [`RailOutcome`](/configure-guardrails/actions/rail-outcomes).
+
+### Simple Return
+
+```python
+@action()
+async def get_status():
+    return "active"
+```
+
+### Dictionary Return
+
+```python
+@action()
+async def get_user_info(user_id: str):
+    return {
+        "id": user_id,
+        "name": "John Doe",
+        "role": "admin"
+    }
+```
+
+### Boolean Return for Flow Logic
+
+A boolean remains application data until a Colang flow interprets it explicitly:
+
+```python
+from typing import Optional
+
+from nemoguardrails.actions import action
+
+
+@action(is_system_action=True)
+async def is_safe_content(context: Optional[dict] = None):
+    content = context.get("bot_message", "")
+    return not contains_harmful_content(content)
+```
+
+Branch on the value in the flow:
+
+```text
+$is_safe = execute is_safe_content
+if not $is_safe
+  bot refuse to respond
+  stop
+```
+
+## Error Handling
+
+Handle errors gracefully within actions:
+
+```python
+from nemoguardrails.actions import action
+from nemoguardrails.http import HTTPClient, HTTPTimeoutError, http_call
+
+
+@action()
+async def fetch_data(
+    url: str,
+    http_client: HTTPClient | None = None,
+):
+    """Fetch data with error handling."""
+    try:
+        response = await http_call(http_client, "GET", url)
+        return response.json()
+    except HTTPTimeoutError as error:
+        raise RuntimeError("External data service timed out") from error
+```
+
+## Example Actions
+
+### Input Validation Action
+
+```python
+from typing import Optional
+
+from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+
+
+@action(is_system_action=True)
+async def check_input_length(context: Optional[dict] = None):
+    """Ensure user input is not too long."""
+    user_message = context.get("user_message", "")
+    max_length = 1000
+
+    if len(user_message) > max_length:
+        return RailOutcome.block(reason="The input exceeds the length limit.")
+
+    return RailOutcome.allow()
+```
+
+Add a Colang 1.0 flow to `rails.co` that consumes the decision:
+
+```text
+define subflow check input length
+  $result = execute check_input_length
+  if $result.is_blocked
+    bot refuse to respond
+    stop
+```
+
+Enable the flow as an input rail in `config.yml`:
+
+```yaml
+rails:
+  input:
+    flows:
+      - check input length
+```
+
+### Output Filtering Action
+
+```python
+import re
+from typing import Optional
+
+from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+
+
+@action(is_system_action=True)
+async def filter_sensitive_data(context: Optional[dict] = None):
+    """Check for sensitive data in bot response."""
+    bot_response = context.get("bot_message", "")
+
+    sensitive_patterns = [
+        r"\b\d{3}-\d{2}-\d{4}\b",  # SSN pattern
+        r"\b\d{16}\b",  # Credit card pattern
+    ]
+
+    for pattern in sensitive_patterns:
+        if re.search(pattern, bot_response):
+            return RailOutcome.block(reason="The response contains sensitive data.")
+
+    return RailOutcome.allow()
+```
+
+Add a Colang 1.0 flow to `rails.co` that consumes the decision:
+
+```text
+define subflow filter sensitive data
+  $result = execute filter_sensitive_data
+  if $result.is_blocked
+    bot refuse to respond
+    stop
+```
+
+Enable the flow as an output rail in `config.yml`:
+
+```yaml
+rails:
+  output:
+    flows:
+      - filter sensitive data
+```
+
+### External API Action
+
+```python
+from nemoguardrails.actions import action
+from nemoguardrails.http import HTTPClient, http_call
+
+
+@action(execute_async=True)
+async def query_knowledge_base(
+    query: str,
+    top_k: int = 5,
+    http_client: HTTPClient | None = None,
+):
+    """Query an external knowledge base API."""
+    response = await http_call(
+        http_client,
+        "POST",
+        "https://api.example.com/search",
+        json={"query": query, "limit": top_k},
+    )
+    return response.json().get("results", [])
+```
+
+## Related Topics
+
+- [Built-in Actions](built-in-actions) - Default actions in the library
+- [Action Parameters](action-parameters) - Special parameters provided automatically
+- [Registering Actions](registering-actions) - Different ways to register actions
+- [Outbound HTTP](outbound-http) - Send external requests through the canonical client boundary

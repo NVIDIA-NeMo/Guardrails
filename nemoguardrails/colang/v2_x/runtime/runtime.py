@@ -298,6 +298,7 @@ class RuntimeV2_x(Runtime):
     @staticmethod
     def _get_action_finished_event(result: dict, **kwargs) -> Dict[str, Any]:
         """Helper to return the ActionFinished event from the result of running a local action."""
+        rail_action_marker = {"is_rail_action": True} if result.get("is_rail_action") else {}
         return new_event_dict(
             f"{result['action_name']}Finished",
             action_uid=result["start_action_event"]["action_uid"],
@@ -306,6 +307,7 @@ class RuntimeV2_x(Runtime):
             is_success=True,
             return_value=result["return_value"],
             events=result["new_events"],
+            **rail_action_marker,
             **kwargs,
             # is_system_action=action_meta.get("is_system_action", False),
         )
@@ -615,6 +617,7 @@ class RuntimeV2_x(Runtime):
         # we ignore all the keys from "an empty event" of the same type.
         ignore_keys = new_event_dict(start_action_event["type"]).keys()
         action_params = {k: v for k, v in start_action_event.items() if k not in ignore_keys}
+        is_rail_action = self.action_dispatcher.is_manifest_action(action_name)
 
         return_value, new_events, context_updates = await self._process_start_action(
             action_name,
@@ -632,6 +635,7 @@ class RuntimeV2_x(Runtime):
             "new_events": new_events,
             "context_updates": context_updates,
             "start_action_event": start_action_event,
+            "is_rail_action": is_rail_action,
         }
 
 

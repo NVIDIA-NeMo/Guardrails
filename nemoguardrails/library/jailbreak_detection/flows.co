@@ -3,7 +3,8 @@ flow jailbreak detection heuristics
   """
   Heuristic checks to assess whether the user's prompt is an attempted jailbreak.
   """
-  $is_jailbreak = await JailbreakDetectionHeuristicsAction
+  $response = await JailbreakDetectionHeuristicsAction
+  $is_jailbreak = $response.is_blocked
 
   if $is_jailbreak
     if $system.config.enable_rails_exceptions
@@ -16,7 +17,8 @@ flow jailbreak detection model
   """
   Assess whether the user's prompt is an attempted jailbreak using embedding-based jailbreak detection models.
   """
-  $is_jailbreak = await JailbreakDetectionModelAction
+  $response = await JailbreakDetectionModelAction
+  $is_jailbreak = $response.is_blocked
 
   if $is_jailbreak
     if $system.config.enable_rails_exceptions

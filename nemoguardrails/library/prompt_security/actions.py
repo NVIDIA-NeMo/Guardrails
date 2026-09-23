@@ -19,9 +19,9 @@ import logging
 import os
 from typing import Optional
 
-import httpx
-
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPClient, http_call
 
 log = logging.getLogger(__name__)
 
@@ -33,8 +33,12 @@ async def ps_protect_api_async(
     system_prompt: Optional[str] = None,
     response: Optional[str] = None,
     user: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
 ):
     """Calls Prompt Security Protect API asynchronously.
+
+    Provider failures are logged and fail open with the default ``log``
+    action.
 
     Args:
         ps_protect_url: the URL of the protect endpoint given by Prompt Security.
@@ -50,6 +54,8 @@ async def ps_protect_api_async(
         response: the bot message to protect.
 
         user: the user ID or username for context.
+
+        http_client: Optional caller-owned HTTP client.
 
     Returns:
         A dictionary with the following items:
@@ -68,51 +74,59 @@ async def ps_protect_api_async(
         "response": response,
         "user": user,
     }
-    async with httpx.AsyncClient() as client:
-        modified_text = None
-        ps_action = "log"
-        try:
-            ret = await client.post(ps_protect_url, headers=headers, json=payload)
-            res = ret.json()
-            ps_action = res.get("result", {}).get("action", "log")
-            if ps_action == "modify":
-                key = "response" if response else "prompt"
-                modified_text = res.get("result", {}).get(key, {}).get("modified_text")
-        except Exception as e:
-            log.error("Error calling Prompt Security Protect API: %s", e)
-        return {
-            "is_blocked": ps_action == "block",
-            "is_modified": ps_action == "modify",
-            "modified_text": modified_text,
-        }
+    modified_text = None
+    ps_action = "log"
+    try:
+        result = await http_call(
+            http_client,
+            "POST",
+            ps_protect_url,
+            headers=headers,
+            json=payload,
+            raise_for_status=False,
+        )
+        data = result.json()
+        ps_action = data.get("result", {}).get("action", "log")
+        if ps_action == "modify":
+            key = "response" if response else "prompt"
+            modified_text = data.get("result", {}).get(key, {}).get("modified_text")
+    except Exception as e:
+        log.error("Error calling Prompt Security Protect API: %s", e)
+    return {
+        "is_blocked": ps_action == "block",
+        "is_modified": ps_action == "modify",
+        "modified_text": modified_text,
+    }
 
 
-def protect_text_mapping(result: dict) -> bool:
-    """
-    Mapping for protect_text action.
-
-    Expects result to be a dict with:
-      - "is_blocked": a boolean indicating if the response passed to prompt security should be blocked.
-
-    Returns:
-        True if the response should be blocked (i.e. if "is_blocked" is True),
-        False otherwise.
-    """
-    blocked = result.get("is_blocked", True)
-    return blocked
+def _protect_text_outcome(result: dict, target: TransformTarget) -> RailOutcome:
+    metadata = dict(result)
+    if result.get("is_blocked", True):
+        return RailOutcome.block(metadata=metadata)
+    if result.get("is_modified", False):
+        return RailOutcome.transform([(target, result.get("modified_text") or "")], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
-@action(is_system_action=True, output_mapping=protect_text_mapping)
-async def protect_text(user_prompt: Optional[str] = None, bot_response: Optional[str] = None, **kwargs):
+@action(is_system_action=True)
+async def protect_text(
+    user_prompt: Optional[str] = None,
+    bot_response: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
+    **kwargs,
+) -> RailOutcome:
     """Protects the given user_prompt or bot_response.
+
+    Provider results may allow, block, or transform the selected message.
+    Provider failures fail open. A bot response takes precedence when both
+    content arguments are provided.
+
     Args:
         user_prompt: The user message to protect.
         bot_response: The bot message to protect.
+        http_client: Optional caller-owned HTTP client.
     Returns:
-        A dictionary with the following items:
-        - is_blocked: True if the text should be blocked, False otherwise.
-        - is_modified: True if the text should be modified, False otherwise.
-        - modified_text: The modified text if is_modified is True, None otherwise.
+        RailOutcome.block(), RailOutcome.transform(), or RailOutcome.allow().
     Raises:
         ValueError is returned in one of the following cases:
         1. If PS_PROTECT_URL env variable is not set.
@@ -129,9 +143,27 @@ async def protect_text(user_prompt: Optional[str] = None, bot_response: Optional
         raise ValueError("PS_APP_ID env variable is required for Prompt Security.")
 
     if bot_response:
-        return await ps_protect_api_async(ps_protect_url, ps_app_id, None, None, bot_response)
+        return _protect_text_outcome(
+            await ps_protect_api_async(
+                ps_protect_url,
+                ps_app_id,
+                None,
+                None,
+                bot_response,
+                http_client=http_client,
+            ),
+            TransformTarget.BOT_MESSAGE,
+        )
 
     if user_prompt:
-        return await ps_protect_api_async(ps_protect_url, ps_app_id, user_prompt)
+        return _protect_text_outcome(
+            await ps_protect_api_async(
+                ps_protect_url,
+                ps_app_id,
+                user_prompt,
+                http_client=http_client,
+            ),
+            TransformTarget.USER_MESSAGE,
+        )
 
     raise ValueError("Neither user_message nor bot_message was provided")

@@ -20,6 +20,8 @@ for their guardrails configurations. The two main building blocks are:
 
 * :class:`FakeLLMModel`: a scriptable implementation of the ``LLMModel``
   protocol that returns canned responses.
+* :class:`RecordingHTTPClient`: a scriptable HTTP client that records requests
+  and returns queued responses.
 * :class:`TestChat`: an ergonomic helper for asserting bot replies against a
   scripted conversation.
 
@@ -31,5 +33,6 @@ Add it to your ``conftest.py`` to opt in::
 
 from nemoguardrails.testing.chat_harness import TestChat
 from nemoguardrails.testing.fake_model import FakeLLMModel
+from nemoguardrails.testing.http import RecordingHTTPClient
 
-__all__ = ["FakeLLMModel", "TestChat"]
+__all__ = ["FakeLLMModel", "RecordingHTTPClient", "TestChat"]

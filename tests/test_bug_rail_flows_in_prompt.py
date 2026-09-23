@@ -53,11 +53,13 @@ def test_1():
         ],
     )
 
+    before_llm_calls = len(chat.app.explain().llm_calls)
     chat >> "Hello!"
     chat << "Hello there!!"
 
     info = chat.app.explain()
-    assert len(info.llm_calls) == 3
+    llm_calls = info.llm_calls[before_llm_calls:]
+    assert len(llm_calls) == 3
 
-    assert '$user_message = $user_message + "!"' not in info.llm_calls[1].prompt
-    assert '$bot_message = $bot_message + "!"' not in info.llm_calls[1].prompt
+    assert '$user_message = $user_message + "!"' not in llm_calls[1].prompt
+    assert '$bot_message = $bot_message + "!"' not in llm_calls[1].prompt

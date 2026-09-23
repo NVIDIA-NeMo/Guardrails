@@ -14,10 +14,10 @@
 # limitations under the License.
 
 import logging
-from typing import Dict, FrozenSet, Optional
+from typing import Any, Dict, FrozenSet, Optional, cast
 
 from nemoguardrails.actions.actions import action
-from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.cache import CacheInterface
 from nemoguardrails.llm.cache.utils import (
@@ -27,6 +27,7 @@ from nemoguardrails.llm.cache.utils import (
     extract_llm_stats_for_cache,
     get_from_cache_and_restore_stats,
 )
+from nemoguardrails.llm.call import llm_call, warn_if_truncated
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.types import LLMModel
@@ -35,7 +36,7 @@ log = logging.getLogger(__name__)
 
 
 def _get_reasoning_enabled(llm_task_manager: LLMTaskManager) -> bool:
-    return llm_task_manager.config.rails.config.content_safety.reasoning.enabled
+    return cast(Any, llm_task_manager.config).rails.config.content_safety.reasoning.enabled
 
 
 @action()
@@ -44,14 +45,16 @@ async def content_safety_check_input(
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
-) -> dict:
+) -> RailOutcome:
     _MAX_TOKENS = 1024
-    user_input: str = ""
+    user_input = user_message or ""
 
     if context is not None:
-        user_input = context.get("user_message", "")
+        if user_message is None:
+            user_input = context.get("user_message", "")
         model_name = model_name or context.get("model", None)
 
     if model_name is None:
@@ -104,11 +107,15 @@ async def content_safety_check_input(
         llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
     )
     warn_if_truncated(llm_response, task)
-    result = llm_task_manager.parse_task_output(task, output=llm_response.content)
+    result = llm_task_manager.parse_task_output(task, output=llm_response.content)  # type: ignore[reportArgumentType]
 
     is_safe, *violated_policies = result
 
-    final_result = {"allowed": is_safe, "policy_violations": violated_policies}
+    final_result = (
+        RailOutcome.allow(metadata={"policy_violations": violated_policies})
+        if is_safe
+        else RailOutcome.block(metadata={"policy_violations": violated_policies})
+    )
 
     if cache:
         cache_key = create_normalized_cache_key(check_input_prompt)
@@ -123,38 +130,26 @@ async def content_safety_check_input(
     return final_result
 
 
-def content_safety_check_output_mapping(result: dict) -> bool:
-    """
-    Mapping function for content_safety_check_output.
-
-    Assumes result is a dictionary with:
-      - "allowed": a boolean where True means the content is safe.
-      - "policy_violations": a list of policies that were violated (optional in the mapping logic).
-
-    Returns:
-        True if the content should be blocked (i.e. allowed is False),
-        False if the content is safe.
-    """
-    allowed = result.get("allowed", True)
-    return not allowed
-
-
-@action(output_mapping=content_safety_check_output_mapping)
+@action()
 async def content_safety_check_output(
     llms: Dict[str, LLMModel],
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
-) -> dict:
+) -> RailOutcome:
     _MAX_TOKENS = 1024
-    user_input: str = ""
-    bot_response: str = ""
+    user_input = user_message or ""
+    bot_response = bot_message or ""
 
     if context is not None:
-        user_input = context.get("user_message", "")
-        bot_response = context.get("bot_message", "")
+        if user_message is None:
+            user_input = context.get("user_message", "")
+        if bot_message is None:
+            bot_response = context.get("bot_message", "")
         model_name = model_name or context.get("model", None)
 
     if model_name is None:
@@ -208,11 +203,15 @@ async def content_safety_check_output(
         llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
     )
     warn_if_truncated(llm_response, task)
-    result = llm_task_manager.parse_task_output(task, output=llm_response.content)
+    result = llm_task_manager.parse_task_output(task, output=llm_response.content)  # type: ignore[reportArgumentType]
 
     is_safe, *violated_policies = result
 
-    final_result = {"allowed": is_safe, "policy_violations": violated_policies}
+    final_result = (
+        RailOutcome.allow(metadata={"policy_violations": violated_policies})
+        if is_safe
+        else RailOutcome.block(metadata={"policy_violations": violated_policies})
+    )
 
     if cache:
         cache_key = create_normalized_cache_key(check_output_prompt)
@@ -248,7 +247,7 @@ def _detect_language(text: str) -> Optional[str]:
 
         result = detect(text, k=1)
         if result and len(result) > 0:
-            return result[0].get("lang")
+            return cast(Optional[str], result[0].get("lang"))
         return None
     except ImportError:
         log.warning("fast-langdetect not installed, skipping")
@@ -271,7 +270,7 @@ def _get_refusal_message(lang: str, custom_messages: Optional[Dict[str, str]]) -
 @action()
 async def detect_language(
     context: Optional[dict] = None,
-    config: Optional[dict] = None,
+    config: Optional[Any] = None,
 ) -> dict:
     user_message = ""
     if context is not None:

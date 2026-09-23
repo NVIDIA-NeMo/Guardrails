@@ -322,3 +322,24 @@ async def test_in_memory_cache_stores_multiple_texts():
     assert index.compute_count == 2, (
         f"Expected underlying function to be called for 2 texts total, but was called {index.compute_count} times"
     )
+
+
+def test_from_config_roundtrips_store_config(tmp_path):
+    """from_config -> get_config must preserve a non-empty store_config.
+
+    Regression test: EmbeddingsCache.from_dict built the cache store from
+    store_config but never forwarded store_config to the constructor, so
+    get_config() reported an empty store_config and the configured store
+    location (e.g. a custom filesystem cache_dir) was silently dropped on a
+    config round-trip.
+    """
+    cache_dir = str(tmp_path / "myembcache")
+    cfg = EmbeddingsCacheConfig(
+        key_generator="md5",
+        store="filesystem",
+        store_config={"cache_dir": cache_dir},
+    )
+
+    cache = EmbeddingsCache.from_config(cfg)
+
+    assert cache.get_config().store_config == cfg.store_config

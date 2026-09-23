@@ -1,0 +1,346 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Streaming Responses"
+sidebar-title: "Streaming"
+description: "Stream LLM responses in real-time with the stream_async method."
+keywords: ["stream_async", "streaming responses", "real-time LLM", "StreamingHandler", "async streaming"]
+content:
+  type: "tutorial"
+---
+
+If the application LLM supports streaming, the NeMo Guardrails library can stream tokens as well. Streaming is automatically enabled when you use the `stream_async()` method - no configuration is required.
+
+For information about configuring streaming with output guardrails, refer to the following:
+
+- For configuration, refer to [Output Rail Streaming](/configure-guardrails/yaml-schema/streaming/output-rail-streaming).
+- For sample Python client code, refer to [Tutorials](/get-started/tutorials).
+
+## Usage
+
+### Chat CLI
+
+You can enable streaming when launching the NeMo Guardrails library chat CLI by using the `--streaming` option:
+
+```bash
+nemoguardrails chat --config=examples/configs/streaming --streaming
+```
+
+### Python API
+
+You can use the streaming directly from the python API in two ways:
+
+1. Simple: receive just the chunks (tokens).
+2. Full: receive both the chunks as they are generated and the full response at the end.
+
+For the simple usage, you need to call the `stream_async` method on the `LLMRails` instance:
+
+```python
+from nemoguardrails import LLMRails
+
+app = LLMRails(config)
+
+history = [{"role": "user", "content": "What is the capital of France?"}]
+
+async for chunk in app.stream_async(messages=history):
+    print(f"CHUNK: {chunk}")
+    # Or do something else with the token
+```
+
+For the full usage, you need to provide a `StreamingHandler` instance to the `generate_async` method on the `LLMRails` instance:
+
+```python
+from nemoguardrails import LLMRails
+from nemoguardrails.streaming import StreamingHandler
+
+app = LLMRails(config)
+
+history = [{"role": "user", "content": "What is the capital of France?"}]
+
+streaming_handler = StreamingHandler()
+
+async def process_tokens():
+    async for chunk in streaming_handler:
+        print(f"CHUNK: {chunk}")
+        # Or do something else with the token
+
+asyncio.create_task(process_tokens())
+
+result = await app.generate_async(
+    messages=history, streaming_handler=streaming_handler
+)
+print(result)
+```
+
+> **Warning:** Using `StreamingHandler` directly is deprecated and will be removed in a future release. Use `stream_async()` instead.
+
+<a id="external-async-token-generators"></a>
+### Using External Async Token Generators
+
+You can also provide your own async generator that yields tokens, which is useful when:
+
+- You want to use a different LLM provider that has its own streaming API.
+- You have pre-generated responses that you want to stream through guardrails.
+- You want to implement custom token generation logic.
+- You want to test your output rails or its config in streaming mode on predefined responses without actually relying on an actual LLM generation.
+
+To use an external generator, pass it to the `generator` parameter of `stream_async`:
+
+```python
+from nemoguardrails import LLMRails
+from typing import AsyncIterator
+
+app = LLMRails(config)
+
+async def my_token_generator() -> AsyncIterator[str]:
+    # This could be from OpenAI API, Anthropic API, or any other LLM API that already has a streaming token generator. Mocking the stream here, for a simple example.
+    tokens = ["Hello", " ", "world", "!"]
+    for token in tokens:
+        yield token
+
+messages = [{"role": "user", "content": "The most famous program ever written is"}]
+
+# use the external generator with guardrails
+async for chunk in app.stream_async(
+    messages=messages,
+    generator=my_token_generator()
+):
+    print(f"CHUNK: {chunk}")
+```
+
+When using an external generator:
+
+- The internal LLM generation is completely bypassed.
+- Output rails are still applied to the LLM responses returned by the external generator, if configured.
+- The generator should yield string tokens.
+
+Example with a real LLM API:
+
+```python
+async def openai_streaming_generator(messages) -> AsyncIterator[str]:
+    """Example using OpenAI's streaming API."""
+    import openai
+
+    stream = await openai.ChatCompletion.create(
+        model="gpt-4o",
+        messages=messages,
+        stream=True
+    )
+
+    # Yield tokens as they arrive
+    async for chunk in stream:
+        if chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content
+
+config = RailsConfig.from_path("config/with_output_rails")
+app = LLMRails(config)
+
+async for chunk in app.stream_async(
+    messages=[{"role": "user", "content": "Tell me a story"}],
+    generator=openai_streaming_generator(messages)
+):
+    # output rails will be applied to these chunks
+    print(chunk, end="", flush=True)
+```
+
+This feature enables seamless integration of the NeMo Guardrails library with any streaming LLM or token source while maintaining all the safety features of output rails.
+
+## Streaming Metadata
+
+When using `stream_async()`, you can receive per-chunk metadata (provider metadata and token usage) by setting `include_metadata=True`:
+
+```python
+async for chunk in rails.stream_async(messages=messages, include_metadata=True):
+    print(chunk)
+```
+
+With `include_metadata=True`, each chunk is a `dict` with a mandatory `"text"` key.
+A chunk that carries metadata also has a `"metadata"` key, which can hold the following:
+
+- `provider_metadata`: nonstandard fields the provider returned with the chunk, such as `response_headers` and vendor extensions.
+- `usage`: normalized token counts as `input_tokens`, `output_tokens`, and `total_tokens`.
+
+For text responses, the stream ends with a single terminal frame that has empty text.
+If the provider attaches usage to a text chunk, the library includes `usage` on that text frame.
+If usage arrives in a chunk without text, `IORails` folds it into the terminal frame, while `LLMRails` emits it on a separate empty frame before the terminal frame.
+
+For example, an `IORails` stream with a final usage-only provider chunk has this shape:
+
+```python
+{"text": "Hello", "metadata": {"provider_metadata": {"response_headers": {"...": "..."}}}}
+{"text": "!", "metadata": {"provider_metadata": {"response_headers": {"...": "..."}}}}
+{"text": "", "metadata": {
+    "provider_metadata": {"response_headers": {"...": "..."}},
+    "usage": {"input_tokens": 75, "output_tokens": 9, "total_tokens": 84},
+    "response_metadata": None,
+    "usage_metadata": None
+}}
+```
+
+The empty terminal frame always includes the `response_metadata` and `usage_metadata` keys.
+They are retained for backward compatibility, and the internal `stream_async()` paths leave both as `None`.
+Read token counts from `usage` instead.
+If you use `StreamingHandler` directly, the handler can still push these keys and accumulate them onto the terminal frame.
+
+An `IORails` tool-call response adds an assembled tool-call JSON frame after this empty frame, so the tool-call frame is the final frame in that stream.
+
+Without `include_metadata`, chunks are plain strings (default behavior).
+
+<Warning>
+
+The `include_generation_metadata` parameter is deprecated. Use `include_metadata` instead. It will be removed in version 0.22.0.
+
+</Warning>
+
+### Streaming Metadata on IORails
+
+`IORails` uses the same `provider_metadata` and `usage` keys as `LLMRails`.
+The following `IORails`-specific behaviors apply:
+
+- `IORails` sets `stream_options` to `{"include_usage": True}` on the main model request so the provider returns usage on the terminal chunk.
+  Override it through `llm_params` if your provider needs different behavior.
+
+  ```python
+  async for chunk in rails.stream_async(
+      messages=messages,
+      options={"llm_params": {"stream_options": {"include_usage": False}}},
+      include_metadata=True,
+  ):
+      print(chunk)
+  ```
+
+- `IORails` raises `ValueError` when you combine `include_metadata=True` with output-rail streaming, because its buffer strategy operates on plain string chunks. Either set `include_metadata=False` or disable `rails.output.streaming.enabled`.
+
+On `LLMRails`, `include_metadata=True` preserves metadata only when output-rail streaming is disabled.
+When output-rail streaming is enabled, the buffer yields plain strings and drops `provider_metadata` and `usage`.
+
+The library does not emit a standalone empty frame for a chunk that carries only provider metadata and no text.
+The metadata remains visible when the provider also includes it on a content or usage chunk.
+This behavior prevents repeated response headers from flooding the stream.
+
+## Generation Options and Streaming
+
+`stream_async()` accepts an `options` argument on both engines.
+Unlike `generate()` and `generate_async()`, passing it does not change what the iterator yields.
+The chunk shape is governed solely by `include_metadata`: plain strings when it is `False`, and `{"text": ..., "metadata": ...}` dictionaries when it is `True`.
+Neither engine yields or returns a `GenerationResponse` from a stream.
+
+This behavior applies when the engine generates the stream.
+On `LLMRails`, passing an external `generator` bypasses internal generation, so `options` and `include_metadata` do not change the supplied iterator.
+The generator determines the chunk shape, and only configured streaming output rails can wrap it.
+
+```python
+# Identical chunk shapes: `options` does not select a structured return here.
+async for chunk in rails.stream_async(messages=messages):
+    ...  # str
+
+async for chunk in rails.stream_async(
+    messages=messages,
+    options={"llm_params": {"temperature": 0.2}},
+):
+    ...  # still str
+```
+
+The following table shows what each engine reads from `options` while streaming:
+
+| Option | LLMRails | IORails |
+|---|---|---|
+| `llm_params` | Applied to the main model call | Applied to the main model call |
+| `rails.input`, `rails.output`, `rails.tool_input`, `rails.tool_output` | Applied | Applied |
+| `output_vars`, `log.*` | Computed, then discarded with the `GenerationResponse` | Not read |
+
+`LLMRails` runs `generate_async()` in a background task and forwards `options` to it.
+It then discards the `GenerationResponse` that the call returns.
+Anything you request through `log` or `output_vars` is therefore computed but unreachable from the stream.
+`IORails` reads only `llm_params` and the four rail toggles in its streaming path.
+
+<Warning>
+
+`IORails` validates `options` in `generate_async()` but not in `stream_async()`.
+`output_vars`, `log.internal_events`, and `log.colang_history` raise on the non-streaming path and are silently ignored on the streaming path.
+Do not rely on a stream rejecting an option that the non-streaming call refuses.
+
+</Warning>
+
+Two `GenerationResponse` fields have no streamed equivalent:
+
+- `reasoning_content`: Neither engine emits provider reasoning deltas as chunk text.
+  A model that embeds `<think>` tags in its content streams them as ordinary text, so output rails process the reasoning.
+  `IORails` logs one warning per request when it detects this.
+- `tool_calls`: `IORails` emits assembled tool calls as a terminal chunk whose text is a `{"tool_calls": [...]}` JSON string.
+  The string uses the OpenAI wire shape with `function.arguments` as a JSON string, while the non-streaming `GenerationResponse.tool_calls` uses dictionary arguments.
+  `LLMRails` does not push tool calls into the stream, so they reach only the discarded `GenerationResponse`.
+
+To obtain a `GenerationResponse` for a request, use `generate_async()`.
+To obtain token usage while streaming, read the `usage` metadata frame described above.
+For the non-streaming option and field tables, refer to [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options#iorails-and-llmrails-differences).
+
+## Token Usage Tracking
+
+Token usage statistics are available when streaming responses, depending on provider support.
+When the provider does not return token usage statistics, the terminal chunk's `metadata` has no `usage` key.
+
+### Accessing Token Usage Information
+
+You can access token usage statistics through the detailed logging capabilities of the NeMo Guardrails library. Use the `log` generation option to capture comprehensive information about LLM calls, including token usage:
+
+```python
+response = rails.generate(messages=messages, options={
+    "log": {
+        "llm_calls": True,
+        "activated_rails": True
+    }
+})
+
+for llm_call in response.log.llm_calls:
+    print(f"Task: {llm_call.task}")
+    print(f"Total tokens: {llm_call.total_tokens}")
+    print(f"Prompt tokens: {llm_call.prompt_tokens}")
+    print(f"Completion tokens: {llm_call.completion_tokens}")
+```
+
+Alternatively, on `LLMRails` you can use the `explain()` method to get a summary of token usage:
+
+```python
+info = rails.explain()
+info.print_llm_calls_summary()
+```
+
+<Note>
+
+`explain()` is an `LLMRails` method and raises `NotImplementedError` when `IORails` is the active engine.
+On `IORails`, read token usage from `response.log.llm_calls` and `response.log.stats` as shown above, from the streamed `usage` metadata frame, or from the OpenTelemetry token metrics.
+For more information, refer to [Metrics](/observability/metrics).
+
+</Note>
+
+For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see [Generation Options: Detailed Logging Information](/run-guardrailed-inference/using-python-apis/generation-options#detailed-logging-information) and [Logging](/observability/logging).
+
+<Note>
+
+For streaming while using the Guardrails API server, refer to [Chat Completions: Streaming Responses](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model#streaming-responses).
+
+</Note>
+
+### Streaming for LLMs Deployed Using HuggingFacePipeline
+
+We also support streaming for LLMs deployed using `HuggingFacePipeline`.
+One example is provided in the [HF Pipeline Dolly](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/llm/hf_pipeline_dolly/README.md) configuration.
+
+To use streaming for HF Pipeline LLMs, you need to create an `nemoguardrails.integrations.langchain.providers.huggingface.AsyncTextIteratorStreamer` streamer object,
+add it to the `kwargs` of the pipeline and to the `model_kwargs` of the `HuggingFacePipelineCompatible` object.
+
+```python
+from nemoguardrails.integrations.langchain.providers.huggingface import AsyncTextIteratorStreamer
+
+# instantiate tokenizer object required by LLM
+streamer = AsyncTextIteratorStreamer(tokenizer, skip_prompt=True)
+params = {"temperature": 0.01, "max_new_tokens": 100, "streamer": streamer}
+
+pipe = pipeline(
+    # all other parameters
+    **params,
+)
+
+llm = HuggingFacePipelineCompatible(pipeline=pipe, model_kwargs=params)
+```

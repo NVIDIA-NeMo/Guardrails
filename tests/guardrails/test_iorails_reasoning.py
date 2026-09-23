@@ -98,13 +98,13 @@ def caplog_iorails(caplog):
 
 def _stub_safe_rails(iorails: IORails) -> None:
     """Default-safe input + output rails so each test focuses on the LLM call."""
-    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
 
 
 def _stub_safe_input(iorails: IORails) -> None:
     """Stub only the input rail (streaming tests on input-only config)."""
-    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
 
 
 def _make_stream(*chunks: LLMResponseChunk):
@@ -138,12 +138,12 @@ class TestReasoningContent:
             return_value=LLMResponse(content="Hello", reasoning="thinking step")
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "<think>thinking step</think>\nHello"}
         # Output rails see the original content unchanged when reasoning came from
         # the native field (no <think> tags to strip).
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "Hello")
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "Hello", enabled=True)
 
     @pytest.mark.asyncio
     async def test_inline_think_tags_extracted_and_stripped(self, iorails):
@@ -154,12 +154,12 @@ class TestReasoningContent:
             return_value=LLMResponse(content="<think>thinking step</think>Hello")
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "<think>thinking step</think>\nHello"}
         # Output rails MUST receive content with <think> tags stripped — this is
         # the central guarantee that reasoning bypasses output rails.
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "Hello")
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "Hello", enabled=True)
 
     @pytest.mark.asyncio
     async def test_native_reasoning_wins_over_inline_tags(self, iorails):
@@ -178,13 +178,27 @@ class TestReasoningContent:
             )
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {
             "role": "assistant",
             "content": "<think>native reasoning</think>\n<think>tag reasoning</think>Hello",
         }
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "<think>tag reasoning</think>Hello")
+        iorails.rails_manager.is_output_safe.assert_called_once_with(
+            messages, "<think>tag reasoning</think>Hello", enabled=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_reasoning_only_response_returns_the_think_block(self, iorails):
+        """A response with reasoning and no content returns the <think> block and runs output rails on ''."""
+        messages = [{"role": "user", "content": "hi"}]
+        _stub_safe_rails(iorails)
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="", reasoning="thinking step"))
+
+        result = await iorails.generate_async(messages=messages)
+
+        assert result == {"role": "assistant", "content": "<think>thinking step</think>\n"}
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "", enabled=True)
 
     @pytest.mark.asyncio
     async def test_malformed_think_tag_opener_only(self, iorails):
@@ -193,10 +207,12 @@ class TestReasoningContent:
         _stub_safe_rails(iorails)
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="<think>incomplete reasoning"))
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "<think>incomplete reasoning"}
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "<think>incomplete reasoning")
+        iorails.rails_manager.is_output_safe.assert_called_once_with(
+            messages, "<think>incomplete reasoning", enabled=True
+        )
 
     @pytest.mark.asyncio
     async def test_malformed_think_tag_closer_only(self, iorails):
@@ -205,22 +221,22 @@ class TestReasoningContent:
         _stub_safe_rails(iorails)
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="orphan</think> reply"))
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "orphan</think> reply"}
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "orphan</think> reply")
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "orphan</think> reply", enabled=True)
 
     @pytest.mark.asyncio
     async def test_output_rail_block_with_native_reasoning(self, iorails):
         """When output rails block, reasoning is dropped — refusal carries no <think> prefix."""
         messages = [{"role": "user", "content": "hi"}]
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
         iorails.engine_registry.model_call = AsyncMock(
             return_value=LLMResponse(content="bad answer", reasoning="reasoning step")
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
 
@@ -228,18 +244,18 @@ class TestReasoningContent:
     async def test_output_rail_block_with_inline_tags(self, iorails):
         """Block path strips inline <think> tags from output-rail input even though the rail blocks."""
         messages = [{"role": "user", "content": "hi"}]
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
         iorails.engine_registry.model_call = AsyncMock(
             return_value=LLMResponse(content="<think>thinking</think>bad answer")
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         # Output rails see only the stripped content — they're judging the model
         # output, not the reasoning trace.
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "bad answer")
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "bad answer", enabled=True)
 
     @pytest.mark.asyncio
     async def test_empty_string_reasoning_falls_through_to_inline_extraction(self, iorails):
@@ -250,10 +266,10 @@ class TestReasoningContent:
             return_value=LLMResponse(content="<think>fallback reasoning</think>Hi", reasoning="")
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "<think>fallback reasoning</think>\nHi"}
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "Hi")
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "Hi", enabled=True)
 
     @pytest.mark.asyncio
     async def test_no_reasoning_returns_unchanged_content(self, iorails):
@@ -262,10 +278,10 @@ class TestReasoningContent:
         _stub_safe_rails(iorails)
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="plain answer"))
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "plain answer"}
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "plain answer")
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "plain answer", enabled=True)
 
 
 class TestStreamingReasoningWarning:

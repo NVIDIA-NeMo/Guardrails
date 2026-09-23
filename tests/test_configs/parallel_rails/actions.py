@@ -17,6 +17,7 @@ import asyncio
 from typing import Optional
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 
 
 @action(is_system_action=True)
@@ -52,6 +53,6 @@ async def check_blocked_output_terms(duration: float = 0.0, context: Optional[di
 
     for term in proprietary_terms:
         if term.lower() in bot_response.lower():
-            return True
+            return RailOutcome.block()
 
-    return False
+    return RailOutcome.allow()

@@ -214,8 +214,13 @@ class LangChainLLMAdapter:
 
             response_chunk = _langchain_chunk_to_llm_response_chunk(chunk)
 
-            if response_chunk.finish_reason == "tool_calls" and tool_call_acc:
+            # On the terminal chunk, finalize any accumulated tool-call fragments.
+            # Chat completions signals this with finish_reason "tool_calls"; the
+            # Responses API reports status "completed" (-> "stop"), so accept the
+            # terminal reasons under which a tool call can legitimately close.
+            if tool_call_acc and response_chunk.finish_reason in _TOOL_CALL_TERMINAL_REASONS:
                 response_chunk.delta_tool_calls = _finalize_tool_call_acc(tool_call_acc)
+                response_chunk.finish_reason = "tool_calls"
 
             yield response_chunk
 
@@ -292,6 +297,45 @@ def _map_finish_reason(raw: Optional[str]) -> Optional[FinishReason]:
     if raw is None:
         return None
     return _FINISH_REASON_MAP.get(raw, "other")
+
+
+# The OpenAI Responses API does not report a per-choice ``finish_reason`` the way
+# chat completions does. Terminal state lives in the top-level ``status`` field
+# (and ``incomplete_details.reason`` when truncated), so we map that to the
+# internal FinishReason vocabulary as a fallback.
+_RESPONSES_STATUS_MAP: Dict[str, FinishReason] = {
+    "completed": "stop",
+    "failed": "error",
+    "cancelled": "other",
+}
+
+_INCOMPLETE_REASON_MAP: Dict[str, FinishReason] = {
+    "max_output_tokens": "length",
+    "max_tokens": "length",
+    "content_filter": "content_filter",
+}
+
+# Terminal finish reasons under which accumulated streaming tool-call fragments
+# should be finalized as a *complete* tool call. Chat completions ends a clean
+# tool-call turn with "tool_calls"; the Responses API ends it with status
+# "completed" (-> "stop").
+_TOOL_CALL_TERMINAL_REASONS: frozenset = frozenset({"tool_calls", "stop"})
+
+
+def _finish_reason_from_status(response_metadata: Dict[str, Any]) -> Optional[FinishReason]:
+    """Derive a finish reason from the Responses API ``status`` field.
+
+    Returns ``None`` for non-terminal statuses (e.g. ``in_progress``,
+    ``queued``) so a finish reason is only reported once the turn is complete.
+    """
+    status = response_metadata.get("status")
+    if not status:
+        return None
+    if status == "incomplete":
+        details = response_metadata.get("incomplete_details")
+        reason = details.get("reason") if isinstance(details, dict) else None
+        return _INCOMPLETE_REASON_MAP.get(reason, "other")
+    return _RESPONSES_STATUS_MAP.get(status)
 
 
 def _build_usage_info(raw: Any) -> Optional[UsageInfo]:
@@ -420,6 +464,8 @@ def _extract_model_info(response_metadata: Dict[str, Any]) -> _ModelInfo:
     model = response_metadata.get("model_name") or response_metadata.get("model")
     raw_finish = response_metadata.get("finish_reason") or response_metadata.get("stop_reason")
     finish_reason = _map_finish_reason(raw_finish)
+    if finish_reason is None:
+        finish_reason = _finish_reason_from_status(response_metadata)
     stop_sequence = response_metadata.get("stop_sequence")
     request_id = response_metadata.get("id") or response_metadata.get("request_id")
     return _ModelInfo(model, finish_reason, stop_sequence, request_id)
@@ -446,10 +492,16 @@ def _langchain_response_to_llm_response(response: Any) -> LLMResponse:
     additional_kwargs = getattr(response, "additional_kwargs", None) or {}
     model, finish_reason, stop_sequence, request_id = _extract_model_info(response_metadata)
 
+    tool_calls = _extract_tool_calls(response)
+    # The Responses API reports a tool-call turn as status "completed" (-> "stop")
+    # rather than "tool_calls". Reconcile so consumers can rely on finish_reason.
+    if tool_calls and finish_reason in (None, "stop"):
+        finish_reason = "tool_calls"
+
     return LLMResponse(
         content=content,
         reasoning=_extract_reasoning(response),
-        tool_calls=_extract_tool_calls(response),
+        tool_calls=tool_calls,
         model=model,
         finish_reason=finish_reason,
         stop_sequence=stop_sequence,

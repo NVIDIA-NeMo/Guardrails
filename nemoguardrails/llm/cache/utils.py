@@ -17,7 +17,7 @@ import hashlib
 import json
 import re
 from time import time
-from typing import TYPE_CHECKING, List, Optional, TypedDict, Union
+from typing import TYPE_CHECKING, Any, List, Optional, TypedDict, Union
 
 from nemoguardrails.context import llm_call_info_var, llm_stats_var
 from nemoguardrails.logging.processing_log import processing_log_var
@@ -46,7 +46,7 @@ class LLMCacheData(TypedDict):
 
 
 class CacheEntry(TypedDict):
-    result: dict
+    result: Any
     llm_stats: Optional[LLMStatsDict]
     llm_metadata: Optional[LLMMetadataDict]
 
@@ -152,7 +152,7 @@ def restore_llm_metadata_from_cache(cached_metadata: LLMMetadataDict) -> None:
         llm_call_info.llm_provider_name = cached_metadata.get("provider_name", "unknown")
 
 
-def get_from_cache_and_restore_stats(cache: "CacheInterface", cache_key: str) -> Optional[dict]:
+def get_from_cache_and_restore_stats(cache: "CacheInterface", cache_key: str) -> Optional[Any]:
     cached_entry = cache.get(cache_key)
     if cached_entry is None:
         return None

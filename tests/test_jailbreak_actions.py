@@ -19,10 +19,89 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.testing import RecordingHTTPClient
 
 
 class TestJailbreakDetectionActions:
     """Test suite for jailbreak detection actions with comprehensive coverage of PR changes."""
+
+    @pytest.mark.asyncio
+    async def test_missing_user_message_is_normalized_for_both_actions(self, monkeypatch):
+        from nemoguardrails.library.jailbreak_detection.actions import (
+            jailbreak_detection_heuristics,
+            jailbreak_detection_model,
+        )
+
+        heuristics_request = mock.AsyncMock(return_value=False)
+        model_request = mock.AsyncMock(return_value=False)
+        monkeypatch.setattr(
+            "nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_heuristics_request",
+            heuristics_request,
+        )
+        monkeypatch.setattr(
+            "nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model_request",
+            model_request,
+        )
+        config = RailsConfig.from_content(
+            config={
+                "rails": {
+                    "config": {
+                        "jailbreak_detection": {
+                            "server_endpoint": "http://localhost:1337/check",
+                        }
+                    }
+                }
+            }
+        )
+        task_manager = LLMTaskManager(config=config)
+
+        await jailbreak_detection_heuristics(task_manager, {"user_message": None})
+        await jailbreak_detection_model(task_manager, {"user_message": None})
+
+        assert heuristics_request.await_args.args[0] == ""
+        assert model_request.await_args.kwargs["prompt"] == ""
+
+    @pytest.mark.asyncio
+    async def test_jailbreak_detection_heuristics_forwards_http_client(self, monkeypatch):
+        from nemoguardrails.library.jailbreak_detection.actions import (
+            jailbreak_detection_heuristics,
+        )
+
+        request = mock.AsyncMock(return_value=True)
+        monkeypatch.setattr(
+            "nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_heuristics_request",
+            request,
+        )
+        config = RailsConfig.from_content(
+            """
+            define user express greeting
+              "hello"
+            """,
+            """
+            rails:
+              config:
+                jailbreak_detection:
+                  server_endpoint: "http://localhost:1337/heuristics"
+                  length_per_perplexity_threshold: 1.5
+                  prefix_suffix_perplexity_threshold: 2.5
+            """,
+        )
+        client = RecordingHTTPClient()
+
+        result = await jailbreak_detection_heuristics(
+            LLMTaskManager(config=config),
+            {"user_message": "test prompt"},
+            http_client=client,
+        )
+
+        assert result.is_blocked
+        request.assert_awaited_once_with(
+            "test prompt",
+            "http://localhost:1337/heuristics",
+            1.5,
+            2.5,
+            http_client=client,
+        )
 
     @pytest.mark.asyncio
     async def test_jailbreak_detection_model_with_nim_base_url(self, monkeypatch):
@@ -58,13 +137,14 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is True
+        assert result.is_blocked is True
 
         mock_nim_request.assert_called_once_with(
             prompt="test prompt",
             nim_url="http://localhost:8000/v1",
             nim_auth_token="test_token_123",
             nim_classification_path="classify",
+            http_client=None,
         )
 
     @pytest.mark.asyncio
@@ -102,10 +182,13 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         # verify warning was logged
-        assert "api_key_env var at MISSING_API_KEY but the environment variable was not set" in caplog.text
+        assert (
+            "A jailbreak config api_key_env_var was specified, but the referenced environment variable was not set."
+            in caplog.text
+        )
 
         # verify nim request was called with None token
         mock_nim_request.assert_called_once_with(
@@ -113,6 +196,7 @@ class TestJailbreakDetectionActions:
             nim_url="http://localhost:8000/v1",
             nim_auth_token=None,
             nim_classification_path="classify",
+            http_client=None,
         )
 
     @pytest.mark.asyncio
@@ -146,13 +230,14 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         mock_nim_request.assert_called_once_with(
             prompt="test prompt",
             nim_url="http://localhost:8000/v1",
             nim_auth_token=None,
             nim_classification_path="classify",
+            http_client=None,
         )
 
     @pytest.mark.asyncio
@@ -185,7 +270,7 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         assert "Jailbreak detection model not available" in caplog.text
         assert "No classifier available" in caplog.text
@@ -221,7 +306,7 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         assert "Failed to import required dependencies for local model" in caplog.text
         assert "Install scikit-learn and torch, or use NIM-based approach" in caplog.text
@@ -258,7 +343,7 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "malicious prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is True
+        assert result.is_blocked is True
 
         assert "Local model jailbreak detection result" in caplog.text
         mock_check_jailbreak.assert_called_once_with(prompt="malicious prompt")
@@ -292,13 +377,14 @@ class TestJailbreakDetectionActions:
         llm_task_manager = LLMTaskManager(config=config)
 
         result = await jailbreak_detection_model(llm_task_manager, None)
-        assert result is False
+        assert result.is_blocked is False
 
         mock_nim_request.assert_called_once_with(
             prompt="",
             nim_url="http://localhost:8000/v1",
             nim_auth_token=None,
             nim_classification_path="classify",
+            http_client=None,
         )
 
     @pytest.mark.asyncio
@@ -331,13 +417,14 @@ class TestJailbreakDetectionActions:
         context = {"other_key": "other_value"}  # No user_message key
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         mock_nim_request.assert_called_once_with(
             prompt="",
             nim_url="http://localhost:8000/v1",
             nim_auth_token=None,
             nim_classification_path="classify",
+            http_client=None,
         )
 
     @pytest.mark.asyncio
@@ -370,9 +457,13 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is True
+        assert result.is_blocked is True
 
-        mock_model_request.assert_called_once_with(prompt="test prompt", api_url="http://legacy-server:1337/model")
+        mock_model_request.assert_called_once_with(
+            prompt="test prompt",
+            api_url="http://legacy-server:1337/model",
+            http_client=None,
+        )
 
     @pytest.mark.asyncio
     async def test_jailbreak_detection_model_none_response_handling(self, monkeypatch, caplog):
@@ -404,6 +495,6 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         assert "Jailbreak endpoint not set up properly" in caplog.text

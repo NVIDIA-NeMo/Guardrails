@@ -19,14 +19,12 @@ from typing import Any, Dict, List, Union
 
 import yaml
 
-# We try to load the efficient versions of the Loader and Dumper for YAML.
-# https://pyyaml.org/wiki/PyYAMLDocumentation
-# https://stackoverflow.com/questions/27743711/can-i-speedup-yaml
+# Use SafeDumper which refuses to emit !!python/... tags, maintain round-trip
+# compatibility with yaml.safe_load
 try:
-    from yaml import CDumper as Dumper
-    from yaml import CLoader as Loader
+    from yaml import CSafeDumper as Dumper
 except ImportError:
-    from yaml import Dumper, Loader
+    from yaml import SafeDumper as Dumper
 
 
 def load_dict_from_file(file_path: str) -> Dict[str, Any]:
@@ -36,7 +34,7 @@ def load_dict_from_file(file_path: str) -> Dict[str, Any]:
     _obj = {}
     if file_extension == ".yaml" or file_extension == ".yml":
         with open(file_path) as f:
-            _obj = yaml.load(f, Loader=Loader)
+            _obj = yaml.safe_load(f)
     elif file_extension == ".json":
         with open(file_path) as f:
             _obj = json.load(f)
@@ -122,7 +120,7 @@ def save_dict_to_file(val: Any, output_path: str, output_format: str = "yaml"):
 
 def save_eval_output(eval_output: "EvalOutput", output_path: str, output_format: str = "yaml"):
     """Writes the evaluation output to a folder."""
-    data = eval_output.dict()
+    data = eval_output.model_dump()
 
     save_dict_to_file(
         {"results": data["results"]},

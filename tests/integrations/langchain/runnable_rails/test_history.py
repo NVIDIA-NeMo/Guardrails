@@ -18,6 +18,8 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.actions import ActionResult
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
 from tests.integrations.langchain.utils import FakeLLM
 
@@ -140,8 +142,8 @@ def test_message_history_with_input_rail():
     async def self_check_input(context):
         user_message = context.get("user_message", "")
         if "hack" in user_message.lower():
-            return False
-        return True
+            return ActionResult(return_value=False, context_updates={"response": RailOutcome.block()})
+        return ActionResult(return_value=True, context_updates={"response": RailOutcome.allow()})
 
     llm = FakeLLM(
         responses=[

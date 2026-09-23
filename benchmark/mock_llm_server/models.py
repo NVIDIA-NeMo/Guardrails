@@ -39,6 +39,9 @@ class ChatCompletionRequest(BaseModel):
     presence_penalty: Optional[float] = Field(0.0, description="Presence penalty", ge=-2.0, le=2.0)
     frequency_penalty: Optional[float] = Field(0.0, description="Frequency penalty", ge=-2.0, le=2.0)
     logit_bias: Optional[dict[str, float]] = Field(None, description="Modify likelihood of specified tokens")
+    tools: Optional[list[dict]] = Field(None, description="Tools parameter.")
+    tool_choice: Optional[str | dict] = Field(None, description="Tool choice parameter.")
+    parallel_tool_calls: Optional[bool] = Field(None, description="Whether to allow parallel tool calls.")
     user: Optional[str] = Field(None, description="Unique identifier representing your end-user")
 
 

@@ -149,6 +149,22 @@ def server(
         default="",
         help="A prefix that should be added to all server paths. Should start with '/'.",
     ),
+    metrics_exporter: Optional[str] = typer.Option(
+        default=None,
+        help=(
+            "Expose the IORails non-streaming admission-queue metrics (guardrails.nonstream.*) on a scrape "
+            "endpoint. Supported: 'prometheus'. Overrides NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER; "
+            "metrics are not exported by default."
+        ),
+    ),
+    metrics_host: Optional[str] = typer.Option(
+        default=None,
+        help="Interface for the Prometheus scrape endpoint. Overrides NEMO_GUARDRAILS_SERVER_METRICS_HOST (default 0.0.0.0).",
+    ),
+    metrics_port: Optional[int] = typer.Option(
+        default=None,
+        help="Port for the Prometheus scrape endpoint. Overrides NEMO_GUARDRAILS_SERVER_METRICS_PORT (default 9464).",
+    ),
 ):
     """Start a NeMo Guardrails server."""
 
@@ -157,11 +173,25 @@ def server(
     if disable_chat_ui:
         os.environ["NEMO_GUARDRAILS_DISABLE_CHAT_UI"] = "true"
 
+    # The metrics flags are forwarded the same way so the server lifespan, which
+    # also runs under a bare uvicorn invocation, sees one source of truth.
+    if metrics_exporter is not None:
+        os.environ["NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER"] = metrics_exporter
+    if metrics_host is not None:
+        os.environ["NEMO_GUARDRAILS_SERVER_METRICS_HOST"] = metrics_host
+    if metrics_port is not None:
+        os.environ["NEMO_GUARDRAILS_SERVER_METRICS_PORT"] = str(metrics_port)
+
     try:
         import uvicorn
         from fastapi import FastAPI
 
         from nemoguardrails.server import api
+        from nemoguardrails.server.metrics import (
+            MetricsExporterConfigError,
+            shutdown_metrics_exporter,
+            start_metrics_exporter,
+        )
         from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
     except ImportError:
         typer.secho(
@@ -209,7 +239,19 @@ def server(
     if default_config_id:
         api.set_default_config_id(default_config_id)  # Call function
 
-    uvicorn.run(server_app, port=port, log_level="info", host="0.0.0.0")
+    # Start the exporter here rather than relying on the lifespan alone: with
+    # --prefix the mounted app's lifespan never runs, and a configuration error
+    # should stop the server before it binds the API port.
+    try:
+        start_metrics_exporter()
+    except MetricsExporterConfigError as e:
+        typer.secho(str(e), fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    try:
+        uvicorn.run(server_app, port=port, log_level="info", host="0.0.0.0")
+    finally:
+        shutdown_metrics_exporter()
 
 
 @app.command()

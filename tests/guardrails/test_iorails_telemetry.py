@@ -29,14 +29,25 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 
+from nemoguardrails.exceptions import StreamingCapacityExceededError
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, RailResult, get_request_id
-from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import RailStatus
 from nemoguardrails.tracing import constants as tracing_constants
-from nemoguardrails.tracing.constants import SystemConstants
+from nemoguardrails.tracing.constants import (
+    GenAIAttributes,
+    GuardrailsAttributes,
+    OtelContentCapture,
+    SystemConstants,
+)
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
-from tests.guardrails.async_helpers import saturate_stream_semaphore, wait_for_queue_state
+from tests.guardrails.async_helpers import (
+    always_allow_jailbreak_nim,
+    saturate_stream_semaphore,
+    wait_for_queue_state,
+)
 from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 from tests.guardrails.test_telemetry import _is_valid_hex_string
@@ -72,9 +83,15 @@ def _make_tracing_only_config():
 
 def _stub_safe_pipeline(iorails, llm_response="Hello"):
     """Mock input/output rails as safe and the LLM to return *llm_response*."""
-    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
     iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=llm_response))
-    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
+
+
+@pytest.fixture(autouse=True)
+def stub_jailbreak_nim(httpx_mock):
+    """Answer the jailbreak rail in ``NEMOGUARDS_CONFIG``, which every deep-pipeline test runs."""
+    always_allow_jailbreak_nim(httpx_mock)
 
 
 @pytest.fixture
@@ -104,14 +121,7 @@ def _gated_generate(gate: asyncio.Event):
 
 @pytest_asyncio.fixture
 async def iorails_tracing(tracer_from_provider):
-    """IORails instance with tracing enabled, using a test tracer.
-
-    Patches the module-level ``_tracer`` before constructing IORails so that
-    ``IORails.__init__`` picks up the test tracer via ``get_tracer()`` and
-    threads it through EngineRegistry/RailsManager/RailAction constructors.
-    The ``async with`` block starts and stops the IORails-owned worker
-    queue so no asyncio tasks leak past the test's event loop.
-    """
+    """IORails with tracing on, built around a test tracer patched in before construction."""
     with patch.object(telemetry, "_tracer", tracer_from_provider):
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
             config = RailsConfig.from_content(config=_make_tracing_config())
@@ -134,7 +144,7 @@ class TestGenerateAsyncWithTracing:
     async def test_creates_span(self, iorails_tracing, exporter):
         _stub_safe_pipeline(iorails_tracing)
 
-        result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         assert result == {"role": "assistant", "content": "Hello"}
         spans = exporter.get_finished_spans()
@@ -146,7 +156,7 @@ class TestGenerateAsyncWithTracing:
     async def test_span_has_required_attributes(self, iorails_tracing, exporter):
         _stub_safe_pipeline(iorails_tracing)
 
-        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
         attrs = dict(spans[0].attributes)
@@ -159,15 +169,15 @@ class TestGenerateAsyncWithTracing:
         """The request ID visible to downstream code matches the span's trace ID suffix."""
         captured_req_id = None
 
-        async def capture_req_id(messages):
+        async def capture_req_id(messages, *, enabled=True):
             nonlocal captured_req_id
             captured_req_id = get_request_id()
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         _stub_safe_pipeline(iorails_tracing)
         iorails_tracing.rails_manager.is_input_safe = capture_req_id
 
-        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
         span_req_id = spans[0].attributes["request.id"]
@@ -179,7 +189,7 @@ class TestGenerateAsyncWithTracing:
         iorails_tracing.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("LLM failed"))
 
         with pytest.raises(RuntimeError, match="LLM failed"):
-            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+            await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
         assert len(spans) == 1
@@ -190,9 +200,9 @@ class TestGenerateAsyncWithTracing:
     @pytest.mark.asyncio
     async def test_span_created_on_input_block(self, iorails_tracing, exporter):
         """A span is still created and completed even when input rails block."""
-        iorails_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+        iorails_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
 
-        result = await iorails_tracing.generate_async([{"role": "user", "content": "bad"}])
+        result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "bad"}])
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         spans = exporter.get_finished_spans()
@@ -205,7 +215,7 @@ class TestGenerateAsyncWithoutTracing:
     async def test_no_spans_exported(self, iorails_no_tracing, exporter):
         _stub_safe_pipeline(iorails_no_tracing)
 
-        result = await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+        result = await iorails_no_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         assert result == {"role": "assistant", "content": "Hello"}
         assert len(exporter.get_finished_spans()) == 0
@@ -215,15 +225,15 @@ class TestGenerateAsyncWithoutTracing:
         """Without tracing, request IDs are random but the same length as trace-derived IDs."""
         captured_req_id = None
 
-        async def capture_req_id(messages):
+        async def capture_req_id(messages, *, enabled=True):
             nonlocal captured_req_id
             captured_req_id = get_request_id()
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         _stub_safe_pipeline(iorails_no_tracing)
         iorails_no_tracing.rails_manager.is_input_safe = capture_req_id
 
-        await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_no_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         assert captured_req_id is not None
         assert len(captured_req_id) == REQUEST_ID_HEX_CHARS
@@ -238,27 +248,27 @@ class TestEndToEndTracing:
         through the entire generate_async pipeline."""
         captured = {}
 
-        async def capturing_input_check(messages):
+        async def capturing_input_check(messages, *, enabled=True):
             captured["input_req_id"] = get_request_id()
             captured["input_messages"] = messages
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         async def capturing_model_call(model_name, messages, **kwargs):
             captured["llm_req_id"] = get_request_id()
             captured["llm_model"] = model_name
             return LLMResponse(content="Generated response")
 
-        async def capturing_output_check(messages, response):
+        async def capturing_output_check(messages, response, *, enabled=True):
             captured["output_req_id"] = get_request_id()
             captured["output_response"] = response
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         iorails_tracing.rails_manager.is_input_safe = capturing_input_check
         iorails_tracing.engine_registry.model_call = capturing_model_call
         iorails_tracing.rails_manager.is_output_safe = capturing_output_check
 
         messages = [{"role": "user", "content": "hello"}]
-        result = await iorails_tracing.generate_async(messages)
+        result = await iorails_tracing.generate_async(messages=messages)
 
         # Response correctness
         assert result == {"role": "assistant", "content": "Generated response"}
@@ -302,17 +312,17 @@ class TestEndToEndTracing:
         with distinct trace IDs and request IDs."""
         req_ids_seen = []
 
-        async def record_req_id(messages):
+        async def record_req_id(messages, *, enabled=True):
             req_ids_seen.append(get_request_id())
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         _stub_safe_pipeline(iorails_tracing)
         iorails_tracing.rails_manager.is_input_safe = record_req_id
 
         messages = [{"role": "user", "content": "hi"}]
         await asyncio.gather(
-            iorails_tracing.generate_async(messages),
-            iorails_tracing.generate_async(messages),
+            iorails_tracing.generate_async(messages=messages),
+            iorails_tracing.generate_async(messages=messages),
         )
 
         spans = exporter.get_finished_spans()
@@ -332,16 +342,16 @@ class TestEndToEndTracing:
         and traceback, and the request ID is still valid."""
         captured_req_id = None
 
-        async def capture_then_pass(messages):
+        async def capture_then_pass(messages, *, enabled=True):
             nonlocal captured_req_id
             captured_req_id = get_request_id()
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         iorails_tracing.rails_manager.is_input_safe = capture_then_pass
         iorails_tracing.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("connection refused"))
 
         with pytest.raises(RuntimeError, match="connection refused"):
-            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+            await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
         assert len(spans) == 1
@@ -371,15 +381,7 @@ UNSAFE_INPUT_JSON = json.dumps({"User Safety": "unsafe", "Safety Categories": "S
 
 
 def _stub_deep_pipeline(iorails, main_llm_response="Hello", input_safe=True):
-    """Mock at the engine level so the full RailsManager → RailAction → EngineRegistry
-    chain executes (including span creation), but actual HTTP calls are skipped.
-
-    Mocks ModelEngine.chat_completion and APIEngine.call on each registered engine.
-    The content_safety engine returns different JSON for input vs output checks —
-    we use SAFE_INPUT_JSON as default since the output rail's parser also accepts it
-    when Response Safety is absent (it just checks User Safety).
-    """
-    from nemoguardrails.guardrails.api_engine import APIEngine
+    """Mock ModelEngine.chat_completion so the whole chain runs, spans and all, without HTTP."""
     from nemoguardrails.guardrails.model_engine import ModelEngine
 
     input_json = SAFE_INPUT_JSON if input_safe else UNSAFE_INPUT_JSON
@@ -394,8 +396,6 @@ def _stub_deep_pipeline(iorails, main_llm_response="Hello", input_safe=True):
                 )
             else:
                 engine.chat_completion = AsyncMock(return_value=LLMResponse(content=input_json))
-        elif isinstance(engine, APIEngine):
-            engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
 
 
 class TestSpanHierarchy:
@@ -406,7 +406,7 @@ class TestSpanHierarchy:
         """Full safe request produces: request → rail → action → LLM/API spans."""
         _stub_deep_pipeline(iorails_tracing)
 
-        result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
         assert result["content"] == "Hello"
 
         spans = exporter.get_finished_spans()
@@ -426,9 +426,11 @@ class TestSpanHierarchy:
         action_spans = [s for s in spans if s.name == "guardrails.action"]
         assert len(action_spans) == 4
 
-        # LLM call spans (content_safety input, topic_safety input, content_safety output, main LLM)
+        # LLM call spans (content_safety input, topic_safety input, content_safety output, main LLM).
+        # An equality, not a floor: a floor cannot detect a *lost* span. Jailbreak contributes none
+        # -- its vendor-call span went with APIEngine (§5b), leaving 3 rail LLMs + 1 main.
         llm_spans = [s for s in spans if s.kind == SpanKind.CLIENT]
-        assert len(llm_spans) >= 4  # at least 3 rail LLMs + 1 API + 1 main
+        assert len(llm_spans) == 4
 
         # All rail spans are children of the request span
         for rail_span in rail_spans:
@@ -439,7 +441,7 @@ class TestSpanHierarchy:
         """Rail spans have correct rail.type and rail.name attributes."""
         _stub_deep_pipeline(iorails_tracing)
 
-        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
         rail_spans = [s for s in spans if s.name == "guardrails.rail"]
@@ -460,7 +462,7 @@ class TestSpanHierarchy:
         """When a rail blocks, its span has rail.stop=True."""
         _stub_deep_pipeline(iorails_tracing, input_safe=False)
 
-        result = await iorails_tracing.generate_async([{"role": "user", "content": "bad"}])
+        result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "bad"}])
         assert result["content"] == REFUSAL_MESSAGE
 
         spans = exporter.get_finished_spans()
@@ -474,7 +476,7 @@ class TestSpanHierarchy:
         """Unsafe request: main LLM and output rails never run, request span still completes cleanly."""
         _stub_deep_pipeline(iorails_tracing, input_safe=False)
 
-        result = await iorails_tracing.generate_async([{"role": "user", "content": "bad"}])
+        result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "bad"}])
         assert result["content"] == REFUSAL_MESSAGE
 
         spans = exporter.get_finished_spans()
@@ -506,17 +508,17 @@ class TestSpanHierarchy:
         """When the engine raises, the action span must record it (not swallow it)."""
         from nemoguardrails.guardrails.model_engine import ModelEngine
 
-        # Make the content_safety engine fail — RailAction.run will catch and
-        # convert to RailResult(is_safe=False), but the action span must still
-        # reflect the error.
+        # CompiledRail catches and converts to a blocking outcome, but the action span
+        # must still reflect the error.
         for name, engine in iorails_tracing.engine_registry._engines.items():
             if isinstance(engine, ModelEngine) and name == "content_safety":
                 engine.chat_completion = AsyncMock(side_effect=RuntimeError("LLM down"))
             elif isinstance(engine, ModelEngine):
                 engine.chat_completion = AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
 
-        result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
-        assert result["content"] == REFUSAL_MESSAGE
+        result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
+        # The rail broke rather than fired, so the caller is told so; the span still carries the error.
+        assert result["content"] == INTERNAL_ERROR_MESSAGE
 
         spans = exporter.get_finished_spans()
         action_spans = [s for s in spans if s.name == "guardrails.action"]
@@ -524,11 +526,11 @@ class TestSpanHierarchy:
             s for s in action_spans if s.attributes["action.name"] == "content safety check input"
         )
 
-        # Span has ERROR status and an exception event recording the RuntimeError
+        # llm_call wraps every provider failure, so the recorded type is the wrapper.
         assert content_safety_action.status.status_code == StatusCode.ERROR
         exc_events = [e for e in content_safety_action.events if e.name == "exception"]
         assert len(exc_events) == 1
-        assert exc_events[0].attributes["exception.type"] == "RuntimeError"
+        assert exc_events[0].attributes["exception.type"] == "nemoguardrails.exceptions.LLMCallException"
         assert "LLM down" in exc_events[0].attributes["exception.message"]
 
     @pytest.mark.asyncio
@@ -550,7 +552,7 @@ class TestSpanHierarchy:
         """
         _stub_deep_pipeline(iorails_tracing)
 
-        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
 
@@ -608,17 +610,21 @@ class TestSpanHierarchy:
             else:
                 raise AssertionError(f"CLIENT span '{client.name}' has unexpected parent")
 
-        # Exactly one main LLM call, and one CLIENT span per action
+        # Exactly one main LLM call, and one CLIENT span per model-backed action. The four
+        # actions are the three model-backed rails plus jailbreak detection, which reaches its
+        # NIM over the library's HTTP path and so emits no CLIENT span -- the vendor-call span
+        # that went with APIEngine. Losing it brings IORails to parity with LLMRails.
         assert len(main_llm_spans) == 1
         assert main_llm_spans[0].attributes["gen_ai.request.model"] == "meta/llama-3.3-70b-instruct"
-        assert len(rail_call_spans) == len(action_spans)
+        assert len(action_spans) == 4
+        assert len(rail_call_spans) == 3
 
     @pytest.mark.asyncio
     async def test_action_span_attributes(self, iorails_tracing, exporter):
         """Action spans have correct action.name attributes."""
         _stub_deep_pipeline(iorails_tracing)
 
-        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
         action_spans = [s for s in spans if s.name == "guardrails.action"]
@@ -633,7 +639,7 @@ class TestSpanHierarchy:
         """LLM spans have GenAI semantic convention attributes."""
         _stub_deep_pipeline(iorails_tracing)
 
-        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
         llm_spans = [s for s in spans if "gen_ai.request.model" in (s.attributes or {})]
@@ -646,16 +652,10 @@ class TestSpanHierarchy:
 
     @pytest.mark.asyncio
     async def test_no_child_spans_when_tracing_disabled(self, iorails_no_tracing, exporter):
-        """With tracing disabled, no spans at all are created.
-
-        Uses ``_stub_deep_pipeline`` so the full RailsManager → RailAction →
-        EngineRegistry chain executes.  This exercises the code paths that
-        would otherwise create orphaned child spans, not just the top-level
-        IORails entry point.
-        """
+        """With tracing disabled the whole chain runs and still creates no spans at all."""
         _stub_deep_pipeline(iorails_no_tracing)
 
-        await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_no_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         assert len(exporter.get_finished_spans()) == 0
 
@@ -680,7 +680,7 @@ class TestSpanHierarchy:
 
             async with iorails:
                 _stub_deep_pipeline(iorails)
-                await iorails.generate_async([{"role": "user", "content": "hi"}])
+                await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         # Zero spans of any kind
         assert exporter.get_finished_spans() == ()
@@ -747,7 +747,6 @@ def _stub_deep_streaming_pipeline(iorails, main_stream=None, input_safe=True):
     the main engine uses ``stream_chat_completion`` so the LLM span in
     ``stream_model_call`` sees the real wrapper code.
     """
-    from nemoguardrails.guardrails.api_engine import APIEngine
     from nemoguardrails.guardrails.model_engine import ModelEngine
 
     if main_stream is None:
@@ -764,8 +763,6 @@ def _stub_deep_streaming_pipeline(iorails, main_stream=None, input_safe=True):
                 )
             else:
                 engine.chat_completion = AsyncMock(return_value=LLMResponse(content=input_json))
-        elif isinstance(engine, APIEngine):
-            engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
 
 
 @pytest_asyncio.fixture
@@ -805,7 +802,7 @@ class TestStreamAsyncSpanHierarchy:
     @pytest.mark.asyncio
     async def test_creates_request_span(self, iorails_streaming_input_only_tracing, exporter):
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
@@ -888,10 +885,11 @@ class TestStreamAsyncSpanHierarchy:
     async def test_input_block_leaves_llm_span_absent(self, iorails_streaming_input_only_tracing, exporter):
         """When input rails block, no main LLM span is created."""
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="blocked"))
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
-        assert chunks == [REFUSAL_MESSAGE]
+        assert len(chunks) == 1
+        assert json.loads(chunks[0])["error"]["param"] == "input_rails"
 
         spans = exporter.get_finished_spans()
         request_spans = [s for s in spans if s.name == "guardrails.request"]
@@ -928,7 +926,7 @@ class TestStreamAsyncSpanHierarchy:
     async def test_no_spans_when_tracing_disabled(self, iorails_streaming_no_tracing, exporter):
         """With tracing off, streaming produces zero spans but still works."""
         iorails = iorails_streaming_no_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
@@ -942,7 +940,7 @@ class TestStreamAsyncSpanHierarchy:
         # Force all slots unavailable.
         iorails._stream_semaphore = asyncio.Semaphore(0)
 
-        with pytest.raises(asyncio.QueueFull):
+        with pytest.raises(StreamingCapacityExceededError):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         assert exporter.get_finished_spans() == ()
@@ -1002,7 +1000,7 @@ class TestOtelNotInstalled:
             async with iorails:
                 _stub_safe_pipeline(iorails)
 
-                result = await iorails.generate_async([{"role": "user", "content": "hi"}])
+                result = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
                 assert result == {"role": "assistant", "content": "Hello"}
                 assert iorails._tracing_enabled is False
@@ -1064,7 +1062,7 @@ class TestGenerateAsyncRequestMetrics:
         no errors, requests.active back to 0."""
         _stub_safe_pipeline(iorails_tracing)
 
-        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.requests"][0].value == 1
@@ -1080,7 +1078,7 @@ class TestGenerateAsyncRequestMetrics:
         iorails_tracing.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("LLM failed"))
 
         with pytest.raises(RuntimeError, match="LLM failed"):
-            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+            await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.requests"][0].value == 1
@@ -1093,7 +1091,7 @@ class TestGenerateAsyncRequestMetrics:
     async def test_no_metrics_emitted_when_metrics_disabled(self, iorails_no_tracing, metric_reader):
         _stub_safe_pipeline(iorails_no_tracing)
 
-        await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_no_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         points = collect_metric_points(metric_reader)
         assert points == {}
@@ -1101,9 +1099,9 @@ class TestGenerateAsyncRequestMetrics:
     @pytest.mark.asyncio
     async def test_emits_blocked_counter_on_input_block(self, iorails_tracing, metric_reader):
         _stub_safe_pipeline(iorails_tracing)
-        iorails_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+        iorails_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
 
-        result = await iorails_tracing.generate_async([{"role": "user", "content": "bad"}])
+        result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "bad"}])
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         points = collect_metric_points(metric_reader)
@@ -1117,10 +1115,10 @@ class TestGenerateAsyncRequestMetrics:
     async def test_emits_blocked_counter_on_output_block(self, iorails_tracing, metric_reader):
         _stub_safe_pipeline(iorails_tracing)
         iorails_tracing.rails_manager.is_output_safe = AsyncMock(
-            return_value=RailResult(is_safe=False, reason="unsafe response")
+            return_value=RailResult.block(reason="unsafe response")
         )
 
-        result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         points = collect_metric_points(metric_reader)
@@ -1132,11 +1130,9 @@ class TestGenerateAsyncRequestMetrics:
         """With metrics disabled, a blocked-by-input-rail request emits no
         ``requests.blocked`` data point."""
         _stub_safe_pipeline(iorails_no_tracing)
-        iorails_no_tracing.rails_manager.is_input_safe = AsyncMock(
-            return_value=RailResult(is_safe=False, reason="unsafe")
-        )
+        iorails_no_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
 
-        result = await iorails_no_tracing.generate_async([{"role": "user", "content": "bad"}])
+        result = await iorails_no_tracing.generate_async(messages=[{"role": "user", "content": "bad"}])
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         points = collect_metric_points(metric_reader)
@@ -1161,30 +1157,31 @@ class TestGenerateAsyncRequestMetrics:
         iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
 
         with pytest.raises(asyncio.QueueFull, match="admission queue full"):
-            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+            await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.nonstream.rejections"][0].value == 1
 
     @pytest.mark.asyncio
     async def test_queuefull_bumps_both_errors_and_nonstream_rejections(self, iorails_tracing, metric_reader):
-        """Dual-signal semantics: a ``QueueFull`` rejection is BOTH a
-        saturation signal (``nonstream.rejections``) AND a request error
-        (``requests.errors{error.type=QueueFull}``).  Dashboards can
-        count either one.  Also bumps the ``requests`` counter and
-        records into the duration histogram — the request ran through
-        the full lifecycle, even if only briefly.
+        """Dual-signal semantics: a ``NonStreamingWorkQueueFullError``
+        rejection is BOTH a saturation signal (``nonstream.rejections``)
+        AND a request error
+        (``requests.errors{error.type=NonStreamingWorkQueueFullError}``).
+        Dashboards can count either one.  Also bumps the ``requests``
+        counter and records into the duration histogram — the request ran
+        through the full lifecycle, even if only briefly.
         """
         _stub_safe_pipeline(iorails_tracing)
         iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
 
         with pytest.raises(asyncio.QueueFull):
-            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+            await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.nonstream.rejections"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
-        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "QueueFull"
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "NonStreamingWorkQueueFullError"
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
 
@@ -1214,7 +1211,7 @@ class TestGenerateAsyncRequestMetrics:
                 iorails._do_generate = _gated_generate(gate)
 
                 tasks = [
-                    asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
+                    asyncio.create_task(iorails.generate_async(messages=[{"role": "user", "content": f"m{i}"}]))
                     for i in range(2)
                 ]
                 # Wait until exactly one is executing and one is queued.
@@ -1242,10 +1239,56 @@ class TestGenerateAsyncRequestMetrics:
         )
 
         with pytest.raises(asyncio.QueueFull):
-            await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+            await iorails_no_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         points = collect_metric_points(metric_reader)
         assert "guardrails.nonstream.rejections" not in points
+
+
+class TestCheckAsyncRequestMetrics:
+    """check_async shares the non-streaming request-metrics path: the blocked
+    counter fires on input/output block and a QueueFull bumps nonstream.rejections."""
+
+    @pytest.mark.asyncio
+    async def test_check_emits_blocked_counter_on_input_block(self, iorails_tracing, metric_reader):
+        """An input-rail block during check_async emits the blocked counter with rail.type=Input."""
+        iorails_tracing.rails_manager.is_input_safe = AsyncMock(
+            return_value=RailResult.block(reason="unsafe", triggered_rail="content safety check input")
+        )
+
+        result = await iorails_tracing.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.rail == "content safety check input"
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Input"
+
+    @pytest.mark.asyncio
+    async def test_check_emits_blocked_counter_on_output_block(self, iorails_tracing, metric_reader):
+        """An output-rail block during check_async emits the blocked counter with rail.type=Output."""
+        iorails_tracing.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult.block(reason="unsafe response", triggered_rail="content safety check output")
+        )
+
+        result = await iorails_tracing.check_async([{"role": "assistant", "content": "bad answer"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.rail == "content safety check output"
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Output"
+
+    @pytest.mark.asyncio
+    async def test_check_nonstream_rejections_counter_on_queue_full(self, iorails_tracing, metric_reader):
+        """A QueueFull during check_async increments the nonstream.rejections counter."""
+        iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
+
+        with pytest.raises(asyncio.QueueFull, match="admission queue full"):
+            await iorails_tracing.check_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.nonstream.rejections"][0].value == 1
 
 
 class TestStreamAsyncRequestMetrics:
@@ -1257,7 +1300,7 @@ class TestStreamAsyncRequestMetrics:
         """Happy-path stream_async → counter +1, duration recorded once,
         no errors, stream.active back to 0, no rejections."""
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
@@ -1277,15 +1320,15 @@ class TestStreamAsyncRequestMetrics:
         self, iorails_streaming_input_only_tracing, metric_reader
     ):
         """A stream that arrives while the semaphore is fully occupied is
-        rejected with ``asyncio.QueueFull`` and the ``stream.rejections``
-        counter increments.
+        rejected with ``StreamingCapacityExceededError`` and the
+        ``stream.rejections`` counter increments.
         """
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
-        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+        with pytest.raises(StreamingCapacityExceededError, match="Streaming concurrency limit of 256 reached"):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)
@@ -1300,22 +1343,26 @@ class TestStreamAsyncRequestMetrics:
         self, iorails_streaming_input_only_tracing, metric_reader
     ):
         """Streaming equivalent of the non-streaming dual-signal test: a
-        ``QueueFull`` on the semaphore check is BOTH a saturation signal
-        (``stream.rejections``) AND a request error
-        (``requests.errors{error.type=QueueFull}``)
+        ``StreamingCapacityExceededError`` on the semaphore check is BOTH a
+        saturation signal (``stream.rejections``) AND a request error
+        (``requests.errors{error.type=StreamingCapacityExceededError}``).
+
+        The label is the exception class name, so it distinguishes a full
+        streaming semaphore from a full non-streaming admission queue, which
+        reports ``NonStreamingWorkQueueFullError``.
         """
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
-        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+        with pytest.raises(StreamingCapacityExceededError, match="Streaming concurrency limit of 256 reached"):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.stream.rejections"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
-        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "QueueFull"
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "StreamingCapacityExceededError"
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
 
@@ -1326,7 +1373,7 @@ class TestStreamAsyncRequestMetrics:
         reads 1; after the iterator is consumed, it reads 0.
         """
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         iterator = iorails.stream_async([{"role": "user", "content": "hi"}]).__aiter__()
@@ -1376,11 +1423,11 @@ class TestStreamAsyncRequestMetrics:
         ``stream.rejections`` don't emit, even on rejection path.
         """
         iorails = iorails_streaming_no_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
-        with pytest.raises(asyncio.QueueFull):
+        with pytest.raises(StreamingCapacityExceededError):
             [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)
@@ -1412,10 +1459,11 @@ class TestStreamAsyncRequestMetrics:
         self, iorails_streaming_input_only_tracing, metric_reader
     ):
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
-        assert chunks == [REFUSAL_MESSAGE]
+        assert len(chunks) == 1
+        assert json.loads(chunks[0])["error"]["param"] == "input_rails"
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.requests.blocked"][0].value == 1
@@ -1432,9 +1480,7 @@ class TestStreamAsyncRequestMetrics:
         """
         iorails = iorails_streaming_output_tracing
         _stub_deep_streaming_pipeline(iorails)
-        iorails.rails_manager.is_output_safe = AsyncMock(
-            return_value=RailResult(is_safe=False, reason="unsafe response")
-        )
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe response"))
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
         # Output block terminates the stream with a JSON error payload chunk.
@@ -1464,9 +1510,7 @@ class TestStreamAsyncRequestMetrics:
             iorails = IORails(RailsConfig.from_content(config=cfg))
         async with iorails:
             _stub_deep_streaming_pipeline(iorails)
-            iorails.rails_manager.is_output_safe = AsyncMock(
-                return_value=RailResult(is_safe=False, reason="unsafe response")
-            )
+            iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe response"))
 
             chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
             # Block still works — customer-visible behavior unchanged.
@@ -1521,7 +1565,7 @@ class TestIndependentTracingAndMetrics:
                 iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
             async with iorails:
                 _stub_safe_pipeline(iorails)
-                await iorails.generate_async([{"role": "user", "content": "hi"}])
+                await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.requests"][0].value == 1
@@ -1538,7 +1582,7 @@ class TestIndependentTracingAndMetrics:
                 iorails = IORails(RailsConfig.from_content(config=_make_tracing_only_config()))
             async with iorails:
                 _stub_safe_pipeline(iorails)
-                await iorails.generate_async([{"role": "user", "content": "hi"}])
+                await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
         assert any(s.name == "guardrails.request" for s in spans)
@@ -1579,7 +1623,7 @@ class TestNonstreamStateGauges:
         async with iorails:
             iorails._do_generate = _gated_generate(gate)
 
-            task = asyncio.create_task(iorails.generate_async([{"role": "user", "content": "hi"}]))
+            task = asyncio.create_task(iorails.generate_async(messages=[{"role": "user", "content": "hi"}]))
             # Wait for the worker to pick up the item and enter
             # the gated generate (busy_count=1, pending=0).
             await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=0)
@@ -1614,7 +1658,7 @@ class TestNonstreamStateGauges:
                 iorails._do_generate = _gated_generate(gate)
 
                 tasks = [
-                    asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
+                    asyncio.create_task(iorails.generate_async(messages=[{"role": "user", "content": f"m{i}"}]))
                     for i in range(3)
                 ]
                 # Wait for one worker to pick up an item and the other two
@@ -1726,7 +1770,7 @@ class TestRequestsActiveAggregate:
             async with iorails:
                 iorails._do_generate = _gated_generate(gate)
                 tasks = [
-                    asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
+                    asyncio.create_task(iorails.generate_async(messages=[{"role": "user", "content": f"m{i}"}]))
                     for i in range(2)
                 ]
                 await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=1)
@@ -1747,7 +1791,7 @@ class TestRequestsActiveAggregate:
         iterator drains, it nets to 0.
         """
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         iterator = iorails.stream_async([{"role": "user", "content": "hi"}]).__aiter__()
@@ -1789,12 +1833,12 @@ class TestRequestsActiveAggregate:
                 iorails = IORails(RailsConfig.from_content(config=invariant_config))
             async with iorails:
                 iorails._do_generate = _gated_generate(nonstream_gate)
-                iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+                iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
                 iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
                 # Launch one executing + one queued non-streaming request.
                 nonstream_tasks = [
-                    asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"n{i}"}]))
+                    asyncio.create_task(iorails.generate_async(messages=[{"role": "user", "content": f"n{i}"}]))
                     for i in range(2)
                 ]
                 await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=1)
@@ -1836,7 +1880,6 @@ def _stub_deep_pipeline_with_usage(iorails):
     tests asserting "metric fired for this model" can also check the
     recorded sum is the expected value (catching a label-shuffle bug).
     """
-    from nemoguardrails.guardrails.api_engine import APIEngine
     from nemoguardrails.guardrails.model_engine import ModelEngine
 
     # (model_name → (input_tokens, output_tokens, response_content))
@@ -1859,8 +1902,6 @@ def _stub_deep_pipeline_with_usage(iorails):
                     ),
                 )
             )
-        elif isinstance(engine, APIEngine):
-            engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
 
 
 class TestGenerateAsyncLLMMetrics:
@@ -1885,7 +1926,7 @@ class TestGenerateAsyncLLMMetrics:
         """
         _stub_deep_pipeline_with_usage(iorails_tracing)
 
-        result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
         assert result == {"role": "assistant", "content": "Hello"}
 
         points = collect_metric_points(metric_reader)
@@ -1929,8 +1970,490 @@ class TestGenerateAsyncLLMMetrics:
         """
         _stub_deep_pipeline_with_usage(iorails_no_tracing)
 
-        await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+        await iorails_no_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         points = collect_metric_points(metric_reader)
         assert "gen_ai.client.token.usage" not in points
         assert "gen_ai.client.operation.duration" not in points
+
+
+@pytest.fixture(autouse=True)
+def _clear_otel_content_envvars(monkeypatch):
+    """Strip OTEL content-capture env vars from each test's environment.
+
+    Without this, an inherited ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT``
+    or ``OTEL_SEMCONV_STABILITY_OPT_IN`` from CI / dev shell would flip
+    capture on or change format mid-suite and produce flaky assertions.
+    """
+    monkeypatch.delenv(OtelContentCapture.CAPTURE_CONTENT_ENV, raising=False)
+    monkeypatch.delenv(OtelContentCapture.STABILITY_OPT_IN_ENV, raising=False)
+
+
+def _make_content_capture_config():
+    """``_make_tracing_config()`` with ``enable_content_capture=True`` added."""
+    cfg = _make_tracing_config()
+    cfg["tracing"]["enable_content_capture"] = True
+    return cfg
+
+
+def _make_content_capture_streaming_config():
+    """Input-only streaming config with tracing + content capture enabled."""
+    cfg = copy.deepcopy(_INPUT_ONLY_STREAMING_TRACING_CONFIG)
+    cfg["tracing"]["enable_content_capture"] = True
+    return cfg
+
+
+@pytest_asyncio.fixture
+async def iorails_content_capture(tracer_from_provider):
+    """IORails with tracing + content capture enabled."""
+    with patch.object(telemetry, "_tracer", tracer_from_provider):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            config = RailsConfig.from_content(config=_make_content_capture_config())
+            iorails = IORails(config)
+        async with iorails:
+            yield iorails
+
+
+@pytest_asyncio.fixture
+async def iorails_streaming_content_capture(tracer_from_provider):
+    """Input-only streaming + tracing + content capture enabled."""
+    with patch.object(telemetry, "_tracer", tracer_from_provider):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            config = RailsConfig.from_content(config=_make_content_capture_streaming_config())
+            iorails = IORails(config)
+        async with iorails:
+            yield iorails
+
+
+def _request_span(spans):
+    """Return the single guardrails.request SERVER span from a list of spans."""
+    request_spans = [s for s in spans if s.name == "guardrails.request"]
+    assert len(request_spans) == 1
+    return request_spans[0]
+
+
+def _main_llm_span(spans):
+    """Return the CLIENT span for the main LLM call (model name "meta/llama-3.3-70b-instruct")."""
+    candidates = [
+        s
+        for s in spans
+        if s.kind == SpanKind.CLIENT and s.attributes.get("gen_ai.request.model") == "meta/llama-3.3-70b-instruct"
+    ]
+    assert len(candidates) == 1
+    return candidates[0]
+
+
+class TestCheckContentCapture:
+    """check_async records request input/output on the request span when capture is on."""
+
+    @pytest.mark.asyncio
+    async def test_check_captures_request_content(self, iorails_content_capture, exporter):
+        """check_async records the request input/output on the request span when content capture is on."""
+        iorails_content_capture.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+
+        await iorails_content_capture.check_async([{"role": "user", "content": "hello"}])
+
+        span = _request_span(exporter.get_finished_spans())
+        assert json.loads(span.attributes[GuardrailsAttributes.REQUEST_INPUT]) == [{"role": "user", "content": "hello"}]
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == "hello"
+
+
+class TestContentCaptureDisabled:
+    """Default config (tracing on, capture off): spans carry no content attrs/events."""
+
+    @pytest.mark.asyncio
+    async def test_no_content_on_any_span(self, iorails_tracing, exporter):
+        """Capture off → request, LLM, and rail spans carry no captured content."""
+        _stub_deep_pipeline(iorails_tracing)
+
+        await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
+
+        spans = exporter.get_finished_spans()
+
+        request_span = _request_span(spans)
+        assert GuardrailsAttributes.REQUEST_INPUT not in request_span.attributes
+        assert GuardrailsAttributes.REQUEST_OUTPUT not in request_span.attributes
+        assert all(not e.name.startswith("gen_ai.") for e in request_span.events)
+
+        llm_span = _main_llm_span(spans)
+        assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in llm_span.attributes
+        assert GenAIAttributes.GEN_AI_OUTPUT_MESSAGES not in llm_span.attributes
+        assert all(not e.name.startswith("gen_ai.") for e in llm_span.events)
+
+        for rail_span in (s for s in spans if s.name == "guardrails.rail"):
+            assert GuardrailsAttributes.RAIL_INPUT not in rail_span.attributes
+            assert GuardrailsAttributes.RAIL_REASON not in rail_span.attributes
+
+
+class TestContentCaptureLegacyFormat:
+    """Capture on + opt-in env unset: guardrails.request.* attrs on request span; gen_ai.* events on LLM span."""
+
+    @pytest.mark.asyncio
+    async def test_request_span_carries_guardrails_attrs(self, iorails_content_capture, exporter):
+        """Request span carries guardrails.request.input/output attrs, not gen_ai.* events."""
+        _stub_deep_pipeline(iorails_content_capture, main_llm_response="Hi back")
+
+        await iorails_content_capture.generate_async(messages=[{"role": "user", "content": "hello"}])
+
+        span = _request_span(exporter.get_finished_spans())
+        assert json.loads(span.attributes[GuardrailsAttributes.REQUEST_INPUT]) == [{"role": "user", "content": "hello"}]
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == "Hi back"
+        # The request span does not carry gen_ai.* content attrs or events
+        assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in span.attributes
+        assert all(not e.name.startswith("gen_ai.") for e in span.events)
+
+    @pytest.mark.asyncio
+    async def test_legacy_events_on_main_llm_span(self, iorails_content_capture, exporter):
+        """The main LLM span carries the legacy gen_ai.* message/choice events.
+
+        Verifies the engine→set_llm_call_content wiring; the exact event
+        attributes are pinned by the unit tests for _set_llm_call_content_events.
+        """
+        _stub_deep_pipeline(iorails_content_capture)
+
+        await iorails_content_capture.generate_async(messages=[{"role": "user", "content": "hello"}])
+
+        span = _main_llm_span(exporter.get_finished_spans())
+        event_names = [e.name for e in span.events]
+        assert "gen_ai.user.message" in event_names
+        assert "gen_ai.choice" in event_names
+
+    @pytest.mark.asyncio
+    async def test_refusal_message_captured_on_blocked_input(self, iorails_content_capture, exporter):
+        """A blocked input records REFUSAL_MESSAGE as guardrails.request.output."""
+        _stub_deep_pipeline(iorails_content_capture, input_safe=False)
+
+        result = await iorails_content_capture.generate_async(messages=[{"role": "user", "content": "bad"}])
+        assert result["content"] == REFUSAL_MESSAGE
+
+        span = _request_span(exporter.get_finished_spans())
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == REFUSAL_MESSAGE
+
+    @pytest.mark.asyncio
+    async def test_refusal_message_captured_on_blocked_output(self, iorails_content_capture, exporter):
+        """A blocked OUTPUT records REFUSAL_MESSAGE as guardrails.request.output.
+
+        The LLM CLIENT span still records the raw model response while the
+        request SERVER span records what the caller actually received (REFUSAL) —
+        this is the semantic distinction that motivated the separate attr names.
+        """
+        iorails = iorails_content_capture
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="bad response"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe response"))
+
+        result = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+        assert result["content"] == REFUSAL_MESSAGE
+
+        span = _request_span(exporter.get_finished_spans())
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == REFUSAL_MESSAGE
+
+    @pytest.mark.asyncio
+    async def test_llm_and_request_spans_diverge_on_output_block(self, iorails_content_capture, exporter):
+        """On an output block, the LLM CLIENT span and request SERVER span hold different outputs.
+
+        This is the core scenario that motivated separate guardrails.request.*
+        attributes: the LLM span records the RAW model response (what the model
+        produced) while the request span records REFUSAL_MESSAGE (what the caller
+        actually received).  The main LLM call runs for real at the engine level
+        so its CLIENT span is created and captures content; only the output rail
+        is forced to block.
+        """
+        iorails = iorails_content_capture
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        # Mock at the engine level (not engine_registry.model_call) so the real
+        # model_call wrapper runs, creating the LLM CLIENT span + capturing content.
+        iorails.engine_registry._engines["main"].chat_completion = AsyncMock(
+            return_value=LLMResponse(content="raw model answer")
+        )
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe response"))
+
+        result = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+        assert result["content"] == REFUSAL_MESSAGE
+
+        spans = exporter.get_finished_spans()
+        # LLM CLIENT span: the raw model output (legacy gen_ai.choice event)
+        llm_span = _main_llm_span(spans)
+        choice = next(e for e in llm_span.events if e.name == "gen_ai.choice")
+        assert dict(choice.attributes)["message.content"] == "raw model answer"
+        # Request SERVER span: the refusal the caller actually received — divergent
+        req_span = _request_span(spans)
+        assert req_span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == REFUSAL_MESSAGE
+
+
+class TestContentCaptureJsonFormat:
+    """Capture on + OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental: JSON attrs."""
+
+    @pytest.fixture(autouse=True)
+    def _set_stability_opt_in(self, monkeypatch):
+        monkeypatch.setenv(
+            OtelContentCapture.STABILITY_OPT_IN_ENV,
+            OtelContentCapture.STABILITY_OPT_IN_LATEST,
+        )
+
+    @pytest.mark.asyncio
+    async def test_request_span_carries_guardrails_attrs(self, iorails_content_capture, exporter):
+        """Opt-in set → request span carries guardrails.request.* attrs (plain strings)."""
+        _stub_deep_pipeline(iorails_content_capture, main_llm_response="The answer")
+
+        await iorails_content_capture.generate_async(messages=[{"role": "user", "content": "hello"}])
+
+        span = _request_span(exporter.get_finished_spans())
+        assert json.loads(span.attributes[GuardrailsAttributes.REQUEST_INPUT]) == [{"role": "user", "content": "hello"}]
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == "The answer"
+        # The request span does not carry gen_ai.* content attrs or events
+        assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in span.attributes
+        assert all(not e.name.startswith("gen_ai.") for e in span.events)
+
+    @pytest.mark.asyncio
+    async def test_system_instructions_on_llm_span(self, iorails_content_capture, exporter):
+        """System messages split to gen_ai.system_instructions on the LLM span."""
+        _stub_deep_pipeline(iorails_content_capture)
+
+        messages = [
+            {"role": "system", "content": "be helpful"},
+            {"role": "user", "content": "hi"},
+        ]
+        await iorails_content_capture.generate_async(messages=messages)
+
+        llm_span = _main_llm_span(exporter.get_finished_spans())
+        sysinst = json.loads(llm_span.attributes[GenAIAttributes.GEN_AI_SYSTEM_INSTRUCTIONS])
+        inputs = json.loads(llm_span.attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES])
+
+        assert sysinst == [{"type": "text", "content": "be helpful"}]
+        assert [m["role"] for m in inputs] == ["user"]
+
+        # Request span records the full raw input list (no split)
+        req_span = _request_span(exporter.get_finished_spans())
+        assert json.loads(req_span.attributes[GuardrailsAttributes.REQUEST_INPUT]) == messages
+
+    @pytest.mark.asyncio
+    async def test_json_attrs_on_main_llm_span(self, iorails_content_capture, exporter):
+        """Opt-in set → the main LLM span carries JSON input/output message attrs."""
+        _stub_deep_pipeline(iorails_content_capture)
+
+        await iorails_content_capture.generate_async(messages=[{"role": "user", "content": "hello"}])
+
+        span = _main_llm_span(exporter.get_finished_spans())
+        assert GenAIAttributes.GEN_AI_INPUT_MESSAGES in span.attributes
+        assert GenAIAttributes.GEN_AI_OUTPUT_MESSAGES in span.attributes
+
+
+class TestContentCaptureEnvVarFallback:
+    """OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT enables capture when config is unset."""
+
+    @pytest.mark.asyncio
+    async def test_env_var_enables_capture_when_config_unset(self, monkeypatch, tracer_from_provider, exporter):
+        """Config without enable_content_capture + env=true → capture is active."""
+        monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, "true")
+
+        with patch.object(telemetry, "_tracer", tracer_from_provider):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                # _make_tracing_config has tracing on but enable_content_capture unset
+                config = RailsConfig.from_content(config=_make_tracing_config())
+                iorails = IORails(config)
+            async with iorails:
+                _stub_deep_pipeline(iorails)
+                await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+
+        span = _request_span(exporter.get_finished_spans())
+        # Request span carries guardrails.request.* attrs
+        assert GuardrailsAttributes.REQUEST_INPUT in span.attributes
+        assert GuardrailsAttributes.REQUEST_OUTPUT in span.attributes
+
+    @pytest.mark.asyncio
+    async def test_env_var_false_disables_capture_when_config_true(self, monkeypatch, tracer_from_provider, exporter):
+        """config enable_content_capture=True + env=false → capture inactive.
+
+        End-to-end counterpart to the unit-level
+        test_env_var_falsy_disables_capture_even_when_config_true: confirms
+        the env-var-wins semantic holds through the full IORails pipeline,
+        not just the is_content_capture_enabled helper in isolation."""
+        monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, "false")
+
+        with patch.object(telemetry, "_tracer", tracer_from_provider):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                # _make_content_capture_config sets enable_content_capture=True
+                config = RailsConfig.from_content(config=_make_content_capture_config())
+                iorails = IORails(config)
+            async with iorails:
+                _stub_deep_pipeline(iorails)
+                await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+
+        span = _request_span(exporter.get_finished_spans())
+        # No content attrs despite config=True — env=false wins
+        assert GuardrailsAttributes.REQUEST_INPUT not in span.attributes
+        assert GuardrailsAttributes.REQUEST_OUTPUT not in span.attributes
+        assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in span.attributes
+
+
+class TestRailContentCapture:
+    """guardrails.rail.input on every rail span; guardrails.rail.reason on blocked rails only."""
+
+    @pytest.mark.asyncio
+    async def test_rail_input_recorded_on_passing_rail(self, iorails_content_capture, exporter):
+        """Every rail span records its rail.input; passing rails carry no rail.reason."""
+        _stub_deep_pipeline(iorails_content_capture)
+
+        await iorails_content_capture.generate_async(messages=[{"role": "user", "content": "hi"}])
+
+        rail_spans = [s for s in exporter.get_finished_spans() if s.name == "guardrails.rail"]
+        assert len(rail_spans) >= 1
+        for span in rail_spans:
+            rail_input = json.loads(span.attributes[GuardrailsAttributes.RAIL_INPUT])
+            assert "messages" in rail_input
+            assert rail_input["messages"] == [{"role": "user", "content": "hi"}]
+            # Passing rails carry no block reason
+            assert GuardrailsAttributes.RAIL_REASON not in span.attributes
+
+    @pytest.mark.asyncio
+    async def test_rail_reason_set_on_blocked_rail_only(self, iorails_content_capture, exporter):
+        """When an input rail blocks, its span gets a reason; later rails never run."""
+        _stub_deep_pipeline(iorails_content_capture, input_safe=False)
+
+        await iorails_content_capture.generate_async(messages=[{"role": "user", "content": "bad"}])
+
+        rail_spans = [s for s in exporter.get_finished_spans() if s.name == "guardrails.rail"]
+        blocked = [s for s in rail_spans if GuardrailsAttributes.RAIL_REASON in s.attributes]
+        # Exactly one rail blocked (sequential mode short-circuits)
+        assert len(blocked) == 1
+        # The blocking rail's reason is a non-empty string
+        assert blocked[0].attributes[GuardrailsAttributes.RAIL_REASON]
+
+
+class TestStreamingContentCapture:
+    """Streamed delta_content accumulates and lands on the request + LLM spans."""
+
+    @pytest.mark.asyncio
+    async def test_output_text_recorded_on_request_span(self, iorails_streaming_content_capture, exporter):
+        """Streamed chunks accumulate and the joined text lands on the request span."""
+        iorails = iorails_streaming_content_capture
+        _stub_deep_streaming_pipeline(iorails)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        delivered = "".join(c for c in chunks if isinstance(c, str))
+        assert delivered  # sanity: stream produced something
+
+        span = _request_span(exporter.get_finished_spans())
+        # Request span: guardrails.request.* attrs carry the delivered text
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == delivered
+
+    @pytest.mark.asyncio
+    async def test_output_text_recorded_on_streaming_llm_span(self, iorails_streaming_content_capture, exporter):
+        """Streamed chunks accumulate and the joined text lands on the LLM span too."""
+        iorails = iorails_streaming_content_capture
+        _stub_deep_streaming_pipeline(iorails)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        delivered = "".join(c for c in chunks if isinstance(c, str))
+
+        span = _main_llm_span(exporter.get_finished_spans())
+        choice = next(e for e in span.events if e.name == "gen_ai.choice")
+        assert dict(choice.attributes)["message.content"] == delivered
+
+    @pytest.mark.asyncio
+    async def test_blocked_input_records_violation_as_output(self, iorails_streaming_content_capture, exporter):
+        """Input-rail block: the guardrails_violation chunk is pushed through the streaming
+        handler, so the consumer receives it and content capture records it as the assistant
+        output on the request span (not empty)."""
+        iorails = iorails_streaming_content_capture
+        _stub_deep_streaming_pipeline(iorails, input_safe=False)
+
+        [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
+
+        span = _request_span(exporter.get_finished_spans())
+        recorded = span.attributes[GuardrailsAttributes.REQUEST_OUTPUT]
+        assert json.loads(recorded)["error"]["param"] == "input_rails"
+
+    @pytest.mark.asyncio
+    async def test_empty_delivered_records_no_output_attr(self, iorails_streaming_content_capture, exporter):
+        """When the LLM yields zero content chunks, guardrails.request.output is absent.
+
+        Guards against an empty-string output being recorded when the stream
+        produced nothing — None output_text means no attribute is set."""
+        iorails = iorails_streaming_content_capture
+
+        async def _empty_stream(messages, **kwargs):
+            if False:
+                yield  # pragma: no cover
+
+        _stub_deep_streaming_pipeline(iorails, main_stream=_empty_stream)
+
+        [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+
+        spans = exporter.get_finished_spans()
+        request_span = _request_span(spans)
+        # Input is captured; output is absent (empty delivered)
+        assert GuardrailsAttributes.REQUEST_INPUT in request_span.attributes
+        assert GuardrailsAttributes.REQUEST_OUTPUT not in request_span.attributes
+
+        # LLM span also has no output — empty content_parts → None
+        llm_span = _main_llm_span(spans)
+        assert all(e.name != "gen_ai.choice" for e in llm_span.events)
+
+    @pytest.mark.asyncio
+    async def test_dict_chunks_with_include_metadata_get_captured(self, iorails_streaming_content_capture, exporter):
+        """include_metadata=True streams dict chunks; capture extracts non-empty text fields.
+
+        Covers the isinstance(chunk, dict) branch in _wrapped_iterator's
+        accumulator.  Also verifies that dict chunks with an empty-string
+        ``text`` field (metadata-only frames) are excluded from the captured
+        output — they must not contribute empty strings to the join and must
+        not cause a spurious empty assistant output where None is correct.
+        """
+        iorails = iorails_streaming_content_capture
+
+        async def _stream_with_empty_frame(messages, **kwargs):
+            """Inject an empty-text metadata frame between real content chunks."""
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(delta_content="")  # empty delta — metadata frame
+            yield LLMResponseChunk(delta_content=" world")
+
+        _stub_deep_streaming_pipeline(iorails, main_stream=_stream_with_empty_frame)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}], include_metadata=True)]
+        assert all(isinstance(c, dict) for c in chunks)
+        # Expected: only the non-empty text parts joined; empty delta excluded
+        expected = "Hello world"
+
+        span = _request_span(exporter.get_finished_spans())
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == expected
+
+
+class TestStreamingContentCaptureJsonFormat:
+    """Streaming + capture on + OTEL_SEMCONV_STABILITY_OPT_IN: JSON attrs on both spans."""
+
+    @pytest.fixture(autouse=True)
+    def _set_stability_opt_in(self, monkeypatch):
+        monkeypatch.setenv(
+            OtelContentCapture.STABILITY_OPT_IN_ENV,
+            OtelContentCapture.STABILITY_OPT_IN_LATEST,
+        )
+
+    @pytest.mark.asyncio
+    async def test_json_attrs_on_request_span(self, iorails_streaming_content_capture, exporter):
+        """Streaming + opt-in → request span carries JSON input/output attrs, no events."""
+        iorails = iorails_streaming_content_capture
+        _stub_deep_streaming_pipeline(iorails)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        delivered = "".join(c for c in chunks if isinstance(c, str))
+
+        span = _request_span(exporter.get_finished_spans())
+        # Request span: guardrails.request.* plain-string attrs regardless of opt-in format
+        assert json.loads(span.attributes[GuardrailsAttributes.REQUEST_INPUT]) == [{"role": "user", "content": "hi"}]
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == delivered
+        assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in span.attributes
+
+    @pytest.mark.asyncio
+    async def test_json_attrs_on_streaming_llm_span(self, iorails_streaming_content_capture, exporter):
+        """Streaming + opt-in → the LLM span's JSON output.messages holds the joined stream."""
+        iorails = iorails_streaming_content_capture
+        _stub_deep_streaming_pipeline(iorails)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        delivered = "".join(c for c in chunks if isinstance(c, str))
+
+        span = _main_llm_span(exporter.get_finished_spans())
+        outputs = json.loads(span.attributes[GenAIAttributes.GEN_AI_OUTPUT_MESSAGES])
+        assert outputs[0]["parts"][0]["content"] == delivered

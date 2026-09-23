@@ -39,9 +39,13 @@ from nemoguardrails.types import LLMModel
 
 @pytest.fixture(autouse=True)
 def clean_registry():
+    from nemoguardrails.llm.frameworks import registry
+
     _reset_frameworks()
+    saved_default_framework = registry._default_framework
     yield
     _reset_frameworks()
+    registry._default_framework = saved_default_framework
 
 
 class FakeFramework:

@@ -1,0 +1,9 @@
+models: []
+
+rails:
+  config:
+    f5:
+      api_url: https://us1.calypsoai.app
+  input:
+    flows:
+      - f5 guardrails scan input

@@ -6,14 +6,16 @@ define flow injection detection
   $response = execute injection_detection(text=$bot_message)
   $join_separator = ", "
   $injection_detection_action = $config.rails.config.injection_detection.action
-  if $response["is_injection"]
+  if $response.is_blocked
     if $config.enable_rails_exceptions
       create event InjectionDetectionRailException(message="Output not allowed. The output was blocked by the 'injection detection' flow.")
       stop
     else if $config.rails.config.injection_detection.action == "reject"
-      bot say "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {{ response.detections | join(join_separator) }}."
+      bot say "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {{ response.metadata.detections | join(join_separator) }}."
       stop
-    else if $injection_detection_action == "omit" or $injection_detection_action == "sanitize"
-      $bot_message = $response["text"]
-  else
-    $bot_message = $response["text"]
+  else if $response.is_transform
+    if $config.enable_rails_exceptions and $response.metadata["is_injection"]
+      create event InjectionDetectionRailException(message="Output not allowed. The output was blocked by the 'injection detection' flow.")
+      stop
+    else
+      $bot_message = $response.transform_text["bot_message"]

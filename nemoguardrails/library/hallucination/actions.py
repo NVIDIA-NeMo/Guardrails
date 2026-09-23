@@ -19,12 +19,10 @@ from typing import Optional
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.actions.llm.utils import (
-    get_multiline_response,
-    llm_call,
-    strip_quotes,
-)
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.llm.call import llm_call
+from nemoguardrails.llm.completion_parsing import get_multiline_response, strip_quotes
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -35,21 +33,30 @@ log = logging.getLogger(__name__)
 HALLUCINATION_NUM_EXTRA_RESPONSES = 2
 
 
-@action(output_mapping=lambda value: value)
+def _hallucination_outcome(is_hallucination: bool) -> RailOutcome:
+    if is_hallucination:
+        return RailOutcome.block(metadata={"is_hallucination": True})
+    return RailOutcome.allow(metadata={"is_hallucination": False})
+
+
+@action()
 async def self_check_hallucination(
     llm: LLMModel,
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     use_llm_checking: bool = True,
     config: Optional[RailsConfig] = None,
+    bot_message: Optional[str] = None,
+    last_bot_prompt: Optional[str] = None,
     **kwargs,
-):
+) -> RailOutcome:
     """Checks if the last bot response is a hallucination by checking multiple completions for self-consistency.
 
-    :return: True if hallucination is detected, False otherwise.
+    :return: A blocking outcome if hallucination is detected, otherwise an allowing outcome.
     """
-    bot_response = context.get("bot_message")
-    last_bot_prompt_string = context.get("_last_bot_prompt")
+    context = context or {}
+    bot_response = bot_message if bot_message is not None else context.get("bot_message")
+    last_bot_prompt_string = last_bot_prompt if last_bot_prompt is not None else context.get("_last_bot_prompt")
 
     if bot_response and last_bot_prompt_string:
         num_responses = HALLUCINATION_NUM_EXTRA_RESPONSES
@@ -77,7 +84,7 @@ async def self_check_hallucination(
         if len(extra_responses) == 0:
             # Log message and return that no hallucination was found
             log.warning(f"No extra LLM responses were generated for '{bot_response}' hallucination check.")
-            return False
+            return _hallucination_outcome(False)
         elif len(extra_responses) < num_responses:
             log.warning(
                 f"Requested {num_responses} extra LLM responses for hallucination check, "
@@ -111,10 +118,10 @@ async def self_check_hallucination(
             log.info(f"Agreement result for looking for hallucination is {agreement}.")
 
             # Return True if the hallucination check fails
-            return "no" in agreement
+            return _hallucination_outcome("no" in agreement)
         else:
             # TODO Implement BERT-Score based consistency method proposed by SelfCheckGPT paper
             # See details: https://arxiv.org/abs/2303.08896
-            return False
+            return _hallucination_outcome(False)
 
-    return False
+    return _hallucination_outcome(False)

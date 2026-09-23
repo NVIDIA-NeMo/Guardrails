@@ -10,8 +10,8 @@ define subflow self check facts
   if $check_facts == True
     $check_facts = False
 
-    $accuracy = execute self_check_facts
-    if $accuracy < 0.5
+    $response = execute self_check_facts
+    if $response.is_blocked
       if $config.enable_rails_exceptions
         create event FactCheckRailException(message="Fact check failed. The accuracy of the previous answer was below the required threshold.")
       else

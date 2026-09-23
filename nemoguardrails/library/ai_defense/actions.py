@@ -17,12 +17,18 @@
 
 import logging
 import os
-from typing import Any, Dict, Optional
-
-import httpx
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import (
+    HTTPClient,
+    HTTPClientError,
+    HTTPResponseDecodeError,
+    http_call,
+)
 
 log = logging.getLogger(__name__)
 
@@ -30,29 +36,50 @@ log = logging.getLogger(__name__)
 DEFAULT_TIMEOUT = 30.0
 
 
-def is_ai_defense_text_blocked(result: Dict[str, Any]) -> bool:
-    """
-    Mapping for inspect API response.
-    Expects result to be a dict with:
-      - "is_blocked": a boolean indicating if the prompt or response sent to AI Defense should be blocked.
-
-    Returns:
-        bool: True if the text should be blocked, False otherwise.
-    """
-    # The fail_open behavior is handled in the main function but default to fail closed here if
-    # result is None or the is_blocked key is missing somehow
-    if result is None:
-        return True  # Fail closed: block content if result is None
-    return result.get("is_blocked", True)
+def _ai_defense_outcome(is_blocked: bool) -> RailOutcome:
+    if is_blocked:
+        return RailOutcome.block(metadata={"is_blocked": is_blocked})
+    return RailOutcome.allow(metadata={"is_blocked": is_blocked})
 
 
-@action(is_system_action=True, output_mapping=is_ai_defense_text_blocked)
+def _ai_defense_failure_outcome(fail_open: bool, failure: str) -> RailOutcome:
+    if fail_open:
+        log.warning("%s, but fail_open=True, allowing content.", failure)
+        return _ai_defense_outcome(False)
+    log.warning("%s, fail_open=False, blocking content.", failure)
+    return _ai_defense_outcome(True)
+
+
+@action(is_system_action=True)
 async def ai_defense_inspect(
     config: RailsConfig,
     user_prompt: Optional[str] = None,
     bot_response: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
-):
+) -> RailOutcome:
+    """Inspect a user prompt or bot response with Cisco AI Defense.
+
+    A safe response is allowed and an unsafe response is blocked. Transport
+    failures and malformed responses follow the configured ``fail_open``
+    policy, which defaults to fail closed.
+
+    Args:
+        config: Rails configuration containing the AI Defense settings.
+        user_prompt: User content to inspect.
+        bot_response: Bot content to inspect. Takes precedence over
+            ``user_prompt`` when both are provided.
+        http_client: Optional caller-owned HTTP client.
+        **kwargs: Additional action parameters. The ``user`` value, when
+            present, is forwarded as request metadata.
+
+    Returns:
+        The allow or block outcome from AI Defense or the failure policy.
+
+    Raises:
+        ValueError: If the required environment variables or content are
+            missing.
+    """
     # Get configuration with defaults
     ai_defense_config = getattr(config.rails.config, "ai_defense", None)
     timeout = ai_defense_config.timeout if ai_defense_config else DEFAULT_TIMEOUT
@@ -94,59 +121,54 @@ async def ai_defense_inspect(
     if user is not None:
         metadata = {"user": user}
 
-    payload: Dict[str, Any] = {"messages": messages}
+    payload: dict[str, Any] = {"messages": messages}
     if metadata:
         payload["metadata"] = metadata
 
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(api_endpoint, headers=headers, json=payload, timeout=timeout)
-            resp.raise_for_status()
-            data = resp.json()
-        except (httpx.HTTPStatusError, httpx.TimeoutException, httpx.RequestError) as e:
-            msg = f"Error calling AI Defense API: {e}"
-            log.error(msg)
-            if fail_open:
-                # Fail open: allow content when API call fails
-                log.warning("AI Defense API call failed, but fail_open=True, allowing content.")
-                result: Dict[str, Any] = {
-                    "is_blocked": False,
-                }
-                return result
-            else:
-                # Fail closed: block content when API call fails
-                log.warning("AI Defense API call failed, fail_open=False, blocking content.")
-                result: Dict[str, Any] = {
-                    "is_blocked": True,
-                }
-                return result
+    try:
+        response = await http_call(
+            http_client,
+            "POST",
+            api_endpoint,
+            headers=headers,
+            json=payload,
+            timeout=timeout,
+        )
+        data = response.json()
+    except HTTPResponseDecodeError as e:
+        log.error("AI Defense API returned malformed JSON: %s", e)
+        return _ai_defense_failure_outcome(fail_open, "AI Defense API returned malformed JSON")
+    except HTTPClientError as e:
+        log.error("Error calling AI Defense API: %s", e)
+        return _ai_defense_failure_outcome(fail_open, "AI Defense API call failed")
 
-        # Compose a consistent return structure for flows
-        # Handle malformed responses based on fail_open setting
-        if "is_safe" not in data:
-            # Malformed response - respect fail_open setting
-            if fail_open:
-                log.warning(
-                    "AI Defense API returned malformed response (missing 'is_safe'), but fail_open=True, allowing content."
-                )
-                is_blocked = False
-            else:
-                log.warning(
-                    "AI Defense API returned malformed response (missing 'is_safe'), fail_open=False, blocking content."
-                )
-                is_blocked = True
+    if not isinstance(data, Mapping):
+        return _ai_defense_failure_outcome(
+            fail_open,
+            "AI Defense API returned malformed response (expected an object)",
+        )
+
+    # Compose a consistent return structure for flows
+    # Handle malformed responses based on fail_open setting
+    if "is_safe" not in data:
+        # Malformed response - respect fail_open setting
+        if fail_open:
+            log.warning(
+                "AI Defense API returned malformed response (missing 'is_safe'), but fail_open=True, allowing content."
+            )
+            is_blocked = False
         else:
-            is_blocked = not bool(data.get("is_safe", False))
+            log.warning(
+                "AI Defense API returned malformed response (missing 'is_safe'), fail_open=False, blocking content."
+            )
+            is_blocked = True
+    else:
+        is_blocked = not bool(data.get("is_safe", False))
 
-        rules = data.get("rules") or []
-        if is_blocked and rules:
-            entries = [f"{r.get('rule_name')} ({r.get('classification')})" for r in rules if isinstance(r, dict)]
-            if entries:
-                log.debug("AI Defense matched rules: %s", ", ".join(entries))
+    rules = data.get("rules") or []
+    if is_blocked and rules:
+        entries = [f"{r.get('rule_name')} ({r.get('classification')})" for r in rules if isinstance(r, dict)]
+        if entries:
+            log.debug("AI Defense matched rules: %s", ", ".join(entries))
 
-        # Return structure for flows
-        result: Dict[str, Any] = {
-            "is_blocked": is_blocked,
-        }
-
-        return result
+    return _ai_defense_outcome(is_blocked)

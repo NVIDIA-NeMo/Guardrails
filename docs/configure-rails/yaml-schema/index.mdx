@@ -1,0 +1,125 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Configuring YAML File"
+sidebar-title: "Configuring YAML File"
+description: "Define models, guardrails, prompts, and tracing settings in the config.yml file."
+content:
+  type: "reference"
+---
+
+This section describes the `config.yml` file schema used to configure the NeMo Guardrails library.
+The `config.yml` file is the primary configuration file for defining LLM models, guardrails behavior, prompts, knowledge base settings, and tracing options.
+
+## Overview
+
+The following is a complete schema for a `config.yml` file:
+
+```yaml
+# LLM model configuration
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o
+
+# Instructions for the LLM (similar to system prompts)
+instructions:
+  - type: general
+    content: |
+      You are a helpful AI assistant.
+
+# Guardrails configuration
+rails:
+  input:
+    flows:
+      - self check input
+  output:
+    flows:
+      - self check output
+  ... # Other rail configurations
+
+# Prompt customization
+prompts:
+  - task: self_check_input
+    content: |
+      Your task is to check if the user message complies with policy.
+
+# Knowledge base settings
+knowledge_base:
+  embedding_search_provider:
+    name: default
+
+# Tracing and monitoring
+tracing:
+  enabled: true
+  adapters:
+    - name: FileSystem
+      filepath: "./logs/traces.jsonl"
+```
+
+## Configuration YAML Schema Reference
+
+For a complete, consolidated reference of all configuration options, see the [YAML Schema Reference](/configure-guardrails/configuration-reference).
+
+## Configuration Sections
+
+The following sections provide detailed documentation for each configuration section of the overall `config.yml` file:
+
+<Cards>
+
+<Card title="Models" href="/configure-guardrails/yaml-schema/model-configuration">
+
+Configure LLM engines, embedding models, and task-specific models in config.yml.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Guardrails" href="/configure-guardrails/yaml-schema/guardrails-configuration">
+
+Configure input, output, dialog, retrieval, and execution rails in config.yml to control LLM behavior.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Prompts" href="/configure-guardrails/yaml-schema/prompt-configuration">
+
+Customize prompts for self-check, fact-checking, and intent generation tasks.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Tracing" href="/configure-guardrails/yaml-schema/tracing-configuration">
+
+Configure FileSystem and OpenTelemetry tracing adapters to monitor guardrails.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Streaming" href="/configure-guardrails/yaml-schema/streaming">
+
+Configure streaming for LLM token generation and output rail processing in config.yml.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+</Cards>
+
+## File Organization
+
+Configuration files should be organized in a `config` folder with the following structure:
+
+```text
+.
+├── config
+│   ├── config.yml        # Main configuration file
+│   ├── prompts.yml       # Custom prompts (optional)
+│   ├── rails/            # Colang flow definitions (optional)
+│   │   ├── input.co
+│   │   ├── output.co
+│   │   └── ...
+│   ├── kb/               # Knowledge base documents (optional)
+│   │   ├── doc1.md
+│   │   └── ...
+│   ├── actions.py        # Custom actions (optional)
+│   └── config.py         # Custom initialization (optional)
+```

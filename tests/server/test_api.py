@@ -20,10 +20,16 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
+from nemoguardrails import RailsConfig
+from nemoguardrails.exceptions import InvalidModelConfigurationError
+from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
+from nemoguardrails.rails import LLMRails
 from nemoguardrails.server import api
 from nemoguardrails.server.api import _format_streaming_response
 from nemoguardrails.server.schemas.openai import GuardrailsChatCompletionRequest
@@ -34,19 +40,15 @@ client = TestClient(api.app)
 
 
 @pytest.fixture(scope="function", autouse=True)
-def set_rails_config_path():
+def set_rails_config_path(monkeypatch):
+    # Set the engine through monkeypatch rather than os.environ directly to avoid test leaking state
     original_path = api.app.rails_config_path
-    original_engine = os.environ.get("MAIN_MODEL_ENGINE")
     api.app.rails_config_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "test_configs"))
-    os.environ["MAIN_MODEL_ENGINE"] = "custom_llm"
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "custom_llm")
     api.llm_rails_instances.clear()
     yield
     api.app.rails_config_path = original_path
     api.llm_rails_instances.clear()
-    if original_engine is not None:
-        os.environ["MAIN_MODEL_ENGINE"] = original_engine
-    else:
-        os.environ.pop("MAIN_MODEL_ENGINE", None)
 
 
 def test_get():
@@ -166,8 +168,181 @@ def test_model_field_independent_of_config_id():
     assert request_body.guardrails.config_ids == ["test_config"]
 
 
-def test_request_body_state():
-    """Test GuardrailsChatCompletionRequest state handling."""
+@pytest.fixture
+def injected_model_config(monkeypatch):
+    monkeypatch.setenv("CUSTOM_MAIN_API_KEY", "main-key")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "https://request.example/v1")
+    config = RailsConfig.from_content(
+        config={
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "nim",
+                    "model": "configured-model",
+                    "api_key_env_var": "CUSTOM_MAIN_API_KEY",
+                    "parameters": {
+                        "base_url": "https://configured.example/v1",
+                        "default_headers": {"X-Tenant": "acme"},
+                    },
+                }
+            ]
+        }
+    )
+    return api._inject_model(config, "requested-model")
+
+
+def test_inject_model_preserves_main_model_api_key_env_var(injected_model_config):
+    main_model = injected_model_config.models[0]
+    headers = ModelEngine(main_model)._prepare_request([{"role": "user", "content": "hi"}]).headers
+
+    assert main_model.model == "requested-model"
+    assert main_model.engine == "custom_llm"
+    assert main_model.api_key_env_var == "CUSTOM_MAIN_API_KEY"
+    assert main_model.parameters == {
+        "base_url": "https://request.example/v1",
+        "default_headers": {"X-Tenant": "acme"},
+    }
+    assert headers["Authorization"] == "Bearer main-key"
+    assert headers["X-Tenant"] == "acme"
+
+
+def test_inject_model_preserves_main_model_api_key_for_llmrails(injected_model_config):
+    rails = LLMRails(config=injected_model_config.model_copy(deep=True))
+
+    assert isinstance(rails.llm, OpenAIChatModel)
+    headers = rails.llm._client._build_headers()
+    assert rails.llm.model_name == "requested-model"
+    assert rails.llm.provider_name == "custom_llm"
+    assert headers["Authorization"] == "Bearer main-key"
+    assert headers["X-Tenant"] == "acme"
+
+
+def _config_with_main_model(**overrides) -> RailsConfig:
+    main_model = {
+        "type": "main",
+        "engine": "nim",
+        "model": "meta/llama-3.1-70b-instruct",
+    }
+    main_model.update(overrides)
+    return RailsConfig.from_content(config={"models": [main_model]})
+
+
+def test_inject_model_preserves_configured_engine_when_env_unset(monkeypatch):
+    """Test the configured main model engine survives injection when MAIN_MODEL_ENGINE is unset."""
+    monkeypatch.delenv("MAIN_MODEL_ENGINE", raising=False)
+
+    injected = api._inject_model(_config_with_main_model(), "meta/llama-3.3-70b-instruct")
+
+    assert injected.models[0].model == "meta/llama-3.3-70b-instruct"
+    assert injected.models[0].engine == "nim"
+
+
+def test_inject_model_preserves_engine_derived_base_url(monkeypatch):
+    """Test a config without base_url still routes to the configured engine's endpoint after injection."""
+    monkeypatch.delenv("MAIN_MODEL_ENGINE", raising=False)
+    monkeypatch.delenv("MAIN_MODEL_BASE_URL", raising=False)
+
+    injected = api._inject_model(_config_with_main_model(), "meta/llama-3.3-70b-instruct")
+
+    assert ModelEngine(injected.models[0]).base_url == "https://integrate.api.nvidia.com"
+
+
+def test_inject_model_env_engine_overrides_configured_engine(monkeypatch):
+    """Test an explicitly set MAIN_MODEL_ENGINE still takes precedence over the configured engine."""
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "openai")
+
+    injected = api._inject_model(_config_with_main_model(), "gpt-4o")
+
+    assert injected.models[0].engine == "openai"
+
+
+def test_inject_model_preserves_configured_mode_and_cache(monkeypatch):
+    """Test the configured main model mode and cache survive injection."""
+    monkeypatch.delenv("MAIN_MODEL_ENGINE", raising=False)
+    config = _config_with_main_model(mode="text", cache={"enabled": True})
+
+    injected = api._inject_model(config, "meta/llama-3.3-70b-instruct")
+
+    assert injected.models[0].mode == "text"
+    assert injected.models[0].cache is not None
+    assert injected.models[0].cache.enabled is True
+
+
+def test_inject_model_rejects_whitespace_only_name_with_configured_main_model():
+    """Reject an invalid request model even when injection copies a configured main model."""
+    with pytest.raises(InvalidModelConfigurationError, match="Model name must be specified"):
+        api._inject_model(_config_with_main_model(), "   ")
+
+
+def test_inject_model_rejects_whitespace_only_name_without_configured_main_model():
+    """Reject an invalid request model the same way when the config declares no main model."""
+    config = RailsConfig.from_content(config={"models": []})
+
+    with pytest.raises(InvalidModelConfigurationError, match="Model name must be specified"):
+        api._inject_model(config, "   ")
+
+
+def test_inject_model_accepts_a_config_that_names_its_model_in_parameters(monkeypatch):
+    """Test injection still succeeds when the configured main model took its name from parameters."""
+    monkeypatch.delenv("MAIN_MODEL_BASE_URL", raising=False)
+    config = RailsConfig.from_content(
+        config={
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "nim",
+                    "parameters": {"model_name": "configured-model", "base_url": "https://configured.example/v1"},
+                }
+            ]
+        }
+    )
+
+    injected = api._inject_model(config, "requested-model")
+
+    assert injected.models[0].model == "requested-model"
+    assert injected.models[0].parameters == {"base_url": "https://configured.example/v1"}
+
+
+def test_inject_model_without_configured_main_model_defaults_to_openai(monkeypatch):
+    """Test injection falls back to the openai engine when the config declares no main model."""
+    monkeypatch.delenv("MAIN_MODEL_ENGINE", raising=False)
+    config = RailsConfig.from_content(config={"models": []})
+
+    injected = api._inject_model(config, "gpt-4o")
+
+    assert len(injected.models) == 1
+    assert injected.models[0].type == "main"
+    assert injected.models[0].engine == "openai"
+
+
+def test_thread_id_without_datastore_returns_400(monkeypatch):
+    mock_rails = AsyncMock()
+    mock_rails.config = RailsConfig.from_content(config={"models": []})
+    monkeypatch.setattr(api, "datastore", None)
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Hello"}],
+                "guardrails": {
+                    "config_id": "test_config",
+                    "thread_id": "0123456789abcdef",
+                },
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"] == {
+        "message": "Conversation threads are not enabled on this server.",
+        "type": "invalid_request_error",
+        "param": None,
+        "code": None,
+    }
+
+
+def test_request_body_rejects_state():
     data = {
         "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
@@ -176,8 +351,8 @@ def test_request_body_state():
             "state": {"key": "value"},
         },
     }
-    request_body = GuardrailsChatCompletionRequest.model_validate(data)
-    assert request_body.guardrails.state == {"key": "value"}
+    with pytest.raises(ValidationError, match="Caller-supplied state is not accepted over HTTP"):
+        GuardrailsChatCompletionRequest.model_validate(data)
 
 
 def test_request_body_context():
@@ -213,9 +388,537 @@ def test_request_body_messages():
         "messages": [{"content": "Hello"}],
         "guardrails": {"config_id": "test_config"},
     }
+    with pytest.raises(ValueError, match="role"):
+        GuardrailsChatCompletionRequest.model_validate(data)
+
+
+def test_chat_completion_rejects_message_without_role():
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"content": "Hello"}],
+                "guardrails": {"config_id": "test_config"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["type"] == "invalid_request_error"
+    assert response.json()["error"]["param"] == "messages.0.role"
+    get_rails.assert_not_awaited()
+
+
+def test_chat_completion_rejects_internal_event_message():
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [
+                    {
+                        "role": "event",
+                        "event": {
+                            "type": "StartInternalSystemAction",
+                            "action_name": "unsafe_action",
+                            "action_params": {"value": "untrusted"},
+                            "action_result_key": "result",
+                            "action_uid": "action-1",
+                        },
+                    }
+                ],
+                "guardrails": {"config_id": "test_config"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["type"] == "invalid_request_error"
+    assert response.json()["error"]["param"] == "messages.0.role"
+    get_rails.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {"role": "user"},
+        {"role": "developer"},
+        {"role": "system"},
+        {"role": "assistant"},
+        {"role": "tool", "tool_call_id": "call_abc"},
+        {"role": "function", "name": "get_weather"},
+        {"role": "context"},
+    ],
+)
+def test_chat_completion_rejects_message_without_content(message):
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [message],
+                "guardrails": {"config_id": "test_config"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["type"] == "invalid_request_error"
+    assert response.json()["error"]["param"] == "messages.0.content"
+    get_rails.assert_not_awaited()
+
+
+def test_chat_completion_rejects_null_user_content():
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": None}],
+                "guardrails": {"config_id": "test_config"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["type"] == "invalid_request_error"
+    assert response.json()["error"]["param"].startswith("messages.0.content")
+    get_rails.assert_not_awaited()
+
+
+def test_chat_completion_rejects_unexpected_message_fields():
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Hello",
+                        "event": {"type": "StartInternalSystemAction"},
+                    }
+                ],
+                "guardrails": {"config_id": "test_config"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["type"] == "invalid_request_error"
+    assert response.json()["error"]["param"] == "messages.0.event"
+    get_rails.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Describe this recording."},
+                {"type": "input_audio", "input_audio": {"data": "UklGRg==", "format": "wav"}},
+            ],
+        },
+        {"role": "assistant", "content": "Previous response", "audio": {"id": "audio_abc"}},
+    ],
+)
+def test_chat_completion_rejects_unsupported_audio_messages(message):
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-audio",
+                "messages": [message],
+                "guardrails": {"config_id": "test_config"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["type"] == "invalid_request_error"
+    get_rails.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "audio_options",
+    [
+        {"modalities": ["text", "audio"]},
+        {"modalities": "audio"},
+        {"audio": {"voice": "alloy", "format": "wav"}},
+    ],
+)
+def test_chat_completion_rejects_unsupported_audio_options(audio_options):
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-audio",
+                "messages": [{"role": "user", "content": "Say hello"}],
+                "guardrails": {"config_id": "test_config"},
+                **audio_options,
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["type"] == "invalid_request_error"
+    get_rails.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "custom_tool_input",
+    [
+        {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_custom",
+                            "type": "custom",
+                            "custom": {"name": "code_exec", "input": "print('hello')"},
+                        }
+                    ],
+                }
+            ]
+        },
+        {
+            "tools": [
+                {
+                    "type": "custom",
+                    "custom": {"name": "code_exec", "description": "Execute code"},
+                }
+            ]
+        },
+        {"tool_choice": {"type": "custom", "custom": {"name": "code_exec"}}},
+        {
+            "tool_choice": {
+                "type": "allowed_tools",
+                "mode": "auto",
+                "tools": [{"type": "custom", "name": "code_exec"}],
+            }
+        },
+    ],
+    ids=["assistant-message", "tool-definition", "tool-choice", "allowed-tools"],
+)
+def test_chat_completion_rejects_unsupported_custom_tools(custom_tool_input):
+    request = {
+        "model": "gpt-5.2",
+        "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {"config_id": "test_config"},
+        **custom_tool_input,
+    }
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post("/v1/chat/completions", json=request)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["type"] == "invalid_request_error"
+    get_rails.assert_not_awaited()
+
+
+def test_request_body_accepts_guardrails_context_message():
+    data = {
+        "model": "gpt-4o",
+        "messages": [{"role": "context", "content": {"user_name": "John"}}],
+        "guardrails": {"config_id": "test_config"},
+    }
+
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
-    assert request_body.messages is not None
-    assert len(request_body.messages) == 1
+
+    assert request_body.messages == data["messages"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {
+            "role": "developer",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Follow these instructions.",
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                }
+            ],
+            "name": "policy",
+        },
+        {"role": "system", "content": [{"type": "text", "text": "Be concise."}]},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Describe these inputs."},
+                {"type": "image_url", "image_url": {"url": "https://example.com/image.png"}},
+                {"type": "file", "file": {"file_id": "file_abc"}},
+            ],
+        },
+        {"role": "assistant", "content": [{"type": "refusal", "refusal": "I cannot help."}]},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call_abc",
+                    "type": "function",
+                    "function": {"name": "get_weather", "arguments": '{"city":"Boston"}'},
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "content": [{"type": "text", "text": "Tool result"}],
+            "tool_call_id": "call_abc",
+        },
+        {"role": "function", "content": None, "name": "get_weather"},
+    ],
+)
+def test_request_body_accepts_openai_chat_message(message):
+    data = {
+        "model": "gpt-4o",
+        "messages": [message],
+        "guardrails": {"config_id": "test_config"},
+    }
+
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+
+    assert request_body.messages == data["messages"]
+
+
+def test_request_body_tools_and_tool_choice():
+    """Test GuardrailsChatCompletionRequest accepts OpenAI tools parameters."""
+    data = {
+        "model": "gpt-4o",
+        "messages": [{"role": "user", "content": "What's the weather?"}],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather for a city",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"city": {"type": "string"}},
+                        "required": ["city"],
+                    },
+                },
+            }
+        ],
+        "tool_choice": "auto",
+        "parallel_tool_calls": False,
+        "guardrails": {"config_id": "test_config"},
+    }
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+    assert len(request_body.tools) == 1
+    assert request_body.tools[0]["function"]["name"] == "get_weather"
+    assert request_body.tool_choice == "auto"
+    assert request_body.parallel_tool_calls is False
+
+
+def test_request_body_messages_with_tool_calls():
+    """Test GuardrailsChatCompletionRequest accepts OpenAI tool call messages."""
+    data = {
+        "model": "gpt-4o",
+        "messages": [
+            {"role": "user", "content": "What's the weather in Boston?"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_abc",
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": '{"city": "Boston"}',
+                        },
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_abc",
+                "content": '{"temp_f": 72}',
+            },
+        ],
+        "guardrails": {"config_id": "test_config"},
+    }
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+    assert len(request_body.messages) == 3
+    assert request_body.messages[1]["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert request_body.messages[2]["role"] == "tool"
+
+
+def test_chat_completion_passes_tools_to_llm_params():
+    """Test that tools and tool_choice from the request are forwarded to llm_params in passthrough mode."""
+    from nemoguardrails.rails.llm.options import GenerationResponse
+
+    captured_options = {}
+
+    async def mock_generate_async(*, messages, options):
+        captured_options["options"] = options
+        return GenerationResponse(response=[{"role": "assistant", "content": "ok"}])
+
+    mock_rails = AsyncMock()
+    mock_rails.generate_async = mock_generate_async
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = True
+
+    tools = [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "tools": tools,
+                "tool_choice": "auto",
+                "parallel_tool_calls": False,
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 200
+    assert captured_options["options"].llm_params["tools"] == tools
+    assert captured_options["options"].llm_params["tool_choice"] == "auto"
+    assert captured_options["options"].llm_params["parallel_tool_calls"] is False
+
+
+@pytest.mark.parametrize("stop", ["END", ["END"], None])
+def test_chat_completion_accepts_stop_parameter(stop):
+    from nemoguardrails.rails.llm.options import GenerationResponse
+
+    captured_options = {}
+
+    async def mock_generate_async(*, messages, options):
+        captured_options["options"] = options
+        return GenerationResponse(response=[{"role": "assistant", "content": "ok"}])
+
+    mock_rails = AsyncMock()
+    mock_rails.generate_async = mock_generate_async
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = False
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Hello"}],
+                "stop": stop,
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 200
+    if stop is None:
+        assert "stop" not in captured_options["options"].llm_params
+    else:
+        assert captured_options["options"].llm_params["stop"] == stop
+
+
+def test_chat_completion_rejects_tools_for_non_passthrough_config():
+    """Test that tools/tool_choice/parallel_tool_calls are rejected unless passthrough is True."""
+    mock_rails = AsyncMock()
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = False
+
+    tools = [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "tools": tools,
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert "passthrough" in response.json()["error"]["message"].lower()
+
+
+def test_chat_completion_rejects_tool_choice_without_passthrough():
+    """Test that tool_choice alone is rejected for non-passthrough configs."""
+    mock_rails = AsyncMock()
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = None
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "tool_choice": "auto",
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert "passthrough" in response.json()["error"]["message"].lower()
+
+
+def test_chat_completion_rejects_tools_with_streaming_even_in_passthrough():
+    """Test that tools + stream=True is rejected even when passthrough is True."""
+    mock_rails = AsyncMock()
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = True
+
+    tools = [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "tools": tools,
+                "stream": True,
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert "passthrough" in response.json()["error"]["message"].lower()
+
+
+def test_chat_completion_returns_tool_calls():
+    """Test that tool calls in the generation response are returned in OpenAI format."""
+    from nemoguardrails.rails.llm.options import GenerationResponse
+
+    tool_calls = [
+        {
+            "name": "get_weather",
+            "args": {"city": "Boston"},
+            "id": "call_123",
+            "type": "tool_call",
+        }
+    ]
+
+    async def mock_generate_async(*, messages, options):
+        return GenerationResponse(
+            response=[{"role": "assistant", "content": ""}],
+            tool_calls=tool_calls,
+        )
+
+    mock_rails = AsyncMock()
+    mock_rails.generate_async = mock_generate_async
+    mock_rails.config.colang_version = "1.0"
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather in Boston?"}],
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 200
+    res = response.json()
+    assert res["choices"][0]["finish_reason"] == "tool_calls"
+    assert res["choices"][0]["message"]["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert res["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] == '{"city": "Boston"}'
 
 
 def test_request_body_options():
@@ -273,7 +976,6 @@ def test_guardrails_defaults_when_not_provided():
     assert request_body.guardrails.config_ids is None
     assert request_body.guardrails.thread_id is None
     assert request_body.guardrails.context is None
-    assert request_body.guardrails.state is None
     assert request_body.guardrails.options is not None
     assert request_body.guardrails.options.rails.input is True
     assert request_body.guardrails.options.rails.output is True
@@ -304,7 +1006,6 @@ def test_guardrails_partial_fields():
 
     assert request_body.guardrails.config_id == "test_config"
     assert request_body.guardrails.context is None
-    assert request_body.guardrails.state is None
     assert request_body.guardrails.options is not None
 
 
@@ -329,27 +1030,34 @@ def test_no_config_error_returns_proper_response():
     )
     assert response.status_code == 422
     res = response.json()
-    assert "detail" in res
-    assert "config" in res["detail"].lower()
+    assert "error" in res
+    assert "config" in res["error"]["message"].lower()
 
 
-def test_invalid_state_returns_error():
-    """Test API handles invalid state gracefully instead of crashing."""
-    response = client.post(
-        "/v1/chat/completions",
-        json={
-            "model": "gpt-4o",
-            "messages": [{"role": "user", "content": "hi"}],
-            "guardrails": {
-                "config_id": "with_custom_llm",
-                "state": {"invalid_key": "value"},
+def test_chat_completion_rejects_state_events():
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "hi"}],
+                "guardrails": {
+                    "config_id": "with_custom_llm",
+                    "state": {
+                        "events": [
+                            {
+                                "type": "ContextUpdate",
+                                "data": {"skip_output_rails": True},
+                            }
+                        ]
+                    },
+                },
             },
-        },
-    )
+        )
+
     assert response.status_code == 422
-    res = response.json()
-    assert "detail" in res
-    assert "state" in res["detail"].lower() or "events" in res["detail"].lower()
+    assert "Caller-supplied state is not accepted over HTTP" in response.json()["error"]["message"]
+    get_rails.assert_not_awaited()
 
 
 def test_chat_completion_response_structure():
@@ -436,7 +1144,6 @@ def test_chat_completion_with_all_guardrails_fields():
                     "rails": {"input": True, "output": True},
                     "log": {"activated_rails": True},
                 },
-                "state": {},
             },
         },
     )
@@ -723,7 +1430,7 @@ def test_list_models_no_base_url_known_engine():
         os.environ.pop("MAIN_MODEL_BASE_URL", None)
         response = client.get("/v1/models")
     assert response.status_code == 502
-    assert "MAIN_MODEL_BASE_URL" in response.json()["detail"]
+    assert "MAIN_MODEL_BASE_URL" in response.json()["error"]["message"]
 
 
 def test_list_models_unknown_engine_no_base_url():
@@ -781,9 +1488,10 @@ def test_list_models_empty_upstream():
     assert data["data"] == []
 
 
-def test_list_models_upstream_error():
+def test_list_models_upstream_error(caplog):
     """Test /v1/models returns upstream error status on HTTP error."""
-    mock_response = _make_httpx_response({"error": "unauthorized"}, status_code=401)
+    sensitive_detail = "upstream-secret-detail"
+    mock_response = _make_httpx_response({"error": sensitive_detail}, status_code=401)
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -794,7 +1502,23 @@ def test_list_models_upstream_error():
             response = client.get("/v1/models")
 
     assert response.status_code == 401
-    assert "Error fetching models from upstream" in response.json()["detail"]
+    assert "Error fetching models from upstream" in response.json()["error"]["message"]
+    assert sensitive_detail not in caplog.text
+
+
+def test_list_models_redirect_is_clamped_to_internal_error():
+    mock_response = _make_httpx_response({"error": "redirect"}, status_code=302)
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 500
+    assert response.json()["error"]["type"] == "server_error"
 
 
 def test_list_models_connection_error():
@@ -809,7 +1533,7 @@ def test_list_models_connection_error():
             response = client.get("/v1/models")
 
     assert response.status_code == 502
-    assert "Error connecting to upstream" in response.json()["detail"]
+    assert "Error connecting to upstream" in response.json()["error"]["message"]
 
 
 def test_list_models_forwards_auth_header():

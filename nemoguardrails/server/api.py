@@ -23,37 +23,73 @@ import re
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, List, Optional, Union
+from typing import Any, AsyncIterator, Callable, List, Literal, Optional, Union
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from openai.types.chat.chat_completion import Choice
-from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from pydantic import BaseModel, ValidationError
-from starlette.responses import RedirectResponse, StreamingResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.exceptions import ExceptionMiddleware
+from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
-from nemoguardrails import LLMRails, RailsConfig, utils
+from nemoguardrails import Guardrails, LLMRails, RailsConfig, utils
+from nemoguardrails.exceptions import (
+    InvalidModelConfigurationError,
+    InvalidStateError,
+    LLMCallException,
+    NonStreamingWorkQueueFullError,
+    RailTypeNotConfiguredError,
+    StreamingCapacityExceededError,
+    StreamingNotSupportedError,
+)
+from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.guardrails.model_engine import ModelEngineError
+from nemoguardrails.http.errors import HTTPClientError
+from nemoguardrails.llm.call import _prepend_think_tags
+from nemoguardrails.llm.clients._errors import build_error_payload, normalize_error_status
+from nemoguardrails.llm.models.initializer import ModelInitializationError
 from nemoguardrails.rails.llm.config import Model
-from nemoguardrails.rails.llm.options import GenerationResponse
+from nemoguardrails.rails.llm.options import GenerationResponse, RailStatus
 from nemoguardrails.server.datastore.datastore import DataStore
+from nemoguardrails.server.exception_handlers import (
+    bad_request_error_handler,
+    http_exception_handler,
+    internal_error_handler,
+    invalid_state_error_handler,
+    llm_call_exception_handler,
+    model_initialization_error_handler,
+    queue_full_error_handler,
+    rail_type_not_configured_error_handler,
+    streaming_capacity_error_handler,
+    validation_error_handler,
+)
+from nemoguardrails.server.metrics import shutdown_metrics_exporter, start_metrics_exporter
 from nemoguardrails.server.schemas.openai import (
+    GuardrailCheckRequest,
+    GuardrailCheckResponse,
     GuardrailsChatCompletion,
     GuardrailsChatCompletionRequest,
     OpenAIModelsList,
 )
 from nemoguardrails.server.schemas.utils import (
-    create_error_chat_completion,
+    bot_message_to_chat_completion,
     extract_bot_message_from_response,
     fetch_models,
     format_streaming_chunk_as_sse,
     generation_response_to_chat_completion,
+    normalize_tool_calls_openai,
+    resolve_tool_calls,
+    warn_if_thread_history_invalid_for_tool_use,
 )
 
 try:
-    from chainlit.utils import mount_chainlit
+    from chainlit.utils import mount_chainlit as _mount_chainlit
 except ImportError:
-    mount_chainlit = None
+    mount_chainlit: Optional[Callable[..., Any]] = None
+else:
+    mount_chainlit = _mount_chainlit
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -81,36 +117,6 @@ class GuardrailsApp(FastAPI):
 registered_loggers: List[Callable] = []
 
 
-def _raise_invalid_state(detail: str) -> None:
-    raise HTTPException(status_code=422, detail=detail)
-
-
-def _validate_public_state_shape(state: Optional[dict]) -> None:
-    """Validate request state shape before loading rails config.
-
-    At the public HTTP boundary, the only accepted non-empty dict state shape is
-    Colang 1.0 transcript state: {"events": [...]}. Colang 2.0 has no safe
-    public dict state shape.
-    """
-    if state is None or state == {}:
-        return
-
-    if state.get("version") == "2.x" or "state" in state:
-        _raise_invalid_state(
-            "Caller-supplied state is not accepted for Colang 2.0 over HTTP. "
-            "Full Colang 2.0 flow-state continuation over HTTP is not currently supported."
-        )
-
-    if "events" not in state:
-        _raise_invalid_state(
-            "Invalid state format: state must contain an 'events' key. "
-            "Use an empty dict {} to start a new conversation."
-        )
-
-    if not isinstance(state["events"], list):
-        _raise_invalid_state("Invalid state format: 'events' must be a list.")
-
-
 api_description = """Guardrails Server API."""
 
 # The headers for each request
@@ -125,12 +131,30 @@ datastore: Optional[DataStore] = None
 
 @asynccontextmanager
 async def lifespan(app: GuardrailsApp):
-    # Startup logic here
-    """Register any additional challenges, if available at startup."""
+    """Run the server lifespan inside the metrics exporter's lifetime.
+
+    The exporter starts before anything can construct a rails instance so the
+    first IORails metric lands on a real MeterProvider (a no-op unless
+    NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER is set, idempotent when the CLI
+    already started it) and is released even when startup fails inside
+    :func:`_server_lifespan`, for example on a malformed challenges.json.
+    """
     from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
 
     set_deployment_type(DeploymentTypeEnum.API.value)
 
+    start_metrics_exporter()
+    try:
+        async with _server_lifespan(app):
+            yield
+    finally:
+        shutdown_metrics_exporter()
+
+
+@asynccontextmanager
+async def _server_lifespan(app: GuardrailsApp):
+    # Startup logic here
+    """Register any additional challenges, if available at startup."""
     challenges_files = os.path.join(app.rails_config_path, "challenges.json")
 
     if os.path.exists(challenges_files):
@@ -177,8 +201,6 @@ async def lifespan(app: GuardrailsApp):
         if hasattr(app, "task") and app.task is not None:
             app.task.cancel()
         log.info("Shutting down file observer")
-    else:
-        pass
 
 
 app = GuardrailsApp(
@@ -189,8 +211,45 @@ app = GuardrailsApp(
     lifespan=lifespan,
 )
 
+_EXCEPTION_HANDLERS = (
+    # The streaming limit is a semaphore rather than a queue, so it is not a
+    # QueueFull at all and carries its own handler.
+    (StreamingCapacityExceededError, streaming_capacity_error_handler),
+    (NonStreamingWorkQueueFullError, queue_full_error_handler),
+    # Any QueueFull raised outside the paths above still reads as overload.
+    (asyncio.QueueFull, queue_full_error_handler),
+    (LLMCallException, llm_call_exception_handler),
+    (ModelEngineError, llm_call_exception_handler),
+    (HTTPClientError, llm_call_exception_handler),
+    (ModelInitializationError, model_initialization_error_handler),
+    (StreamingNotSupportedError, bad_request_error_handler),
+    (RailTypeNotConfiguredError, rail_type_not_configured_error_handler),
+    (InvalidStateError, invalid_state_error_handler),
+    (RequestValidationError, validation_error_handler),
+    (StarletteHTTPException, http_exception_handler),
+    (Exception, internal_error_handler),
+)
+for _exc_type, _handler in _EXCEPTION_HANDLERS:
+    # Handlers are typed with their specific exception; Starlette's stub expects
+    # (Request, Exception), so ty flags the narrower signature as a false positive.
+    app.add_exception_handler(_exc_type, _handler)  # ty: ignore[invalid-argument-type]
+
+app.add_middleware(ExceptionMiddleware, handlers={Exception: internal_error_handler})
+
 ENABLE_CORS = os.getenv("NEMO_GUARDRAILS_SERVER_ENABLE_CORS", "false").lower() == "true"
 ALLOWED_ORIGINS = os.getenv("NEMO_GUARDRAILS_SERVER_ALLOWED_ORIGINS", "*")
+
+
+def _add_cors_middleware(application: FastAPI, origins: List[str]) -> None:
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["Retry-After"],
+    )
+
 
 if ENABLE_CORS:
     # Split origins by comma
@@ -198,13 +257,7 @@ if ENABLE_CORS:
 
     log.info(f"CORS enabled with the following origins: {origins}")
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    _add_cors_middleware(app, origins)
 
 app.default_config_id = None
 
@@ -248,6 +301,21 @@ async def get_rails_configs():
 
 
 @app.get(
+    "/v1/health",
+    summary="Liveness health check.",
+    tags=["Health"],
+)
+@app.get(
+    "/healthz",
+    summary="Liveness health check.",
+    tags=["Health"],
+)
+async def health():
+    """Return HTTP 200 while the server process is running and able to serve requests."""
+    return JSONResponse(content={"status": "pass"}, media_type="application/health+json")
+
+
+@app.get(
     "/v1/models",
     response_model=OpenAIModelsList,
     summary="Get list of available models.",
@@ -269,9 +337,10 @@ async def list_models(request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     except httpx.HTTPStatusError as exc:
+        log.warning("Error fetching models from upstream: HTTP %s", exc.response.status_code)
         raise HTTPException(
-            status_code=exc.response.status_code,
-            detail=f"Error fetching models from upstream: {exc.response.text}",
+            status_code=normalize_error_status(exc.response.status_code),
+            detail=f"Error fetching models from upstream (HTTP {exc.response.status_code})",
         )
     except httpx.RequestError as exc:
         raise HTTPException(
@@ -311,21 +380,87 @@ def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsCon
     If a model with type="main" exists, it replaces it. Otherwise, adds it.
     """
     models = config.models.copy()
-    main_model_index = None
-
-    for index, model in enumerate(models):
-        if model.type == main_model.type:
-            main_model_index = index
-            break
+    main_model_index = next(
+        (index for index, model in enumerate(models) if model.type == main_model.type),
+        None,
+    )
 
     if main_model_index is not None:
-        parameters = {**models[main_model_index].parameters, **main_model.parameters}
         models[main_model_index] = main_model
-        models[main_model_index].parameters = parameters
     else:
         models.append(main_model)
 
     return config.model_copy(update={"models": models})
+
+
+def _configured_main_model(config: RailsConfig) -> Optional[Model]:
+    """Return the model the config declares as "main", if it declares one."""
+    for model in config.models:
+        if model.type == "main":
+            return model
+    return None
+
+
+def _resolve_main_model_engine(configured_model: Optional[Model]) -> str:
+    """Resolve the engine for an injected main model. Priority order:
+    1. MAIN_MODEL_ENGINE environment variable (warns if mismatch with `configured_model.engine`)
+    2. `configured_model.engine` if configured_model is provided
+    3. Fallback to `openai`
+    """
+    engine = os.environ.get("MAIN_MODEL_ENGINE")
+
+    if engine:
+        if configured_model is not None and configured_model.engine != engine:
+            log.warning(
+                "MAIN_MODEL_ENGINE is set to '%s', overriding the configured main model engine '%s'.",
+                engine,
+                configured_model.engine,
+            )
+        return engine
+
+    if configured_model is not None:
+        return configured_model.engine
+
+    log.warning("MAIN_MODEL_ENGINE not set and no main model is configured, defaulting to 'openai'. ")
+    return "openai"
+
+
+def _resolve_main_model_parameters(configured_model: Optional[Model]) -> dict[str, Any]:
+    """Resolve the parameters for an injected main model, preferring MAIN_MODEL_BASE_URL."""
+    parameters = dict(configured_model.parameters) if configured_model is not None else {}
+
+    base_url = os.environ.get("MAIN_MODEL_BASE_URL")
+    if base_url:
+        parameters["base_url"] = base_url
+
+    return parameters
+
+
+def _validated_main_model(model_fields: dict[str, Any]) -> Model:
+    """Build a main model from its fields, reporting a rejected field as a configuration error."""
+    try:
+        return Model.model_validate(model_fields)
+    except ValidationError as exc:
+        raise InvalidModelConfigurationError(exc.errors()[0]["msg"]) from exc
+
+
+def _build_main_model(model_name: str, configured_model: Optional[Model]) -> Model:
+    """Build the main model for a request, on top of the configured one when there is one."""
+    engine = _resolve_main_model_engine(configured_model)
+    parameters = _resolve_main_model_parameters(configured_model)
+
+    # Validating a field mapping rather than copying the configured model keeps the two
+    # cases on one path: model_copy(update=...) skips validation, so a request model name
+    # that a fresh Model would reject used to slip through whenever a main model existed.
+    configured_fields = configured_model.model_dump() if configured_model is not None else {"type": "main"}
+
+    return _validated_main_model({**configured_fields, "model": model_name, "engine": engine, "parameters": parameters})
+
+
+def _inject_model(config: RailsConfig, model_name: str) -> RailsConfig:
+    """Inject the request's model into a RailsConfig, keeping the configured main model's fields."""
+    main_model = _build_main_model(model_name, _configured_main_model(config))
+    return _update_models_in_config(config, main_model)
 
 
 async def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRails:
@@ -373,18 +508,7 @@ async def _get_rails(config_ids: List[str], model_name: Optional[str] = None) ->
         raise ValueError("No valid rails configuration found.")
 
     if model_name:
-        engine = os.environ.get("MAIN_MODEL_ENGINE")
-        if not engine:
-            engine = "openai"
-            log.warning("MAIN_MODEL_ENGINE not set, defaulting to 'openai'. ")
-
-        parameters = {}
-        base_url = os.environ.get("MAIN_MODEL_BASE_URL")
-        if base_url:
-            parameters["base_url"] = base_url
-
-        main_model = Model(model=model_name, type="main", engine=engine, parameters=parameters)
-        full_llm_rails_config = _update_models_in_config(full_llm_rails_config, main_model)
+        full_llm_rails_config = _inject_model(full_llm_rails_config, model_name)
 
     llm_rails = LLMRails(config=full_llm_rails_config, verbose=True)
     llm_rails_instances[configs_cache_key] = llm_rails
@@ -397,13 +521,32 @@ async def _get_rails(config_ids: List[str], model_name: Optional[str] = None) ->
 
 class ChunkErrorMetadata(BaseModel):
     message: str
-    type: Optional[str] = None
+    # Only the internal stream markers count as a terminal error frame; see
+    # ChunkError below.
+    type: Literal["generation_error", "downstream_error", "guardrails_violation"]
     param: Optional[str] = None
-    code: Optional[str] = None
+    code: Union[str, int, None] = None
 
 
 class ChunkError(BaseModel):
+    """A terminal error frame pushed into the stream by the guardrails runtime.
+
+    ``type`` is restricted to the internal markers so that model output which
+    merely looks like an OpenAI error object is streamed on as ordinary content
+    rather than ending the stream. Without output rails nothing else inspects a
+    chunk before it reaches ``process_chunk``, so this is the last gate.
+    """
+
     error: ChunkErrorMetadata
+
+
+async def _prepend_stream_chunk(
+    first_chunk: Union[str, dict],
+    stream_iterator: AsyncIterator[Union[str, dict]],
+) -> AsyncIterator[Union[str, dict]]:
+    yield first_chunk
+    async for chunk in stream_iterator:
+        yield chunk
 
 
 async def _format_streaming_response(
@@ -472,6 +615,37 @@ def process_chunk(chunk: Any) -> Union[Any, ChunkError]:
     return chunk
 
 
+def _inline_reasoning_as_think_tags(res: GenerationResponse) -> GenerationResponse:
+    """Move `reasoning_content` into the assistant message as a <think> prefix and clear the field."""
+    if not res.reasoning_content:
+        return res
+    if not isinstance(res.response, list):
+        return res
+
+    inlined = False
+    for message in res.response:
+        if message.get("role") != "assistant":
+            continue
+        content = message.get("content")
+        if not isinstance(content, str):
+            continue
+        # IORails only strips inline tags when the provider gave no structured reasoning
+        # (`response.reasoning or _extract_and_remove_think_tags(...)`), so a provider that
+        # sends both leaves a block already in the content; prepending would duplicate it.
+        # TODO: this pattern is copied from `_extract_and_remove_think_tags` in
+        # nemoguardrails/llm/call.py; factor the two onto one shared matcher.
+        if re.search(r"<think>(.*?)</think>", content, re.DOTALL):
+            continue
+        message["content"] = _prepend_think_tags(content, res.reasoning_content)
+        inlined = True
+
+    # A tool-call-only message has `content=None`, so there is nowhere to put the
+    # trace; keep the field rather than dropping the reasoning on the floor.
+    if inlined:
+        res.reasoning_content = None
+    return res
+
+
 @app.post(
     "/v1/chat/completions",
     response_model=GuardrailsChatCompletion,
@@ -484,7 +658,9 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
     """
     log.info("Got request for config %s", body.guardrails.config_id)
     for logger in registered_loggers:
-        asyncio.get_event_loop().create_task(logger({"endpoint": "/v1/chat/completions", "body": body.json()}))
+        asyncio.get_event_loop().create_task(
+            logger({"endpoint": "/v1/chat/completions", "body": body.model_dump_json()})
+        )
 
     # Save the request headers in a context variable.
     api_request_headers.set(request.headers)
@@ -502,28 +678,15 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                 detail="No guardrails config_id provided and server has no default configuration",
             )
 
-    _validate_public_state_shape(body.guardrails.state)
-
     try:
         llm_rails = await _get_rails(config_ids, model_name=body.model)
 
     except ValueError as ex:
         log.exception(ex)
-        return create_error_chat_completion(
-            model=body.model,
-            error_message=f"Could not load the {config_ids} guardrails configuration. An internal error has occurred.",
-            config_id=config_ids[0] if config_ids else None,
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not load the requested guardrails configuration: {config_ids}",
         )
-
-    # Version-aware state validation, now that the config is loaded.
-    # 1.0 accepts the pre-validated {"events": [...]} transcript. 2.0 has no
-    # valid public dict state shape.
-    if body.guardrails.state is not None and body.guardrails.state != {}:
-        if llm_rails.config.colang_version != "1.0":
-            raise HTTPException(
-                status_code=422,
-                detail="Stateful continuation over HTTP is not supported for Colang 2.0.",
-            )
 
     if body.guardrails.thread_id and llm_rails.config.colang_version != "1.0":
         raise HTTPException(
@@ -531,116 +694,202 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             detail="thread_id message-history replay is not supported for Colang 2.0.",
         )
 
-    try:
-        messages = body.messages or []
-        if body.guardrails.context:
-            messages.insert(0, {"role": "context", "content": body.guardrails.context})
+    if (body.tools or body.tool_choice is not None or body.parallel_tool_calls is not None) and (
+        llm_rails.config.passthrough is not True or body.stream
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "The 'tools', 'tool_choice', and 'parallel_tool_calls' parameters are only "
+                "supported for non-streaming requests when the guardrails configuration has 'passthrough: true'."
+            ),
+        )
 
-        # If we have a `thread_id` specified, we need to look up the thread
-        datastore_key = None
+    messages = body.messages or []
+    if body.guardrails.context:
+        messages.insert(0, {"role": "context", "content": body.guardrails.context})
 
-        if body.guardrails.thread_id:
-            if datastore is None:
-                raise RuntimeError("No DataStore has been configured.")
-            # We make sure the `thread_id` meets the minimum complexity requirement.
-            if len(body.guardrails.thread_id) < 16:
-                return create_error_chat_completion(
-                    model=body.model,
-                    error_message="The `thread_id` must have a minimum length of 16 characters.",
-                    config_id=config_ids[0] if config_ids else None,
-                )
+    # If we have a `thread_id` specified, we need to look up the thread
+    datastore_key = None
 
-            # Fetch the existing thread messages. For easier management, we prepend
-            # the string `thread-` to all thread keys.
-            datastore_key = "thread-" + body.guardrails.thread_id
-            thread_messages = json.loads(await datastore.get(datastore_key) or "[]")
-
-            # And prepend them.
-            messages = thread_messages + messages
-
-        generation_options = body.guardrails.options
-
-        # Initialize llm_params if not already set
-        if generation_options.llm_params is None:
-            generation_options.llm_params = {}
-
-        # Set OpenAI-compatible parameters in llm_params
-        if body.max_tokens:
-            generation_options.llm_params["max_tokens"] = body.max_tokens
-        if body.temperature is not None:
-            generation_options.llm_params["temperature"] = body.temperature
-        if body.top_p is not None:
-            generation_options.llm_params["top_p"] = body.top_p
-        if body.stop:
-            generation_options.llm_params["stop"] = body.stop
-        if body.presence_penalty is not None:
-            generation_options.llm_params["presence_penalty"] = body.presence_penalty
-        if body.frequency_penalty is not None:
-            generation_options.llm_params["frequency_penalty"] = body.frequency_penalty
-
-        if body.stream:
-            # Use stream_async for streaming with output rails support
-            stream_iterator = llm_rails.stream_async(
-                messages=messages,
-                options=generation_options,
-                state=body.guardrails.state,
+    if body.guardrails.thread_id:
+        if datastore is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Conversation threads are not enabled on this server.",
             )
 
+        # Fetch the existing thread messages. For easier management, we prepend
+        # the string `thread-` to all thread keys.
+        datastore_key = "thread-" + body.guardrails.thread_id
+        thread_messages = json.loads(await datastore.get(datastore_key) or "[]")
+        warn_if_thread_history_invalid_for_tool_use(thread_messages)
+
+        # And prepend them.
+        messages = thread_messages + messages
+
+    generation_options = body.guardrails.options
+
+    # Initialize llm_params if not already set
+    if generation_options.llm_params is None:
+        generation_options.llm_params = {}
+
+    # Set OpenAI-compatible parameters in llm_params
+    if body.max_tokens:
+        generation_options.llm_params["max_tokens"] = body.max_tokens
+    if body.temperature is not None:
+        generation_options.llm_params["temperature"] = body.temperature
+    if body.top_p is not None:
+        generation_options.llm_params["top_p"] = body.top_p
+    if body.stop:
+        generation_options.llm_params["stop"] = body.stop
+    if body.presence_penalty is not None:
+        generation_options.llm_params["presence_penalty"] = body.presence_penalty
+    if body.frequency_penalty is not None:
+        generation_options.llm_params["frequency_penalty"] = body.frequency_penalty
+    if body.tools is not None:
+        generation_options.llm_params["tools"] = body.tools
+    if body.tool_choice is not None:
+        generation_options.llm_params["tool_choice"] = body.tool_choice
+    if body.parallel_tool_calls is not None:
+        generation_options.llm_params["parallel_tool_calls"] = body.parallel_tool_calls
+
+    if body.stream:
+        # Use stream_async for streaming with output rails support
+        stream_iterator = llm_rails.stream_async(
+            messages=messages,
+            options=generation_options,
+        )
+
+        try:
+            first_chunk = await anext(stream_iterator)
+        except StopAsyncIteration:
             return StreamingResponse(
-                _format_streaming_response(stream_iterator, model_name=body.model),
+                iter(("data: [DONE]\n\n",)),
                 media_type="text/event-stream",
             )
-        else:
-            res = await llm_rails.generate_async(
-                messages=messages,
-                options=generation_options,
-                state=body.guardrails.state,
+
+        processed_first_chunk = process_chunk(first_chunk)
+        if isinstance(processed_first_chunk, ChunkError) and processed_first_chunk.error.type == "downstream_error":
+            close = getattr(stream_iterator, "aclose", None)
+            if callable(close):
+                await close()
+            status_code = normalize_error_status(processed_first_chunk.error.code)
+            return JSONResponse(
+                status_code=status_code,
+                content=build_error_payload(
+                    processed_first_chunk.error.message,
+                    status=status_code,
+                    code=processed_first_chunk.error.code,
+                ),
             )
 
-            # Extract bot message for thread storage if needed
-            bot_message = extract_bot_message_from_response(res)
-
-            # If we're using threads, we also need to update the data before returning
-            # the message.
-            if body.guardrails.thread_id and datastore is not None and datastore_key is not None:
-                await datastore.set(datastore_key, json.dumps(messages + [bot_message]))
-
-            # Build the response with OpenAI-compatible format using utility function
-            if isinstance(res, GenerationResponse):
-                return generation_response_to_chat_completion(
-                    response=res,
-                    model=body.model,
-                    config_id=config_ids[0] if config_ids else None,
-                )
-            else:
-                # For dict responses, convert to basic chat completion
-                return GuardrailsChatCompletion(
-                    id=f"chatcmpl-{uuid.uuid4()}",
-                    object="chat.completion",
-                    created=int(time.time()),
-                    model=body.model,
-                    choices=[
-                        Choice(
-                            index=0,
-                            message=ChatCompletionMessage(
-                                role="assistant",
-                                content=bot_message.get("content", ""),
-                            ),
-                            finish_reason="stop",
-                            logprobs=None,
-                        )
-                    ],
-                )
-
-    except HTTPException:
-        raise
-    except Exception as ex:
-        log.exception(ex)
-        return create_error_chat_completion(
-            model=body.model,
-            error_message="Internal server error",
-            config_id=config_ids[0] if config_ids else None,
+        return StreamingResponse(
+            _format_streaming_response(
+                _prepend_stream_chunk(first_chunk, stream_iterator),
+                model_name=body.model,
+            ),
+            media_type="text/event-stream",
         )
+    else:
+        res = await llm_rails.generate_async(
+            messages=messages,
+            options=generation_options,
+        )
+
+        # IORails-only: prefix `content` with `reasoning_content` and think-tags.
+        # A Guardrails wrapper can fall back to an LLMRails engine, which already
+        # inlines reasoning itself, so the engine check is what scopes this.
+        if (
+            isinstance(llm_rails, Guardrails)
+            and isinstance(llm_rails.rails_engine, IORails)
+            and isinstance(res, GenerationResponse)
+        ):
+            res = _inline_reasoning_as_think_tags(res)
+
+        # Extract bot message for thread storage if needed
+        bot_message = extract_bot_message_from_response(res)
+
+        # If we're using threads, we also need to update the data before returning
+        # the message.
+        if body.guardrails.thread_id and datastore is not None and datastore_key is not None:
+            # If using tool calls, we need to normalize them to OpenAI format before storing.
+            response_tool_calls = res.tool_calls if isinstance(res, GenerationResponse) else None
+            tool_calls_for_storage = resolve_tool_calls(bot_message, response_tool_calls)
+            if tool_calls_for_storage:
+                normalized = [tc.model_dump() for tc in normalize_tool_calls_openai(tool_calls_for_storage)]
+                storable_message = {**bot_message, "tool_calls": normalized}
+            else:
+                storable_message = bot_message
+            await datastore.set(datastore_key, json.dumps(messages + [storable_message]))
+
+        # Build the response with OpenAI-compatible format using utility function
+        if isinstance(res, GenerationResponse):
+            return generation_response_to_chat_completion(
+                response=res,
+                model=body.model,
+                config_id=config_ids[0] if config_ids else None,
+            )
+        else:
+            return bot_message_to_chat_completion(
+                bot_message=bot_message,
+                model=body.model,
+                config_id=config_ids[0] if config_ids else None,
+            )
+
+
+def _map_rail_status(status: RailStatus) -> str:
+    """Map internal RailStatus to API status string."""
+    return status.value
+
+
+@app.post(
+    "/v1/checks",
+    response_model=GuardrailCheckResponse,
+    response_model_exclude_none=True,
+)
+async def guardrail_check(body: GuardrailCheckRequest, request: Request):
+    """Guardrail check request.
+
+    Returns 422 when ``rail_types`` includes a type with no configured flows.
+    """
+    api_request_headers.set(request.headers)
+
+    if not body.messages:
+        raise HTTPException(status_code=422, detail="messages must be non-empty")
+
+    config_ids = body.guardrails.config_ids
+    if not config_ids:
+        if app.default_config_id:
+            config_ids = [app.default_config_id]
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail="No guardrails config_id provided and server has no default configuration",
+            )
+    try:
+        llm_rails = await _get_rails(config_ids, model_name=body.model)
+    except ValueError as ex:
+        log.exception(ex)
+        raise HTTPException(status_code=422, detail=str(ex))
+
+    if llm_rails.config.colang_version != "1.0":
+        raise HTTPException(
+            status_code=422,
+            detail="check_async does not support Colang 2.0 configurations.",
+        )
+
+    messages = list(body.messages)
+    if body.guardrails.context:
+        messages.insert(0, {"role": "context", "content": body.guardrails.context})
+
+    result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types)
+
+    return GuardrailCheckResponse(
+        status=_map_rail_status(result.status),
+        content=result.content,
+        rail=result.rail,
+    )
 
 
 # By default, there are no challenges

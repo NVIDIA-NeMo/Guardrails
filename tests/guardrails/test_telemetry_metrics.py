@@ -17,7 +17,7 @@
 
 import asyncio
 from typing import cast
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from opentelemetry.sdk.metrics import MeterProvider
@@ -316,7 +316,7 @@ class TestLLMOperationDuration:
         a ``BaseException`` subclass — inside the context manager.  The
         duration record must still carry ``error.type=CancelledError``
         so dashboards can distinguish cancelled streams from successful
-        ones (NGUARD-776 plan #6).
+        ones.
         """
         with pytest.raises(asyncio.CancelledError):
             with llm_operation_duration("model-x", "openai", "chat"):
@@ -354,6 +354,36 @@ class TestLLMOperationDuration:
             tracing_constants._llm_instruments = None
             with llm_operation_duration("m", "p", "chat"):
                 pass  # must not raise
+
+
+class TestLLMOperationDurationBestEffort:
+    """The ``finally`` emission must be best-effort: a meter SDK that raises
+    while recording the duration must never mask the original exception, nor
+    turn a successful call into a failure"""
+
+    def test_finally_record_failure_does_not_mask_original_exception(self):
+        broken = Mock()
+        broken.operation_duration.record.side_effect = RuntimeError("meter SDK down")
+
+        with patch.object(tracing_constants, "_ensure_llm_instruments", return_value=broken):
+            # The original CancelledError must propagate, NOT the meter's
+            # RuntimeError raised from ``finally``.
+            with pytest.raises(asyncio.CancelledError):
+                with llm_operation_duration("model-x", "openai", "chat"):
+                    raise asyncio.CancelledError()
+
+        broken.operation_duration.record.assert_called_once()
+
+    def test_finally_record_failure_swallowed_on_success_path(self):
+        broken = Mock()
+        broken.operation_duration.record.side_effect = RuntimeError("meter SDK down")
+
+        with patch.object(tracing_constants, "_ensure_llm_instruments", return_value=broken):
+            # A broken meter must not turn a successful block into a failure.
+            with llm_operation_duration("model-x", "openai", "chat"):
+                pass
+
+        broken.operation_duration.record.assert_called_once()
 
 
 class TestRecordTimeToFirstChunk:
@@ -538,6 +568,58 @@ class TestRequestMetrics:
             # Just verify no crash; there's no reader to check against.
 
 
+class TestRequestMetricsBestEffort:
+    """The ``finally`` emissions must be best-effort: a meter SDK that raises
+    while decrementing the active gauge or recording duration must never mask
+    the original exception, nor turn a successful request into a failure.
+    Each emit is guarded independently so a failure in one still attempts the
+    other — the active-gauge decrement must run to avoid leaking the gauge
+    """
+
+    @staticmethod
+    def _broken_instruments():
+        """A RequestInstruments-shaped mock whose ``finally`` emits both fail.
+
+        ``requests_active.add`` succeeds on the ``+1`` entry bump (so the
+        scope is entered normally) but fails on the ``-1`` finally decrement,
+        and ``duration.record`` always fails.
+        """
+        broken = Mock()
+
+        def _add(delta, *args, **kwargs):
+            if delta < 0:
+                raise RuntimeError("meter SDK down")
+
+        broken.requests_active.add.side_effect = _add
+        broken.duration.record.side_effect = RuntimeError("meter SDK down")
+        return broken
+
+    def test_finally_emit_failure_does_not_mask_original_exception(self):
+        broken = self._broken_instruments()
+
+        with patch.object(telemetry, "_ensure_request_instruments", return_value=broken):
+            # The original CancelledError must propagate, NOT a RuntimeError
+            # from either failing ``finally`` emit.
+            with pytest.raises(asyncio.CancelledError):
+                with request_metrics():
+                    raise asyncio.CancelledError()
+
+        # Both finally emits were attempted despite the first one failing.
+        broken.requests_active.add.assert_any_call(-1)
+        broken.duration.record.assert_called_once()
+
+    def test_finally_emit_failure_swallowed_on_success_path(self):
+        broken = self._broken_instruments()
+
+        with patch.object(telemetry, "_ensure_request_instruments", return_value=broken):
+            # A broken meter must not turn a successful request into a failure.
+            with request_metrics():
+                pass
+
+        broken.requests_active.add.assert_any_call(-1)
+        broken.duration.record.assert_called_once()
+
+
 class TestTracedRequestMetrics:
     """``traced_request(tracer, metrics_enabled)`` gates the two signals
     independently.  All four combinations exercised here.
@@ -647,6 +729,32 @@ class TestRecordRequestError:
             telemetry._request_instruments = None
             # Must not raise; must not crash on attribute access.
             record_request_error(ValueError("boom"))
+
+    def test_swallows_sdk_failure(self):
+        """A meter SDK that raises while bumping the errors counter must not
+        propagate — ``record_request_error`` is best-effort so it can be
+        called from an ``except`` branch handling a cancellation without
+        masking it.
+        """
+        broken = Mock()
+        broken.errors.add.side_effect = RuntimeError("meter SDK down")
+
+        with patch.object(telemetry, "_ensure_request_instruments", return_value=broken):
+            # Must return cleanly, not raise.
+            record_request_error(ValueError("orig"))
+
+        broken.errors.add.assert_called_once()
+
+    def test_does_not_swallow_base_exception_from_sdk(self):
+        """Only ``Exception`` is suppressed.  A ``BaseException`` raised by the
+        meter SDK must still propagate rather than be silently dropped.
+        """
+        broken = Mock()
+        broken.errors.add.side_effect = KeyboardInterrupt()
+
+        with patch.object(telemetry, "_ensure_request_instruments", return_value=broken):
+            with pytest.raises(KeyboardInterrupt):
+                record_request_error(ValueError("orig"))
 
 
 class TestRecordRequestBlocked:

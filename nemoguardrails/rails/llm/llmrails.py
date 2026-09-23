@@ -49,10 +49,11 @@ from nemoguardrails.actions.llm.utils import (
     get_and_clear_response_metadata_contextvar,
     get_colang_history,
 )
-from nemoguardrails.actions.output_mapping import is_output_blocked
+from nemoguardrails.actions.rail_outcome import require_rail_outcome
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
+from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang import parse_colang_file
-from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id, compute_context
+from nemoguardrails.colang.v1_0.runtime.flows import _get_flow_params, _normalize_flow_id, compute_context
 from nemoguardrails.colang.v1_0.runtime.runtime import Runtime, RuntimeV1_0
 from nemoguardrails.colang.v2_x.runtime.flows import Action, State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
@@ -70,10 +71,12 @@ from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidRailsConfigurationError,
     InvalidStateError,
+    RailTypeNotConfiguredError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.cache import CacheInterface, LFUCache
+from nemoguardrails.llm.clients._errors import build_streaming_error_payload
 from nemoguardrails.llm.models.initializer import (
     ModelInitializationError,
     init_llm_model,
@@ -104,7 +107,6 @@ from nemoguardrails.rails.llm.utils import (
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.types import LLMModel
 from nemoguardrails.utils import (
-    extract_error_json,
     get_or_create_event_loop,
     new_event_dict,
     new_uuid,
@@ -132,12 +134,132 @@ def _wrap_legacy_llm(llm):
     return LangChainLLMAdapter(llm)
 
 
-class LLMRails:
+class LLMRails(BaseGuardrails):
     """Rails based on a given configuration."""
 
     config: RailsConfig
     llm: Optional[LLMModel]
     runtime: Runtime
+
+    @property
+    def kb(self):
+        warnings.warn(
+            "LLMRails.kb is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._kb
+
+    @property
+    def embedding_search_providers(self):
+        warnings.warn(
+            "LLMRails.embedding_search_providers is deprecated and will be removed in a future release. "
+            "It is an internal attribute with no replacement read API; "
+            "use register_embedding_search_provider() to add providers.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._embedding_search_providers
+
+    @property
+    def default_embedding_model(self):
+        warnings.warn(
+            "LLMRails.default_embedding_model is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._default_embedding_model
+
+    @default_embedding_model.setter
+    def default_embedding_model(self, value):
+        warnings.warn(
+            "Setting LLMRails.default_embedding_model is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._default_embedding_model = value
+
+    @property
+    def default_embedding_engine(self):
+        warnings.warn(
+            "LLMRails.default_embedding_engine is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._default_embedding_engine
+
+    @default_embedding_engine.setter
+    def default_embedding_engine(self, value):
+        warnings.warn(
+            "Setting LLMRails.default_embedding_engine is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._default_embedding_engine = value
+
+    @property
+    def default_embedding_params(self):
+        warnings.warn(
+            "LLMRails.default_embedding_params is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._default_embedding_params
+
+    @default_embedding_params.setter
+    def default_embedding_params(self, value):
+        warnings.warn(
+            "Setting LLMRails.default_embedding_params is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._default_embedding_params = value
+
+    @property
+    def explain_info(self):
+        warnings.warn(
+            "LLMRails.explain_info is deprecated and will be removed in the next release. "
+            "Use LLMRails.explain() instead, which guarantees a non-None ExplainInfo.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._explain_info
+
+    @explain_info.setter
+    def explain_info(self, value):
+        warnings.warn(
+            "Setting LLMRails.explain_info is deprecated and will be removed in the next release. "
+            "explain_info is an internal accumulator; use LLMRails.explain() to read it.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._explain_info = value
+
+    @property
+    def llm_generation_actions(self):
+        warnings.warn(
+            "LLMRails.llm_generation_actions is deprecated and will be removed in a future release. "
+            "It is an internal attribute; use the first-class LLMRails.passthrough_fn API if you "
+            "previously set passthrough_fn through it.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._llm_generation_actions
+
+    @property
+    def passthrough_fn(self):
+        """The optional passthrough function that bypasses LLM generation.
+
+        When set, the rails pipeline calls this function instead of the main LLM
+        for generating responses. LLMGenerationActions is private, expose only
+        `passthrough_fn` as a public API
+        """
+        return self._llm_generation_actions._passthrough_fn
+
+    @passthrough_fn.setter
+    def passthrough_fn(self, fn):
+        """LLMGenerationActions is private, set passthrough_fn directly"""
+        self._llm_generation_actions._passthrough_fn = fn
 
     def __init__(
         self,
@@ -165,12 +287,12 @@ class LLMRails:
 
         # We allow the user to register additional embedding search providers, so we keep
         # an index of them.
-        self.embedding_search_providers = {}
+        self._embedding_search_providers = {}
 
         # The default embeddings model is using FastEmbed
-        self.default_embedding_model = "all-MiniLM-L6-v2"
-        self.default_embedding_engine = "FastEmbed"
-        self.default_embedding_params = {}
+        self._default_embedding_model = "all-MiniLM-L6-v2"
+        self._default_embedding_engine = "FastEmbed"
+        self._default_embedding_params = {}
 
         # We keep a cache of the events history associated with a sequence of user messages.
         # TODO: when we update the interface to allow to return a "state object", this
@@ -197,9 +319,13 @@ class LLMRails:
             self.config.flows.extend(default_flows)
 
             # We also need to load the content from the components library.
+            # Sort entries so the traversal order is filesystem-independent;
+            # otherwise the order in which library bot_messages are inserted
+            # (and which definition wins on collisions) varies between platforms.
             library_path = os.path.join(os.path.dirname(__file__), "../../library")
             for root, dirs, files in os.walk(library_path):
-                for file in files:
+                dirs.sort()
+                for file in sorted(files):
                     # Extract the full path for the file
                     full_path = os.path.join(root, file)
                     if file.endswith(".co"):
@@ -234,19 +360,31 @@ class LLMRails:
                 flow_config["is_subflow"] = True
 
         # We check if the configuration or any of the imported ones have config.py modules.
-        config_modules = []
-        for _path in list(self.config.imported_paths.values() if self.config.imported_paths else []) + [
-            self.config.config_path
-        ]:
-            if _path:
-                filepath = os.path.join(_path, "config.py")
-                if os.path.exists(filepath):
+        config_paths = list(self.config.imported_paths.values() if self.config.imported_paths else [])
+        if self.config.config_path:
+            config_paths.extend(path.strip() for path in self.config.config_path.split(",") if path.strip())
+
+        config_modules: List[Tuple[Any, str]] = []
+        loaded_config_paths = set()
+        for _path in config_paths:
+            canonical_path = os.path.realpath(_path)
+            if canonical_path in loaded_config_paths:
+                continue
+            loaded_config_paths.add(canonical_path)
+
+            filepath = os.path.join(_path, "config.py")
+            if os.path.exists(filepath):
+                try:
                     filename = os.path.basename(filepath)
                     spec = importlib.util.spec_from_file_location(filename, filepath)
-                    if spec and spec.loader:
-                        config_module = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(config_module)
-                        config_modules.append(config_module)
+                    if not spec or not spec.loader:
+                        raise ImportError("Could not create a module loader.")
+
+                    config_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(config_module)
+                except Exception as exc:
+                    raise RuntimeError(f"Failed to load configuration module at {filepath}.") from exc
+                config_modules.append((config_module, filepath))
 
         colang_version_to_runtime: Dict[str, Type[Runtime]] = {
             "1.0": RuntimeV1_0,
@@ -263,16 +401,19 @@ class LLMRails:
         # If we have a config_modules with an `init` function, we call it.
         # We need to call this here because the `init` might register additional
         # LLM providers.
-        for config_module in config_modules:
+        for config_module, filepath in config_modules:
             if hasattr(config_module, "init"):
-                config_module.init(self)
+                try:
+                    config_module.init(self)
+                except Exception as exc:
+                    raise RuntimeError(f"Failed to initialize configuration module at {filepath}.") from exc
 
         # If we have a customized embedding model, we'll use it.
         for model in self.config.models:
             if model.type == "embeddings":
-                self.default_embedding_model = model.model
-                self.default_embedding_engine = model.engine
-                self.default_embedding_params = model.parameters or {}
+                self._default_embedding_model = model.model
+                self._default_embedding_engine = model.engine
+                self._default_embedding_params = model.parameters or {}
 
                 for esp in [
                     self.config.core.embedding_search_provider,
@@ -306,7 +447,7 @@ class LLMRails:
         llm_generation_actions_class = (
             LLMGenerationActions if config.colang_version == "1.0" else LLMGenerationActionsV2dotx
         )
-        self.llm_generation_actions = llm_generation_actions_class(
+        self._llm_generation_actions = llm_generation_actions_class(
             config=config,
             llm=self.llm,
             llm_task_manager=self.runtime.llm_task_manager,
@@ -315,7 +456,7 @@ class LLMRails:
         )
 
         # If there's already an action registered, we don't override.
-        self.runtime.register_actions(self.llm_generation_actions, override=False)
+        self.runtime.register_actions(self._llm_generation_actions, override=False)
 
         # Next, we initialize the Knowledge Base
         # There are still some edge cases not covered by nest_asyncio.
@@ -329,10 +470,10 @@ class LLMRails:
             loop.run_until_complete(self._init_kb())
 
         # We also register the kb as a parameter that can be passed to actions.
-        self.runtime.register_action_param("kb", self.kb)
+        self.runtime.register_action_param("kb", self._kb)
 
         # Reference to the general ExplainInfo object.
-        self.explain_info = None
+        self._explain_info = None
 
         from nemoguardrails.telemetry import report_usage
 
@@ -347,7 +488,7 @@ class LLMRails:
         if not isinstance(llm, LLMModel):
             llm = _wrap_legacy_llm(llm)
         self.llm = llm
-        self.llm_generation_actions.llm = llm
+        self._llm_generation_actions.llm = llm
         self.runtime.register_action_param("llm", llm)
 
     def _validate_config(self):
@@ -382,19 +523,19 @@ class LLMRails:
 
     async def _init_kb(self):
         """Initializes the knowledge base."""
-        self.kb = None
+        self._kb = None
 
         if not self.config.docs:
             return
 
         documents = [doc.content for doc in self.config.docs]
-        self.kb = KnowledgeBase(
+        self._kb = KnowledgeBase(
             documents=documents,
             config=self.config.knowledge_base,
             get_embedding_search_provider_instance=self._get_embeddings_search_provider_instance,
         )
-        self.kb.init()
-        await self.kb.build()
+        self._kb.init()
+        await self._kb.build()
 
     def _prepare_model_kwargs(self, model_config):
         """
@@ -582,9 +723,9 @@ class LLMRails:
             from nemoguardrails.embeddings.basic import BasicEmbeddingsIndex
 
             return BasicEmbeddingsIndex(
-                embedding_model=esp_config.parameters.get("embedding_model", self.default_embedding_model),
-                embedding_engine=esp_config.parameters.get("embedding_engine", self.default_embedding_engine),
-                embedding_params=esp_config.parameters.get("embedding_parameters", self.default_embedding_params),
+                embedding_model=esp_config.parameters.get("embedding_model", self._default_embedding_model),
+                embedding_engine=esp_config.parameters.get("embedding_engine", self._default_embedding_engine),
+                embedding_params=esp_config.parameters.get("embedding_parameters", self._default_embedding_params),
                 cache_config=esp_config.cache,
                 # We make sure we also pass additional relevant params.
                 **{
@@ -601,11 +742,11 @@ class LLMRails:
                 },
             )
         else:
-            if esp_config.name not in self.embedding_search_providers:
+            if esp_config.name not in self._embedding_search_providers:
                 raise Exception(f"Unknown embedding search provider: {esp_config.name}")
             else:
                 kwargs = esp_config.parameters
-                return self.embedding_search_providers[esp_config.name](**kwargs)
+                return self._embedding_search_providers[esp_config.name](**kwargs)
 
     def _get_events_for_messages(self, messages: List[dict], state: Any):
         """Return the list of events corresponding to the provided messages.
@@ -681,7 +822,7 @@ class LLMRails:
                     events.append({"type": "ContextUpdate", "data": msg["content"]})
                 elif msg["role"] == "event":
                     events.append(msg["event"])
-                elif msg["role"] == "system":
+                elif msg["role"] in ("developer", "system"):
                     # Handle system messages - convert them to SystemMessage events
                     events.append({"type": "SystemMessage", "content": msg["content"]})
                 elif msg["role"] == "tool":
@@ -738,7 +879,7 @@ class LLMRails:
                     events.append({"type": "ContextUpdate", "data": msg["content"]})
                 elif msg["role"] == "event":
                     events.append(msg["event"])
-                elif msg["role"] == "system":
+                elif msg["role"] in ("developer", "system"):
                     # Handle system messages - convert them to SystemMessage events
                     events.append({"type": "SystemMessage", "content": msg["content"]})
                 elif msg["role"] == "tool":
@@ -788,7 +929,7 @@ class LLMRails:
                     "Invalid Colang 1.0 state format: state must contain an 'events' key. "
                     "Use an empty dict {} to start a new conversation."
                 )
-            if not isinstance(state["events"], list):
+            if not isinstance(state["events"], list):  # ty: ignore[invalid-argument-type]
                 raise InvalidStateError("Invalid Colang 1.0 state format: 'events' must be a list.")
             return
 
@@ -881,7 +1022,7 @@ class LLMRails:
         # Initialize the object with additional explanation information.
         # We allow this to also be set externally. This is useful when multiple parallel
         # requests are made.
-        self.explain_info = self._ensure_explain_info()
+        self._explain_info = self._ensure_explain_info()
 
         raw_llm_request.set(messages)
 
@@ -896,10 +1037,18 @@ class LLMRails:
 
         # If the last message is from the assistant, rather than the user, then
         # we move that to the `$bot_message` variable. This is to enable a more
-        # convenient interface. (only when dialog rails are disabled)
-        if messages and messages[-1]["role"] == "assistant" and gen_options and gen_options.rails.dialog is False:
+        # convenient interface for text output rails. Tool-call assistant messages
+        # must remain in the history so they can be converted into BotToolCalls
+        # events and evaluated by tool output rails.
+        if (
+            messages
+            and messages[-1]["role"] == "assistant"
+            and not messages[-1].get("tool_calls")
+            and gen_options
+            and gen_options.rails.dialog is False
+        ):
             # We already have the first message with a context update, so we use that
-            messages[0]["content"]["bot_message"] = messages[-1]["content"]
+            messages[0]["content"]["bot_message"] = messages[-1]["content"]  # ty: ignore[invalid-assignment]
             messages = messages[0:-1]
 
         # TODO: Add support to load back history of events, next to history of messages
@@ -920,7 +1069,7 @@ class LLMRails:
             state_events = []
             if state:
                 assert isinstance(state, dict)
-                state_events = state["events"]
+                state_events = state["events"]  # ty: ignore[invalid-argument-type]
 
             new_events = []
             # Compute the new events.
@@ -933,12 +1082,10 @@ class LLMRails:
                 streaming_handler = streaming_handler_var.get()
                 if streaming_handler:
                     # Push an error chunk instead of None.
-                    error_message = str(e)
-                    error_dict = extract_error_json(error_message)
-                    error_payload: str = json.dumps(error_dict)
+                    error_payload: str = build_streaming_error_payload(e)
                     await streaming_handler.push_chunk(error_payload)
                     # push a termination signal
-                    await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
+                    await streaming_handler.push_chunk(END_OF_STREAM)
                 # Re-raise the exact exception
                 raise
         else:
@@ -1036,9 +1183,9 @@ class LLMRails:
 
         # If logging is enabled, we log the conversation
         # TODO: add support for logging flag
-        self.explain_info.colang_history = get_colang_history(events)
+        self._explain_info.colang_history = get_colang_history(events)
         if self.verbose:
-            log.info(f"Conversation history so far: \n{self.explain_info.colang_history}")
+            log.info(f"Conversation history so far: \n{self._explain_info.colang_history}")
 
         total_time = time.time() - t0
         log.info("--- :: Total processing took %.2f seconds. LLM Stats: %s" % (total_time, llm_stats))
@@ -1047,7 +1194,7 @@ class LLMRails:
         streaming_handler = streaming_handler_var.get()
         if streaming_handler:
             # print("Closing the stream handler explicitly")
-            await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
+            await streaming_handler.push_chunk(END_OF_STREAM)
 
         # IF tracing is enabled we need to set GenerationLog attrs
         original_log_options = None
@@ -1076,8 +1223,9 @@ class LLMRails:
         # If we have generation options, we prepare a GenerationResponse instance.
         if gen_options:
             # If a prompt was used, we only need to return the content of the message.
-            if prompt:
-                res = GenerationResponse(response=new_message["content"])
+            message_content = new_message["content"]
+            if prompt and isinstance(message_content, str):
+                res = GenerationResponse(response=message_content)
             else:
                 res = GenerationResponse(response=[new_message])
 
@@ -1205,9 +1353,10 @@ class LLMRails:
         else:
             # If a prompt is used, we only return the content of the message.
 
-            if reasoning_content:
+            message_content = new_message["content"]
+            if reasoning_content and isinstance(message_content, str):
                 thinking_trace = f"<think>{reasoning_content}</think>\n"
-                new_message["content"] = thinking_trace + new_message["content"]
+                new_message["content"] = thinking_trace + message_content
 
             if prompt:
                 return new_message["content"]
@@ -1286,7 +1435,7 @@ class LLMRails:
             else:
                 return generator
 
-        self.explain_info = self._ensure_explain_info()
+        self._explain_info = self._ensure_explain_info()
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
 
@@ -1304,11 +1453,9 @@ class LLMRails:
                 # If an exception occurs during generation, push it to the streaming handler as a json string
                 # This ensures the streaming pipeline is properly terminated
                 log.error(f"Error in generation task: {e}", exc_info=True)
-                error_message = str(e)
-                error_dict = extract_error_json(error_message)
-                error_payload = json.dumps(error_dict)
+                error_payload = build_streaming_error_payload(e)
                 await streaming_handler.push_chunk(error_payload)
-                await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
+                await streaming_handler.push_chunk(END_OF_STREAM)
 
         task = asyncio.create_task(_generation_task())
 
@@ -1531,8 +1678,15 @@ class LLMRails:
             Run only input rails explicitly::
 
                 result = await rails.check_async(messages, rail_types=[RailType.INPUT])
+
+        Raises:
+            RailTypeNotConfiguredError: If a requested rail type has no
+                configured flows.
         """
         if rail_types is not None:
+            for rt in rail_types:
+                if not getattr(self.config.rails, rt.value).flows:
+                    raise RailTypeNotConfiguredError(f"Requested rail type '{rt.value}' has no configured rails.")
             options: Optional[dict] = {"rails": [r.value for r in rail_types]}
         else:
             options = _determine_rails_from_messages(messages)
@@ -1580,6 +1734,10 @@ class LLMRails:
 
         Returns:
             RailsResult containing status, content, and optional blocking rail name.
+
+        Raises:
+            RailTypeNotConfiguredError: If a requested rail type has no
+                configured flows.
         """
         if check_sync_call_from_async_loop():
             raise RuntimeError(
@@ -1626,7 +1784,7 @@ class LLMRails:
             cls: The class that will be used to generate and search embedding
         """
 
-        self.embedding_search_providers[name] = cls
+        self._embedding_search_providers[name] = cls
         return self
 
     def register_embedding_provider(self, cls: Type[EmbeddingModel], name: Optional[str] = None) -> Self:
@@ -1645,9 +1803,9 @@ class LLMRails:
 
     def explain(self) -> ExplainInfo:
         """Helper function to return the latest ExplainInfo object."""
-        if self.explain_info is None:
-            self.explain_info = self._ensure_explain_info()
-        return self.explain_info
+        if self._explain_info is None:
+            self._explain_info = self._ensure_explain_info()
+        return self._explain_info
 
     def __getstate__(self):
         return {"config": self.config}
@@ -1686,13 +1844,13 @@ class LLMRails:
 
         def _get_latest_user_message(
             messages: Optional[List[dict]] = None,
-        ) -> dict:
+        ) -> str:
             if messages is None:
-                return {}
+                return ""
             for message in reversed(messages):
                 if message.get("role") == "user":
-                    return message
-            return {}
+                    return message.get("content", "")
+            return ""
 
         def _prepare_context_for_parallel_rails(
             chunk_str: str,
@@ -1726,10 +1884,11 @@ class LLMRails:
             bot_response_chunk: str,
             prompt: Optional[str] = None,
             messages: Optional[List[dict]] = None,
-            action_params: Dict[str, Any] = {},
+            action_params: Optional[Dict[str, Any]] = None,
         ):
             context_message = _get_last_context_message(messages)
             user_message = prompt or _get_latest_user_message(messages)
+            flow_params = _get_flow_params(flow_id)
 
             context = {
                 "user_message": user_message,
@@ -1738,17 +1897,20 @@ class LLMRails:
 
             if context_message:
                 context.update(context_message["content"])
+            context["triggered_output_rail"] = flow_id
 
             model_name = flow_id.split("$")[-1].split("=")[-1].strip('"')
 
-            # we pass action params that are defined in the flow
-            # caveate, e.g. prmpt_security uses bot_response=$bot_message
-            # to resolve replace placeholders in action_params
-            for key, value in action_params.items():
-                if value == "$bot_message":
-                    action_params[key] = bot_response_chunk
-                elif value == "$user_message":
-                    action_params[key] = user_message
+            context_params = {
+                "bot_message": bot_response_chunk,
+                "user_message": user_message,
+                **flow_params,
+            }
+            resolved_action_params = {}
+            for key, value in (action_params or {}).items():
+                if isinstance(value, str) and value.startswith("$"):
+                    value = context_params.get(value[1:], value)
+                resolved_action_params[key] = value
 
             return {
                 # TODO:: are there other context variables that need to be passed?
@@ -1760,7 +1922,7 @@ class LLMRails:
                 "model_name": model_name,
                 "llms": self.runtime.registered_action_params.get("llms", {}),
                 "llm": self.runtime.registered_action_params.get(f"{action_name}_llm", self.llm),
-                **action_params,
+                **resolved_action_params,
             }
 
         buffer_strategy = get_buffer_strategy(output_rails_streaming_config)
@@ -1864,7 +2026,7 @@ class LLMRails:
                     pass
 
                 # update explain info for parallel mode
-                self.explain_info = self._ensure_explain_info()
+                self._explain_info = self._ensure_explain_info()
 
             else:
                 for flow_id in output_rails_flows_id:
@@ -1879,13 +2041,44 @@ class LLMRails:
                         action_params=action_params,
                     )
 
-                    result = await self.runtime.action_dispatcher.execute_action(action_name, params)
-                    self.explain_info = self._ensure_explain_info()
+                    try:
+                        result, status = await self.runtime.action_dispatcher.execute_action(action_name, params)
+                    except Exception:
+                        log.exception("Action %s failed during sequential streaming", action_name)
+                        result, status = None, "failed"
+                    self._explain_info = self._ensure_explain_info()
 
-                    action_func = self.runtime.action_dispatcher.get_action(action_name)
+                    if status != "success":
+                        error_message = f"Action {action_name} failed with status: {status}"
+                        log.error(error_message)
+                        error_data = {
+                            "error": {
+                                "message": f"Internal error in {flow_id} rail: {error_message}",
+                                "type": "internal_error",
+                                "param": flow_id,
+                                "code": "rail_execution_failure",
+                            }
+                        }
+                        yield json.dumps(error_data)
+                        return
 
-                    # Use the mapping to decide if the result indicates blocked content.
-                    if is_output_blocked(result, action_func):
+                    try:
+                        outcome = require_rail_outcome(result)
+                    except TypeError as e:
+                        error_message = str(e)
+                        log.error(error_message)
+                        error_data = {
+                            "error": {
+                                "message": f"Internal error in {flow_id} rail: {error_message}",
+                                "type": "internal_error",
+                                "param": flow_id,
+                                "code": "rail_execution_failure",
+                            }
+                        }
+                        yield json.dumps(error_data)
+                        return
+
+                    if outcome.is_blocked:
                         reason = f"Blocked by {flow_id} rails."
 
                         # return the error as a plain JSON string (not in SSE format)

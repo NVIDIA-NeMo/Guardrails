@@ -1,0 +1,315 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Custom LLM Models for the NVIDIA NeMo Guardrails library"
+sidebar-title: "Custom LLM Model"
+description: "Implement the LLMModel protocol to connect a non-OpenAI-compatible backend to the NVIDIA NeMo Guardrails library without depending on LangChain."
+content:
+  type: "how_to"
+---
+
+The NVIDIA NeMo Guardrails library defines a small `LLMModel` protocol that every backend implements. The built-in `DefaultFramework` ships an `OpenAIChatModel` for any OpenAI-compatible HTTP endpoint, and the optional `LangChainFramework` ships a `LangChainLLMAdapter` that wraps any LangChain `BaseChatModel` or `BaseLLM`. When neither matches your backend, you can implement `LLMModel` directly.
+
+This guide covers when to do that, the contract you must satisfy, a minimal worked example, and pointers to the reference implementations and to the testing helpers.
+
+## When to Use a Custom LLMModel
+
+There are three options for connecting a backend to the NVIDIA NeMo Guardrails library. Pick the best fit.
+
+| Backend shape | Recommended path | Where it lives |
+| --- | --- | --- |
+| OpenAI-compatible HTTP endpoint, such as vLLM, TGI, OpenRouter, self-hosted, NIM, and other endpoints | Use `engine: openai` (or the matching built-in engine) and set `parameters.base_url` | [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers) and the configuration reference |
+| You already have a LangChain `BaseChatModel` or `BaseLLM` | Use `engine: langchain` and register the LangChain class with `register_chat_provider` | [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers) |
+| Custom HTTP API that is not OpenAI-shaped, and you do not want a LangChain dependency | Implement `LLMModel` and register it with the active framework | This guide |
+
+Concretely, choose a custom `LLMModel` when:
+
+- Your provider speaks a non-OpenAI wire format and you do not want to depend on LangChain.
+- You want full control over retries, headers, streaming parsing, and tool-call accumulation.
+- You want a lean install footprint (no `langchain-*` packages) and you control the HTTP layer yourself.
+
+## The LLMModel Contract
+
+The protocol is `nemoguardrails.types.LLMModel`. It is `@runtime_checkable`, so the framework registry can verify with `isinstance(model, LLMModel)`.
+
+A custom model class must implement two async methods and three properties.
+
+```python
+from typing import AsyncIterator, List, Optional, Union
+
+from nemoguardrails import (
+    ChatMessage,
+    LLMResponse,
+    LLMResponseChunk,
+)
+
+class LLMModel:
+    async def generate_async(
+        self,
+        prompt: Union[str, List[ChatMessage]],
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs,
+    ) -> LLMResponse: ...
+
+    async def stream_async(
+        self,
+        prompt: Union[str, List[ChatMessage]],
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs,
+    ) -> AsyncIterator[LLMResponseChunk]:
+        yield ...  # async generator: implementations use `yield`, not `return`
+
+    @property
+    def model_name(self) -> str: ...
+
+    @property
+    def provider_name(self) -> Optional[str]: ...
+
+    @property
+    def provider_url(self) -> Optional[str]: ...
+```
+
+### `prompt`
+
+Adapters must accept either a plain string or a list of `nemoguardrails.types.ChatMessage` objects. `ChatMessage` is a stdlib dataclass with `role`, `content`, optional `tool_calls`, optional `tool_call_id`, optional `name`, and a `provider_metadata` dict for non-standard fields. Convert messages to whatever shape your SDK expects.
+
+### `stop` and `**kwargs`
+
+`stop` is the canonical name for stop sequences; keep it as a keyword-only argument. `**kwargs` carries everything the caller passed under `parameters` in `config.yml` plus any per-call overrides, such as `temperature`, `max_tokens`, and `top_p`. Forward these to the underlying SDK.
+
+### `generate_async` returns `LLMResponse`
+
+`LLMResponse` is a dataclass in `nemoguardrails/types.py`:
+
+```python
+@dataclass
+class LLMResponse:
+    content: str
+    reasoning: Optional[str] = None
+    tool_calls: Optional[List[ToolCall]] = None
+    model: Optional[str] = None
+    finish_reason: Optional[FinishReason] = None
+    stop_sequence: Optional[str] = None
+    request_id: Optional[str] = None
+    usage: Optional[UsageInfo] = None
+    provider_metadata: Optional[Dict[str, Any]] = None
+```
+
+`content` is required and must be a string (use the empty string when the model only produced tool calls). `finish_reason` is one of `"stop"`, `"length"`, `"tool_calls"`, `"content_filter"`, `"error"`, or `"other"`. Populate `tool_calls` only when the response is a function-calling/tool-calling response.
+
+### `stream_async` is an async generator
+
+Implementations must be `async def` generator functions that `yield` `LLMResponseChunk` objects. The protocol's return type is `AsyncIterator[LLMResponseChunk]`. Each chunk has the shape:
+
+```python
+@dataclass
+class LLMResponseChunk:
+    delta_content: Optional[str] = None
+    delta_reasoning: Optional[str] = None
+    delta_tool_calls: Optional[List[ToolCall]] = None
+    model: Optional[str] = None
+    finish_reason: Optional[FinishReason] = None
+    request_id: Optional[str] = None
+    usage: Optional[UsageInfo] = None
+    provider_metadata: Optional[Dict[str, Any]] = None
+```
+
+Follow these conventions so the rest of the pipeline works:
+
+- Yield text deltas in `delta_content` as soon as they arrive.
+- Yield `delta_reasoning` for chain-of-thought tokens emitted before the visible answer (OpenAI reasoning models, NIM `reasoning_content`).
+- Tool-call streaming is incremental on the wire: provider chunks usually carry argument fragments. Accumulate them and emit a single completed `delta_tool_calls` list on the chunk whose `finish_reason == "tool_calls"`. The reference `OpenAIChatModel._finalize_tool_calls` shows the pattern.
+- Set `finish_reason` only on the final chunk that carries it. Earlier chunks should leave it `None`.
+- Emit a final usage-only chunk (no `delta_content`, only `usage` and `request_id`) when the provider sends an end-of-stream usage record. The pipeline tolerates either inline or trailing usage.
+
+### Tool calling
+
+`ToolCall` and `ToolCallFunction` are dataclasses:
+
+```python
+@dataclass
+class ToolCallFunction:
+    name: str
+    arguments: Dict[str, Any]
+
+@dataclass
+class ToolCall:
+    id: str
+    type: str = "function"
+    function: ToolCallFunction = field(default_factory=lambda: ToolCallFunction(name="", arguments={}))
+```
+
+`function.arguments` is a `Dict[str, Any]`, not a JSON string. If your provider returns arguments as a JSON string, `json.loads()` it before constructing the `ToolCall`. If parsing fails for a streamed response, fall back to an empty dict; the tool layer will surface the real error when the function is invoked.
+
+### Properties
+
+- `model_name` returns the concrete model identifier (for example `gpt-4o-mini`, `meta/llama-3.1-70b-instruct`). Used in logs and error contexts.
+- `provider_name` returns the engine name as it appears in `config.yml` (for example `openai`, `nim`, `my_engine`). Return `None` only if you genuinely cannot determine it.
+- `provider_url` returns the base URL for HTTP backends, or `None` for backends that do not have one (for example a SageMaker endpoint addressed by ARN).
+
+### Error handling
+
+The pipeline expects errors to be normalized. Raise the exception classes defined in `nemoguardrails.exceptions`:
+
+- `LLMConnectionError` for network or DNS failures.
+- `LLMTimeoutError` for read or connect timeouts.
+- `LLMAuthenticationError` for 401 or 403.
+- `LLMRateLimitError` for 429.
+- `LLMResponseValidationError` for malformed provider responses.
+- `LLMClientError` is the common base if you need a generic fallback.
+
+Populate `model_name`, `provider_name`, and `base_url` on the exception when you raise it so downstream logs are usable. The reference `OpenAIChatModel._enrich` shows the pattern.
+
+## Minimal Working Example
+
+Below is a 40-line `EchoLLMModel` that returns canned responses without making any network call. It is useful as a starting skeleton and as a sanity check for new framework wiring.
+
+Create a config directory `my_config/` next to your smoke-test script with two files:
+
+```text
+my_config/
+├── config.py    # EchoLLMModel + register_provider call, run at import time
+└── config.yml   # references the registered engine name
+```
+
+`my_config/config.py`:
+
+```python
+import asyncio
+from typing import Any, AsyncIterator, List, Optional, Union
+
+from nemoguardrails import (
+    ChatMessage,
+    LLMResponse,
+    LLMResponseChunk,
+    UsageInfo,
+    register_provider,
+)
+
+class EchoLLMModel:
+    """Returns a canned response. Useful as a skeleton or in offline tests."""
+
+    def __init__(self, model: str, response: str = "echo", **kwargs: Any):
+        self._model = model
+        self._response = response
+        self._default_kwargs = kwargs
+
+    @property
+    def model_name(self) -> str:
+        return self._model
+
+    @property
+    def provider_name(self) -> Optional[str]:
+        return "echo"
+
+    @property
+    def provider_url(self) -> Optional[str]:
+        return None
+
+    async def generate_async(
+        self,
+        prompt: Union[str, List[ChatMessage]],
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        return LLMResponse(
+            content=self._response,
+            model=self._model,
+            finish_reason="stop",
+            usage=UsageInfo(input_tokens=0, output_tokens=len(self._response)),
+        )
+
+    async def stream_async(
+        self,
+        prompt: Union[str, List[ChatMessage]],
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[LLMResponseChunk]:
+        for token in self._response.split():
+            await asyncio.sleep(0)
+            yield LLMResponseChunk(delta_content=token + " ", model=self._model)
+        yield LLMResponseChunk(model=self._model, finish_reason="stop")
+
+register_provider("echo", EchoLLMModel)
+```
+
+The `register_provider` call attaches `EchoLLMModel` as the `echo` engine on whichever framework is currently active. By default, that is `DefaultFramework`. For the framework layer, refer to [Custom LLM Framework](/configure-guardrails/custom-initialization/custom-llm-framework).
+
+`my_config/config.yml`:
+
+```yaml
+models:
+  - type: main
+    engine: echo
+    model: echo-v1
+    parameters:
+      response: "Hello from echo"
+```
+
+### Trying it out
+
+Run a smoke test from the parent directory of `my_config/`. `LLMRails` imports `config.py` automatically, which triggers the `register_provider` call at the bottom of that file:
+
+```python
+# smoke.py (next to my_config/)
+from nemoguardrails import LLMRails, RailsConfig
+
+config = RailsConfig.from_path("./my_config")
+rails = LLMRails(config)
+
+result = rails.generate(messages=[{"role": "user", "content": "hi"}])
+print(result["content"])  # -> "Hello from echo"
+```
+
+If the smoke test prints `Hello from echo`, your provider is registered correctly. From there, replace `EchoLLMModel.generate_async` and `stream_async` with real backend calls.
+
+### What `register_provider` does
+
+`register_provider(name, cls)` from `nemoguardrails.llm.providers` resolves the active framework with `get_default_framework()` and calls `framework.register_provider(name, cls)` on it. For `DefaultFramework`, that adds `name` to its in-memory dict. Subsequent `create_model("echo", ...)` calls use your class as the factory. The active framework is selected once per process by `NEMOGUARDRAILS_LLM_FRAMEWORK` or `set_default_framework()` from `config.py`. You do not register on multiple frameworks.
+
+### Calling-convention contract for your `__init__`
+
+`framework.create_model(model_name, provider_name, model_kwargs)` calls your class as `EchoLLMModel(model=model_name, **model_kwargs)`. Make `model` a required keyword and accept additional `**kwargs` so that future configuration keys do not break instantiation.
+
+## Reference Implementations
+
+Review these production-grade `LLMModel` implementations:
+
+- [`nemoguardrails/llm/models/openai_chat.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/models/openai_chat.py): `OpenAIChatModel` for any OpenAI-compatible HTTP endpoint. Shows tool-call accumulation, reasoning-content extraction, response validation, and exception enrichment. Uses [`OpenAICompatibleClient`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/clients/openai_compatible.py) for the HTTP layer.
+- [`nemoguardrails/integrations/langchain/llm_adapter.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/integrations/langchain/llm_adapter.py): `LangChainLLMAdapter` that bridges any LangChain `BaseChatModel` or `BaseLLM`. Shows how to map LangChain's `tool_call_chunks`, `usage_metadata`, `response_metadata`, and `additional_kwargs` onto the `LLMResponse` and `LLMResponseChunk` shapes.
+
+Both files import their types directly from `nemoguardrails.types`. Custom models should do the same.
+
+## Testing Your Model
+
+The NVIDIA NeMo Guardrails library ships a pytest-friendly `FakeLLMModel` under `nemoguardrails.testing` that is shaped exactly like the protocol and accepts a list of canned strings or `LLMResponse` objects:
+
+```python
+from nemoguardrails.testing import FakeLLMModel
+```
+
+The two recommended approaches:
+
+1. Write unit tests for your `LLMModel` class in isolation: instantiate it, call `await model.generate_async(prompt)`, and assert on the returned `LLMResponse`. No framework needed.
+2. Write end-to-end tests with a real `LLMRails` instance by registering a `FakeLLMModel` (or `FakeLLMModel`-style class) as a custom provider in the test's `config.py`, then driving the full pipeline. For the full set of helpers (`FakeLLMModel`, `TestChat`, fixtures), refer to [Testing Your Guardrails Configuration](/configure-guardrails/custom-initialization/testing-your-config).
+
+The contract is small enough that property-based tests are straightforward: any string `prompt` and any list of `ChatMessage` objects must produce a non-`None` `LLMResponse.content`, and `stream_async` must always yield a final chunk with a non-`None` `finish_reason`.
+
+## Best Practices
+
+1. Implement both methods even if your backend has no native streaming. A simple `stream_async` that yields a single chunk built from `generate_async` keeps the streaming consumer paths working.
+2. Pre-flight validate provider responses. The reference `OpenAIChatModel._validate_response` rejects non-dict bodies and missing `choices` entries before parsing. This keeps user-facing errors actionable.
+3. Forward `**kwargs` to the SDK. Anything the user wrote under `parameters` in `config.yml` lands here. Letting unknown keys pass through means new SDK options work without a library release.
+4. Pool shared backend clients on the framework. `create_model` is called once per `models:` entry at `LLMRails` startup. After that, your model handles every request. If multiple `models:` entries point at the same backend, the framework, not the model, should hold the underlying client so they share one connection pool. `DefaultFramework._get_or_create_client` keys clients by `(base_url, api_key, ...)` for exactly this reason. Single-model configs can build the client directly in `__init__`.
+5. Do not raise vanilla `Exception`. Use the `nemoguardrails.exceptions` hierarchy so retries and structured logging behave correctly.
+
+## Related Topics
+
+- [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers) - LangChain `BaseLLM`/`BaseChatModel` providers (uses `engine: langchain`).
+- [Custom LLM Framework](/configure-guardrails/custom-initialization/custom-llm-framework) - Replace the framework layer wholesale, not just one engine.
+- [Init Function](/configure-guardrails/custom-initialization/init-function) - Where `register_provider` calls usually go.
+- [Configuration Reference](/configure-guardrails/configuration-reference) - `config.yml` schema, including `engine`, `model`, and `parameters`.

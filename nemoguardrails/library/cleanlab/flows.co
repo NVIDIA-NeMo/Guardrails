@@ -8,7 +8,7 @@ https://help.cleanlab.ai/tutorials/tlm/#how-does-the-tlm-trustworthiness-score-w
 flow cleanlab trustworthiness
   """Guardrail based on the trustworthiness score."""
   $result = await CallCleanlabApiAction
-  if $result.trustworthiness_score < 0.6
+  if $result.is_blocked
     if $system.config.enable_rails_exceptions
       send CleanlabTrustworthinessRailException(message="Trustworthiness score is below threshold")
     else

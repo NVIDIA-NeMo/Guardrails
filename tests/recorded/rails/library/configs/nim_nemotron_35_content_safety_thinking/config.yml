@@ -1,0 +1,41 @@
+# The thinking variant of nim_nemotron_35_content_safety: identical apart from the two values
+# below. On the NIM the reasoning trace comes back in `reasoning_content` and never in `content`,
+# so this config pins that split -- a regression that lets `<think>` leak into `content` shows up
+# as a changed completion in this suite's snapshot.
+models:
+  - type: content_safety
+    engine: nim
+    model: nvidia/nemotron-3.5-content-safety
+    parameters:
+      chat_template_kwargs:
+        enable_thinking: true
+        # Without this the model defaults to /no_categories and omits the
+        # `Safety Categories` line, leaving `policy_violations` empty.
+        request_categories: "/categories"
+
+rails:
+  input:
+    flows:
+      - content safety check input $model=content_safety
+  output:
+    flows:
+      - content safety check output $model=content_safety
+
+prompts:
+  - task: content_safety_check_input $model=content_safety
+    messages:
+      - type: user
+        content: "{{ user_input }}"
+    output_parser: nemotron_content_safety_parse_prompt_safety
+    max_tokens: 512
+    max_length: 128000
+
+  - task: content_safety_check_output $model=content_safety
+    messages:
+      - type: user
+        content: "{{ user_input }}"
+      - type: assistant
+        content: "{{ bot_response }}"
+    output_parser: nemotron_content_safety_parse_response_safety
+    max_tokens: 512
+    max_length: 128000

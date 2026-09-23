@@ -45,7 +45,9 @@ def register_log_adapter(model: Type, name: Optional[str] = None):
     """
 
     if not name:
-        name = model.name
+        model_name = getattr(model, "name", None)
+        if isinstance(model_name, str):
+            name = model_name
 
     if not name:
         raise ValueError("The engine name must be provided either in the model or as an argument.")

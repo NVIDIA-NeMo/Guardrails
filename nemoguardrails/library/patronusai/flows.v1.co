@@ -2,12 +2,12 @@ define bot inform answer unknown
   "I don't know the answer to that."
 
 define flow patronus lynx check output hallucination
-  $patronus_lynx_response = execute patronus_lynx_check_output_hallucination
-  $hallucination = $patronus_lynx_response["hallucination"]
+  $patronus_lynx_response = execute patronus_lynx_check_output_hallucination(model_name="patronus_lynx")
+  $hallucination = $patronus_lynx_response.metadata["hallucination"]
   # The Reasoning trace is currently unused, but can be used to modify the bot output
-  $reasoning = $patronus_lynx_response["reasoning"]
+  $reasoning = $patronus_lynx_response.metadata["reasoning"]
 
-  if $hallucination
+  if $patronus_lynx_response.is_blocked
     if $config.enable_rails_exceptions
       create event PatronusAIHallucinationException(message="Hallucination detected. The previous answer may not be accurate")
     else
@@ -16,7 +16,8 @@ define flow patronus lynx check output hallucination
 
 define flow patronus api check output
   $patronus_response = execute PatronusApiCheckOutputAction
-  $evaluation_passed = $patronus_response["pass"]
+  $evaluation_passed = $patronus_response.metadata["pass"]
 
-  if not $evaluation_passed
+  if $patronus_response.is_blocked
     bot inform answer unknown
+    stop

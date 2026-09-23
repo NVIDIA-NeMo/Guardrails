@@ -14,9 +14,9 @@ flow policyai moderation on input
   """Guardrail based on PolicyAI assessment."""
   $result = await CallPolicyaiApiAction(text=$user_message)
 
-  if $result.assessment == "UNSAFE"
+  if $result.is_blocked
     if $system.config.enable_rails_exceptions
-      send PolicyAIModerationRailException(message="PolicyAI moderation triggered. Content violated policy: " + $result.category)
+      send PolicyAIModerationRailException(message="PolicyAI moderation triggered. Content violated policy: " + $result.metadata["category"])
     else
       bot refuse to respond
     abort
@@ -25,9 +25,9 @@ flow policyai moderation on output
   """Guardrail based on PolicyAI assessment."""
   $result = await CallPolicyaiApiAction(text=$bot_message)
 
-  if $result.assessment == "UNSAFE"
+  if $result.is_blocked
     if $system.config.enable_rails_exceptions
-      send PolicyAIModerationRailException(message="PolicyAI moderation triggered. Content violated policy: " + $result.category)
+      send PolicyAIModerationRailException(message="PolicyAI moderation triggered. Content violated policy: " + $result.metadata["category"])
     else
       bot refuse to respond
     abort

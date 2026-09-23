@@ -18,9 +18,9 @@ from unittest.mock import AsyncMock
 import pytest
 from langchain_core.messages import AIMessage
 
-from nemoguardrails.actions.llm.utils import _store_reasoning_traces
 from nemoguardrails.context import reasoning_trace_var
 from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
+from nemoguardrails.llm.call import _store_reasoning_traces
 from nemoguardrails.types import LLMResponse
 
 

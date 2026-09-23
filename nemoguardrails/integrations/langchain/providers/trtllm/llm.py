@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 
 from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseLLM
-from pydantic.v1 import Field, root_validator
+from pydantic import Field, model_validator
 
 from nemoguardrails.integrations.langchain.providers.trtllm.client import TritonClient
 
@@ -59,21 +59,20 @@ class TRTLLM(BaseLLM):
     beam_width: Optional[int] = 1
     repetition_penalty: Optional[float] = 1.0
     length_penalty: Optional[float] = 1.0
-    client: Any
+    client: Any = Field(default=None, exclude=True)
     streaming: Optional[bool] = True
 
-    @root_validator(allow_reuse=True)
-    @classmethod
-    def validate_environment(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+    @model_validator(mode="after")
+    def validate_environment(self) -> "TRTLLM":
         """Validate that python package exists in environment."""
         try:
-            values["client"] = TritonClient(values["server_url"])
+            self.client = TritonClient(self.server_url)
 
         except ImportError as err:
             raise ImportError(
                 "Could not import triton client python package. Please install it with `pip install tritonclient[all]`."
             ) from err
-        return values
+        return self
 
     @property
     def _get_model_default_parameters(self) -> Dict[str, Any]:

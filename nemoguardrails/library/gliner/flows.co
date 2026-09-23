@@ -4,9 +4,9 @@
 
 flow gliner detect pii on input
   """Check if the user input has PII using GLiNER."""
-  $has_pii = await GlinerDetectPiiAction(source="input", text=$user_message)
+  $response = await GlinerDetectPiiAction(source="input", text=$user_message)
 
-  if $has_pii
+  if $response.is_blocked
     bot refuse to respond
     abort
 
@@ -15,9 +15,9 @@ flow gliner detect pii on input
 
 flow gliner detect pii on output
   """Check if the bot output has PII using GLiNER."""
-  $has_pii = await GlinerDetectPiiAction(source="output", text=$bot_message)
+  $response = await GlinerDetectPiiAction(source="output", text=$bot_message)
 
-  if $has_pii
+  if $response.is_blocked
     bot refuse to respond
     abort
 
@@ -26,9 +26,9 @@ flow gliner detect pii on output
 
 flow gliner detect pii on retrieval
   """Check if the relevant chunks from the knowledge base have any PII using GLiNER."""
-  $has_pii = await GlinerDetectPiiAction(source="retrieval", text=$relevant_chunks)
+  $response = await GlinerDetectPiiAction(source="retrieval", text=$relevant_chunks)
 
-  if $has_pii
+  if $response.is_blocked
     bot refuse to respond
     abort
 
@@ -42,21 +42,30 @@ flow gliner detect pii on retrieval
 
 flow gliner mask pii on input
   """Mask any detected PII in the user input using GLiNER."""
-  $masked_input = await GlinerMaskPiiAction(source="input", text=$user_message)
+  $response = await GlinerMaskPiiAction(source="input", text=$user_message)
 
-  global $user_message
-  $user_message = $masked_input
+  if $response.is_transform
+    global $user_message
+    $user_message = $response.transform_text["user_message"]
 
 
 # OUTPUT RAILS
 
 flow gliner mask pii on output
   """Mask any detected PII in the bot output using GLiNER."""
-  $bot_message = await GlinerMaskPiiAction(source="output", text=$bot_message)
+  $response = await GlinerMaskPiiAction(source="output", text=$bot_message)
+
+  if $response.is_transform
+    global $bot_message
+    $bot_message = $response.transform_text["bot_message"]
 
 
 # RETRIEVAL RAILS
 
 flow gliner mask pii on retrieval
   """Mask any detected PII in the relevant chunks from the knowledge base using GLiNER."""
-  $relevant_chunks = await GlinerMaskPiiAction(source="retrieval", text=$relevant_chunks)
+  $response = await GlinerMaskPiiAction(source="retrieval", text=$relevant_chunks)
+
+  if $response.is_transform
+    global $relevant_chunks
+    $relevant_chunks = $response.transform_text["relevant_chunks"]

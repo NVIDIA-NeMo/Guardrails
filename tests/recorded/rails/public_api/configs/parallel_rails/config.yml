@@ -1,0 +1,6 @@
+rails:
+  input:
+    parallel: true
+    flows:
+      - parallel input rail
+      - parallel input pass rail

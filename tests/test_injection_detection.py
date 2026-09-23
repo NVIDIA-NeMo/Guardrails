@@ -37,9 +37,11 @@ import yara
 from pydantic import ValidationError
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.injection_detection.actions import (
     _check_yara_available,
     _extract_injection_config,
+    _injection_detection_outcome,
     _load_rules,
     _omit_injection,
     _reject_injection,
@@ -79,6 +81,38 @@ def create_mock_rules(matches=None):
             return matches if matches is not None else []
 
     return MockRules()
+
+
+@pytest.mark.parametrize(
+    ("result", "action_option", "original_text", "expected"),
+    [
+        (
+            {"is_injection": False, "text": "normal", "detections": []},
+            "reject",
+            "normal",
+            RailOutcome.allow(metadata={"is_injection": False, "text": "normal", "detections": [], "action": "reject"}),
+        ),
+        (
+            {"is_injection": True, "text": "normal", "detections": ["sqli"]},
+            "reject",
+            "normal",
+            RailOutcome.block(
+                metadata={"is_injection": True, "text": "normal", "detections": ["sqli"], "action": "reject"}
+            ),
+        ),
+        (
+            {"is_injection": True, "text": "omitted", "detections": ["sqli"]},
+            "omit",
+            "normal",
+            RailOutcome.transform(
+                [(TransformTarget.BOT_MESSAGE, "omitted")],
+                metadata={"is_injection": True, "text": "omitted", "detections": ["sqli"], "action": "omit"},
+            ),
+        ),
+    ],
+)
+def test_injection_detection_outcome(result, action_option, original_text, expected):
+    assert _injection_detection_outcome(result, action_option, original_text) == expected
 
 
 def test_load_custom_rules():
@@ -706,7 +740,8 @@ async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
 
     some_text_that_would_be_injection = "This is a test string."
 
-    caplog.set_level(logging.ERROR, logger="actions.py")
+    logger_name = "nemoguardrails.library.injection_detection.actions"
+    caplog.set_level(logging.ERROR, logger=logger_name)
 
     chat = TestChat(config, llm_completions=[some_text_that_would_be_injection])
     rails = chat.app
@@ -720,7 +755,7 @@ async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
 
     # verify the error log was created with the expected content
     assert any(
-        record.name == "actions.py"
+        record.name == logger_name
         and record.levelno == logging.ERROR
         # minor variations in the error message are expected
         and "Failed to initialize injection detection" in record.message

@@ -43,11 +43,13 @@ def test_general_instructions_get_included_when_no_canonical_forms_are_defined()
         ],
     )
 
+    before_llm_calls = len(chat.app.explain().llm_calls)
     chat >> "hello there!"
     chat << "Hello there!"
 
     info = chat.app.explain()
-    assert "This is a conversation between a user and a bot." in info.llm_calls[0].prompt
+    llm_calls = info.llm_calls[before_llm_calls:]
+    assert "This is a conversation between a user and a bot." in llm_calls[0].prompt
 
 
 def test_get_general_instructions_none():

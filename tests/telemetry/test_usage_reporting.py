@@ -31,6 +31,7 @@ from nemoguardrails.telemetry import (
     _detect_builtin_features,
     _get_heartbeat_interval_s,
     _is_usage_stats_enabled,
+    _normalize_builtin_feature_id,
     _rotate_audit_file,
     _send_report,
     _write_audit_file,
@@ -983,6 +984,32 @@ class TestBuiltinFeatures:
         assert "patronus" not in result
         assert "regex_detection" not in result
 
+    @pytest.mark.parametrize(
+        ("feature_id", "expected"),
+        [
+            ("factchecking.align_score", "factchecking"),
+            ("self_check.tool_call", "self_check"),
+        ],
+    )
+    def test_dotted_feature_ids_use_namespace(self, feature_id, expected):
+        assert _normalize_builtin_feature_id(feature_id) == expected
+
+    def test_documented_builtin_feature_ids_match_manifest_catalog(self):
+        from nemoguardrails.manifests import default_rail_catalog
+
+        docs = (Path(__file__).parents[2] / "docs" / "telemetry.mdx").read_text(encoding="utf-8")
+        section = docs.split("### Possible Values for Built-In Features", 1)[1].split(
+            "## Data Not Collected by Telemetry",
+            1,
+        )[0]
+        documented_line = next(line for line in section.splitlines() if line.startswith("`"))
+        documented = set(documented_line.removesuffix(".").replace("`", "").split(", "))
+        expected = {
+            _normalize_builtin_feature_id(manifest.name) for manifest in default_rail_catalog().manifests.values()
+        }
+
+        assert documented == expected
+
     def test_detects_features_from_exact_flow_names(self):
         from nemoguardrails.rails.llm.config import Rails
 
@@ -998,6 +1025,107 @@ class TestBuiltinFeatures:
         assert "content_safety" in result
         assert "topic_safety" in result
         assert "jailbreak_detection" in result
+
+    def test_detects_features_added_to_manifest_catalog(self):
+        from nemoguardrails.rails.llm.config import Rails
+
+        config = MagicMock()
+        config.rails = Rails()
+        config.rails.input.flows = [
+            "context bloat detection on input",
+            "f5 guardrails scan input",
+            "gcpnlp moderation",
+            "hf classifier check input",
+            "polygraf detect pii on input",
+        ]
+
+        result = _detect_builtin_features(config)
+
+        assert result == [
+            "context_bloat_detection",
+            "f5",
+            "gcp_moderate_text",
+            "hf_classifier",
+            "polygraf",
+        ]
+
+    def test_manifest_catalog_failure_skips_flow_detection(self):
+        from nemoguardrails.rails.llm.config import JailbreakDetectionConfig, Rails, RailsConfigData
+
+        config = MagicMock()
+        config.rails = Rails(
+            config=RailsConfigData(
+                jailbreak_detection=JailbreakDetectionConfig(nim_base_url="https://example.com"),
+            )
+        )
+        config.rails.input.flows = ["content safety check input"]
+
+        with patch(
+            "nemoguardrails.manifests.default_rail_catalog",
+            side_effect=RuntimeError("catalog unavailable"),
+        ):
+            assert _detect_builtin_features(config) == ["jailbreak_detection"]
+
+    def test_every_manifest_flow_resolves_to_the_expected_builtin_feature(self):
+        from nemoguardrails.manifests import default_rail_catalog
+        from nemoguardrails.rails.llm.config import Rails
+
+        config = MagicMock()
+        config.rails = Rails()
+        catalog = default_rail_catalog()
+        manifest_feature_ids = {
+            "privateai": "sensitive_data_detection",
+        }
+        flow_feature_overrides = {
+            "self check hallucination": "self_check",
+        }
+
+        mismatches = []
+        for manifest in catalog.manifests.values():
+            if manifest.flows is None:
+                continue
+            for flow_name in manifest.flows.flow_names:
+                config.rails.input.flows = [flow_name]
+                expected = flow_feature_overrides.get(
+                    flow_name,
+                    manifest_feature_ids.get(manifest.name, manifest.name.split(".", 1)[0]),
+                )
+                actual = _detect_builtin_features(config)
+                if actual != [expected]:
+                    mismatches.append((flow_name, expected, actual))
+
+        assert mismatches == []
+
+    @pytest.mark.parametrize(
+        ("flow_name", "feature_id"),
+        [
+            ("alignscore check facts", "factchecking"),
+            ("detect pii on input", "sensitive_data_detection"),
+            ("self check facts", "self_check"),
+            ("self check hallucination", "self_check"),
+        ],
+    )
+    def test_manifest_flow_preserves_compatibility_feature_id(self, flow_name, feature_id):
+        from nemoguardrails.rails.llm.config import Rails
+
+        config = MagicMock()
+        config.rails = Rails()
+        config.rails.input.flows = [flow_name]
+
+        assert _detect_builtin_features(config) == [feature_id]
+
+    def test_privateai_config_and_flow_share_compatibility_feature_id(self):
+        from nemoguardrails.rails.llm.config import PrivateAIDetection, Rails, RailsConfigData
+
+        config = MagicMock()
+        config.rails = Rails(
+            config=RailsConfigData(
+                privateai=PrivateAIDetection(server_endpoint="https://private-ai.example.com"),
+            )
+        )
+        config.rails.input.flows = ["detect pii on input"]
+
+        assert _detect_builtin_features(config) == ["sensitive_data_detection"]
 
     def test_ignores_unknown_flow_names(self):
         from nemoguardrails.rails.llm.config import Rails

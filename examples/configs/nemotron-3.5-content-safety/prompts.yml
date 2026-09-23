@@ -1,0 +1,21 @@
+# The model's chat template supplies the safety instructions, the taxonomy and the required
+# output format. The prompt carries only the turns to classify: anything else placed here is
+# wrapped inside <BEGIN CONVERSATION> and classified as though the user had written it.
+prompts:
+  - task: content_safety_check_input $model=content_safety
+    messages:
+      - type: user
+        content: "{{ user_input }}"
+    output_parser: nemotron_content_safety_parse_prompt_safety
+    max_tokens: 100
+    max_length: 128000
+
+  - task: content_safety_check_output $model=content_safety
+    messages:
+      - type: user
+        content: "{{ user_input }}"
+      - type: assistant
+        content: "{{ bot_response }}"
+    output_parser: nemotron_content_safety_parse_response_safety
+    max_tokens: 100
+    max_length: 128000

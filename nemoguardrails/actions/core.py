@@ -41,7 +41,7 @@ async def create_event(
 
     # We add basic support for referring variables as values
     for k, v in event_dict.items():
-        if isinstance(v, str) and v[0] == "$":
+        if isinstance(v, str) and v.startswith("$"):
             event_dict[k] = context.get(v[1:], None) if context else None
 
     return ActionResult(events=[event_dict])

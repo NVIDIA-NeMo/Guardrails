@@ -1,0 +1,25 @@
+flow hf classifier check input $classifier
+  $response = await HfClassifierCheckInputAction(classifier=$classifier)
+
+  if $response.is_blocked
+    if $system.config.enable_rails_exceptions
+      send InputRailException(message="Input blocked by 'hf classifier check input' (classifier='{$classifier}').")
+    else
+      bot refuse to respond
+    abort
+
+flow hf classifier check output $classifier
+  $response = await HfClassifierCheckOutputAction(classifier=$classifier)
+
+  if $response.is_blocked
+    if $system.config.enable_rails_exceptions
+      send OutputRailException(message="Output blocked by 'hf classifier check output' (classifier='{$classifier}').")
+    else
+      bot refuse to respond
+    abort
+
+flow hf classifier check retrieval $classifier
+  $response = await HfClassifierCheckRetrievalAction(classifier=$classifier)
+
+  if $response.is_transform
+    $relevant_chunks = $response.transform_text["relevant_chunks"]

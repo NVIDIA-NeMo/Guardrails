@@ -18,16 +18,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from nemoguardrails.actions.llm.utils import (
-    _extract_content,
-    _store_tool_calls,
-    get_and_clear_tool_calls_contextvar,
-    llm_call,
-)
+from nemoguardrails.actions.llm.utils import get_and_clear_tool_calls_contextvar
 from nemoguardrails.context import tool_calls_var
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
 from nemoguardrails.integrations.langchain.message_utils import dicts_to_messages
+from nemoguardrails.llm.call import _extract_content, _store_tool_calls, llm_call
 from nemoguardrails.rails.llm.llmrails import GenerationResponse
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720">
+<rect width="1600" height="720" fill="#FFFFFF"/>
+<rect x="70.00" y="58.00" width="14.00" height="112.00" rx="0.00" fill="#76B900"/>
+<text x="110.00" y="78.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#76B900" text-anchor="start">NVIDIA NeMo Guardrails</text>
+<text x="110.00" y="132.00" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700" fill="#000000" text-anchor="start">How many rails are configured at startup?</text>
+<text x="110.00" y="174.00" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="400" fill="#5E5E5E" text-anchor="start">Share of startup configurations with at least one counted rail · v0.22.0 and v0.23.0 · May 22–Aug 18, 2026</text>
+<line x1="70.00" y1="205.00" x2="1530.00" y2="205.00" stroke="#CDCDCD" stroke-width="2.00"/>
+<line x1="430.00" y1="238.00" x2="430.00" y2="602.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="430.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">0%</text>
+<line x1="632.00" y1="238.00" x2="632.00" y2="602.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="632.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">10%</text>
+<line x1="834.00" y1="238.00" x2="834.00" y2="602.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="834.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">20%</text>
+<line x1="1036.00" y1="238.00" x2="1036.00" y2="602.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="1036.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">30%</text>
+<line x1="1238.00" y1="238.00" x2="1238.00" y2="602.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="1238.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">40%</text>
+<line x1="1440.00" y1="238.00" x2="1440.00" y2="602.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="1440.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">50%</text>
+<text x="402.00" y="304.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">1 rail</text>
+<rect x="430.00" y="270.00" width="660.87" height="50.00" rx="5.00" fill="#76B900"/>
+<text x="1072.87" y="304.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="end">32.7%  ·  345,715</text>
+<text x="402.00" y="416.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">2 rails</text>
+<rect x="430.00" y="382.00" width="838.14" height="50.00" rx="5.00" fill="#008564"/>
+<text x="1250.14" y="416.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="end">41.5%  ·  438,445</text>
+<text x="402.00" y="528.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">3+ rails</text>
+<rect x="430.00" y="494.00" width="520.99" height="50.00" rx="5.00" fill="#0071C5"/>
+<text x="932.99" y="528.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="end">25.8%  ·  272,538</text>
+<text x="70.00" y="612.00" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" fill="#5E5E5E" text-anchor="start">Based on 1,056,698 startup records after excluding zero configured rails.</text>
+<text x="70.00" y="642.00" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" fill="#5E5E5E" text-anchor="start">Dialog rails are represented separately and are not included in the configured-rail count.</text>
+</svg>

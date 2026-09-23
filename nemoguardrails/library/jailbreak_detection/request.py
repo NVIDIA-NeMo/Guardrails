@@ -28,12 +28,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import logging
 from typing import Optional
 from urllib.parse import urljoin
 
-import aiohttp
+from nemoguardrails.http import HTTPClient, HTTPClientError, HTTPTimeoutError, http_call
 
 log = logging.getLogger(__name__)
 
@@ -60,6 +59,7 @@ async def jailbreak_detection_heuristics_request(
     api_url: str = "http://localhost:1337/heuristics",
     lp_threshold: Optional[float] = None,
     ps_ppl_threshold: Optional[float] = None,
+    http_client: Optional[HTTPClient] = None,
 ):
     payload = {
         "prompt": prompt,
@@ -67,46 +67,45 @@ async def jailbreak_detection_heuristics_request(
         "ps_ppl_threshold": ps_ppl_threshold,
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(api_url, json=payload) as resp:
-            if resp.status != 200:
-                log.error(f"Jailbreak check API request failed with status {resp.status}")
-                return None
+    response = await http_call(http_client, "POST", api_url, json=payload, raise_for_status=False)
+    if response.status_code != 200:
+        log.error(f"Jailbreak check API request failed with status {response.status_code}")
+        return None
 
-            result = await resp.json()
+    result = response.json()
 
-            log.info(f"Prompt jailbreak check: {result}.")
-            try:
-                result = result["jailbreak"]
-            except KeyError:
-                log.exception("No jailbreak field in result.")
-                result = None
-            return result
+    log.info(f"Prompt jailbreak check: {result}.")
+    try:
+        result = result["jailbreak"]
+    except KeyError:
+        log.exception("No jailbreak field in result.")
+        result = None
+    return result
 
 
 async def jailbreak_detection_model_request(
     prompt: str,
     api_url: str = "http://localhost:1337/model",
+    http_client: Optional[HTTPClient] = None,
 ):
     payload = {
         "prompt": prompt,
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(api_url, json=payload) as resp:
-            if resp.status != 200:
-                log.error(f"Jailbreak check API request failed with status {resp.status}")
-                return None
+    response = await http_call(http_client, "POST", api_url, json=payload, raise_for_status=False)
+    if response.status_code != 200:
+        log.error(f"Jailbreak check API request failed with status {response.status_code}")
+        return None
 
-            result = await resp.json()
+    result = response.json()
 
-            log.info(f"Prompt jailbreak check: {result}.")
-            try:
-                result = result["jailbreak"]
-            except KeyError:
-                log.exception("No jailbreak field in result.")
-                result = None
-            return result
+    log.info(f"Prompt jailbreak check: {result}.")
+    try:
+        result = result["jailbreak"]
+    except KeyError:
+        log.exception("No jailbreak field in result.")
+        result = None
+    return result
 
 
 async def jailbreak_nim_request(
@@ -114,6 +113,7 @@ async def jailbreak_nim_request(
     nim_url: str,
     nim_auth_token: Optional[str],
     nim_classification_path: str,
+    http_client: Optional[HTTPClient] = None,
 ):
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     payload = {
@@ -122,30 +122,36 @@ async def jailbreak_nim_request(
 
     endpoint = join_nim_url(nim_url, nim_classification_path)
     try:
-        async with aiohttp.ClientSession() as session:
-            try:
-                if nim_auth_token is not None:
-                    headers["Authorization"] = f"Bearer {nim_auth_token}"
-                async with session.post(endpoint, json=payload, headers=headers, timeout=30) as resp:
-                    if resp.status != 200:
-                        log.error(f"NemoGuard JailbreakDetect NIM request failed with status {resp.status}")
-                        return None
+        if nim_auth_token is not None:
+            headers["Authorization"] = f"Bearer {nim_auth_token}"
+        response = await http_call(
+            http_client,
+            "POST",
+            endpoint,
+            json=payload,
+            headers=headers,
+            timeout=30,
+            raise_for_status=False,
+        )
+        if response.status_code != 200:
+            log.error(f"NemoGuard JailbreakDetect NIM request failed with status {response.status_code}")
+            return None
 
-                    result = await resp.json()
+        result = response.json()
 
-                    log.info(f"Prompt jailbreak check: {result}.")
-                    try:
-                        result = result["jailbreak"]
-                    except KeyError:
-                        log.exception("No jailbreak field in result.")
-                        result = None
-                    return result
-            except aiohttp.ClientError as e:
-                log.error(f"NemoGuard JailbreakDetect NIM connection error: {str(e)}")
-                return None
-            except asyncio.TimeoutError:
-                log.error("NemoGuard JailbreakDetect NIM request timed out")
-                return None
+        log.info(f"Prompt jailbreak check: {result}.")
+        try:
+            result = result["jailbreak"]
+        except KeyError:
+            log.exception("No jailbreak field in result.")
+            result = None
+        return result
+    except HTTPTimeoutError:
+        log.error("NemoGuard JailbreakDetect NIM request timed out")
+        return None
+    except HTTPClientError as e:
+        log.error(f"NemoGuard JailbreakDetect NIM connection error: {str(e)}")
+        return None
     except Exception as e:
         log.error(f"Unexpected error during NIM request: {str(e)}")
         return None

@@ -40,15 +40,15 @@ class EvalData(BaseModel):
     def update_results(self):
         """Updates back the evaluation results."""
         t0 = time()
-        results = [r.dict() for r in self.eval_outputs[self.selected_output_path].results]
+        results = [r.model_dump() for r in self.eval_outputs[self.selected_output_path].results]
         update_dict_at_path(self.selected_output_path, {"results": results})
         print(f"Updating output results took {time() - t0:.2f} seconds.")
 
     def update_results_and_logs(self, output_path: str):
         """Update back the results and the logs."""
         t0 = time()
-        results = [r.dict() for r in self.eval_outputs[output_path].results]
-        logs = [r.dict() for r in self.eval_outputs[output_path].logs]
+        results = [r.model_dump() for r in self.eval_outputs[output_path].results]
+        logs = [r.model_dump() for r in self.eval_outputs[output_path].logs]
         update_dict_at_path(output_path, {"results": results, "logs": logs})
         print(f"Updating output results took {time() - t0:.2f} seconds.")
 
@@ -100,7 +100,7 @@ def collect_interaction_metrics_with_expected_latencies(
             counters[metric] = counters.get(metric, 0) + 1
 
         # For the latency part, we need to first update the spans and then recompute the latencies.
-        updated_spans = [Span.parse_obj(span.dict()) for span in interaction_log.trace]
+        updated_spans = [Span.model_validate(span.model_dump()) for span in interaction_log.trace]
 
         # We create an index so that we can quickly look up the parents.
         updated_span_by_idx = {}

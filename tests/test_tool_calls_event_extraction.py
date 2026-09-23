@@ -127,6 +127,53 @@ async def test_generation_action_pops_tool_calls_once():
 
 
 @pytest.mark.asyncio
+async def test_extract_tool_calls_from_start_tool_call_action():
+    from nemoguardrails.actions.llm.utils import extract_tool_calls_from_events
+
+    test_tool_calls = [
+        {
+            "id": "call_approved",
+            "type": "function",
+            "function": {
+                "name": "approved_tool",
+                "arguments": {"data": "safe"},
+            },
+        }
+    ]
+
+    events = [{"type": "StartToolCallBotAction", "tool_calls": test_tool_calls}]
+
+    assert extract_tool_calls_from_events(events) == test_tool_calls
+
+
+@pytest.mark.asyncio
+async def test_extract_tool_calls_prefers_post_rail_action_event():
+    from nemoguardrails.actions.llm.utils import extract_tool_calls_from_events
+
+    pre_rail = [
+        {
+            "id": "call_modified",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": {"query": "unfiltered"}},
+        }
+    ]
+    post_rail = [
+        {
+            "id": "call_modified",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": {"query": "filtered"}},
+        }
+    ]
+
+    events = [
+        {"type": "BotToolCalls", "tool_calls": pre_rail},
+        {"type": "StartToolCallBotAction", "tool_calls": post_rail},
+    ]
+
+    assert extract_tool_calls_from_events(events) == post_rail
+
+
+@pytest.mark.asyncio
 async def test_llmrails_extracts_tool_calls_from_events():
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 

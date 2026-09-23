@@ -18,12 +18,91 @@ import os.path
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.options import (
+    ActivatedRail,
+    ExecutedAction,
     GenerationLog,
     GenerationResponse,
     GenerationStats,
 )
 from tests.utils import TestChat
+
+_RAIL_OUTCOME_CASES = [
+    pytest.param(
+        RailOutcome.allow(reason="allowed", metadata={"score": 0.9}),
+        id="allow",
+    ),
+    pytest.param(
+        RailOutcome.block(reason="blocked", metadata={"categories": ["unsafe"]}),
+        id="block",
+    ),
+    pytest.param(
+        RailOutcome.transform(
+            [
+                (TransformTarget.USER_MESSAGE, "masked input"),
+                (TransformTarget.BOT_MESSAGE, "masked output"),
+                (TransformTarget.RELEVANT_CHUNKS, "masked chunks"),
+            ],
+            reason="transformed",
+            metadata={"entities": ["name"]},
+        ),
+        id="transform",
+    ),
+]
+
+
+def _generate_with_rail_outcome(outcome, *, log=None, output_vars=None):
+    config = RailsConfig.from_content(
+        colang_content="""
+            define subflow outcome input rail
+              $response = execute outcome_action
+        """,
+        yaml_content="""
+            rails:
+              input:
+                flows:
+                  - outcome input rail
+        """,
+    )
+    chat = TestChat(config, llm_completions=[])
+
+    async def outcome_action():
+        return outcome
+
+    chat.app.register_action(outcome_action)
+    options = {"rails": ["input"]}
+    if log is not None:
+        options["log"] = log
+    if output_vars is not None:
+        options["output_vars"] = output_vars
+
+    return chat.app.generate("Hello!", options=options)
+
+
+def _json_round_trip(model):
+    return json.loads(json.dumps(model.model_dump()))
+
+
+def _expected_serialized_outcome(outcome):
+    return {
+        "decision": outcome.decision.value,
+        "reason": outcome.reason,
+        "metadata": dict(outcome.metadata),
+        "transforms": [{"target": spec.target.value, "text": spec.text} for spec in outcome.transforms],
+        "failed": outcome.failed,
+    }
+
+
+def _get_outcome_action_event(events):
+    action_events = [
+        event
+        for event in events
+        if event["type"] == "InternalSystemActionFinished" and event["action_name"] == "outcome_action"
+    ]
+    assert len(action_events) == 1, f"Expected one outcome_action completion event, found {len(action_events)}"
+    return action_events[0]
 
 
 def test_output_vars_1():
@@ -183,6 +262,53 @@ def test_triggered_abc_bot():
     res.log.print_summary()
 
 
+@pytest.mark.parametrize("outcome", _RAIL_OUTCOME_CASES)
+@pytest.mark.parametrize("log_field", ["activated_rails", "internal_events"])
+def test_generation_log_with_rail_outcome_is_json_serializable(outcome, log_field):
+    res = _generate_with_rail_outcome(outcome, log={log_field: True})
+
+    data = _json_round_trip(res.log)
+
+    if log_field == "activated_rails":
+        serialized_outcome = data["activated_rails"][0]["executed_actions"][0]["return_value"]
+    else:
+        action_event = _get_outcome_action_event(data["internal_events"])
+        serialized_outcome = action_event["return_value"]
+
+    assert serialized_outcome == _expected_serialized_outcome(outcome)
+
+
+@pytest.mark.parametrize("outcome", _RAIL_OUTCOME_CASES)
+@pytest.mark.parametrize(
+    "surface",
+    [
+        "activated_rails",
+        "internal_events",
+        "selected_output_vars",
+        "all_output_vars",
+    ],
+)
+def test_generation_response_with_rail_outcome_is_json_serializable(outcome, surface):
+    if surface in {"activated_rails", "internal_events"}:
+        res = _generate_with_rail_outcome(outcome, log={surface: True})
+    elif surface == "selected_output_vars":
+        res = _generate_with_rail_outcome(outcome, output_vars=["response"])
+    else:
+        res = _generate_with_rail_outcome(outcome, output_vars=True)
+
+    data = _json_round_trip(res)
+
+    if surface == "activated_rails":
+        serialized_outcome = data["log"]["activated_rails"][0]["executed_actions"][0]["return_value"]
+    elif surface == "internal_events":
+        action_event = _get_outcome_action_event(data["log"]["internal_events"])
+        serialized_outcome = action_event["return_value"]
+    else:
+        serialized_outcome = data["output_data"]["response"]
+
+    assert serialized_outcome == _expected_serialized_outcome(outcome)
+
+
 @pytest.mark.skip(reason="Run manually.")
 def test_triggered_rails_info_3():
     config = RailsConfig.from_content(
@@ -312,7 +438,7 @@ def test_only_input_output_validation():
 
 
 def test_generation_log_print_summary(capsys):
-    """Test printing rais stats with dummy data"""
+    """Test printing rails stats with dummy data"""
 
     stats = GenerationStats(
         input_rails_duration=1.0,
@@ -344,6 +470,134 @@ def test_generation_log_print_summary(capsys):
         capture_lines[8]
         == "- 4 LLM calls, 8.00s total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
     )
+
+
+def _dummy_activated_rails(durations: list[float | None]) -> list[ActivatedRail]:
+    names = [
+        ("input", "dummy input rail"),
+        ("dialog", "dummy dialog rail"),
+        ("generation", "dummy generation rail"),
+        ("output", "dummy output rail"),
+    ]
+    return [
+        ActivatedRail(type=rail_type, name=name, duration=duration)
+        for (rail_type, name), duration in zip(names, durations, strict=True)
+    ]
+
+
+def test_generation_log_print_summary_no_total_duration(capsys):
+    """Missing total_duration must not crash, and activated rails still print."""
+    generation_log = GenerationLog(
+        activated_rails=[ActivatedRail(type="tool_output", name="tool output check", duration=0.5)],
+        stats=GenerationStats(),
+    )
+
+    generation_log.print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert "No stats available" in lines
+    assert "- Total time: 10.00s" not in lines
+    assert "- [0.50s] TOOL_OUTPUT (tool output check): 0 actions (n/a), 0 llm calls [n/a]" in lines
+
+
+def test_generation_log_print_summary_zero_total_duration(capsys):
+    """A zero total_duration with a nonzero rail duration must not raise ZeroDivisionError."""
+    stats = GenerationStats(
+        total_duration=0.0,
+        input_rails_duration=1.0,
+        llm_calls_count=0,
+    )
+
+    GenerationLog(activated_rails=[], stats=stats).print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert "- Total time: 0.00s" in lines
+    assert not any("INPUT Rails" in line for line in lines)
+
+
+def test_generation_log_print_summary_no_llm_calls_duration(capsys):
+    """Missing llm_calls_duration prints n/a instead of raising."""
+    stats = GenerationStats(
+        input_rails_duration=1.0,
+        dialog_rails_duration=2.0,
+        generation_rails_duration=3.0,
+        output_rails_duration=4.0,
+        total_duration=10.0,
+        llm_calls_duration=None,
+        llm_calls_count=4,
+        llm_calls_total_prompt_tokens=1000,
+        llm_calls_total_completion_tokens=2000,
+        llm_calls_total_tokens=3000,
+    )
+
+    GenerationLog(activated_rails=[], stats=stats).print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert (
+        "- 4 LLM calls, n/a total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
+        in lines
+    )
+
+
+def test_generation_log_print_summary_no_activated_rail_duration(capsys):
+    """Missing activated_rail.duration prints n/a instead of raising."""
+    stats = GenerationStats(
+        input_rails_duration=1.0,
+        dialog_rails_duration=2.0,
+        generation_rails_duration=3.0,
+        output_rails_duration=4.0,
+        total_duration=10.0,
+        llm_calls_duration=8.0,
+        llm_calls_count=4,
+        llm_calls_total_prompt_tokens=1000,
+        llm_calls_total_completion_tokens=2000,
+        llm_calls_total_tokens=3000,
+    )
+
+    GenerationLog(
+        activated_rails=_dummy_activated_rails([None, None, None, None]),
+        stats=stats,
+    ).print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert "- [n/a] INPUT (dummy input rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [n/a] DIALOG (dummy dialog rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [n/a] GENERATION (dummy generation rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [n/a] OUTPUT (dummy output rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert (
+        "- 4 LLM calls, 8.00s total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
+        in lines
+    )
+
+
+def test_generation_log_print_summary_no_llm_call_duration(capsys):
+    """An LLM call with no duration must be omitted, not reported as 0.00s."""
+    stats = GenerationStats(
+        input_rails_duration=1.0,
+        total_duration=1.0,
+        llm_calls_duration=None,
+        llm_calls_count=2,
+    )
+
+    executed_action = ExecutedAction(
+        action_name="dummy action",
+        llm_calls=[
+            LLMCallInfo(duration=None),
+            LLMCallInfo(duration=0.5),
+        ],
+    )
+    activated_rail = ActivatedRail(
+        type="input",
+        name="dummy input rail",
+        duration=1.0,
+        executed_actions=[executed_action],
+    )
+
+    GenerationLog(activated_rails=[activated_rail], stats=stats).print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert "- [1.00s] INPUT (dummy input rail): 1 actions (dummy action), 2 llm calls [0.5s]" in lines
+    assert "0.0s" not in "\n".join(lines)
 
 
 @pytest.mark.parametrize(

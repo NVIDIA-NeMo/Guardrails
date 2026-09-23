@@ -1,0 +1,149 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "NVIDIA NeMo Guardrails Library"
+sidebar-title: "Home"
+description: "Add programmable guardrails to LLM applications with an open-source Python library."
+keywords:
+    ["nemo guardrails", "llm safety", "content moderation", "guardrails python"]
+layout: overview
+---
+
+The NeMo Guardrails library is an open-source Python package for adding programmable guardrails to LLM-based applications. It intercepts inputs and outputs, applies configurable safety checks, and blocks or modifies content based on defined policies.
+
+## Get Started
+
+Use the starter prompt with your AI coding agent to help it install the NVIDIA NeMo Guardrails library, choose the right docs, or follow contributor guidance.
+
+<div
+  className="starter-prompt"
+  style={{
+    "--accent-a2": "#76b900",
+    "--accent-a3": "#8dd600",
+    "--accent-a6": "#76b900",
+    "--accent-11": "#111827",
+    "--grayscale-a11": "#111827",
+    display: "inline-block",
+    margin: "0.5rem 0 1.5rem",
+    maxWidth: "100%",
+    width: "fit-content",
+  }}
+>
+<Prompt title="Copy Starter Prompt" hidePrompt>
+# NVIDIA NeMo Guardrails Library Agent Instructions
+
+You are helping me get started with the NVIDIA NeMo Guardrails library from this AI coding agent.
+Use the official documentation as the source of truth instead of relying on memory.
+
+1. Ask whether I am a developer using the library or a contributor changing the Guardrails repository, then ask what I want to accomplish.
+2. Before using installation or tutorial instructions, check whether `nemoguardrails` is installed and determine its version when possible.
+3. Discover the stable package releases and published documentation versions from official sources. Use `https://docs.nvidia.com/nemo/guardrails/llms.txt` to find documentation when needed. Do not rely on a hardcoded version list.
+4. If the installed version has matching documentation, recommend that version and ask whether to keep it, upgrade, or choose another version.
+5. For a first-time installation, present the available versions as a numbered list, newest first. Mark the most recent stable release as "Recommended for first-time installation," include older releases with published documentation, and let me specify another exact version for an existing setup.
+6. If the selected package version has no matching documentation, explain the mismatch and ask which published version to use. Do not silently fall back to Latest.
+7. Set `DOCS_BASE` to the selected documentation version, load `DOCS_BASE/get-started/use-with-ai-agent.md`, and follow that canonical agent guidance. Prefer the documentation MCP server when available.
+8. If I am contributing, clone the repository when needed and follow its `AGENTS.md`, `CONTRIBUTING.md`, and `AI_POLICY.md` files.
+
+Never ask me to paste real credentials into chat. Use placeholders and let me set secrets through my local environment or secret manager.
+
+Begin by asking which role applies and what I want to do.
+</Prompt>
+</div>
+
+Browse the following introductory guides to learn more about the NVIDIA NeMo Guardrails library.
+
+<Cards>
+
+<Card title="Overview" href="/overview">
+
+Overview of the NVIDIA NeMo Guardrails library, including its capabilities, architecture, and supported LLMs.
+
+<Badge intent="tip" minimal outlined>Concept</Badge>
+</Card>
+
+<Card title="Installation" href="/get-started/installation-guide">
+
+Install NeMo Guardrails with pip, configure your environment, and verify the installation.
+
+<Badge intent="tip" minimal outlined>Get Started</Badge>
+</Card>
+
+<Card title="Use with AI Agents" href="/get-started/use-with-ai-agent">
+
+Connect Cursor, Claude Code, Codex, or another AI agent to the documentation MCP server or starter prompt.
+
+<Badge intent="tip" minimal outlined>Get Started</Badge>
+</Card>
+
+<Card title="Tutorials" href="/get-started/tutorials">
+
+Follow hands-on tutorials to deploy Nemotron Content Safety, Nemotron Topic Control, and Nemotron Jailbreak Detect
+
+<Badge intent="tip" minimal outlined>Tutorial</Badge>
+</Card>
+
+<Card title="Guardrail Catalog" href="/configure-guardrails/guardrail-catalog">
+
+Reference for pre-built guardrails including content safety, jailbreak detection, topic control, PII handling, agentic security, and third party APIs.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+</Cards>
+
+## Next Steps
+
+Once you've completed the get-started tutorials, explore the following areas to deepen your understanding.
+
+<Cards>
+
+<Card title="Configuring Guardrails" href="/configure-guardrails/configure-rails">
+
+Configure YAML files, Colang flows, custom actions, and other components to control LLM behavior.
+
+<Badge intent="tip" minimal outlined>Concept</Badge>
+</Card>
+
+<Card title="Running Guardrailed Inference" href="/run-guardrailed-inference/run-rails">
+
+Run guardrailed inference using the Python API or Guardrails API server.
+
+<Badge intent="tip" minimal outlined>Get Started</Badge>
+</Card>
+
+<Card title="Evaluating Guardrails" href="/evaluation/evaluate-guardrails">
+
+Measure accuracy and performance of dialog, fact-checking, moderation, and hallucination rails.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Logging" href="/observability/logging">
+
+Debug guardrails with verbose mode, explain method, and generation log options.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Observability" href="/observability/observability">
+
+Use OpenTelemetry to trace requests, forward Python logs, and emit metrics for end-to-end visibility into guardrails.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Deployment Options" href="/more-deployment-options/deployment">
+
+Deploy guardrails using the local API server, Docker containers, or production microservices.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="LangChain Frameworks" href="/integration-with-third-party-libraries/langchain">
+
+Integrate NeMo Guardrails with LangChain chains, runnables, and LangGraph workflows.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+</Cards>

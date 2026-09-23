@@ -5,7 +5,8 @@ define subflow jailbreak detection heuristics
   """
   Heuristic checks to assess whether the user's prompt is an attempted jailbreak.
   """
-  $is_jailbreak = execute jailbreak_detection_heuristics
+  $response = execute jailbreak_detection_heuristics
+  $is_jailbreak = $response.is_blocked
 
   if $is_jailbreak
     if $config.enable_rails_exceptions
@@ -18,7 +19,8 @@ define subflow jailbreak detection model
   """
   Heuristic checks to assess whether the user's prompt is an attempted jailbreak.
   """
-  $is_jailbreak = execute jailbreak_detection_model
+  $response = execute jailbreak_detection_model
+  $is_jailbreak = $response.is_blocked
 
   if $is_jailbreak
     if $config.enable_rails_exceptions

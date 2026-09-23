@@ -67,7 +67,4 @@ async def test_topic_safety_check_input_with_internal_events():
             events=internal_events,
         )
 
-    assert isinstance(result, dict)
-    assert "on_topic" in result
-    assert isinstance(result["on_topic"], bool)
-    assert result["on_topic"] is True
+    assert result.is_blocked is False

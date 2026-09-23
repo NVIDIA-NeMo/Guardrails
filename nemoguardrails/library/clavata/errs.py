@@ -32,12 +32,6 @@ class ClavataPluginValueError(ClavataPluginError):
     """
 
 
-class ClavataPluginTypeError(ClavataPluginError):
-    """
-    Exception raised when the Clavata plugin is used incorrectly due to type mismatches.
-    """
-
-
 class ClavataPluginAPIError(ClavataPluginError):
     """
     Exception raised when the Clavata plugin API returns an error.

@@ -196,7 +196,7 @@ def tree(
     main_flow = state.flow_id_states["main"][0]
 
     root = Tree("main")
-    queue = [[main_flow, root]]
+    queue: list[tuple[FlowState, Tree]] = [(main_flow, root)]
 
     while queue:
         flow_state: FlowState
@@ -237,7 +237,7 @@ def tree(
                 head_element = elements[head.position]
 
                 if isinstance(head_element, SpecOp):
-                    head_element_spec_op = cast(SpecOp, head_element)
+                    head_element_spec_op = head_element
                     if head_element_spec_op.op == "match":
                         # Convert Spec to Spec object if it's a Dict
                         spec: Spec = (
@@ -270,7 +270,7 @@ def tree(
                 child_flow_label = "[" + child_flow_label + "]"
 
             child_node = node.add(child_flow_label)
-            queue.append([child_flow_state, child_node])
+            queue.append((child_flow_state, child_node))
 
     console.print(root)
 

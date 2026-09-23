@@ -12,8 +12,8 @@ define subflow check blocked input terms
     stop
 
 define subflow check blocked output terms
-  $is_blocked = execute check_blocked_output_terms(duration=$duration)
+  $outcome = execute check_blocked_output_terms(duration=$duration)
 
-  if $is_blocked
+  if $outcome.is_blocked
     bot inform about blocked bot term
     stop

@@ -1,0 +1,24 @@
+models:
+  - type: main
+    engine: nim
+    model: nvidia/nemotron-3.5-lightning-30b-a3b
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/nemotron-3.5-content-safety
+    parameters:
+      chat_template_kwargs:
+        # Reasoning is a chat-template argument for this model, not prompt text. The
+        # `rails.config.content_safety.reasoning.enabled` flag does not reach it.
+        enable_thinking: false
+        # Without this the model defaults to /no_categories and omits the
+        # `Safety Categories` line, leaving `policy_violations` empty.
+        request_categories: "/categories"
+
+rails:
+  input:
+    flows:
+      - content safety check input $model=content_safety
+  output:
+    flows:
+      - content safety check output $model=content_safety

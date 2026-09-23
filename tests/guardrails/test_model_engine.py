@@ -17,11 +17,20 @@
 
 import asyncio
 import json
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
 
+from nemoguardrails.context import llm_call_info_var, llm_stats_var
+from nemoguardrails.exceptions import (
+    LLMCallException,
+    LLMClientError,
+    LLMConnectionError,
+    LLMRateLimitError,
+    LLMTimeoutError,
+)
 from nemoguardrails.guardrails._http import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_TIMEOUT_CONNECT,
@@ -30,13 +39,27 @@ from nemoguardrails.guardrails._http import (
 from nemoguardrails.guardrails.model_engine import (
     _CHAT_COMPLETIONS_ENDPOINT,
     _ENGINE_BASE_URLS,
+    _ERROR_BODY_MAX_CHARS,
     ModelEngine,
     ModelEngineError,
     _parse_chat_completion,
     _parse_chat_completion_chunk,
 )
+from nemoguardrails.guardrails.tool_schema import Toolset
+from nemoguardrails.llm.call import llm_call
+from nemoguardrails.llm.clients._errors import client_facing_message
 from nemoguardrails.rails.llm.config import Model
-from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
+from nemoguardrails.types import (
+    ChatMessage,
+    LLMModel,
+    LLMResponse,
+    LLMResponseChunk,
+    Role,
+    ToolCall,
+    ToolCallFunction,
+    UsageInfo,
+)
+from tests.guardrails.tool_helpers import make_tool_conversation, multi_turn_reused_call_id_messages
 
 
 def _make_model(
@@ -54,6 +77,96 @@ def _make_model(
         api_key_env_var=api_key_env_var,
         parameters=parameters or {},
     )
+
+
+def _mock_streaming_response(raw_lines, status=200, headers=None):
+    """Create a mock aiohttp response with a readline()-based content mock.
+
+    Splits each raw_line on ``\\n`` boundaries so that readline() returns
+    one line at a time, matching real aiohttp StreamReader behaviour.
+    ``headers`` populates ``response.headers`` (defaults to an empty mapping).
+    """
+    all_lines = []
+    for raw in raw_lines:
+        for part in raw.split(b"\n"):
+            if part:
+                all_lines.append(part + b"\n")
+
+    line_iter = iter(all_lines)
+
+    async def _readline():
+        return next(line_iter, b"")
+
+    mock_content = MagicMock()
+    mock_content.readline = _readline
+
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.status = status
+    mock_response.content = mock_content
+    mock_response.headers = headers if headers is not None else {}
+    return mock_response
+
+
+_OK_COMPLETION = {"choices": [{"message": {"role": "assistant", "content": "ok"}}]}
+
+_SSE_OK_LINES = [b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n', b"data: [DONE]\n\n"]
+
+
+def _mock_chat_client(payload: dict | None = None, status: int = 200):
+    """Create a mock aiohttp client whose post() returns a chat-completion payload.
+
+    The returned mock records the outbound request, so tests read the body back
+    with ``_posted_body``.
+    """
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.status = status
+    mock_response.json = AsyncMock(return_value=payload if payload is not None else _OK_COMPLETION)
+    mock_response.text = AsyncMock(return_value='{"error": "boom"}')
+    # A real ClientResponse exposes a mapping here. Left as an auto-created AsyncMock,
+    # error classification cannot read it and falls back to an unclassified error.
+    mock_response.headers = {}
+
+    mock_client = AsyncMock()
+    mock_client.post = MagicMock(return_value=mock_response)
+    mock_client.closed = False
+    return mock_client
+
+
+def _mock_error_client(body: str, status: int):
+    """Create a mock aiohttp client whose post() returns a failed response carrying ``body``."""
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.status = status
+    mock_response.text = AsyncMock(return_value=body)
+    mock_response.headers = {}
+
+    mock_client = AsyncMock()
+    mock_client.post = MagicMock(return_value=mock_response)
+    mock_client.closed = False
+    return mock_client
+
+
+def _mock_failing_client(exc: BaseException):
+    """Create a mock aiohttp client whose post() raises ``exc`` instead of responding."""
+    mock_client = AsyncMock()
+    mock_client.post = MagicMock(side_effect=exc)
+    mock_client.closed = False
+    return mock_client
+
+
+def _started_engine(client, **model_kwargs) -> ModelEngine:
+    """Create a ModelEngine wired to ``client`` and marked as started."""
+    engine = ModelEngine(_make_model(**model_kwargs))
+    engine._client = client
+    engine._running = True
+    return engine
+
+
+def _posted_body(mock_client) -> dict:
+    """Return the JSON body of the single request made through ``mock_client``."""
+    return mock_client.post.call_args[1]["json"]
 
 
 class TestModelEngineError:
@@ -75,6 +188,14 @@ class TestModelEngineError:
     def test_is_exception(self):
         """ModelEngineError is a subclass of Exception."""
         assert issubclass(ModelEngineError, Exception)
+
+    def test_status_code_mirrors_status(self):
+        """status_code is the spelling error-status extractors duck-type on."""
+        assert ModelEngineError("bad request", model_name="my-model", status=400).status_code == 400
+
+    def test_status_code_is_none_without_a_status(self):
+        """A failure with no HTTP response reports no status under either name."""
+        assert ModelEngineError("connection dropped", model_name="my-model").status_code is None
 
 
 class TestModelEngineBaseUrl:
@@ -328,6 +449,91 @@ class TestModelEngineConfig:
         assert engine._client is None
 
 
+class TestModelEngineBodyParamDefaults:
+    """Test ModelEngine.body_param_defaults: sampling params from a model's
+    ``parameters`` config become per-request body defaults, while transport,
+    secret, identity, and streaming-control keys are excluded."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_keeps_sampling_params(self):
+        """Sampling/body params (temperature, max_tokens, seed, top_p, ...) all
+        pass through to body_param_defaults unchanged."""
+        engine = ModelEngine(_make_model(parameters={"temperature": 0.3, "max_tokens": 256, "seed": 42, "top_p": 0.9}))
+        assert engine.body_param_defaults == {
+            "temperature": 0.3,
+            "max_tokens": 256,
+            "seed": 42,
+            "top_p": 0.9,
+        }
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_transport_and_retry_keys(self):
+        """Transport/retry keys consumed by __init__ and _resolve_base_url are
+        not echoed into the body; a sampling param alongside them is kept."""
+        engine = ModelEngine(
+            _make_model(
+                engine="nim",
+                parameters={
+                    "base_url": "https://custom.example.com",
+                    "timeout": 120,
+                    "timeout_connect": 30,
+                    "max_attempts": 5,
+                    "temperature": 0.5,
+                },
+            )
+        )
+        assert engine.body_param_defaults == {"temperature": 0.5}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_secret_and_streaming_keys(self):
+        """api_key (secret, header-only) and stream/stream_options (engine-owned)
+        never reach the body defaults."""
+        engine = ModelEngine(
+            _make_model(
+                parameters={
+                    "api_key": "sk-should-not-leak",
+                    "stream": True,
+                    "stream_options": {"include_usage": True},
+                    "max_tokens": 64,
+                }
+            )
+        )
+        assert engine.body_param_defaults == {"max_tokens": 64}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_client_only_keys(self):
+        """default_headers and default_query are excluded from body_param_defaults, while a sampling param is kept."""
+        engine = ModelEngine(
+            _make_model(
+                parameters={
+                    "default_headers": {"X-Tenant": "acme"},
+                    "default_query": {"api-version": "2024-02-01"},
+                    "temperature": 0.5,
+                }
+            )
+        )
+        assert engine.body_param_defaults == {"temperature": 0.5}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_identity_keys_defensively(self):
+        """model / model_name / messages are stripped even when present in
+        parameters. The Model validator normally lifts model/model_name into
+        the model field, so these only leak via direct construction — mutate
+        parameters after build to simulate that path."""
+        model = _make_model(parameters={"temperature": 0.2})
+        model.parameters.update(
+            {"model": "shadow", "model_name": "shadow", "messages": [{"role": "user", "content": "x"}]}
+        )
+        engine = ModelEngine(model)
+        assert engine.body_param_defaults == {"temperature": 0.2}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_empty_parameters_yields_empty_defaults(self):
+        """A model with no parameters has empty body_param_defaults."""
+        engine = ModelEngine(_make_model(parameters={}))
+        assert engine.body_param_defaults == {}
+
+
 class TestModelEngineLifecycle:
     """Test the ModelEngine start() and stop() client lifecycle."""
 
@@ -438,7 +644,7 @@ class TestModelEngineCall:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_successful_call(self):
-        """Successful call returns parsed JSON and posts to correct URL with headers."""
+        """Successful call returns parsed JSON and posts to the correct URL with base headers and no query params."""
         model = _make_model()
         engine = ModelEngine(model)
 
@@ -467,7 +673,9 @@ class TestModelEngineCall:
         expected_url = _ENGINE_BASE_URLS[model.engine] + "/v1/chat/completions"
         expected_json = {"messages": messages, "model": model.model}
         expected_headers = {"Content-Type": "application/json", "Authorization": "Bearer test-key"}
-        mock_client.post.assert_called_once_with(expected_url, json=expected_json, headers=expected_headers)
+        mock_client.post.assert_called_once_with(
+            expected_url, json=expected_json, headers=expected_headers, params=None
+        )
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -529,6 +737,7 @@ class TestModelEngineCall:
         mock_response.__aenter__ = AsyncMock(return_value=mock_response)
         mock_response.status = 400
         mock_response.text = AsyncMock(return_value='{"error": "bad request"}')
+        mock_response.headers = {}
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -544,6 +753,152 @@ class TestModelEngineCall:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
+    async def test_call_oversized_error_body_still_yields_provider_fields(self):
+        """An error body past the log truncation limit still parses into code and param.
+
+        Truncating before classification would cut the JSON mid-object, and the provider's
+        fields would be replaced by the raw text.
+        """
+        long_message = "Invalid 'temperature': " + "x" * 900
+        body = json.dumps(
+            {"error": {"message": long_message, "type": "invalid_request_error", "param": "temperature", "code": "bad"}}
+        )
+        engine = _started_engine(_mock_error_client(body, status=400))
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.call([{"role": "user", "content": "Hi"}])
+
+        client_error = exc_info.value.inner_exception
+        assert isinstance(client_error, LLMClientError)
+        assert client_error.error_code == "bad"
+        assert client_error.param == "temperature"
+        assert client_facing_message(exc_info.value) == long_message
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_call_unparseable_error_body_is_bounded(self):
+        """An unparseable body becomes the client message, so its length must be bounded.
+
+        A proxy returning an HTML page would otherwise be forwarded to the caller whole.
+        """
+        engine = _started_engine(_mock_error_client("<html>" + "x" * 20000 + "</html>", status=502))
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert len(client_facing_message(exc_info.value)) <= _ERROR_BODY_MAX_CHARS
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_call_error_identifies_the_model_to_the_classifier(self):
+        """The classified error carries the engine's model, provider and endpoint for diagnostics.
+
+        These reach logs through ``LLMClientError.__str__``, never the client envelope, which
+        renders ``error_message`` alone.
+        """
+        engine = _started_engine(_mock_error_client('{"error": {"message": "bad request"}}', status=400))
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.call([{"role": "user", "content": "Hi"}])
+
+        client_error = exc_info.value.inner_exception
+        assert isinstance(client_error, LLMClientError)
+        assert client_error.model_name == "meta/llama-3.3-70b-instruct"
+        assert client_error.provider_name == engine.provider_name
+        assert client_error.base_url == engine.base_url
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_call_unclassifiable_error_response_keeps_the_status(self):
+        """A classifier failure must not cost the caller the upstream status.
+
+        Letting it escape would strip the status in call()'s catch-all, and the server would
+        report 500 for what was really a 429.
+        """
+        engine = _started_engine(_mock_error_client('{"error": {"message": "slow down"}}', status=429))
+
+        with patch(
+            "nemoguardrails.guardrails.model_engine.raise_for_status",
+            side_effect=RuntimeError("classifier blew up"),
+        ):
+            with pytest.raises(ModelEngineError) as exc_info:
+                await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert exc_info.value.status == 429
+        assert "slow down" not in str(exc_info.value)
+        message = client_facing_message(exc_info.value)
+        assert message == "HTTP 429"
+        assert "meta/llama-3.3-70b-instruct" not in message
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "transport_error,expected_type,expected_message",
+        [
+            (
+                aiohttp.ServerTimeoutError("read timed out at https://private.example/v1/chat/completions"),
+                LLMTimeoutError,
+                "Request timed out.",
+            ),
+            (
+                asyncio.TimeoutError("POST https://private.example/v1/chat/completions"),
+                LLMTimeoutError,
+                "Request timed out.",
+            ),
+            (
+                aiohttp.ClientConnectionError("cannot connect to https://private.example/v1/chat/completions"),
+                LLMConnectionError,
+                "Connection error.",
+            ),
+        ],
+        ids=["server-timeout", "asyncio-timeout", "connection-error"],
+    )
+    async def test_call_transport_failure_carries_a_typed_client_error(
+        self, transport_error, expected_type, expected_message
+    ):
+        """Transport details stay out of both wrapped and client-facing messages."""
+        engine = _started_engine(_mock_failing_client(transport_error))
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.call([{"role": "user", "content": "Hi"}])
+
+        error = exc_info.value
+        client_error = error.inner_exception
+        assert isinstance(client_error, expected_type)
+        assert error.status is None
+        assert str(error) == expected_message
+        assert client_error.error_message == expected_message
+        assert client_facing_message(error) == expected_message
+        assert "private.example" not in str(error)
+        assert "private.example" not in client_error.error_message
+        assert "private.example" not in client_facing_message(error)
+        assert error.__cause__ is transport_error
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_call_unclassifiable_failure_uses_a_fixed_client_message(self, caplog):
+        """Unexpected failure details remain available in logs and the cause chain."""
+        endpoint = "https://private.example/v1/chat/completions"
+        original_error = ValueError(f"cannot POST {endpoint}")
+        engine = _started_engine(_mock_failing_client(original_error))
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.call([{"role": "user", "content": "Hi"}])
+
+        error = exc_info.value
+        client_error = error.inner_exception
+        assert isinstance(client_error, LLMClientError)
+        assert str(error) == "Request failed."
+        assert client_error.error_message == "Request failed."
+        assert client_facing_message(error) == "Request failed."
+        assert endpoint not in str(error)
+        assert endpoint not in client_error.error_message
+        assert endpoint not in client_facing_message(error)
+        assert error.__cause__ is original_error
+        assert endpoint in caplog.text
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
     async def test_call_unexpected_exception_wraps_in_model_engine_error(self):
         """Non-HTTP exceptions are wrapped in ModelEngineError."""
         engine = ModelEngine(_make_model())
@@ -554,7 +909,7 @@ class TestModelEngineCall:
         engine._client = mock_client
         engine._running = True
 
-        with pytest.raises(ModelEngineError, match="connection dropped"):
+        with pytest.raises(ModelEngineError, match=r"^Request failed\.$"):
             await engine.call([{"role": "user", "content": "Hi"}])
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
@@ -566,6 +921,244 @@ class TestModelEngineCall:
 
         with pytest.raises(ModelEngineError, match="has not been started"):
             await engine.call([{"role": "user", "content": "Hi"}])
+
+
+class TestModelEngineDefaultHeaders:
+    """Test that config-level parameters.default_headers reach outbound requests."""
+
+    @staticmethod
+    def _mock_client():
+        """Build a mock aiohttp client whose post() records call args."""
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        return mock_client
+
+    @staticmethod
+    def _headers_from(mock_client):
+        """Extract the headers dict passed to the mocked post()."""
+        return mock_client.post.call_args[1]["headers"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_headers_merged_into_request(self):
+        """A configured default_header is sent alongside Content-Type and Authorization."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Tenant": "acme"}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        headers = self._headers_from(engine._client)
+        assert headers["X-Tenant"] == "acme"
+        assert headers["Content-Type"] == "application/json"
+        assert headers["Authorization"] == "Bearer test-key"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_headers_merged_into_stream_request(self):
+        """A configured default_header reaches the streaming request, not only the non-streaming one."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Tenant": "acme"}}))
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(_SSE_OK_LINES))
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            pass
+
+        headers = self._headers_from(mock_client)
+        assert headers["X-Tenant"] == "acme"
+        assert headers["Content-Type"] == "application/json"
+        assert headers["Authorization"] == "Bearer test-key"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_header_overrides_authorization_case_insensitive(self):
+        """A configured 'authorization' header replaces the api_key-derived Authorization."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"authorization": "Bearer custom"}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        headers = self._headers_from(engine._client)
+        auth_keys = [key for key in headers if key.lower() == "authorization"]
+        assert auth_keys == ["authorization"]
+        assert headers["authorization"] == "Bearer custom"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_headers_absent_from_body(self):
+        """default_headers configure transport, never the JSON request body."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Tenant": "acme"}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        body = engine._client.post.call_args[1]["json"]
+        assert "default_headers" not in body
+        assert "X-Tenant" not in body
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_no_config_default_headers_leaves_base_headers(self):
+        """Without default_headers the request carries only the base headers."""
+        engine = ModelEngine(_make_model())
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        headers = self._headers_from(engine._client)
+        assert headers == {"Content-Type": "application/json", "Authorization": "Bearer test-key"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_config_default_header_values_coerced_to_str(self):
+        """Non-string YAML header values (int, bool) are stored as strings."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Count": 3, "X-Flag": True}}))
+        assert engine.default_headers["X-Count"] == "3"
+        assert engine.default_headers["X-Flag"] == "True"
+        assert all(isinstance(value, str) for value in engine.default_headers.values())
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_default_headers_mapping_is_immutable(self):
+        """default_headers is a read-only mapping so callers cannot mutate shared per-engine state."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Tenant": "acme"}}))
+        headers: Any = engine.default_headers
+        with pytest.raises(TypeError):
+            headers["X-Injected"] = "nope"
+
+
+class TestModelEngineDefaultQuery:
+    """Test that config-level parameters.default_query reaches outbound requests."""
+
+    @staticmethod
+    def _mock_client():
+        """Build a mock aiohttp client whose post() records call args."""
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        return mock_client
+
+    @staticmethod
+    def _mock_stream_client():
+        """Build a mock aiohttp client whose post() returns a one-chunk SSE stream."""
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(_SSE_OK_LINES))
+        mock_client.closed = False
+        return mock_client
+
+    @staticmethod
+    def _params_from(mock_client):
+        """Extract the query params passed to the mocked post()."""
+        return mock_client.post.call_args[1]["params"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_query_applied_to_request(self):
+        """A configured default_query is sent as query parameters on the non-streaming request."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"tenant": "acme-corp"}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert self._params_from(engine._client) == (("tenant", "acme-corp"),)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_query_applied_to_stream_request(self):
+        """A configured default_query is sent as query parameters on the streaming request."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"tenant": "acme-corp"}}))
+        engine._client = self._mock_stream_client()
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            pass
+
+        assert self._params_from(engine._client) == (("tenant", "acme-corp"),)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_bool_value_serializes_lowercase(self):
+        """A YAML boolean becomes the wire form 'true'/'false', matching httpx, not Python's 'True'/'False'."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"beta": True, "cache": False}}))
+        assert engine.default_query == (("beta", "true"), ("cache", "false"))
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_numeric_values_stringify(self):
+        """Int and float values are stringified."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"retries": 3, "ratio": 1.5}}))
+        assert engine.default_query == (("retries", "3"), ("ratio", "1.5"))
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_none_value_becomes_empty_string(self):
+        """A null value becomes a valueless parameter rather than the string 'None'."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"flag": None}}))
+        assert engine.default_query == (("flag", ""),)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_list_value_expands_to_one_pair_per_element(self):
+        """A list value repeats the key once per element, in order, instead of stringifying the list."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"tag": ["b", "a"], "tenant": "acme"}}))
+        assert engine.default_query == (("tag", "b"), ("tag", "a"), ("tenant", "acme"))
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_nested_mapping_value_raises_at_construction(self):
+        """A nested object value is rejected when the engine is built, naming the field and the offending key."""
+        with pytest.raises(ValueError) as exc_info:
+            ModelEngine(_make_model(parameters={"default_query": {"meta": {"region": "us"}}}))
+        assert "default_query" in str(exc_info.value)
+        assert "meta" in str(exc_info.value)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_absent_default_query_sends_no_params(self):
+        """Without default_query the request carries params=None rather than an empty collection."""
+        engine = ModelEngine(_make_model())
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert self._params_from(engine._client) is None
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_empty_default_query_sends_no_params(self):
+        """An empty default_query block is equivalent to omitting it."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert self._params_from(engine._client) is None
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_query_absent_from_body(self):
+        """default_query configures the URL, never the JSON request body."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"tenant": "acme-corp"}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        body = engine._client.post.call_args[1]["json"]
+        assert "default_query" not in body
+        assert "tenant" not in body
 
 
 class TestModelEngineStreamCall:
@@ -582,32 +1175,105 @@ class TestModelEngineStreamCall:
         return lines
 
     @staticmethod
-    def _mock_streaming_response(raw_lines, status=200):
-        """Create a mock aiohttp response with a readline()-based content mock.
+    def _make_sse_payloads(payloads):
+        """Build raw SSE byte lines from a list of whole chunk payloads."""
+        lines = [f"data: {json.dumps(payload)}\n\n".encode() for payload in payloads]
+        lines.append(b"data: [DONE]\n\n")
+        return lines
 
-        Splits each raw_line on ``\\n`` boundaries so that readline() returns
-        one line at a time, matching real aiohttp StreamReader behaviour.
+    def _streaming_engine(self, raw_lines):
+        """Create a started ModelEngine whose client streams ``raw_lines``."""
+        engine = ModelEngine(_make_model())
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._client = mock_client
+        engine._running = True
+        return engine
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_raises_on_mid_stream_provider_error(self):
+        """A provider error frame mid-stream ends the stream carrying the status its type implies."""
+        engine = self._streaming_engine(
+            self._make_sse_payloads(
+                [
+                    {"choices": [{"delta": {"content": "Hel"}}]},
+                    {"error": {"message": "slow down", "type": "rate_limit_error", "code": "rate_limit_exceeded"}},
+                ]
+            )
+        )
+
+        chunks = []
+        with pytest.raises(ModelEngineError) as exc_info:
+            async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+                chunks.append(chunk)
+
+        assert [c.delta_content for c in chunks] == ["Hel"]
+        assert exc_info.value.status == 429
+        assert isinstance(exc_info.value.inner_exception, LLMRateLimitError)
+        assert client_facing_message(exc_info.value) == "slow down"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_mid_stream_error_without_a_known_type_has_no_status(self):
+        """An unrecognized provider error frame ends the stream without inventing an HTTP status."""
+        engine = self._streaming_engine(
+            self._make_sse_payloads([{"error": {"message": "something broke", "type": "weird_error"}}])
+        )
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+                pass
+
+        assert exc_info.value.status is None
+        assert client_facing_message(exc_info.value) == "something broke"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_transport_failure_carries_a_typed_client_error(self):
+        """Opening a stream shares the non-streaming path's transport classification.
+
+        ``_wrap_exception`` is reached with a different label here, so the streaming branch
+        needs its own case.
         """
-        # Flatten raw_lines into individual \n-terminated lines
-        all_lines = []
-        for raw in raw_lines:
-            for part in raw.split(b"\n"):
-                if part:
-                    all_lines.append(part + b"\n")
+        engine = _started_engine(_mock_failing_client(aiohttp.ServerTimeoutError("read timed out")))
 
-        line_iter = iter(all_lines)
+        with pytest.raises(ModelEngineError) as exc_info:
+            await anext(engine.stream_call([{"role": "user", "content": "Hi"}]))
 
-        async def _readline():
-            return next(line_iter, b"")
+        assert isinstance(exc_info.value.inner_exception, LLMTimeoutError)
+        message = client_facing_message(exc_info.value)
+        assert str(exc_info.value) == "Request timed out."
+        assert message == "Request timed out."
+        assert "meta/llama-3.3-70b-instruct" not in message
 
-        mock_content = MagicMock()
-        mock_content.readline = _readline
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_null_error_field_is_not_a_failure(self):
+        """A gateway that emits ``error: null`` on every frame must not end a healthy stream.
 
-        mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.status = status
-        mock_response.content = mock_content
-        return mock_response
+        Testing key presence rather than value also echoed the frame back to the caller: with
+        no usable message, classification falls back to the serialized chunk, putting the
+        model's own output inside an error envelope.
+        """
+        engine = self._streaming_engine(
+            self._make_sse_payloads([{"error": None, "choices": [{"delta": {"content": "Hello"}}]}])
+        )
+
+        chunks = [chunk async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert [c.delta_content for c in chunks] == ["Hello"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_content_resembling_an_error_is_streamed(self):
+        """Model output that merely looks like an error object is content, not a provider failure."""
+        forged = '{"error": {"message": "not real", "type": "rate_limit_error"}}'
+        engine = self._streaming_engine(self._make_sse_payloads([{"choices": [{"delta": {"content": forged}}]}]))
+
+        chunks = [chunk async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert [c.delta_content for c in chunks] == [forged]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -616,7 +1282,7 @@ class TestModelEngineStreamCall:
         engine = ModelEngine(_make_model())
 
         raw_lines = self._make_sse_content(["Hello", " world", "!"])
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -643,7 +1309,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"reasoning_content": " more"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -670,7 +1336,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "answer", "reasoning_content": "thought"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -692,7 +1358,7 @@ class TestModelEngineStreamCall:
         engine = ModelEngine(_make_model())
 
         raw_lines = self._make_sse_content(["ok"])
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -707,12 +1373,102 @@ class TestModelEngineStreamCall:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
+    async def test_stream_call_requests_usage_by_default(self):
+        """stream_call() sets stream_options.include_usage=True so the provider returns token usage."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["ok"])
+        mock_response = _mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            pass
+
+        body = mock_client.post.call_args[1]["json"]
+        assert body["stream_options"] == {"include_usage": True}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_caller_stream_options_override_default(self):
+        """A caller-provided stream_options is preserved rather than overwritten by the include_usage default."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["ok"])
+        mock_response = _mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}], stream_options={"include_usage": False}):
+            pass
+
+        body = mock_client.post.call_args[1]["json"]
+        assert body["stream_options"] == {"include_usage": False}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_attaches_response_headers_as_provider_metadata(self):
+        """Every chunk carries the response headers under provider_metadata['response_headers'], lowercased to match LLMRails."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["Hello", " world"])
+        headers = {"Nvcf-Reqid": "abc-123", "Content-Type": "text/event-stream"}
+        mock_response = _mock_streaming_response(raw_lines, headers=headers)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        expected = {"response_headers": {"nvcf-reqid": "abc-123", "content-type": "text/event-stream"}}
+        assert chunks
+        assert all(c.provider_metadata == expected for c in chunks)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_surfaces_non_standard_body_keys_as_provider_metadata(self):
+        """Non-standard SSE chunk-body keys (e.g. nvext) are merged into provider_metadata alongside response_headers (LLMRails parity)."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = [
+            b'data: {"choices": [{"delta": {"content": "Hi"}}], "nvext": {"spec_decode": {"enabled": true}}}\n\n',
+            b"data: [DONE]\n\n",
+        ]
+        mock_response = _mock_streaming_response(raw_lines, headers={"nvcf-reqid": "abc"})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks
+        assert chunks[0].provider_metadata == {
+            "nvext": {"spec_decode": {"enabled": True}},
+            "response_headers": {"nvcf-reqid": "abc"},
+        }
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
     async def test_stream_call_forwards_kwargs(self):
         """Extra kwargs (temperature, etc.) are included in the request body."""
         engine = ModelEngine(_make_model())
 
         raw_lines = self._make_sse_content(["ok"])
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -735,6 +1491,7 @@ class TestModelEngineStreamCall:
         mock_response.__aenter__ = AsyncMock(return_value=mock_response)
         mock_response.status = 500
         mock_response.text = AsyncMock(return_value="internal error")
+        mock_response.headers = {}
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -762,7 +1519,7 @@ class TestModelEngineStreamCall:
         engine = ModelEngine(_make_model())
 
         raw_lines = self._make_sse_content(["ok"])
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -791,7 +1548,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "Hello"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -817,7 +1574,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -841,7 +1598,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -865,7 +1622,7 @@ class TestModelEngineStreamCall:
         engine._client = mock_client
         engine._running = True
 
-        with pytest.raises(ModelEngineError, match="connection dropped"):
+        with pytest.raises(ModelEngineError, match=r"^Stream request failed\.$"):
             await anext(engine.stream_call([{"role": "user", "content": "Hi"}]))
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
@@ -879,7 +1636,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -902,7 +1659,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "Hi"}}]}\n\n',
             # No "data: [DONE]" — readline() will return b"" next
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -951,6 +1708,385 @@ class TestModelEngineStreamCall:
             chunks.append(chunk)
 
         assert [c.delta_content for c in chunks] == ["Hi", "!"]
+
+
+class TestStreamCallToolCalls:
+    """stream_call() tool-call accumulation: fragment assembly and finalization."""
+
+    @staticmethod
+    def _make_sse_lines(chunk_dicts):
+        """Encode a list of chunk dicts as SSE byte lines, terminated with [DONE]."""
+        lines = []
+        for d in chunk_dicts:
+            lines.append(f"data: {json.dumps(d)}\n".encode())
+        lines.append(b"data: [DONE]\n")
+        return lines
+
+    @staticmethod
+    def _tc_chunk(*, index=0, id=None, name=None, arguments=None, finish_reason=None):
+        """One SSE chunk carrying a single ``tool_calls`` delta.
+
+        Only the provided fields are emitted, so the same helper builds every shape used
+        below: the opening chunk (``id`` + ``name``), argument-fragment chunks
+        (``arguments`` only), and a chunk that also carries ``finish_reason``. ``id``
+        implies ``type="function"`` (matching real provider frames); pass ``index=None``
+        to omit ``index`` entirely (the index-collision case). Use :meth:`_finish_chunk`
+        for an empty terminal chunk.
+        """
+        function: dict = {}
+        if name is not None:
+            function["name"] = name
+        if arguments is not None:
+            function["arguments"] = arguments
+        tool_call: dict = {"function": function}
+        if index is not None:
+            tool_call["index"] = index
+        if id is not None:
+            tool_call["id"] = id
+            tool_call["type"] = "function"
+        choice: dict = {"delta": {"tool_calls": [tool_call]}}
+        if finish_reason is not None:
+            choice["finish_reason"] = finish_reason
+        return {"choices": [choice]}
+
+    @staticmethod
+    def _finish_chunk(finish_reason="tool_calls"):
+        """A terminal chunk with an empty delta carrying only a ``finish_reason``."""
+        return {"choices": [{"delta": {}, "finish_reason": finish_reason}]}
+
+    @staticmethod
+    def _reasoning_chunk(text):
+        """A chunk carrying a ``reasoning_content`` delta (no tool calls)."""
+        return {"choices": [{"delta": {"reasoning_content": text}}]}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_nim_style_single_chunk_tool_call(self):
+        """NIM-style: complete args in one delta on the finish_reason chunk."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Paris"}', finish_reason="tool_calls")]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert len(chunks) == 1
+        assert chunks[0].finish_reason == "tool_calls"
+        assert chunks[0].delta_tool_calls is not None
+        assert len(chunks[0].delta_tool_calls) == 1
+        tc = chunks[0].delta_tool_calls[0]
+        assert tc.function.name == "get_weather"
+        assert tc.function.arguments == {"city": "Paris"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_openai_style_fragmented_args_assembled(self):
+        """OpenAI-style: args fragment across multiple chunks, finalized on empty finish chunk."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                self._tc_chunk(id="c1", name="get_weather", arguments=""),
+                self._tc_chunk(arguments='{"city"'),
+                self._tc_chunk(arguments=': "Paris"}'),
+                self._finish_chunk(),
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert len(chunks) == 1
+        assert chunks[0].finish_reason == "tool_calls"
+        tc = chunks[0].delta_tool_calls[0]
+        assert tc.function.name == "get_weather"
+        assert tc.function.arguments == {"city": "Paris"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_multiple_tool_calls_assembled_by_index(self):
+        """Multiple parallel tool calls (different indices) are both present in delta_tool_calls."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                self._tc_chunk(index=0, id="c1", name="fn_a", arguments='{"x": 1}'),
+                self._tc_chunk(index=1, id="c2", name="fn_b", arguments='{"y": 2}'),
+                self._finish_chunk(),
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert len(chunks) == 1
+        tcs = chunks[0].delta_tool_calls
+        assert len(tcs) == 2
+        assert tcs[0].function.name == "fn_a"
+        assert tcs[0].function.arguments == {"x": 1}
+        assert tcs[1].function.name == "fn_b"
+        assert tcs[1].function.arguments == {"y": 2}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_reasoning_then_tool_calls(self):
+        """NIM-style: reasoning preamble chunks followed by a single tool-call finish chunk."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                self._reasoning_chunk("let me think"),
+                self._reasoning_chunk(" about this"),
+                self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Paris"}', finish_reason="tool_calls"),
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        reasoning_chunks = [c for c in chunks if c.delta_reasoning]
+        tool_chunks = [c for c in chunks if c.delta_tool_calls]
+        assert len(reasoning_chunks) == 2
+        assert len(tool_chunks) == 1
+        assert tool_chunks[0].delta_tool_calls[0].function.name == "get_weather"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_malformed_streamed_args_raise(self):
+        """Truncated/invalid JSON arguments fail closed (raise), matching the non-streaming path.
+
+        These previously degraded silently to ``{}`` and could pass the tool-call rail; the
+        non-streaming parser raises on the same bytes, so the streaming path must too.
+        """
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [self._tc_chunk(id="c1", name="f", arguments='{"city": "Par', finish_reason="tool_calls")]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        with pytest.raises(ModelEngineError):
+            [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_forced_tool_choice_finish_reason_stop(self):
+        """Forced tool_choice makes providers send finish_reason='stop' (not 'tool_calls').
+
+        Regression: the finalizer must surface accumulated tool calls on ANY
+        finish_reason, otherwise a forced tool call never reaches the caller.
+        """
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Paris"}'),
+                self._finish_chunk("stop"),
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        tool_chunks = [c for c in chunks if c.delta_tool_calls]
+        assert len(tool_chunks) == 1
+        tc = tool_chunks[0].delta_tool_calls[0]
+        assert tc.function.name == "get_weather"
+        assert tc.function.arguments == {"city": "Paris"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_tool_calls_finalized_without_finish_reason_chunk(self):
+        """Safety net: tool calls surface even if the stream ends ([DONE]) with no finish chunk."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines([self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Paris"}')])
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        tool_chunks = [c for c in chunks if c.delta_tool_calls]
+        assert len(tool_chunks) == 1
+        assert tool_chunks[0].delta_tool_calls[0].function.arguments == {"city": "Paris"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_parallel_tool_calls_without_index_warns_and_fails_closed(self):
+        """Distinct parallel calls that omit `index` collapse to slot 0 — warn, then fail closed.
+
+        ``index`` is the only key tying argument fragments to their call. If a
+        provider omits it for parallel calls they default to slot 0; the accumulator
+        can't recover the split. It warns about the collision, and the concatenated
+        argument buffers (here ``"{}" + "{}" == "{}{}"``) are invalid JSON, so the
+        finalizer fails closed rather than surfacing a corrupted call. (OpenAI/NIM
+        always send `index` here.)
+        """
+        engine = ModelEngine(_make_model())
+        # Two distinct calls (different ids), both omitting `index` -> both -> slot 0.
+        raw_lines = self._make_sse_lines(
+            [
+                self._tc_chunk(index=None, id="c1", name="fn_a", arguments="{}"),
+                self._tc_chunk(index=None, id="c2", name="fn_b", arguments="{}"),
+                self._finish_chunk(),
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        with patch("nemoguardrails.guardrails.model_engine.log") as mock_log:
+            with pytest.raises(ModelEngineError):
+                [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert any("collided with accumulator slot" in call.args[0] for call in mock_log.warning.call_args_list), (
+            "expected a collision warning for index-less parallel tool calls"
+        )
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_abnormal_finish_reason_with_truncated_args_warns_and_raises(self):
+        """finish_reason='length' mid-tool-call with truncated args: warn, then fail closed.
+
+        When the model hits its token limit while streaming tool-call arguments,
+        finish_reason is 'length' (not 'tool_calls'/'stop') and the JSON buffer is
+        incomplete. The finalizer warns about the abnormal terminator AND raises (rather
+        than silently surfacing empty args), matching the non-streaming parser.
+        """
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Par', finish_reason="length")]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        with patch("nemoguardrails.guardrails.model_engine.log") as mock_log:
+            with pytest.raises(ModelEngineError):
+                [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        # The truncation warning is logged before the finalizer raises (a later
+        # exception-wrap warning also fires), so scan all warning calls.
+        assert any("may be truncated" in call.args[0] for call in mock_log.warning.call_args_list), (
+            "expected a truncation warning for finish_reason='length'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_malformed_tool_args_fail_closed_on_both_paths(self):
+        """Identical malformed tool-call args fail closed on BOTH paths (the core of the fix).
+
+        The streaming and non-streaming engines must agree: the same provider bytes that
+        raise ``ModelEngineError`` non-streaming must not silently degrade to empty args
+        (and a schema-passing 'safe' call) when streamed.
+        """
+        bad_args = '{"city": "Par'
+
+        # Non-streaming: chat_completion parses the response body.
+        nonstream_engine = ModelEngine(_make_model())
+        nonstream_engine.call = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {"id": "c1", "type": "function", "function": {"name": "f", "arguments": bad_args}}
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        with pytest.raises(ModelEngineError):
+            await nonstream_engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+        # Streaming: stream_call assembles the same args from SSE fragments.
+        stream_engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [self._tc_chunk(id="c1", name="f", arguments=bad_args, finish_reason="tool_calls")]
+        )
+        stream_engine._client = AsyncMock()
+        stream_engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        stream_engine._running = True
+        with pytest.raises(ModelEngineError):
+            [c async for c in stream_engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+    @pytest.mark.asyncio
+    async def test_no_argument_fragments_is_empty_dict(self):
+        """A streamed tool call with no argument fragments is a no-arg call -> {} (not an error)."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                self._tc_chunk(id="c1", name="ping", arguments=""),
+                self._finish_chunk(),
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        tool_chunks = [c for c in chunks if c.delta_tool_calls]
+        assert len(tool_chunks) == 1
+        tc = tool_chunks[0].delta_tool_calls[0]
+        assert tc.function.name == "ping"
+        assert tc.function.arguments == {}
+
+    @pytest.mark.asyncio
+    async def test_abnormal_finish_reason_with_valid_args_surfaces_and_warns(self):
+        """finish_reason='length' but a complete/valid arg buffer: surface the call AND warn.
+
+        The abnormal-terminator warning still fires, but a *valid* buffer is not an error, so
+        the call is surfaced normally (only truncated/invalid buffers fail closed)."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Paris"}', finish_reason="length")]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        with patch("nemoguardrails.guardrails.model_engine.log") as mock_log:
+            chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        tool_chunks = [c for c in chunks if c.delta_tool_calls]
+        assert len(tool_chunks) == 1
+        assert tool_chunks[0].delta_tool_calls[0].function.arguments == {"city": "Paris"}
+        assert any("may be truncated" in call.args[0] for call in mock_log.warning.call_args_list)
+
+    @pytest.mark.parametrize(
+        "arguments",
+        ["[1, 2]", '"just a string"', "42", "true", "null"],
+        ids=["list", "string", "number", "bool", "null"],
+    )
+    @pytest.mark.asyncio
+    async def test_non_object_streamed_args_raise(self, arguments):
+        """Args that parse as valid JSON but not an object fail closed (parity with non-streaming).
+
+        Covers every non-dict JSON kind (list, string, number, bool, null) so the
+        ``not isinstance(arguments, dict)`` guard isn't resting on a single case.
+        """
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [self._tc_chunk(id="c1", name="f", arguments=arguments, finish_reason="tool_calls")]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        with pytest.raises(ModelEngineError):
+            [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
 
 
 class TestModelEngineConstants:
@@ -1137,7 +2273,7 @@ class TestModelEngineChatCompletion:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_raises_on_null_content(self):
-        """chat_completion() raises ModelEngineError for unsupported tool-calls"""
+        """content=None with neither tool_calls nor reasoning_content is malformed; chat_completion() raises ModelEngineError."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{"message": {"content": None}}]})
 
@@ -1146,8 +2282,8 @@ class TestModelEngineChatCompletion:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
-    async def test_raises_clearer_error_for_tool_call_only_response(self):
-        """Tool-call-only responses (content=None, tool_calls set) get a scope-specific error."""
+    async def test_parses_tool_call_only_response(self):
+        """Tool-call-only responses (content=None, tool_calls set) are parsed, not rejected."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(
             return_value={
@@ -1160,17 +2296,51 @@ class TestModelEngineChatCompletion:
                                 {
                                     "id": "call_abc",
                                     "type": "function",
-                                    "function": {"name": "calculate", "arguments": '{"expr":"2+2"}'},
+                                    "function": {"name": "calculate", "arguments": '{"expr": "2+2"}'},
                                 }
                             ],
-                        }
+                        },
+                        "finish_reason": "tool_calls",
                     }
                 ]
             }
         )
 
-        with pytest.raises(ModelEngineError, match="Tool-call-only responses are not yet supported"):
-            await engine.chat_completion([{"role": "user", "content": "Hi"}])
+        result = await engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+        assert result.content == ""
+        assert result.finish_reason == "tool_calls"
+        assert result.tool_calls is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "call_abc"
+        assert result.tool_calls[0].function.name == "calculate"
+        assert result.tool_calls[0].function.arguments == {"expr": "2+2"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_parses_reasoning_only_response(self):
+        """Reasoning-only responses (content=None, reasoning_content set, no tool_calls) are parsed, not rejected."""
+        engine = ModelEngine(_make_model())
+        engine.call = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "reasoning_content": "the model thought out loud",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ]
+            }
+        )
+
+        result = await engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+        assert result.content == ""
+        assert result.reasoning == "the model thought out loud"
+        assert result.tool_calls is None
 
 
 class TestParseChatCompletion:
@@ -1206,32 +2376,203 @@ class TestParseChatCompletion:
         with pytest.raises(ValueError, match="Unexpected /v1/chat/completions response shape"):
             _parse_chat_completion({})
 
-    def test_raises_on_non_string_content(self):
-        """Non-string content raises ValueError."""
-        with pytest.raises(ValueError, match="Expected string content"):
+    def test_raises_on_null_content_without_tool_calls_or_reasoning(self):
+        """content=None with neither tool_calls nor reasoning_content is malformed and raises ValueError."""
+        with pytest.raises(ValueError, match="Expected string content, got NoneType"):
             _parse_chat_completion({"choices": [{"message": {"content": None}}]})
 
-    def test_raises_specific_error_for_tool_call_only_response(self):
-        """When content is None and tool_calls is set, raise a scope-specific error.
+    def test_parses_reasoning_only_frame_when_content_none(self):
+        """content=None with reasoning_content and no tool_calls parses, normalizing content to ''."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "reasoning_content": "step one, step two",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ]
+            }
+        )
+        assert result.content == ""
+        assert result.reasoning == "step one, step two"
+        assert result.tool_calls is None
 
-        OpenAI returns this shape for tool_choice='required'. Tool-call support is out of
-        scope for this PR series; the error message should make that clear rather than
-        suggesting malformed data.
+    def test_parses_reasoning_only_frame_truncated_mid_thought(self):
+        """A reasoning-only frame cut short by max_tokens parses and keeps finish_reason='length'."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {"role": "assistant", "content": None, "reasoning_content": "still thinking"},
+                        "finish_reason": "length",
+                    }
+                ]
+            }
+        )
+        assert result.content == ""
+        assert result.reasoning == "still thinking"
+        assert result.finish_reason == "length"
+
+    def test_raises_on_null_content_with_empty_reasoning(self):
+        """Empty-string reasoning_content does not rescue a null content that has no tool_calls."""
+        with pytest.raises(ValueError, match="Expected string content, got NoneType"):
+            _parse_chat_completion({"choices": [{"message": {"content": None, "reasoning_content": ""}}]})
+
+    def test_parses_reasoning_and_tool_calls_when_content_none(self):
+        """A null-content frame carrying both reasoning_content and tool_calls surfaces both."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "reasoning_content": "picking a tool",
+                            "tool_calls": [
+                                {"id": "t1", "type": "function", "function": {"name": "f", "arguments": "{}"}}
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert result.content == ""
+        assert result.reasoning == "picking a tool"
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "t1"
+
+    def test_raises_on_non_string_content(self):
+        """Content that is neither a string nor None (e.g. an int) raises ValueError with its type."""
+        with pytest.raises(ValueError, match="Expected string content, got int"):
+            _parse_chat_completion({"choices": [{"message": {"content": 123}}]})
+
+    def test_raises_on_non_string_reasoning_content(self):
+        """reasoning_content that is neither a string nor None raises ValueError with its type."""
+        with pytest.raises(ValueError, match="Expected string reasoning_content, got int"):
+            _parse_chat_completion({"choices": [{"message": {"content": "hi", "reasoning_content": 123}}]})
+
+    def test_raises_on_null_content_with_non_string_reasoning(self):
+        """A truthy non-string reasoning_content does not rescue a null content."""
+        with pytest.raises(ValueError, match="Expected string reasoning_content, got dict"):
+            _parse_chat_completion({"choices": [{"message": {"content": None, "reasoning_content": {"a": 1}}}]})
+
+    def test_parses_tool_calls_when_content_none(self):
+        """content=None with tool_calls parses the calls and normalizes content to ''.
+
+        OpenAI returns this shape for tool_choice='required'; arguments arrive as a JSON
+        string on the wire and are normalized into a dict.
         """
-        with pytest.raises(ValueError, match="Tool-call-only responses are not yet supported"):
-            _parse_chat_completion(
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "role": "assistant",
-                                "content": None,
-                                "tool_calls": [{"id": "x", "type": "function", "function": {"name": "f"}}],
-                            }
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {"id": "x", "type": "function", "function": {"name": "f", "arguments": '{"a": 1}'}}
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert result.content == ""
+        assert result.finish_reason == "tool_calls"
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "x"
+        assert result.tool_calls[0].function.name == "f"
+        assert result.tool_calls[0].function.arguments == {"a": 1}
+
+    def test_parses_tool_calls_alongside_text_content(self):
+        """A response may carry both text content and tool calls; both are surfaced."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "Let me look that up.",
+                            "tool_calls": [
+                                {"id": "c1", "type": "function", "function": {"name": "search", "arguments": "{}"}}
+                            ],
                         }
-                    ]
-                }
-            )
+                    }
+                ]
+            }
+        )
+        assert result.content == "Let me look that up."
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].function.name == "search"
+        assert result.tool_calls[0].function.arguments == {}
+
+    def test_parses_parallel_tool_calls(self):
+        """Multiple tool calls in one response are all parsed into the list, in order."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "c1",
+                                    "type": "function",
+                                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                                },
+                                {
+                                    "id": "c2",
+                                    "type": "function",
+                                    "function": {"name": "get_time", "arguments": '{"city": "Paris"}'},
+                                },
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert [tc.function.name for tc in result.tool_calls] == ["get_weather", "get_time"]
+        assert [tc.id for tc in result.tool_calls] == ["c1", "c2"]
+
+    def test_reasoning_preserved_alongside_tool_calls(self):
+        """NIM-style responses carry reasoning_content together with tool calls."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "reasoning_content": "The user wants the weather.",
+                            "tool_calls": [
+                                {
+                                    "id": "c1",
+                                    "type": "function",
+                                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                                }
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert result.reasoning == "The user wants the weather."
+        assert result.content == ""
+        assert len(result.tool_calls) == 1
+
+    def test_text_response_has_no_tool_calls(self):
+        """A normal text response leaves tool_calls as None."""
+        result = _parse_chat_completion({"choices": [{"message": {"content": "hi"}}]})
+        assert result.tool_calls is None
 
 
 class TestParseChatCompletionChunk:
@@ -1306,9 +2647,17 @@ class TestParseChatCompletionChunk:
         assert result is not None
         assert result.usage is None
 
-    def test_finish_only_delta_returns_none(self):
-        """Finish-only deltas (no content/reasoning) are skipped, matching prior behavior."""
-        assert _parse_chat_completion_chunk({"choices": [{"delta": {}, "finish_reason": "stop"}]}) is None
+    def test_finish_only_delta_returns_chunk_with_finish_reason(self):
+        """Finish-only frames (empty delta, no usage) are preserved so the
+        ``finish_reason`` reaches the LLM span's ``gen_ai.response.finish_reasons``.
+        Real OpenAI-compatible providers deliver ``finish_reason`` in a terminal
+        frame with an empty delta and no usage."""
+        result = _parse_chat_completion_chunk({"choices": [{"delta": {}, "finish_reason": "stop"}]})
+        assert result is not None
+        assert result.delta_content is None
+        assert result.delta_reasoning is None
+        assert result.usage is None
+        assert result.finish_reason == "stop"
 
     def test_passes_through_metadata(self):
         """model, request id, and finish_reason flow into the chunk when content is present."""
@@ -1323,3 +2672,684 @@ class TestParseChatCompletionChunk:
         assert result.model == "gpt-5"
         assert result.request_id == "chunk-1"
         assert result.finish_reason == "stop"
+
+
+_OPENAI_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get the weather for a city.",
+            "parameters": {
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
+            "strict": True,
+        },
+    },
+    {"type": "function", "function": {"name": "noargs"}},
+]
+
+
+class TestParseTools:
+    def test_parses_openai_chat_completions_tools(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
+
+        assert isinstance(toolset, Toolset)
+        assert sorted(t.key for t in toolset.tools) == ["get_weather", "noargs"]
+
+        weather = toolset.get("get_weather")
+        assert weather is not None
+        assert weather.name == "get_weather"
+        assert weather.type == "function"
+        assert weather.description == "Get the weather for a city."
+        assert weather.arguments_schema == _OPENAI_TOOLS[0]["function"]["parameters"]
+        assert weather.strict is True
+
+    def test_nim_uses_the_same_shape(self):
+        engine = ModelEngine(_make_model(engine="nim"))
+        toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
+        assert sorted(t.key for t in toolset.tools) == ["get_weather", "noargs"]
+
+    def test_tool_without_parameters_has_no_arguments_schema(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
+        noargs = toolset.get("noargs")
+        assert noargs is not None
+        assert noargs.arguments_schema is None
+
+    def test_no_tools_returns_empty_toolset(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        assert engine.parse_tools({}).tools == ()
+        assert engine.parse_tools(None).tools == ()
+        assert engine.parse_tools({"tools": []}).tools == ()
+
+    def test_malformed_entries_are_skipped(self):
+        """Non-dict / function-less entries are dropped so a malformed tool fails closed."""
+        engine = ModelEngine(_make_model(engine="openai"))
+        tools = [
+            "garbage",
+            {"type": "function"},
+            {"type": "function", "function": {"name": "ok"}},
+        ]
+        toolset = engine.parse_tools({"tools": tools})
+        assert [t.key for t in toolset.tools] == ["ok"]
+
+    def test_unknown_engine_falls_back_to_openai_parser(self):
+        engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
+        toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
+        assert sorted(t.key for t in toolset.tools) == ["get_weather", "noargs"]
+
+    def test_function_entries_without_name_are_skipped(self):
+        """Name-less function entries are dropped, so duplicate empty keys never crash parse_tools."""
+        engine = ModelEngine(_make_model(engine="openai"))
+        tools = [
+            {"type": "function", "function": {"description": "no name"}},
+            {"type": "function", "function": {"name": ""}},
+            {"type": "function", "function": {"name": "ok"}},
+        ]
+        toolset = engine.parse_tools({"tools": tools})
+        assert [t.key for t in toolset.tools] == ["ok"]
+
+
+_TOOL_MESSAGES = make_tool_conversation()
+
+
+class TestExtractToolResults:
+    def test_extracts_openai_tool_result(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        results = engine.extract_tool_results(_TOOL_MESSAGES)
+
+        assert len(results) == 1
+        result = results[0]
+        assert result.call_id == "call_1"
+        assert result.name == "get_weather"
+        assert result.content == "18C"
+        assert result.is_error is False
+
+    def test_ignores_non_tool_messages(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {"role": "system", "content": "be helpful"},
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+        ]
+        assert engine.extract_tool_results(messages) == []
+
+    def test_extracts_multiple_results_in_order(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {"role": "tool", "tool_call_id": "call_1", "name": "a", "content": "r1"},
+            {"role": "tool", "tool_call_id": "call_2", "name": "b", "content": "r2"},
+        ]
+        results = engine.extract_tool_results(messages)
+        assert [r.call_id for r in results] == ["call_1", "call_2"]
+
+    def test_skips_non_dict_messages(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = ["garbage", {"role": "tool", "tool_call_id": "call_1", "content": "r1"}]
+        results = engine.extract_tool_results(messages)
+        assert len(results) == 1
+        assert results[0].call_id == "call_1"
+
+    def test_missing_fields_become_none(self):
+        """Missing tool_call_id/name still extracts; the rail (not the extractor) judges linkage."""
+        engine = ModelEngine(_make_model(engine="openai"))
+        results = engine.extract_tool_results([{"role": "tool", "content": "r1"}])
+        assert len(results) == 1
+        assert results[0].call_id is None
+        assert results[0].name is None
+
+    def test_nim_uses_the_same_shape(self):
+        engine = ModelEngine(_make_model(engine="nim"))
+        results = engine.extract_tool_results(_TOOL_MESSAGES)
+        assert [r.call_id for r in results] == ["call_1"]
+
+    def test_unknown_engine_falls_back_to_openai_extractor(self):
+        engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
+        results = engine.extract_tool_results(_TOOL_MESSAGES)
+        assert [r.call_id for r in results] == ["call_1"]
+
+
+class TestExtractToolExchanges:
+    @staticmethod
+    def _ids(exchanges):
+        """Reduce exchanges to ``[(call_ids, result_call_ids), ...]`` for terse assertions."""
+        return [([c.id for c in calls], [r.call_id for r in results]) for calls, results in exchanges]
+
+    def test_groups_single_turn(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        exchanges = engine.extract_tool_exchanges(_TOOL_MESSAGES)
+
+        assert len(exchanges) == 1
+        calls, results = exchanges[0]
+        assert calls[0].id == "call_1"
+        assert calls[0].function.name == "get_weather"
+        # JSON-string arguments on the wire are normalized to a dict.
+        assert calls[0].function.arguments == {"city": "Paris"}
+        assert [r.call_id for r in results] == ["call_1"]
+
+    def test_each_turn_is_its_own_exchange(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "a", "arguments": "{}"}}],
+            },
+            {"role": "tool", "tool_call_id": "c1", "name": "a", "content": "r1"},
+            {"role": "assistant", "content": "interim text"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"id": "c2", "type": "function", "function": {"name": "b", "arguments": "{}"}}],
+            },
+            {"role": "tool", "tool_call_id": "c2", "name": "b", "content": "r2"},
+        ]
+        assert self._ids(engine.extract_tool_exchanges(messages)) == [(["c1"], ["c1"]), (["c2"], ["c2"])]
+
+    def test_recycled_ids_stay_in_separate_exchanges(self):
+        # The core of #13: the same call_id reused across turns is NOT collapsed; each
+        # turn is its own exchange so linkage stays turn-local.
+        engine = ModelEngine(_make_model(engine="openai"))
+        assert self._ids(engine.extract_tool_exchanges(multi_turn_reused_call_id_messages())) == [
+            (["call_0"], ["call_0"]),
+            (["call_0"], ["call_0"]),
+        ]
+
+    def test_parallel_calls_in_one_turn_share_an_exchange(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "a", "arguments": "{}"}},
+                    {"id": "c2", "type": "function", "function": {"name": "b", "arguments": "{}"}},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "c1", "name": "a", "content": "r1"},
+            {"role": "tool", "tool_call_id": "c2", "name": "b", "content": "r2"},
+        ]
+        assert self._ids(engine.extract_tool_exchanges(messages)) == [(["c1", "c2"], ["c1", "c2"])]
+
+    def test_orphan_result_has_no_calls(self):
+        # A tool result with no preceding assistant tool-call turn becomes an exchange
+        # with no calls, so the rail still flags it as an orphan.
+        engine = ModelEngine(_make_model(engine="openai"))
+        exchanges = engine.extract_tool_exchanges([{"role": "tool", "tool_call_id": "x", "content": "y"}])
+        assert self._ids(exchanges) == [([], ["x"])]
+
+    def test_no_tool_data_returns_empty(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        assert engine.extract_tool_exchanges([]) == []
+        assert (
+            engine.extract_tool_exchanges([{"role": "user", "content": "hi"}, {"role": "assistant", "content": "ok"}])
+            == []
+        )
+
+    def test_skips_non_dict_messages(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        assert self._ids(engine.extract_tool_exchanges(["garbage", *_TOOL_MESSAGES])) == [(["call_1"], ["call_1"])]
+
+    def test_malformed_arguments_degrade_to_empty_for_linkage(self):
+        """A historical call with malformed argument JSON degrades to empty arguments
+        (id/name preserved) instead of aborting extraction."""
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "a", "arguments": "not json"}}],
+            },
+        ]
+        exchanges = engine.extract_tool_exchanges(messages)
+        assert len(exchanges) == 1
+        calls, _results = exchanges[0]
+        assert calls[0].id == "c1"
+        assert calls[0].function.name == "a"
+        assert calls[0].function.arguments == {}
+
+    def test_nim_uses_the_same_shape(self):
+        engine = ModelEngine(_make_model(engine="nim"))
+        assert self._ids(engine.extract_tool_exchanges(_TOOL_MESSAGES)) == [(["call_1"], ["call_1"])]
+
+    def test_unknown_engine_falls_back_to_openai_extractor(self):
+        engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
+        assert self._ids(engine.extract_tool_exchanges(_TOOL_MESSAGES)) == [(["call_1"], ["call_1"])]
+
+
+class TestModelEngineLLMModelProtocol:
+    """ModelEngine implements LLMModel, the interface library rail actions call through."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_engine_is_an_llm_model(self):
+        """A ModelEngine instance satisfies the runtime-checkable LLMModel protocol."""
+        assert isinstance(ModelEngine(_make_model()), LLMModel)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_model_name_is_the_configured_model(self):
+        """model_name reports the configured model, the gen_ai.request.model label value."""
+        assert ModelEngine(_make_model(model="my-llm")).model_name == "my-llm"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_provider_name_is_the_configured_engine(self):
+        """provider_name reports the engine type, the gen_ai.provider.name label value."""
+        assert ModelEngine(_make_model(engine="openai")).provider_name == "openai"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_provider_url_is_the_openai_compatible_api_root(self):
+        """provider_url is the /v1 API root rather than the bare host."""
+        engine = ModelEngine(_make_model(engine="nim"))
+        assert engine.provider_url == _ENGINE_BASE_URLS["nim"] + "/v1"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_provider_url_is_not_doubled_when_base_url_already_ends_in_v1(self):
+        """A base_url configured with a trailing /v1 yields exactly one /v1."""
+        engine = ModelEngine(_make_model(parameters={"base_url": "http://localhost:8000/v1"}))
+        assert engine.provider_url == "http://localhost:8000/v1"
+
+
+class TestModelEngineGenerateAsync:
+    """generate_async adapts chat_completion to the LLMModel protocol signature."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_string_prompt_becomes_one_user_message(self):
+        """A plain string prompt is sent as a single user message."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await engine.generate_async("Hello")
+
+        assert _posted_body(client)["messages"] == [{"role": "user", "content": "Hello"}]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_chat_messages_are_serialized_for_the_wire(self):
+        """ChatMessage input is converted to OpenAI dicts: provider_metadata is dropped
+        and tool-call arguments are JSON-encoded, so the body stays a valid request."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        prompt = [
+            ChatMessage(role=Role.SYSTEM, content="be safe", provider_metadata={"internal": True}),
+            ChatMessage(
+                role=Role.ASSISTANT,
+                tool_calls=[ToolCall(id="call-1", function=ToolCallFunction(name="lookup", arguments={"q": "x"}))],
+            ),
+        ]
+        await engine.generate_async(prompt)
+
+        assert _posted_body(client)["messages"] == [
+            {"role": "system", "content": "be safe"},
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {"id": "call-1", "type": "function", "function": {"name": "lookup", "arguments": '{"q": "x"}'}}
+                ],
+            },
+        ]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_dict_messages_pass_through_unchanged(self):
+        """Raw OpenAI-format dicts, which EngineRegistry.model_call forwards, are sent as-is."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        messages = [{"role": "user", "content": "Hi", "name": "caller"}]
+        await engine.generate_async(messages)
+
+        assert _posted_body(client)["messages"] == messages
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_empty_prompt_list_sends_an_empty_messages_array(self):
+        """An empty prompt list is forwarded as an empty messages array, not a string prompt."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await engine.generate_async([])
+
+        assert _posted_body(client)["messages"] == []
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stop_is_forwarded_into_the_request_body(self):
+        """The keyword-only stop argument lands in the request body as `stop`."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await engine.generate_async("Hi", stop=["END"])
+
+        assert _posted_body(client)["stop"] == ["END"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stop_none_leaves_a_configured_default_in_place(self):
+        """stop=None means "unspecified", so a model-level stop default survives."""
+        client = _mock_chat_client()
+        engine = _started_engine(client, parameters={"stop": ["CONFIGURED"]})
+
+        await engine.generate_async("Hi")
+
+        assert _posted_body(client)["stop"] == ["CONFIGURED"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_defaults_merge_under_per_call_kwargs(self):
+        """Model parameters supply defaults; per-call kwargs win on collision."""
+        client = _mock_chat_client()
+        engine = _started_engine(client, parameters={"temperature": 0.1, "top_p": 0.9})
+
+        await engine.generate_async("Hi", temperature=0.9)
+
+        body = _posted_body(client)
+        assert body["temperature"] == 0.9
+        assert body["top_p"] == 0.9
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_returns_the_parsed_llm_response(self):
+        """The provider payload is parsed into an LLMResponse with usage and finish reason."""
+        client = _mock_chat_client(
+            {
+                "id": "chatcmpl-1",
+                "model": "meta/llama-3.3-70b-instruct",
+                "choices": [{"message": {"role": "assistant", "content": "safe"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9},
+            }
+        )
+        engine = _started_engine(client)
+
+        response = await engine.generate_async("Hi")
+
+        assert response == LLMResponse(
+            content="safe",
+            model="meta/llama-3.3-70b-instruct",
+            finish_reason="stop",
+            request_id="chatcmpl-1",
+            usage=UsageInfo(input_tokens=7, output_tokens=2, total_tokens=9),
+        )
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_http_error_raises_model_engine_error(self):
+        """A provider error surfaces as ModelEngineError carrying the HTTP status."""
+        engine = _started_engine(_mock_chat_client(status=400))
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.generate_async("Hi")
+
+        assert exc_info.value.status == 400
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_raises_when_the_engine_has_not_been_started(self):
+        """generate_async enforces the same lifecycle guard as call()."""
+        engine = ModelEngine(_make_model())
+
+        with pytest.raises(ModelEngineError, match="has not been started"):
+            await engine.generate_async("Hi")
+
+
+class TestModelEngineStreamAsync:
+    """stream_async adapts stream_chat_completion to the LLMModel protocol signature."""
+
+    @staticmethod
+    def _sse_lines(*texts: str):
+        lines = [f"data: {json.dumps({'choices': [{'delta': {'content': text}}]})}\n\n".encode() for text in texts]
+        lines.append(b"data: [DONE]\n\n")
+        return lines
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_yields_chunks_from_the_stream(self):
+        """stream_async yields the same LLMResponseChunk sequence as stream_call."""
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(self._sse_lines("Hello", " world")))
+        engine = _started_engine(mock_client)
+
+        chunks = [chunk async for chunk in engine.stream_async("Hi")]
+
+        assert [chunk.delta_content for chunk in chunks] == ["Hello", " world"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_string_prompt_becomes_one_user_message(self):
+        """A plain string prompt is sent as a single user message, as in generate_async."""
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(self._sse_lines("Hi")))
+        engine = _started_engine(mock_client)
+
+        [chunk async for chunk in engine.stream_async("Hello")]
+
+        assert _posted_body(mock_client)["messages"] == [{"role": "user", "content": "Hello"}]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stop_and_config_defaults_reach_the_request_body(self):
+        """stop and model parameter defaults are merged into the streaming request body."""
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(self._sse_lines("Hi")))
+        engine = _started_engine(mock_client, parameters={"temperature": 0.1})
+
+        [chunk async for chunk in engine.stream_async("Hello", stop=["END"])]
+
+        body = _posted_body(mock_client)
+        assert body["stop"] == ["END"]
+        assert body["temperature"] == 0.1
+        assert body["stream"] is True
+
+
+class TestModelEngineMessagesEntryPoint:
+    """``generate_async`` / ``stream_async`` are protocol adapters over the
+    messages-typed core.  Callers that already hold wire messages — every IORails
+    entry point, which normalizes through ``IORails._convert_to_messages`` — go
+    straight to the core instead of back through prompt normalization."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_generate_from_messages_sends_messages_unchanged(self):
+        """The messages-typed core forwards its messages verbatim."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        messages = [{"role": "system", "content": "be safe"}, {"role": "user", "content": "hi"}]
+        await engine.generate_from_messages(messages)
+
+        assert _posted_body(client)["messages"] == messages
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_generate_async_normalizes_then_delegates(self):
+        """The adapter converts the prompt to wire messages and passes stop and
+        kwargs through untouched."""
+        engine = ModelEngine(_make_model())
+        engine.generate_from_messages = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await engine.generate_async("Hi", stop=["END"], temperature=0.5)
+
+        engine.generate_from_messages.assert_called_once_with(
+            [{"role": "user", "content": "Hi"}], stop=["END"], temperature=0.5
+        )
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_from_messages_sends_messages_unchanged(self):
+        """The streaming core forwards its messages verbatim."""
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(
+            return_value=_mock_streaming_response([b'data: {"choices": [{"delta": {"content": "Hi"}}]}\n\n'])
+        )
+        engine = _started_engine(mock_client)
+
+        messages = [{"role": "user", "content": "hi"}]
+        [chunk async for chunk in engine.stream_from_messages(messages)]
+
+        assert _posted_body(mock_client)["messages"] == messages
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_async_normalizes_then_delegates(self):
+        """The streaming adapter mirrors generate_async: normalize, then delegate."""
+        engine = ModelEngine(_make_model())
+        captured: dict[str, Any] = {}
+
+        async def _fake_stream(messages, *, stop=None, **kwargs):
+            captured["messages"] = messages
+            captured["stop"] = stop
+            captured["kwargs"] = kwargs
+            yield LLMResponseChunk(delta_content="ok")
+
+        engine.stream_from_messages = _fake_stream
+
+        chunks = [chunk async for chunk in engine.stream_async("Hi", stop=["END"], temperature=0.5)]
+
+        assert captured == {
+            "messages": [{"role": "user", "content": "Hi"}],
+            "stop": ["END"],
+            "kwargs": {"temperature": 0.5},
+        }
+        assert [chunk.delta_content for chunk in chunks] == ["ok"]
+
+
+class TestModelEngineLLMCallRoundTrip:
+    """``llm_call`` drives a ModelEngine end to end — the path library rail actions take."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_returns_the_model_response(self, reset_llm_call_context):
+        """llm_call returns the LLMResponse produced by the engine."""
+        client = _mock_chat_client({"choices": [{"message": {"role": "assistant", "content": "safe"}}]})
+        engine = _started_engine(client)
+
+        response = await llm_call(engine, [{"role": "user", "content": "Is this safe?"}])
+
+        assert response.content == "safe"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_dict_prompt_reaches_the_provider_unchanged(self, reset_llm_call_context):
+        """llm_call normalizes dicts to ChatMessage; the engine converts them back to
+        an equivalent wire payload rather than leaking ChatMessage internals."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await llm_call(engine, [{"role": "user", "content": "Is this safe?"}])
+
+        assert _posted_body(client)["messages"] == [{"role": "user", "content": "Is this safe?"}]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_task_manager_message_prompts_are_rekeyed_to_role(self, reset_llm_call_context):
+        """``LLMTaskManager.render_task_prompt`` renders a ``messages:``-style task
+        prompt with a ``type`` key, which the completions endpoint would reject.
+        Normalization rewrites it to ``role`` before the request goes out."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await llm_call(engine, [{"type": "system", "content": "be safe"}, {"type": "user", "content": "hi"}])
+
+        assert _posted_body(client)["messages"] == [
+            {"role": "system", "content": "be safe"},
+            {"role": "user", "content": "hi"},
+        ]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_string_task_prompt_becomes_a_user_message(self, reset_llm_call_context):
+        """Every shipped rail task prompt is configured with ``content:``, so
+        ``render_task_prompt`` hands rail actions a string. It must reach the
+        provider as a single user message."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await llm_call(engine, "Task: Check if there is unsafe content...")
+
+        assert _posted_body(client)["messages"] == [
+            {"role": "user", "content": "Task: Check if there is unsafe content..."}
+        ]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_llm_params_are_forwarded_to_the_provider(self, reset_llm_call_context):
+        """llm_params reach the request body, so rail actions can set sampling params."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await llm_call(engine, "Hi", llm_params={"temperature": 0.0, "max_tokens": 10})
+
+        body = _posted_body(client)
+        assert body["temperature"] == 0.0
+        assert body["max_tokens"] == 10
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_populates_llm_call_info_from_the_engine(self, reset_llm_call_context):
+        """The engine's model and provider names land on LLMCallInfo, which is what
+        IORails synthesizes its GenerationLog from."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await llm_call(engine, "Hi")
+
+        call_info = llm_call_info_var.get()
+        assert call_info is not None
+        assert call_info.llm_model_name == "meta/llama-3.3-70b-instruct"
+        assert call_info.llm_provider_name == "nim"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_token_usage_reaches_llm_stats(self, reset_llm_call_context):
+        """Usage from the provider increments the shared LLMStats counters."""
+        client = _mock_chat_client(
+            {
+                "choices": [{"message": {"role": "assistant", "content": "safe"}}],
+                "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9},
+            }
+        )
+        engine = _started_engine(client)
+
+        await llm_call(engine, "Hi")
+
+        llm_stats = llm_stats_var.get()
+        assert llm_stats is not None
+        stats = llm_stats.get_stats()
+        assert stats["total_calls"] == 1
+        assert stats["total_prompt_tokens"] == 7
+        assert stats["total_completion_tokens"] == 2
+        assert stats["total_tokens"] == 9
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_provider_failure_is_wrapped_in_llm_call_exception(self, reset_llm_call_context):
+        """A ModelEngineError is wrapped in LLMCallException with the engine's identity
+        in the detail, and the original error preserved as the cause."""
+        engine = _started_engine(_mock_chat_client(status=500))
+
+        with pytest.raises(LLMCallException) as exc_info:
+            await llm_call(engine, "Hi")
+
+        assert isinstance(exc_info.value.__cause__, ModelEngineError)
+        assert "model=meta/llama-3.3-70b-instruct" in str(exc_info.value)
+        assert "provider=nim" in str(exc_info.value)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_upstream_http_status_survives_the_wrapping(self, reset_llm_call_context):
+        """The provider's status must reach ``LLMCallException.status``.
+
+        The server maps that field to the response status and falls back to 500 for
+        an unknown one, so losing it turns a retryable upstream 429 into a
+        non-retryable server error for the caller.
+        """
+        engine = _started_engine(_mock_chat_client(status=429))
+
+        with pytest.raises(LLMCallException) as exc_info:
+            await llm_call(engine, "Hi")
+
+        assert exc_info.value.status == 429

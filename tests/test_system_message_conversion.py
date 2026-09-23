@@ -20,7 +20,8 @@ from tests.utils import FakeLLMModel
 
 
 @pytest.mark.asyncio
-async def test_system_message_conversion_v1():
+@pytest.mark.parametrize("role", ["developer", "system"])
+async def test_system_message_conversion_v1(role):
     """Test that system messages are correctly converted to SystemMessage events in Colang 1.0."""
 
     config = RailsConfig.parse_object(
@@ -40,7 +41,7 @@ async def test_system_message_conversion_v1():
     llm_rails = LLMRails(config=config, llm=llm)
 
     messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": role, "content": "You are a helpful assistant."},
         {"role": "user", "content": "Hello!"},
     ]
 
@@ -52,7 +53,8 @@ async def test_system_message_conversion_v1():
 
 
 @pytest.mark.asyncio
-async def test_system_message_conversion_v2x():
+@pytest.mark.parametrize("role", ["developer", "system"])
+async def test_system_message_conversion_v2x(role):
     """Test that system messages are correctly converted to SystemMessage events in Colang 2.x."""
 
     config = RailsConfig.parse_object(
@@ -72,7 +74,7 @@ async def test_system_message_conversion_v2x():
     llm_rails = LLMRails(config=config, llm=llm)
 
     messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": role, "content": "You are a helpful assistant."},
         {"role": "user", "content": "Hello!"},
     ]
 

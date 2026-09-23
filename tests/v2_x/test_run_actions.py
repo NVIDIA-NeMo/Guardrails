@@ -14,10 +14,15 @@
 # limitations under the License.
 
 import logging
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from rich.logging import RichHandler
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
+from nemoguardrails.llm.filters import co_v2
+from nemoguardrails.utils import new_event_dict
 from tests.utils import TestChat
 
 FORMAT = "%(message)s"
@@ -127,6 +132,23 @@ def test_3():
 
     chat >> "hi"
     chat << "I couldn't find any items matching your request!"
+
+
+@pytest.mark.asyncio
+async def test_manifest_owned_action_result_is_hidden_from_history():
+    runtime = object.__new__(RuntimeV2_x)
+    runtime.action_dispatcher = MagicMock()
+    runtime.action_dispatcher.is_manifest_action.return_value = True
+    runtime._process_start_action = AsyncMock(return_value=("result", [], {}))
+    state = MagicMock()
+    state.context = {}
+    start_action_event = new_event_dict("StartExampleAction")
+
+    result = await runtime._run_action("ExampleAction", start_action_event, [], state)
+    event = runtime._get_action_finished_event(result)
+
+    assert event["is_rail_action"] is True
+    assert co_v2([event]) == ""
 
 
 if __name__ == "__main__":

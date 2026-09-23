@@ -33,7 +33,9 @@ from time import time
 from typing import Dict, Optional
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.http import HTTPClient
 from nemoguardrails.library.jailbreak_detection.request import (
     jailbreak_detection_heuristics_request,
     jailbreak_detection_model_request,
@@ -56,8 +58,10 @@ log = logging.getLogger(__name__)
 async def jailbreak_detection_heuristics(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
-) -> bool:
+) -> RailOutcome:
     """Checks the user's prompt to determine if it is attempt to jailbreak the model."""
     jailbreak_config = llm_task_manager.config.rails.config.jailbreak_detection
 
@@ -65,7 +69,9 @@ async def jailbreak_detection_heuristics(
     lp_threshold = jailbreak_config.length_per_perplexity_threshold
     ps_ppl_threshold = jailbreak_config.prefix_suffix_perplexity_threshold
 
-    prompt = context.get("user_message")
+    context = context or {}
+    prompt = user_message if user_message is not None else context.get("user_message")
+    prompt = prompt or ""
 
     if not jailbreak_api_url:
         from nemoguardrails.library.jailbreak_detection.heuristics.checks import (
@@ -77,25 +83,32 @@ async def jailbreak_detection_heuristics(
         lp_check = check_jailbreak_length_per_perplexity(prompt, lp_threshold)
         ps_ppl_check = check_jailbreak_prefix_suffix_perplexity(prompt, ps_ppl_threshold)
         jailbreak = any([lp_check["jailbreak"], ps_ppl_check["jailbreak"]])
-        return jailbreak
+        return RailOutcome.block() if jailbreak else RailOutcome.allow()
 
-    jailbreak = await jailbreak_detection_heuristics_request(prompt, jailbreak_api_url, lp_threshold, ps_ppl_threshold)
+    jailbreak = await jailbreak_detection_heuristics_request(
+        prompt,
+        jailbreak_api_url,
+        lp_threshold,
+        ps_ppl_threshold,
+        http_client=http_client,
+    )
     if jailbreak is None:
         log.warning("Jailbreak endpoint not set up properly.")
         # If no result, assume not a jailbreak
-        return False
+        return RailOutcome.allow()
     else:
-        return jailbreak
+        return RailOutcome.block() if jailbreak else RailOutcome.allow()
 
 
 @action()
 async def jailbreak_detection_model(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
-) -> bool:
+    http_client: Optional[HTTPClient] = None,
+) -> RailOutcome:
     """Uses a trained classifier to determine if a user input is a jailbreak attempt"""
-    prompt: str = ""
     jailbreak_config = llm_task_manager.config.rails.config.jailbreak_detection
 
     jailbreak_api_url = jailbreak_config.server_endpoint
@@ -103,8 +116,9 @@ async def jailbreak_detection_model(
     nim_classification_path = jailbreak_config.nim_server_endpoint
     nim_auth_token = jailbreak_config.get_api_key()
 
-    if context is not None:
-        prompt = context.get("user_message", "")
+    context = context or {}
+    prompt = user_message if user_message is not None else context.get("user_message")
+    prompt = prompt or ""
 
     # we do this as a hack to treat this action as an LLM call for tracing
     llm_call_info_var.set(LLMCallInfo(task="jailbreak_detection_model"))
@@ -125,7 +139,7 @@ async def jailbreak_detection_model(
                 llm_call_info.finished_at = time()
 
             log.debug("Jailbreak detection cache hit")
-            return cached_result["jailbreak"]
+            return RailOutcome.block() if cached_result["jailbreak"] else RailOutcome.allow()
 
     jailbreak_result = None
     api_start_time = time()
@@ -156,9 +170,14 @@ async def jailbreak_detection_model(
                 nim_url=nim_base_url,
                 nim_auth_token=nim_auth_token,
                 nim_classification_path=nim_classification_path,
+                http_client=http_client,
             )
         elif jailbreak_api_url:
-            jailbreak = await jailbreak_detection_model_request(prompt=prompt, api_url=jailbreak_api_url)
+            jailbreak = await jailbreak_detection_model_request(
+                prompt=prompt,
+                api_url=jailbreak_api_url,
+                http_client=http_client,
+            )
 
         if jailbreak is None:
             log.warning("Jailbreak endpoint not set up properly.")
@@ -197,4 +216,4 @@ async def jailbreak_detection_model(
         cache.put(cache_key, cache_entry)
         log.debug("Jailbreak detection result cached")
 
-    return jailbreak_result
+    return RailOutcome.block() if jailbreak_result else RailOutcome.allow()

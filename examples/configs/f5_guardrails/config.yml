@@ -1,0 +1,16 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-5-nano
+
+instructions:
+  - type: general
+    content: You are a helpful assistant.
+
+rails:
+  input:
+    flows:
+      - f5 guardrails scan input
+  output:
+    flows:
+      - f5 guardrails scan output

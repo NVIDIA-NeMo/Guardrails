@@ -1,0 +1,151 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Streaming LLM Responses in Real-Time"
+sidebar-title: "Streaming LLM Responses"
+description: "Enable and use streaming mode for LLM responses in real-time in the NeMo Guardrails library."
+content:
+  type: "how_to"
+---
+
+The NeMo Guardrails library supports streaming LLM responses in real-time through the `stream_async()` method. No configuration is required to enable streaming—simply use `stream_async()` instead of `generate_async()`.
+
+## Basic Usage
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+
+config = RailsConfig.from_path("./config")
+rails = LLMRails(config)
+
+messages = [{"role": "user", "content": "Hello!"}]
+
+async for chunk in rails.stream_async(messages=messages):
+    print(chunk, end="", flush=True)
+```
+
+---
+
+## Streaming With Output Rails
+
+When using output rails with streaming, you must configure [output rail streaming](/configure-guardrails/yaml-schema/streaming/output-rail-streaming):
+
+```yaml
+rails:
+  output:
+    flows:
+      - self check output
+    streaming:
+      enabled: True
+```
+
+If output rails are configured but `rails.output.streaming.enabled` is not set to `True`, calling `stream_async()` will raise an `StreamingNotSupportedError`.
+
+---
+
+## Streaming With Handler
+
+For advanced use cases requiring more control over token processing, you can use a `StreamingHandler` with `generate_async()`. The preferred approach for most use cases is `stream_async()`, but `StreamingHandler` remains supported:
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.streaming import StreamingHandler
+import asyncio
+
+config = RailsConfig.from_path("./config")
+rails = LLMRails(config)
+
+streaming_handler = StreamingHandler()
+
+async def process_tokens():
+    async for chunk in streaming_handler:
+        print(chunk, end="", flush=True)
+
+asyncio.create_task(process_tokens())
+
+result = await rails.generate_async(
+    messages=[{"role": "user", "content": "Hello!"}],
+    streaming_handler=streaming_handler
+)
+```
+
+---
+
+## Server API
+
+Enable streaming in the request body by setting `stream` to `true`:
+
+```json
+{
+    "config_id": "my_config",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "stream": true
+}
+```
+
+---
+
+## CLI Usage
+
+Use the `--streaming` flag with the chat command:
+
+```bash
+nemoguardrails chat path/to/config --streaming
+```
+
+---
+
+## Streaming Metadata
+
+Use `include_metadata=True` in `stream_async()` to receive per-chunk metadata (token usage, finish reason). See [Streaming Metadata](/run-guardrailed-inference/using-python-apis/streaming#streaming-metadata) for details.
+
+## Token Usage Tracking
+
+Access token usage through the `log` generation option:
+
+```python
+response = rails.generate(messages=messages, options={
+    "log": {
+        "llm_calls": True
+    }
+})
+
+for llm_call in response.log.llm_calls:
+    print(f"Total tokens: {llm_call.total_tokens}")
+    print(f"Prompt tokens: {llm_call.prompt_tokens}")
+    print(f"Completion tokens: {llm_call.completion_tokens}")
+```
+
+---
+
+## HuggingFace Pipeline Streaming
+
+For LLMs deployed using `HuggingFacePipeline`, additional configuration is required:
+
+```python
+from nemoguardrails.integrations.langchain.providers.huggingface import AsyncTextIteratorStreamer
+
+# Create streamer with tokenizer
+streamer = AsyncTextIteratorStreamer(tokenizer, skip_prompt=True)
+params = {"temperature": 0.01, "max_new_tokens": 100, "streamer": streamer}
+
+pipe = pipeline(
+    # other parameters
+    **params,
+)
+
+llm = HuggingFacePipelineCompatible(pipeline=pipe, model_kwargs=params)
+```
+
+<Note>
+
+This example uses NeMo Guardrails' LangChain HuggingFace pipeline adapter, which depends on LangChain. It requires `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and the corresponding LangChain HuggingFace provider package.
+
+</Note>
+
+---
+
+## Related Topics
+
+- [Output Rail Streaming](/configure-guardrails/yaml-schema/streaming/output-rail-streaming) - Configure streaming for output rails
+- [Model Configuration](/configure-guardrails/yaml-schema/model-configuration) - Configure the main LLM

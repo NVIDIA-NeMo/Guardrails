@@ -1,0 +1,22 @@
+models:
+  - type: invalid_custom_check
+    engine: openai
+    model: nonexistent-self-check-model
+    parameters:
+      max_retries: 0
+
+passthrough: true
+
+rails:
+  input:
+    flows:
+      - self check input $variant=invalid_custom_check
+
+prompts:
+  - task: self_check_input $variant=invalid_custom_check
+    content: |
+      Return "unsafe" only if the user input is unsafe.
+      Otherwise return "safe".
+      User input: {{ user_input }}
+    output_parser: is_content_safe
+    max_tokens: 32

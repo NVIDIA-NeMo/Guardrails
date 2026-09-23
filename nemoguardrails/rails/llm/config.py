@@ -17,32 +17,32 @@
 
 import logging
 import os
-import re
 import warnings
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
 import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    PrivateAttr,
-    SecretStr,
+    field_validator,
     model_validator,
-    root_validator,
-    validator,
 )
 
 from nemoguardrails import utils
-from nemoguardrails.colang import parse_colang_file, parse_flow_elements
-from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id
-from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
-from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
 from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidRailsConfigurationError,
 )
+from nemoguardrails.library.self_check.utils import get_self_check_prompt_task
+from nemoguardrails.rails.llm.rails_config_fields import (
+    build_rails_config_data,
+    config_exported_names,
+    resolve_config_export,
+    validate_no_config_export_shadowing,
+)
+from nemoguardrails.utils import _get_flow_params, _normalize_flow_id
 
 log = logging.getLogger(__name__)
 
@@ -180,235 +180,6 @@ class Document(BaseModel):
     content: str
 
 
-class InjectionDetection(BaseModel):
-    injections: List[str] = Field(
-        default_factory=list,
-        description="The list of injection types to detect. Options are 'sqli', 'template', 'code', 'xss'."
-        "Currently, only SQL injection, template injection, code injection, "
-        "and markdown cross-site scripting are supported. "
-        "Custom rules can be added, provided they are in the `yara_path` and have a `.yara` file extension.",
-    )
-    action: str = Field(
-        default="reject",
-        pattern=r"^(reject|omit)$",
-        description="Action to take. Options are 'reject' to offer a rejection message, "
-        "'omit' to mask the offending content, and 'sanitize' to pass the content as-is in the safest way. "
-        "These options are listed in descending order of relative safety. 'sanitize' is not implemented at this time.",
-    )
-    yara_path: Optional[str] = Field(
-        default="",
-        description="Location on disk where YARA rules are located. If this parameter is an empty string, "
-        "the default location defined in injection_detection's actions.py file will be used.",
-    )
-    yara_rules: Optional[Dict[str, str]] = Field(
-        default_factory=dict,
-        description="Dictionary mapping rule names to YARA rule strings. If provided, these rules will be used "
-        "instead of loading rules from yara_path. Each rule should be a valid YARA rule string.",
-    )
-
-
-class SensitiveDataDetectionOptions(BaseModel):
-    entities: List[str] = Field(
-        default_factory=list,
-        description="The list of entities that should be detected. "
-        "Check out https://microsoft.github.io/presidio/supported_entities/ for"
-        "the list of supported entities.",
-    )
-    # TODO: this is not currently in use.
-    mask_token: str = Field(
-        default="*",
-        description="The token that should be used to mask the sensitive data.",
-    )
-
-    score_threshold: float = Field(
-        default=0.2,
-        description="The score threshold that should be used to detect the sensitive data.",
-    )
-
-
-class SensitiveDataDetection(BaseModel):
-    """Configuration of what sensitive data should be detected."""
-
-    recognizers: List[dict] = Field(
-        default_factory=list,
-        description="Additional custom recognizers. "
-        "Check out https://microsoft.github.io/presidio/tutorial/08_no_code/ for more details.",
-    )
-    input: SensitiveDataDetectionOptions = Field(
-        default_factory=SensitiveDataDetectionOptions,
-        description="Configuration of the entities to be detected on the user input.",
-    )
-    output: SensitiveDataDetectionOptions = Field(
-        default_factory=SensitiveDataDetectionOptions,
-        description="Configuration of the entities to be detected on the bot output.",
-    )
-    retrieval: SensitiveDataDetectionOptions = Field(
-        default_factory=SensitiveDataDetectionOptions,
-        description="Configuration of the entities to be detected on retrieved relevant chunks.",
-    )
-
-
-class RegexDetectionOptions(BaseModel):
-    """Configuration options for regex pattern detection on a specific source."""
-
-    patterns: List[str] = Field(
-        default_factory=list,
-        description="List of regex patterns to match against the text.",
-    )
-    case_insensitive: bool = Field(
-        default=False,
-        description="Whether to perform case-insensitive matching.",
-    )
-
-    _compiled_patterns: List["re.Pattern[str]"] = PrivateAttr(default_factory=list)
-
-    @model_validator(mode="after")
-    def compile_patterns(self) -> "RegexDetectionOptions":
-        """Pre-compile regex patterns at config load time."""
-        flags = re.IGNORECASE if self.case_insensitive else 0
-        compiled = []
-        for i, pattern in enumerate(self.patterns):
-            try:
-                compiled.append(re.compile(pattern, flags))
-            except re.error as e:
-                raise ValueError(f"Invalid regex pattern at index {i} ({pattern!r}): {e}") from e
-        object.__setattr__(self, "_compiled_patterns", compiled)
-        return self
-
-    @property
-    def compiled_patterns(self) -> List["re.Pattern[str]"]:
-        """Return the pre-compiled regex patterns."""
-        return self._compiled_patterns
-
-
-class RegexDetection(BaseModel):
-    """Configuration for regex pattern detection."""
-
-    input: RegexDetectionOptions = Field(
-        default_factory=RegexDetectionOptions,
-        description="Configuration for regex patterns to detect on user input.",
-    )
-    output: RegexDetectionOptions = Field(
-        default_factory=RegexDetectionOptions,
-        description="Configuration for regex patterns to detect on bot output.",
-    )
-    retrieval: RegexDetectionOptions = Field(
-        default_factory=RegexDetectionOptions,
-        description="Configuration for regex patterns to detect on retrieved relevant chunks.",
-    )
-
-
-class PrivateAIDetectionOptions(BaseModel):
-    """Configuration options for Private AI."""
-
-    entities: List[str] = Field(
-        default_factory=list,
-        description="The list of entities that should be detected.",
-    )
-
-
-class PrivateAIDetection(BaseModel):
-    """Configuration for Private AI."""
-
-    server_endpoint: str = Field(
-        default="http://localhost:8080/process/text",
-        description="The endpoint for the private AI detection server.",
-    )
-    input: PrivateAIDetectionOptions = Field(
-        default_factory=PrivateAIDetectionOptions,
-        description="Configuration of the entities to be detected on the user input.",
-    )
-    output: PrivateAIDetectionOptions = Field(
-        default_factory=PrivateAIDetectionOptions,
-        description="Configuration of the entities to be detected on the bot output.",
-    )
-    retrieval: PrivateAIDetectionOptions = Field(
-        default_factory=PrivateAIDetectionOptions,
-        description="Configuration of the entities to be detected on retrieved relevant chunks.",
-    )
-
-
-class GLiNERDetectionOptions(BaseModel):
-    """Configuration options for GLiNER."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    entities: List[str] = Field(
-        default_factory=list,
-        description="The list of entity labels to detect (e.g., 'email', 'phone_number', 'ssn').",
-    )
-
-
-class GLiNERDetection(BaseModel):
-    """Configuration for GLiNER PII detection."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    server_endpoint: str = Field(
-        default="http://localhost:8000/v1/chat/completions",
-        description=(
-            "The endpoint for the GLiNER detection server. "
-            "By default, this is for a locally hosted NIM instance running the GLiNER model. "
-            "Changed from http://localhost:1235/v1/extract (custom server) to "
-            "http://localhost:8000/v1/chat/completions (NIM) in this release. "
-            "If you use the custom gliner_server, set this explicitly to http://localhost:1235/v1/extract."
-        ),
-    )
-    model: str = Field(
-        default="nvidia/gliner-pii",
-        description="Model identifier sent in NIM API requests (only used when server_endpoint ends with /v1/chat/completions).",
-    )
-    api_key_env_var: Optional[str] = Field(
-        default=None,
-        description="Name of the environment variable containing the API key for authenticated endpoints (e.g., NVIDIA_API_KEY).",
-    )
-    threshold: float = Field(
-        default=0.5,
-        description="Confidence threshold for entity detection (0.0 to 1.0).",
-    )
-    chunk_length: int = Field(
-        default=384,
-        description="Length of text chunks for processing.",
-    )
-    overlap: int = Field(
-        default=128,
-        description="Overlap between chunks.",
-    )
-    flat_ner: bool = Field(
-        default=False,
-        description="Whether to use flat NER mode. Setting to False allows for nested entities.",
-    )
-    input: GLiNERDetectionOptions = Field(
-        default_factory=GLiNERDetectionOptions,
-        description="Configuration of the entities to be detected on the user input.",
-    )
-    output: GLiNERDetectionOptions = Field(
-        default_factory=GLiNERDetectionOptions,
-        description="Configuration of the entities to be detected on the bot output.",
-    )
-    retrieval: GLiNERDetectionOptions = Field(
-        default_factory=GLiNERDetectionOptions,
-        description="Configuration of the entities to be detected on retrieved relevant chunks.",
-    )
-
-
-class FiddlerGuardrails(BaseModel):
-    """Configuration for Fiddler Guardrails."""
-
-    fiddler_endpoint: str = Field(
-        default="http://localhost:8080/process/text",
-        description="The global endpoint for Fiddler Guardrails requests.",
-    )
-    safety_threshold: float = Field(
-        default=0.1,
-        description="Fiddler Guardrails safety detection threshold.",
-    )
-    faithfulness_threshold: float = Field(
-        default=0.05,
-        description="Fiddler Guardrails faithfulness detection threshold.",
-    )
-
-
 class MessageTemplate(BaseModel):
     """Template for a message structure."""
 
@@ -454,7 +225,8 @@ class TaskPrompt(BaseModel):
         ge=1,
     )
 
-    @root_validator(pre=True, allow_reuse=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_fields(cls, values):
         if not values.get("content") and not values.get("messages"):
             raise InvalidRailsConfigurationError("One of `content` or `messages` must be provided.")
@@ -490,7 +262,21 @@ class TracingConfig(BaseModel):
         description=(
             "Capture prompts and responses (user/assistant/tool message content) in tracing/telemetry events. "
             "Disabled by default for privacy and alignment with OpenTelemetry GenAI semantic conventions. "
-            "WARNING: Enabling this may include PII and sensitive data in your telemetry backend."
+            "WARNING: Enabling this may include PII and sensitive data in your telemetry backend. "
+            "Behaviour differs by engine. "
+            "For IORails — "
+            "1. OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT environment variable has highest priority: "
+            "'true'/'1' force on, 'false'/'0' force off, for other values this field is used. "
+            "2. OTEL_SEMCONV_STABILITY_OPT_IN selects output format: when the comma-separated token list "
+            "contains 'gen_ai_latest_experimental', content is emitted as JSON-encoded span attributes "
+            "(gen_ai.input.messages, gen_ai.output.messages, gen_ai.system_instructions); "
+            "otherwise as legacy per-message span events "
+            "(gen_ai.user.message, gen_ai.assistant.message, gen_ai.system.message, gen_ai.choice). "
+            "For LLMRails — "
+            "Neither OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT nor OTEL_SEMCONV_STABILITY_OPT_IN "
+            "are consulted; this field is the only control. "
+            "Content is always emitted via the deprecated gen_ai.content.prompt and "
+            "gen_ai.content.completion span events."
         ),
     )
 
@@ -528,7 +314,7 @@ class EmbeddingsCacheConfig(BaseModel):
     )
 
     def to_dict(self):
-        return self.dict()
+        return self.model_dump()
 
 
 class EmbeddingSearchProvider(BaseModel):
@@ -659,6 +445,10 @@ class ToolOutputRails(BaseModel):
         default_factory=list,
         description="The names of all the flows that implement tool output rails.",
     )
+    per_tool: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Per-tool flows, keyed by tool name. Supplements the global `flows`, which run for every tool call.",
+    )
     parallel: Optional[bool] = Field(
         default=False,
         description="If True, the tool output rails are executed in parallel.",
@@ -675,6 +465,10 @@ class ToolInputRails(BaseModel):
     flows: List[str] = Field(
         default_factory=list,
         description="The names of all the flows that implement tool input rails.",
+    )
+    per_tool: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Per-tool flows, keyed by tool name. Supplements the global `flows`, which run for every tool result.",
     )
     parallel: Optional[bool] = Field(
         default=False,
@@ -724,476 +518,36 @@ class DialogRails(BaseModel):
     )
 
 
-class FactCheckingRailConfig(BaseModel):
-    """Configuration data for the fact-checking rail."""
-
-    parameters: Dict[str, Any] = Field(default_factory=dict)
-    fallback_to_self_check: bool = Field(
-        default=False,
-        description="Whether to fall back to self-check if another method fail.",
-    )
-
-
-class JailbreakDetectionConfig(BaseModel):
-    """Configuration data for jailbreak detection."""
-
-    server_endpoint: Optional[str] = Field(
-        default=None,
-        description="The endpoint for the jailbreak detection heuristics/model container.",
-    )
-    length_per_perplexity_threshold: float = Field(default=89.79, gt=0, description="The length/perplexity threshold.")
-    prefix_suffix_perplexity_threshold: float = Field(
-        default=1845.65, gt=0, description="The prefix/suffix perplexity threshold."
-    )
-    nim_base_url: Optional[str] = Field(
-        default=None,
-        description="Base URL for jailbreak detection model. Example: http://localhost:8000/v1",
-    )
-    nim_server_endpoint: Optional[str] = Field(
-        default="classify",
-        description="Classification path uri. Defaults to 'classify' for NemoGuard JailbreakDetect.",
-    )
-    api_key: Optional[SecretStr] = Field(
-        default=None,
-        description="Secret String with API key for use in Jailbreak requests. Takes precedence over api_key_env_var",
-    )
-    api_key_env_var: Optional[str] = Field(
-        default=None,
-        description="Environment variable containing API key for jailbreak detection model",
-    )
-    # legacy fields, keep for backward comp with deprecation warnings
-    nim_url: Optional[str] = Field(
-        default=None,
-        deprecated="Use 'nim_base_url' instead. This field will be removed in a future version.",
-        description="DEPRECATED: Use nim_base_url instead",
-    )
-    nim_port: Optional[int] = Field(
-        default=None,
-        deprecated="Include port in 'nim_base_url' instead. This field will be removed in a future version.",
-        description="DEPRECATED: Include port in nim_base_url instead",
-    )
-    embedding: Optional[str] = Field(
-        default=None,
-        deprecated="This field is no longer used.",
-    )
-
-    @model_validator(mode="after")
-    def migrate_deprecated_fields(self) -> "JailbreakDetectionConfig":
-        """Migrate deprecated nim_url/nim_port fields to nim_base_url format."""
-        if self.nim_url and not self.nim_base_url:
-            port = self.nim_port or 8000
-            self.nim_base_url = f"http://{self.nim_url}:{port}/v1"
-        return self
-
-    @model_validator(mode="after")
-    def validate_urls(self) -> "JailbreakDetectionConfig":
-        """Validate URL formats for endpoints."""
-        if self.nim_base_url and not self.nim_base_url.startswith(("http://", "https://")):
-            raise ValueError(f"nim_base_url must start with 'http://' or 'https://', got '{self.nim_base_url}'")
-        if self.server_endpoint and not self.server_endpoint.startswith(("http://", "https://")):
-            raise ValueError(f"server_endpoint must start with 'http://' or 'https://', got '{self.server_endpoint}'")
-        return self
-
-    def get_api_key(self) -> Optional[str]:
-        """Helper to return an API key (if it exists) from a Jailbreak configuration.
-          This can come from (in descending order of priority):
-
-        1. The `api_key` field, a Pydantic SecretStr from which we extract the full string.
-        2. The `api_key_env_var` field, a string stored in this environment variable.
-
-        If neither is found, None is returned.
-        """
-
-        if self.api_key:
-            return self.api_key.get_secret_value()
-
-        if self.api_key_env_var:
-            nim_auth_token = os.getenv(self.api_key_env_var)
-            if nim_auth_token:
-                return nim_auth_token
-
-            log.warning(
-                "Specified a value for jailbreak config api_key_env var at %s but the environment variable was not set!"
-                % self.api_key_env_var
-            )
-
-        return None
-
-
-class AutoAlignOptions(BaseModel):
-    """List of guardrails that are activated"""
-
-    guardrails_config: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="The guardrails configuration that is passed to the AutoAlign endpoint",
-    )
-
-
-class AutoAlignRailConfig(BaseModel):
-    """Configuration data for the AutoAlign API"""
-
-    parameters: Dict[str, Any] = Field(default_factory=dict)
-    input: AutoAlignOptions = Field(
-        default_factory=AutoAlignOptions,
-        description="Input configuration for AutoAlign guardrails",
-    )
-    output: AutoAlignOptions = Field(
-        default_factory=AutoAlignOptions,
-        description="Output configuration for AutoAlign guardrails",
-    )
-
-
-class PatronusEvaluationSuccessStrategy(str, Enum):
-    """
-    Strategy for determining whether a Patronus Evaluation API
-    request should pass, especially when multiple evaluators
-    are called in a single request.
-    ALL_PASS requires all evaluators to pass for success.
-    ANY_PASS requires only one evaluator to pass for success.
-    """
-
-    ALL_PASS = "all_pass"
-    ANY_PASS = "any_pass"
-
-
-class PatronusEvaluateApiParams(BaseModel):
-    """Config to parameterize the Patronus Evaluate API call"""
-
-    success_strategy: Optional[PatronusEvaluationSuccessStrategy] = Field(
-        default=PatronusEvaluationSuccessStrategy.ALL_PASS,
-        description="Strategy to determine whether the Patronus Evaluate API Guardrail passes or not.",
-    )
-    params: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Parameters to the Patronus Evaluate API",
-    )
-
-
-class PatronusEvaluateConfig(BaseModel):
-    """Config for the Patronus Evaluate API call"""
-
-    evaluate_config: PatronusEvaluateApiParams = Field(
-        default_factory=PatronusEvaluateApiParams,
-        description="Configuration passed to the Patronus Evaluate API",
-    )
-
-
-class PatronusRailConfig(BaseModel):
-    """Configuration data for the Patronus Evaluate API"""
-
-    input: Optional[PatronusEvaluateConfig] = Field(
-        default_factory=PatronusEvaluateConfig,
-        description="Patronus Evaluate API configuration for an Input Guardrail",
-    )
-    output: Optional[PatronusEvaluateConfig] = Field(
-        default_factory=PatronusEvaluateConfig,
-        description="Patronus Evaluate API configuration for an Output Guardrail",
-    )
-
-
-class ClavataRailOptions(BaseModel):
-    """Configuration data for the Clavata API"""
-
-    policy: str = Field(
-        description="The policy alias to use when evaluating inputs or outputs.",
-    )
-
-    labels: List[str] = Field(
-        default_factory=list,
-        description="""A list of labels to match against the policy.
-        If no labels are provided, the overall policy result will be returned.
-        If labels are provided, only hits on the provided labels will be considered a hit.""",
-    )
-
-
-class ClavataRailConfig(BaseModel):
-    """Configuration data for the Clavata API"""
-
-    server_endpoint: str = Field(
-        default="https://gateway.app.clavata.ai:8443",
-        description="The endpoint for the Clavata API",
-    )
-
-    policies: Dict[str, str] = Field(
-        default_factory=dict,
-        description="A dictionary of policy aliases and their corresponding IDs.",
-    )
-
-    label_match_logic: Literal["ANY", "ALL"] = Field(
-        default="ANY",
-        description="""The logic to use when deciding whether the evaluation matched.
-        If ANY, only one of the configured labels needs to be found in the input or output.
-        If ALL, all configured labels must be found in the input or output.""",
-    )
-
-    input: Optional[ClavataRailOptions] = Field(
-        default=None,
-        description="Clavata configuration for an Input Guardrail",
-    )
-    output: Optional[ClavataRailOptions] = Field(
-        default=None,
-        description="Clavata configuration for an Output Guardrail",
-    )
-
-
-class CrowdStrikeAIDRRailConfig(BaseModel):
-    """Configuration data for the CrowdStrike AIDR API"""
-
-    timeout: float = Field(
-        default=30.0,
-        description="Timeout in seconds for API requests to CrowdStrike AIDR",
-    )
-
-
-class PangeaRailOptions(BaseModel):
-    """Configuration data for the Pangea AI Guard API"""
-
-    recipe: str = Field(
-        description="""Recipe key of a configuration of data types and settings defined in the Pangea User Console. It
-        specifies the rules that are to be applied to the text, such as defang malicious URLs."""
-    )
-
-
-class PangeaRailConfig(BaseModel):
-    """Configuration data for the Pangea AI Guard API"""
-
-    input: Optional[PangeaRailOptions] = Field(
-        default=None,
-        description="Pangea configuration for an Input Guardrail",
-    )
-    output: Optional[PangeaRailOptions] = Field(
-        default=None,
-        description="Pangea configuration for an Output Guardrail",
-    )
-
-
-class GuardrailsAIValidatorConfig(BaseModel):
-    """Configuration for a single Guardrails AI validator."""
-
-    name: str = Field(
-        description="Unique identifier or import path for the Guardrails AI validator (e.g., 'toxic_language', 'pii', 'regex_match', or 'guardrails/competitor_check')."
-    )
-
-    parameters: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Parameters to pass to the validator during initialization (e.g., threshold, regex pattern).",
-    )
-
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Metadata to pass to the validator during validation (e.g., valid_topics, context).",
-    )
-
-
-class GuardrailsAIRailConfig(BaseModel):
-    """Configuration data for Guardrails AI integration."""
-
-    validators: List[GuardrailsAIValidatorConfig] = Field(
-        default_factory=list,
-        description="List of Guardrails AI validators to apply. Each validator can have its own parameters and metadata.",
-    )
-
-    def get_validator_config(self, name: str) -> Optional[GuardrailsAIValidatorConfig]:
-        """Get a specific validator configuration by name."""
-        for _validator in self.validators:
-            if _validator.name == name:
-                return _validator
-        return None
-
-
-class TrendMicroRailConfig(BaseModel):
-    """Configuration data for the Trend Micro AI Guard API"""
-
-    v1_url: str = Field(
-        default="https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails",
-        description="The endpoint for the Trend Micro AI Guard API. For other regions, use: https://api.{region}.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails where region is eu, jp, au, in, sg, or mea.",
-    )
-
-    api_key_env_var: Optional[str] = Field(
-        default=None,
-        description="Environment variable containing API key for Trend Micro AI Guard",
-    )
-
-    application_name: str = Field(
-        default="nemo-guardrails",
-        description="Application name for TMV1-Application-Name header (REQUIRED). Must contain only letters, numbers, hyphens, and underscores, with a maximum length of 64 characters.",
-        pattern=r"^[a-zA-Z0-9_-]+$",
-        max_length=64,
-    )
-
-    detailed_response: bool = Field(
-        default=False,
-        description="If True, returns detailed AI Guard results with confidence scores (Prefer: return=representation). If False, returns minimal response with only action and reasons (Prefer: return=minimal).",
-    )
-
-    def get_api_key(self) -> Optional[str]:
-        """Helper to return an API key (if it exists) from a Trend Micro configuration.
-        The `api_key_env_var` field, a string stored in this environment variable.
-
-        If the environment variable is not found None is returned.
-        """
-
-        if self.api_key_env_var:
-            v1_api_key = os.getenv(self.api_key_env_var)
-            if v1_api_key:
-                return v1_api_key
-
-            log.warning(
-                "Specified a value for Trend Micro config api_key_env var at %s but the environment variable was not set!"
-                % self.api_key_env_var
-            )
-
-        return None
-
-
-class AIDefenseRailConfig(BaseModel):
-    """Configuration data for the Cisco AI Defense API"""
-
-    timeout: float = Field(
-        default=30.0,
-        description="Timeout in seconds for API requests to AI Defense service",
-    )
-
-    fail_open: bool = Field(
-        default=False,
-        description="If True, allow content when AI Defense API call fails (fail open). If False, block content when API call fails (fail closed). Does not affect missing configuration validation.",
-    )
-
-
-class MultilingualConfig(BaseModel):
-    """Configuration for multilingual refusal messages."""
-
-    enabled: bool = Field(
-        default=False,
-        description="If True, detect the language of user input and return refusal messages in the same language. "
-        "Supported languages: en (English), es (Spanish), zh (Chinese), de (German), fr (French), "
-        "hi (Hindi), ja (Japanese), ar (Arabic), th (Thai).",
-    )
-    refusal_messages: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="Custom refusal messages per language code. "
-        "If not specified, built-in defaults are used. "
-        "Example: {'en': 'Sorry, I cannot help.', 'es': 'Lo siento, no puedo ayudar.'}",
-    )
-
-
-class ReasoningConfig(BaseModel):
-    """Configuration for reasoning mode in content safety models."""
-
-    enabled: bool = Field(
-        default=False,
-        description="If True, enable reasoning mode (with <think> traces) for content safety models. "
-        "If False, use low-latency mode without reasoning traces.",
-    )
-
-
-class ContentSafetyConfig(BaseModel):
-    """Configuration data for content safety rails."""
-
-    multilingual: MultilingualConfig = Field(
-        default_factory=MultilingualConfig,
-        description="Configuration for multilingual refusal messages.",
-    )
-
-    reasoning: ReasoningConfig = Field(
-        default_factory=ReasoningConfig,
-        description="Configuration for reasoning mode in content safety models.",
-    )
-
-
-class RailsConfigData(BaseModel):
+class _RailsConfigDataBase(BaseModel):
     """Configuration data for specific rails that are supported out-of-the-box."""
 
-    fact_checking: FactCheckingRailConfig = Field(
-        default_factory=FactCheckingRailConfig,
-        description="Configuration data for the fact-checking rail.",
-    )
+    pass
 
-    autoalign: AutoAlignRailConfig = Field(
-        default_factory=AutoAlignRailConfig,
-        description="Configuration data for the AutoAlign guardrails API.",
-    )
 
-    patronus: Optional[PatronusRailConfig] = Field(
-        default_factory=PatronusRailConfig,
-        description="Configuration data for the Patronus Evaluate API.",
-    )
+if TYPE_CHECKING:
 
-    sensitive_data_detection: Optional[SensitiveDataDetection] = Field(
-        default_factory=SensitiveDataDetection,
-        description="Configuration for detecting sensitive data.",
-    )
+    class RailsConfigData(_RailsConfigDataBase):
+        def __getattr__(self, name: str) -> Any: ...
 
-    regex_detection: Optional[RegexDetection] = Field(
-        default_factory=RegexDetection,
-        description="Configuration for regex pattern detection.",
-    )
+else:
+    RailsConfigData = build_rails_config_data(base=_RailsConfigDataBase, module=__name__)
 
-    jailbreak_detection: Optional[JailbreakDetectionConfig] = Field(
-        default_factory=JailbreakDetectionConfig,
-        description="Configuration for jailbreak detection.",
-    )
 
-    injection_detection: Optional[InjectionDetection] = Field(
-        default_factory=InjectionDetection,
-        description="Configuration for injection detection.",
-    )
+def __getattr__(name: str):
+    try:
+        return resolve_config_export(name)
+    except KeyError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
 
-    privateai: Optional[PrivateAIDetection] = Field(
-        default_factory=PrivateAIDetection,
-        description="Configuration for Private AI.",
-    )
 
-    gliner: Optional[GLiNERDetection] = Field(
-        default_factory=GLiNERDetection,
-        description="Configuration for GLiNER PII detection.",
-    )
-
-    fiddler: Optional[FiddlerGuardrails] = Field(
-        default_factory=FiddlerGuardrails,
-        description="Configuration for Fiddler Guardrails.",
-    )
-
-    clavata: Optional[ClavataRailConfig] = Field(
-        default_factory=ClavataRailConfig,
-        description="Configuration for Clavata.",
-    )
-
-    crowdstrike_aidr: Optional[CrowdStrikeAIDRRailConfig] = Field(
-        default_factory=CrowdStrikeAIDRRailConfig,
-        description="Configuration for CrowdStrike AIDR.",
-    )
-
-    pangea: Optional[PangeaRailConfig] = Field(
-        default_factory=PangeaRailConfig,
-        description="Configuration for Pangea.",
-    )
-
-    guardrails_ai: Optional[GuardrailsAIRailConfig] = Field(
-        default_factory=GuardrailsAIRailConfig,
-        description="Configuration for Guardrails AI validators.",
-    )
-
-    trend_micro: Optional[TrendMicroRailConfig] = Field(
-        default_factory=TrendMicroRailConfig,
-        description="Configuration for Trend Micro.",
-    )
-
-    ai_defense: Optional[AIDefenseRailConfig] = Field(
-        default_factory=AIDefenseRailConfig,
-        description="Configuration for Cisco AI Defense.",
-    )
-
-    content_safety: Optional[ContentSafetyConfig] = Field(
-        default_factory=ContentSafetyConfig,
-        description="Configuration for content safety rails.",
-    )
+def __dir__():
+    return sorted(set(globals()) | set(config_exported_names()))
 
 
 class Rails(BaseModel):
     """Configuration of specific rails."""
 
-    config: RailsConfigData = Field(
+    config: RailsConfigData = Field(  # pyright: ignore[reportInvalidTypeForm]
         default_factory=RailsConfigData,
         description="Configuration data for specific rails that are supported out-of-the-box.",
     )
@@ -1440,6 +794,10 @@ def _parse_colang_files_recursively(
 
     If there are imports, they will be imported recursively
     """
+    from nemoguardrails.colang import parse_colang_file
+    from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
+    from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
+
     colang_version = raw_config.get("colang_version", "1.0")
     _rails_parsed_config = None
 
@@ -1518,16 +876,13 @@ class RailsConfig(BaseModel):
         description="The list of bot messages that should be used for the rails.",
     )
 
-    # NOTE: the Any below is used to get rid of a warning with pydantic 1.10.x;
-    #   The correct typing should be List[Dict, Flow]. To be updated when
-    #   support for pydantic 1.10.x is dropped.
     flows: List[Union[Dict, Any]] = Field(
         default_factory=list,
         description="The list of flows that should be used for the rails.",
     )
 
     instructions: Optional[List[Instruction]] = Field(
-        default=[Instruction.parse_obj(obj) for obj in _default_config["instructions"]],
+        default=[Instruction.model_validate(obj) for obj in _default_config["instructions"]],
         description="List of instructions in natural language that the LLM should use.",
     )
 
@@ -1636,7 +991,8 @@ class RailsConfig(BaseModel):
         description="Configuration for OTEL metrics emission (independent of tracing).",
     )
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_model_exists_for_input_rails(cls, values):
         """Make sure we have a model for each input rail where one is provided using $model=<model_type>"""
         rails = values.get("rails", {})
@@ -1662,7 +1018,8 @@ class RailsConfig(BaseModel):
                 )
         return values
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_model_exists_for_output_rails(cls, values):
         """Make sure we have a model for each output rail where one is provided using $model=<model_type>"""
         rails = values.get("rails", {})
@@ -1688,7 +1045,8 @@ class RailsConfig(BaseModel):
                 )
         return values
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_prompt_exist_for_self_check_rails(cls, values):
         rails = values.get("rails", {})
         prompts = values.get("prompts", []) or []
@@ -1698,10 +1056,9 @@ class RailsConfig(BaseModel):
         provided_task_prompts = [prompt.task if hasattr(prompt, "task") else prompt.get("task") for prompt in prompts]
 
         # Input moderation prompt verification
-        if "self check input" in enabled_input_rails and "self_check_input" not in provided_task_prompts:
-            raise InvalidRailsConfigurationError(
-                "Missing a `self_check_input` prompt template, which is required for the `self check input` rail."
-            )
+        _validate_self_check_rail_prompts(
+            enabled_input_rails, provided_task_prompts, "self check input", "self_check_input"
+        )
         if "llama guard check input" in enabled_input_rails and "llama_guard_check_input" not in provided_task_prompts:
             raise InvalidRailsConfigurationError(
                 "Missing a `llama_guard_check_input` prompt template, which is required for the `llama guard check input` rail."
@@ -1714,10 +1071,9 @@ class RailsConfig(BaseModel):
         _validate_rail_prompts(enabled_input_rails, provided_task_prompts, "topic safety check input")
 
         # Output moderation prompt verification
-        if "self check output" in enabled_output_rails and "self_check_output" not in provided_task_prompts:
-            raise InvalidRailsConfigurationError(
-                "Missing a `self_check_output` prompt template, which is required for the `self check output` rail."
-            )
+        _validate_self_check_rail_prompts(
+            enabled_output_rails, provided_task_prompts, "self check output", "self_check_output"
+        )
         if (
             "llama guard check output" in enabled_output_rails
             and "llama_guard_check_output" not in provided_task_prompts
@@ -1745,7 +1101,8 @@ class RailsConfig(BaseModel):
 
         return values
 
-    @root_validator(pre=True, allow_reuse=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_output_parser_exists(cls, values):
         tasks_requiring_output_parser = [
             "self_check_input",
@@ -1768,7 +1125,54 @@ class RailsConfig(BaseModel):
                 )
         return values
 
-    @root_validator(pre=True, allow_reuse=True)
+    @model_validator(mode="before")
+    @classmethod
+    def check_streaming_can_apply_output_rewrites(cls, values):
+        """Reject configs whose output rails transform response with `stream_first` == True"""
+        from nemoguardrails.manifests import RailDirection, default_rail_catalog, parse_configured_surface
+
+        rails = values.get("rails") or {}
+        output = rails.get("output") or {}
+        streaming = output.get("streaming") or {}
+        if not streaming.get("enabled", False):
+            return values
+
+        surfaces = default_rail_catalog().surfaces()
+        rewriting = []
+        for flow in output.get("flows") or []:
+            try:
+                name, _ = parse_configured_surface(flow)
+            except ValueError:
+                continue
+            surface = surfaces.get((RailDirection.OUTPUT, name))
+            # An unknown flow is a custom or Colang-defined rail, which declares no target here.
+            if surface is not None and surface.transform_target is not None:
+                rewriting.append(flow)
+        if not rewriting:
+            return values
+
+        defaults = OutputRailsStreamingConfig()
+        stream_first = streaming.get("stream_first", defaults.stream_first)
+        context_size = streaming.get("context_size", defaults.context_size)
+        offending = [
+            setting
+            for setting, unusable in (
+                ("stream_first: True", stream_first),
+                (f"context_size: {context_size}", context_size),
+            )
+            if unusable
+        ]
+        if not offending:
+            return values
+
+        raise InvalidRailsConfigurationError(
+            f"Output rails {rewriting} rewrite the response, which streaming cannot apply with "
+            f"{' and '.join(offending)}: set rails.output.streaming.stream_first to False and "
+            f"context_size to 0, or remove the rewriting rails from a streaming configuration."
+        )
+
+    @model_validator(mode="before")
+    @classmethod
     def check_jailbreak_detection_config(cls, values):
         """Validate jailbreak detection configuration against enabled flows."""
         rails = values.get("rails") or {}
@@ -1822,7 +1226,8 @@ class RailsConfig(BaseModel):
 
         return values
 
-    @root_validator(pre=True, allow_reuse=True)
+    @model_validator(mode="before")
+    @classmethod
     def fill_in_default_values_for_v2_x(cls, values):
         instructions = values.get("instructions", {})
         sample_conversation = values.get("sample_conversation")
@@ -1837,7 +1242,8 @@ class RailsConfig(BaseModel):
 
         return values
 
-    @validator("models")
+    @field_validator("models")
+    @classmethod
     def validate_models_api_key_env_var(cls, models):
         """Model API Key Env var must be set to make LLM calls"""
         api_keys = [m.api_key_env_var for m in models]
@@ -1860,6 +1266,11 @@ class RailsConfig(BaseModel):
 
         Supports loading a from a single file, or from a directory.
         """
+        if "," in config_path or config_path != config_path.strip():
+            raise ValueError(
+                f"Invalid config path {config_path!r}. Paths cannot contain commas or begin or end with whitespace."
+            )
+
         # If the config path is a file, we load the YAML content.
         # Otherwise, if it's a folder, we iterate through all files.
         if os.path.isfile(config_path) and config_path.endswith((".yaml", ".yml")):
@@ -1895,6 +1306,8 @@ class RailsConfig(BaseModel):
         config: Optional[dict] = None,
     ):
         """Loads a configuration from the provided colang/YAML content/config dict."""
+        from nemoguardrails.colang import parse_colang_file
+
         raw_config = {}
 
         if config:
@@ -1945,6 +1358,8 @@ class RailsConfig(BaseModel):
     @classmethod
     def parse_object(cls, obj):
         """Parses a configuration object from a given dictionary."""
+        from nemoguardrails.colang import parse_flow_elements
+
         # If we have flows, we need to process them further from CoYML to CIL, but only for
         # version 1.0.
 
@@ -1954,7 +1369,7 @@ class RailsConfig(BaseModel):
                 if flow_data.get("elements") and not flow_data["elements"][0].get("_type"):
                     flow_data["elements"] = parse_flow_elements(flow_data["elements"])
 
-        return cls.parse_obj(obj)
+        return cls.model_validate(obj)
 
     def __add__(self, other):
         """Adds two RailsConfig objects."""
@@ -2014,14 +1429,14 @@ def _join_rails_configs(base_rails_config: RailsConfig, updated_rails_config: Ra
     if base_rails_config.actions_server_url != updated_rails_config.actions_server_url:
         raise ValueError("Both config files should have the same actions_server_url")
 
-    combined_rails_config_dict = _join_dict(base_rails_config.dict(), updated_rails_config.dict())
+    combined_rails_config_dict = _join_dict(base_rails_config.model_dump(), updated_rails_config.model_dump())
     # filter out empty strings to avoid leading/trailing commas
     config_paths = [
-        base_rails_config.dict()["config_path"] or "",
-        updated_rails_config.dict()["config_path"] or "",
+        base_rails_config.model_dump()["config_path"] or "",
+        updated_rails_config.model_dump()["config_path"] or "",
     ]
     combined_rails_config_dict["config_path"] = ",".join(filter(None, config_paths))
-    combined_rails_config = RailsConfig(**combined_rails_config_dict)
+    combined_rails_config = RailsConfig.parse_object(combined_rails_config_dict)
     return combined_rails_config
 
 
@@ -2096,7 +1511,30 @@ def _get_flow_model(flow_text) -> Optional[str]:
     """Helper to return a model name from a flow definition"""
     if MODEL_PREFIX not in flow_text:
         return None
-    return flow_text.split(MODEL_PREFIX)[-1].strip()
+    from nemoguardrails.manifests import parse_configured_surface
+
+    _, parameters = parse_configured_surface(flow_text)
+    return parameters.get("model")
+
+
+def _validate_self_check_rail_prompts(
+    rails: list[str], prompts: list[Any], validation_rail: str, default_task: str
+) -> None:
+    """Ensure every enabled self-check rail has a prompt for its resolved task.
+
+    A self-check rail may select a custom task via `$variant=...`; the task falls
+    back to `default_task` when omitted. Custom prompts are scoped under the
+    default task name.
+    """
+    for rail in rails:
+        if _normalize_flow_id(rail) != validation_rail:
+            continue
+        task = _get_flow_params(rail).get("variant") or default_task
+        prompt_task = get_self_check_prompt_task(task, default_task, prompts)
+        if prompt_task not in prompts:
+            raise InvalidRailsConfigurationError(
+                f"Missing a `{prompt_task}` prompt template, which is required for the `{rail}` rail."
+            )
 
 
 def _validate_rail_prompts(rails: list[str], prompts: list[Any], validation_rail: str) -> None:
@@ -2110,3 +1548,7 @@ def _validate_rail_prompts(rails: list[str], prompts: list[Any], validation_rail
                 raise InvalidRailsConfigurationError(
                     f"Missing a `{expected_prompt}` prompt template, which is required for the `{validation_rail}` rail."
                 )
+
+
+validate_no_config_export_shadowing(globals().keys())
+__all__ = sorted({name for name in globals() if not name.startswith("_")} | set(config_exported_names()))  # noqa: PLE0605

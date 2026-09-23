@@ -36,7 +36,7 @@ diffs surface OpenAI behavior changes per param.
 Regenerate the baseline file (after confirming classifier changes):
 
     UPDATE_BASELINE=1 OPENAI_API_KEY=sk-... \\
-        poetry run python tests/integrations/langchain/test_openai_param_filter.py
+        uv run python tests/integrations/langchain/test_openai_param_filter.py
 """
 
 from __future__ import annotations

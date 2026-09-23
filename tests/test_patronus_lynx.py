@@ -13,10 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any, cast
+
 import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.library.patronusai.actions import (
+    patronus_lynx_check_output_hallucination,
+)
+from nemoguardrails.llm.taskmanager import LLMTaskManager
 from tests.utils import FakeLLMModel, TestChat
 
 COLANG_CONFIG = """
@@ -80,6 +86,71 @@ def retrieve_relevant_chunks():
     )
 
 
+class _PatronusLynxTaskManager:
+    def render_task_prompt(self, task: Any, context: dict[str, Any]) -> str:
+        return "prompt"
+
+    def get_stop_tokens(self, task: Any) -> list[str]:
+        return []
+
+
+@pytest.mark.asyncio
+async def test_patronus_lynx_selects_named_model_from_registry():
+    task_manager = cast(LLMTaskManager, _PatronusLynxTaskManager())
+    selected_llm = FakeLLMModel(responses=['{"SCORE": "PASS"}'])
+    other_llm = FakeLLMModel(responses=['{"SCORE": "FAIL"}'])
+
+    outcome = await patronus_lynx_check_output_hallucination(
+        llm_task_manager=task_manager,
+        context={
+            "user_message": "question",
+            "bot_message": "answer",
+            "relevant_chunks": "context",
+        },
+        llms={"patronus_lynx": selected_llm, "other": other_llm},
+        model_name="patronus_lynx",
+    )
+
+    assert outcome.is_blocked is False
+    assert selected_llm.inference_count == 1
+    assert other_llm.inference_count == 0
+
+
+@pytest.mark.asyncio
+async def test_patronus_lynx_fails_before_call_without_model():
+    task_manager = cast(LLMTaskManager, _PatronusLynxTaskManager())
+
+    with pytest.raises(ValueError, match="Patronus Lynx model"):
+        await patronus_lynx_check_output_hallucination(
+            llm_task_manager=task_manager,
+            context={
+                "user_message": "question",
+                "bot_message": "answer",
+                "relevant_chunks": "context",
+            },
+            llms={"patronus_lynx": None},
+            model_name="patronus_lynx",
+        )
+
+
+@pytest.mark.asyncio
+async def test_patronus_lynx_without_context_does_not_require_model():
+    task_manager = cast(LLMTaskManager, _PatronusLynxTaskManager())
+
+    outcome = await patronus_lynx_check_output_hallucination(
+        llm_task_manager=task_manager,
+        context={
+            "user_message": "question",
+            "bot_message": "answer",
+            "relevant_chunks": "",
+        },
+        llms={},
+        model_name="patronus_lynx",
+    )
+
+    assert outcome.is_blocked is False
+
+
 @pytest.mark.asyncio
 def test_patronus_lynx_returns_no_hallucination():
     """
@@ -98,12 +169,12 @@ def test_patronus_lynx_returns_no_hallucination():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"REASONING": ["There is no hallucination."], "SCORE": "PASS"}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "Hi there! How are you doing?"
@@ -127,12 +198,12 @@ def test_patronus_lynx_returns_hallucination():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"REASONING": ["There is a hallucination."], "SCORE": "FAIL"}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "I don't know the answer to that."
@@ -156,12 +227,12 @@ def test_patronus_lynx_parses_score_when_no_double_quote():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"REASONING": ["There is no hallucination."], "SCORE": PASS}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "Hi there! How are you doing?"
@@ -183,12 +254,12 @@ def test_patronus_lynx_returns_no_hallucination_when_no_retrieved_context():
         ],
     )
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"REASONING": ["There is a hallucination."], "SCORE": "FAIL"}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "Hi there! How are you doing?"
@@ -212,12 +283,12 @@ def test_patronus_lynx_returns_hallucination_when_no_score_in_llm_output():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"REASONING": ["Mock reasoning."]}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "I don't know the answer to that."
@@ -241,12 +312,12 @@ def test_patronus_lynx_returns_no_hallucination_when_no_reasoning_in_llm_output(
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"SCORE": "PASS"}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "Hi there! How are you doing?"

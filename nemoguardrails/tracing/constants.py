@@ -14,9 +14,9 @@
 # limitations under the License.
 
 """OpenTelemetry constants, semantic conventions, and engine-agnostic
-GenAI client-side metric instruments for NeMo Guardrails.
+client-side metric instruments for NeMo Guardrails.
 
-The OTEL GenAI client-side metric helpers (``LLMInstruments``,
+The OTEL client-side metric helpers (``LLMInstruments``,
 ``record_token_usage``, ``llm_operation_duration``,
 ``record_time_to_first_chunk``, ``record_time_per_output_chunk``) live
 here next to the metric-name and attribute constants they emit.  They
@@ -25,7 +25,7 @@ to satisfy the OTEL GenAI semantic conventions.
 """
 
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generator, Optional
 
@@ -87,6 +87,26 @@ class SystemConstants:
     UNKNOWN = "unknown"
 
 
+class OtelContentCapture:
+    """OTEL environment-variable names and tokens for content-capture gating.
+
+    Two independent OTEL-standard env vars control content capture:
+
+    * ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`` — fallback
+      enable switch when ``config.tracing.enable_content_capture`` is
+      unset/False.  Truthy values (``"true"``, ``"1"``) turn capture on.
+    * ``OTEL_SEMCONV_STABILITY_OPT_IN`` — comma-separated stability
+      opt-in list.  When ``"gen_ai_latest_experimental"`` is present,
+      content is emitted as new-form span attributes
+      (``gen_ai.input.messages`` etc.); otherwise as legacy span events
+      (``gen_ai.user.message`` etc.).
+    """
+
+    CAPTURE_CONTENT_ENV = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
+    STABILITY_OPT_IN_ENV = "OTEL_SEMCONV_STABILITY_OPT_IN"
+    STABILITY_OPT_IN_LATEST = "gen_ai_latest_experimental"
+
+
 class GenAIAttributes:
     """GenAI semantic convention attributes following the draft specification.
 
@@ -110,6 +130,10 @@ class GenAIAttributes:
     GEN_AI_REQUEST_PRESENCE_PENALTY = "gen_ai.request.presence_penalty"
     GEN_AI_REQUEST_STOP_SEQUENCES = "gen_ai.request.stop_sequences"
 
+    # Conditionally Required per spec: set if and only if the request is
+    # streaming (omit entirely on non-streaming calls).
+    GEN_AI_REQUEST_STREAM = "gen_ai.request.stream"
+
     GEN_AI_RESPONSE_MODEL = "gen_ai.response.model"
     GEN_AI_RESPONSE_ID = "gen_ai.response.id"
     GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
@@ -118,11 +142,39 @@ class GenAIAttributes:
     GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
     GEN_AI_USAGE_TOTAL_TOKENS = "gen_ai.usage.total_tokens"
 
+    # Recommended span attribute (when applicable, e.g. reasoning models).
+    # Span-only — NOT a valid ``gen_ai.token.type`` metric label value.
+    GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = "gen_ai.usage.reasoning.output_tokens"
+
     # Required label on the ``gen_ai.client.token.usage`` metric.
     # Allowed values (from spec): "input" or "output" only.  Reasoning
     # and cached tokens are span-only attributes, NOT valid token.type
     # metric label values.
     GEN_AI_TOKEN_TYPE = "gen_ai.token.type"
+
+    # New-form content-capture span attributes (opt-in, gated by
+    # OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental).  Values
+    # are JSON-encoded strings.  Default emission uses the legacy event
+    # form (EventNames.GEN_AI_*_MESSAGE / GEN_AI_CHOICE) instead.
+    GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
+    GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
+    GEN_AI_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
+
+
+class HTTPAttributes:
+    """HTTP semantic convention attributes."""
+
+    REQUEST_METHOD = "http.request.method"
+    REQUEST_BODY_SIZE = "http.request.body.size"
+    REQUEST_RESEND_COUNT = "http.request.resend_count"
+    RESPONSE_STATUS_CODE = "http.response.status_code"
+    RESPONSE_BODY_SIZE = "http.response.body.size"
+    URL_FULL = "url.full"
+    URL_SCHEME = "url.scheme"
+    SERVER_ADDRESS = "server.address"
+    SERVER_PORT = "server.port"
+    ERROR_TYPE = "error.type"
+    EXCEPTION_TYPE = "exception.type"
 
 
 class CommonAttributes:
@@ -139,6 +191,24 @@ class GuardrailsAttributes:
     RAIL_NAME = "rail.name"
     RAIL_STOP = "rail.stop"
     RAIL_DECISIONS = "rail.decisions"
+
+    # rail content-capture attributes (opt-in alongside the GenAI
+    # content-capture knob).  No GenAI semconv exists for rail spans,
+    # so these live under the guardrails.* namespace.  RAIL_INPUT is
+    # a JSON-encoded snapshot of the rail's inputs; RAIL_REASON is set
+    # only when the rail blocks.
+    RAIL_INPUT = "guardrails.rail.input"
+    RAIL_REASON = "guardrails.rail.reason"
+
+    # request-level content-capture attributes on the guardrails.request
+    # SERVER span.  These record the caller-facing input and output —
+    # what the caller sent and what was returned — which differs
+    # from gen_ai.input/output.messages on the LLM CLIENT span on block
+    # paths (where the LLM CLIENT span records the raw model response
+    # while the SERVER span records the refusal message).  Using a
+    # distinct attribute namespace avoids conflating the two semantics.
+    REQUEST_INPUT = "guardrails.request.input"
+    REQUEST_OUTPUT = "guardrails.request.output"
 
     # action attributes
     ACTION_NAME = "action.name"
@@ -188,7 +258,7 @@ class SpanNames:
 
 
 class MetricNames:
-    """OTEL metric names emitted by the IORails engine.
+    """OTEL metric names emitted by NeMo Guardrails.
 
     These names are part of the library's public API — customers point
     dashboards and alerts at them.  Tests deliberately assert on the raw
@@ -219,6 +289,7 @@ class MetricNames:
     GEN_AI_CLIENT_OPERATION_DURATION = "gen_ai.client.operation.duration"
     GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK = "gen_ai.client.operation.time_to_first_chunk"
     GEN_AI_CLIENT_OPERATION_TIME_PER_OUTPUT_CHUNK = "gen_ai.client.operation.time_per_output_chunk"
+    HTTP_CLIENT_REQUEST_DURATION = "http.client.request.duration"
 
 
 class TokenType:
@@ -254,13 +325,13 @@ class EventNames:
     """Standard event names for OpenTelemetry GenAI semantic conventions.
 
     Based on official spec at:
-    https://github.com/open-telemetry/semantic-conventions/blob/main/model/gen-ai/events.yaml
+    https://opentelemetry.io/docs/concepts/semantic-conventions/
     """
 
     GEN_AI_SYSTEM_MESSAGE = "gen_ai.system.message"
     GEN_AI_USER_MESSAGE = "gen_ai.user.message"
     GEN_AI_ASSISTANT_MESSAGE = "gen_ai.assistant.message"
-    # GEN_AI_TOOL_MESSAGE = "gen_ai.tool.message"
+    GEN_AI_TOOL_MESSAGE = "gen_ai.tool.message"
 
     GEN_AI_CHOICE = "gen_ai.choice"
 
@@ -302,6 +373,7 @@ class GuardrailsEventTypes:
 # first access is harmless because OTEL guarantees ``meter.create_*``
 # returns equivalent instances for the same instrumentation scope.
 _llm_instruments: Optional["LLMInstruments"] = None
+_http_instruments: Optional["HTTPInstruments"] = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -332,6 +404,33 @@ class LLMInstruments:
     operation_duration: "Histogram"
     time_to_first_chunk: "Histogram"
     time_per_output_chunk: "Histogram"
+
+
+@dataclass(frozen=True, slots=True)
+class HTTPInstruments:
+    """HTTP-client OpenTelemetry instruments shared across callers."""
+
+    request_duration: "Histogram"
+
+
+# Matches the OpenTelemetry HTTP client request-duration recommendation:
+# https://opentelemetry.io/docs/specs/semconv/http/http-metrics/#metric-httpclientrequestduration
+_HTTP_DURATION_BUCKETS = [
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.075,
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    1,
+    2.5,
+    5,
+    7.5,
+    10,
+]
 
 
 # Bucket boundaries recommended in the OTEL GenAI semantic-conventions
@@ -420,6 +519,26 @@ def _ensure_llm_instruments() -> Optional[LLMInstruments]:
     return _llm_instruments
 
 
+def _ensure_http_instruments() -> Optional[HTTPInstruments]:
+    """Lazily create HTTP instruments when an OpenTelemetry meter is available."""
+    from nemoguardrails.guardrails.telemetry import get_meter
+
+    global _http_instruments
+    meter = get_meter()
+    if meter is None:
+        return None
+    if _http_instruments is None:
+        _http_instruments = HTTPInstruments(
+            request_duration=meter.create_histogram(
+                MetricNames.HTTP_CLIENT_REQUEST_DURATION,
+                description="Duration of HTTP client requests",
+                unit="s",
+                explicit_bucket_boundaries_advisory=_HTTP_DURATION_BUCKETS,
+            )
+        )
+    return _http_instruments
+
+
 def _llm_call_attributes(
     model_name: str,
     provider_name: str,
@@ -504,7 +623,10 @@ def llm_operation_duration(
     finally:
         elapsed = time.monotonic() - t0
         attrs = base if exc_type is None else {**base, "error.type": exc_type}
-        instruments.operation_duration.record(elapsed, attributes=attrs)
+        # Best-effort emission: a broken meter SDK must never mask the
+        # original exception propagating through ``finally``.
+        with suppress(Exception):
+            instruments.operation_duration.record(elapsed, attributes=attrs)
 
 
 def record_time_to_first_chunk(

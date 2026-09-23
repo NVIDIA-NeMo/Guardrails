@@ -2,16 +2,19 @@
 
 define subflow detect sensitive data on input
   """Check if the user input has any sensitive data."""
-  $has_sensitive_data = execute detect_sensitive_data(source="input", text=$user_message)
+  $response = execute detect_sensitive_data(source="input", text=$user_message)
 
-  if $has_sensitive_data
+  if $response.is_blocked
     bot inform answer unknown
     stop
 
 
 define subflow mask sensitive data on input
   """Mask any sensitive data found in the user input."""
-  $user_message = execute mask_sensitive_data(source="input", text=$user_message)
+  $response = execute mask_sensitive_data(source="input", text=$user_message)
+
+  if $response.is_transform
+    $user_message = $response.transform_text["user_message"]
 
 
 # OUTPUT RAILS
@@ -19,16 +22,19 @@ define subflow mask sensitive data on input
 
 define subflow detect sensitive data on output
   """Check if the bot output has any sensitive data."""
-  $has_sensitive_data = execute detect_sensitive_data(source="output", text=$bot_message)
+  $response = execute detect_sensitive_data(source="output", text=$bot_message)
 
-  if $has_sensitive_data
+  if $response.is_blocked
     bot inform answer unknown
     stop
 
 
 define subflow mask sensitive data on output
   """Mask any sensitive data found in the bot output."""
-  $bot_message = execute mask_sensitive_data(source="output", text=$bot_message)
+  $response = execute mask_sensitive_data(source="output", text=$bot_message)
+
+  if $response.is_transform
+    $bot_message = $response.transform_text["bot_message"]
 
 
 # RETRIVAL RAILS
@@ -36,13 +42,18 @@ define subflow mask sensitive data on output
 
 define subflow detect sensitive data on retrieval
   """Check if the relevant chunks from the knowledge base have any sensitive data."""
-  $has_sensitive_data = execute detect_sensitive_data(source="retrieval", text=$relevant_chunks)
+  $response = execute detect_sensitive_data(source="retrieval", text=$relevant_chunks)
 
-  if $has_sensitive_data
-    bot inform answer unknown
+  if $response.is_blocked
+    $block_message = $config.bot_messages["inform answer unknown"][0]
+    $skip_output_rails = True
+    create event BotMessage(text=$block_message)
     stop
 
 
 define subflow mask sensitive data on retrieval
   """Mask any sensitive data found in the relevant chunks from the knowledge base."""
-  $relevant_chunks = execute mask_sensitive_data(source="retrieval", text=$relevant_chunks)
+  $response = execute mask_sensitive_data(source="retrieval", text=$relevant_chunks)
+
+  if $response.is_transform
+    $relevant_chunks = $response.transform_text["relevant_chunks"]

@@ -19,7 +19,7 @@ import logging
 import random
 import warnings
 from dataclasses import dataclass, field
-from typing import Any, AsyncGenerator, Dict, Mapping, Optional
+from typing import Any, AsyncGenerator, Dict, Mapping, Optional, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -119,8 +119,10 @@ class BaseClient:
         if http_client is not None and not isinstance(http_client, httpx.AsyncClient):
             raise TypeError(f"Invalid http_client argument; expected httpx.AsyncClient but got {type(http_client)}")
 
-        _timeout = timeout if timeout is not None else DEFAULT_TIMEOUT.read
-        _connect_timeout = connect_timeout if connect_timeout is not None else DEFAULT_TIMEOUT.connect
+        _timeout = timeout if timeout is not None else cast(Optional[float], DEFAULT_TIMEOUT.read)
+        _connect_timeout = (
+            connect_timeout if connect_timeout is not None else cast(Optional[float], DEFAULT_TIMEOUT.connect)
+        )
         self._owns_client = http_client is None
         self._client = http_client or httpx.AsyncClient(
             timeout=httpx.Timeout(_timeout, connect=_connect_timeout),

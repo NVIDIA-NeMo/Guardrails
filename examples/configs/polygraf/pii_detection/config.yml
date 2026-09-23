@@ -1,0 +1,30 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+
+rails:
+  config:
+    polygraf:
+      # For Polygraf cloud, use the governance endpoint. For self-hosted deployments,
+      # set this to your service endpoint (the default local example is typically
+      # "http://localhost:8000/v1/pii/text-detect").
+      server_endpoint: "https://governance.api.polygraf.ai/gcp/pii/text-detect"
+      input:
+        entities:
+          - Email
+          - Person
+          - Phone
+      output:
+        entities:
+          - Email
+          - Person
+          - Phone
+
+  input:
+    flows:
+      - polygraf detect pii on input
+
+  output:
+    flows:
+      - polygraf detect pii on output

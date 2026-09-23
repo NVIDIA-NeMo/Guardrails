@@ -21,6 +21,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.streaming import StreamingHandler
 from tests.utils import TestChat
@@ -278,15 +279,15 @@ def output_rails_streaming_config():
     )
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 def self_check_output(**params):
     """A dummy self check action that checks if the bot message contains the BLOCK keyword."""
     if params.get("context", {}).get("bot_message"):
         bot_message_chunk = params.get("context", {}).get("bot_message")
         if "BLOCK" in bot_message_chunk:
-            return False
+            return RailOutcome.block()
 
-    return True
+    return RailOutcome.allow()
 
 
 async def run_self_check_test(config, llm_completions):
@@ -590,7 +591,11 @@ async def test_streaming_error_handling():
     assert "error" in error_data
     assert "message" in error_data["error"]
     assert "The model `non-existent-model` does not exist" in error_data["error"]["message"]
-    assert error_data["error"]["type"] == "invalid_request_error"
+    # `type` is an internal stream marker, not the provider's category: the
+    # streaming pipeline uses it to recognize its own terminal error frames, so
+    # it must not be settable from provider- or model-controlled text. The
+    # provider's own code still rides along in `code`.
+    assert error_data["error"]["type"] == "generation_error"
     assert error_data["error"]["code"] == "model_not_found"
 
     # Wait for proper cleanup, otherwise we get a Runtime Error

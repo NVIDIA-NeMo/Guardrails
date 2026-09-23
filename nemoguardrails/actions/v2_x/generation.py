@@ -32,8 +32,6 @@ from nemoguardrails.actions.llm.utils import (
     get_first_nonempty_line,
     get_first_user_intent,
     get_last_user_utterance_event_v2_x,
-    llm_call,
-    remove_action_intent_identifiers,
 )
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow, SpecOp
 from nemoguardrails.colang.v2_x.runtime.errors import LlmResponseError
@@ -53,6 +51,8 @@ from nemoguardrails.context import (
     streaming_handler_var,
 )
 from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
+from nemoguardrails.llm.call import llm_call
+from nemoguardrails.llm.completion_parsing import remove_action_intent_identifiers
 from nemoguardrails.llm.filters import colang
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging import verbose
@@ -797,7 +797,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             },
         )
 
-        stop = self.llm_task_manager.get_stop_tokens(Task.GENERATE_USER_INTENT_FROM_USER_ACTION)
+        stop = self.llm_task_manager.get_stop_tokens(Task.GENERATE_VALUE_FROM_INSTRUCTION)
 
         result = (await llm_call(generation_llm, prompt, stop=stop, llm_params={"temperature": 0.1})).content
 

@@ -106,7 +106,7 @@ JAILBREAK_SETUP_PRESENT, JAILBREAK_SKIP_REASON = check_jailbreak_nim_availabilit
     not JAILBREAK_SETUP_PRESENT,
     reason=JAILBREAK_SKIP_REASON or "JailbreakDetect NIM not running or endpoint is not in config.",
 )
-@patch("nemoguardrails.library.jailbreak_detection.request.jailbreak_nim_request")
+@patch("nemoguardrails.library.jailbreak_detection.actions.jailbreak_nim_request")
 def test_jb_detect_nim_unsafe(mock_jailbreak_nim):
     """Test that the NIM correctly identifies unsafe jailbreak input.
 
@@ -136,7 +136,7 @@ def test_jb_detect_nim_unsafe(mock_jailbreak_nim):
     not JAILBREAK_SETUP_PRESENT,
     reason=JAILBREAK_SKIP_REASON or "JailbreakDetect NIM not running or endpoint is not in config.",
 )
-@patch("nemoguardrails.library.jailbreak_detection.request.jailbreak_nim_request")
+@patch("nemoguardrails.library.jailbreak_detection.actions.jailbreak_nim_request")
 def test_jb_detect_nim_safe(mock_jailbreak_nim):
     """Test that the NIM correctly allows safe input.
 

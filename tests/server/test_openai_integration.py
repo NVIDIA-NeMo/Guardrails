@@ -13,35 +13,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
-from openai import OpenAI
+from openai import (
+    AuthenticationError,
+    BadRequestError,
+    InternalServerError,
+    OpenAI,
+    PermissionDeniedError,
+    RateLimitError,
+    UnprocessableEntityError,
+)
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from openai.types.model import Model
 
+from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.guardrails.model_engine import ModelEngineError
+from nemoguardrails.http.errors import HTTPStatusError
+from nemoguardrails.http.types import HTTPResponse
+from nemoguardrails.llm.models.initializer import ModelInitializationError
 from nemoguardrails.server import api
 
 
 @pytest.fixture(scope="function", autouse=True)
-def set_rails_config_path():
+def set_rails_config_path(monkeypatch):
     """Set the rails_config_path to test configs and required env vars."""
+    # Set the engine through monkeypatch rather than os.environ directly, so that tests
+    # overriding MAIN_MODEL_ENGINE or MAIN_MODEL_BASE_URL share this MonkeyPatch instance
+    # and every undo is strictly LIFO. Hand-rolled restore here would run first and let a
+    # test's undo leak its value into every later test in the worker.
     original_path = api.app.rails_config_path
-    original_engine = os.environ.get("MAIN_MODEL_ENGINE")
     test_configs_path = os.path.join(os.path.dirname(__file__), "..", "test_configs")
     api.app.rails_config_path = test_configs_path
-    os.environ["MAIN_MODEL_ENGINE"] = "custom_llm"
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "custom_llm")
     api.llm_rails_instances.clear()
     yield
     api.app.rails_config_path = original_path
     api.llm_rails_instances.clear()
-    if original_engine is not None:
-        os.environ["MAIN_MODEL_ENGINE"] = original_engine
-    else:
-        os.environ.pop("MAIN_MODEL_ENGINE", None)
 
 
 @pytest.fixture(scope="function")
@@ -113,20 +126,6 @@ def test_openai_client_chat_completion_parameterized(openai_client):
     assert hasattr(response, "created")
 
 
-def test_openai_client_chat_completion_input_rails(openai_client):
-    response = openai_client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": "Hello, how are you?"}],
-        stream=False,
-        extra_body={"guardrails": {"config_id": "with_input_rails"}},
-    )
-
-    assert isinstance(response, ChatCompletion)
-    assert response.id is not None
-    assert isinstance(response.choices[0], Choice)
-    assert hasattr(response, "created")
-
-
 @pytest.mark.skip(reason="Should only be run locally as it needs OpenAI key.")
 def test_openai_client_chat_completion_streaming(openai_client):
     stream = openai_client.chat.completions.create(
@@ -144,17 +143,17 @@ def test_openai_client_chat_completion_streaming(openai_client):
 
 
 def test_openai_client_error_handling_invalid_model(openai_client):
-    response = openai_client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": "hi"}],
-        stream=False,
-        extra_body={"guardrails": {"config_id": "nonexistent_config"}},
-    )
+    with pytest.raises(BadRequestError) as exc_info:
+        openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": "hi"}],
+            stream=False,
+            extra_body={"guardrails": {"config_id": "nonexistent_config"}},
+        )
 
-    assert (
-        "Could not load" in response.choices[0].message.content
-        or "error" in response.choices[0].message.content.lower()
-    )
+    assert exc_info.value.status_code == 400
+    assert "Could not load" in exc_info.value.body["message"]
+    assert exc_info.value.type == "invalid_request_error"
 
 
 def test_openai_client_with_context(openai_client):
@@ -206,25 +205,19 @@ def test_openai_client_with_options(openai_client):
     assert response.guardrails["config_id"] == "with_custom_llm"
 
 
-def test_openai_client_with_empty_state(openai_client):
-    """Test OpenAI client with empty state in guardrails."""
-    response = openai_client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": "hi"}],
-        stream=False,
-        extra_body={
-            "guardrails": {
-                "config_id": "with_custom_llm",
-                "state": {},
-            }
-        },
-    )
-
-    assert isinstance(response, ChatCompletion)
-    assert response.object == "chat.completion"
-    assert response.model == "gpt-4o"
-    assert response.choices[0].message.content == "Custom LLM response"
-    assert response.guardrails["config_id"] == "with_custom_llm"
+def test_openai_client_rejects_state(openai_client):
+    with pytest.raises(UnprocessableEntityError, match="Caller-supplied state is not accepted over HTTP"):
+        openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": "hi"}],
+            stream=False,
+            extra_body={
+                "guardrails": {
+                    "config_id": "with_custom_llm",
+                    "state": {},
+                }
+            },
+        )
 
 
 def test_openai_client_with_all_guardrails_fields(openai_client):
@@ -241,7 +234,6 @@ def test_openai_client_with_all_guardrails_fields(openai_client):
                     "rails": {"input": True, "output": True},
                     "log": {"activated_rails": True},
                 },
-                "state": {},
             }
         },
     )
@@ -316,10 +308,11 @@ def test_openai_client_with_rails_disabled(openai_client):
     not os.environ.get("OPENAI_API_KEY"),
     reason="OPENAI_API_KEY is required for this test.",
 )
-def test_list_models_openai(openai_client):
+def test_list_models_openai(openai_client, monkeypatch):
     """List models from the OpenAI API."""
-    os.environ.setdefault("MAIN_MODEL_BASE_URL", "https://api.openai.com")
-    os.environ["MAIN_MODEL_ENGINE"] = "openai"
+    if not os.environ.get("MAIN_MODEL_BASE_URL"):
+        monkeypatch.setenv("MAIN_MODEL_BASE_URL", "https://api.openai.com")
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "openai")
 
     models = list(openai_client.models.list())
 
@@ -334,10 +327,11 @@ def test_list_models_openai(openai_client):
     not os.environ.get("OPENAI_API_KEY"),
     reason="OPENAI_API_KEY is required for this test.",
 )
-def test_list_models_openai_fields(openai_client):
+def test_list_models_openai_fields(openai_client, monkeypatch):
     """Verify that well-known OpenAI models appear with expected fields."""
-    os.environ.setdefault("MAIN_MODEL_BASE_URL", "https://api.openai.com")
-    os.environ["MAIN_MODEL_ENGINE"] = "openai"
+    if not os.environ.get("MAIN_MODEL_BASE_URL"):
+        monkeypatch.setenv("MAIN_MODEL_BASE_URL", "https://api.openai.com")
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "openai")
 
     models = {m.id: m for m in openai_client.models.list()}
 
@@ -354,9 +348,9 @@ def test_list_models_openai_fields(openai_client):
     not os.environ.get("ANTHROPIC_API_KEY"),
     reason="ANTHROPIC_API_KEY is required for this test.",
 )
-def test_list_models_anthropic(openai_client):
+def test_list_models_anthropic(openai_client, monkeypatch):
     """List models from the Anthropic API."""
-    os.environ["MAIN_MODEL_ENGINE"] = "anthropic"
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "anthropic")
 
     models = list(openai_client.models.list())
 
@@ -372,9 +366,9 @@ def test_list_models_anthropic(openai_client):
     not os.environ.get("COHERE_API_KEY"),
     reason="COHERE_API_KEY is required for this test.",
 )
-def test_list_models_cohere(openai_client):
+def test_list_models_cohere(openai_client, monkeypatch):
     """List models from the Cohere API."""
-    os.environ["MAIN_MODEL_ENGINE"] = "cohere"
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "cohere")
 
     models = list(openai_client.models.list())
 
@@ -390,9 +384,9 @@ def test_list_models_cohere(openai_client):
     not (os.environ.get("AZURE_OPENAI_ENDPOINT") and os.environ.get("AZURE_OPENAI_API_KEY")),
     reason="AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY are required for this test.",
 )
-def test_list_models_azure(openai_client):
+def test_list_models_azure(openai_client, monkeypatch):
     """List models from Azure OpenAI."""
-    os.environ["MAIN_MODEL_ENGINE"] = "azure"
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "azure")
 
     models = list(openai_client.models.list())
 
@@ -402,11 +396,79 @@ def test_list_models_azure(openai_client):
     assert all(m.owned_by == "azure" for m in models)
 
 
-def test_list_models_unknown_engine_no_url(openai_client):
+def test_list_models_unknown_engine_no_url(openai_client, monkeypatch):
     """Unknown engine with no MAIN_MODEL_BASE_URL returns an empty list."""
-    os.environ["MAIN_MODEL_ENGINE"] = "some_custom_llm"
-    os.environ.pop("MAIN_MODEL_BASE_URL", None)
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "some_custom_llm")
+    monkeypatch.delenv("MAIN_MODEL_BASE_URL", raising=False)
 
     models = list(openai_client.models.list())
 
     assert models == []
+
+
+@pytest.fixture(scope="function")
+def openai_error_client():
+    """OpenAI client whose transport surfaces server errors as HTTP responses.
+
+    ``raise_server_exceptions=False`` lets the catch-all 500 handler return a
+    response instead of re-raising, and ``max_retries=0`` avoids the SDK's
+    retry backoff on 429/500.
+    """
+    test_client = TestClient(api.app, raise_server_exceptions=False)
+    return OpenAI(
+        api_key="dummy-key",
+        base_url="http://dummy-url/v1",
+        http_client=test_client,
+        max_retries=0,
+    )
+
+
+def _make_chat_request(client):
+    return client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=False,
+        extra_body={"guardrails": {"config_id": "with_custom_llm"}},
+    )
+
+
+class TestOpenAIClientErrorEnvelope:
+    """The OpenAI SDK must parse our error envelope into the right typed exceptions."""
+
+    @pytest.mark.parametrize(
+        "exception,expected_error,expected_status,expected_type",
+        [
+            (LLMCallException("Unauthorized", status=401), AuthenticationError, 401, "authentication_error"),
+            (LLMCallException("Forbidden", status=403), PermissionDeniedError, 403, "permission_error"),
+            (ModelEngineError("Rate limited", "m", status=429), RateLimitError, 429, "rate_limit_error"),
+            (HTTPStatusError(HTTPResponse(status_code=400)), BadRequestError, 400, "invalid_request_error"),
+            (ModelEngineError("boom", "m", status=500), InternalServerError, 500, "server_error"),
+            (RuntimeError("unexpected"), InternalServerError, 500, "server_error"),
+        ],
+        ids=["401", "403", "429", "400", "500", "generic-500"],
+    )
+    def test_generation_error_maps_to_openai_exception(
+        self, openai_error_client, exception, expected_error, expected_status, expected_type
+    ):
+        mock_rails = AsyncMock()
+        mock_rails.generate_async.side_effect = exception
+        with patch("nemoguardrails.server.api._get_rails", new_callable=AsyncMock, return_value=mock_rails):
+            with pytest.raises(expected_error) as exc_info:
+                _make_chat_request(openai_error_client)
+
+        raised = exc_info.value
+        assert raised.status_code == expected_status
+        assert raised.type == expected_type
+        assert raised.body["message"]
+
+    def test_model_initialization_error_maps_to_bad_request(self, openai_error_client):
+        with patch(
+            "nemoguardrails.server.api._get_rails",
+            new_callable=AsyncMock,
+            side_effect=ModelInitializationError("cannot init model"),
+        ):
+            with pytest.raises(BadRequestError) as exc_info:
+                _make_chat_request(openai_error_client)
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.type == "invalid_request_error"

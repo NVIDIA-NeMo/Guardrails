@@ -6,7 +6,7 @@ define bot refuse to respond
 define flow topic safety check input
   $response = execute topic_safety_check_input
 
-  $on_topic = $response["on_topic"]
+  $on_topic = not $response.is_blocked
 
   if not $on_topic
     if $config.enable_rails_exceptions

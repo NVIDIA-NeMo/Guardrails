@@ -63,6 +63,7 @@ from nemoguardrails.llm.frameworks import (  # noqa: E402
     register_framework,
     set_default_framework,
 )
+from nemoguardrails.llm.models.instrumented import InstrumentedLLMModel  # noqa: E402
 from nemoguardrails.llm.providers import register_provider  # noqa: E402
 from nemoguardrails.types import (  # noqa: E402
     ChatMessage,
@@ -82,6 +83,7 @@ __all__ = [
     "ChatMessage",
     "FinishReason",
     "Guardrails",
+    "InstrumentedLLMModel",
     "LLMFramework",
     "LLMModel",
     "LLMRails",

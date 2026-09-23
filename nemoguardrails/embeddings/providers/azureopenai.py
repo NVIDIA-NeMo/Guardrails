@@ -46,7 +46,7 @@ class AzureEmbeddingModel(EmbeddingModel):
 
     def __init__(self, embedding_model: str):
         try:
-            from openai import AzureOpenAI  # type: ignore
+            from openai import AzureOpenAI
         except ImportError:
             raise ImportError("Could not import openai, please install it with `pip install openai`.")
         # Set Azure OpenAI API credentials

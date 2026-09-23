@@ -1,0 +1,456 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://integrate.api.nvidia.com/v1/chat/completions
+    headers:
+      Host:
+      - integrate.api.nvidia.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: user
+        content: Say hello in a few words.
+      stream: true
+      stream_options:
+        include_usage: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - text/event-stream; charset=utf-8
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Access-Control-Expose-Headers:
+      - nvcf-reqid
+      Nvcf-Status:
+      - fulfilled
+      Server:
+      - uvicorn
+      Vary:
+      - Origin
+    body:
+      parsed_body:
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            role: assistant
+            content: ''
+          logprobs: null
+          finish_reason: null
+        prompt_token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: Okay
+            reasoning_content: Okay
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ', user wants me to say hello in a few'
+            reasoning_content: ', user wants me to say hello in a few'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' words. Hmm, seems like a very simple request'
+            reasoning_content: ' words. Hmm, seems like a very simple request'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: " but actually has some nuance. \n\nFirst"
+            reasoning_content: " but actually has some nuance. \n\nFirst"
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ', I should consider why they''d ask this.'
+            reasoning_content: ', I should consider why they''d ask this.'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' Maybe they''re testing if I can follow basic instructions'
+            reasoning_content: ' Maybe they''re testing if I can follow basic instructions'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ', or perhaps they''re in a hurry and want'
+            reasoning_content: ', or perhaps they''re in a hurry and want'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' a quick greeting. Could also be they''re not'
+            reasoning_content: ' a quick greeting. Could also be they''re not'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' a native English speaker and want to see how I'
+            reasoning_content: ' a native English speaker and want to see how I'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: " handle simple requests. \n\nThe key here is"
+            reasoning_content: " handle simple requests. \n\nThe key here is"
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' "in a few words" - so I must'
+            reasoning_content: ' "in a few words" - so I must'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' keep it ultra-short. No long greetings'
+            reasoning_content: ' keep it ultra-short. No long greetings'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: . "Hello!" is perfect because it's exactly
+            reasoning_content: . "Hello!" is perfect because it's exactly
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: " one word, but feels warm. \n\nWait"
+            reasoning_content: " one word, but feels warm. \n\nWait"
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ', should I add more? Like "Hi there'
+            reasoning_content: ', should I add more? Like "Hi there'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: '!"? No, that''s two words and might'
+            reasoning_content: '!"? No, that''s two words and might'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' break the "few words" rule. "'
+            reasoning_content: ' break the "few words" rule. "'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: "Hello\" is the cleanest answer. \n\n"
+            reasoning_content: "Hello\" is the cleanest answer. \n\n"
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: Also noting they said "say hello" not "
+            reasoning_content: Also noting they said "say hello" not "
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: write hello" so they want me to actually say
+            reasoning_content: write hello" so they want me to actually say
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' it, but since this is text-based, I'
+            reasoning_content: ' it, but since this is text-based, I'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: "'ll just write it. \n\n*Double-check"
+            reasoning_content: "'ll just write it. \n\n*Double-check"
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: 'ing*: "Hello" is 1 word,'
+            reasoning_content: 'ing*: "Hello" is 1 word,'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' meets the requirement, and is universally friendly. No'
+            reasoning_content: ' meets the requirement, and is universally friendly. No'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' need to overthink - sometimes the simplest answer is'
+            reasoning_content: ' need to overthink - sometimes the simplest answer is'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: " best. \n\n...Though part of me wants"
+            reasoning_content: " best. \n\n...Though part of me wants"
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' to add an emoji to make it warmer,'
+            reasoning_content: ' to add an emoji to make it warmer,'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' but that might violate "few words." Better'
+            reasoning_content: ' but that might violate "few words." Better'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: " stick to pure text. \n\nFinal decision:"
+            reasoning_content: " stick to pure text. \n\nFinal decision:"
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' Just "Hello!" as the response. Short,'
+            reasoning_content: ' Just "Hello!" as the response. Short,'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            content: null
+            reasoning: |2
+               clear, and exactly what they asked for.
+            reasoning_content: |2
+               clear, and exactly what they asked for.
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            content: Hello! 😊
+          logprobs: null
+          finish_reason: stop
+          stop_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices: []
+        usage:
+          prompt_tokens: 23
+          total_tokens: 331
+          completion_tokens: 308
+      - '[DONE]'

@@ -1,0 +1,7 @@
+models:
+  - type: main
+    engine: nim
+    model: nvidia/nemotron-3-nano-30b-a3b
+    parameters:
+      max_retries: 0
+passthrough: true

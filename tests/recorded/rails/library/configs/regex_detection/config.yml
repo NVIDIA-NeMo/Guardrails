@@ -1,0 +1,17 @@
+models: []
+
+rails:
+  config:
+    regex_detection:
+      input:
+        patterns:
+          - "SECRET-[0-9]+"
+      output:
+        patterns:
+          - "INTERNAL-[A-Z]+"
+  input:
+    flows:
+      - regex check input
+  output:
+    flows:
+      - regex check output

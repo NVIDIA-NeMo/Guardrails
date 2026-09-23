@@ -7,9 +7,9 @@ https://help.cleanlab.ai/tutorials/tlm/#how-does-the-tlm-trustworthiness-score-w
 
 define subflow cleanlab trustworthiness
   """Guardrail based on the trustworthiness score."""
-  $result = execute call cleanlab api
+  $result = execute call_cleanlab_api
 
-  if $result.trustworthiness_score < 0.6
+  if $result.is_blocked
     if $config.enable_rails_exceptions
       create event CleanlabTrustworthinessRailException(message="Trustworthiness score is below threshold")
     else

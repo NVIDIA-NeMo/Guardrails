@@ -1,0 +1,33 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Caching Instructions and Prompts"
+sidebar-title: "Caching"
+description: "Configure in-memory caching for LLM calls and KV cache reuse to improve performance and reduce latency."
+keywords: ["nemo guardrails caching", "LLM cache", "KV cache reuse", "performance optimization"]
+content:
+  type: "how_to"
+---
+
+The NVIDIA NeMo Guardrails library provides two caching strategies to reduce inference latency.
+The in-memory model cache stores LLM responses and returns them for repeated prompts without calling the LLM again.
+KV cache reuse is a NIM-level optimization that avoids computation of the system prompt on each NemoGuard NIM call.
+You can enable either or both strategies independently.
+
+<Cards>
+
+<Card title="Memory Model Cache" href="/configure-guardrails/caching/model-memory-cache">
+
+Configure in-memory caching to avoid repeated LLM calls for identical prompts using LFU eviction.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="KV Cache Reuse" href="/configure-guardrails/caching/kv-cache-reuse">
+
+Enable KV cache reuse in NVIDIA NIM for LLMs to reduce inference latency for NemoGuard models.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+</Cards>

@@ -1,12 +1,12 @@
 # Example Locust load test configuration for NeMo Guardrails
 
 # Server details
-host: "http://localhost:8000"
-config_id: "my-guardrails-config"
+host: "http://localhost:9000"
+config_id: "content_safety_local"
 model: "meta/llama-3.3-70b-instruct"
 
 # Load test parameters
-users: 1024             # Maximum number of concurrent users
+target_users: 1024      # Concurrency to ramp to and hold
 spawn_rate: 16           # Users spawned per second
 run_time: 120            # Test duration in seconds
 

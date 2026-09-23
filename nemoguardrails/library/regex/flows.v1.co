@@ -5,9 +5,9 @@ define bot refuse to respond
 
 define subflow regex check input
   """Check if the user input matches any forbidden regex patterns."""
-  $result = execute detect_regex_pattern(source="input", text=$user_message)
+  $response = execute detect_regex_pattern(source="input", text=$user_message)
 
-  if $result["is_match"]
+  if $response.is_blocked
     bot refuse to respond
     stop
 
@@ -17,9 +17,9 @@ define subflow regex check input
 
 define subflow regex check output
   """Check if the bot output matches any forbidden regex patterns."""
-  $result = execute detect_regex_pattern(source="output", text=$bot_message)
+  $response = execute detect_regex_pattern(source="output", text=$bot_message)
 
-  if $result["is_match"]
+  if $response.is_blocked
     bot refuse to respond
     stop
 
@@ -29,7 +29,7 @@ define subflow regex check output
 
 define subflow regex check retrieval
   """Check if the relevant chunks from the knowledge base match any forbidden regex patterns."""
-  $result = execute detect_regex_pattern(source="retrieval", text=$relevant_chunks)
+  $response = execute detect_regex_pattern(source="retrieval", text=$relevant_chunks)
 
-  if $result["is_match"]
-    $relevant_chunks = ""
+  if $response.is_transform
+    $relevant_chunks = $response.transform_text["relevant_chunks"]

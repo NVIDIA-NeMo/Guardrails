@@ -1,0 +1,12 @@
+#!/bin/sh
+
+if [ "${FERN_REF_SDK_HOOK:-}" != "1" ]; then
+  exit 0
+fi
+
+if [ -z "${FERN_REF_SDK_NODE:-}" ] || [ -z "${FERN_REF_SDK_HELPER:-}" ]; then
+  printf '%s\n' "Fern ref SDK hook is missing its Node.js or helper path." >&2
+  exit 2
+fi
+
+exec "$FERN_REF_SDK_NODE" "$FERN_REF_SDK_HELPER" "$PWD" "$2"

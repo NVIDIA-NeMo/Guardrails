@@ -15,6 +15,7 @@
 
 import json
 import sys
+from types import ModuleType
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -227,7 +228,7 @@ class TestOpenAIEmbeddingModelMocked:
 
     def test_import_error_when_openai_not_installed(self):
         with patch.dict("sys.modules", {"openai": None}):
-            with pytest.raises(ImportError, match="Could not import openai"):
+            with pytest.raises(ImportError, match="Could not import openai") as exc_info:
                 if "nemoguardrails.embeddings.providers.openai" in sys.modules:
                     del sys.modules["nemoguardrails.embeddings.providers.openai"]
 
@@ -237,8 +238,10 @@ class TestOpenAIEmbeddingModelMocked:
 
                 OpenAIEmbeddingModel("text-embedding-3-small")
 
+            assert isinstance(exc_info.value.__cause__, ImportError)
+
     def test_old_version_error(self):
-        mock_openai = MagicMock()
+        mock_openai = ModuleType("openai")
         mock_openai.__version__ = "0.28.0"
 
         with patch.dict("sys.modules", {"openai": mock_openai}):
