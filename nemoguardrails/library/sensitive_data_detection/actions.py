@@ -16,10 +16,10 @@
 import asyncio
 import logging
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import CancelledError, ThreadPoolExecutor
 from contextvars import copy_context
 from functools import lru_cache
-from threading import Lock
+from threading import Event, Lock
 from typing import Any, TypeVar
 
 try:
@@ -43,8 +43,18 @@ from nemoguardrails.rails.llm.config import (
 
 log = logging.getLogger(__name__)
 _analyzer_init_lock = Lock()
-_detection_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="presidio-detection")
 _T = TypeVar("_T")
+
+
+class _DetectionExecutor(ThreadPoolExecutor):
+    """Keep Presidio work out of the event loop's shared thread pool."""
+
+    async def run(self, func: Callable[[], _T]) -> _T:
+        """Offload work with the caller's context and standard future cancellation."""
+        return await asyncio.get_running_loop().run_in_executor(self, copy_context().run, func)
+
+
+_detection_executor = _DetectionExecutor(thread_name_prefix="presidio-detection")
 
 
 def _get_analyzer(score_threshold: float = 0.4):
@@ -94,16 +104,6 @@ def _create_analyzer(score_threshold: float = 0.4):
 
     # TODO: One needs to experiment with the score threshold to get the right value
     return AnalyzerEngine(nlp_engine=nlp_engine, default_score_threshold=score_threshold)
-
-
-async def _run_detection(func: Callable[[], _T]) -> _T:
-    """Run detection on one dedicated worker, preserving the caller's context.
-
-    Cancellation can discard queued work, but cannot interrupt running Presidio
-    analysis. A dedicated worker limits that work without occupying the event
-    loop's shared executor.
-    """
-    return await asyncio.get_running_loop().run_in_executor(_detection_executor, copy_context().run, func)
 
 
 def _get_ad_hoc_recognizers(sdd_config: SensitiveDataDetection):
@@ -169,9 +169,13 @@ async def detect_sensitive_data(
     if len(options.entities) == 0:
         return _sensitive_data_detection_outcome(False)
 
+    cancelled = Event()
+
     def analyze():
         """Initialize and run Presidio entirely on the detection worker."""
         analyzer = _get_analyzer(score_threshold=default_score_threshold)
+        if cancelled.is_set():
+            raise CancelledError()
         return analyzer.analyze(
             text=text,
             language="en",
@@ -179,7 +183,11 @@ async def detect_sensitive_data(
             ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
         )
 
-    results = await _run_detection(analyze)
+    try:
+        results = await _detection_executor.run(analyze)
+    except asyncio.CancelledError:
+        cancelled.set()
+        raise
 
     if results:
         return _sensitive_data_detection_outcome(True)
@@ -208,7 +216,7 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig) -> Ra
     if len(options.entities) == 0:
         return _mask_sensitive_data_outcome(source, text, text)
 
-    analyzer = _get_analyzer()
+    analyzer = await _detection_executor.run(_get_analyzer)
     if OperatorConfig is None or AnonymizerEngine is None:
         raise ImportError(
             "Could not import presidio, please install it with `pip install presidio-analyzer presidio-anonymizer`."

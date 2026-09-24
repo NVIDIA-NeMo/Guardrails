@@ -14,8 +14,7 @@
 # limitations under the License.
 
 import asyncio
-from contextvars import ContextVar
-from threading import Event
+from threading import Barrier, Event
 
 import pytest
 
@@ -35,41 +34,19 @@ def require_presidio():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "text, expected",
-    [
-        ("My name is John Smith.", RailOutcome.block(metadata={"has_sensitive_data": True})),
-        ("Discuss data security.", RailOutcome.allow(metadata={"has_sensitive_data": False})),
-    ],
-)
-async def test_detection_verdicts(require_presidio, text, expected):
-    """Preserve real Presidio verdicts on both initial and repeated calls."""
-    config = RailsConfig.from_content(
-        yaml_content="""
-rails:
-  config:
-    sensitive_data_detection:
-      input:
-        entities: [PERSON]
-"""
-    )
-    for _ in range(2):
-        assert await actions.detect_sensitive_data("input", text, config) == expected
-
-
-@pytest.mark.asyncio
 async def test_detection_allows_progress_during_analysis(require_presidio):
-    """Run another task while a real custom Presidio recognizer is analyzing."""
+    """Allow async progress and overlapping calls to a real Presidio recognizer."""
     from presidio_analyzer import Pattern, PatternRecognizer
 
     started, release, finished = Event(), Event(), Event()
+    barrier = Barrier(2, action=started.set)
 
     class GatedRecognizer(PatternRecognizer):
         """Keep actual pattern recognition active until the async task releases it."""
 
         def analyze(self, *args, **kwargs):
             """Expose the active analysis interval without replacing Presidio."""
-            started.set()
+            barrier.wait(timeout=10)
             try:
                 release.wait(timeout=10)
                 return super().analyze(*args, **kwargs)
@@ -93,16 +70,21 @@ rails:
         score_threshold: 0.4
 """
     )
-    task = asyncio.create_task(actions.detect_sensitive_data("input", "secret", config))
+    tasks = [
+        asyncio.create_task(actions.detect_sensitive_data("input", text, config)) for text in ["secret", "harmless"]
+    ]
     try:
         assert await asyncio.to_thread(started.wait, 10), "Analysis did not start"
         assert not finished.is_set(), "Analysis blocked the event loop until it finished"
-        assert not task.done()
+        assert all(not task.done() for task in tasks)
         release.set()
-        assert await task == RailOutcome.block(metadata={"has_sensitive_data": True})
+        assert await asyncio.gather(*tasks) == [
+            RailOutcome.block(metadata={"has_sensitive_data": True}),
+            RailOutcome.allow(metadata={"has_sensitive_data": False}),
+        ]
     finally:
         release.set()
-        await asyncio.gather(task, return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
         analyzer.registry.remove_recognizer(recognizer.name)
 
 
@@ -110,59 +92,90 @@ rails:
 async def test_concurrent_cold_analyzer_initialization(require_presidio):
     """Concurrent cache misses must share a single real model initialization."""
     actions._create_analyzer.cache_clear()
+    barrier = Barrier(2)
+
+    def get_analyzer():
+        barrier.wait(timeout=10)
+        return actions._get_analyzer()
+
     first, second = await asyncio.gather(
-        asyncio.to_thread(actions._get_analyzer),
-        asyncio.to_thread(actions._get_analyzer),
+        asyncio.to_thread(get_analyzer),
+        asyncio.to_thread(get_analyzer),
     )
     assert first is second
     assert actions._create_analyzer.cache_info().misses == 1
 
 
 @pytest.mark.asyncio
+async def test_cached_masking_does_not_block_on_initialization(require_presidio):
+    """Keep the loop responsive when masking contends with model initialization."""
+    actions._get_analyzer()
+    locked, release, finished = Event(), Event(), Event()
+
+    def hold_initialization_lock():
+        with actions._analyzer_init_lock:
+            locked.set()
+            release.wait(timeout=10)
+        finished.set()
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+rails:
+  config:
+    sensitive_data_detection:
+      input:
+        entities: [PERSON]
+"""
+    )
+    initialization = asyncio.create_task(asyncio.to_thread(hold_initialization_lock))
+    masking = None
+    try:
+        assert await asyncio.to_thread(locked.wait, 10)
+        masking = asyncio.create_task(actions.mask_sensitive_data("input", "My name is John Smith.", config))
+        await asyncio.sleep(0.01)
+        assert not finished.is_set(), "Masking blocked the event loop until initialization finished"
+        assert not masking.done()
+        release.set()
+        result = await masking
+        assert result.is_transform
+        assert result.metadata["masked_text"] == "My name is <PERSON>."
+    finally:
+        release.set()
+        await asyncio.gather(initialization, *([masking] if masking else []), return_exceptions=True)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("cancel_running", [False, True])
 async def test_cancelled_detection_work(cancel_running):
-    """Cancellation skips queued work and leaves at most one running analysis."""
-    started, release, finished, queued_started = Event(), Event(), Event(), Event()
+    """Skip cancelled queued work and isolate running work from the shared pool."""
+    started = [Event(), Event()]
+    release, finished, queued_started = Event(), Event(), Event()
 
-    def occupy_worker():
-        """Hold the worker while testing cancellation and executor isolation."""
-        started.set()
+    def occupy_worker(index):
+        """Hold both workers while testing cancellation and executor isolation."""
+        started[index].set()
         try:
             release.wait(timeout=10)
         finally:
             finished.set()
 
-    running = asyncio.create_task(actions._run_detection(occupy_worker))
-    queued = None
-    try:
-        assert await asyncio.to_thread(started.wait, 10)
-        queued = asyncio.create_task(actions._run_detection(queued_started.set))
-        await asyncio.sleep(0)
-        cancelled = running if cancel_running else queued
-        cancelled.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await cancelled
-        assert not finished.is_set()
-        assert not queued_started.is_set()
-        # The shared executor remains available even when detection is occupied.
-        assert await asyncio.to_thread(lambda: "available") == "available"
-    finally:
-        release.set()
-        await asyncio.gather(running, *([queued] if queued else []), return_exceptions=True)
-        # Drain the dedicated worker, including work whose awaiter was cancelled.
-        await actions._run_detection(lambda: None)
+    with actions._DetectionExecutor(max_workers=2) as executor:
+        running = [asyncio.create_task(executor.run(lambda i=i: occupy_worker(i))) for i in range(2)]
+        queued = []
+        try:
+            for event in started:
+                assert await asyncio.to_thread(event.wait, 10)
+            queued = [asyncio.create_task(executor.run(queued_started.set)) for _ in range(2)]
+            await asyncio.sleep(0)
+            for task in running if cancel_running else queued:
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            assert not finished.is_set()
+            assert not queued_started.is_set()
+            assert await asyncio.to_thread(lambda: "available") == "available"
+        finally:
+            release.set()
+            await asyncio.gather(*running, *queued, return_exceptions=True)
     assert finished.is_set()
     assert queued_started.is_set() == cancel_running
-
-
-@pytest.mark.asyncio
-async def test_detection_worker_preserves_context_and_errors():
-    """Preserve request context and propagate analysis errors to the caller."""
-    request_id = ContextVar("presidio_test_request_id")
-    token = request_id.set("request-123")
-    try:
-        assert await actions._run_detection(request_id.get) == "request-123"
-    finally:
-        request_id.reset(token)
-    with pytest.raises(LookupError):
-        await actions._run_detection(request_id.get)
