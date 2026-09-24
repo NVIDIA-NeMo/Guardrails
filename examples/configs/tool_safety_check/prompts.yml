@@ -1,0 +1,21 @@
+prompts:
+  - task: "tool_safety_check_output $model=llama_guard $variant=run_sql_check"
+    content: |
+      You are reviewing a call to the `run_sql` tool.
+      Arguments: {{ tool_call_arguments }}
+
+      Block any query that reads from the `payroll` or `ssn` tables, or that
+      contains a DROP, DELETE, or TRUNCATE statement.
+
+      Respond "safe" or "unsafe: <reason>".
+    output_parser: parse_tool_safety_verdict
+
+  - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
+    content: |
+      You are reviewing the result of a call to the `run_sql` tool.
+      Result: {{ tool_result_content }}
+
+      Block any result that contains a full credit card number or SSN.
+
+      Respond "safe" or "unsafe: <reason>".
+    output_parser: parse_tool_safety_verdict

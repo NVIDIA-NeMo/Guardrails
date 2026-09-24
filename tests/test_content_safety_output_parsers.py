@@ -26,6 +26,7 @@ from nemoguardrails.llm.output_parsers import (
     nemotron_content_safety_parse_response_safety,
     nemotron_reasoning_parse_prompt_safety,
     nemotron_reasoning_parse_response_safety,
+    parse_tool_safety_verdict,
 )
 
 
@@ -118,6 +119,59 @@ class TestIsContentSafe:
         assert is_safe is False
         assert "S1" in violated_policies
         assert "S8" in violated_policies
+
+
+class TestParseToolSafetyVerdict:
+    """Test the parse_tool_safety_verdict output parser used by tool_safety_check."""
+
+    def test_safe_response(self):
+        assert parse_tool_safety_verdict("safe") == [True]
+
+    def test_unsafe_response_with_no_reason(self):
+        assert parse_tool_safety_verdict("unsafe") == [False]
+
+    def test_unsafe_response_with_single_reason(self):
+        assert parse_tool_safety_verdict("unsafe: leaks credentials") == [False, "leaks credentials"]
+
+    def test_unsafe_response_with_multiple_semicolon_separated_reasons(self):
+        response = "unsafe: leaks credentials; drops a table"
+        assert parse_tool_safety_verdict(response) == [False, "leaks credentials", "drops a table"]
+
+    def test_multiple_reasons_with_extra_whitespace_and_trailing_semicolon(self):
+        response = "unsafe: leaks credentials;   drops a table  ; "
+        assert parse_tool_safety_verdict(response) == [False, "leaks credentials", "drops a table"]
+
+    def test_case_insensitive_parsing(self):
+        assert parse_tool_safety_verdict("UNSAFE: Leaks Credentials") == [False, "Leaks Credentials"]
+
+    def test_response_with_extra_whitespace(self):
+        assert parse_tool_safety_verdict("  safe  ") == [True]
+
+    def test_ambiguous_response_raises(self):
+        with pytest.raises(ValueError, match="Failed to parse a safety verdict"):
+            parse_tool_safety_verdict("I cannot determine this")
+
+    def test_empty_response_raises(self):
+        with pytest.raises(ValueError, match="Failed to parse a safety verdict"):
+            parse_tool_safety_verdict("")
+
+    def test_safe_as_a_substring_does_not_match(self):
+        """ "safety" contains "safe", but the verdict doesn't lead the response."""
+        with pytest.raises(ValueError, match="Failed to parse a safety verdict"):
+            parse_tool_safety_verdict("This violates the safety policy")
+
+    def test_negated_safe_does_not_match(self):
+        """ "safe" as a standalone word, but negated and not leading the response."""
+        with pytest.raises(ValueError, match="Failed to parse a safety verdict"):
+            parse_tool_safety_verdict("This is not safe for public use")
+
+    def test_unsafe_as_a_substring_does_not_match(self):
+        """ "unsafely" contains "unsafe", but the verdict doesn't lead the response."""
+        with pytest.raises(ValueError, match="Failed to parse a safety verdict"):
+            parse_tool_safety_verdict("I am not sure, but this seems unsafely handled")
+
+    def test_trailing_punctuation_still_matches(self):
+        assert parse_tool_safety_verdict("Safe.") == [True]
 
 
 class TestNemoguardParsePromptSafety:

@@ -1376,12 +1376,30 @@ class TestToolSafetyCheckPromptValidation:
                 self._deps(config),
             )
 
+    def test_missing_output_parser_raises_at_compile_time(self):
+        config = self._config(
+            [
+                {
+                    "task": "tool_safety_check_output $model=judge $variant=no_parser",
+                    "content": "check {{ tool_call_arguments }}",
+                }
+            ]
+        )
+
+        with pytest.raises(RailCompilationError, match="no output_parser declared"):
+            compile_rail(
+                "tool safety check output $model=judge $variant=no_parser",
+                RailDirection.TOOL_OUTPUT,
+                self._deps(config),
+            )
+
     def test_valid_prompt_compiles(self):
         config = self._config(
             [
                 {
                     "task": "tool_safety_check_output $model=judge $variant=ok",
                     "content": "check {{ tool_call_arguments }}",
+                    "output_parser": "parse_tool_safety_verdict",
                 }
             ]
         )
@@ -1390,6 +1408,82 @@ class TestToolSafetyCheckPromptValidation:
             "tool safety check output $model=judge $variant=ok",
             RailDirection.TOOL_OUTPUT,
             self._deps(config),
+        )
+
+        assert isinstance(rail, CompiledRail)
+
+
+class TestUnknownSurfaceParameter:
+    """_reject_unknown_surface_parameter: a TOOL_OUTPUT/TOOL_INPUT flow setting a `$param=`
+    its surface has no binding for fails at compile time, e.g. `$argument=` on a surface
+    with no argument binding to scope. Scoped to TOOL_OUTPUT/TOOL_INPUT for now (see the
+    TODO on the function itself), so an INPUT-direction surface is unaffected."""
+
+    @staticmethod
+    def _deps(config: RailsConfig) -> RailDependencies:
+        return RailDependencies(
+            llms={"judge": FakeLLMModel(responses=["safe"])},
+            llm_task_manager=LLMTaskManager(config),
+            config=config,
+        )
+
+    @staticmethod
+    def _config(prompts: Optional[list] = None) -> RailsConfig:
+        return RailsConfig.from_content(
+            config={
+                "models": [
+                    {"type": "main", "engine": "openai", "model": "gpt-4"},
+                    {"type": "judge", "engine": "openai", "model": "gpt-4"},
+                ],
+                "prompts": prompts or [],
+            }
+        )
+
+    def test_argument_on_regex_tool_input_raises(self):
+        """ "regex check tool input" has no argument binding to scope."""
+        with pytest.raises(RailCompilationError, match=r"unsupported parameter.*\$argument="):
+            compile_rail(
+                "regex check tool input $argument=query",
+                RailDirection.TOOL_INPUT,
+                self._deps(self._config()),
+            )
+
+    def test_argument_on_regex_tool_output_compiles(self):
+        """ "regex check tool output" does declare an argument binding."""
+        rail = compile_rail(
+            "regex check tool output $argument=query",
+            RailDirection.TOOL_OUTPUT,
+            self._deps(self._config()),
+        )
+
+        assert isinstance(rail, CompiledRail)
+
+    def test_argument_on_tool_safety_check_input_raises(self):
+        """ "tool safety check input" has no argument binding to scope."""
+        with pytest.raises(RailCompilationError, match=r"unsupported parameter.*\$argument="):
+            compile_rail(
+                "tool safety check input $model=judge $variant=ok $argument=query",
+                RailDirection.TOOL_INPUT,
+                self._deps(
+                    self._config(
+                        [
+                            {
+                                "task": "tool_safety_check_input $model=judge $variant=ok",
+                                "content": "check {{ tool_result_content }}",
+                                "output_parser": "parse_tool_safety_verdict",
+                            }
+                        ]
+                    )
+                ),
+            )
+
+    def test_unknown_param_on_input_direction_surface_is_unaffected(self):
+        """The check is scoped to TOOL_OUTPUT/TOOL_INPUT; an INPUT-direction surface still
+        silently accepts an unrecognized `$param=` (the pre-existing, out-of-scope gap)."""
+        rail = compile_rail(
+            "content safety check input $model=judge $unrecognized=whatever",
+            RailDirection.INPUT,
+            self._deps(self._config()),
         )
 
         assert isinstance(rail, CompiledRail)
