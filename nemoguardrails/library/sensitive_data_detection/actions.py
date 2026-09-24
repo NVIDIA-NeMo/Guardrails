@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
 from functools import lru_cache
 from typing import Any
@@ -144,13 +145,16 @@ async def detect_sensitive_data(
     if len(options.entities) == 0:
         return _sensitive_data_detection_outcome(False)
 
-    analyzer = _get_analyzer(score_threshold=default_score_threshold)
-    results = analyzer.analyze(
-        text=text,
-        language="en",
-        entities=options.entities,
-        ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
-    )
+    def analyze():
+        analyzer = _get_analyzer(score_threshold=default_score_threshold)
+        return analyzer.analyze(
+            text=text,
+            language="en",
+            entities=options.entities,
+            ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
+        )
+
+    results = await asyncio.to_thread(analyze)
 
     if results:
         return _sensitive_data_detection_outcome(True)
