@@ -219,6 +219,8 @@ class RailsManager:
         output_flows: list[str],
         input_parallel: bool = False,
         output_parallel: bool = False,
+        tool_output_parallel: bool = False,
+        tool_input_parallel: bool = False,
         tool_call_flows: Optional[list[str]] = None,
         tool_result_flows: Optional[list[str]] = None,
         per_tool_call_flows: Optional[dict[str, list[str]]] = None,
@@ -239,6 +241,8 @@ class RailsManager:
 
         self.input_parallel: bool = input_parallel
         self.output_parallel: bool = output_parallel
+        self.tool_output_parallel: bool = tool_output_parallel
+        self.tool_input_parallel: bool = tool_input_parallel
 
         self.tool_call_flows: list[str] = list(tool_call_flows or [])
         self.tool_result_flows: list[str] = list(tool_result_flows or [])
@@ -288,13 +292,18 @@ class RailsManager:
 
         log.info(
             "RailsManager initialized: input_flows=%s, output_flows=%s, tool_call_flows=%s, "
-            "tool_result_flows=%s, input_parallel=%s, output_parallel=%s",
+            "tool_result_flows=%s, per_tool_call_flows=%s, per_tool_result_flows=%s, input_parallel=%s, "
+            "output_parallel=%s, tool_output_parallel=%s, tool_input_parallel=%s",
             self.input_flows,
             self.output_flows,
             self.tool_call_flows,
             self.tool_result_flows,
+            self.per_tool_call_flows,
+            self.per_tool_result_flows,
             self.input_parallel,
             self.output_parallel,
+            self.tool_output_parallel,
+            self.tool_input_parallel,
         )
 
     def _disable_parallel_execution(self) -> None:
@@ -433,7 +442,10 @@ class RailsManager:
         if not per_tool_rails:
             return global_result
 
-        per_tool_result = await self._run_tool_rails_sequential(per_tool_rails, RailDirection.OUTPUT)
+        if self.tool_output_parallel:
+            per_tool_result = await self._run_rails_parallel(per_tool_rails, RailDirection.OUTPUT)
+        else:
+            per_tool_result = await self._run_tool_rails_sequential(per_tool_rails, RailDirection.OUTPUT)
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
         if not per_tool_result.is_safe:
             return replace(per_tool_result, records=combined_records)
@@ -500,7 +512,10 @@ class RailsManager:
         if not per_tool_rails:
             return global_result
 
-        per_tool_result = await self._run_tool_rails_sequential(per_tool_rails, RailDirection.INPUT)
+        if self.tool_input_parallel:
+            per_tool_result = await self._run_rails_parallel(per_tool_rails, RailDirection.INPUT)
+        else:
+            per_tool_result = await self._run_tool_rails_sequential(per_tool_rails, RailDirection.INPUT)
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
         if not per_tool_result.is_safe:
             return replace(per_tool_result, records=combined_records)
