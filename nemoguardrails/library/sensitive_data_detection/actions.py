@@ -15,8 +15,12 @@
 
 import asyncio
 import logging
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from functools import lru_cache
-from typing import Any
+from threading import Lock
+from typing import Any, TypeVar
 
 try:
     from presidio_analyzer import PatternRecognizer  # type: ignore[reportMissingImports]
@@ -38,10 +42,20 @@ from nemoguardrails.rails.llm.config import (
 )
 
 log = logging.getLogger(__name__)
+_analyzer_init_lock = Lock()
+_detection_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="presidio-detection")
+_T = TypeVar("_T")
+
+
+def _get_analyzer(score_threshold: float = 0.4):
+    """Reuse one analyzer per threshold, including concurrent cold starts."""
+    with _analyzer_init_lock:
+        return _create_analyzer(score_threshold)
 
 
 @lru_cache
-def _get_analyzer(score_threshold: float = 0.4):
+def _create_analyzer(score_threshold: float = 0.4):
+    """Create an analyzer with the installed spaCy model."""
     if not 0.0 <= score_threshold <= 1.0:
         raise ValueError("score_threshold must be a float between 0 and 1 (inclusive).")
     try:
@@ -80,6 +94,16 @@ def _get_analyzer(score_threshold: float = 0.4):
 
     # TODO: One needs to experiment with the score threshold to get the right value
     return AnalyzerEngine(nlp_engine=nlp_engine, default_score_threshold=score_threshold)
+
+
+async def _run_detection(func: Callable[[], _T]) -> _T:
+    """Run detection on one dedicated worker, preserving the caller's context.
+
+    Cancellation can discard queued work, but cannot interrupt running Presidio
+    analysis. A dedicated worker limits that work without occupying the event
+    loop's shared executor.
+    """
+    return await asyncio.get_running_loop().run_in_executor(_detection_executor, copy_context().run, func)
 
 
 def _get_ad_hoc_recognizers(sdd_config: SensitiveDataDetection):
@@ -146,6 +170,7 @@ async def detect_sensitive_data(
         return _sensitive_data_detection_outcome(False)
 
     def analyze():
+        """Initialize and run Presidio entirely on the detection worker."""
         analyzer = _get_analyzer(score_threshold=default_score_threshold)
         return analyzer.analyze(
             text=text,
@@ -154,7 +179,7 @@ async def detect_sensitive_data(
             ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
         )
 
-    results = await asyncio.to_thread(analyze)
+    results = await _run_detection(analyze)
 
     if results:
         return _sensitive_data_detection_outcome(True)
