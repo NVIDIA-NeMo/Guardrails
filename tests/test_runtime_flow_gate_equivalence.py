@@ -350,6 +350,7 @@ TOOL_SAFETY_CHECK_OUTPUT = RailSpec(
     action="tool_safety_check_output",
     model_type="llama_guard",
     task="tool_safety_check_output $model=llama_guard $variant=probe",
+    output_parser="parse_tool_safety_verdict",
 )
 
 TOOL_SAFETY_CHECK_INPUT = RailSpec(
@@ -359,6 +360,7 @@ TOOL_SAFETY_CHECK_INPUT = RailSpec(
     action="tool_safety_check_input",
     model_type="llama_guard",
     task="tool_safety_check_input $model=llama_guard $variant=probe",
+    output_parser="parse_tool_safety_verdict",
 )
 
 PRIVATEAI_DETECT_INPUT = RailSpec(

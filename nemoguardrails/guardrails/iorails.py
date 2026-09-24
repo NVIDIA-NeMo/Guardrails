@@ -600,12 +600,16 @@ def _compile_only_deps(config: RailsConfig) -> RailDependencies:
     in-process backend from a remote one, so withholding it would make the gate refuse a rail
     over its NIM that ``RailsManager`` then compiles happily.
 
+    ``llm_task_manager`` is required too: some compile-time checks read
+    ``llm_task_manager.output_parsers`` to reject a prompt naming an output parser the config
+    never registers, catching that mistake at load time instead of the first request.
+
     The key sets match by construction, since ``EngineRegistry`` is built from these same
     models and registers each one.
     """
     return RailDependencies(
         llms={model.type: None for model in config.models},
-        llm_task_manager=None,
+        llm_task_manager=LLMTaskManager(config),
         config=config,
     )
 

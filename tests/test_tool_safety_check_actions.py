@@ -29,12 +29,11 @@ from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_outcome_blocked
 class _FakeTaskManager:
     """Records the task/context it was asked to render, and returns a scripted parse result."""
 
-    def __init__(self, parsed: Any = None, has_output_parser: bool = False):
+    def __init__(self, parsed: Any = None):
         self.parsed = parsed if parsed is not None else [True]
         self.rendered_task: Optional[str] = None
         self.rendered_context: Optional[dict] = None
-        self.forced_output_parser: Optional[str] = None
-        self._has_output_parser = has_output_parser
+        self.parse_task_output_called = False
 
     def render_task_prompt(self, task: Any, context: dict) -> str:
         self.rendered_task = task
@@ -47,11 +46,8 @@ class _FakeTaskManager:
     def get_max_tokens(self, task: Any) -> None:
         return None
 
-    def has_output_parser(self, task: Any) -> bool:
-        return self._has_output_parser
-
-    def parse_task_output(self, task: Any, output: str, forced_output_parser: Optional[str] = None) -> Any:
-        self.forced_output_parser = forced_output_parser
+    def parse_task_output(self, task: Any, output: str) -> Any:
+        self.parse_task_output_called = True
         return self.parsed
 
 
@@ -143,7 +139,6 @@ async def test_output_builds_task_name_from_model_and_variant():
     )
 
     assert task_manager.rendered_task == "tool_safety_check_output $model=llama_guard $variant=weather_check"
-    assert task_manager.forced_output_parser == "is_content_safe"
 
 
 @pytest.mark.asyncio
@@ -184,7 +179,7 @@ async def test_output_allows_safe_response():
         variant="weather_check",
     )
 
-    assert outcome == RailOutcome.allow(metadata={"violations": []})
+    assert outcome == RailOutcome.allow(metadata={"policy_violations": []})
 
 
 @pytest.mark.asyncio
@@ -200,7 +195,9 @@ async def test_output_blocks_unsafe_response_with_violations():
         variant="weather_check",
     )
 
-    assert outcome == RailOutcome.block(reason="leaks credentials", metadata={"violations": ["leaks credentials"]})
+    assert outcome == RailOutcome.block(
+        reason="leaks credentials", metadata={"policy_violations": ["leaks credentials"]}
+    )
 
 
 @pytest.mark.asyncio
@@ -209,7 +206,7 @@ async def test_output_unregistered_output_parser_raises():
     string. Unpacking that as [is_safe, *violations] would read its first character as a
     truthy is_safe, silently allowing an "unsafe: ..." verdict, so this must raise instead,
     letting the engine's fail-closed envelope record it as a failure, not a genuine block."""
-    task_manager = _FakeTaskManager(parsed="unsafe: leaks credentials", has_output_parser=True)
+    task_manager = _FakeTaskManager(parsed="unsafe: leaks credentials")
 
     with pytest.raises(ValueError, match="could not be parsed into a safety verdict"):
         await tool_safety_check_output(
@@ -238,7 +235,7 @@ async def test_output_truncated_response_raises():
             variant="weather_check",
         )
 
-    assert task_manager.forced_output_parser is None, "parsing must not run on a truncated response"
+    assert task_manager.parse_task_output_called is False, "parsing must not run on a truncated response"
 
 
 @pytest.mark.asyncio
@@ -304,7 +301,7 @@ async def test_input_allows_safe_response():
         variant="weather_check",
     )
 
-    assert outcome == RailOutcome.allow(metadata={"violations": []})
+    assert outcome == RailOutcome.allow(metadata={"policy_violations": []})
 
 
 @pytest.mark.asyncio
@@ -320,4 +317,4 @@ async def test_input_blocks_unsafe_response_with_violations():
         variant="weather_check",
     )
 
-    assert outcome == RailOutcome.block(reason="contains ssn", metadata={"violations": ["contains ssn"]})
+    assert outcome == RailOutcome.block(reason="contains ssn", metadata={"policy_violations": ["contains ssn"]})

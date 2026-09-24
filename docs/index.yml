@@ -124,6 +124,9 @@ navigation:
           - page: Tool Calling
             path: configure-rails/guardrail-catalog/tool-calling.mdx
             slug: tool-calling
+          - page: Tool Safety Check
+            path: configure-rails/guardrail-catalog/tool-safety-check.mdx
+            slug: tool-safety-check
           - page: Hallucinations & Fact-Checking
             path: configure-rails/guardrail-catalog/fact-checking.mdx
             slug: fact-checking

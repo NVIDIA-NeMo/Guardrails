@@ -55,8 +55,8 @@ async def run_llm_judged_check(
 ) -> RailOutcome:
     """Call the judge `llm` with the already-rendered `prompt` and parse the response.
 
-    Uses the prompt's own `output_parser` if it declares one, otherwise falls back to
-    `is_content_safe`: a yes/no/safe/unsafe judgment, optionally followed by violation words.
+    Uses the prompt's own `output_parser`, which compile-time validation guarantees is
+    declared and registered (see compiled_rail.py's _reject_invalid_tool_safety_check_prompt).
     """
     stop = llm_task_manager.get_stop_tokens(task=task)
     max_tokens = llm_task_manager.get_max_tokens(task=task) or DEFAULT_MAX_TOKENS
@@ -71,10 +71,7 @@ async def run_llm_judged_check(
     )
     if warn_if_truncated(llm_response, task):
         raise ValueError(f"judge model's response was truncated before producing a safety verdict for task {task}")
-    forced_output_parser = None if llm_task_manager.has_output_parser(task) else "is_content_safe"
-    result = llm_task_manager.parse_task_output(
-        task, output=llm_response.content, forced_output_parser=forced_output_parser
-    )
+    result = llm_task_manager.parse_task_output(task, output=llm_response.content)
     # An unregistered output_parser name makes parse_task_output return the raw completion
     # string unparsed, so [is_safe, *violations] would read its first character as truthy.
     # Raise instead, so the engine's fail-closed envelope records this as a failure, not a
@@ -83,5 +80,5 @@ async def run_llm_judged_check(
         raise ValueError(f"judge model's response could not be parsed into a safety verdict for task {task}")
     is_safe, *violations = result
     if is_safe:
-        return RailOutcome.allow(metadata={"violations": violations})
-    return RailOutcome.block(reason=", ".join(violations) or None, metadata={"violations": violations})
+        return RailOutcome.allow(metadata={"policy_violations": violations})
+    return RailOutcome.block(reason=", ".join(violations) or None, metadata={"policy_violations": violations})

@@ -60,7 +60,7 @@ To use the tool safety check, you should:
           contains a DROP, DELETE, or TRUNCATE statement.
 
           Respond "safe" or "unsafe: <reason>".
-        output_parser: is_content_safe
+        output_parser: parse_tool_safety_verdict
 
       - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
         content: |
@@ -70,25 +70,24 @@ To use the tool safety check, you should:
           Block any result that contains a full credit card number or SSN.
 
           Respond "safe" or "unsafe: <reason>".
-        output_parser: is_content_safe
+        output_parser: parse_tool_safety_verdict
     ```
 
     <Warning>
 
-    If a prompt for the exact `$model=`/`$variant=` task name is not defined, an exception will be raised when the configuration is loaded.
+    If a prompt for the exact `$model=`/`$variant=` task name is not defined, or it does not declare an `output_parser`, an exception will be raised when the configuration is loaded.
 
     </Warning>
 
     The `tool safety check output` prompt renders `{{ tool_name }}` and `{{ tool_call_arguments }}` (the call's arguments, JSON-encoded). The `tool safety check input` prompt renders `{{ tool_name }}` and `{{ tool_result_content }}` (the result's content, JSON-encoded if it is a list of content blocks).
 
-4. The output parser is optional. If you omit `output_parser` on the prompt entry, tool safety check falls back to the off-the-shelf `is_content_safe` output parser. You can also use your own parser and register it, or set `output_parser` to a different built-in one:
+4. `output_parser` is required on every tool safety check prompt. The example above uses the built-in `parse_tool_safety_verdict` parser, which expects a response of the form "safe" or "unsafe: `<reason>`":
 
-    This parser works by checking for specific keywords in the response:
-    - If the response includes "safe", the content is considered safe.
-    - If the response includes "unsafe" or "yes", the content is considered unsafe.
-    - If the response includes "no", the content is considered safe.
+    - If the response contains "safe" (and not "unsafe"), the content is considered safe.
+    - If the response contains "unsafe", the content is considered unsafe. Any text after "unsafe:" is recorded as the block reason; separate multiple violations with a semicolon (e.g. "unsafe: leaks credentials; drops a table") to surface each one individually in the rail's metadata.
+    - A response containing neither "safe" nor "unsafe" is treated as a broken judge response and raises, rather than being interpreted as a safety decision.
 
-    Any text after "unsafe:" is recorded as the block reason and surfaced in the rail's metadata.
+    You can set `output_parser` to a different built-in parser instead (for example `is_content_safe`, whose response format and keyword vocabulary differ); IORails does not support registering custom parser functions.
 
 5. Optionally, narrow which arguments are sent to the judge on the output direction with `$argument=`, the same scoping regex detection supports:
 
@@ -137,7 +136,7 @@ prompts:
       contains a DROP, DELETE, or TRUNCATE statement.
 
       Respond "safe" or "unsafe: <reason>".
-    output_parser: is_content_safe
+    output_parser: parse_tool_safety_verdict
 
   - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
     content: |
@@ -147,7 +146,7 @@ prompts:
       Block any result that contains a full credit card number or SSN.
 
       Respond "safe" or "unsafe: <reason>".
-    output_parser: is_content_safe
+    output_parser: parse_tool_safety_verdict
 ```
 
 ## Schema Validation

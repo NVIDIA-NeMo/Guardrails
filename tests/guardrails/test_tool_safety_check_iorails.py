@@ -29,6 +29,7 @@ import pytest_asyncio
 
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_tool_rails_iorails import _tool_call_payload
 
@@ -61,6 +62,7 @@ TOOL_OUTPUT_CONFIG = {
         {
             "task": _OUTPUT_TASK,
             "content": "Tool: {{ tool_name }}\nArguments: {{ tool_call_arguments }}\nRespond safe or unsafe: <reason>.",
+            "output_parser": "parse_tool_safety_verdict",
         }
     ],
 }
@@ -79,6 +81,7 @@ TOOL_OUTPUT_UNDECLARED_CONFIG = {
         {
             "task": _OUTPUT_TASK,
             "content": "Tool: {{ tool_name }}\nArguments: {{ tool_call_arguments }}\nRespond safe or unsafe: <reason>.",
+            "output_parser": "parse_tool_safety_verdict",
         }
     ],
 }
@@ -95,6 +98,7 @@ TOOL_INPUT_CONFIG = {
         {
             "task": _INPUT_TASK,
             "content": "Tool: {{ tool_name }}\nResult: {{ tool_result_content }}\nRespond safe or unsafe: <reason>.",
+            "output_parser": "parse_tool_safety_verdict",
         }
     ],
 }
@@ -225,3 +229,28 @@ class TestToolSafetyCheckInput:
         result = await input_iorails.generate_async(messages=_tool_result_conversation("no sensitive data"))
 
         assert result == {"role": "assistant", "content": "no sensitive data found"}
+
+
+class TestUnsupportedReasonRouting:
+    """IORails.unsupported_reason/can_handle decide IORails vs LLMRails routing through a
+    separate, compile-only dependency path from the one RailsManager builds at construction.
+    Every other test in this file goes straight to IORails(config) via started_iorails,
+    which never calls unsupported_reason, so this path needs its own coverage."""
+
+    def test_explicit_output_parser_does_not_crash_routing_check(self):
+        config = RailsConfig.from_content(config=TOOL_OUTPUT_CONFIG)
+        assert IORails.can_handle(config) is True
+
+    def test_missing_output_parser_reported_as_unsupported(self):
+        config = RailsConfig.from_content(
+            config={
+                **TOOL_OUTPUT_CONFIG,
+                "prompts": [{"task": _OUTPUT_TASK, "content": "check {{ tool_call_arguments }}"}],
+            }
+        )
+
+        reason = IORails.unsupported_reason(config)
+
+        assert reason is not None
+        assert "output_parser" in reason
+        assert IORails.can_handle(config) is False
