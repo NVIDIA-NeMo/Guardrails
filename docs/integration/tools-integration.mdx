@@ -50,6 +50,35 @@ def get_stock_price(symbol: str) -> str:
 
 For detailed information on creating custom tools, refer to the [LangChain Tools Documentation](https://python.langchain.com/docs/concepts/tools/).
 
+## Tool Call Schema
+
+The NVIDIA NeMo Guardrails library does not define its own tool-call schema, but the shape you get back depends on how you call it.
+
+`RunnableRails` converts tool calls into LangChain's `ToolCall` `TypedDict` shape:
+
+| Field | Type | Role |
+|-------|------|------|
+| `name` | `str` | The name of the tool to invoke, matching a registered tool's `name`. |
+| `args` | `dict` | The arguments to pass to the tool, keyed by parameter name. |
+| `id` | `str` | A unique identifier for this tool call, used to match a later `ToolMessage` result back to it via `tool_call_id`. |
+| `type` | `"tool_call"` | A fixed literal that identifies the dict as a tool call. |
+
+Calling `rails.generate()` directly does not go through this conversion. `response.tool_calls` retains the model-native, OpenAI-style function-call structure instead:
+
+```python
+[
+    {
+        "id": "...",
+        "type": "function",
+        "function": {"name": "...", "arguments": {...}},
+    }
+]
+```
+
+If your code reads `tool_call["name"]` or `tool_call["args"]` against a direct `rails.generate()` response, it is reading the wrong keys; use `tool_call["function"]["name"]` and `tool_call["function"]["arguments"]` instead, or wrap the model with `RunnableRails` to get the normalized LangChain shape.
+
+The NVIDIA NeMo Guardrails library only reads `tool_calls` off the model response to decide whether output rails apply. It does not otherwise transform the tool-call arguments or names.
+
 ## Configuration Settings
 
 ### Passthrough Mode
@@ -188,8 +217,8 @@ messages_with_tools = [
 ]
 
 for tool_call in result["tool_calls"]:
-    tool_name = tool_call["name"]
-    tool_args = tool_call["args"]
+    tool_name = tool_call["function"]["name"]
+    tool_args = tool_call["function"]["arguments"]
     tool_id = tool_call["id"]
 
     selected_tool = tools_by_name[tool_name]
@@ -338,11 +367,12 @@ def execute_with_tools(rails_instance, config_name):
     ]
 
     for tool_call in result["tool_calls"]:
-        tool_result = tools_by_name[tool_call["name"]].invoke(tool_call["args"])
+        tool_name = tool_call["function"]["name"]
+        tool_result = tools_by_name[tool_name].invoke(tool_call["function"]["arguments"])
         messages_with_tools.append({
             "role": "tool",
             "content": str(tool_result),
-            "name": tool_call["name"],
+            "name": tool_name,
             "tool_call_id": tool_call["id"]
         })
 
