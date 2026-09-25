@@ -54,6 +54,7 @@ class _DetectionExecutor(ThreadPoolExecutor):
         return await asyncio.get_running_loop().run_in_executor(self, copy_context().run, func)
 
 
+# Use the default worker limit so unrelated requests can run concurrently.
 _detection_executor = _DetectionExecutor(thread_name_prefix="presidio-detection")
 
 
@@ -216,7 +217,6 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig) -> Ra
     if len(options.entities) == 0:
         return _mask_sensitive_data_outcome(source, text, text)
 
-    analyzer = await _detection_executor.run(_get_analyzer)
     if OperatorConfig is None or AnonymizerEngine is None:
         raise ImportError(
             "Could not import presidio, please install it with `pip install presidio-analyzer presidio-anonymizer`."
@@ -226,13 +226,18 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig) -> Ra
     for entity in options.entities:
         operators[entity] = OperatorConfig("replace")
 
-    results = analyzer.analyze(
-        text=text,
-        language="en",
-        entities=options.entities,
-        ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
-    )
-    anonymizer = AnonymizerEngine()
-    masked_results = anonymizer.anonymize(text=text, analyzer_results=results, operators=operators)
+    def mask():
+        """Keep initialization, analysis, and anonymization off the event loop."""
+        analyzer = _get_analyzer()
+        results = analyzer.analyze(
+            text=text,
+            language="en",
+            entities=options.entities,
+            ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
+        )
+        anonymizer = AnonymizerEngine()
+        return anonymizer.anonymize(text=text, analyzer_results=results, operators=operators)
+
+    masked_results = await _detection_executor.run(mask)
 
     return _mask_sensitive_data_outcome(source, text, masked_results.text)

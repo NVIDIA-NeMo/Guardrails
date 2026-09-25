@@ -19,22 +19,23 @@ from threading import Barrier, Event
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.imports import check_optional_dependency
 from nemoguardrails.library.sensitive_data_detection import actions
 
-
-@pytest.fixture(scope="module")
-def require_presidio():
-    """Use the installed real integration without downloading models in tests."""
-    pytest.importorskip("presidio_analyzer")
-    pytest.importorskip("presidio_anonymizer")
-    spacy = pytest.importorskip("spacy")
-    if not spacy.util.is_package("en_core_web_lg"):
-        pytest.skip("The en_core_web_lg model must already be installed")
+has_sdd = (
+    check_optional_dependency("presidio_analyzer")
+    and check_optional_dependency("presidio_anonymizer")
+    and check_optional_dependency("spacy")
+    and check_optional_dependency("en_core_web_lg")
+)
+requires_sdd = pytest.mark.skipif(not has_sdd, reason="Requires the sdd extra and the en_core_web_lg model")
 
 
+@requires_sdd
 @pytest.mark.asyncio
-async def test_detection_allows_progress_during_analysis(require_presidio):
+@pytest.mark.parametrize("mask", [False, True], ids=["detection", "masking"])
+async def test_allows_progress_during_analysis(mask):
     """Allow async progress and overlapping calls to a real Presidio recognizer."""
     from presidio_analyzer import Pattern, PatternRecognizer
 
@@ -70,26 +71,37 @@ rails:
         score_threshold: 0.4
 """
     )
-    tasks = [
-        asyncio.create_task(actions.detect_sensitive_data("input", text, config)) for text in ["secret", "harmless"]
-    ]
+    action = actions.mask_sensitive_data if mask else actions.detect_sensitive_data
+    tasks = [asyncio.create_task(action("input", text, config)) for text in ["secret", "harmless"]]
     try:
         assert await asyncio.to_thread(started.wait, 10), "Analysis did not start"
         assert not finished.is_set(), "Analysis blocked the event loop until it finished"
         assert all(not task.done() for task in tasks)
         release.set()
-        assert await asyncio.gather(*tasks) == [
-            RailOutcome.block(metadata={"has_sensitive_data": True}),
-            RailOutcome.allow(metadata={"has_sensitive_data": False}),
-        ]
+        expected = (
+            [
+                RailOutcome.transform(
+                    [(TransformTarget.USER_MESSAGE, "<ASYNC_TEST>")],
+                    metadata={"source": "input", "text": "secret", "masked_text": "<ASYNC_TEST>"},
+                ),
+                RailOutcome.allow(metadata={"source": "input", "text": "harmless", "masked_text": "harmless"}),
+            ]
+            if mask
+            else [
+                RailOutcome.block(metadata={"has_sensitive_data": True}),
+                RailOutcome.allow(metadata={"has_sensitive_data": False}),
+            ]
+        )
+        assert await asyncio.gather(*tasks) == expected
     finally:
         release.set()
         await asyncio.gather(*tasks, return_exceptions=True)
         analyzer.registry.remove_recognizer(recognizer.name)
 
 
+@requires_sdd
 @pytest.mark.asyncio
-async def test_concurrent_cold_analyzer_initialization(require_presidio):
+async def test_concurrent_cold_analyzer_initialization():
     """Concurrent cache misses must share a single real model initialization."""
     actions._create_analyzer.cache_clear()
     barrier = Barrier(2)
@@ -104,44 +116,6 @@ async def test_concurrent_cold_analyzer_initialization(require_presidio):
     )
     assert first is second
     assert actions._create_analyzer.cache_info().misses == 1
-
-
-@pytest.mark.asyncio
-async def test_cached_masking_does_not_block_on_initialization(require_presidio):
-    """Keep the loop responsive when masking contends with model initialization."""
-    actions._get_analyzer()
-    locked, release, finished = Event(), Event(), Event()
-
-    def hold_initialization_lock():
-        with actions._analyzer_init_lock:
-            locked.set()
-            release.wait(timeout=10)
-        finished.set()
-
-    config = RailsConfig.from_content(
-        yaml_content="""
-rails:
-  config:
-    sensitive_data_detection:
-      input:
-        entities: [PERSON]
-"""
-    )
-    initialization = asyncio.create_task(asyncio.to_thread(hold_initialization_lock))
-    masking = None
-    try:
-        assert await asyncio.to_thread(locked.wait, 10)
-        masking = asyncio.create_task(actions.mask_sensitive_data("input", "My name is John Smith.", config))
-        await asyncio.sleep(0.01)
-        assert not finished.is_set(), "Masking blocked the event loop until initialization finished"
-        assert not masking.done()
-        release.set()
-        result = await masking
-        assert result.is_transform
-        assert result.metadata["masked_text"] == "My name is <PERSON>."
-    finally:
-        release.set()
-        await asyncio.gather(initialization, *([masking] if masking else []), return_exceptions=True)
 
 
 @pytest.mark.asyncio
