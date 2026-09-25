@@ -29,6 +29,25 @@ ResponseT = TypeVar("ResponseT")
 class UnsupportedGuardedPayload(ValueError):
     """Report a provider payload outside an operation's guarded projection."""
 
+    def __init__(self, message: str, code: str | None = None):
+        """Store the stable provider-specific failure code when one is available."""
+        super().__init__(message)
+        self.code = code
+
+
+class InvalidGuardedPayload(UnsupportedGuardedPayload):
+    """Report malformed provider data that cannot enter guarded validation."""
+
+
+class UnsupportedGuardedRepresentation(UnsupportedGuardedPayload):
+    """Report an HTTP representation that the guarded payload cannot inspect."""
+
+    code: str
+
+    def __init__(self, message: str, code: str):
+        """Store the required code for an unsupported HTTP representation."""
+        super().__init__(message, code)
+
 
 @dataclass(frozen=True, slots=True)
 class ContentInspectionNotApplicable:
