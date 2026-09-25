@@ -142,13 +142,20 @@ async def fetch_models(
     api_key_env = provider.get("api_key_env", "OPENAI_API_KEY")
 
     headers: Dict[str, str] = {}
-    forwarded = request_headers.get("Authorization", "")
-
+    forwarded = next(
+        (value for name, value in request_headers.items() if name.lower() == "authorization"),
+        "",
+    )
     raw_key = os.environ.get(api_key_env, "")
-    if not raw_key:
-        raw_key = forwarded.removeprefix("Bearer ").strip() if forwarded else ""
     if raw_key:
         headers[auth_header_name] = f"Bearer {raw_key}" if use_bearer else raw_key
+    elif forwarded:
+        if auth_header_name == "Authorization" and use_bearer:
+            headers[auth_header_name] = forwarded
+        else:
+            raw_key = forwarded.removeprefix("Bearer ").strip()
+            if raw_key:
+                headers[auth_header_name] = f"Bearer {raw_key}" if use_bearer else raw_key
 
     headers.update(provider.get("extra_headers", {}))
 
