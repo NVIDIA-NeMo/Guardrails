@@ -248,6 +248,40 @@ async def test_wrong_method_for_guarded_path_is_not_forwarded(proxy_harness):
 
 
 @pytest.mark.asyncio
+async def test_reserved_application_route_cannot_fall_through_to_provider(guarded_operation):
+    dispatched = []
+
+    async def dispatch(request):
+        dispatched.append(request)
+        return BufferedHttpResponse(200, (), b"provider")
+
+    app = FastAPI()
+
+    @app.get("/health")
+    async def health():
+        return {"status": "ok"}
+
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=lambda _outcome: BufferedHttpResponse(400, (), b"blocked"),
+            reserved_routes={"/health": {"GET"}},
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        owned = await client.get("/health")
+        wrong_method = await client.post("/health")
+
+    assert owned.status_code == 200
+    assert owned.json() == {"status": "ok"}
+    assert wrong_method.status_code == 405
+    assert wrong_method.headers["allow"] == "GET"
+    assert dispatched == []
+
+
+@pytest.mark.asyncio
 async def test_checker_policy_is_bound_once_for_all_requests(proxy_harness):
     client, checker, _dispatched = proxy_harness
 

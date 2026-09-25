@@ -16,7 +16,7 @@
 """Bind the private buffered kernel to a transparent HTTP boundary."""
 
 import re
-from collections.abc import Awaitable, Callable, Collection
+from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
 
 from fastapi import APIRouter, Request, status
@@ -197,6 +197,7 @@ def create_http_proxy_router(
     checker: ContentChecker,
     dispatch: HttpDispatch,
     render_outcome: OutcomeRenderer,
+    reserved_routes: Mapping[str, Collection[str]] | None = None,
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
     max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
 ) -> APIRouter:
@@ -207,6 +208,10 @@ def create_http_proxy_router(
         raise ValueError("Buffered HTTP body limits must be positive.")
     validated_checker = validate_content_checker(checker)
     guarded_matchers = []
+    reserved_matchers = tuple(
+        (compile_path(path)[0], frozenset(method.upper() for method in methods))
+        for path, methods in (reserved_routes or {}).items()
+    )
     router = APIRouter()
 
     for declaration in resolved_operations:
@@ -230,6 +235,15 @@ def create_http_proxy_router(
     @router.api_route("/{path:path}", methods=list(HTTP_METHODS), include_in_schema=False)
     async def passthrough(request: Request) -> Response:
         normalized_path = re.sub(r"/+", "/", request.url.path).rstrip("/") or "/"
+        reserved_methods = next(
+            (methods for path_regex, methods in reserved_matchers if path_regex.fullmatch(normalized_path) is not None),
+            None,
+        )
+        if reserved_methods is not None:
+            return Response(
+                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                headers={"allow": ", ".join(sorted(reserved_methods))},
+            )
         matched_methods = {
             method for path_regex, method in guarded_matchers if path_regex.fullmatch(normalized_path) is not None
         }
