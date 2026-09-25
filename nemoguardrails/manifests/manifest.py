@@ -348,6 +348,8 @@ class RailPrivacy(BaseModel):
     sends_user_text: bool = False
     sends_bot_text: bool = False
     sends_retrieved_chunks: bool = False
+    sends_tool_output_text: bool = False
+    sends_tool_input_text: bool = False
     remote_services: Tuple[str, ...] = ()
     data_retention: Optional[str] = None
 
