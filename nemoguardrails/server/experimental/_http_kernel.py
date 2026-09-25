@@ -18,6 +18,8 @@
 import re
 from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
+from enum import Enum
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request, status
 from starlette.convertors import PathConvertor
@@ -28,6 +30,7 @@ from nemoguardrails.server.experimental._buffered_kernel import (
     OperationBlocked,
     OperationCheckFailed,
     OperationCompleted,
+    OperationModificationUnsupported,
     execute_buffered_operation,
 )
 from nemoguardrails.server.experimental._content_checker import (
@@ -49,6 +52,31 @@ class RequestBodyTooLarge(Exception):
 
 class ResponseBodyTooLarge(Exception):
     """Report a buffered upstream body beyond the configured limit."""
+
+
+class InvalidContentLength(ValueError):
+    """Report a malformed or negative request Content-Length header."""
+
+
+class HttpDispatchFailed(Exception):
+    """Report a typed outbound dispatch failure."""
+
+
+class HttpFailureKind(str, Enum):
+    """Classify provider-neutral HTTP boundary failures."""
+
+    INVALID_CONTENT_LENGTH = "invalid_content_length"
+    REQUEST_BODY_TOO_LARGE = "request_body_too_large"
+    UPSTREAM_REQUEST_FAILED = "upstream_request_failed"
+    RESPONSE_BODY_TOO_LARGE = "response_body_too_large"
+
+
+@dataclass(frozen=True, slots=True)
+class HttpOperationFailed:
+    """Carry one HTTP boundary failure to the configured renderer."""
+
+    kind: HttpFailureKind
+    failure: BaseException
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,28 +109,44 @@ class BufferedHttpResponse:
 
 
 @dataclass(frozen=True, slots=True)
-class GuardedHttpOperation:
-    """Bind one buffered guarded operation to an owned HTTP route."""
+class GuardedOperationPath:
+    """Describe a path shape owned by one guarded provider operation."""
 
-    path: str
-    method: str
-    operation: BufferedGuardedOperation[BufferedHttpRequest, BufferedHttpResponse]
+    route_path: str
+    methods: frozenset[str] = frozenset({"POST"})
 
     def __post_init__(self) -> None:
-        if not self.path.startswith("/") or self.path == "/" or self.path.endswith("/"):
+        if not self.route_path.startswith("/") or self.route_path == "/" or self.route_path.endswith("/"):
             raise ValueError("A guarded HTTP path must be absolute, non-root, and have no trailing slash.")
         try:
-            _, _, convertors = compile_path(self.path)
+            _, _, convertors = compile_path(self.route_path)
         except (AssertionError, KeyError, ValueError) as error:
             raise ValueError("A guarded HTTP path must be a valid route template.") from error
         if any(isinstance(convertor, PathConvertor) for convertor in convertors.values()):
             raise ValueError("A guarded HTTP path must not contain a path-spanning parameter.")
-        if self.method not in HTTP_METHODS:
-            raise ValueError("A guarded HTTP method must be a supported uppercase method.")
+        if not self.methods or any(method not in HTTP_METHODS for method in self.methods):
+            raise ValueError("Guarded HTTP methods must be supported uppercase methods.")
+
+    def matches(self, path: str) -> bool:
+        """Return whether a concrete path belongs to this operation."""
+
+        path_regex, _, _ = compile_path(self.route_path)
+        return path_regex.fullmatch(path) is not None
+
+
+@dataclass(frozen=True, slots=True)
+class GuardedHttpOperation:
+    """Bind one buffered guarded operation to an owned HTTP path."""
+
+    operation_path: GuardedOperationPath
+    operation: BufferedGuardedOperation[BufferedHttpRequest, BufferedHttpResponse]
 
 
 HttpDispatch = Callable[[BufferedHttpRequest], Awaitable[BufferedHttpResponse]]
-OutcomeRenderer = Callable[[OperationBlocked | OperationCheckFailed], BufferedHttpResponse]
+OutcomeRenderer = Callable[
+    [OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | HttpOperationFailed],
+    BufferedHttpResponse,
+]
 
 
 def _route_shape(path: str) -> str:
@@ -119,7 +163,11 @@ def _validate_operations(operations: Collection[GuardedHttpOperation]) -> tuple[
     names = [operation.operation.name for operation in resolved]
     if len(names) != len(set(names)):
         raise ValueError("Guarded operation names must be unique.")
-    routes = [(operation.method, _route_shape(operation.path)) for operation in resolved]
+    routes = [
+        (method, _route_shape(operation.operation_path.route_path))
+        for operation in resolved
+        for method in operation.operation_path.methods
+    ]
     if len(routes) != len(set(routes)):
         raise ValueError("Guarded operation routes must be unique.")
     return resolved
@@ -129,10 +177,20 @@ def _request_path(request: Request) -> bytes:
     raw_path = request.scope.get("raw_path")
     if isinstance(raw_path, bytes):
         return raw_path
-    return request.url.path.encode("ascii")
+    return quote(request.url.path, safe="/").encode("ascii")
 
 
 async def _buffer_request(request: Request, max_body_bytes: int) -> BufferedHttpRequest:
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            parsed_content_length = int(content_length)
+        except ValueError as error:
+            raise InvalidContentLength("Content-Length must be an integer.") from error
+        if parsed_content_length < 0:
+            raise InvalidContentLength("Content-Length must not be negative.")
+        if parsed_content_length > max_body_bytes:
+            raise RequestBodyTooLarge
     body = bytearray()
     async for chunk in request.stream():
         if len(body) + len(chunk) > max_body_bytes:
@@ -152,6 +210,13 @@ def _render_response(value: BufferedHttpResponse) -> Response:
     response = Response(content=value.body, status_code=value.status_code)
     response.raw_headers = list(value.headers)
     return response
+
+
+def _render_failure(
+    failure: OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | HttpOperationFailed,
+    render_outcome: OutcomeRenderer,
+) -> Response:
+    return _render_response(render_outcome(failure))
 
 
 def _guarded_handler(
@@ -177,16 +242,29 @@ def _guarded_handler(
                 buffered_request,
                 bounded_dispatch,
             )
-        except RequestBodyTooLarge:
-            return Response(status_code=status.HTTP_413_CONTENT_TOO_LARGE)
-        except ResponseBodyTooLarge:
-            return Response(status_code=status.HTTP_502_BAD_GATEWAY)
+        except RequestBodyTooLarge as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.REQUEST_BODY_TOO_LARGE, failure),
+                render_outcome,
+            )
+        except InvalidContentLength as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.INVALID_CONTENT_LENGTH, failure),
+                render_outcome,
+            )
+        except HttpDispatchFailed as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.UPSTREAM_REQUEST_FAILED, failure),
+                render_outcome,
+            )
+        except ResponseBodyTooLarge as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.RESPONSE_BODY_TOO_LARGE, failure),
+                render_outcome,
+            )
         if isinstance(outcome, OperationCompleted):
             return _render_response(outcome.response)
-        rendered = render_outcome(outcome)
-        if len(rendered.body) > max_response_body_bytes:
-            return Response(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return _render_response(rendered)
+        return _render_failure(outcome, render_outcome)
 
     return handle
 
@@ -215,9 +293,9 @@ def create_http_proxy_router(
     router = APIRouter()
 
     for declaration in resolved_operations:
-        guarded_matchers.append((compile_path(declaration.path)[0], declaration.method))
+        guarded_matchers.append(declaration.operation_path)
         router.add_api_route(
-            declaration.path,
+            declaration.operation_path.route_path,
             _guarded_handler(
                 declaration,
                 validated_checker,
@@ -226,7 +304,7 @@ def create_http_proxy_router(
                 max_request_body_bytes,
                 max_response_body_bytes,
             ),
-            methods=[declaration.method],
+            methods=sorted(declaration.operation_path.methods),
             name=declaration.operation.name,
             operation_id=declaration.operation.name,
             response_class=Response,
@@ -245,7 +323,10 @@ def create_http_proxy_router(
                 headers={"allow": ", ".join(sorted(reserved_methods))},
             )
         matched_methods = {
-            method for path_regex, method in guarded_matchers if path_regex.fullmatch(normalized_path) is not None
+            method
+            for operation_path in guarded_matchers
+            if operation_path.matches(normalized_path)
+            for method in operation_path.methods
         }
         if matched_methods:
             if request.method not in matched_methods:
@@ -257,10 +338,26 @@ def create_http_proxy_router(
         try:
             buffered_request = await _buffer_request(request, max_request_body_bytes)
             response = await dispatch(buffered_request)
-        except RequestBodyTooLarge:
-            return Response(status_code=status.HTTP_413_CONTENT_TOO_LARGE)
+        except RequestBodyTooLarge as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.REQUEST_BODY_TOO_LARGE, failure),
+                render_outcome,
+            )
+        except InvalidContentLength as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.INVALID_CONTENT_LENGTH, failure),
+                render_outcome,
+            )
+        except HttpDispatchFailed as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.UPSTREAM_REQUEST_FAILED, failure),
+                render_outcome,
+            )
         if len(response.body) > max_response_body_bytes:
-            return Response(status_code=status.HTTP_502_BAD_GATEWAY)
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.RESPONSE_BODY_TOO_LARGE, ResponseBodyTooLarge()),
+                render_outcome,
+            )
         return _render_response(response)
 
     return router

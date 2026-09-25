@@ -19,6 +19,7 @@ import httpx
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
+from starlette.requests import Request
 
 from nemoguardrails.server.experimental._buffered_kernel import (
     OperationBlocked,
@@ -29,14 +30,19 @@ from nemoguardrails.server.experimental._content_checker import (
     ContentBlocked,
     ContentCheckFailed,
     ContentInspectionPolicy,
-    GuardedText,
 )
 from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation
 from nemoguardrails.server.experimental._http_kernel import (
     BufferedHttpResponse,
     GuardedHttpOperation,
+    GuardedOperationPath,
+    HttpDispatchFailed,
+    HttpFailureKind,
+    HttpOperationFailed,
+    _request_path,
     create_http_proxy_router,
 )
+from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
 
 class StaticChecker:
@@ -61,19 +67,35 @@ class StaticChecker:
 
 def project_request(request):
     payload = json.loads(request.body)
-    return GuardedText("user", payload["input"])
+    return GuardedMessage("user", payload["input"])
 
 
 def project_response(response):
     payload = json.loads(response.body)
-    return GuardedText("assistant", payload["output"])
+    return GuardedMessage("assistant", payload["output"])
+
+
+def render_test_outcome(outcome):
+    if isinstance(outcome, HttpOperationFailed):
+        status_codes = {
+            HttpFailureKind.INVALID_CONTENT_LENGTH: 400,
+            HttpFailureKind.REQUEST_BODY_TOO_LARGE: 413,
+            HttpFailureKind.UPSTREAM_REQUEST_FAILED: 502,
+            HttpFailureKind.RESPONSE_BODY_TOO_LARGE: 502,
+        }
+        return BufferedHttpResponse(status_codes[outcome.kind], (), outcome.kind.value.encode())
+    if isinstance(outcome, OperationBlocked):
+        body = f"{outcome.stage.value}:{outcome.decision.message}".encode()
+        return BufferedHttpResponse(400, ((b"content-type", b"text/plain"),), body)
+    assert isinstance(outcome, OperationCheckFailed)
+    body = f"{outcome.stage.value}:failed".encode()
+    return BufferedHttpResponse(500, ((b"content-type", b"text/plain"),), body)
 
 
 @pytest.fixture
 def guarded_operation():
     return GuardedHttpOperation(
-        path="/v1/generate",
-        method="POST",
+        operation_path=GuardedOperationPath("/v1/generate"),
         operation=BufferedGuardedOperation(
             name="test.generate",
             input_projection=project_request,
@@ -101,21 +123,13 @@ async def proxy_harness(guarded_operation):
             body=b"opaque-response",
         )
 
-    def render_outcome(outcome):
-        if isinstance(outcome, OperationBlocked):
-            body = f"{outcome.stage.value}:{outcome.decision.message}".encode()
-            return BufferedHttpResponse(400, ((b"content-type", b"text/plain"),), body)
-        assert isinstance(outcome, OperationCheckFailed)
-        body = f"{outcome.stage.value}:failed".encode()
-        return BufferedHttpResponse(500, ((b"content-type", b"text/plain"),), body)
-
     app = FastAPI()
     app.include_router(
         create_http_proxy_router(
             operations=[guarded_operation],
             checker=checker,
             dispatch=dispatch,
-            render_outcome=render_outcome,
+            render_outcome=render_test_outcome,
         )
     )
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test")
@@ -146,8 +160,8 @@ async def test_guarded_route_checks_content_and_preserves_provider_response(prox
     assert dispatched[0].body == body
     assert (b"x-provider-option", b"opaque") in dispatched[0].headers
     assert [call[0] for call in checker.calls] == ["input", "output"]
-    assert checker.calls[0][1].subject.content == "question"
-    assert checker.calls[1][1].output_subject.content == "answer"
+    assert checker.calls[0][1].message.content == "question"
+    assert checker.calls[1][1].output_content == "answer"
 
 
 @pytest.mark.asyncio
@@ -266,7 +280,7 @@ async def test_reserved_application_route_cannot_fall_through_to_provider(guarde
             operations=[guarded_operation],
             checker=StaticChecker(),
             dispatch=dispatch,
-            render_outcome=lambda _outcome: BufferedHttpResponse(400, (), b"blocked"),
+            render_outcome=render_test_outcome,
             reserved_routes={"/health": {"GET"}},
         )
     )
@@ -306,7 +320,7 @@ async def test_buffered_request_limit_fails_before_dispatch(guarded_operation, p
             operations=[guarded_operation],
             checker=StaticChecker(),
             dispatch=dispatch,
-            render_outcome=lambda _outcome: BufferedHttpResponse(400, (), b"blocked"),
+            render_outcome=render_test_outcome,
             max_request_body_bytes=4,
         )
     )
@@ -329,7 +343,7 @@ async def test_buffered_response_limit_hides_upstream_body(guarded_operation, pa
             operations=[guarded_operation],
             checker=StaticChecker(),
             dispatch=dispatch,
-            render_outcome=lambda _outcome: BufferedHttpResponse(400, (), b"no"),
+            render_outcome=render_test_outcome,
             max_response_body_bytes=4,
         )
     )
@@ -337,13 +351,12 @@ async def test_buffered_response_limit_hides_upstream_body(guarded_operation, pa
         response = await client.post(path, json={"input": "question"})
 
     assert response.status_code == 502
-    assert response.content == b""
+    assert response.content == b"response_body_too_large"
 
 
 def test_duplicate_guarded_route_is_rejected(guarded_operation):
     duplicate = GuardedHttpOperation(
-        path="/v1/generate",
-        method="POST",
+        operation_path=GuardedOperationPath("/v1/generate"),
         operation=BufferedGuardedOperation(
             name="test.duplicate",
             input_projection=project_request,
@@ -362,12 +375,136 @@ def test_duplicate_guarded_route_is_rejected(guarded_operation):
 
 def test_guarded_http_path_rejects_path_spanning_parameters():
     with pytest.raises(ValueError, match="path-spanning"):
-        GuardedHttpOperation(
-            path="/v1/{rest:path}",
-            method="POST",
-            operation=BufferedGuardedOperation(
-                name="test.invalid",
-                input_projection=project_request,
-                output_projection=project_response,
-            ),
+        GuardedOperationPath("/v1/{rest:path}")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("content_length", ["invalid", "-1"])
+async def test_invalid_content_length_is_rendered_without_dispatch(guarded_operation, content_length):
+    dispatched = []
+    outcomes = []
+
+    async def dispatch(request):
+        dispatched.append(request)
+        return BufferedHttpResponse(200, (), b"response")
+
+    def render_outcome(outcome):
+        outcomes.append(outcome)
+        return render_test_outcome(outcome)
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_outcome,
         )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post(
+            "/v1/generate",
+            content=b"{}",
+            headers={"content-length": content_length},
+        )
+
+    assert response.status_code == 400
+    assert dispatched == []
+    assert len(outcomes) == 1
+    assert outcomes[0].kind is HttpFailureKind.INVALID_CONTENT_LENGTH
+
+
+@pytest.mark.asyncio
+async def test_observed_request_limit_is_enforced_without_content_length(guarded_operation):
+    dispatched = []
+
+    async def content():
+        yield b"12"
+        yield b"345"
+
+    async def dispatch(request):
+        dispatched.append(request)
+        return BufferedHttpResponse(200, (), b"response")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+            max_request_body_bytes=4,
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post("/v1/generate", content=content())
+
+    assert response.status_code == 413
+    assert dispatched == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/v1/generate", "/v1/provider-owned"])
+async def test_typed_dispatch_failure_is_rendered(guarded_operation, path):
+    outcomes = []
+
+    async def dispatch(_request):
+        raise HttpDispatchFailed("upstream failed")
+
+    def render_outcome(outcome):
+        outcomes.append(outcome)
+        return render_test_outcome(outcome)
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_outcome,
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post(path, json={"input": "question"})
+
+    assert response.status_code == 502
+    assert len(outcomes) == 1
+    assert outcomes[0].kind is HttpFailureKind.UPSTREAM_REQUEST_FAILED
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/v1/generate", "/v1/provider-owned"])
+async def test_untyped_dispatch_failure_is_not_reclassified(guarded_operation, path):
+    async def dispatch(_request):
+        raise RuntimeError("programming failure")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        with pytest.raises(RuntimeError, match="programming failure"):
+            await client.post(path, json={"input": "question"})
+
+
+def test_request_path_fallback_percent_encodes_unicode():
+    request = Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": "/v1/café",
+            "query_string": b"",
+            "headers": [],
+            "server": ("proxy.test", 80),
+            "client": ("127.0.0.1", 1),
+        }
+    )
+
+    assert _request_path(request) == b"/v1/caf%C3%A9"
