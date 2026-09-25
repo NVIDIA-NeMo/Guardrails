@@ -22,6 +22,7 @@ from nemoguardrails.server.experimental._buffered_kernel import (
     OperationBlocked,
     OperationCheckFailed,
     OperationCompleted,
+    OperationModificationUnsupported,
     execute_buffered_operation,
 )
 from nemoguardrails.server.experimental._content_checker import (
@@ -29,10 +30,9 @@ from nemoguardrails.server.experimental._content_checker import (
     ContentBlocked,
     ContentCheckFailed,
     ContentInspectionPolicy,
-    GuardedText,
-    UnsupportedContentModification,
 )
 from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation
+from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
 
 @dataclass
@@ -53,10 +53,14 @@ class StaticChecker:
         policy=ContentInspectionPolicy(True, True),
         input_decision=ContentAllowed(),
         output_decision=ContentAllowed(),
+        input_error=None,
+        output_error=None,
     ):
         self.policy = policy
         self.input_decision = input_decision
         self.output_decision = output_decision
+        self.input_error = input_error
+        self.output_error = output_error
         self.calls = []
 
     def inspection_policy(self):
@@ -65,10 +69,14 @@ class StaticChecker:
 
     async def check_input(self, check):
         self.calls.append(("input", check))
+        if self.input_error is not None:
+            raise self.input_error
         return self.input_decision
 
     async def check_output(self, check):
         self.calls.append(("output", check))
+        if self.output_error is not None:
+            raise self.output_error
         return self.output_decision
 
 
@@ -76,20 +84,26 @@ class StaticChecker:
 def operation():
     return BufferedGuardedOperation(
         name="test.buffered",
-        input_projection=lambda request: GuardedText("user", request.text),
-        output_projection=lambda response: GuardedText("assistant", response.text),
+        input_projection=lambda request: GuardedMessage("user", request.text),
+        output_projection=lambda response: GuardedMessage("assistant", response.text),
     )
 
 
 @pytest.mark.asyncio
-async def test_no_inspection_dispatches_original_values_without_projection():
+async def test_no_inspection_validates_input_and_dispatches_original_values():
     checker = StaticChecker(ContentInspectionPolicy(False, False))
     request = Request("question")
     response = Response("answer")
     dispatched = []
+    projected = []
+
+    def project_input(value):
+        projected.append(value)
+        return GuardedMessage("user", value.text)
+
     operation = BufferedGuardedOperation(
         name="test.transparent",
-        input_projection=lambda _request: pytest.fail("input must not be projected"),
+        input_projection=project_input,
         output_projection=lambda _response: pytest.fail("output must not be projected"),
     )
 
@@ -103,6 +117,7 @@ async def test_no_inspection_dispatches_original_values_without_projection():
     assert result.response is response
     assert dispatched == [request]
     assert dispatched[0] is request
+    assert projected == [request]
     assert checker.calls == ["policy"]
 
 
@@ -122,11 +137,11 @@ async def test_input_and_output_checks_share_one_checker_and_context(operation):
     assert result.response is response
     assert checker.calls[0] == "policy"
     assert checker.calls[1][0] == "input"
-    assert checker.calls[1][1].subject == GuardedText("user", "question")
+    assert checker.calls[1][1].message == GuardedMessage("user", "question")
     assert checker.calls[2] == "dispatch"
     assert checker.calls[3][0] == "output"
-    assert checker.calls[3][1].input_subject == GuardedText("user", "question")
-    assert checker.calls[3][1].output_subject == GuardedText("assistant", "answer")
+    assert checker.calls[3][1].input_message == GuardedMessage("user", "question")
+    assert checker.calls[3][1].output_content == "answer"
 
 
 @pytest.mark.asyncio
@@ -144,7 +159,7 @@ async def test_output_only_inspection_still_projects_effective_input_context(ope
         "policy",
         "output",
     ]
-    assert checker.calls[-1][1].input_subject.content == "question"
+    assert checker.calls[-1][1].input_message.content == "question"
 
 
 @pytest.mark.asyncio
@@ -198,8 +213,10 @@ async def test_input_modification_fails_before_dispatch(operation):
     async def dispatch(_request):
         pytest.fail("a modified input must not be dispatched")
 
-    with pytest.raises(UnsupportedContentModification, match="not supported"):
-        await execute_buffered_operation(operation, checker, Request("question"), dispatch)
+    result = await execute_buffered_operation(operation, checker, Request("question"), dispatch)
+
+    assert isinstance(result, OperationModificationUnsupported)
+    assert result.stage is InspectionStage.INPUT
 
 
 @pytest.mark.asyncio
@@ -210,23 +227,25 @@ async def test_output_modification_fails_without_returning_provider_response(ope
     async def dispatch(_request):
         return response
 
-    with pytest.raises(UnsupportedContentModification, match="not supported"):
-        await execute_buffered_operation(operation, checker, Request("question"), dispatch)
+    result = await execute_buffered_operation(operation, checker, Request("question"), dispatch)
+
+    assert isinstance(result, OperationModificationUnsupported)
+    assert result.stage is InspectionStage.OUTPUT
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("projection", "message"),
     [
-        (lambda _request: "question", "must return GuardedText"),
-        (lambda _request: GuardedText("assistant", "question"), "user projection"),
+        (lambda _request: "question", "must return GuardedMessage"),
+        (lambda _request: GuardedMessage("assistant", "question"), "user projection"),
     ],
 )
 async def test_invalid_input_projection_fails_before_dispatch(projection, message):
     operation = BufferedGuardedOperation(
         name="test.invalid_input",
         input_projection=projection,
-        output_projection=lambda response: GuardedText("assistant", response.text),
+        output_projection=lambda response: GuardedMessage("assistant", response.text),
     )
 
     async def dispatch(_request):
@@ -243,5 +262,29 @@ async def test_unknown_checker_decision_fails_closed_before_dispatch(operation):
     async def dispatch(_request):
         pytest.fail("an unknown checker decision must not be dispatched")
 
-    with pytest.raises(TypeError, match="unsupported decision"):
-        await execute_buffered_operation(operation, checker, Request("question"), dispatch)
+    result = await execute_buffered_operation(operation, checker, Request("question"), dispatch)
+
+    assert isinstance(result, OperationCheckFailed)
+    assert result.stage is InspectionStage.INPUT
+    assert isinstance(result.failure.cause, TypeError)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("stage", "checker"),
+    [
+        (InspectionStage.INPUT, StaticChecker(input_error=RuntimeError("input failed"))),
+        (InspectionStage.OUTPUT, StaticChecker(output_error=RuntimeError("output failed"))),
+    ],
+)
+async def test_checker_exceptions_become_stage_specific_failures(operation, stage, checker):
+    response = Response("answer")
+
+    async def dispatch(_request):
+        return response
+
+    result = await execute_buffered_operation(operation, checker, Request("question"), dispatch)
+
+    assert isinstance(result, OperationCheckFailed)
+    assert result.stage is stage
+    assert isinstance(result.failure.cause, RuntimeError)

@@ -25,14 +25,14 @@ from nemoguardrails.server.experimental._content_checker import (
     ContentBlocked,
     ContentChecker,
     ContentCheckFailed,
-    ContentInspectionPolicy,
-    GuardedText,
     InputContentCheck,
     OutputContentCheck,
+    UnsupportedContentModification,
     validate_content_check_decision,
     validate_content_checker,
 )
-from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation, GuardedTextProjection
+from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation, GuardedMessageProjection
+from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
 RequestT = TypeVar("RequestT")
 ResponseT = TypeVar("ResponseT")
@@ -69,24 +69,40 @@ class OperationCheckFailed:
     failure: ContentCheckFailed
 
 
-def _project_subject(
-    projection: GuardedTextProjection[PayloadT],
+@dataclass(frozen=True, slots=True)
+class OperationModificationUnsupported:
+    """Stop an operation when a checker requests unsupported replacement."""
+
+    stage: InspectionStage
+    failure: UnsupportedContentModification
+
+
+def _project_message(
+    projection: GuardedMessageProjection[PayloadT],
     payload: PayloadT,
     expected_role: Literal["user", "assistant"],
-) -> GuardedText:
-    subject = projection(payload)
-    if not isinstance(subject, GuardedText):
-        raise TypeError("A guarded operation projection must return GuardedText.")
-    if subject.role != expected_role:
-        raise ValueError(f"A guarded operation {expected_role} projection returned role {subject.role!r}.")
-    return subject
+) -> GuardedMessage:
+    message = projection(payload)
+    if not isinstance(message, GuardedMessage):
+        raise TypeError("A guarded operation projection must return GuardedMessage.")
+    if message.role != expected_role:
+        raise ValueError(f"A guarded operation {expected_role} projection returned role {message.role!r}.")
+    return message
 
 
 def _stopped_operation(
     stage: InspectionStage,
     decision: object,
-) -> OperationBlocked | OperationCheckFailed | None:
-    validated = validate_content_check_decision(decision)
+) -> OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | None:
+    try:
+        validated = validate_content_check_decision(decision)
+    except UnsupportedContentModification as failure:
+        return OperationModificationUnsupported(stage, failure)
+    except Exception as failure:
+        return OperationCheckFailed(
+            stage,
+            ContentCheckFailed("The content checker returned an unsupported decision.", failure),
+        )
     if isinstance(validated, ContentAllowed):
         return None
     if isinstance(validated, ContentBlocked):
@@ -94,25 +110,37 @@ def _stopped_operation(
     return OperationCheckFailed(stage, validated)
 
 
+async def _run_check(
+    stage: InspectionStage,
+    check: Callable[[], Awaitable[object]],
+) -> OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | None:
+    try:
+        decision = await check()
+    except Exception as failure:
+        return OperationCheckFailed(
+            stage,
+            ContentCheckFailed(f"The {stage.value} content check failed.", failure),
+        )
+    return _stopped_operation(stage, decision)
+
+
 async def execute_buffered_operation(
     operation: BufferedGuardedOperation[RequestT, ResponseT],
     checker: ContentChecker,
     request: RequestT,
     dispatch: Callable[[RequestT], Awaitable[ResponseT]],
-) -> OperationCompleted[ResponseT] | OperationBlocked | OperationCheckFailed:
+) -> OperationCompleted[ResponseT] | OperationBlocked | OperationCheckFailed | OperationModificationUnsupported:
     """Execute one buffered operation with exactly one statically bound checker."""
 
     validated = validate_content_checker(checker)
     validated_checker = validated.checker
     policy = validated.policy
-    input_subject = _project_input_when_required(operation, request, policy)
+    input_message = _project_message(operation.input_projection, request, "user")
 
     if policy.inspect_input:
-        if input_subject is None:
-            raise RuntimeError("Input inspection requires a projected input subject.")
-        stopped = _stopped_operation(
+        stopped = await _run_check(
             InspectionStage.INPUT,
-            await validated_checker.check_input(InputContentCheck(input_subject)),
+            lambda: validated_checker.check_input(InputContentCheck(input_message)),
         )
         if stopped is not None:
             return stopped
@@ -120,24 +148,12 @@ async def execute_buffered_operation(
     response = await dispatch(request)
 
     if policy.inspect_output:
-        if input_subject is None:
-            raise RuntimeError("Output inspection requires a projected input subject.")
-        output_subject = _project_subject(operation.output_projection, response, "assistant")
-        stopped = _stopped_operation(
+        output_message = _project_message(operation.output_projection, response, "assistant")
+        stopped = await _run_check(
             InspectionStage.OUTPUT,
-            await validated_checker.check_output(OutputContentCheck(input_subject, output_subject)),
+            lambda: validated_checker.check_output(OutputContentCheck(input_message, output_message.content)),
         )
         if stopped is not None:
             return stopped
 
     return OperationCompleted(response)
-
-
-def _project_input_when_required(
-    operation: BufferedGuardedOperation[RequestT, ResponseT],
-    request: RequestT,
-    policy: ContentInspectionPolicy,
-) -> GuardedText | None:
-    if not policy.inspect_input and not policy.inspect_output:
-        return None
-    return _project_subject(operation.input_projection, request, "user")
