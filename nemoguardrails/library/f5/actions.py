@@ -81,7 +81,6 @@ def _retrying_http_client(client: HTTPClient, f5_config: F5GuardrailsRailConfig)
         client,
         _retry_policy(f5_config),
         sleep=asyncio.sleep,
-        random_value=lambda: 1.0,
     )
 
 
