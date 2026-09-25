@@ -13,25 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Define provider-neutral values shared by the guarded proxy pipeline."""
-
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Literal
-
-JsonObject = dict[str, Any]
-
-
-class UnknownContentFieldPolicy(str, Enum):
-    """Control whether unreviewed fields may accompany guarded content."""
-
-    ALLOW = "allow"
-    FORBID = "forbid"
-
-
-@dataclass(frozen=True, slots=True)
-class GuardedMessage:
-    """Represent one message inspected by input or output rails."""
-
-    role: Literal["user", "assistant"]
-    content: str
+"""Staged generated-looking OpenAI Chat Completions modules."""
