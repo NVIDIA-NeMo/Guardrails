@@ -169,6 +169,43 @@ test("cache helper restores a reference through its command entrypoint", (t) => 
   assert.equal(readFileSync(path.join(outputRoot, libraryName, "page-0.mdx"), "utf8"), "restored-0");
 });
 
+test("cache-only mode refuses to generate on a cache miss", (t) => {
+  const root = temporaryDirectory(t);
+  const repoRoot = path.join(root, "repo-root");
+  const worktreeRoot = path.join(root, "historical-worktree");
+  const cacheRoot = path.join(root, "cache");
+  const sdkInputCommit = "d".repeat(40);
+  const fernVersion = "5.91.0";
+
+  for (const inputPath of generatorInputPaths) {
+    writeFile(repoRoot, inputPath, inputPath);
+  }
+  writeFile(
+    worktreeRoot,
+    "fern/docs.yml",
+    `libraries:\n  ${libraryName}:\n    input:\n      git: https://example.com/repo.git\n      ref: ${sdkInputCommit}\n    output:\n      path: ../docs/_static/python-sdk-reference\n`,
+  );
+  writeFile(worktreeRoot, "fern/fern.config.json", `${JSON.stringify({ version: fernVersion })}\n`);
+  initializeGitRepository(worktreeRoot);
+  const snapshotCommit = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: worktreeRoot,
+    encoding: "utf8",
+  }).trim();
+
+  assert.throws(
+    () =>
+      main([worktreeRoot, snapshotCommit], {
+        FERN_REF_SDK_CACHE_ROOT: cacheRoot,
+        FERN_REF_SDK_REPO_ROOT: repoRoot,
+        FERN_REF_SDK_VERSION: fernVersion,
+        FERN_REF_SDK_CACHE_ONLY: "1",
+      }),
+    /FERN_REF_SDK_CACHE_ONLY=1 forbids generating/,
+  );
+  const outputRoot = path.join(worktreeRoot, "docs/_static/python-sdk-reference");
+  assert.equal(existsSync(outputRoot), false);
+});
+
 test("invalid Git configuration is rejected before Fern starts", (t) => {
   const root = temporaryDirectory(t);
   assert.throws(
