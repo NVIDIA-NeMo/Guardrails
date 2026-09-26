@@ -20,6 +20,7 @@ import sys
 import pytest
 from pydantic import ValidationError
 
+import nemoguardrails.server.experimental._json_payload as json_payload
 from nemoguardrails.server.experimental._json_payload import InvalidJson, UnsupportedJsonShape, parse_json_object
 from nemoguardrails.server.experimental.provider.payload import (
     GuardedMessageTarget,
@@ -219,12 +220,17 @@ def test_strict_json_parser_rejects_ambiguous_or_non_object_payloads(body, error
         parse_json_object(body)
 
 
-def test_strict_json_parser_normalizes_oversized_integer_failures():
-    """Oversized integers produce the parser's stable invalid-JSON outcome."""
-    body = b'{"value":' + (b"1" * 5_000) + b"}"
+def test_strict_json_parser_normalizes_integer_conversion_failures(monkeypatch):
+    """Integer conversion failures produce the parser's stable invalid-JSON outcome."""
+
+    def reject_integer(_value):
+        """Simulate an interpreter integer-size rejection."""
+        raise ValueError("integer exceeds the configured digit limit")
+
+    monkeypatch.setattr(json_payload, "int", reject_integer, raising=False)
 
     with pytest.raises(InvalidJson):
-        parse_json_object(body)
+        parse_json_object(b'{"value":1}')
 
 
 def test_bindings_match_contract_identity_and_replacement_policy():
