@@ -280,6 +280,36 @@ async def test_invalid_input_projection_fails_before_dispatch(projection, messag
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("projection", "message"),
+    [
+        (lambda _response: "answer", "must return GuardedMessage"),
+        (lambda _response: GuardedMessage("user", "answer"), "assistant projection"),
+    ],
+)
+async def test_invalid_output_projection_fails_after_dispatch(projection, message):
+    """Reject invalid projected output after provider dispatch."""
+
+    operation = BufferedGuardedOperation(
+        name="test.invalid_output",
+        input_projection=lambda request: GuardedMessage("user", request.text),
+        output_projection=projection,
+    )
+    request = Request("question")
+    response = Response("answer")
+    dispatched = []
+
+    async def dispatch(value):
+        dispatched.append(value)
+        return response
+
+    with pytest.raises((TypeError, ValueError), match=message):
+        await execute_buffered_operation(operation, StaticChecker(), request, dispatch)
+
+    assert dispatched == [request]
+
+
+@pytest.mark.asyncio
 async def test_unknown_checker_decision_fails_closed_before_dispatch(operation):
     """Convert an unknown input decision into a failed check."""
 
