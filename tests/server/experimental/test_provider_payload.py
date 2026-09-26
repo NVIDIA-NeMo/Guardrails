@@ -108,3 +108,20 @@ def test_guarded_array_selection_requires_exactly_one_discriminator_match():
         selection.select([{"type": "metadata"}])
     with pytest.raises(ValueError, match="exactly one"):
         selection.select([{"type": "text"}, {"type": "text"}])
+
+
+@pytest.mark.parametrize(
+    ("expected", "received"),
+    [
+        (True, 1),
+        (1, True),
+        (False, 0),
+        (0, False),
+    ],
+)
+def test_guarded_array_selection_distinguishes_boolean_and_integer_discriminators(expected, received):
+    """Boolean and integer discriminators do not match across JSON scalar types."""
+    selection = GuardedArraySelection(match=(("value", expected),), cardinality="exactly_one")
+
+    with pytest.raises(ValueError, match="exactly one"):
+        selection.select([{"value": received}])

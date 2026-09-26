@@ -219,6 +219,14 @@ def test_strict_json_parser_rejects_ambiguous_or_non_object_payloads(body, error
         parse_json_object(body)
 
 
+def test_strict_json_parser_normalizes_oversized_integer_failures():
+    """Oversized integers produce the parser's stable invalid-JSON outcome."""
+    body = b'{"value":' + (b"1" * 5_000) + b"}"
+
+    with pytest.raises(InvalidJson):
+        parse_json_object(body)
+
+
 def test_bindings_match_contract_identity_and_replacement_policy():
     """Staged bindings preserve the generated contract identity and replacement policy."""
     assert REQUEST_PROFILE == RESPONSE_PROFILE == "single_text.v1"

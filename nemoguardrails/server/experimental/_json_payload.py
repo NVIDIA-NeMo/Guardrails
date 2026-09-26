@@ -52,6 +52,14 @@ def _parse_finite_float(value: str) -> float:
     return parsed
 
 
+def _parse_integer(value: str) -> int:
+    """Parse an integer while normalizing interpreter size-limit failures."""
+    try:
+        return int(value)
+    except ValueError as error:
+        raise InvalidJson("The JSON integer exceeds the supported size.") from error
+
+
 def parse_json_object(body: bytes) -> JsonObject:
     """Parse a JSON object without accepting ambiguous or nonstandard input."""
 
@@ -63,6 +71,7 @@ def parse_json_object(body: bytes) -> JsonObject:
             object_pairs_hook=_unique_object,
             parse_constant=_reject_nonstandard_number,
             parse_float=_parse_finite_float,
+            parse_int=_parse_integer,
         )
     except UnsupportedJsonShape:
         raise
