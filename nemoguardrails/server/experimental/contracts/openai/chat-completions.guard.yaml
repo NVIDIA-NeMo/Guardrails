@@ -1,0 +1,437 @@
+version: '1.0.0-alpha.1'
+operationId: createChatCompletion
+profile: single_text.v1
+request:
+  additionalProperties: true
+  properties:
+    audio:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.audio_content
+        gate: disabled
+    function_call:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.tool_content
+        gate: disabled
+    functions:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.tool_content
+        gate: disabled
+    messages:
+      items:
+        additionalProperties: true
+        properties:
+          content:
+            minLength: 1
+            type: string
+            x-nemo-guardrails:
+              classification: guarded
+              subject:
+                kind: text
+                role: user
+                replaceable: true
+          name:
+            x-nemo-guardrails:
+              classification: opaque
+          role:
+            const: user
+            x-nemo-guardrails:
+              classification: constrained
+        required:
+        - content
+        - role
+        title: ChatCompletionsUserMessageProjection
+        type: object
+        x-nemo-guardrails:
+          unknown_fields: configurable
+          source: '#/components/schemas/ChatCompletionRequestUserMessage'
+      maxItems: 1
+      minItems: 1
+      type: array
+      x-nemo-guardrails:
+        classification: guarded
+    modalities:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.multimodal_content
+        gate: disabled
+    n:
+      const: 1
+      default: 1
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.single_text_target
+    parallel_tool_calls:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.tool_content
+        gate: disabled
+    prediction:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.predicted_content
+        gate: disabled
+    response_format:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        reason: projection_policy.plain_text_output
+        gate: disabled
+    stream:
+      default: false
+      type: boolean
+      x-nemo-guardrails:
+        classification: constrained
+    tool_choice:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.tool_content
+        gate: disabled
+    tools:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.tool_content
+        gate: disabled
+    web_search_options:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.tool_content
+        gate: disabled
+  required:
+  - messages
+  title: openai.chat_completions.request.text.v1
+  type: object
+  x-nemo-guardrails:
+    model: ChatCompletionsGuardedRequestProjection
+    stream_selector_field: stream
+    opaque_fields:
+    - safety_identifier
+    - logit_bias
+    - presence_penalty
+    - reasoning_effort
+    - store
+    - stop
+    - top_p
+    - verbosity
+    - seed
+    - stream_options
+    - moderation
+    - service_tier
+    - user
+    - prompt_cache_options
+    - temperature
+    - max_tokens
+    - max_completion_tokens
+    - frequency_penalty
+    - top_logprobs
+    - prompt_cache_key
+    - model
+    - metadata
+    - logprobs
+    - prompt_cache_retention
+response:
+  additionalProperties: true
+  properties:
+    choices:
+      items:
+        additionalProperties: true
+        properties:
+          finish_reason:
+            x-nemo-guardrails:
+              classification: opaque
+          index:
+            x-nemo-guardrails:
+              classification: opaque
+          logprobs:
+            default: null
+            type: 'null'
+            x-nemo-guardrails:
+              classification: constrained
+              reason: provider_integrity.token_logprobs
+              gate: disabled
+          message:
+            additionalProperties: true
+            properties:
+              annotations:
+                type: array
+                x-nemo-guardrails:
+                  classification: constrained
+              audio:
+                default: null
+                type: 'null'
+                x-nemo-guardrails:
+                  classification: constrained
+                  reason: core_capability.audio_content
+                  gate: disabled
+              content:
+                minLength: 1
+                type: string
+                x-nemo-guardrails:
+                  classification: guarded
+                  subject:
+                    kind: text
+                    role: assistant
+                    replaceable: true
+                    replacement_blocked_by: annotations
+                    replacement_reason: provider_integrity.annotated_text
+              function_call:
+                default: null
+                type: 'null'
+                x-nemo-guardrails:
+                  classification: constrained
+                  reason: core_capability.tool_content
+                  gate: disabled
+              reasoning_content:
+                default: null
+                type: 'null'
+                x-nemo-guardrails:
+                  classification: constrained
+                  reason: core_capability.reasoning_content
+                  gate: disabled
+                  extension: true
+              refusal:
+                default: null
+                type: 'null'
+                x-nemo-guardrails:
+                  classification: constrained
+                  reason: core_capability.refusal_content
+                  gate: disabled
+              role:
+                const: assistant
+                x-nemo-guardrails:
+                  classification: constrained
+              tool_calls:
+                default: null
+                type: 'null'
+                x-nemo-guardrails:
+                  classification: constrained
+                  reason: core_capability.tool_content
+                  gate: disabled
+            required:
+            - content
+            - role
+            title: ChatCompletionsAssistantMessageProjection
+            type: object
+            x-nemo-guardrails:
+              unknown_fields: configurable
+              source: '#/components/schemas/ChatCompletionResponseMessage'
+              classification: guarded
+        required:
+        - message
+        title: ChatCompletionsChoiceProjection
+        type: object
+        x-nemo-guardrails:
+          unknown_fields: configurable
+      maxItems: 1
+      minItems: 1
+      type: array
+      x-nemo-guardrails:
+        classification: guarded
+  required:
+  - choices
+  title: openai.chat_completions.response.text.v1
+  type: object
+  x-nemo-guardrails:
+    model: ChatCompletionsGuardedResponseProjection
+    opaque_fields:
+    - service_tier
+    - created
+    - object
+    - system_fingerprint
+    - usage
+    - id
+    - model
+    - metadata
+    - moderation
+stream:
+  oneOf:
+  - additionalProperties: true
+    properties:
+      choices:
+        items:
+          additionalProperties: true
+          properties:
+            delta:
+              additionalProperties: true
+              properties:
+                audio:
+                  default: null
+                  type: 'null'
+                  x-nemo-guardrails:
+                    classification: constrained
+                    reason: core_capability.audio_content
+                    gate: disabled
+                    extension: true
+                content:
+                  type: string
+                  x-nemo-guardrails:
+                    classification: guarded
+                    subject:
+                      kind: text
+                      role: assistant
+                function_call:
+                  default: null
+                  type: 'null'
+                  x-nemo-guardrails:
+                    classification: constrained
+                    reason: core_capability.tool_content
+                    gate: disabled
+                reasoning_content:
+                  default: null
+                  type: 'null'
+                  x-nemo-guardrails:
+                    classification: constrained
+                    reason: core_capability.reasoning_content
+                    gate: disabled
+                    extension: true
+                refusal:
+                  default: null
+                  type: 'null'
+                  x-nemo-guardrails:
+                    classification: constrained
+                    reason: core_capability.refusal_content
+                    gate: disabled
+                role:
+                  const: assistant
+                  x-nemo-guardrails:
+                    classification: constrained
+                tool_calls:
+                  default: null
+                  type: 'null'
+                  x-nemo-guardrails:
+                    classification: constrained
+                    reason: core_capability.tool_content
+                    gate: disabled
+              title: ChatCompletionsStreamDeltaProjection
+              type: object
+              x-nemo-guardrails:
+                unknown_fields: configurable
+                source: '#/components/schemas/ChatCompletionStreamResponseDelta'
+                classification: guarded
+            finish_reason:
+              x-nemo-guardrails:
+                classification: opaque
+            index:
+              const: 0
+              x-nemo-guardrails:
+                classification: constrained
+          required:
+          - delta
+          - index
+          title: ChatCompletionsStreamChoiceProjection
+          type: object
+          x-nemo-guardrails:
+            unknown_fields: configurable
+            opaque_fields:
+            - logprobs
+        maxItems: 1
+        type: array
+        x-nemo-guardrails:
+          classification: guarded
+      object:
+        const: chat.completion.chunk
+        x-nemo-guardrails:
+          classification: constrained
+    required:
+    - choices
+    - object
+    title: ChatCompletionsStreamPayloadProjection
+    type: object
+    x-nemo-guardrails:
+      event:
+        classification: guarded_delta
+        variants:
+        - source_schema: CreateChatCompletionStreamResponse
+          shape: chat.completion.chunk:content
+          match:
+            object: chat.completion.chunk
+          required_fields: []
+        missing_text: opaque
+        missing_text_shape: chat.completion.chunk:metadata
+      opaque_fields:
+      - service_tier
+      - created
+      - system_fingerprint
+      - obfuscation
+      - usage
+      - model
+      - id
+      - moderation
+  - additionalProperties: false
+    properties:
+      error:
+        additionalProperties: true
+        properties:
+          code:
+            x-nemo-guardrails:
+              classification: opaque
+          message:
+            type: string
+            x-nemo-guardrails:
+              classification: constrained
+        required:
+        - message
+        title: ChatCompletionsStreamErrorDetailsProjection
+        type: object
+        x-nemo-guardrails:
+          unknown_fields: configurable
+          source: '#/components/schemas/Error'
+          classification: constrained
+          opaque_fields:
+          - misalignment
+          - param
+          - type
+    required:
+    - error
+    title: ChatCompletionsStreamErrorProjection
+    type: object
+    x-nemo-guardrails:
+      event:
+        classification: provider_error
+        variants:
+        - source_schema: ErrorResponse
+          shape: error
+          match: {}
+          required_fields:
+          - error
+          external_reason: provider_integrity.stream_error_envelope
+        missing_text: reject
+  title: openai.chat_completions.stream.text.v1
+  x-nemo-guardrails:
+    event_schema_binding: operation_response
+    transport:
+      require_sse_event: false
+      non_data_shape: '[DONE]'
+      sentinels:
+        '[DONE]': '[DONE]'
+integration:
+  name: chat_completions
+  endpoint:
+    route_path: /v1/chat/completions
+    operation_label: OpenAI Chat Completions
+    unsupported_request_code: unsupported_chat_completions_shape
+    unsupported_response_code: unsupported_chat_completions_response_shape
+    stream_hooks:
+      module: nemoguardrails.server.experimental.providers.openai.chat_completions.stream_hooks
+      name: ChatCompletionsStreamHooks
