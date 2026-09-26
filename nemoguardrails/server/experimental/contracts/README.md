@@ -149,5 +149,8 @@ Before you submit a new or changed operation, verify:
 
 Provider-specific contracts are introduced with their provider capabilities.
 Each operation contract covers its request, buffered response, and optional
-streaming boundary as one policy document. Use the [reference](reference.md)
-for precise syntax and meaning.
+streaming boundary as one policy document.
+
+- [OpenAI Chat Completions](openai/chat-completions.guard.yaml)
+
+Use the [reference](reference.md) for precise syntax and meaning.
