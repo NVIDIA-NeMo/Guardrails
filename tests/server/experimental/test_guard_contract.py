@@ -15,6 +15,7 @@
 
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -26,19 +27,21 @@ REPOSITORY_ROOT = Path(__file__).parents[3]
 CONTRACTS_ROOT = REPOSITORY_ROOT / "nemoguardrails/server/experimental/contracts"
 SCHEMA_PATH = CONTRACTS_ROOT / "guard-contract.schema.json"
 MINIMAL_CONTRACT_PATH = CONTRACTS_ROOT / "minimal.guard.example.yaml"
+REFERENCE_PATH = CONTRACTS_ROOT / "reference.md"
 MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
+STREAM_ROOT_EXAMPLE = re.compile(r"### Stream root\n\n```yaml\n(?P<yaml>.*?)\n```", re.DOTALL)
 
 
 @pytest.fixture(scope="module")
 def guard_contract_schema() -> dict:
     """Load the guard contract schema shared by the validation tests."""
-    return json.loads(SCHEMA_PATH.read_text())
+    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
 def minimal_guard_contract() -> dict:
     """Load the minimal guard contract example."""
-    return yaml.safe_load(MINIMAL_CONTRACT_PATH.read_text())
+    return yaml.safe_load(MINIMAL_CONTRACT_PATH.read_text(encoding="utf-8"))
 
 
 def test_guard_contract_schema_is_valid(guard_contract_schema: dict) -> None:
@@ -69,12 +72,46 @@ def test_guard_contract_rejects_unknown_top_level_key(
         Draft202012Validator(guard_contract_schema).validate(contract)
 
 
+def test_guard_contract_allows_non_guardrails_schema_extensions(
+    guard_contract_schema: dict, minimal_guard_contract: dict
+) -> None:
+    """Non-Guardrails schema extensions remain available to other tooling."""
+    contract = deepcopy(minimal_guard_contract)
+    contract["request"]["x-provider-annotation"] = {"value": "example"}
+
+    Draft202012Validator(guard_contract_schema).validate(contract)
+
+
+def test_guard_contract_rejects_guardrails_extension_lookalikes(
+    guard_contract_schema: dict, minimal_guard_contract: dict
+) -> None:
+    """The Guardrails extension namespace rejects misspelled sibling keys."""
+    contract = deepcopy(minimal_guard_contract)
+    contract["request"]["x-nemo-guardrails-extra"] = {}
+
+    with pytest.raises(ValidationError):
+        Draft202012Validator(guard_contract_schema).validate(contract)
+
+
+def test_stream_root_documentation_example_matches_schema(
+    guard_contract_schema: dict, minimal_guard_contract: dict
+) -> None:
+    """The documented stream root forms a schema-valid contract section."""
+    reference = REFERENCE_PATH.read_text(encoding="utf-8")
+    match = STREAM_ROOT_EXAMPLE.search(reference)
+    assert match is not None
+    contract = deepcopy(minimal_guard_contract)
+    contract.update(yaml.safe_load(match.group("yaml")))
+
+    Draft202012Validator(guard_contract_schema).validate(contract)
+
+
 def test_contract_documentation_has_no_broken_local_links() -> None:
     """Relative links in the contract documentation resolve locally."""
     broken_links: list[str] = []
 
     for document in CONTRACTS_ROOT.glob("*.md"):
-        for link in MARKDOWN_LINK.findall(document.read_text()):
+        for link in MARKDOWN_LINK.findall(document.read_text(encoding="utf-8")):
             if "://" in link or link.startswith("#"):
                 continue
             target, _, _fragment = link.partition("#")
