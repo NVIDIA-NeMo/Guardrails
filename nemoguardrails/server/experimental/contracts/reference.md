@@ -206,11 +206,13 @@ minItems, maxItems, minLength, maxLength, pattern
 ```
 
 The compiler rejects unsupported schema keywords and unknown Guardrails keys
-with the component and nested property location. It accepts descriptive
-annotations such as `description` and `examples` without treating them as
-constraints. Opaque properties cannot carry validation assertions: classify a
-property as constrained when the guard projection should validate it. A disabled
-gate must agree with its null-only schema.
+with the component and nested property location. Other `x-*` schema annotations
+are available to non-Guardrails tooling and ignored by Guardrails. Keys beginning
+with `x-nemo-guardrails` are reserved; only the exact `x-nemo-guardrails` key is
+accepted. Descriptive annotations such as `description` and `examples` are not
+treated as constraints. Opaque properties cannot carry validation assertions:
+classify a property as constrained when the guard projection should validate it.
+A disabled gate must agree with its null-only schema.
 
 Examples include selecting one role:
 
@@ -475,8 +477,54 @@ validation and provider-native error framing remain handwritten stream hooks.
 stream:
   title: example.chat.stream.text.v1
   oneOf:
-    - {}
-    - {}
+    - type: object
+      title: ExampleStreamPayloadProjection
+      properties:
+        object:
+          const: chat.chunk
+          x-nemo-guardrails:
+            classification: constrained
+        choices:
+          type: array
+          maxItems: 1
+          items:
+            type: object
+            properties:
+              delta:
+                type: object
+                properties:
+                  content:
+                    type: string
+                    x-nemo-guardrails:
+                      classification: guarded
+                      subject:
+                        kind: text
+                        role: assistant
+                x-nemo-guardrails:
+                  classification: guarded
+                  model: ExampleStreamDeltaProjection
+                  unknown_fields: configurable
+                  source: '#/components/schemas/ProviderStreamDelta'
+            x-nemo-guardrails:
+              model: ExampleStreamChoiceProjection
+              unknown_fields: configurable
+              source: '#/components/schemas/ProviderStreamChoice'
+          x-nemo-guardrails:
+            classification: guarded
+      required: [object, choices]
+      x-nemo-guardrails:
+        model: ExampleStreamPayloadProjection
+        source: '#/components/schemas/ProviderChatStreamEvent'
+        event:
+          classification: guarded_delta
+          variants:
+            - source_schema: ProviderChatStreamEvent
+              shape: chat.chunk:content
+              match:
+                object: chat.chunk
+              required_fields: []
+          missing_text: opaque
+          missing_text_shape: chat.chunk:metadata
   x-nemo-guardrails:
     event_schema_binding: operation_response
     transport:
@@ -518,59 +566,9 @@ schemas, not every future nested union alternative.
 
 ### Event families
 
-Each root `oneOf` entry is an event family: one projection model and one
-Guardrails role shared by one or more native provider variants.
-
-```yaml
-- type: object
-  title: ExampleStreamPayloadProjection
-  properties:
-    object:
-      const: chat.chunk
-      x-nemo-guardrails:
-        classification: constrained
-    choices:
-      type: array
-      maxItems: 1
-      items:
-        type: object
-        properties:
-          delta:
-            type: object
-            properties:
-              content:
-                type: string
-                x-nemo-guardrails:
-                  classification: guarded
-                  subject:
-                    kind: text
-                    role: assistant
-            x-nemo-guardrails:
-              classification: guarded
-              model: ExampleStreamDeltaProjection
-              unknown_fields: configurable
-              source: '#/components/schemas/ProviderStreamDelta'
-        x-nemo-guardrails:
-          model: ExampleStreamChoiceProjection
-          unknown_fields: configurable
-          source: '#/components/schemas/ProviderStreamChoice'
-      x-nemo-guardrails:
-        classification: guarded
-  required: [object, choices]
-  x-nemo-guardrails:
-    model: ExampleStreamPayloadProjection
-    source: '#/components/schemas/ProviderChatStreamEvent'
-    event:
-      classification: guarded_delta
-      variants:
-        - source_schema: ProviderChatStreamEvent
-          shape: chat.chunk:content
-          match:
-            object: chat.chunk
-          required_fields: []
-      missing_text: opaque
-      missing_text_shape: chat.chunk:metadata
-```
+Each root `oneOf` entry, such as `ExampleStreamPayloadProjection` in the
+preceding example, is an event family: one projection model and one Guardrails
+role shared by one or more native provider variants.
 
 Event classifications are:
 
