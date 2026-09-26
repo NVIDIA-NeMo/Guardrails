@@ -182,13 +182,15 @@ def create_buffered_guarded_http_operation(
     if endpoint.api_revision is not None:
         openapi_extra["parameters"] = [endpoint.api_revision.openapi_parameter()]
 
+    operation: BufferedGuardedOperation[GuardableProviderRequest, BufferedHttpResponse] = BufferedGuardedOperation(
+        name=endpoint.operation_name,
+        input_projection=project_request,
+        output_projection=project_response,
+    )
+
     return GuardedHttpOperation(
         operation_path=GuardedOperationPath(endpoint.route_path, frozenset({endpoint.method})),
-        operation=BufferedGuardedOperation[GuardableProviderRequest, BufferedHttpResponse](
-            name=endpoint.operation_name,
-            input_projection=project_request,
-            output_projection=project_response,
-        ),
+        operation=operation,
         prepare_request=prepare_request,
         forward_request=forward_request,
         documented_responses=errors.documented_responses,
