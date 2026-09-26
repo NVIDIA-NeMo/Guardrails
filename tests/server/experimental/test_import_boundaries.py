@@ -25,6 +25,7 @@ import pytest
     "module",
     [
         "nemoguardrails.server.experimental",
+        "nemoguardrails.server.experimental._buffered_kernel",
         "nemoguardrails.server.experimental._content_checker",
         "nemoguardrails.server.experimental._guarded_operation",
         "nemoguardrails.server.experimental.provider.types",
