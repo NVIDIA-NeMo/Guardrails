@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Test buffered provider execution with optional content checks."""
+
 from dataclasses import dataclass, field
 
 import pytest
@@ -37,17 +39,23 @@ from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
 @dataclass
 class Request:
+    """Represent a provider request with checked text and opaque state."""
+
     text: str
     opaque: object = field(default_factory=object)
 
 
 @dataclass
 class Response:
+    """Represent a provider response with checked text and opaque state."""
+
     text: str
     opaque: object = field(default_factory=object)
 
 
 class StaticChecker:
+    """Provide configurable checker results and observable calls."""
+
     def __init__(
         self,
         policy=ContentInspectionPolicy(True, True),
@@ -91,6 +99,8 @@ def operation():
 
 @pytest.mark.asyncio
 async def test_no_inspection_validates_input_and_dispatches_original_values():
+    """Preserve opaque request and response values when checks are disabled."""
+
     checker = StaticChecker(ContentInspectionPolicy(False, False))
     request = Request("question")
     response = Response("answer")
@@ -123,6 +133,8 @@ async def test_no_inspection_validates_input_and_dispatches_original_values():
 
 @pytest.mark.asyncio
 async def test_input_and_output_checks_share_one_checker_and_context(operation):
+    """Use one checker and carry input context to output checking."""
+
     checker = StaticChecker()
     request = Request("question")
     response = Response("answer")
@@ -146,6 +158,8 @@ async def test_input_and_output_checks_share_one_checker_and_context(operation):
 
 @pytest.mark.asyncio
 async def test_output_only_inspection_still_projects_effective_input_context(operation):
+    """Project input context when only output checking is enabled."""
+
     checker = StaticChecker(ContentInspectionPolicy(False, True))
     response = Response("answer")
 
@@ -168,6 +182,8 @@ async def test_output_only_inspection_still_projects_effective_input_context(ope
     [(ContentBlocked("blocked", "rule"), OperationBlocked), (ContentCheckFailed("failed"), OperationCheckFailed)],
 )
 async def test_input_stop_prevents_dispatch(operation, decision, outcome_type):
+    """Stop before provider dispatch when the input check does not allow it."""
+
     checker = StaticChecker(input_decision=decision)
 
     async def dispatch(_request):
@@ -189,6 +205,8 @@ async def test_input_stop_prevents_dispatch(operation, decision, outcome_type):
     [(ContentBlocked("blocked", "rule"), OperationBlocked), (ContentCheckFailed("failed"), OperationCheckFailed)],
 )
 async def test_output_stop_does_not_return_provider_response(operation, decision, outcome_type):
+    """Hide a provider response when the output check does not allow it."""
+
     checker = StaticChecker(output_decision=decision)
     response = Response("answer")
     dispatch_count = 0
@@ -208,6 +226,8 @@ async def test_output_stop_does_not_return_provider_response(operation, decision
 
 @pytest.mark.asyncio
 async def test_input_modification_fails_before_dispatch(operation):
+    """Reject input replacement before provider dispatch."""
+
     checker = StaticChecker(input_decision=ContentAllowed(replacement="changed"))
 
     async def dispatch(_request):
@@ -221,6 +241,8 @@ async def test_input_modification_fails_before_dispatch(operation):
 
 @pytest.mark.asyncio
 async def test_output_modification_fails_without_returning_provider_response(operation):
+    """Reject output replacement without returning the provider response."""
+
     checker = StaticChecker(output_decision=ContentAllowed(replacement="changed"))
     response = Response("answer")
 
@@ -242,6 +264,8 @@ async def test_output_modification_fails_without_returning_provider_response(ope
     ],
 )
 async def test_invalid_input_projection_fails_before_dispatch(projection, message):
+    """Reject invalid projected input before provider dispatch."""
+
     operation = BufferedGuardedOperation(
         name="test.invalid_input",
         input_projection=projection,
@@ -257,6 +281,8 @@ async def test_invalid_input_projection_fails_before_dispatch(projection, messag
 
 @pytest.mark.asyncio
 async def test_unknown_checker_decision_fails_closed_before_dispatch(operation):
+    """Convert an unknown input decision into a failed check."""
+
     checker = StaticChecker(input_decision=object())
 
     async def dispatch(_request):
@@ -278,6 +304,8 @@ async def test_unknown_checker_decision_fails_closed_before_dispatch(operation):
     ],
 )
 async def test_checker_exceptions_become_stage_specific_failures(operation, stage, checker):
+    """Attach the correct inspection stage to checker exceptions."""
+
     response = Response("answer")
 
     async def dispatch(_request):

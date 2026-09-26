@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Execute buffered guarded operations without owning provider transport."""
+"""Execute buffered provider operations with optional content checks."""
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -40,7 +40,7 @@ PayloadT = TypeVar("PayloadT")
 
 
 class InspectionStage(str, Enum):
-    """Identify the provider crossing that produced an enforcement outcome."""
+    """Identify whether an operation stopped during input or output checking."""
 
     INPUT = "input"
     OUTPUT = "output"
@@ -55,7 +55,7 @@ class OperationCompleted(Generic[ResponseT]):
 
 @dataclass(frozen=True, slots=True)
 class OperationBlocked:
-    """Stop an operation at one inspected provider crossing."""
+    """Stop an operation when a content check blocks it."""
 
     stage: InspectionStage
     decision: ContentBlocked
@@ -82,6 +82,8 @@ def _project_message(
     payload: PayloadT,
     expected_role: Literal["user", "assistant"],
 ) -> GuardedMessage:
+    """Project and validate one message selected for content checking."""
+
     message = projection(payload)
     if not isinstance(message, GuardedMessage):
         raise TypeError("A guarded operation projection must return GuardedMessage.")
@@ -94,6 +96,8 @@ def _stopped_operation(
     stage: InspectionStage,
     decision: object,
 ) -> OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | None:
+    """Convert a checker decision into an operation outcome."""
+
     try:
         validated = validate_content_check_decision(decision)
     except UnsupportedContentModification as failure:
@@ -114,6 +118,8 @@ async def _run_check(
     stage: InspectionStage,
     check: Callable[[], Awaitable[object]],
 ) -> OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | None:
+    """Run one checker call and convert errors into failure outcomes."""
+
     try:
         decision = await check()
     except Exception as failure:
