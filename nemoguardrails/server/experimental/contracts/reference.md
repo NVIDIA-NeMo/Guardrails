@@ -25,8 +25,9 @@ surface, not a guarantee that every deployment runs a particular safety check.
 ## Examples
 
 Begin with the [minimal contract](minimal.guard.example.yaml), paired with
-its [provider OpenAPI](minimal.openapi.example.yaml). Complete examples are
-introduced with their provider capabilities.
+its [provider OpenAPI](minimal.openapi.example.yaml). The
+[OpenAI Chat Completions contract](openai/chat-completions.guard.yaml) is a
+complete request, buffered response, and stream example.
 
 For authoring and validation steps, use the [guard contract guide](README.md).
 
