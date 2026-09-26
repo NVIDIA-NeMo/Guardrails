@@ -371,13 +371,8 @@ def create_http_proxy_router(
         """Forward provider-owned routes without content checking."""
 
         normalized_path = re.sub(r"/+", "/", f"/{path}").rstrip("/") or "/"
-        normalized_request_path = re.sub(r"/+", "/", request.url.path).rstrip("/") or "/"
         reserved_methods = next(
-            (
-                methods
-                for path_regex, methods in reserved_matchers
-                if path_regex.fullmatch(normalized_request_path) is not None
-            ),
+            (methods for path_regex, methods in reserved_matchers if path_regex.fullmatch(normalized_path) is not None),
             None,
         )
         if reserved_methods is not None:

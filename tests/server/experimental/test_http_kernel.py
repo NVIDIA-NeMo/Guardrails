@@ -319,7 +319,8 @@ async def test_prefixed_guarded_path_variants_cannot_bypass_into_catchall(
 
 
 @pytest.mark.asyncio
-async def test_reserved_application_route_cannot_fall_through_to_provider(guarded_operation):
+@pytest.mark.parametrize("prefix", ["", "/proxy"])
+async def test_reserved_application_route_cannot_fall_through_to_provider(guarded_operation, prefix):
     """Keep application-owned routes out of provider forwarding."""
 
     dispatched = []
@@ -330,7 +331,7 @@ async def test_reserved_application_route_cannot_fall_through_to_provider(guarde
 
     app = FastAPI()
 
-    @app.get("/health")
+    @app.get(f"{prefix}/health")
     async def health():
         return {"status": "ok"}
 
@@ -341,11 +342,12 @@ async def test_reserved_application_route_cannot_fall_through_to_provider(guarde
             dispatch=dispatch,
             render_outcome=render_test_outcome,
             reserved_routes={"/health": {"GET"}},
-        )
+        ),
+        prefix=prefix,
     )
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
-        owned = await client.get("/health")
-        wrong_method = await client.post("/health")
+        owned = await client.get(f"{prefix}/health")
+        wrong_method = await client.post(f"{prefix}/health")
 
     assert owned.status_code == 200
     assert owned.json() == {"status": "ok"}
