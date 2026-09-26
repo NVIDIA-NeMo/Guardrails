@@ -278,6 +278,47 @@ async def test_wrong_method_for_guarded_path_is_not_forwarded(proxy_harness):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "path", "expected_status"),
+    [
+        ("PUT", "/proxy/v1/generate", 405),
+        ("POST", "/proxy/v1//generate", 422),
+    ],
+)
+async def test_prefixed_guarded_path_variants_cannot_bypass_into_catchall(
+    guarded_operation,
+    method,
+    path,
+    expected_status,
+):
+    """Keep guarded path ownership when the router has a prefix."""
+
+    checker = StaticChecker()
+    dispatched = []
+
+    async def dispatch(request):
+        dispatched.append(request)
+        return BufferedHttpResponse(200, (), b"provider")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=checker,
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+        ),
+        prefix="/proxy",
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.request(method, path, json={"input": "question"})
+
+    assert response.status_code == expected_status
+    assert dispatched == []
+    assert checker.calls == []
+
+
+@pytest.mark.asyncio
 async def test_reserved_application_route_cannot_fall_through_to_provider(guarded_operation):
     """Keep application-owned routes out of provider forwarding."""
 
@@ -399,6 +440,27 @@ def test_duplicate_guarded_route_is_rejected(guarded_operation):
         )
 
 
+def test_overlapping_guarded_routes_are_rejected(guarded_operation):
+    """Reject routes whose precedence could select the wrong operation."""
+
+    parameterized = GuardedHttpOperation(
+        operation_path=GuardedOperationPath("/v1/{name}"),
+        operation=BufferedGuardedOperation(
+            name="test.parameterized",
+            input_projection=project_request,
+            output_projection=project_response,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        create_http_proxy_router(
+            operations=[parameterized, guarded_operation],
+            checker=StaticChecker(),
+            dispatch=lambda _request: None,
+            render_outcome=lambda _outcome: None,
+        )
+
+
 def test_guarded_http_path_rejects_path_spanning_parameters():
     """Reject guarded templates that can consume multiple path segments."""
 
@@ -442,6 +504,37 @@ async def test_invalid_content_length_is_rendered_without_dispatch(guarded_opera
     assert dispatched == []
     assert len(outcomes) == 1
     assert outcomes[0].kind is HttpFailureKind.INVALID_CONTENT_LENGTH
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/v1/generate", "/v1/provider-owned"])
+async def test_repeated_content_length_is_rendered_without_dispatch(guarded_operation, path):
+    """Reject repeated content lengths on guarded and pass-through requests."""
+
+    dispatched = []
+
+    async def dispatch(request):
+        dispatched.append(request)
+        return BufferedHttpResponse(200, (), b"response")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post(
+            path,
+            content=b"{}",
+            headers=[("content-length", "2"), ("content-length", "-1")],
+        )
+
+    assert response.status_code == 400
+    assert dispatched == []
 
 
 @pytest.mark.asyncio

@@ -162,6 +162,27 @@ def _route_shape(path: str) -> str:
     return path_format
 
 
+def _route_sample(path: str) -> str:
+    """Materialize one path accepted by a guarded route template."""
+
+    _, path_format, convertors = compile_path(path)
+    values = {}
+    candidates = ("value", "1", "1.0", "00000000-0000-0000-0000-000000000000")
+    for name, convertor in convertors.items():
+        values[name] = next(candidate for candidate in candidates if re.fullmatch(convertor.regex, candidate))
+    return path_format.format(**values)
+
+
+def _routes_overlap(left: str, right: str) -> bool:
+    """Return whether two guarded route templates accept a common path."""
+
+    left_regex, _, _ = compile_path(left)
+    right_regex, _, _ = compile_path(right)
+    return (
+        left_regex.fullmatch(_route_sample(right)) is not None or right_regex.fullmatch(_route_sample(left)) is not None
+    )
+
+
 def _validate_operations(operations: Collection[GuardedHttpOperation]) -> tuple[GuardedHttpOperation, ...]:
     """Require at least one operation with unique names and routes."""
 
@@ -178,6 +199,13 @@ def _validate_operations(operations: Collection[GuardedHttpOperation]) -> tuple[
     ]
     if len(routes) != len(set(routes)):
         raise ValueError("Guarded operation routes must be unique.")
+    for index, left in enumerate(resolved):
+        for right in resolved[index + 1 :]:
+            if left.operation_path.methods & right.operation_path.methods and _routes_overlap(
+                left.operation_path.route_path,
+                right.operation_path.route_path,
+            ):
+                raise ValueError("Guarded operation routes must not overlap for the same method.")
     return resolved
 
 
@@ -193,10 +221,12 @@ def _request_path(request: Request) -> bytes:
 async def _buffer_request(request: Request, max_body_bytes: int) -> BufferedHttpRequest:
     """Read and preserve one request within the configured body limit."""
 
-    content_length = request.headers.get("content-length")
-    if content_length is not None:
+    content_lengths = request.headers.getlist("content-length")
+    if len(content_lengths) > 1:
+        raise InvalidContentLength("Content-Length must not be repeated.")
+    if content_lengths:
         try:
-            parsed_content_length = int(content_length)
+            parsed_content_length = int(content_lengths[0])
         except ValueError as error:
             raise InvalidContentLength("Content-Length must be an integer.") from error
         if parsed_content_length < 0:
@@ -301,7 +331,11 @@ def create_http_proxy_router(
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
     max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
 ) -> APIRouter:
-    """Create guarded routes followed by a transparent provider catch-all."""
+    """Create guarded routes followed by a transparent provider catch-all.
+
+    Application-owned routes must be registered before this router because its
+    catch-all owns every path not handled by an earlier route.
+    """
 
     resolved_operations = _validate_operations(operations)
     if max_request_body_bytes <= 0 or max_response_body_bytes <= 0:
@@ -333,12 +367,17 @@ def create_http_proxy_router(
         )
 
     @router.api_route("/{path:path}", methods=list(HTTP_METHODS), include_in_schema=False)
-    async def passthrough(request: Request) -> Response:
+    async def passthrough(request: Request, path: str) -> Response:
         """Forward provider-owned routes without content checking."""
 
-        normalized_path = re.sub(r"/+", "/", request.url.path).rstrip("/") or "/"
+        normalized_path = re.sub(r"/+", "/", f"/{path}").rstrip("/") or "/"
+        normalized_request_path = re.sub(r"/+", "/", request.url.path).rstrip("/") or "/"
         reserved_methods = next(
-            (methods for path_regex, methods in reserved_matchers if path_regex.fullmatch(normalized_path) is not None),
+            (
+                methods
+                for path_regex, methods in reserved_matchers
+                if path_regex.fullmatch(normalized_request_path) is not None
+            ),
             None,
         )
         if reserved_methods is not None:
