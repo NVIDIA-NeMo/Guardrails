@@ -25,6 +25,7 @@ from nemoguardrails.server.experimental._buffered_kernel import (
     OperationCheckFailed,
     OperationCompleted,
     OperationModificationUnsupported,
+    OperationProjectionFailed,
     execute_buffered_operation,
 )
 from nemoguardrails.server.experimental._content_checker import (
@@ -33,7 +34,11 @@ from nemoguardrails.server.experimental._content_checker import (
     ContentCheckFailed,
     ContentInspectionPolicy,
 )
-from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation
+from nemoguardrails.server.experimental._guarded_operation import (
+    BufferedGuardedOperation,
+    ContentInspectionNotApplicable,
+    UnsupportedGuardedPayload,
+)
 from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
 
@@ -86,6 +91,13 @@ class StaticChecker:
         if self.output_error is not None:
             raise self.output_error
         return self.output_decision
+
+
+def projection_raising(failure):
+    def project(_payload):
+        raise failure
+
+    return project
 
 
 @pytest.fixture
@@ -307,6 +319,84 @@ async def test_invalid_output_projection_fails_after_dispatch(projection, messag
         await execute_buffered_operation(operation, StaticChecker(), request, dispatch)
 
     assert dispatched == [request]
+
+
+@pytest.mark.asyncio
+async def test_unsupported_input_payload_fails_before_dispatch():
+    """Return an input projection failure before provider dispatch."""
+
+    failure = UnsupportedGuardedPayload("unsupported request")
+    operation = BufferedGuardedOperation(
+        name="test.unsupported_input",
+        input_projection=projection_raising(failure),
+        output_projection=lambda response: GuardedMessage("assistant", response.text),
+    )
+
+    async def dispatch(_request):
+        pytest.fail("an unsupported input must not be dispatched")
+
+    result = await execute_buffered_operation(operation, StaticChecker(), Request("question"), dispatch)
+
+    assert result == OperationProjectionFailed(InspectionStage.INPUT, failure)
+
+
+@pytest.mark.asyncio
+async def test_unsupported_output_payload_hides_provider_response():
+    """Hide the provider response when output projection fails."""
+
+    failure = UnsupportedGuardedPayload("unsupported response")
+    response = Response("answer")
+    operation = BufferedGuardedOperation(
+        name="test.unsupported_output",
+        input_projection=lambda request: GuardedMessage("user", request.text),
+        output_projection=projection_raising(failure),
+    )
+
+    async def dispatch(_request):
+        return response
+
+    result = await execute_buffered_operation(operation, StaticChecker(), Request("question"), dispatch)
+
+    assert result == OperationProjectionFailed(InspectionStage.OUTPUT, failure)
+    assert not hasattr(result, "response")
+
+
+@pytest.mark.asyncio
+async def test_inapplicable_output_inspection_preserves_provider_response():
+    """Preserve a response that does not contain content to check."""
+
+    response = Response("provider error")
+    checker = StaticChecker()
+    operation = BufferedGuardedOperation(
+        name="test.inapplicable_output",
+        input_projection=lambda request: GuardedMessage("user", request.text),
+        output_projection=lambda _response: ContentInspectionNotApplicable(),
+    )
+
+    async def dispatch(_request):
+        return response
+
+    result = await execute_buffered_operation(operation, checker, Request("question"), dispatch)
+
+    assert result == OperationCompleted(response)
+    assert [call if isinstance(call, str) else call[0] for call in checker.calls] == ["policy", "input"]
+
+
+@pytest.mark.asyncio
+async def test_input_inspection_cannot_be_declared_inapplicable():
+    """Reject an input projection without content to check."""
+
+    operation = BufferedGuardedOperation(
+        name="test.inapplicable_input",
+        input_projection=lambda _request: ContentInspectionNotApplicable(),
+        output_projection=lambda response: GuardedMessage("assistant", response.text),
+    )
+
+    async def dispatch(_request):
+        pytest.fail("an inapplicable input must not be dispatched")
+
+    with pytest.raises(TypeError, match="input projection cannot be inapplicable"):
+        await execute_buffered_operation(operation, StaticChecker(), Request("question"), dispatch)
 
 
 @pytest.mark.asyncio

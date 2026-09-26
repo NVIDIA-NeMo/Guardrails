@@ -26,6 +26,8 @@ from starlette.requests import Request
 from nemoguardrails.server.experimental._buffered_kernel import (
     OperationBlocked,
     OperationCheckFailed,
+    OperationModificationUnsupported,
+    OperationProjectionFailed,
 )
 from nemoguardrails.server.experimental._content_checker import (
     ContentAllowed,
@@ -33,7 +35,11 @@ from nemoguardrails.server.experimental._content_checker import (
     ContentCheckFailed,
     ContentInspectionPolicy,
 )
-from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation
+from nemoguardrails.server.experimental._guarded_operation import (
+    BufferedGuardedOperation,
+    ContentInspectionNotApplicable,
+    UnsupportedGuardedPayload,
+)
 from nemoguardrails.server.experimental._http_kernel import (
     BufferedHttpResponse,
     GuardedHttpOperation,
@@ -79,6 +85,13 @@ def project_response(response):
     return GuardedMessage("assistant", payload["output"])
 
 
+def projection_raising(failure):
+    def project(_payload):
+        raise failure
+
+    return project
+
+
 def render_test_outcome(outcome):
     if isinstance(outcome, HttpOperationFailed):
         status_codes = {
@@ -88,6 +101,10 @@ def render_test_outcome(outcome):
             HttpFailureKind.RESPONSE_BODY_TOO_LARGE: 502,
         }
         return BufferedHttpResponse(status_codes[outcome.kind], (), outcome.kind.value.encode())
+    if isinstance(outcome, OperationProjectionFailed):
+        return BufferedHttpResponse(422, (), str(outcome.failure).encode())
+    if isinstance(outcome, OperationModificationUnsupported):
+        return BufferedHttpResponse(422, (), b"replacement_not_supported")
     if isinstance(outcome, OperationBlocked):
         body = f"{outcome.stage.value}:{outcome.decision.message}".encode()
         return BufferedHttpResponse(400, ((b"content-type", b"text/plain"),), body)
@@ -468,6 +485,81 @@ def test_guarded_http_path_rejects_path_spanning_parameters():
 
     with pytest.raises(ValueError, match="path-spanning"):
         GuardedOperationPath("/v1/{rest:path}")
+
+
+@pytest.mark.asyncio
+async def test_projection_failure_is_rendered_without_dispatch():
+    """Render input projection failures without provider dispatch."""
+
+    dispatched = []
+    operation = GuardedHttpOperation(
+        operation_path=GuardedOperationPath("/v1/projected"),
+        operation=BufferedGuardedOperation(
+            name="test.projected",
+            input_projection=projection_raising(UnsupportedGuardedPayload("unsupported")),
+            output_projection=project_response,
+        ),
+    )
+
+    async def dispatch(request):
+        dispatched.append(request)
+        raise AssertionError("an unsupported input must not be dispatched")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post("/v1/projected", json={"input": "question"})
+
+    assert response.status_code == 422
+    assert response.content == b"unsupported"
+    assert dispatched == []
+
+
+@pytest.mark.asyncio
+async def test_inapplicable_output_inspection_preserves_provider_error():
+    """Preserve a provider error that has no output content to check."""
+
+    checker = StaticChecker()
+    provider_response = BufferedHttpResponse(
+        429,
+        ((b"content-type", b"application/json"), (b"x-request-id", b"provider-id")),
+        b'{"error":{"message":"rate limited"}}',
+    )
+    operation = GuardedHttpOperation(
+        operation_path=GuardedOperationPath("/v1/projected"),
+        operation=BufferedGuardedOperation(
+            name="test.provider_error",
+            input_projection=project_request,
+            output_projection=lambda _response: ContentInspectionNotApplicable(),
+        ),
+    )
+
+    async def dispatch(_request):
+        return provider_response
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[operation],
+            checker=checker,
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post("/v1/projected", json={"input": "question"})
+
+    assert response.status_code == 429
+    assert response.content == provider_response.body
+    assert response.headers["x-request-id"] == "provider-id"
+    assert [call[0] for call in checker.calls if not isinstance(call, str)] == ["input"]
 
 
 @pytest.mark.asyncio

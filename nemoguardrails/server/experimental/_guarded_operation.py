@@ -26,11 +26,20 @@ RequestT = TypeVar("RequestT")
 ResponseT = TypeVar("ResponseT")
 
 
+class UnsupportedGuardedPayload(ValueError):
+    """Report a provider payload outside an operation's guarded projection."""
+
+
+@dataclass(frozen=True, slots=True)
+class ContentInspectionNotApplicable:
+    """Declare that one provider response does not contain guarded output."""
+
+
 class GuardedMessageProjection(Protocol[PayloadT]):
     """Extract one message to check from a provider-owned value."""
 
-    def __call__(self, payload: PayloadT) -> GuardedMessage:
-        """Return the message selected from one payload."""
+    def __call__(self, payload: PayloadT) -> GuardedMessage | ContentInspectionNotApplicable:
+        """Return the message selected from one payload, when present."""
 
         ...
 
