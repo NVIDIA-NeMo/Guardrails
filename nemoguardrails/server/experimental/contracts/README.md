@@ -105,3 +105,7 @@ choose deployment rails or enable runtime profile selection.
 This is a NeMo Guardrails document using JSON Schema vocabulary, not an OpenAPI
 document or an OpenAPI Overlay. Generic schema tools do not execute its guardrail
 annotations.
+
+## Provider boundaries
+
+- [OpenAI Chat Completions](openai/README.md)
