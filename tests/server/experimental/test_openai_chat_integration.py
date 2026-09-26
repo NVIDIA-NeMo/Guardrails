@@ -19,16 +19,19 @@ import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
+from nemoguardrails.server.experimental._buffered_kernel import InspectionStage, OperationProjectionFailed
 from nemoguardrails.server.experimental._content_checker import (
     ContentAllowed,
     ContentBlocked,
     ContentCheckFailed,
     ContentInspectionPolicy,
 )
+from nemoguardrails.server.experimental._guarded_operation import UnsupportedGuardedPayload
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse
 from nemoguardrails.server.experimental.providers.openai.errors import (
     OPENAI_ERROR_MAPPING,
     OpenAIProxyErrorResponse,
+    render_openai_error,
 )
 from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_router
 
@@ -375,6 +378,19 @@ async def test_request_representation_failures_are_native_and_stop_before_dispat
     assert response.status_code == status_code
     assert response.json()["error"]["code"] == code
     assert dispatched == []
+
+
+def test_openai_error_preserves_provider_binding_failure_code():
+    """Provider binding failures retain their stable code in OpenAI errors."""
+    outcome = OperationProjectionFailed(
+        InspectionStage.INPUT,
+        UnsupportedGuardedPayload("Unsupported provider API revision.", "unsupported_provider_api_revision"),
+    )
+
+    response = render_openai_error(outcome)
+
+    assert response.status_code == 422
+    assert b'"code":"unsupported_provider_api_revision"' in response.body
 
 
 def test_openai_error_mapping_is_the_openapi_response_authority():

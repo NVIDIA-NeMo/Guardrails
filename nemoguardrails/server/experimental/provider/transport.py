@@ -146,7 +146,14 @@ class ProviderApiRevisionBinding:
             values = [value.decode("latin-1") for name, value in request.headers if name.lower() == encoded_name]
             received = values[-1] if values else None
         else:
-            values = parse_qs(request.query.decode("ascii"), keep_blank_values=True).get(self.transport_name, [])
+            try:
+                query = request.query.decode("ascii")
+            except UnicodeDecodeError as error:
+                raise ProviderBindingViolation(
+                    "The provider query must use ASCII bytes.",
+                    code=self.error_code,
+                ) from error
+            values = parse_qs(query, keep_blank_values=True).get(self.transport_name, [])
             received = values[-1] if values else None
         if not self.accepted.accepts(received):
             raise ProviderBindingViolation(

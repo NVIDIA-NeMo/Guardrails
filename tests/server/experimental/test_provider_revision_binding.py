@@ -79,6 +79,20 @@ def test_provider_api_revision_binding_rejects_missing_revision_with_stable_code
     }
 
 
+def test_provider_api_revision_binding_rejects_non_ascii_query_with_stable_code():
+    """Malformed query bytes produce the binding's provider failure outcome."""
+    binding = ProviderApiRevisionBinding(
+        accepted=ExactApiRevision("2026-09-25"),
+        location=TransportLocation.QUERY,
+        transport_name="api-version",
+    )
+
+    with pytest.raises(ProviderBindingViolation) as exc_info:
+        binding.validate(RequestMetadata(query=b"api-version=2026-09-25\xff"))
+
+    assert exc_info.value.code == "unsupported_provider_api_revision"
+
+
 def test_provider_api_revision_binding_rejects_path_location():
     """Path revisions belong to route ownership rather than metadata bindings."""
     with pytest.raises(ValueError, match="belong to guarded endpoint routes"):
