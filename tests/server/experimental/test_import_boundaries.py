@@ -28,6 +28,7 @@ import pytest
         "nemoguardrails.server.experimental._buffered_kernel",
         "nemoguardrails.server.experimental._content_checker",
         "nemoguardrails.server.experimental._guarded_operation",
+        "nemoguardrails.server.experimental._http_kernel",
         "nemoguardrails.server.experimental.provider.types",
     ],
 )
