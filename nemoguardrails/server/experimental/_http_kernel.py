@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Bind the private buffered kernel to a transparent HTTP boundary."""
+"""Create transparent HTTP proxy routes for buffered provider operations."""
 
 import re
 from collections.abc import Awaitable, Callable, Collection, Mapping
@@ -63,7 +63,7 @@ class HttpDispatchFailed(Exception):
 
 
 class HttpFailureKind(str, Enum):
-    """Classify provider-neutral HTTP boundary failures."""
+    """Classify failures while buffering or dispatching HTTP requests."""
 
     INVALID_CONTENT_LENGTH = "invalid_content_length"
     REQUEST_BODY_TOO_LARGE = "request_body_too_large"
@@ -73,7 +73,7 @@ class HttpFailureKind(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class HttpOperationFailed:
-    """Carry one HTTP boundary failure to the configured renderer."""
+    """Carry one HTTP failure to the configured response renderer."""
 
     kind: HttpFailureKind
     failure: BaseException
@@ -100,6 +100,8 @@ class BufferedHttpResponse:
     body: bytes
 
     def __post_init__(self) -> None:
+        """Validate status, headers, and body before rendering a response."""
+
         if not isinstance(self.status_code, int) or not 100 <= self.status_code <= 599:
             raise ValueError("An HTTP response status code must be between 100 and 599.")
         if not isinstance(self.body, bytes):
@@ -116,6 +118,8 @@ class GuardedOperationPath:
     methods: frozenset[str] = frozenset({"POST"})
 
     def __post_init__(self) -> None:
+        """Validate the route template and its allowed methods."""
+
         if not self.route_path.startswith("/") or self.route_path == "/" or self.route_path.endswith("/"):
             raise ValueError("A guarded HTTP path must be absolute, non-root, and have no trailing slash.")
         try:
@@ -150,6 +154,8 @@ OutcomeRenderer = Callable[
 
 
 def _route_shape(path: str) -> str:
+    """Normalize route parameter names for duplicate detection."""
+
     _, path_format, convertors = compile_path(path)
     for name, convertor in convertors.items():
         path_format = path_format.replace(f"{{{name}}}", f"{{{type(convertor).__name__}}}")
@@ -157,6 +163,8 @@ def _route_shape(path: str) -> str:
 
 
 def _validate_operations(operations: Collection[GuardedHttpOperation]) -> tuple[GuardedHttpOperation, ...]:
+    """Require at least one operation with unique names and routes."""
+
     resolved = tuple(operations)
     if not resolved:
         raise ValueError("At least one guarded HTTP operation is required.")
@@ -174,6 +182,8 @@ def _validate_operations(operations: Collection[GuardedHttpOperation]) -> tuple[
 
 
 def _request_path(request: Request) -> bytes:
+    """Return the raw request path or reconstruct its ASCII encoding."""
+
     raw_path = request.scope.get("raw_path")
     if isinstance(raw_path, bytes):
         return raw_path
@@ -181,6 +191,8 @@ def _request_path(request: Request) -> bytes:
 
 
 async def _buffer_request(request: Request, max_body_bytes: int) -> BufferedHttpRequest:
+    """Read and preserve one request within the configured body limit."""
+
     content_length = request.headers.get("content-length")
     if content_length is not None:
         try:
@@ -207,6 +219,8 @@ async def _buffer_request(request: Request, max_body_bytes: int) -> BufferedHttp
 
 
 def _render_response(value: BufferedHttpResponse) -> Response:
+    """Render a buffered response without normalizing its headers or body."""
+
     response = Response(content=value.body, status_code=value.status_code)
     response.raw_headers = list(value.headers)
     return response
@@ -216,6 +230,8 @@ def _render_failure(
     failure: OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | HttpOperationFailed,
     render_outcome: OutcomeRenderer,
 ) -> Response:
+    """Render one operation failure through the configured response mapping."""
+
     return _render_response(render_outcome(failure))
 
 
@@ -227,13 +243,19 @@ def _guarded_handler(
     max_request_body_bytes: int,
     max_response_body_bytes: int,
 ) -> Callable[[Request], Awaitable[Response]]:
+    """Create the HTTP handler for one guarded operation."""
+
     async def bounded_dispatch(request: BufferedHttpRequest) -> BufferedHttpResponse:
+        """Dispatch one request and enforce the response body limit."""
+
         response = await dispatch(request)
         if len(response.body) > max_response_body_bytes:
             raise ResponseBodyTooLarge
         return response
 
     async def handle(request: Request) -> Response:
+        """Buffer, check, dispatch, and render one guarded request."""
+
         try:
             buffered_request = await _buffer_request(request, max_request_body_bytes)
             outcome = await execute_buffered_operation(
@@ -312,6 +334,8 @@ def create_http_proxy_router(
 
     @router.api_route("/{path:path}", methods=list(HTTP_METHODS), include_in_schema=False)
     async def passthrough(request: Request) -> Response:
+        """Forward provider-owned routes without content checking."""
+
         normalized_path = re.sub(r"/+", "/", request.url.path).rstrip("/") or "/"
         reserved_methods = next(
             (methods for path_regex, methods in reserved_matchers if path_regex.fullmatch(normalized_path) is not None),

@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Test transparent HTTP proxying for buffered provider operations."""
+
 import json
 
 import httpx
@@ -46,6 +48,8 @@ from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
 
 class StaticChecker:
+    """Provide configurable content-check results and observable calls."""
+
     def __init__(self, input_decision=ContentAllowed(), output_decision=ContentAllowed()):
         self.input_decision = input_decision
         self.output_decision = output_decision
@@ -141,6 +145,8 @@ async def proxy_harness(guarded_operation):
 
 @pytest.mark.asyncio
 async def test_guarded_route_checks_content_and_preserves_provider_response(proxy_harness):
+    """Check configured content while preserving the provider response."""
+
     client, checker, dispatched = proxy_harness
     body = b'{ "input" : "question", "opaque" : 3 }'
 
@@ -166,6 +172,8 @@ async def test_guarded_route_checks_content_and_preserves_provider_response(prox
 
 @pytest.mark.asyncio
 async def test_catchall_forwards_without_calling_checker(proxy_harness):
+    """Forward provider-owned routes without calling the checker."""
+
     client, checker, dispatched = proxy_harness
 
     response = await client.patch(
@@ -195,6 +203,8 @@ async def test_catchall_forwards_without_calling_checker(proxy_harness):
     ],
 )
 async def test_input_outcome_is_rendered_without_dispatch(guarded_operation, decision, expected_status, expected_body):
+    """Render stopped input checks without dispatching the request."""
+
     checker = StaticChecker(input_decision=decision)
     dispatched = []
 
@@ -226,6 +236,8 @@ async def test_input_outcome_is_rendered_without_dispatch(guarded_operation, dec
 
 @pytest.mark.asyncio
 async def test_output_block_hides_provider_response(proxy_harness):
+    """Hide the original provider response when output is blocked."""
+
     client, checker, dispatched = proxy_harness
     checker.output_decision = ContentBlocked("blocked")
 
@@ -240,6 +252,8 @@ async def test_output_block_hides_provider_response(proxy_harness):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["/v1/generate/", "/v1//generate"])
 async def test_guarded_path_variants_cannot_bypass_into_catchall(proxy_harness, path):
+    """Prevent guarded path variants from reaching transparent forwarding."""
+
     client, checker, dispatched = proxy_harness
 
     response = await client.post(path, json={"input": "question"})
@@ -251,6 +265,8 @@ async def test_guarded_path_variants_cannot_bypass_into_catchall(proxy_harness, 
 
 @pytest.mark.asyncio
 async def test_wrong_method_for_guarded_path_is_not_forwarded(proxy_harness):
+    """Return method not allowed instead of forwarding a guarded path."""
+
     client, checker, dispatched = proxy_harness
 
     response = await client.put("/v1/generate", json={"input": "question"})
@@ -263,6 +279,8 @@ async def test_wrong_method_for_guarded_path_is_not_forwarded(proxy_harness):
 
 @pytest.mark.asyncio
 async def test_reserved_application_route_cannot_fall_through_to_provider(guarded_operation):
+    """Keep application-owned routes out of provider forwarding."""
+
     dispatched = []
 
     async def dispatch(request):
@@ -297,6 +315,8 @@ async def test_reserved_application_route_cannot_fall_through_to_provider(guarde
 
 @pytest.mark.asyncio
 async def test_checker_policy_is_bound_once_for_all_requests(proxy_harness):
+    """Read the statically configured checker settings only once."""
+
     client, checker, _dispatched = proxy_harness
 
     await client.post("/v1/generate", json={"input": "one"})
@@ -308,6 +328,8 @@ async def test_checker_policy_is_bound_once_for_all_requests(proxy_harness):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["/v1/generate", "/v1/provider-owned"])
 async def test_buffered_request_limit_fails_before_dispatch(guarded_operation, path):
+    """Reject oversized buffered requests before provider dispatch."""
+
     dispatched = []
 
     async def dispatch(request):
@@ -334,6 +356,8 @@ async def test_buffered_request_limit_fails_before_dispatch(guarded_operation, p
 @pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["/v1/generate", "/v1/provider-owned"])
 async def test_buffered_response_limit_hides_upstream_body(guarded_operation, path):
+    """Hide oversized provider responses on every forwarded path."""
+
     async def dispatch(_request):
         return BufferedHttpResponse(200, (), b"12345")
 
@@ -355,6 +379,8 @@ async def test_buffered_response_limit_hides_upstream_body(guarded_operation, pa
 
 
 def test_duplicate_guarded_route_is_rejected(guarded_operation):
+    """Reject two guarded operations with the same route shape."""
+
     duplicate = GuardedHttpOperation(
         operation_path=GuardedOperationPath("/v1/generate"),
         operation=BufferedGuardedOperation(
@@ -374,6 +400,8 @@ def test_duplicate_guarded_route_is_rejected(guarded_operation):
 
 
 def test_guarded_http_path_rejects_path_spanning_parameters():
+    """Reject guarded templates that can consume multiple path segments."""
+
     with pytest.raises(ValueError, match="path-spanning"):
         GuardedOperationPath("/v1/{rest:path}")
 
@@ -381,6 +409,8 @@ def test_guarded_http_path_rejects_path_spanning_parameters():
 @pytest.mark.asyncio
 @pytest.mark.parametrize("content_length", ["invalid", "-1"])
 async def test_invalid_content_length_is_rendered_without_dispatch(guarded_operation, content_length):
+    """Render malformed content lengths without provider dispatch."""
+
     dispatched = []
     outcomes = []
 
@@ -416,6 +446,8 @@ async def test_invalid_content_length_is_rendered_without_dispatch(guarded_opera
 
 @pytest.mark.asyncio
 async def test_observed_request_limit_is_enforced_without_content_length(guarded_operation):
+    """Apply the request limit while streaming a body of unknown length."""
+
     dispatched = []
 
     async def content():
@@ -446,6 +478,8 @@ async def test_observed_request_limit_is_enforced_without_content_length(guarded
 @pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["/v1/generate", "/v1/provider-owned"])
 async def test_typed_dispatch_failure_is_rendered(guarded_operation, path):
+    """Render dispatch failures explicitly reported by the HTTP client."""
+
     outcomes = []
 
     async def dispatch(_request):
@@ -475,6 +509,8 @@ async def test_typed_dispatch_failure_is_rendered(guarded_operation, path):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["/v1/generate", "/v1/provider-owned"])
 async def test_untyped_dispatch_failure_is_not_reclassified(guarded_operation, path):
+    """Propagate unexpected dispatch errors without reclassifying them."""
+
     async def dispatch(_request):
         raise RuntimeError("programming failure")
 
@@ -493,6 +529,8 @@ async def test_untyped_dispatch_failure_is_not_reclassified(guarded_operation, p
 
 
 def test_request_path_fallback_percent_encodes_unicode():
+    """Percent-encode a Unicode path when raw path bytes are unavailable."""
+
     request = Request(
         {
             "type": "http",
