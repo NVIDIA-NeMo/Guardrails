@@ -17,6 +17,7 @@ import httpx
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 
 from nemoguardrails.server.experimental._content_checker import (
     ContentAllowed,
@@ -71,6 +72,17 @@ def _response_body():
 def _json_headers(*headers):
     """Return JSON content headers with optional provider metadata."""
     return ((b"content-type", b"application/json"), *headers)
+
+
+def test_openai_chat_router_constructs_its_buffered_operation():
+    """The Chat router constructs its typed buffered operation at runtime."""
+
+    async def dispatch(_request):
+        raise AssertionError("construction must not dispatch a request")
+
+    router = create_openai_chat_router(checker=StaticChecker(), dispatch=dispatch)
+
+    assert any(isinstance(route, APIRoute) and route.path == "/v1/chat/completions" for route in router.routes)
 
 
 @pytest_asyncio.fixture
