@@ -1,0 +1,38 @@
+version: '1.0.0-alpha.1'
+operationId: createText
+profile: single_text.v1
+request:
+  required: [prompt]
+  properties:
+    prompt:
+      type: string
+      minLength: 1
+      x-nemo-guardrails:
+        classification: guarded
+        subject:
+          kind: text
+          role: user
+          replaceable: true
+  x-nemo-guardrails:
+    opaque_fields: [model]
+response:
+  required: [text]
+  properties:
+    text:
+      type: string
+      minLength: 1
+      x-nemo-guardrails:
+        classification: guarded
+        subject:
+          kind: text
+          role: assistant
+          replaceable: true
+    status:
+      const: complete
+      x-nemo-guardrails:
+        classification: constrained
+        reason: projection_policy.complete_text
+integration:
+  endpoint:
+    unsupported_request_code: unsupported_text_request
+    unsupported_response_code: unsupported_text_response

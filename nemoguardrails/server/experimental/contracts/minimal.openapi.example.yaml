@@ -1,0 +1,39 @@
+openapi: 3.1.0
+info:
+  title: Synthetic buffered text example
+  version: 1.0.0
+paths:
+  /text:
+    post:
+      operationId: createText
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextRequest'
+      responses:
+        '200':
+          description: Generated text
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextResponse'
+components:
+  schemas:
+    TextRequest:
+      type: object
+      required: [prompt, model]
+      properties:
+        prompt:
+          type: string
+        model:
+          type: string
+    TextResponse:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        status:
+          type: string
+          enum: [complete, partial]
