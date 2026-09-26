@@ -242,7 +242,9 @@ class GuardedArraySelection:
                 field: item.get(field, missing) if isinstance(item, dict) else getattr(item, field, missing)
                 for field, _ in self.match
             }
-            if all(values[field] == expected for field, expected in self.match):
+            if all(
+                type(values[field]) is type(expected) and values[field] == expected for field, expected in self.match
+            ):
                 matches.append(item)
         if len(matches) != 1:
             raise ValueError("Guarded provider content requires exactly one matching array member.")
