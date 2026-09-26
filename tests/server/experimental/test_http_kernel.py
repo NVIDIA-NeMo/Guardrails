@@ -627,6 +627,8 @@ def test_guarded_http_path_rejects_path_spanning_parameters():
 
 @pytest.mark.asyncio
 async def test_projection_failure_is_rendered_without_dispatch():
+    """Render input projection failures without provider dispatch."""
+
     dispatched = []
     operation = GuardedHttpOperation(
         operation_path=GuardedOperationPath("/v1/projected"),
@@ -660,6 +662,8 @@ async def test_projection_failure_is_rendered_without_dispatch():
 
 @pytest.mark.asyncio
 async def test_inapplicable_output_inspection_preserves_provider_error():
+    """Preserve a provider error that has no output content to check."""
+
     checker = StaticChecker()
     provider_response = BufferedHttpResponse(
         429,

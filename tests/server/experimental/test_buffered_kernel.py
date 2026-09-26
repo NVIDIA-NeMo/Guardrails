@@ -323,6 +323,8 @@ async def test_invalid_output_projection_fails_after_dispatch(projection, messag
 
 @pytest.mark.asyncio
 async def test_unsupported_input_payload_fails_before_dispatch():
+    """Return an input projection failure before provider dispatch."""
+
     failure = UnsupportedGuardedPayload("unsupported request")
     operation = BufferedGuardedOperation(
         name="test.unsupported_input",
@@ -340,6 +342,8 @@ async def test_unsupported_input_payload_fails_before_dispatch():
 
 @pytest.mark.asyncio
 async def test_unsupported_output_payload_hides_provider_response():
+    """Hide the provider response when output projection fails."""
+
     failure = UnsupportedGuardedPayload("unsupported response")
     response = Response("answer")
     operation = BufferedGuardedOperation(
@@ -359,6 +363,8 @@ async def test_unsupported_output_payload_hides_provider_response():
 
 @pytest.mark.asyncio
 async def test_inapplicable_output_inspection_preserves_provider_response():
+    """Preserve a response that does not contain content to check."""
+
     response = Response("provider error")
     checker = StaticChecker()
     operation = BufferedGuardedOperation(
@@ -378,6 +384,8 @@ async def test_inapplicable_output_inspection_preserves_provider_response():
 
 @pytest.mark.asyncio
 async def test_input_inspection_cannot_be_declared_inapplicable():
+    """Reject an input projection without content to check."""
+
     operation = BufferedGuardedOperation(
         name="test.inapplicable_input",
         input_projection=lambda _request: ContentInspectionNotApplicable(),
