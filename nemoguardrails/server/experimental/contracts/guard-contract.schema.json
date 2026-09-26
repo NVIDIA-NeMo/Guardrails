@@ -1,0 +1,520 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nemo-guardrails:guard-contract:1.0.0-alpha.1",
+  "title": "NeMo Guard Contract 1.0.0-alpha.1 (experimental)",
+  "description": "Policy-first authoring format. Schema validation checks syntax, not provider coverage or runtime capability.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "const": "1.0.0-alpha.1"
+    },
+    "operationId": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "profile": {
+      "const": "single_text.v1"
+    },
+    "request": {
+      "$ref": "#/$defs/schema"
+    },
+    "response": {
+      "$ref": "#/$defs/schema"
+    },
+    "stream": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/schema"
+        },
+        {
+          "type": "object",
+          "required": [
+            "oneOf",
+            "x-nemo-guardrails"
+          ],
+          "properties": {
+            "x-nemo-guardrails": {
+              "type": "object",
+              "required": [
+                "transport"
+              ]
+            },
+            "oneOf": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "x-nemo-guardrails"
+                ],
+                "properties": {
+                  "x-nemo-guardrails": {
+                    "type": "object",
+                    "required": [
+                      "event"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "excluded_stream_events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "reason",
+          "sources"
+        ]
+      }
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "endpoint": {
+          "$ref": "#/$defs/endpoint"
+        }
+      },
+      "required": [
+        "endpoint"
+      ]
+    }
+  },
+  "required": [
+    "version",
+    "operationId",
+    "profile",
+    "request",
+    "response",
+    "integration"
+  ],
+  "dependentRequired": {
+    "excluded_stream_events": [
+      "stream"
+    ]
+  },
+  "$defs": {
+    "symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "module": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_]\\w*(\\.[a-zA-Z_]\\w*)*$"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_]\\w*$"
+        }
+      },
+      "required": [
+        "module",
+        "name"
+      ]
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "route_path": {
+          "type": "string",
+          "pattern": "^/[^/].*[^/]$|^/[^/]$"
+        },
+        "operation_label": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "unsupported_request_code": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "unsupported_response_code": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "stream_hooks": {
+          "$ref": "#/$defs/symbol"
+        },
+        "api_revision": {
+          "$ref": "#/$defs/symbol"
+        }
+      },
+      "required": [
+        "unsupported_request_code",
+        "unsupported_response_code"
+      ]
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text"
+        },
+        "role": {
+          "enum": [
+            "user",
+            "assistant"
+          ]
+        },
+        "replaceable": {
+          "type": "boolean"
+        },
+        "replacement_blocked_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "replacement_reason": {
+          "type": "string",
+          "pattern": "^(core_capability|provider_integrity|projection_policy)\\.[a-z][a-z0-9_]*$"
+        }
+      },
+      "required": [
+        "kind",
+        "role"
+      ]
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "integer",
+          "boolean"
+        ]
+      }
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "match": {
+          "$ref": "#/$defs/selection"
+        },
+        "cardinality": {
+          "enum": [
+            "any",
+            "at_most_one",
+            "exactly_one"
+          ]
+        }
+      }
+    },
+    "eventVariant": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shape": {
+          "type": "string",
+          "minLength": 1
+        },
+        "match": {
+          "$ref": "#/$defs/selection"
+        },
+        "required_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "external_reason": {
+          "type": "string",
+          "pattern": "^(core_capability|provider_integrity|projection_policy)\\.[a-z][a-z0-9_]*$"
+        }
+      },
+      "required": [
+        "source_schema",
+        "shape"
+      ]
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "classification": {
+          "enum": [
+            "guarded_delta",
+            "snapshot",
+            "opaque",
+            "provider_error"
+          ]
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/eventVariant"
+          },
+          "minItems": 1
+        },
+        "missing_text": {
+          "enum": [
+            "reject",
+            "opaque",
+            "empty"
+          ]
+        },
+        "missing_text_shape": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "classification",
+        "variants"
+      ]
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "data_discriminator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "require_sse_event": {
+          "type": "boolean"
+        },
+        "non_data_shape": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sentinels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "classification": {
+          "enum": [
+            "guarded",
+            "constrained",
+            "opaque"
+          ]
+        },
+        "subject": {
+          "$ref": "#/$defs/subject"
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "^(core_capability|provider_integrity|projection_policy)\\.[a-z][a-z0-9_]*$"
+        },
+        "gate": {
+          "const": "disabled"
+        },
+        "extension": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "pattern": "^#/components/schemas/[A-Za-z_][A-Za-z0-9._-]*$"
+        },
+        "unknown_fields": {
+          "enum": [
+            "configurable"
+          ]
+        },
+        "stream_selector_field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "opaque_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "not": {
+              "const": "*"
+            }
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "variant": {
+          "$ref": "#/$defs/variant"
+        },
+        "event": {
+          "$ref": "#/$defs/event"
+        },
+        "event_schema_binding": {
+          "enum": [
+            "operation_response",
+            "component"
+          ]
+        },
+        "event_schema_reason": {
+          "type": "string",
+          "pattern": "^(core_capability|provider_integrity|projection_policy)\\.[a-z][a-z0-9_]*$"
+        },
+        "transport": {
+          "$ref": "#/$defs/transport"
+        }
+      }
+    },
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "$comment": {
+          "type": "string"
+        },
+        "examples": {
+          "type": "array",
+          "items": {}
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "readOnly": {
+          "type": "boolean"
+        },
+        "writeOnly": {
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "array",
+            "boolean",
+            "integer",
+            "null",
+            "number",
+            "object",
+            "string"
+          ]
+        },
+        "const": {},
+        "default": {},
+        "enum": {
+          "type": "array",
+          "items": {},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "minItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/field"
+          }
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "items": {
+          "$ref": "#/$defs/schema"
+        },
+        "oneOf": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/schema"
+          },
+          "minItems": 1
+        },
+        "x-nemo-guardrails": {
+          "$ref": "#/$defs/metadata"
+        }
+      },
+      "patternProperties": {
+        "^x-(?!nemo-guardrails$)": {}
+      }
+    },
+    "field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/schema"
+        },
+        {
+          "type": "object",
+          "required": [
+            "x-nemo-guardrails"
+          ],
+          "properties": {
+            "x-nemo-guardrails": {
+              "type": "object",
+              "required": [
+                "classification"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
