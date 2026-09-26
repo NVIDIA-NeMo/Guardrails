@@ -33,7 +33,7 @@ EXTENSION = "x-nemo-guardrails"
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
-    loaded = yaml.safe_load(path.read_text())
+    loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert isinstance(loaded, dict)
     return loaded
 
@@ -67,7 +67,7 @@ def test_openai_chat_contract_matches_authoring_schema(
     chat_contract: dict[str, Any],
 ) -> None:
     """The OpenAI Chat contract conforms to the guard-contract authoring schema."""
-    schema = json.loads(SCHEMA_PATH.read_text())
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
     Draft202012Validator(schema).validate(chat_contract)
 
