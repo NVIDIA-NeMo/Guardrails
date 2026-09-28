@@ -25,16 +25,21 @@ import-time env var.
 """
 
 import asyncio
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from nemoguardrails import Guardrails, RailsConfig
 from nemoguardrails.guardrails import guardrails as guardrails_module
-from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.server import api
+from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
+from tests.guardrails.test_tool_rails_iorails import TOOL_CONFIG
+from tests.guardrails.tool_helpers import make_tool_conversation
 
 REASONING_TRACE = "The user asked for a capital city."
 LLM_ANSWER = "Paris."
@@ -321,3 +326,53 @@ def test_inline_reasoning_folds_when_think_is_mentioned_mid_content():
 
     assert folded.response[0]["content"] == f"<think>{REASONING_TRACE}</think>\n{quoted}"
     assert folded.reasoning_content is None
+
+
+@pytest.fixture
+def tool_rails_alias(monkeypatch):
+    """Alias LLMRails->Guardrails and serve a config with both tool rails, with IORails start stubbed."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    tool_rails_config = RailsConfig.from_content(config=TOOL_CONFIG)
+
+    async def _fake_start(self):
+        self._running = True
+
+    monkeypatch.setattr(api, "LLMRails", Guardrails)
+    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: tool_rails_config))
+    monkeypatch.setattr(IORails, "start", _fake_start)
+    yield
+
+
+@pytest.fixture
+def stubbed_main_model(monkeypatch):
+    """Stub the main model at its engine, so the IORails rails in front of it run for real."""
+    main_model = AsyncMock(return_value=LLMResponse(content="It is sunny."))
+    monkeypatch.setattr(ModelEngine, "chat_completion", main_model)
+    return main_model
+
+
+def _post_tool_conversation(messages: list):
+    """POST *messages* to /v1/chat/completions against the tool-rails config."""
+    client = TestClient(api.app, raise_server_exceptions=False)
+    return client.post(
+        "/v1/chat/completions",
+        json={"model": "test-model", "messages": messages, "guardrails": {"config_id": "tools"}},
+    )
+
+
+def test_chat_completion_accepts_a_spec_shaped_tool_result_under_iorails_alias(tool_rails_alias, stubbed_main_model):
+    """A tool message without `name`, as the OpenAI spec shapes it, passes the tool-result rail and reaches the model."""
+    response = _post_tool_conversation(make_tool_conversation(result_name=None))
+
+    assert response.status_code == 200
+    assert response.json()["choices"][0]["message"]["content"] == "It is sunny."
+    stubbed_main_model.assert_awaited_once()
+
+
+def test_chat_completion_refuses_an_unlinked_tool_result_under_iorails_alias(tool_rails_alias, stubbed_main_model):
+    """A tool message whose call id links to no prior call is refused before the model is called."""
+    response = _post_tool_conversation(make_tool_conversation(result_call_id="call_999", result_name=None))
+
+    assert response.status_code == 200
+    assert response.json()["choices"][0]["message"]["content"] == REFUSAL_MESSAGE
+    stubbed_main_model.assert_not_awaited()

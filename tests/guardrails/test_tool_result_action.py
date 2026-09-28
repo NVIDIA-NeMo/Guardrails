@@ -41,10 +41,10 @@ class TestToolResultRailAction:
         assert result.is_blocked is False
 
     @pytest.mark.asyncio
-    async def test_result_without_name_blocked_when_prior_name_known(self):
-        """When the prior call's name is known, a result without a name should be blocked"""
+    async def test_result_without_name_is_identified_by_its_call_id(self):
+        """A result without a name is safe when its call_id links it to a prior call."""
         result = await ToolResultRailAction().run([_result("c2")], _prior_calls())
-        assert_outcome_blocked(result, "missing a name", "search")
+        assert result.is_blocked is False
 
     @pytest.mark.asyncio
     async def test_list_content_is_well_formed(self):
@@ -65,6 +65,7 @@ class TestToolResultRailAction:
 
     @pytest.mark.asyncio
     async def test_unlinked_call_id_is_blocked(self):
+        """A result without a name whose call_id matches no prior call is blocked."""
         result = await ToolResultRailAction().run([_result("c9")], _prior_calls())
         assert_outcome_blocked(result, "c9", "does not correspond to a prior tool call")
 
@@ -175,14 +176,9 @@ class TestValidateResultName:
     def test_matching_names_returns_none(self):
         assert self.action._validate_result_name(_result("c1", name="get_weather"), self.prior) is None
 
-    def test_result_without_name_is_blocked_when_prior_name_known(self):
-        """When the prior call's name is known, a result without a name should be blocked"""
-        assert_outcome_blocked(
-            self.action._validate_result_name(_result("c1"), self.prior),
-            "missing a name",
-            "get_weather",
-            "c1",
-        )
+    def test_result_without_name_returns_none(self):
+        """A result without a name defers to its linked call's name, so there is nothing to contradict."""
+        assert self.action._validate_result_name(_result("c1"), self.prior) is None
 
     def test_prior_without_function_name_returns_none(self):
         """If a prior call is missing a name, a matching result with a name is allowed through"""
