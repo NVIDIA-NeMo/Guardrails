@@ -114,6 +114,33 @@ def test_rail_null_on_passed():
     assert "rail" not in data
 
 
+def test_reason_returned_on_blocked():
+    """A blocked check's reason passes through to the response alongside the rail."""
+    result = RailsResult(
+        status=RailStatus.BLOCKED,
+        content="I'm sorry, I can't respond to that.",
+        rail="content safety check input",
+        reason="unsafe request",
+    )
+    data = _checked(result)
+    assert data["rail"] == "content safety check input"
+    assert data["reason"] == "unsafe request"
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        RailsResult(status=RailStatus.PASSED, content="ok"),
+        RailsResult(status=RailStatus.BLOCKED, content="I'm sorry, I can't help with that.", rail="self check input"),
+    ],
+    ids=["passed", "blocked-without-reason"],
+)
+def test_reason_absent_when_none(result):
+    """A result with no reason, as on a pass or an LLMRails block, omits reason from the response."""
+    data = _checked(result)
+    assert "reason" not in data
+
+
 # --- Config resolution ---
 
 

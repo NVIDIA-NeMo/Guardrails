@@ -468,6 +468,79 @@ class TestCheckAsyncBlockedResult:
         assert result.rail is None
 
 
+class TestCheckAsyncBlockReason:
+    """A BLOCKED check says why it blocked; a check that did not block carries no reason."""
+
+    @pytest.mark.asyncio
+    async def test_input_block_carries_the_rail_reason(self, iorails):
+        """An input block reports the blocking rail's own reason."""
+        blocked = RailResult.block(reason="unsafe request", triggered_rail="content safety check input")
+        _mock_rails(iorails, input_result=blocked)
+
+        result = await iorails.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.reason == "unsafe request"
+
+    @pytest.mark.asyncio
+    async def test_output_block_carries_the_rail_reason(self, iorails):
+        """An output block reports the blocking rail's own reason."""
+        blocked = RailResult.block(reason="unsafe answer", triggered_rail="content safety check output")
+        _mock_rails(iorails, output_result=blocked)
+
+        result = await iorails.check_async([{"role": "assistant", "content": "bad answer"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.reason == "unsafe answer"
+
+    @pytest.mark.asyncio
+    async def test_reason_falls_back_to_the_triggered_rail(self, iorails):
+        """A block whose rail gave no reason reports the rail's name as the reason."""
+        _mock_rails(iorails, input_result=RailResult.block(triggered_rail="content safety check input"))
+
+        result = await iorails.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.reason == "content safety check input"
+
+    @pytest.mark.asyncio
+    async def test_reason_falls_back_to_unspecified(self, iorails):
+        """A block naming neither a reason nor a rail reports the reason as unspecified."""
+        _mock_rails(iorails, input_result=RailResult.block())
+
+        result = await iorails.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.reason == "unspecified"
+
+    @pytest.mark.asyncio
+    async def test_failed_rail_reports_its_redacted_failure_reason(self, iorails):
+        """A rail that broke reports the client-facing failure reason the fail-closed envelope wrote."""
+        _mock_rails(iorails, input_result=rail_failure("f5 guardrails scan input"))
+
+        result = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert result.reason == "f5 guardrails scan input error: provider call failed"
+
+    @pytest.mark.asyncio
+    async def test_passed_has_no_reason(self, iorails):
+        """A passed check carries no reason."""
+        _mock_rails(iorails)
+
+        result = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert result.status == RailStatus.PASSED
+        assert result.reason is None
+
+    @pytest.mark.asyncio
+    async def test_modified_has_no_reason(self, iorails):
+        """A rewritten check carries no reason, because nothing blocked it."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite("masked"))
+
+        result = await iorails.check_async([{"role": "user", "content": "raw"}])
+
+        assert result.status == RailStatus.MODIFIED
+        assert result.reason is None
+
+
 class TestCheckAsyncFailedRail:
     """A rail that failed is reported as an internal error, not as a content refusal."""
 
@@ -530,6 +603,15 @@ class TestCheckSync:
 
         assert result.status == RailStatus.BLOCKED
         assert result.rail == "content safety check input"
+
+    def test_check_blocked_carries_the_reason(self, iorails_sync):
+        """Sync check() reports why the check blocked, as check_async does."""
+        _mock_rails(iorails_sync, input_result=_unsafe("content safety check input"))
+
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails_sync):
+            result = iorails_sync.check([{"role": "user", "content": "bad"}])
+
+        assert result.reason == "unsafe"
 
     def test_check_renders_the_internal_error_for_a_failed_rail(self, iorails_sync):
         """The sync wrapper carries the failed-rail rendering, not just the async path."""
@@ -722,6 +804,80 @@ class TestCheckWithRewritingRails:
         assert result.status == RailStatus.BLOCKED
         assert result.content == REFUSAL_MESSAGE
         assert result.rail == "content safety check output"
+
+
+@pytest.mark.asyncio
+class TestCheckContentCaptureRecordsMaskedMessages:
+    """Capture records the checked messages as the rails masked them, so a span cannot carry what a mask removed."""
+
+    async def test_an_input_mask_is_captured_masked(self, iorails):
+        """The captured user message is the one the input rails masked."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async([{"role": "user", "content": USER_TEXT}])
+
+        assert capture.call_args.args[1] == [{"role": "user", "content": MASKED_USER_TEXT}]
+
+    async def test_an_output_mask_is_captured_masked(self, iorails):
+        """The captured assistant message is the one the output rails masked."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite(MASKED_BOT_TEXT))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async(CONVERSATION, rail_types=[RailType.OUTPUT])
+
+        assert capture.call_args.args[1] == [
+            {"role": "user", "content": USER_TEXT},
+            {"role": "assistant", "content": MASKED_BOT_TEXT},
+        ]
+
+    async def test_both_masks_are_captured_masked(self, iorails):
+        """With both directions masked, neither raw text reaches the span."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite(MASKED_BOT_TEXT))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async(CONVERSATION)
+
+        assert capture.call_args.args[1] == [
+            {"role": "user", "content": MASKED_USER_TEXT},
+            {"role": "assistant", "content": MASKED_BOT_TEXT},
+        ]
+
+    async def test_an_input_mask_is_captured_masked_when_the_output_blocks(self, iorails):
+        """A block after an input mask still captures the masked user message."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=_unsafe("content safety check output"))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async(CONVERSATION)
+
+        assert capture.call_args.args[1][0] == {"role": "user", "content": MASKED_USER_TEXT}
+
+    async def test_an_unmasked_check_is_captured_as_it_arrived(self, iorails):
+        """With no rewrite, the span records the messages the caller sent."""
+        iorails._content_capture_enabled = True
+        _mock_rails(iorails)
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async(CONVERSATION)
+
+        assert capture.call_args.args[1] == CONVERSATION
+
+    async def test_an_output_mask_leaves_the_callers_messages_unchanged(self, iorails):
+        """Masking for the span copies the conversation rather than editing the caller's list."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite(MASKED_BOT_TEXT))
+        messages = [dict(message) for message in CONVERSATION]
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content"):
+            await iorails.check_async(messages, rail_types=[RailType.OUTPUT])
+
+        assert messages == CONVERSATION
 
 
 class TestUnsatisfiableRailTypes:
