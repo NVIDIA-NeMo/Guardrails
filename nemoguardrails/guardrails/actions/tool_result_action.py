@@ -17,7 +17,7 @@
 
 Structurally validates the tool results carried on an incoming request against
 the tool calls the model previously made: every result must link to a prior
-call by ``call_id``, name a tool consistent with that call, and carry
+call by ``call_id``, must not name a different tool than that call, and must carry
 well-formed content. This PR validates structure only -- there are no declared
 response schemas yet. The rail is local and model-free; it runs through
 :meth:`ToolRailAction._guarded`, so a malformed result or an unexpected error
@@ -125,23 +125,14 @@ class ToolResultRailAction(ToolRailAction):
         return None
 
     def _validate_result_name(self, result: "ToolResult", prior: "ToolCall") -> "RailOutcome | None":
-        """Return a blocking RailOutcome unless the result name matches the prior call's function name.
-
-        When the prior call's name is known, the result must carry that exact name: a
-        missing name no longer slips through on call_id linkage alone (it could mislabel a
-        result from a different tool), and a mismatched name is rejected. When the prior
-        call's name is unknown there is nothing to compare against, so the check returns None.
-        """
+        """Return a blocking RailOutcome if the result names a different tool than its linked call."""
         if not prior.function.name:
             return None
         if result.name == prior.function.name:
             return None
         if not result.name:
-            return RailOutcome.block(
-                reason=(
-                    f"tool result for call_id '{result.call_id}' is missing a name; expected '{prior.function.name}'"
-                ),
-            )
+            # An OpenAI tool message carries no name; its call_id already binds it to exactly one call.
+            return None
         return RailOutcome.block(
             reason=(
                 f"tool result name '{result.name}' does not match the called tool "
