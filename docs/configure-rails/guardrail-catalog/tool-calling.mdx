@@ -12,7 +12,7 @@ It forwards your tool definitions to the model unchanged and applies two structu
 - **Tool call validation** checks every tool call the model emits against the tools you declared.
   A call must name an allowed tool and supply arguments that satisfy that tool's JSON Schema.
 - **Tool result validation** checks the tool results your application returns to the model.
-  Each result must link to a tool call the model previously made, name a consistent tool, and carry well-formed content.
+  Each result must link to a tool call the model previously made, must not name a different tool than that call, and must carry well-formed content.
 
 Both rails are local checks.
 They do not make extra LLM or API calls.
@@ -299,8 +299,11 @@ The rail blocks the request when a tool result:
 - Is missing a `tool_call_id`, or that id does not correspond to a tool call earlier in the conversation.
 - Reuses a `tool_call_id` that another result in the same turn already used.
   Each call must have exactly one result.
-- Names a different tool than the call it links to, or omits a name when the call's tool name is known.
+- Names a different tool than the call it links to.
 - Carries content that is not a string or a list of content-block objects.
+
+A tool result doesn't need a `name`.
+The OpenAI tool message has none, so the rail identifies the tool from the result's `tool_call_id`.
 
 <Note>
     This rail validates structural well-formedness only. It confirms that the
