@@ -245,9 +245,7 @@ class TestContentSafetyParserIntegration:
             "content safety check input $model=test_model", RailDirection.INPUT, dependencies
         ).run([{"role": "user", "content": "Some content"}])
 
-        assert outcome == RailOutcome.failure(
-            reason="content safety check input error: Failed to parse content safety model response"
-        )
+        assert outcome == RailOutcome.failure(reason="content safety check input error")
 
 
 class TestIterableUnpackingIntegration:
