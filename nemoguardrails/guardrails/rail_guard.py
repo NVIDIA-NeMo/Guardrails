@@ -34,7 +34,7 @@ from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.guardrails.guardrails_types import get_request_id
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.telemetry import record_span_error
-from nemoguardrails.llm.clients._errors import _redact_secrets, client_facing_message
+from nemoguardrails.llm.clients._errors import _redact_secrets, _sanitize, as_client_error
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -61,9 +61,9 @@ def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Ex
     message (CWE-532). *exc* itself propagates unmodified, so an operator still sees the real
     text in a traceback.
 
-    The returned reason is the client-facing form instead, because it is rendered into the
-    streaming violation payload through ``client_reason``. ``str(exc)`` there would disclose
-    the internal rail model to an API caller.
+    The returned reason is the client-facing form instead, because it reaches API callers
+    through ``client_reason``: the streaming violation payload and a check's ``reason``.
+    See :func:`_client_facing_reason` for what it may carry.
 
     The span error is recorded only on the blocking path. Callers run inside ``action_span``,
     which records anything escaping it, so recording here too would double up.
@@ -81,7 +81,18 @@ def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Ex
 
     record_span_error(span, exc)
     log.error("[%s] %s failed: %s", request_id, action_name, detail)
-    return f"{action_name} error: {_redact_secrets(client_facing_message(exc))}"
+    return _client_facing_reason(action_name, exc)
+
+
+def _client_facing_reason(action_name: str, exc: Exception) -> str:
+    """The block reason an API caller may see for a rail that raised *exc*."""
+    client_error = as_client_error(exc)
+    if client_error is None:
+        # Any other exception's text is the action's own, and may quote an upstream body or
+        # endpoint that no pattern can reliably scrub, so the caller gets only the rail's name.
+        return f"{action_name} error"
+    # A classified provider error's message was written for callers; scrub it all the same.
+    return f"{action_name} error: {_sanitize(client_error.error_message)}"
 
 
 def rail_error_outcome(span: Optional["Span"], action_name: str, exc: Exception) -> RailOutcome:
