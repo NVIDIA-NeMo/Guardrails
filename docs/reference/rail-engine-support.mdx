@@ -9,13 +9,13 @@ content:
   type: "reference"
 ---
 
-The NVIDIA NeMo Guardrails library ships 33 built-in rails under `nemoguardrails/library`.
+The NVIDIA NeMo Guardrails library ships 34 built-in rails under `nemoguardrails/library`.
 Each rail declares its behavior in a [rail manifest](/reference/rail-manifests), and each manifest exposes one or more *surfaces*.
 A surface is the flow name you list under `rails.input.flows`, `rails.output.flows`, or `rails.retrieval.flows` in `config.yml`.
 
-The 33 manifests declare 80 surfaces in total.
+The 34 manifests declare 82 surfaces in total.
 `LLMRails` runs 78 of them through its Colang runtime, in both Colang 1.0 and Colang 2.x.
-`IORails` runs 61 of them by compiling the manifest directly, without Colang.
+`IORails` runs 63 of them by compiling the manifest directly, without Colang.
 
 This page lists every surface and the engine that can run it.
 For capability areas that are not tied to a specific rail, such as streaming, observability, and the generation API, refer to [Engine Feature Support](/reference/engine-feature-support).
@@ -40,9 +40,9 @@ The following table summarizes surface support by direction:
 | Input | 32 | 32 | 31 |
 | Output | 35 | 35 | 28 |
 | Retrieval | 11 | 11 | 0 |
-| Tool_output | 1 | 0 | 1 |
-| Tool_input | 1 | 0 | 1 |
-| **Total** | **80** | **78** | **61** |
+| Tool_output | 2 | 0 | 2 |
+| Tool_input | 2 | 0 | 2 |
+| **Total** | **82** | **78** | **63** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
 A configuration that declares one routes to `LLMRails` by default.
@@ -161,6 +161,7 @@ Per-tool checks are an `IORails`-only capability by design:
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
 | `regex check tool output` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
+| `tool safety check output` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
 
 ### Tool Input Surfaces
 
@@ -170,8 +171,9 @@ Per-tool checks are an `IORails`-only capability by design:
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
 | `regex check tool input` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
+| `tool safety check input` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
 
-For a worked per-tool configuration example, including the `$argument=` scoping option, refer to [Regular Expression Detection Integration](/configure-guardrails/guardrail-catalog/community/regex).
+For worked per-tool configuration examples, refer to [Regular Expression Detection Integration](/configure-guardrails/guardrail-catalog/community/regex) (includes the `$argument=` scoping option) and [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check) (an LLM-judged check with `$model=`/`$variant=`).
 
 ### Tool Surfaces
 

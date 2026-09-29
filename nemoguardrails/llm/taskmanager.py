@@ -47,6 +47,7 @@ from nemoguardrails.llm.output_parsers import (
     nemotron_content_safety_parse_response_safety,
     nemotron_reasoning_parse_prompt_safety,
     nemotron_reasoning_parse_response_safety,
+    parse_tool_safety_verdict,
     user_intent_parser,
     verbose_v1_parser,
 )
@@ -88,6 +89,7 @@ class LLMTaskManager:
             "bot_message": bot_message_parser,
             "verbose_v1": verbose_v1_parser,
             "is_content_safe": is_content_safe,
+            "parse_tool_safety_verdict": parse_tool_safety_verdict,
             "nemoguard_parse_prompt_safety": nemoguard_parse_prompt_safety,
             "nemoguard_parse_response_safety": nemoguard_parse_response_safety,
             "nemotron_content_safety_parse_prompt_safety": nemotron_content_safety_parse_prompt_safety,
@@ -363,7 +365,7 @@ class LLMTaskManager:
 
         return parsed_text
 
-    def has_output_parser(self, task: Task):
+    def has_output_parser(self, task: Union[str, Task]):
         prompt = get_prompt(self.config, task)
         return prompt.output_parser is not None
 
