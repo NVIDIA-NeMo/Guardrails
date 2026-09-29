@@ -140,16 +140,6 @@ def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -
     return rewrites[target.value]
 
 
-async def _bounded(coro: Coroutine[Any, Any, RailResult], semaphore: asyncio.Semaphore) -> RailResult:
-    """Run *coro* once *semaphore* has a free slot."""
-    try:
-        async with semaphore:
-            return await coro
-    finally:
-        # Closes a coroutine cancelled while still waiting for a slot; a no-op once it has run.
-        coro.close()
-
-
 def _refuse_concurrent_rewrite(result: RailResult, flow: str) -> None:
     """Refuse a rewrite from a concurrent rail: peers read the arriving text, so it cannot compose."""
     if result.outcome.is_transform:
@@ -836,7 +826,16 @@ class RailsManager:
         req_id = get_request_id()
         if max_concurrency is not None:
             semaphore = asyncio.Semaphore(max_concurrency)
-            rails = {flow: _bounded(coro, semaphore) for flow, coro in rails.items()}
+
+            async def bounded(coro: Coroutine[Any, Any, RailResult]) -> RailResult:
+                try:
+                    async with semaphore:
+                        return await coro
+                finally:
+                    # Closes a coroutine cancelled while still waiting for a slot; a no-op once it has run.
+                    coro.close()
+
+            rails = {flow: bounded(coro) for flow, coro in rails.items()}
         task_to_flow: dict[asyncio.Task, str] = {asyncio.create_task(coro): flow for flow, coro in rails.items()}
         tasks = list(task_to_flow.keys())
         task_order = {task: i for i, task in enumerate(tasks)}

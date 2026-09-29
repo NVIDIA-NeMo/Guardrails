@@ -1305,6 +1305,14 @@ class TestToolParallelDisabledByRewrite:
         assert mgr.tool_output_parallel is False
         assert mgr.tool_input_parallel is False
 
+    def test_a_config_that_never_asked_for_parallel_is_not_warned_about(self, recwarn):
+        with rails_compiled_as({"regex check tool output": StubRail(transform_target=self._STUB_TARGET)}):
+            mgr = _tool_rails_manager_with_main(per_tool_call_flows={"run_sql": ["regex check tool output"]})
+
+        assert mgr.per_tool_transform_flows[SurfaceDirection.TOOL_OUTPUT] == ("regex check tool output",)
+        assert mgr.tool_output_parallel is False
+        assert [warning for warning in recwarn if "parallel" in str(warning.message)] == []
+
     def test_parallel_is_left_alone_when_nothing_rewrites(self, recwarn):
         mgr = _tool_rails_manager_with_main(
             per_tool_call_flows={"run_sql": ["regex check tool output"]},
