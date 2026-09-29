@@ -123,6 +123,7 @@ The `RailsResult` object contains the outcome of the rails check.
 | `status` | `RailStatus` | `PASSED`, `MODIFIED`, or `BLOCKED` |
 | `content` | `str` | The final content after rails processing |
 | `rail` | `Optional[str]` | Name of the rail that blocked the content (only when `BLOCKED`) |
+| `reason` | `Optional[str]` | Why the rail blocked the content (IORails only; `None` on `LLMRails` and when not `BLOCKED`) |
 
 ### RailStatus Enum
 
@@ -219,7 +220,7 @@ result = await rails.check_async([
 ])
 
 if result.status == RailStatus.BLOCKED:
-    print(f"Input blocked by rail: {result.rail}")
+    print(f"Input blocked by rail: {result.rail} ({result.reason})")
 ```
 
 `check_async()` starts the engine on first use, in the same way `generate_async()` does, so no explicit `startup()` call is required.
@@ -237,6 +238,7 @@ The API surface is identical on both engines, but each engine executes a check d
 | Main LLM call | Not made | Not made |
 | Tool rails | Not run | Not run |
 | `BLOCKED` content | The refusal message defined by the configuration's Colang flow | A fixed refusal message that the configuration does not change |
+| `BLOCKED` reason | Not reported. `reason` is `None` | The blocking rail's own explanation, or the rail's name when it gives none |
 | Rail that fails to execute | Handled by the Colang runtime's internal-error path | `BLOCKED` with an internal-error message that is distinct from the refusal message |
 | Requested direction with no content to check | An output-only check with no user message runs with an empty user message supplied as context | The direction is skipped and the result is `PASSED` |
 | Admission control | None | Shares the non-streaming admission queue with `generate_async()`, and raises `NonStreamingWorkQueueFullError` (a subclass of `asyncio.QueueFull`) when the queue is full |
@@ -254,7 +256,12 @@ When a rail fails to execute, the check returns `BLOCKED` with `I'm sorry, an in
 This distinction prevents the application from reporting an operational failure as a content refusal.
 That wording matches the sentence the Colang runtime produces on `LLMRails` when an action fails.
 
-In every case, treat `status` as the decision and `content` as the message to display. Do not match on the message text.
+On `IORails`, a blocked check also sets `reason`, which explains the block for logs and diagnostics.
+A rail that fails to execute reports its failure there, with credentials redacted.
+Each rail words its own reason, so the text can change between releases.
+
+In every case, treat `status` as the decision and `content` as the message to display.
+Do not match on the message text or on `reason`.
 
 ### Missing Content for a Requested Direction
 
@@ -284,6 +291,7 @@ When your application requires that a rail actually ran, assert that the message
   A check rejected by a full admission queue increments `guardrails.nonstream.rejections`.
   For more information, refer to [Metric Reference](/observability/metrics/reference).
 - Content capture records the checked messages in `guardrails.request.input` and the returned content in `guardrails.request.output` on the check's request span.
+  When an input or output rail rewrites the text it checked, for example to mask personal data, the span records the rewritten messages rather than the ones the caller sent.
   For more information, refer to [Capturing Prompt and Response Content](/observability/tracing/content-capture).
 
 The synchronous `check()` builds a short-lived engine with tracing and metrics disabled, so it emits no spans and no metrics. Use `check_async()` on instrumented paths.
@@ -294,6 +302,10 @@ The bundled server exposes checks through the `/v1/checks` endpoint, which calls
 The server resolves that engine through the top-level `LLMRails` import.
 Setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` runs compatible configurations on `IORails` and the rest on `LLMRails`.
 Requesting a rail type with no configured flows returns HTTP 422.
+
+The response carries `status`, `content`, and, on a block, `rail`.
+A block on `IORails` also carries `reason`.
+The response omits a field whose value is `None`, so a passed check and an `LLMRails` block carry no `reason`.
 
 <Note>
 
