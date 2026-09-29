@@ -35,7 +35,9 @@ from nemoguardrails.guardrails.iorails import (
     IORails,
     _determine_rails_from_messages,
     _get_last_content_by_role,
+    _rewrite_last_assistant_message,
 )
+from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.guardrails.rail_stubs import bot_message_rewrite, rail_failure, user_message_rewrite
@@ -521,6 +523,17 @@ class TestCheckAsyncBlockReason:
         assert result.reason == "f5 guardrails scan input error: provider call failed"
 
     @pytest.mark.asyncio
+    async def test_failed_rail_reason_carries_no_exception_text(self, iorails):
+        """A rail that raised an unclassified error is reported by name only, whatever the exception said."""
+        exc = ValueError("Details: see https://internal.example/debug token nvapi-abc123secret")
+        failure = rail_error_outcome(None, "policyai moderation on input", exc)
+        _mock_rails(iorails, input_result=RailResult(failure, triggered_rail="policyai moderation on input"))
+
+        result = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert result.reason == "policyai moderation on input error"
+
+    @pytest.mark.asyncio
     async def test_passed_has_no_reason(self, iorails):
         """A passed check carries no reason."""
         _mock_rails(iorails)
@@ -735,6 +748,35 @@ class TestCheckHelpers:
     def test_get_last_content_by_role_none_content_returns_empty(self):
         """content=None on the matched message is normalized to ''."""
         assert _get_last_content_by_role([{"role": "user", "content": None}], "user") == ""
+
+    def test_rewrite_last_assistant_message_rewrites_only_the_last(self):
+        """Only the last assistant message is rewritten, the one output rails checked."""
+        messages = [
+            {"role": "assistant", "content": "first"},
+            {"role": "user", "content": "question"},
+            {"role": "assistant", "content": "second"},
+        ]
+
+        rewritten = _rewrite_last_assistant_message(messages, "masked")
+
+        assert rewritten == [
+            {"role": "assistant", "content": "first"},
+            {"role": "user", "content": "question"},
+            {"role": "assistant", "content": "masked"},
+        ]
+
+    def test_rewrite_last_assistant_message_leaves_the_input_unchanged(self):
+        """The rewrite copies the list and the message rather than editing the caller's."""
+        messages = [{"role": "user", "content": "question"}, {"role": "assistant", "content": "answer"}]
+
+        _rewrite_last_assistant_message(messages, "masked")
+
+        assert messages == [{"role": "user", "content": "question"}, {"role": "assistant", "content": "answer"}]
+
+    def test_rewrite_last_assistant_message_raises_without_an_assistant_message(self):
+        """With no assistant message there is nothing a rewrite could apply to, so it fails loudly."""
+        with pytest.raises(ValueError, match="no assistant message"):
+            _rewrite_last_assistant_message([{"role": "user", "content": "question"}], "masked")
 
 
 USER_TEXT = "my ssn is 123-45-6789"
