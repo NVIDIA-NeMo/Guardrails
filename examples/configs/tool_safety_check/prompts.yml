@@ -7,7 +7,9 @@ prompts:
       Block any query that reads from the `payroll` or `ssn` tables, or that
       contains a DROP, DELETE, or TRUNCATE statement.
 
-      Respond "safe" or "unsafe: <reason>".
+      Provide your safety assessment in exactly one line:
+      - If it is safe, respond with "safe" and nothing more.
+      - If it is unsafe, respond with "unsafe: <reason>", separating multiple reasons with semicolons.
     output_parser: parse_tool_safety_verdict
 
   - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
@@ -17,5 +19,7 @@ prompts:
 
       Block any result that contains a full credit card number or SSN.
 
-      Respond "safe" or "unsafe: <reason>".
+      Provide your safety assessment in exactly one line:
+      - If it is safe, respond with "safe" and nothing more.
+      - If it is unsafe, respond with "unsafe: <reason>", separating multiple reasons with semicolons.
     output_parser: parse_tool_safety_verdict

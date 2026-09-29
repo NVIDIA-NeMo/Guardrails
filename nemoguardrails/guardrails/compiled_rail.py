@@ -622,12 +622,12 @@ def _reject_invalid_tool_safety_check_prompt(
         raise RailCompilationError(f"{flow!r} has no prompt for task {task!r}: {exc}") from exc
 
     if prompt.output_parser is None:
-        raise RailCompilationError(f"{flow!r} has no output_parser declared for task {task!r}, which is required.")
+        raise RailCompilationError(f"{flow!r} has no output_parser declared for task {task!r}, which is required")
 
     if prompt.output_parser not in deps.llm_task_manager.output_parsers:
         raise RailCompilationError(
             f"{flow!r} declares output_parser {prompt.output_parser!r} for task {task!r}, which is "
-            "not a registered output parser."
+            "not a registered output parser"
         )
 
 

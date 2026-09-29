@@ -59,7 +59,9 @@ To use the tool safety check, you should:
           Block any query that reads from the `payroll` or `ssn` tables, or that
           contains a DROP, DELETE, or TRUNCATE statement.
 
-          Respond "safe" or "unsafe: <reason>".
+          Provide your safety assessment in exactly one line:
+          - If it is safe, respond with "safe" and nothing more.
+          - If it is unsafe, respond with "unsafe: <reason>", separating multiple reasons with semicolons.
         output_parser: parse_tool_safety_verdict
 
       - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
@@ -69,7 +71,9 @@ To use the tool safety check, you should:
 
           Block any result that contains a full credit card number or SSN.
 
-          Respond "safe" or "unsafe: <reason>".
+          Provide your safety assessment in exactly one line:
+          - If it is safe, respond with "safe" and nothing more.
+          - If it is unsafe, respond with "unsafe: <reason>", separating multiple reasons with semicolons.
         output_parser: parse_tool_safety_verdict
     ```
 
@@ -83,9 +87,9 @@ To use the tool safety check, you should:
 
 4. `output_parser` is required on every tool safety check prompt. The example above uses the built-in `parse_tool_safety_verdict` parser, which expects a response of the form "safe" or "unsafe: `<reason>`":
 
-    - If the response leads with "safe", the content is considered safe.
-    - If the response leads with "unsafe", the content is considered unsafe. Any text after "unsafe:" is recorded as the block reason; separate multiple violations with a semicolon (e.g. "unsafe: leaks credentials; drops a table") to surface each one individually in the rail's metadata.
-    - The verdict must lead the response, not just appear anywhere in it: a response like "This violates the safety policy" does not match "safe" (it isn't the leading word), and is treated as a broken judge response and raises, rather than being interpreted as a safety decision.
+    - If the response is just "safe", the content is considered safe. Surrounding punctuation or markup is ignored, but any other word is not.
+    - If the response starts with "unsafe", the content is considered unsafe. Any text after it is recorded as the block reason; separate multiple violations with a semicolon (e.g. "unsafe: leaks credentials; drops a table") to surface each one individually in the rail's metadata.
+    - Any other response, such as "This violates the safety policy", is treated as a broken judge response and raises, rather than being interpreted as a safety decision. Keeping the prompt's output instructions strict, as in the example above, makes this rare.
 
     You can set `output_parser` to a different built-in parser instead (for example `is_content_safe`, whose response format and keyword vocabulary differ); IORails does not support registering custom parser functions.
 
@@ -135,7 +139,9 @@ prompts:
       Block any query that reads from the `payroll` or `ssn` tables, or that
       contains a DROP, DELETE, or TRUNCATE statement.
 
-      Respond "safe" or "unsafe: <reason>".
+      Provide your safety assessment in exactly one line:
+      - If it is safe, respond with "safe" and nothing more.
+      - If it is unsafe, respond with "unsafe: <reason>", separating multiple reasons with semicolons.
     output_parser: parse_tool_safety_verdict
 
   - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
@@ -145,7 +151,9 @@ prompts:
 
       Block any result that contains a full credit card number or SSN.
 
-      Respond "safe" or "unsafe: <reason>".
+      Provide your safety assessment in exactly one line:
+      - If it is safe, respond with "safe" and nothing more.
+      - If it is unsafe, respond with "unsafe: <reason>", separating multiple reasons with semicolons.
     output_parser: parse_tool_safety_verdict
 ```
 

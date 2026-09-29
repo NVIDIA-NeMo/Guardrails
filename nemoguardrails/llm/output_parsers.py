@@ -141,32 +141,33 @@ def is_content_safe(response: str) -> Sequence[Union[bool, str]]:
 def parse_tool_safety_verdict(response: str) -> Sequence[Union[bool, str]]:
     """Parses a tool_safety_check judge response of the form "safe" or "unsafe: <reason>".
 
-    The verdict must lead the response, matching the prompt's instructed format: a substring
-    or mid-sentence search could misread other text in the response as a safe verdict and
-    allow the tool call or result through.
+    Accepts a response that is just "safe", or one that starts with "unsafe" followed by an
+    optional reason; punctuation and markup around the verdict are ignored. Any other word next
+    to "safe" could contradict it (e.g. "Safe to say this is unsafe"), so that fails closed
+    rather than allowing the tool call or result.
 
     Args:
         response (str): The response string to analyze.
 
     Returns:
         A sequence whose first element is True (safe) or False (unsafe); when unsafe, followed
-        by each semicolon-separated violation in the text after "unsafe:", e.g. "unsafe: leaks
+        by each semicolon-separated violation in the text after "unsafe", e.g. "unsafe: leaks
         credentials; drops a table" yields ["leaks credentials", "drops a table"].
 
     Raises:
-        ValueError: If the response does not lead with "safe" or "unsafe". An ambiguous verdict
-            is a broken judge response, not a real safety decision.
+        ValueError: If the response is neither just "safe" nor starts with "unsafe". An
+            ambiguous verdict is a broken judge response, not a real safety decision.
     """
     original_response = response.strip()
     lowered = original_response.lower()
 
-    unsafe_match = re.match(r"unsafe\b", lowered)
+    unsafe_match = re.match(r"\W*unsafe\b[^\w\s]*\s*", lowered)
     if unsafe_match:
-        reason = original_response[unsafe_match.end() :].lstrip(": ").strip()
+        reason = original_response[unsafe_match.end() :]
         violations = [v.strip() for v in reason.split(";") if v.strip()]
         return [False, *violations]
 
-    if re.match(r"safe\b", lowered):
+    if re.fullmatch(r"\W*safe\W*", lowered):
         return [True]
 
     raise ValueError("Failed to parse a safety verdict from the tool safety check judge response")

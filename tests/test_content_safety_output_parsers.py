@@ -173,6 +173,32 @@ class TestParseToolSafetyVerdict:
     def test_trailing_punctuation_still_matches(self):
         assert parse_tool_safety_verdict("Safe.") == [True]
 
+    @pytest.mark.parametrize(
+        "response",
+        ["Safe to say this call is unsafe: drops a table", "Safe. However the query deletes all rows."],
+    )
+    def test_safe_followed_by_other_words_raises(self, response):
+        with pytest.raises(ValueError, match="Failed to parse a safety verdict"):
+            parse_tool_safety_verdict(response)
+
+    @pytest.mark.parametrize(
+        "response, expected",
+        [("**safe**", [True]), ("**unsafe**: leaks credentials", [False, "leaks credentials"])],
+    )
+    def test_markup_around_the_verdict_is_ignored(self, response, expected):
+        assert parse_tool_safety_verdict(response) == expected
+
+    @pytest.mark.parametrize(
+        "response, expected",
+        [
+            ("unsafe.", [False]),
+            ("unsafe: /etc/passwd contains secrets", [False, "/etc/passwd contains secrets"]),
+            ('unsafe: "DROP TABLE users"', [False, '"DROP TABLE users"']),
+        ],
+    )
+    def test_separator_after_unsafe_is_not_part_of_the_reason(self, response, expected):
+        assert parse_tool_safety_verdict(response) == expected
+
 
 class TestNemoguardParsePromptSafety:
     """Test the nemoguard_parse_prompt_safety JSON output parser."""
