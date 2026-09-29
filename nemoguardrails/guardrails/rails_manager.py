@@ -19,7 +19,7 @@ import asyncio
 import logging
 import warnings
 from collections.abc import Coroutine, Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
@@ -71,6 +71,10 @@ _TOOL_ACTION_CLASSES: dict[str, type[ToolRailAction]] = {
 
 _ToolActionT = TypeVar("_ToolActionT", bound=ToolRailAction)
 
+# Per-tool checks fan out with the number of tool calls/results, so parallel runs are capped
+# to keep one request from using up a judge engine's shared connection pool.
+PER_TOOL_RAILS_MAX_CONCURRENCY = 8
+
 # The conversation variable each direction's rails may rewrite; anything else is refused.
 _REWRITABLE_TARGET = {
     RailDirection.INPUT: TransformTarget.USER_MESSAGE,
@@ -85,6 +89,17 @@ def _rewriting_flows(
 ) -> tuple[str, ...]:
     """The configured flows whose surface declares they may rewrite the text they check."""
     return tuple(flow for flow in flows if rails[(direction, flow)].transform_target is not None)
+
+
+@dataclass(frozen=True)
+class _PerToolCheck:
+    """A per-tool flow and the inputs to run it on."""
+
+    key: str
+    flow: str
+    tool_call: ToolCall
+    tool_result: Optional[ToolResult] = None
+    tool_definition: Optional[Tool] = None
 
 
 def _transforms_first(rewriting: Sequence[str], flows: Sequence[str]) -> list[str]:
@@ -123,6 +138,16 @@ def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -
             f"it may rewrite {target.value!r}"
         )
     return rewrites[target.value]
+
+
+async def _bounded(coro: Coroutine[Any, Any, RailResult], semaphore: asyncio.Semaphore) -> RailResult:
+    """Run *coro* once *semaphore* has a free slot."""
+    try:
+        async with semaphore:
+            return await coro
+    finally:
+        # Closes a coroutine cancelled while still waiting for a slot; a no-op once it has run.
+        coro.close()
 
 
 def _refuse_concurrent_rewrite(result: RailResult, flow: str) -> None:
@@ -283,6 +308,19 @@ class RailsManager:
             for flow in unique_flows:
                 self._per_tool_rails[(direction, flow)] = compile_rail(flow, direction, deps)
 
+        # No tool rail rewrites today; this mirrors the input/output rewrite check above so a
+        # future rewriting tool rail is caught the same way instead of corrupted by concurrency.
+        self.per_tool_transform_flows: dict[SurfaceDirection, tuple[str, ...]] = {
+            direction: tuple(
+                flow
+                for flow in {flow for flows in per_tool.values() for flow in flows}
+                if self._per_tool_rails[(direction, flow)].transform_target is not None
+            )
+            for direction, per_tool in per_tool_configured
+        }
+        if any(self.per_tool_transform_flows.values()):
+            self._disable_tool_parallel_execution()
+
         self._http_client = create_http_client()
         runtime_deps = replace(deps, http_client=self._http_client)
         self._rails = {key: rail.with_runtime_dependencies(runtime_deps) for key, rail in self._rails.items()}
@@ -319,6 +357,20 @@ class RailsManager:
         )
         self.input_parallel = False
         self.output_parallel = False
+
+    def _disable_tool_parallel_execution(self) -> None:
+        """Turn both tool directions sequential, because concurrent tool rails cannot carry a rewrite."""
+        if not (self.tool_output_parallel or self.tool_input_parallel):
+            return
+        rewriting = sorted(flow for flows in self.per_tool_transform_flows.values() for flow in flows)
+        warnings.warn(
+            f"rails.tool_output.parallel / rails.tool_input.parallel are not honored alongside a tool "
+            f"rail that rewrites content ({', '.join(rewriting)}); tool rails run sequentially, since "
+            f"concurrent tool rails cannot carry a rewrite.",
+            stacklevel=3,
+        )
+        self.tool_output_parallel = False
+        self.tool_input_parallel = False
 
     def _rail_dependencies(self) -> RailDependencies:
         """Bundle the collaborators a compiled rail's action may declare as parameters."""
@@ -430,22 +482,33 @@ class RailsManager:
             if not global_result.is_safe:
                 return global_result
 
-        per_tool_rails = {}
+        checks: list[_PerToolCheck] = []
         for index, tool_call in enumerate(tool_calls):
             tool_name = tool_call.function.name or tool_call.type
-            flows = self._enabled_flows(self.per_tool_call_flows.get(tool_name, []), enabled)
             tool_definition = toolset.get(tool_name)
-            for flow in flows:
-                per_tool_rails[f"{index}:{flow}"] = self._run_per_tool_rail(
-                    SurfaceDirection.TOOL_OUTPUT, flow, tool_call=tool_call, tool_definition=tool_definition
+            for flow in self._enabled_flows(self.per_tool_call_flows.get(tool_name, []), enabled):
+                checks.append(
+                    _PerToolCheck(f"{index}:{flow}", flow, tool_call=tool_call, tool_definition=tool_definition)
                 )
-        if not per_tool_rails:
+        if not checks:
             return global_result
 
         if self.tool_output_parallel:
-            per_tool_result = await self._run_rails_parallel(per_tool_rails, RailDirection.OUTPUT)
+            rails = {
+                check.key: self._run_per_tool_rail(
+                    SurfaceDirection.TOOL_OUTPUT,
+                    check.flow,
+                    tool_call=check.tool_call,
+                    tool_result=check.tool_result,
+                    tool_definition=check.tool_definition,
+                )
+                for check in checks
+            }
+            per_tool_result = await self._run_rails_parallel(
+                rails, RailDirection.OUTPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
+            )
         else:
-            per_tool_result = await self._run_tool_rails_sequential(per_tool_rails, RailDirection.OUTPUT)
+            per_tool_result = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_OUTPUT)
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
         if not per_tool_result.is_safe:
             return replace(per_tool_result, records=combined_records)
@@ -493,7 +556,7 @@ class RailsManager:
             return global_result
 
         result_items = [(exchange, tool_result) for exchange in exchanges for tool_result in exchange.results]
-        per_tool_rails = {}
+        checks: list[_PerToolCheck] = []
         for index, (exchange, tool_result) in enumerate(result_items):
             matched_call = self._resolve_tool_call_for_result(exchange, tool_result)
             if matched_call is None:
@@ -504,18 +567,27 @@ class RailsManager:
                     records=global_result.records,
                 )
             tool_name = matched_call.function.name or matched_call.type
-            flows = self._enabled_flows(self.per_tool_result_flows.get(tool_name, []), enabled)
-            for flow in flows:
-                per_tool_rails[f"{index}:{flow}"] = self._run_per_tool_rail(
-                    SurfaceDirection.TOOL_INPUT, flow, tool_call=matched_call, tool_result=tool_result
-                )
-        if not per_tool_rails:
+            for flow in self._enabled_flows(self.per_tool_result_flows.get(tool_name, []), enabled):
+                checks.append(_PerToolCheck(f"{index}:{flow}", flow, tool_call=matched_call, tool_result=tool_result))
+        if not checks:
             return global_result
 
         if self.tool_input_parallel:
-            per_tool_result = await self._run_rails_parallel(per_tool_rails, RailDirection.INPUT)
+            rails = {
+                check.key: self._run_per_tool_rail(
+                    SurfaceDirection.TOOL_INPUT,
+                    check.flow,
+                    tool_call=check.tool_call,
+                    tool_result=check.tool_result,
+                    tool_definition=check.tool_definition,
+                )
+                for check in checks
+            }
+            per_tool_result = await self._run_rails_parallel(
+                rails, RailDirection.INPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
+            )
         else:
-            per_tool_result = await self._run_tool_rails_sequential(per_tool_rails, RailDirection.INPUT)
+            per_tool_result = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_INPUT)
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
         if not per_tool_result.is_safe:
             return replace(per_tool_result, records=combined_records)
@@ -723,15 +795,48 @@ class RailsManager:
             for _, coro in remaining:
                 coro.close()
 
+    async def _run_per_tool_rails_sequential(
+        self, checks: Sequence[_PerToolCheck], direction: SurfaceDirection
+    ) -> RailResult:
+        """Run per-tool checks in turn, short-circuiting on the first unsafe result.
+
+        Each check's coroutine is built only when it runs, like ``_run_rails_sequential``, so a
+        rewrite can reach the checks behind it once tool rails support one.
+        """
+        req_id = get_request_id()
+        collected: list[RailCallRecord] = []
+        for check in checks:
+            result = await self._run_per_tool_rail(
+                direction,
+                check.flow,
+                tool_call=check.tool_call,
+                tool_result=check.tool_result,
+                tool_definition=check.tool_definition,
+            )
+            collected.extend(result.records)
+            log.debug("[%s] %s flow %s result %s", req_id, direction.value, check.flow, result)
+            if not result.is_safe:
+                log.info("[%s] %s flow %s blocked", req_id, direction.value, check.flow)
+                return replace(result, records=tuple(collected))
+            if result.outcome.is_transform:
+                # No TransformTarget exists for tool calls/results yet. Apply the rewrite here, and
+                # pass the rewritten call/result to the checks behind it, once one does.
+                raise NotImplementedError(f"{check.flow!r} returned a rewrite, which tool rails cannot apply yet")
+        return RailResult.allow(records=tuple(collected))
+
     async def _run_rails_parallel(
         self,
         rails: Mapping[str, Coroutine[Any, Any, RailResult]],
         direction: RailDirection,
+        max_concurrency: Optional[int] = None,
     ) -> RailResult:
         """Run rail coroutines concurrently; on the first unsafe result, finish draining its
         completion batch (so rails that finished alongside it still contribute their records)
-        before cancelling the rest."""
+        before cancelling the rest. *max_concurrency* caps how many run at once (unbounded if None)."""
         req_id = get_request_id()
+        if max_concurrency is not None:
+            semaphore = asyncio.Semaphore(max_concurrency)
+            rails = {flow: _bounded(coro, semaphore) for flow, coro in rails.items()}
         task_to_flow: dict[asyncio.Task, str] = {asyncio.create_task(coro): flow for flow, coro in rails.items()}
         tasks = list(task_to_flow.keys())
         task_order = {task: i for i, task in enumerate(tasks)}

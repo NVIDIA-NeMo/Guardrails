@@ -32,6 +32,7 @@ from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import (
+    PER_TOOL_RAILS_MAX_CONCURRENCY,
     RailsManager,
     _checked_text,
     _rail_call_record,
@@ -56,7 +57,13 @@ from tests.guardrails.async_helpers import (
     mock_rail_http_response,
     mock_rail_model,
 )
-from tests.guardrails.rail_stubs import StubRail, declared_rewriter, rails_compiled_as, rewriting_stub
+from tests.guardrails.rail_stubs import (
+    StubRail,
+    declared_rewriter,
+    rails_compiled_as,
+    rewriting_stub,
+    user_message_rewrite,
+)
 from tests.guardrails.test_data import (
     CONTENT_SAFETY_CONFIG,
     NEMOGUARDS_CONFIG,
@@ -1210,6 +1217,155 @@ class TestParallelPerToolDispatch:
         result = await mgr.are_tool_results_safe(messages)
 
         assert result.is_safe
+
+    _MANY_CALLS = [
+        ToolCall(id=f"call_{i}", function=ToolCallFunction(name="run_sql", arguments={}))
+        for i in range(PER_TOOL_RAILS_MAX_CONCURRENCY * 2 + 4)
+    ]
+    _RUN_SQL_PARAMS = {
+        "tools": [{"type": "function", "function": {"name": "run_sql", "parameters": {"type": "object"}}}]
+    }
+
+    @pytest.mark.asyncio
+    async def test_in_flight_checks_are_capped(self):
+        mgr = _tool_rails_manager_with_main(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, tool_output_parallel=True
+        )
+        in_flight = peak = 0
+
+        async def stub(direction, flow, tool_call, tool_result=None, tool_definition=None):
+            nonlocal in_flight, peak
+            in_flight += 1
+            peak = max(peak, in_flight)
+            for _ in range(3):
+                await asyncio.sleep(0)
+            in_flight -= 1
+            return RailResult.allow()
+
+        mgr._run_per_tool_rail = stub
+
+        result = await mgr.are_tool_calls_safe(self._MANY_CALLS, self._RUN_SQL_PARAMS)
+
+        assert result.is_safe
+        assert peak == PER_TOOL_RAILS_MAX_CONCURRENCY
+
+    @pytest.mark.asyncio
+    async def test_checks_still_waiting_for_a_slot_are_closed_on_a_block(self, recwarn):
+        mgr = _tool_rails_manager_with_main(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, tool_output_parallel=True
+        )
+
+        async def stub(direction, flow, tool_call, tool_result=None, tool_definition=None):
+            # Checks must pause, or each finishes in its first step and none ever waits for a slot.
+            if tool_call.id == "call_0":
+                await asyncio.sleep(0)
+                return RailResult.block(reason="unsafe")
+            await asyncio.sleep(0.05)
+            return RailResult.allow()
+
+        mgr._run_per_tool_rail = stub
+
+        result = await mgr.are_tool_calls_safe(self._MANY_CALLS, self._RUN_SQL_PARAMS)
+        gc.collect()
+
+        assert not result.is_safe
+        assert [w for w in recwarn if "was never awaited" in str(w.message)] == []
+
+
+class TestToolParallelDisabledByRewrite:
+    """No tool rail rewrites today, but a per-tool surface declaring transform_target should
+    still force tool_output_parallel/tool_input_parallel off, mirroring the input/output
+    rewrite check (TestSchedulingRailsThatRewrite)."""
+
+    # No TOOL_CALL/TOOL_RESULT member exists yet; USER_MESSAGE stands in to prove the check
+    # fires on any non-None transform_target.
+    _STUB_TARGET = TransformTarget.USER_MESSAGE
+
+    def test_a_rewriting_per_tool_call_flow_turns_parallel_off(self):
+        with rails_compiled_as({"regex check tool output": StubRail(transform_target=self._STUB_TARGET)}):
+            with pytest.warns(UserWarning, match="parallel"):
+                mgr = _tool_rails_manager_with_main(
+                    per_tool_call_flows={"run_sql": ["regex check tool output"]},
+                    tool_output_parallel=True,
+                    tool_input_parallel=True,
+                )
+
+        assert mgr.tool_output_parallel is False
+        assert mgr.tool_input_parallel is False
+
+    def test_a_rewriting_per_tool_result_flow_turns_parallel_off(self):
+        with rails_compiled_as({"regex check tool input": StubRail(transform_target=self._STUB_TARGET)}):
+            with pytest.warns(UserWarning, match="parallel"):
+                mgr = _tool_rails_manager_with_main(
+                    per_tool_result_flows={"run_sql": ["regex check tool input"]},
+                    tool_output_parallel=True,
+                    tool_input_parallel=True,
+                )
+
+        assert mgr.tool_output_parallel is False
+        assert mgr.tool_input_parallel is False
+
+    def test_parallel_is_left_alone_when_nothing_rewrites(self, recwarn):
+        mgr = _tool_rails_manager_with_main(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]},
+            tool_output_parallel=True,
+            tool_input_parallel=True,
+        )
+
+        assert mgr.tool_output_parallel is True
+        assert mgr.tool_input_parallel is True
+        assert [warning for warning in recwarn if "parallel" in str(warning.message)] == []
+
+
+class TestPerToolRailsSequential:
+    _CALLS = [
+        ToolCall(id="call_1", function=ToolCallFunction(name="run_sql", arguments={"query": "SELECT 1"})),
+        ToolCall(id="call_2", function=ToolCallFunction(name="list_tables", arguments={})),
+    ]
+    _LLM_PARAMS = {
+        "tools": [
+            {"type": "function", "function": {"name": "run_sql", "parameters": {"type": "object"}}},
+            {"type": "function", "function": {"name": "list_tables", "parameters": {"type": "object"}}},
+        ]
+    }
+
+    @staticmethod
+    def _manager_returning(results: dict[str, RailResult], parallel: bool = False) -> tuple[RailsManager, list[str]]:
+        """A manager whose per-tool checks return *results* by tool name, recording each check's
+        coroutine as it is created (the stub is sync, so calling it is creating the coroutine)."""
+        mgr = _tool_rails_manager_with_main(
+            per_tool_call_flows={"run_sql": ["regex check tool output"], "list_tables": ["regex check tool output"]},
+            tool_output_parallel=parallel,
+        )
+        created: list[str] = []
+
+        def stub(direction, flow, tool_call, tool_result=None, tool_definition=None):
+            created.append(tool_call.function.name)
+            return _coroutine_returning(results[tool_call.function.name])
+
+        mgr._run_per_tool_rail = stub
+        return mgr, created
+
+    @pytest.mark.asyncio
+    async def test_checks_after_a_block_are_never_created(self):
+        mgr, created = self._manager_returning(
+            {"run_sql": RailResult.block(reason="unsafe"), "list_tables": RailResult.allow()}
+        )
+
+        result = await mgr.are_tool_calls_safe(self._CALLS, self._LLM_PARAMS)
+
+        assert not result.is_safe
+        assert created == ["run_sql"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("parallel", [False, True], ids=["sequential", "parallel"])
+    async def test_a_rewrite_raises(self, parallel):
+        mgr, _ = self._manager_returning(
+            {"run_sql": user_message_rewrite("masked"), "list_tables": RailResult.allow()}, parallel=parallel
+        )
+
+        with pytest.raises(NotImplementedError, match="returned a rewrite"):
+            await mgr.are_tool_calls_safe(self._CALLS, self._LLM_PARAMS)
 
 
 class TestTriggeredRail:
