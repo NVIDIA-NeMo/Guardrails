@@ -39,6 +39,7 @@ from typing import Any, Callable, NamedTuple
 import jsonschema
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.types import ToolCall
 
 
@@ -133,6 +134,25 @@ class ToolExchange(NamedTuple):
 
     calls: list[ToolCall]
     results: list[ToolResult]
+
+
+class ToolCallExtractionError(ValueError):
+    """A tool call that cannot be validated, described without its argument text."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        violation_type: ToolViolationType,
+        index: int | None = None,
+        tool_call_id: str | None = None,
+        tool_name: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.violation_type = violation_type
+        self.index = index
+        self.tool_call_id = tool_call_id
+        self.tool_name = tool_name
 
 
 def _schema_accepts_no_arguments(schema: dict) -> bool:

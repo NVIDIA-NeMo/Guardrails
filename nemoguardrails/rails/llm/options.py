@@ -106,6 +106,32 @@ class RailsResult(BaseModel):
     )
 
 
+class ToolViolationType(str, Enum):
+    """What a blocked tool call or tool result violated; callers switch on this, never on the reason text."""
+
+    # Tool calls
+    TOOL_NOT_ALLOWED = "tool_not_allowed"
+    ARGUMENTS_INVALID = "arguments_invalid"
+    UNEXPECTED_ARGUMENTS = "unexpected_arguments"
+    INVALID_TOOL_SCHEMA = "invalid_tool_schema"
+    MALFORMED_ARGUMENTS = "malformed_arguments"
+    MALFORMED_TOOL_CALL = "malformed_tool_call"
+    LEGACY_FUNCTION_CALL = "legacy_function_call"
+    INVALID_TOOLSET = "invalid_toolset"
+    # Tool results
+    MISSING_CALL_ID = "missing_call_id"
+    UNKNOWN_CALL_ID = "unknown_call_id"
+    DUPLICATE_RESULT = "duplicate_result"
+    DUPLICATE_PRIOR_CALL_ID = "duplicate_prior_call_id"
+    NAME_MISMATCH = "name_mismatch"
+    MALFORMED_CONTENT = "malformed_content"
+    UNLINKABLE_RESULT = "unlinkable_result"
+    # Either direction
+    EXTRACTION_FAILED = "extraction_failed"
+    RAIL_FAILED = "rail_failed"
+    PER_TOOL_RAIL = "per_tool_rail"
+
+
 class GenerationLogOptions(BaseModel):
     """Options for what should be included in the generation log."""
 
