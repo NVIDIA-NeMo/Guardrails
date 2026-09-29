@@ -88,7 +88,7 @@ To use the tool safety check, you should:
 4. `output_parser` is required on every tool safety check prompt. The example above uses the built-in `parse_tool_safety_verdict` parser, which expects a response of the form "safe" or "unsafe: `<reason>`":
 
     - If the response is just "safe", the content is considered safe. Surrounding punctuation or markup is ignored, but any other word is not.
-    - If the response starts with "unsafe", the content is considered unsafe. Any text after it is recorded as the block reason; separate multiple violations with a semicolon (e.g. "unsafe: leaks credentials; drops a table") to surface each one individually in the rail's metadata.
+    - If the response starts with "unsafe", the content is considered unsafe. The parser extracts any reasons after it (separated by semicolons), but the rail doesn't record them in its block, since they could quote sensitive content.
     - Any other response, such as "This violates the safety policy", is treated as a broken judge response and raises, rather than being interpreted as a safety decision. Keeping the prompt's output instructions strict, as in the example above, makes this rare.
 
     You can set `output_parser` to a different built-in parser instead (for example `is_content_safe`, whose response format and keyword vocabulary differ); IORails does not support registering custom parser functions.

@@ -78,7 +78,9 @@ async def run_llm_judged_check(
     # genuine block.
     if not isinstance(result, (list, tuple)) or not result or not isinstance(result[0], bool):
         raise ValueError(f"judge model's response could not be parsed into a safety verdict for task {task}")
-    is_safe, *violations = result
+    # The judge's reason may quote the flagged content (e.g. PII), and block reasons reach logs and
+    # traces, so only the verdict is returned.
+    is_safe, *_ = result
     if is_safe:
-        return RailOutcome.allow(metadata={"policy_violations": violations})
-    return RailOutcome.block(reason=", ".join(violations) or None, metadata={"policy_violations": violations})
+        return RailOutcome.allow()
+    return RailOutcome.block()

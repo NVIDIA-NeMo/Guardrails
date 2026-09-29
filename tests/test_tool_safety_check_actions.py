@@ -179,11 +179,12 @@ async def test_output_allows_safe_response():
         variant="weather_check",
     )
 
-    assert outcome == RailOutcome.allow(metadata={"policy_violations": []})
+    assert outcome == RailOutcome.allow()
 
 
 @pytest.mark.asyncio
-async def test_output_blocks_unsafe_response_with_violations():
+async def test_output_blocks_unsafe_response_without_recording_its_reason():
+    """The judge's reason may quote the flagged content, so the block carries none of it."""
     task_manager = _FakeTaskManager(parsed=[False, "leaks credentials"])
 
     outcome = await tool_safety_check_output(
@@ -195,9 +196,7 @@ async def test_output_blocks_unsafe_response_with_violations():
         variant="weather_check",
     )
 
-    assert outcome == RailOutcome.block(
-        reason="leaks credentials", metadata={"policy_violations": ["leaks credentials"]}
-    )
+    assert outcome == RailOutcome.block()
 
 
 @pytest.mark.asyncio
@@ -301,11 +300,12 @@ async def test_input_allows_safe_response():
         variant="weather_check",
     )
 
-    assert outcome == RailOutcome.allow(metadata={"policy_violations": []})
+    assert outcome == RailOutcome.allow()
 
 
 @pytest.mark.asyncio
-async def test_input_blocks_unsafe_response_with_violations():
+async def test_input_blocks_unsafe_response_without_recording_its_reason():
+    """The judge's reason may quote the flagged content, so the block carries none of it."""
     task_manager = _FakeTaskManager(parsed=[False, "contains ssn"])
 
     outcome = await tool_safety_check_input(
@@ -317,4 +317,4 @@ async def test_input_blocks_unsafe_response_with_violations():
         variant="weather_check",
     )
 
-    assert outcome == RailOutcome.block(reason="contains ssn", metadata={"policy_violations": ["contains ssn"]})
+    assert outcome == RailOutcome.block()
