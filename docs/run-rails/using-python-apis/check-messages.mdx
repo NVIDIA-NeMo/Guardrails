@@ -257,7 +257,9 @@ This distinction prevents the application from reporting an operational failure 
 That wording matches the sentence the Colang runtime produces on `LLMRails` when an action fails.
 
 On `IORails`, a blocked check also sets `reason`, which explains the block for logs and diagnostics.
-A rail that fails to execute reports its failure there, with credentials redacted.
+When a rail fails to execute, `reason` names the rail that failed.
+It adds the model provider's error message, with credentials and URLs removed, only when the failure came from a model call.
+The full error goes to the logs and to the rail's trace span.
 Each rail words its own reason, so the text can change between releases.
 
 In every case, treat `status` as the decision and `content` as the message to display.
