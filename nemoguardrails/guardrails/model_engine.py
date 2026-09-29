@@ -55,9 +55,10 @@ from nemoguardrails.guardrails.telemetry import (
     set_llm_request_attributes,
     set_llm_response_attributes,
 )
-from nemoguardrails.guardrails.tool_schema import Tool, ToolExchange, ToolResult, Toolset
+from nemoguardrails.guardrails.tool_schema import Tool, ToolCallExtractionError, ToolExchange, ToolResult, Toolset
 from nemoguardrails.llm.clients._errors import ErrorContext, raise_for_sse_error, raise_for_status
 from nemoguardrails.rails.llm.config import Model
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.tracing.constants import (
     llm_operation_duration,
     record_time_per_output_chunk,
@@ -523,6 +524,95 @@ _ERROR_BODY_MAX_CHARS = 8192
 _TOOL_EXCHANGE_EXTRACTORS = {
     "openai": _extract_tool_exchanges_openai,
     "nim": _extract_tool_exchanges_nim,
+}
+
+
+def _latest_assistant_message(messages: LLMMessages) -> dict | None:
+    """The last assistant message in *messages*, or None when there is none."""
+    for message in reversed(messages):
+        if isinstance(message, dict) and message.get("role") == "assistant":
+            return message
+    return None
+
+
+def _string_or_none(value: object) -> str | None:
+    """*value* when it is a string, else None, so an error's identity fields hold only strings."""
+    return value if isinstance(value, str) else None
+
+
+def _describe_tool_call(index: int, tool_call_id: str | None) -> str:
+    """Name a tool call in an error message by its id, else by its position."""
+    if tool_call_id:
+        return f"tool call '{tool_call_id}'"
+    return f"tool call at index {index}"
+
+
+def _legacy_function_call_error(function_call: object) -> ToolCallExtractionError:
+    """The error for a legacy ``function_call``, which no tool rail validates."""
+    name = function_call.get("name") if isinstance(function_call, dict) else None
+    return ToolCallExtractionError(
+        "legacy function_call is not validated by tool rails",
+        violation_type=ToolViolationType.LEGACY_FUNCTION_CALL,
+        tool_name=_string_or_none(name),
+    )
+
+
+def _parse_latest_tool_call(entry: object, index: int) -> ToolCall:
+    """Strictly parse one wire tool call, raising a ``ToolCallExtractionError`` that omits its arguments."""
+    if not isinstance(entry, dict):
+        raise ToolCallExtractionError(
+            f"tool call at index {index} is not an object",
+            violation_type=ToolViolationType.MALFORMED_TOOL_CALL,
+            index=index,
+        )
+    tool_call_id = _string_or_none(entry.get("id"))
+    function = entry.get("function")
+    if function is not None and not isinstance(function, dict):
+        raise ToolCallExtractionError(
+            f"{_describe_tool_call(index, tool_call_id)} has a malformed function",
+            violation_type=ToolViolationType.MALFORMED_TOOL_CALL,
+            index=index,
+            tool_call_id=tool_call_id,
+        )
+    if function is not None and function.get("arguments") == "":
+        # Streaming finalization reads empty arguments as no arguments, so a check does too.
+        entry = {**entry, "function": {**function, "arguments": {}}}
+    try:
+        message = ChatMessage.from_dict({"role": "assistant", "tool_calls": [entry]})
+    except ValueError:
+        # from_dict's message quotes the raw arguments, so it is dropped rather than chained.
+        raise ToolCallExtractionError(
+            f"{_describe_tool_call(index, tool_call_id)} has malformed arguments",
+            violation_type=ToolViolationType.MALFORMED_ARGUMENTS,
+            index=index,
+            tool_call_id=tool_call_id,
+            tool_name=_string_or_none((function or {}).get("name")),
+        ) from None
+    return cast(list[ToolCall], message.tool_calls)[0]
+
+
+def _latest_tool_calls_openai(messages: LLMMessages) -> list[ToolCall]:
+    """Strictly parse the tool calls on the last assistant message, raising on any that cannot be validated."""
+    # Only that message is parsed: ChatMessage rejects roles such as the server's "context".
+    message = _latest_assistant_message(messages)
+    if message is None:
+        return []
+    raw_calls = message.get("tool_calls")
+    if raw_calls:
+        return [_parse_latest_tool_call(entry, index) for index, entry in enumerate(raw_calls)]
+    if message.get("function_call"):
+        raise _legacy_function_call_error(message["function_call"])
+    return []
+
+
+def _latest_tool_calls_nim(messages: LLMMessages) -> list[ToolCall]:
+    """Parse NIM's latest tool calls. NIM uses the OpenAI Chat Completions shape."""
+    return _latest_tool_calls_openai(messages)
+
+
+_LATEST_TOOL_CALL_EXTRACTORS = {
+    "openai": _latest_tool_calls_openai,
+    "nim": _latest_tool_calls_nim,
 }
 
 
@@ -1330,4 +1420,9 @@ class ModelEngine(BaseEngine):
         Completions shape and an engine with no registered extractor falls back to it.
         """
         extractor = _TOOL_EXCHANGE_EXTRACTORS.get(self.model_config.engine, _extract_tool_exchanges_openai)
+        return extractor(messages)
+
+    def extract_latest_tool_calls(self, messages: LLMMessages) -> list[ToolCall]:
+        """Strictly parse the last assistant message's tool calls in the wire shape of the model's engine."""
+        extractor = _LATEST_TOOL_CALL_EXTRACTORS.get(self.model_config.engine, _latest_tool_calls_openai)
         return extractor(messages)
