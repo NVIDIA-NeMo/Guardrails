@@ -934,6 +934,107 @@ class TestRailsManagerToolResults:
         assert_result_blocked(result, "tool exchange extraction failed")
 
 
+_SECRET_VALUE = "SECRET-VALUE"
+
+
+def _malformed_latest_call_messages() -> list:
+    """A user turn, then an assistant ``get_weather`` call whose truncated JSON arguments quote a secret."""
+    return [
+        {"role": "user", "content": "What's the weather in Paris?"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "get_weather", "arguments": '{"city": "SECRET-VALUE"'},
+                }
+            ],
+        },
+    ]
+
+
+class TestRailsManagerLatestToolCalls:
+    """``are_latest_tool_calls_safe``: strictly extract the last assistant message's calls, then validate them."""
+
+    @pytest.mark.asyncio
+    async def test_delegates_the_extracted_calls_to_are_tool_calls_safe(self):
+        """The latest calls, the request's tool parameters and the toggle are handed to ``are_tool_calls_safe``."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        verdict = RailResult.allow()
+        mgr.are_tool_calls_safe = AsyncMock(return_value=verdict)
+        llm_params = {"tools": [WEATHER_TOOL]}
+
+        result = await mgr.are_latest_tool_calls_safe(
+            make_tool_conversation(), llm_params, enabled=["tool call validation"]
+        )
+
+        expected_calls = [
+            ToolCall(id="call_1", function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}))
+        ]
+        mgr.are_tool_calls_safe.assert_awaited_once_with(
+            expected_calls, llm_params, enabled=["tool call validation"], model_type="main"
+        )
+        assert result is verdict
+
+    @pytest.mark.asyncio
+    async def test_blocks_a_call_the_toolset_does_not_declare(self):
+        """A latest call missing from the declared tools is blocked by the global tool-call rail."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        result = await mgr.are_latest_tool_calls_safe(make_tool_conversation(), {"tools": []})
+
+        assert_result_blocked(result, "get_weather", "not an allowed tool")
+        assert result.triggered_rail == "tool call validation"
+
+    @pytest.mark.asyncio
+    async def test_extraction_error_blocks_with_its_content_free_message(self):
+        """A malformed latest call blocks before any rail runs, naming the call but never quoting its arguments."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        result = await mgr.are_latest_tool_calls_safe(_malformed_latest_call_messages(), {"tools": [WEATHER_TOOL]})
+
+        assert result.is_safe is False
+        assert result.reason == "tool call extraction failed: tool call 'call_1' has malformed arguments"
+        assert result.triggered_rail is None
+
+    @pytest.mark.asyncio
+    async def test_unexpected_extraction_error_blocks_with_a_fixed_reason(self):
+        """Any other extraction error blocks with a fixed reason that carries none of the exception's text."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError(_SECRET_VALUE)
+
+        mgr.engine_registry.extract_latest_tool_calls = _boom
+
+        result = await mgr.are_latest_tool_calls_safe(make_tool_conversation(), {"tools": [WEATHER_TOOL]})
+
+        assert result.is_safe is False
+        assert result.reason == "tool call extraction failed"
+        assert result.triggered_rail is None
+
+    @pytest.mark.asyncio
+    async def test_no_tool_calls_on_the_last_assistant_message_is_safe(self):
+        """A final assistant text turn has no calls to validate, so even an empty toolset allows it."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        messages = [*make_tool_conversation(), {"role": "assistant", "content": "It's 18C in Paris."}]
+
+        result = await mgr.are_latest_tool_calls_safe(messages, {"tools": []})
+
+        assert result.is_safe is True
+
+    @pytest.mark.asyncio
+    async def test_no_tool_call_rails_returns_safe_without_extracting(self):
+        """With no tool-call rail to run nothing is extracted, so a malformed call and a missing engine both pass."""
+        mgr = _tool_rails_manager()
+
+        result = await mgr.are_latest_tool_calls_safe(_malformed_latest_call_messages(), {"tools": [WEATHER_TOOL]})
+
+        assert result.is_safe is True
+
+
 class TestRailsManagerToolToggleNormalization:
     """#15 (currently failing): a list-valued enable toggle must match configured flows
     by their normalized name, not by the raw flow string.
