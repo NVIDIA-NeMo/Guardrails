@@ -889,6 +889,7 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
         status=_map_rail_status(result.status),
         content=result.content,
         rail=result.rail,
+        reason=result.reason,
     )
 
 

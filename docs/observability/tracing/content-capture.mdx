@@ -44,6 +44,7 @@ Sampling parameters (`gen_ai.request.temperature`, `max_tokens`, and so on) and 
 
 A rails-only [`check_async()`](/run-guardrailed-inference/using-python-apis/check-messages) uses the same capture behavior.
 The checked messages are recorded in `guardrails.request.input`, and the returned content is recorded in `guardrails.request.output`.
+When an input or output rail rewrites the text it checked, `guardrails.request.input` carries the rewritten messages, so a mask is not undone by the span.
 Every rail that runs records its own `guardrails.rail` attributes.
 A check makes no main-model call, so it produces no CLIENT span for the protected model.
 `IORails` captures LLM calls from rail actions as usual.

@@ -547,11 +547,31 @@ def _get_last_content_by_role(messages: list[dict], role: str) -> str:
     return ""
 
 
+def _rewrite_last_assistant_message(messages: LLMMessages, text: str) -> LLMMessages:
+    """Return a copy of *messages* with the last assistant message's content rewritten to *text*."""
+    for index in range(len(messages) - 1, -1, -1):
+        if messages[index].get("role") == "assistant":
+            rewritten = list(messages)
+            rewritten[index] = {**messages[index], "content": text}
+            return rewritten
+    raise ValueError("no assistant message to rewrite")
+
+
 def _blocked_message(result: RailResult) -> str:
     """The text a blocked turn returns, which says whether the rail broke or fired."""
     if result.failed:
         return INTERNAL_ERROR_MESSAGE
     return REFUSAL_MESSAGE
+
+
+def _blocked_check_result(result: RailResult) -> RailsResult:
+    """The check result for a block, naming the rail that blocked and why."""
+    return RailsResult(
+        status=RailStatus.BLOCKED,
+        content=_blocked_message(result),
+        rail=result.triggered_rail,
+        reason=client_reason(result),
+    )
 
 
 def _rewritten_user_message(result: RailResult) -> Optional[str]:
@@ -1381,16 +1401,19 @@ class IORails(BaseGuardrails):
     async def _run_check(self, messages: LLMMessages, rail_types: Optional[list[RailType]]) -> RailsResult:
         """Queue-worker entry for ``check_async``: wrap the rails in a request span."""
         tracer = self._tracer if self._tracing_enabled else None
+        conversation = _TurnConversation(messages=messages)
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
-                result = await self._do_check(messages, rail_types, req_id)
+                result = await self._do_check(messages, rail_types, req_id, conversation=conversation)
             except Exception:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] check failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
+            # The messages as the rails masked them, as _run_generate captures them. A check's
+            # messages carry the checked response too, so an output mask must reach them as well.
             if self._content_capture_enabled:
-                set_request_content(request_span, messages, result.content)
+                set_request_content(request_span, conversation.messages, result.content)
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info(
                 "[%s] check completed time=%.1fms status=%s",
@@ -1405,6 +1428,8 @@ class IORails(BaseGuardrails):
         messages: LLMMessages,
         rail_types: Optional[list[RailType]],
         req_id: str,
+        *,
+        conversation: Optional["_TurnConversation"] = None,
     ) -> RailsResult:
         """Core check pipeline: run the requested input/output rails on messages."""
         log.info("[%s] check called", req_id)
@@ -1443,15 +1468,13 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
-                    return RailsResult(
-                        status=RailStatus.BLOCKED,
-                        content=_blocked_message(input_result),
-                        rail=input_result.triggered_rail,
-                    )
+                    return _blocked_check_result(input_result)
                 rewritten = _rewritten_user_message(input_result)
                 if rewritten is not None:
                     log.info("[%s] Input rails rewrote the user message", req_id)
                     messages = rewrite_user_message(messages, rewritten)
+                    if conversation is not None:
+                        conversation.messages = messages
                     if not reports_output:
                         pass_content = rewritten
             else:
@@ -1468,15 +1491,14 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Output blocked: %s", req_id, display_reason(output_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.OUTPUT)
-                    return RailsResult(
-                        status=RailStatus.BLOCKED,
-                        content=_blocked_message(output_result),
-                        rail=output_result.triggered_rail,
-                    )
+                    return _blocked_check_result(output_result)
                 rewritten = _rewritten_bot_message(output_result)
                 if rewritten is not None:
                     log.info("[%s] Output rails rewrote the response", req_id)
                     pass_content = rewritten
+                    messages = _rewrite_last_assistant_message(messages, rewritten)
+                    if conversation is not None:
+                        conversation.messages = messages
             else:
                 log.info("[%s] Output rails requested but no assistant content to check; skipping", req_id)
 
