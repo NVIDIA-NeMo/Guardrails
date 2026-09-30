@@ -548,7 +548,7 @@ def _get_last_content_by_role(messages: list[dict], role: str) -> str:
     return ""
 
 
-# #2312 renames these sections to tool_call / tool_result, which makes this map the identity.
+# TODO Rename tool_output -> tool_call and tool_input -> tool_result throughout. Use this mapping in the meantime
 _RAIL_TYPE_CONFIG_SECTION = {RailType.TOOL_CALL: "tool_output", RailType.TOOL_RESULT: "tool_input"}
 
 
