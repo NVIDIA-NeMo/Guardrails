@@ -38,6 +38,7 @@ from nemoguardrails.tracing.constants import SystemConstants
 from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk, UsageInfo
 from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
+from tests.guardrails.tool_helpers import tool_call_turn, wire_tool_call
 
 
 @pytest.fixture
@@ -1410,16 +1411,7 @@ class TestEngineRegistryToolDelegation:
 
     def test_extract_latest_tool_calls_delegates_to_model_engine(self, manager):
         """The registry parses the last assistant message's tool calls through the named model engine."""
-        messages = [
-            {"role": "user", "content": "What's the weather?"},
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {"id": "c1", "type": "function", "function": {"name": "get_weather", "arguments": '{"city": "X"}'}}
-                ],
-            },
-        ]
+        messages = tool_call_turn(wire_tool_call(arguments='{"city": "X"}', call_id="c1"))
         calls = manager.extract_latest_tool_calls("main", messages)
         assert [(c.id, c.function.name, c.function.arguments) for c in calls] == [("c1", "get_weather", {"city": "X"})]
 

@@ -61,9 +61,11 @@ from nemoguardrails.types import (
     UsageInfo,
 )
 from tests.guardrails.tool_helpers import (
+    assistant_tool_calls,
     make_tool_conversation,
     malformed_prior_tool_call_messages,
     multi_turn_reused_call_id_messages,
+    wire_tool_call,
 )
 
 
@@ -2936,14 +2938,43 @@ class TestExtractToolExchanges:
 _SECRET_VALUE = "SECRET-VALUE"
 
 
-def _assistant_tool_calls(*tool_calls: Any) -> dict:
-    """An assistant message carrying *tool_calls* and no text."""
-    return {"role": "assistant", "content": None, "tool_calls": list(tool_calls)}
+def _with_second_call_arguments(arguments: Any) -> dict:
+    """An assistant turn whose second call, ``call_2``, carries *arguments*."""
+    return assistant_tool_calls(wire_tool_call(), wire_tool_call(call_id="call_2", arguments=arguments))
 
 
-def _wire_tool_call(call_id: str = "call_1", arguments: Any = '{"city": "Paris"}') -> dict:
-    """One OpenAI Chat Completions ``get_weather`` tool call as it appears on an assistant message."""
-    return {"id": call_id, "type": "function", "function": {"name": "get_weather", "arguments": arguments}}
+_LEGACY_CALL = {"name": "get_weather", "arguments": "{}"}
+_FLAT_CALL = {"id": "call_1", "type": "function", "name": "run_sql", "arguments": '{"q": "SECRET-VALUE"}'}
+
+# Case id -> (a last assistant turn the extractor refuses, its (violation type, index, tool_call_id, tool_name)).
+_UNVALIDATABLE_TURNS = {
+    "invalid_json_arguments": (
+        _with_second_call_arguments('{"city": "SECRET-VALUE"'),
+        ("malformed_arguments", 1, "call_2", "get_weather"),
+    ),
+    "json_array_arguments": (
+        _with_second_call_arguments('["SECRET-VALUE"]'),
+        ("malformed_arguments", 1, "call_2", "get_weather"),
+    ),
+    "non_dict_arguments": (
+        _with_second_call_arguments([_SECRET_VALUE]),
+        ("malformed_arguments", 1, "call_2", "get_weather"),
+    ),
+    "non_dict_entry": (assistant_tool_calls(wire_tool_call(), _SECRET_VALUE), ("malformed_tool_call", 1, None, None)),
+    "non_dict_function": (
+        assistant_tool_calls({**wire_tool_call(), "function": _SECRET_VALUE}),
+        ("malformed_tool_call", 0, "call_1", None),
+    ),
+    "no_function_object": (assistant_tool_calls(_FLAT_CALL), ("malformed_tool_call", 0, "call_1", None)),
+    "legacy_function_call": (
+        {"role": "assistant", "function_call": _LEGACY_CALL},
+        ("legacy_function_call", None, None, "get_weather"),
+    ),
+    "legacy_function_call_beside_tool_calls": (
+        {**assistant_tool_calls(wire_tool_call()), "function_call": {**_LEGACY_CALL, "name": "delete_files"}},
+        ("legacy_function_call", None, None, "delete_files"),
+    ),
+}
 
 
 class TestExtractLatestToolCalls:
@@ -2996,77 +3027,25 @@ class TestExtractLatestToolCalls:
     )
     def test_empty_or_missing_arguments_become_an_empty_object(self, engine, function):
         """Empty-string or absent arguments parse as ``{}``, as the streaming parser treats them."""
-        messages = [_assistant_tool_calls({"id": "call_1", "type": "function", "function": function})]
+        messages = [assistant_tool_calls({"id": "call_1", "type": "function", "function": function})]
         assert [c.function.arguments for c in engine.extract_latest_tool_calls(messages)] == [{}]
 
     @pytest.mark.parametrize(
-        "arguments",
-        ['{"city": "SECRET-VALUE"', '["SECRET-VALUE"]', [_SECRET_VALUE]],
-        ids=["invalid_json", "json_array", "non_dict"],
+        ("message", "expected"), list(_UNVALIDATABLE_TURNS.values()), ids=list(_UNVALIDATABLE_TURNS)
     )
-    def test_malformed_arguments_raise_without_argument_text(self, engine, arguments):
-        """Arguments that are not a JSON object raise ``malformed_arguments`` naming the call, never its arguments."""
-        messages = [_assistant_tool_calls(_wire_tool_call("call_1"), _wire_tool_call("call_2", arguments=arguments))]
-        with pytest.raises(ToolCallExtractionError) as excinfo:
-            engine.extract_latest_tool_calls(messages)
-        error = excinfo.value
-        assert error.violation_type is ToolViolationType.MALFORMED_ARGUMENTS
-        assert (error.index, error.tool_call_id, error.tool_name) == (1, "call_2", "get_weather")
-        assert _SECRET_VALUE not in str(error)
-
-    def test_non_dict_entry_raises_malformed_tool_call(self, engine):
-        """A tool-call entry that is not an object raises ``malformed_tool_call`` at its index, without its text."""
-        messages = [_assistant_tool_calls(_wire_tool_call("call_1"), _SECRET_VALUE)]
-        with pytest.raises(ToolCallExtractionError) as excinfo:
-            engine.extract_latest_tool_calls(messages)
-        error = excinfo.value
-        assert error.violation_type is ToolViolationType.MALFORMED_TOOL_CALL
-        assert (error.index, error.tool_call_id, error.tool_name) == (1, None, None)
-        assert _SECRET_VALUE not in str(error)
-
-    def test_non_dict_function_raises_malformed_tool_call(self, engine):
-        """A tool call whose ``function`` is not an object raises ``malformed_tool_call`` carrying the call's id."""
-        messages = [_assistant_tool_calls({"id": "call_1", "type": "function", "function": _SECRET_VALUE})]
-        with pytest.raises(ToolCallExtractionError) as excinfo:
-            engine.extract_latest_tool_calls(messages)
-        error = excinfo.value
-        assert error.violation_type is ToolViolationType.MALFORMED_TOOL_CALL
-        assert (error.index, error.tool_call_id, error.tool_name) == (0, "call_1", None)
-        assert _SECRET_VALUE not in str(error)
-
-    def test_call_without_a_function_object_raises_malformed_tool_call(self, engine):
-        """A call with no ``function`` object is not the Chat Completions shape, so its arguments are never guessed."""
-        flat_call = {"id": "call_1", "type": "function", "name": "run_sql", "arguments": '{"q": "SECRET-VALUE"}'}
-        with pytest.raises(ToolCallExtractionError) as excinfo:
-            engine.extract_latest_tool_calls([_assistant_tool_calls(flat_call)])
-        error = excinfo.value
-        assert error.violation_type is ToolViolationType.MALFORMED_TOOL_CALL
-        assert (error.index, error.tool_call_id, error.tool_name) == (0, "call_1", None)
-        assert _SECRET_VALUE not in str(error)
-
-    def test_legacy_function_call_raises(self, engine):
-        """A last assistant message carrying only a legacy ``function_call`` raises rather than passing unchecked."""
-        messages = [
-            {"role": "assistant", "content": None, "function_call": {"name": "get_weather", "arguments": "{}"}},
-        ]
-        with pytest.raises(ToolCallExtractionError) as excinfo:
-            engine.extract_latest_tool_calls(messages)
-        error = excinfo.value
-        assert error.violation_type is ToolViolationType.LEGACY_FUNCTION_CALL
-        assert (error.index, error.tool_call_id, error.tool_name) == (None, None, "get_weather")
-
-    def test_legacy_function_call_beside_tool_calls_raises(self, engine):
-        """A legacy ``function_call`` raises even beside valid ``tool_calls``, so it is never skipped unchecked."""
-        message = _assistant_tool_calls(_wire_tool_call("call_1"))
-        message["function_call"] = {"name": "delete_files", "arguments": "{}"}
-
+    def test_unvalidatable_latest_turn_raises(self, engine, message, expected):
+        """A last assistant turn that cannot be validated raises, naming the call but never quoting its text."""
+        violation_type, index, tool_call_id, tool_name = expected
         with pytest.raises(ToolCallExtractionError) as excinfo:
             engine.extract_latest_tool_calls([message])
-
-        assert (excinfo.value.violation_type, excinfo.value.tool_name) == (
-            ToolViolationType.LEGACY_FUNCTION_CALL,
-            "delete_files",
+        error = excinfo.value
+        assert (error.violation_type, error.index, error.tool_call_id, error.tool_name) == (
+            ToolViolationType(violation_type),
+            index,
+            tool_call_id,
+            tool_name,
         )
+        assert _SECRET_VALUE not in str(error)
 
 
 class TestModelEngineLLMModelProtocol:

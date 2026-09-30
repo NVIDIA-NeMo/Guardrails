@@ -44,6 +44,7 @@ from nemoguardrails.rails.llm.options import GenerationOptions, RailsResult, Rai
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.async_helpers import JAILBREAK_NIM_URL, mock_jailbreak_nim, mock_rail_model
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG, TOPIC_SAFETY_CONFIG
+from tests.utils import check_entry_points, run_check
 
 _TOOLS = [{"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object"}}}]
 
@@ -2330,33 +2331,28 @@ def llmrails_guardrails():
 class TestCheckToolRailsOnLLMRails:
     """On LLMRails, the facade fails loud for tool checks rather than ignoring what LLMRails cannot run."""
 
-    @pytest.mark.asyncio
+    @check_entry_points
     @pytest.mark.parametrize("tools", [None, _TOOLS], ids=["without_tools", "with_tools"])
-    async def test_tool_rail_type_raises_not_supported(self, llmrails_guardrails, tools):
-        """A tool rail type raises ``RailTypeNotSupportedError``, whether or not ``tools`` is also given."""
+    def test_tool_rail_types_raise_not_supported(self, llmrails_guardrails, entry_point, tools):
+        """Tool rail types raise ``RailTypeNotSupportedError`` from either entry point, with or without ``tools``."""
         with pytest.raises(RailTypeNotSupportedError):
-            await llmrails_guardrails.check_async(
-                [{"role": "user", "content": "hi"}], rail_types=[RailType.TOOL_CALL], tools=tools
+            run_check(
+                llmrails_guardrails,
+                entry_point,
+                [{"role": "user", "content": "hi"}],
+                rail_types=[RailType.TOOL_CALL, RailType.TOOL_RESULT],
+                tools=tools,
             )
 
-    @pytest.mark.parametrize("tools", [None, _TOOLS], ids=["without_tools", "with_tools"])
-    def test_sync_tool_rail_type_raises_not_supported(self, llmrails_guardrails, tools):
-        """Sync ``check`` raises ``RailTypeNotSupportedError`` for a tool rail type as ``check_async`` does."""
-        with pytest.raises(RailTypeNotSupportedError):
-            llmrails_guardrails.check(
-                [{"role": "user", "content": "hi"}], rail_types=[RailType.TOOL_RESULT], tools=tools
-            )
-
-    @pytest.mark.asyncio
+    @check_entry_points
     @pytest.mark.parametrize("rail_types", [None, [RailType.INPUT]], ids=["auto_detected", "input"])
-    async def test_tools_alone_raise_not_supported(self, llmrails_guardrails, rail_types):
-        """``tools`` without a tool rail type raises ``RailTypeNotSupportedError`` instead of being dropped."""
+    def test_tools_alone_raise_not_supported(self, llmrails_guardrails, entry_point, rail_types):
+        """``tools`` without a tool rail type raises ``RailTypeNotSupportedError`` from either entry point."""
         with pytest.raises(RailTypeNotSupportedError, match="tools"):
-            await llmrails_guardrails.check_async(
-                [{"role": "user", "content": "hi"}], rail_types=rail_types, tools=_TOOLS
+            run_check(
+                llmrails_guardrails,
+                entry_point,
+                [{"role": "user", "content": "hi"}],
+                rail_types=rail_types,
+                tools=_TOOLS,
             )
-
-    def test_sync_tools_alone_raise_not_supported(self, llmrails_guardrails):
-        """Sync ``check`` refuses ``tools`` on LLMRails as ``check_async`` does."""
-        with pytest.raises(RailTypeNotSupportedError, match="tools"):
-            llmrails_guardrails.check([{"role": "user", "content": "hi"}], tools=_TOOLS)

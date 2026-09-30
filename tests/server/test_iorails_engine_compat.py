@@ -41,7 +41,7 @@ from nemoguardrails.testing.fake_model import FakeLLMModel
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
 from tests.guardrails.test_tool_rails_iorails import TOOL_CONFIG, WEATHER_TOOL
-from tests.guardrails.tool_helpers import make_tool_conversation
+from tests.guardrails.tool_helpers import make_tool_conversation, tool_call_turn, wire_tool_call
 
 REASONING_TRACE = "The user asked for a capital city."
 LLM_ANSWER = "Paris."
@@ -397,21 +397,9 @@ def _post_check(
     return client.post("/v1/checks", json=body)
 
 
-def _tool_call_turn(name: str = "get_weather", arguments: str = '{"city": "Paris"}') -> list:
-    """A user question, then an assistant turn calling *name* with id ``call_1``."""
-    return [
-        {"role": "user", "content": "What's the weather in Paris?"},
-        {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": name, "arguments": arguments}}],
-        },
-    ]
-
-
 def test_check_blocks_a_disallowed_tool_call_under_iorails_alias(tool_rails_alias, stubbed_main_model):
     """/v1/checks refuses an undeclared call with the rail, the reason and a structured violation, without the model."""
-    response = _post_check(_tool_call_turn("delete_files", "{}"), ["tool_call"], tools=[WEATHER_TOOL])
+    response = _post_check(tool_call_turn(wire_tool_call("delete_files", "{}")), ["tool_call"], tools=[WEATHER_TOOL])
 
     assert response.status_code == 200
     assert response.json() == {
@@ -435,8 +423,8 @@ def test_check_blocks_a_disallowed_tool_call_under_iorails_alias(tool_rails_alia
 
 def test_check_honours_the_request_tools_under_iorails_alias(tool_rails_alias, stubbed_main_model):
     """The request's top-level tools are the allowlist: the same call is refused without them and passes with them."""
-    without_tools = _post_check(_tool_call_turn(), ["tool_call"])
-    with_tools = _post_check(_tool_call_turn(), ["tool_call"], tools=[WEATHER_TOOL])
+    without_tools = _post_check(tool_call_turn(wire_tool_call()), ["tool_call"])
+    with_tools = _post_check(tool_call_turn(wire_tool_call()), ["tool_call"], tools=[WEATHER_TOOL])
 
     assert (without_tools.json()["status"], with_tools.json()["status"]) == ("blocked", "passed")
     stubbed_main_model.assert_not_awaited()
@@ -444,7 +432,7 @@ def test_check_honours_the_request_tools_under_iorails_alias(tool_rails_alias, s
 
 def test_check_round_trip_under_iorails_alias(tool_rails_alias, stubbed_main_model):
     """A harness checks its model's tool call, then the spec-shaped tool message it appends, and both pass."""
-    messages = _tool_call_turn()
+    messages = tool_call_turn(wire_tool_call())
 
     call_check = _post_check(messages, ["tool_call"], tools=[WEATHER_TOOL])
     messages.append({"role": "tool", "tool_call_id": "call_1", "content": "18C"})
@@ -458,7 +446,7 @@ def test_check_round_trip_under_iorails_alias(tool_rails_alias, stubbed_main_mod
 @pytest.mark.parametrize("rail_type", ["tool_call", "tool_result"])
 def test_tool_checks_accept_guardrails_context_under_iorails_alias(tool_rails_alias, stubbed_main_model, rail_type):
     """The context message the server prepends does not break either tool check."""
-    messages = [*_tool_call_turn(), {"role": "tool", "tool_call_id": "call_1", "content": "18C"}]
+    messages = [*tool_call_turn(wire_tool_call()), {"role": "tool", "tool_call_id": "call_1", "content": "18C"}]
 
     response = _post_check(messages, [rail_type], tools=[WEATHER_TOOL], context={"user_id": "u1"})
 
@@ -468,7 +456,7 @@ def test_tool_checks_accept_guardrails_context_under_iorails_alias(tool_rails_al
 
 def test_result_violation_index_counts_request_messages_under_iorails_alias(tool_rails_alias, stubbed_main_model):
     """With context prepended, an unlinked result's index is still its position in the request's messages."""
-    messages = [*_tool_call_turn(), {"role": "tool", "tool_call_id": "call_999", "content": "18C"}]
+    messages = [*tool_call_turn(wire_tool_call()), {"role": "tool", "tool_call_id": "call_999", "content": "18C"}]
 
     response = _post_check(messages, ["tool_result"], context={"user_id": "u1"})
 
@@ -506,7 +494,7 @@ def llmrails_server(monkeypatch):
 
 def test_check_tool_rail_types_on_llmrails_return_422(llmrails_server):
     """LLMRails serving /v1/checks refuses tool rail types with a 422 naming them, rather than passing or a 500."""
-    response = _post_check(_tool_call_turn(), ["input", "tool_result", "tool_call"])
+    response = _post_check(tool_call_turn(wire_tool_call()), ["input", "tool_result", "tool_call"])
 
     assert response.status_code == 422
     assert response.json()["error"]["message"] == (

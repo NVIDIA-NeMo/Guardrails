@@ -16,6 +16,7 @@
 """Unit tests for the tool_schema module (canonical tool types + arg validation)."""
 
 from dataclasses import FrozenInstanceError
+from typing import Any
 
 import pytest
 
@@ -232,87 +233,77 @@ _CLOSED_WEATHER_SCHEMA = {
 }
 
 
+def _object(properties: dict, **keywords: Any) -> dict:
+    """An object schema declaring *properties*, plus any other keywords."""
+    return {"type": "object", "properties": properties, **keywords}
+
+
+_DRAFT3 = {"$schema": "http://json-schema.org/draft-03/schema#"}
+
+# Case id -> (arguments schema, arguments, (argument_path, schema_keyword)).
+_ARGUMENT_PATHS = {
+    "unexpected_key_not_named": (
+        _CLOSED_WEATHER_SCHEMA,
+        {"city": "Paris", _SECRET_VALUE: 1},
+        ("", "additionalProperties"),
+    ),
+    "map_key_masked": (
+        _object({"contacts": {"type": "object", "additionalProperties": {"type": "integer"}}}),
+        {"contacts": {_SECRET_VALUE: "x"}},
+        ("/contacts/*", "type"),
+    ),
+    "array_index_kept": (
+        _object({"cities": {"type": "array", "items": {"type": "string"}}}),
+        {"cities": ["Paris", 3]},
+        ("/cities/1", "type"),
+    ),
+    "nested_declared_names": (
+        _object({"opts": _object({"units": {"type": "string"}})}),
+        {"opts": {"units": 5}},
+        ("/opts/units", "type"),
+    ),
+    "missing_dependency_named": (
+        _object({"a": {}, "b": {}}, dependentRequired={"a": ["b"]}),
+        {"a": 1},
+        ("/b", "dependentRequired"),
+    ),
+    "segments_escaped": (_object({"a/b~c": {"type": "string"}}), {"a/b~c": 1}, ("/a~1b~0c", "type")),
+    "property_name_failure_at_parent": (
+        _object({"a": {}}, propertyNames={"maxLength": 3}),
+        {_SECRET_VALUE: 1},
+        ("", "maxLength"),
+    ),
+    "unevaluated_property_at_parent": (
+        _object({"city": {"type": "string"}}, unevaluatedProperties=False),
+        {"city": "Paris", "debug": 1},
+        ("", "unevaluatedProperties"),
+    ),
+    "draft3_required_at_property": (
+        _object({"a": {"type": "string", "required": True}}, **_DRAFT3),
+        {},
+        ("/a", "required"),
+    ),
+}
+
+
 class TestArgumentPath:
     """Where ``validate_arguments`` points ``argument_path`` for each kind of schema failure."""
 
-    def test_unexpected_key_is_not_named(self):
-        """``additionalProperties: false`` is reported at the object, because the unexpected key is the model's text."""
-        tool = Tool(name="get_weather", arguments_schema=_CLOSED_WEATHER_SCHEMA)
-        violation = validate_arguments(tool, {"city": "Paris", _SECRET_VALUE: 1})
-        assert (violation.argument_path, violation.schema_keyword) == ("", "additionalProperties")
-        assert violation.reason == (
-            "arguments for tool 'get_weather' do not match its schema: 'additionalProperties' failed at the top level"
-        )
-
-    def test_map_keys_are_masked(self):
-        """A key in a map-shaped argument is data, so the path shows ``*`` where it sits and the reason omits it."""
-        schema = {
-            "type": "object",
-            "properties": {"contacts": {"type": "object", "additionalProperties": {"type": "integer"}}},
-        }
-        tool = Tool(name="save_contacts", arguments_schema=schema)
-        violation = validate_arguments(tool, {"contacts": {_SECRET_VALUE: "x"}})
-        assert (violation.argument_path, violation.schema_keyword) == ("/contacts/*", "type")
-        assert _SECRET_VALUE not in violation.reason
-
-    def test_array_indices_are_kept(self):
-        """An array index is a position, not the model's text, so the path keeps it."""
-        schema = {"type": "object", "properties": {"cities": {"type": "array", "items": {"type": "string"}}}}
-        violation = validate_arguments(Tool(name="compare", arguments_schema=schema), {"cities": ["Paris", 3]})
-        assert violation.argument_path == "/cities/1"
-
-    def test_nested_failure_gives_the_full_pointer(self):
-        """A failure inside a nested object is pointed at through the declared properties above it."""
-        schema = {
-            "type": "object",
-            "properties": {"opts": {"type": "object", "properties": {"units": {"type": "string"}}}},
-        }
-        tool = Tool(name="configure", arguments_schema=schema)
-        violation = validate_arguments(tool, {"opts": {"units": 5}})
-        assert violation.argument_path == "/opts/units"
-
-    def test_missing_dependency_is_named(self):
-        """``dependentRequired`` points at the missing dependency, whose name comes from the schema."""
-        schema = {"type": "object", "properties": {"a": {}, "b": {}}, "dependentRequired": {"a": ["b"]}}
-        violation = validate_arguments(Tool(name="pair", arguments_schema=schema), {"a": 1})
-        assert (violation.argument_path, violation.schema_keyword) == ("/b", "dependentRequired")
-
-    def test_pointer_segments_are_escaped(self):
-        """``~`` and ``/`` in a property name are escaped as JSON Pointer requires."""
-        schema = {"type": "object", "properties": {"a/b~c": {"type": "string"}}}
-        violation = validate_arguments(Tool(name="odd", arguments_schema=schema), {"a/b~c": 1})
-        assert violation.argument_path == "/a~1b~0c"
-
-    def test_property_name_failure_keeps_the_parent_path(self):
-        """A ``propertyNames`` failure is reported at the object, so neither the path nor the reason names the key."""
-        schema = {"type": "object", "properties": {"a": {}}, "propertyNames": {"maxLength": 3}}
-        violation = validate_arguments(Tool(name="short_keys", arguments_schema=schema), {_SECRET_VALUE: 1})
-        assert violation.argument_path == ""
-        assert _SECRET_VALUE not in violation.reason
-
-    def test_unevaluated_property_failure_keeps_the_parent_path(self):
-        """An ``unevaluatedProperties`` failure is reported at the object; naming the key needs jsonschema internals."""
-        schema = {"type": "object", "properties": {"city": {"type": "string"}}, "unevaluatedProperties": False}
-        violation = validate_arguments(Tool(name="get_weather", arguments_schema=schema), {"city": "Paris", "debug": 1})
-        assert (violation.argument_path, violation.schema_keyword) == ("", "unevaluatedProperties")
-
-    def test_draft3_required_keeps_the_reported_path(self):
-        """A Draft-3 ``required: true`` on a property is a schema mismatch at that property, not a crash."""
-        schema = {
-            "$schema": "http://json-schema.org/draft-03/schema#",
-            "type": "object",
-            "properties": {"a": {"type": "string", "required": True}},
-        }
-        violation = validate_arguments(Tool(name="draft3", arguments_schema=schema), {})
+    @pytest.mark.parametrize(
+        ("schema", "arguments", "expected"), list(_ARGUMENT_PATHS.values()), ids=list(_ARGUMENT_PATHS)
+    )
+    def test_argument_path_names_only_what_the_schema_declares(self, schema, arguments, expected):
+        """The path names only declared properties and indices, and the reason quotes no argument value or key."""
+        violation = validate_arguments(Tool(name="tool", arguments_schema=schema), arguments)
         assert (violation.violation_type, violation.argument_path, violation.schema_keyword) == (
             ToolViolationType.ARGUMENTS_INVALID,
-            "/a",
-            "required",
+            *expected,
         )
+        assert _SECRET_VALUE not in violation.reason
 
     def test_top_level_failure_reads_as_the_top_level(self):
         """A failure at the root keeps an empty ``argument_path``, and its reason says "the top level"."""
-        schema = {"type": "object", "properties": {"a": {}, "b": {}}, "minProperties": 2}
+        schema = _object({"a": {}, "b": {}}, minProperties=2)
         violation = validate_arguments(Tool(name="pair", arguments_schema=schema), {"a": 1})
         assert violation.argument_path == ""
         assert violation.reason == (

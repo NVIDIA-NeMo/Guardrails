@@ -19,7 +19,7 @@ import gc
 import json
 import logging
 import warnings
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
@@ -50,7 +50,7 @@ from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.guardrails.async_helpers import (
@@ -71,9 +71,13 @@ from tests.guardrails.test_data import (
 from tests.guardrails.tool_helpers import (
     WEATHER_SCHEMA,
     assert_result_blocked,
+    call_violation,
     make_tool_conversation,
     malformed_prior_tool_call_messages,
     multi_turn_reused_call_id_messages,
+    result_violation,
+    tool_call_turn,
+    wire_tool_call,
 )
 
 
@@ -826,10 +830,9 @@ class TestRailsManagerToolCalls:
         result = await mgr.are_tool_calls_safe([_call("rm_rf", {})], {"tools": [WEATHER_TOOL]})
         assert_result_blocked(result, "rm_rf")
         assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_call",
-                violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
-                reason="tool call 'rm_rf' is not an allowed tool",
+            call_violation(
+                "tool_not_allowed",
+                "tool call 'rm_rf' is not an allowed tool",
                 tool_call_id="c1",
                 tool_name="rm_rf",
                 index=0,
@@ -867,11 +870,7 @@ class TestRailsManagerToolCalls:
         )
         assert_result_blocked(result, "tool parsing failed")
         assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_call",
-                violation_type=ToolViolationType.INVALID_TOOLSET,
-                reason="tool parsing failed: duplicate tool 'get_weather' in toolset",
-            ),
+            call_violation("invalid_toolset", "tool parsing failed: duplicate tool 'get_weather' in toolset"),
         )
 
     @pytest.mark.asyncio
@@ -879,19 +878,10 @@ class TestRailsManagerToolCalls:
         """A tool-parsing error other than a duplicate tool blocks with a fixed reason carrying none of its text."""
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
 
-        def _boom(*args, **kwargs):
-            raise RuntimeError(_SECRET_VALUE)
-
-        mgr.engine_registry.parse_tools = _boom
+        mgr.engine_registry.parse_tools = MagicMock(side_effect=RuntimeError(_SECRET_VALUE))
         result = await mgr.are_tool_calls_safe([_call("get_weather", {"city": "Paris"})], {"tools": [WEATHER_TOOL]})
 
-        assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_call",
-                violation_type=ToolViolationType.INVALID_TOOLSET,
-                reason="tool parsing failed",
-            ),
-        )
+        assert result.tool_violations == (call_violation("invalid_toolset", "tool parsing failed"),)
 
     @pytest.mark.asyncio
     async def test_disabled_toggle_skips_validation(self):
@@ -938,10 +928,9 @@ class TestRailsManagerToolResults:
         result = await mgr.are_tool_results_safe(make_tool_conversation(result_call_id="call_999"))
         assert_result_blocked(result, "call_999")
         assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_result",
-                violation_type=ToolViolationType.UNKNOWN_CALL_ID,
-                reason="tool result for call_id 'call_999' does not correspond to a prior tool call",
+            result_violation(
+                "unknown_call_id",
+                "tool result for call_id 'call_999' does not correspond to a prior tool call",
                 tool_call_id="call_999",
                 index=2,
             ),
@@ -978,40 +967,13 @@ class TestRailsManagerToolResults:
         """An exchange extraction error blocks with a fixed reason and an ``extraction_failed`` violation."""
         mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
 
-        def _boom(*args, **kwargs):
-            raise RuntimeError(_SECRET_VALUE)
-
-        mgr.engine_registry.extract_tool_exchanges = _boom
+        mgr.engine_registry.extract_tool_exchanges = MagicMock(side_effect=RuntimeError(_SECRET_VALUE))
         result = await mgr.are_tool_results_safe(make_tool_conversation())
         assert_result_blocked(result, "tool exchange extraction failed")
-        assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_result",
-                violation_type=ToolViolationType.EXTRACTION_FAILED,
-                reason="tool exchange extraction failed",
-            ),
-        )
+        assert result.tool_violations == (result_violation("extraction_failed", "tool exchange extraction failed"),)
 
 
 _SECRET_VALUE = "SECRET-VALUE"
-
-
-def _malformed_latest_call_messages() -> list:
-    """A user turn, then an assistant ``get_weather`` call whose truncated JSON arguments quote a secret."""
-    return [
-        {"role": "user", "content": "What's the weather in Paris?"},
-        {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {
-                    "id": "call_1",
-                    "type": "function",
-                    "function": {"name": "get_weather", "arguments": '{"city": "SECRET-VALUE"'},
-                }
-            ],
-        },
-    ]
 
 
 class TestRailsManagerLatestToolCalls:
@@ -1048,68 +1010,52 @@ class TestRailsManagerLatestToolCalls:
         assert result.triggered_rail == "tool call validation"
 
     @pytest.mark.asyncio
-    async def test_extraction_error_blocks_with_its_content_free_message(self):
-        """A malformed latest call blocks before any rail runs, naming the call but never quoting its arguments."""
-        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
-
-        result = await mgr.are_latest_tool_calls_safe(_malformed_latest_call_messages(), {"tools": [WEATHER_TOOL]})
-
-        assert result.is_safe is False
-        assert result.reason == "tool call extraction failed: tool call 'call_1' has malformed arguments"
-        assert result.triggered_rail is None
-        assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_call",
-                violation_type=ToolViolationType.MALFORMED_ARGUMENTS,
-                reason="tool call extraction failed: tool call 'call_1' has malformed arguments",
-                tool_call_id="call_1",
-                tool_name="get_weather",
-                index=0,
+    @pytest.mark.parametrize(
+        ("messages", "violation"),
+        [
+            (
+                tool_call_turn(wire_tool_call(arguments='{"city": "SECRET-VALUE"')),
+                call_violation(
+                    "malformed_arguments",
+                    "tool call extraction failed: tool call 'call_1' has malformed arguments",
+                    tool_call_id="call_1",
+                    tool_name="get_weather",
+                    index=0,
+                ),
             ),
-        )
-
-    @pytest.mark.asyncio
-    async def test_legacy_function_call_blocks_with_its_violation(self):
-        """A legacy ``function_call`` blocks with a violation naming its tool, with no call index."""
+            (
+                [{"role": "assistant", "function_call": {"name": "get_weather", "arguments": "{}"}}],
+                call_violation(
+                    "legacy_function_call",
+                    "tool call extraction failed: legacy function_call is not validated by tool rails",
+                    tool_name="get_weather",
+                ),
+            ),
+        ],
+        ids=["malformed_arguments", "legacy_function_call"],
+    )
+    async def test_extraction_error_blocks_with_its_violation(self, messages, violation):
+        """A latest turn the extractor refuses blocks before any rail runs, with the extractor's content-free reason."""
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
-        messages = [
-            {"role": "user", "content": "What's the weather in Paris?"},
-            {"role": "assistant", "content": None, "function_call": {"name": "get_weather", "arguments": "{}"}},
-        ]
 
         result = await mgr.are_latest_tool_calls_safe(messages, {"tools": [WEATHER_TOOL]})
 
-        assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_call",
-                violation_type=ToolViolationType.LEGACY_FUNCTION_CALL,
-                reason="tool call extraction failed: legacy function_call is not validated by tool rails",
-                tool_name="get_weather",
-            ),
-        )
+        assert (result.is_safe, result.reason, result.triggered_rail) == (False, violation.reason, None)
+        assert result.tool_violations == (violation,)
 
     @pytest.mark.asyncio
     async def test_unexpected_extraction_error_blocks_with_a_fixed_reason(self):
         """Any other extraction error blocks with a fixed reason that carries none of the exception's text."""
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
 
-        def _boom(*args, **kwargs):
-            raise RuntimeError(_SECRET_VALUE)
-
-        mgr.engine_registry.extract_latest_tool_calls = _boom
+        mgr.engine_registry.extract_latest_tool_calls = MagicMock(side_effect=RuntimeError(_SECRET_VALUE))
 
         result = await mgr.are_latest_tool_calls_safe(make_tool_conversation(), {"tools": [WEATHER_TOOL]})
 
         assert result.is_safe is False
         assert result.reason == "tool call extraction failed"
         assert result.triggered_rail is None
-        assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_call",
-                violation_type=ToolViolationType.EXTRACTION_FAILED,
-                reason="tool call extraction failed",
-            ),
-        )
+        assert result.tool_violations == (call_violation("extraction_failed", "tool call extraction failed"),)
 
     @pytest.mark.asyncio
     async def test_no_tool_calls_on_the_last_assistant_message_is_safe(self):
@@ -1126,7 +1072,9 @@ class TestRailsManagerLatestToolCalls:
         """With no tool-call rail to run nothing is extracted, so a malformed call and a missing engine both pass."""
         mgr = _tool_rails_manager()
 
-        result = await mgr.are_latest_tool_calls_safe(_malformed_latest_call_messages(), {"tools": [WEATHER_TOOL]})
+        result = await mgr.are_latest_tool_calls_safe(
+            tool_call_turn(wire_tool_call(arguments='{"city": "SECRET-VALUE"')), {"tools": [WEATHER_TOOL]}
+        )
 
         assert result.is_safe is True
 
@@ -1144,12 +1092,7 @@ class TestRailsManagerToolViolations:
 
         assert result.failed is True
         assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_call",
-                violation_type=ToolViolationType.RAIL_FAILED,
-                reason="tool call validation error",
-                rail="tool call validation",
-            ),
+            call_violation("rail_failed", "tool call validation error", rail="tool call validation"),
         )
 
     @pytest.mark.asyncio
@@ -1162,12 +1105,7 @@ class TestRailsManagerToolViolations:
 
         assert result.failed is True
         assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_result",
-                violation_type=ToolViolationType.RAIL_FAILED,
-                reason="tool result validation error",
-                rail="tool result validation",
-            ),
+            result_violation("rail_failed", "tool result validation error", rail="tool result validation"),
         )
 
     @pytest.mark.asyncio

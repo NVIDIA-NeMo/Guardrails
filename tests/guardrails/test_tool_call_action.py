@@ -21,9 +21,9 @@ import pytest
 
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.tool_schema import Tool, Toolset
-from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.types import ToolCall, ToolCallFunction
-from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_outcome_blocked, violations_in
+from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_outcome_blocked, call_violation, violations_in
 
 
 def _toolset() -> Toolset:
@@ -32,27 +32,6 @@ def _toolset() -> Toolset:
 
 def _call(name: str, arguments: dict, call_id: str = "c1") -> ToolCall:
     return ToolCall(id=call_id, function=ToolCallFunction(name=name, arguments=arguments))
-
-
-def _call_violation(
-    violation_type: ToolViolationType,
-    reason: str,
-    *,
-    tool_name: str,
-    argument_path: str | None = None,
-    schema_keyword: str | None = None,
-) -> ToolViolation:
-    """A violation for the only call in the list, ``c1`` at index 0."""
-    return ToolViolation(
-        kind="tool_call",
-        violation_type=violation_type,
-        reason=reason,
-        tool_call_id="c1",
-        tool_name=tool_name,
-        index=0,
-        argument_path=argument_path,
-        schema_keyword=schema_keyword,
-    )
 
 
 class TestToolCallRailAction:
@@ -67,10 +46,12 @@ class TestToolCallRailAction:
         result = await ToolCallRailAction().run(_toolset(), [_call("ping", {"anything": 1})])
         assert_outcome_blocked(result, "ping", "no arguments")
         assert violations_in(result) == [
-            _call_violation(
-                ToolViolationType.UNEXPECTED_ARGUMENTS,
+            call_violation(
+                "unexpected_arguments",
                 "tool 'ping' accepts no arguments but the call supplied 1 argument",
+                tool_call_id="c1",
                 tool_name="ping",
+                index=0,
             )
         ]
 
@@ -86,8 +67,12 @@ class TestToolCallRailAction:
         result = await ToolCallRailAction().run(_toolset(), [_call("rm_rf", {})])
         assert_outcome_blocked(result, "rm_rf", "not an allowed tool")
         assert violations_in(result) == [
-            _call_violation(
-                ToolViolationType.TOOL_NOT_ALLOWED, "tool call 'rm_rf' is not an allowed tool", tool_name="rm_rf"
+            call_violation(
+                "tool_not_allowed",
+                "tool call 'rm_rf' is not an allowed tool",
+                tool_call_id="c1",
+                tool_name="rm_rf",
+                index=0,
             )
         ]
 
@@ -97,10 +82,12 @@ class TestToolCallRailAction:
         result = await ToolCallRailAction().run(_toolset(), [_call("get_weather", {})])
         assert_outcome_blocked(result, "get_weather")
         assert violations_in(result) == [
-            _call_violation(
-                ToolViolationType.ARGUMENTS_INVALID,
+            call_violation(
+                "arguments_invalid",
                 "arguments for tool 'get_weather' do not match its schema: 'required' failed at '/city'",
+                tool_call_id="c1",
                 tool_name="get_weather",
+                index=0,
                 argument_path="/city",
                 schema_keyword="required",
             )
@@ -113,13 +100,7 @@ class TestToolCallRailAction:
         call = ToolCall(id=non_string_id, function=ToolCallFunction(name="rm_rf", arguments={}))
         result = await ToolCallRailAction().run(_toolset(), [call])
         assert violations_in(result) == [
-            ToolViolation(
-                kind="tool_call",
-                violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
-                reason="tool call 'rm_rf' is not an allowed tool",
-                tool_name="rm_rf",
-                index=0,
-            )
+            call_violation("tool_not_allowed", "tool call 'rm_rf' is not an allowed tool", tool_name="rm_rf", index=0)
         ]
 
     @pytest.mark.asyncio

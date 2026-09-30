@@ -37,10 +37,10 @@ from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import ToolCall, ToolCallFunction
-from tests.guardrails.tool_helpers import assert_result_blocked
+from tests.guardrails.tool_helpers import assert_result_blocked, call_violation, result_violation
 
 STACK_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
 
@@ -62,22 +62,15 @@ def _other_call(call_id: str = "call_2") -> ToolCall:
     )
 
 
-def _llm_params(*tool_names: str) -> dict:
-    """Declare *tool_names* with a schema permissive enough to accept any arguments.
+def _llm_params(*tool_names: str, parameters: dict | None = None) -> dict:
+    """Declare *tool_names* with a schema permissive enough to accept any arguments, or with *parameters*.
 
     @tool_output_validation blocks a call whose tool isn't declared here, so per-tool
     tests that expect the regex check itself to run (not the schema gate) need their
     tool declared.
     """
-    return {
-        "tools": [
-            {
-                "type": "function",
-                "function": {"name": name, "parameters": {"type": "object", "additionalProperties": True}},
-            }
-            for name in tool_names
-        ]
-    }
+    schema = parameters or {"type": "object", "additionalProperties": True}
+    return {"tools": [{"type": "function", "function": {"name": name, "parameters": schema}} for name in tool_names]}
 
 
 def _build_manager(
@@ -146,10 +139,9 @@ class TestAreToolCallsSafe:
         calls = [_sql_call("SELECT 1", call_id="call_1"), _sql_call("DROP TABLE users", call_id="call_2")]
         result = await manager.are_tool_calls_safe(calls, _llm_params("run_sql"))
         assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_call",
-                violation_type=ToolViolationType.PER_TOOL_RAIL,
-                reason="regex check tool output",
+            call_violation(
+                "per_tool_rail",
+                "regex check tool output",
                 tool_call_id="call_2",
                 tool_name="run_sql",
                 index=1,
@@ -164,28 +156,15 @@ class TestAreToolCallsSafe:
             per_tool_call_flows={"run_sql": ["regex check tool output $argument=nope"]},
             regex_detection=RUN_SQL_PATTERN_CONFIG,
         )
-        closed_run_sql = {
-            "tools": [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "run_sql",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {"query": {"type": "string"}},
-                            "additionalProperties": False,
-                        },
-                    },
-                }
-            ]
-        }
-        result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], closed_run_sql)
+        closed_query = {"type": "object", "properties": {"query": {"type": "string"}}, "additionalProperties": False}
+        result = await manager.are_tool_calls_safe(
+            [_sql_call("SELECT 1")], _llm_params("run_sql", parameters=closed_query)
+        )
         assert result.failed is True
         assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_call",
-                violation_type=ToolViolationType.RAIL_FAILED,
-                reason="regex check tool output error",
+            call_violation(
+                "rail_failed",
+                "regex check tool output error",
                 tool_call_id="call_1",
                 tool_name="run_sql",
                 index=0,
@@ -304,10 +283,9 @@ class TestAreToolResultsSafe:
         assert result.records[0].tool_name == "run_sql"
         assert result.records[0].rail_type == "tool_input"
         assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_result",
-                violation_type=ToolViolationType.PER_TOOL_RAIL,
-                reason="regex check tool input",
+            result_violation(
+                "per_tool_rail",
+                "regex check tool input",
                 tool_call_id="call_1",
                 tool_name="run_sql",
                 index=2,
@@ -426,10 +404,9 @@ class TestAreToolResultsSafe:
         result = await manager.are_tool_results_safe(messages)
         assert result.is_safe is False
         assert result.tool_violations == (
-            ToolViolation(
-                kind="tool_result",
-                violation_type=ToolViolationType.UNLINKABLE_RESULT,
-                reason="tool result cannot be linked to exactly one prior call; per-tool policy cannot be verified",
+            result_violation(
+                "unlinkable_result",
+                "tool result cannot be linked to exactly one prior call; per-tool policy cannot be verified",
                 tool_call_id="call_unknown",
                 index=2,
             ),
