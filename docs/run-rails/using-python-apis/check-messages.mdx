@@ -54,7 +54,7 @@ def check(
 |-----------|------|-------------|
 | `messages` | `List[dict]` | List of message dictionaries with `role` and `content` fields |
 | `rail_types` | `Optional[List[RailType]]` | Optional list of rail types to run. When provided, overrides automatic detection based on message roles. |
-| `tools` | `Optional[List[dict]]` | IORails only. The tools a `tool_call` check validates calls against, in the main model's wire format. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only). |
+| `tools` | `Optional[List[dict]]` | IORails only; `LLMRails` raises `RailTypeNotSupportedError`. The tools a `tool_call` check validates calls against, in the main model's wire format. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only). |
 
 **Returns:** `RailsResult` object containing validation results.
 
@@ -184,7 +184,7 @@ Keep the following behavior in mind:
 - Legacy `role: "function"` messages are not validated by the tool-result rails, in checks or in generation.
 - The configuration sections, and the `rail_type` recorded for tool rails in a generation's log, keep the names `tool_output` and `tool_input`.
 - `LLMRails` does not run tool rails in a check.
-  Requesting a tool rail type raises `RailTypeNotSupportedError`, and passing `tools` to the `Guardrails` facade on `LLMRails` raises `NotImplementedError`.
+  Requesting a tool rail type, or passing `tools`, raises `RailTypeNotSupportedError` rather than ignoring the request.
 
 For configuration and the validation rules, refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
 
@@ -360,7 +360,7 @@ Both engines take `messages` and `rail_types`, but each engine executes a check 
 | How the check runs | Through the Colang runtime, as a generation with dialog rails and the unrequested rail types disabled | Directly through the engine's rails manager, with no Colang runtime |
 | Rails that can run | Every configured input and output flow, including community, third-party, and custom-action rails | The input and output rails IORails supports. A configuration outside that set routes to `LLMRails` |
 | Main LLM call | Not made | Not made |
-| Tool rails | Not run. Requesting a tool rail type raises `RailTypeNotSupportedError` | Run when named in `rail_types`. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only) |
+| Tool rails | Not run. Requesting a tool rail type, or passing `tools`, raises `RailTypeNotSupportedError` | Run when named in `rail_types`. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only) |
 | `BLOCKED` content | The refusal message defined by the configuration's Colang flow | A fixed refusal message that the configuration does not change |
 | `BLOCKED` reason | Not reported. `reason` is `None` | The blocking rail's own explanation, or the rail's name when it gives none |
 | Rail that fails to execute | Handled by the Colang runtime's internal-error path | `BLOCKED` with an internal-error message that is distinct from the refusal message |
@@ -431,7 +431,8 @@ Requesting a rail type with no configured flows returns HTTP 422.
 
 `guardrails.rail_types` accepts `tool_call` and `tool_result` on a configuration that `IORails` serves.
 On a configuration that `LLMRails` serves, they return HTTP 422.
-The request's top-level `tools` field sets the tools a `tool_call` check validates against, and only `IORails` reads it.
+The request's top-level `tools` field sets the tools a `tool_call` check validates against.
+On a configuration that `LLMRails` serves, a request that carries `tools` also returns HTTP 422.
 
 The response carries `status`, `content`, and, on a block, `rail`.
 A block on `IORails` also carries `reason`, and a tool rail block also carries `tool_violations`.

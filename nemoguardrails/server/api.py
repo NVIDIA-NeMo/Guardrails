@@ -23,7 +23,7 @@ import re
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, List, Literal, Optional, TypeGuard, Union
+from typing import Any, AsyncIterator, Callable, List, Literal, Optional, Union
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -803,7 +803,11 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         # IORails-only: prefix `content` with `reasoning_content` and think-tags.
         # A Guardrails wrapper can fall back to an LLMRails engine, which already
         # inlines reasoning itself, so the engine check is what scopes this.
-        if _serves_on_iorails(llm_rails) and isinstance(res, GenerationResponse):
+        if (
+            isinstance(llm_rails, Guardrails)
+            and isinstance(llm_rails.rails_engine, IORails)
+            and isinstance(res, GenerationResponse)
+        ):
             res = _inline_reasoning_as_think_tags(res)
 
         # Extract bot message for thread storage if needed
@@ -842,11 +846,6 @@ def _map_rail_status(status: RailStatus) -> str:
     return status.value
 
 
-def _serves_on_iorails(llm_rails: Any) -> TypeGuard[Guardrails]:
-    """Whether *llm_rails* is a Guardrails facade running on the IORails engine rather than LLMRails."""
-    return isinstance(llm_rails, Guardrails) and isinstance(llm_rails.rails_engine, IORails)
-
-
 def _index_past_prepended_context(violation: ToolViolation) -> ToolViolation:
     """*violation* with a tool result's message index counted in the request's own messages."""
     # A call's index is its position in tool_calls, which the prepended message does not move.
@@ -872,8 +871,9 @@ def _violations_in_request_positions(
 async def guardrail_check(body: GuardrailCheckRequest, request: Request):
     """Guardrail check request.
 
-    Returns 422 when ``rail_types`` includes a type with no configured flows, or a
-    tool rail type on a config the IORails engine does not serve.
+    Returns 422 when ``rail_types`` includes a type with no configured flows, or when
+    the serving engine cannot run a tool check it was asked for: a tool rail type, or
+    ``tools``, on a config the IORails engine does not serve.
     """
     api_request_headers.set(request.headers)
 
@@ -906,11 +906,7 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
     if context_prepended:
         messages.insert(0, {"role": "context", "content": body.guardrails.context})
 
-    if _serves_on_iorails(llm_rails):
-        result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types, tools=body.tools)
-    else:
-        # LLMRails' check_async takes no tools; it refuses the tool rail types that would read them.
-        result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types)
+    result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types, tools=body.tools)
 
     return GuardrailCheckResponse(
         status=_map_rail_status(result.status),

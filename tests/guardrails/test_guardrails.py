@@ -1548,7 +1548,7 @@ class TestLLMRailsOnlyMethods:
         messages = [{"role": "user", "content": "hi"}]
         result = guardrails.check(messages, rail_types=[RailType.INPUT])
 
-        mock_llmrails_instance.check.assert_called_once_with(messages, rail_types=[RailType.INPUT])
+        mock_llmrails_instance.check.assert_called_once_with(messages, rail_types=[RailType.INPUT], tools=None)
         assert result is sentinel
 
     @pytest.mark.asyncio
@@ -1565,7 +1565,7 @@ class TestLLMRailsOnlyMethods:
         messages = [{"role": "user", "content": "hi"}]
         result = await guardrails.check_async(messages, rail_types=[RailType.OUTPUT])
 
-        mock_llmrails_instance.check_async.assert_called_once_with(messages, rail_types=[RailType.OUTPUT])
+        mock_llmrails_instance.check_async.assert_called_once_with(messages, rail_types=[RailType.OUTPUT], tools=None)
         assert result is sentinel
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -2349,14 +2349,14 @@ class TestCheckToolRailsOnLLMRails:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("rail_types", [None, [RailType.INPUT]], ids=["auto_detected", "input"])
-    async def test_tools_alone_raise_not_implemented(self, llmrails_guardrails, rail_types):
-        """``tools`` without a tool rail type raises ``NotImplementedError`` instead of being dropped."""
-        with pytest.raises(NotImplementedError, match="IORails"):
+    async def test_tools_alone_raise_not_supported(self, llmrails_guardrails, rail_types):
+        """``tools`` without a tool rail type raises ``RailTypeNotSupportedError`` instead of being dropped."""
+        with pytest.raises(RailTypeNotSupportedError, match="tools"):
             await llmrails_guardrails.check_async(
                 [{"role": "user", "content": "hi"}], rail_types=rail_types, tools=_TOOLS
             )
 
-    def test_sync_tools_alone_raise_not_implemented(self, llmrails_guardrails):
+    def test_sync_tools_alone_raise_not_supported(self, llmrails_guardrails):
         """Sync ``check`` refuses ``tools`` on LLMRails as ``check_async`` does."""
-        with pytest.raises(NotImplementedError, match="IORails"):
+        with pytest.raises(RailTypeNotSupportedError, match="tools"):
             llmrails_guardrails.check([{"role": "user", "content": "hi"}], tools=_TOOLS)

@@ -588,9 +588,14 @@ class TestUnsatisfiableRailTypes:
 
 
 _TOOL_RAIL_TYPE_REQUESTS = pytest.mark.parametrize(
-    "rail_types",
-    [[RailType.TOOL_CALL], [RailType.TOOL_RESULT], [RailType.INPUT, RailType.TOOL_CALL]],
-    ids=["tool_call", "tool_result", "input_and_tool_call"],
+    ("rail_types", "unsupported"),
+    [
+        ([RailType.TOOL_CALL], "tool_call"),
+        ([RailType.TOOL_RESULT], "tool_result"),
+        ([RailType.INPUT, RailType.TOOL_CALL], "tool_call"),
+        ([RailType.TOOL_RESULT, RailType.TOOL_CALL, RailType.TOOL_CALL], "tool_call, tool_result"),
+    ],
+    ids=["tool_call", "tool_result", "input_and_tool_call", "both_tool_types_repeated"],
 )
 
 
@@ -599,16 +604,30 @@ class TestToolRailTypesAreNotSupported:
 
     @pytest.mark.asyncio
     @_TOOL_RAIL_TYPE_REQUESTS
-    async def test_check_async_raises(self, mock_rails, rail_types):
-        """``check_async`` raises ``RailTypeNotSupportedError`` when any requested rail type is a tool rail type."""
-        with pytest.raises(RailTypeNotSupportedError, match="IORails"):
+    async def test_check_async_raises(self, mock_rails, rail_types, unsupported):
+        """``check_async`` names each unsupported tool rail type once, in sorted order."""
+        with pytest.raises(RailTypeNotSupportedError) as excinfo:
             await mock_rails.check_async([{"role": "user", "content": "hello"}], rail_types=rail_types)
+        assert str(excinfo.value) == f"LLMRails supports input and output rails only, not {unsupported}"
 
     @_TOOL_RAIL_TYPE_REQUESTS
-    def test_check_raises(self, mock_rails, rail_types):
-        """Sync ``check`` raises ``RailTypeNotSupportedError`` when any requested rail type is a tool rail type."""
-        with pytest.raises(RailTypeNotSupportedError, match="IORails"):
+    def test_check_raises(self, mock_rails, rail_types, unsupported):
+        """Sync ``check`` raises the same ``RailTypeNotSupportedError`` as ``check_async``."""
+        with pytest.raises(RailTypeNotSupportedError) as excinfo:
             mock_rails.check([{"role": "user", "content": "hello"}], rail_types=rail_types)
+        assert str(excinfo.value) == f"LLMRails supports input and output rails only, not {unsupported}"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("rail_types", [None, [RailType.INPUT]], ids=["auto_detected", "input"])
+    async def test_check_async_with_tools_raises(self, mock_rails, rail_types):
+        """``check_async`` raises ``RailTypeNotSupportedError`` for ``tools``, which only a tool-call check reads."""
+        with pytest.raises(RailTypeNotSupportedError, match="tools"):
+            await mock_rails.check_async([{"role": "user", "content": "hello"}], rail_types=rail_types, tools=[])
+
+    def test_check_with_tools_raises(self, mock_rails):
+        """Sync ``check`` raises ``RailTypeNotSupportedError`` for ``tools`` as ``check_async`` does."""
+        with pytest.raises(RailTypeNotSupportedError, match="tools"):
+            mock_rails.check([{"role": "user", "content": "hello"}], tools=[])
 
 
 @pytest.fixture

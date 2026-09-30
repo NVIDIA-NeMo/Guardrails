@@ -37,6 +37,7 @@ from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.server import api
+from nemoguardrails.testing.fake_model import FakeLLMModel
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
 from tests.guardrails.test_tool_rails_iorails import TOOL_CONFIG, WEATHER_TOOL
@@ -379,7 +380,9 @@ def test_chat_completion_refuses_an_unlinked_tool_result_under_iorails_alias(too
     stubbed_main_model.assert_not_awaited()
 
 
-def _post_check(messages: list, rail_types: list, *, tools: "list | None" = None, context: "dict | None" = None):
+def _post_check(
+    messages: list, rail_types: "list | None", *, tools: "list | None" = None, context: "dict | None" = None
+):
     """POST *messages* to /v1/checks against the tool-rails config."""
     guardrails = {"config_id": "tools", "rail_types": rail_types}
     if context is not None:
@@ -472,24 +475,51 @@ def test_result_violation_index_counts_request_messages_under_iorails_alias(tool
     assert [violation["index"] for violation in response.json()["tool_violations"]] == [2]
 
 
-class _StubLLMRailsWithCheck(_StubLLMRails):
-    """The LLMRails stand-in with LLMRails' own check_async, which refuses tool rail types before any model runs."""
-
-    check_async = LLMRails.check_async
+# A Colang input rail, which LLMRails runs through its own runtime: the config the server holds when
+# NEMO_GUARDRAILS_IORAILS_ENGINE is unset.
+INPUT_RAIL_COLANG = """
+define flow input rail
+  if $user_message == "block"
+    bot refuse to respond
+    stop
+"""
+INPUT_RAIL_YAML = """
+rails:
+  input:
+    flows:
+      - input rail
+"""
 
 
 @pytest.fixture
-def tool_rails_on_llmrails(monkeypatch):
-    """Serve the tool-rails config through a non-Guardrails engine: the contrast case for `tool_rails_alias`."""
-    tool_rails_config = RailsConfig.from_content(config=TOOL_CONFIG)
-    monkeypatch.setattr(api, "LLMRails", _StubLLMRailsWithCheck)
-    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: tool_rails_config))
+def llmrails_server(monkeypatch):
+    """Serve an input-rail config through a real LLMRails inside the server, with a fake main model."""
+    input_rail_config = RailsConfig.from_content(INPUT_RAIL_COLANG, INPUT_RAIL_YAML)
+
+    def build_llmrails(config, verbose=False):
+        return LLMRails(config, llm=FakeLLMModel(responses=[]), verbose=verbose)
+
+    monkeypatch.setattr(api, "LLMRails", build_llmrails)
+    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: input_rail_config))
     yield
 
 
-def test_check_tool_rail_type_on_llmrails_returns_422(tool_rails_on_llmrails):
-    """LLMRails cannot run tool rail types, so /v1/checks answers 422 rather than passing or failing with a 500."""
-    response = _post_check(_tool_call_turn(), ["tool_call"], tools=[WEATHER_TOOL])
+def test_check_tool_rail_types_on_llmrails_return_422(llmrails_server):
+    """LLMRails serving /v1/checks refuses tool rail types with a 422 naming them, rather than passing or a 500."""
+    response = _post_check(_tool_call_turn(), ["input", "tool_result", "tool_call"])
 
     assert response.status_code == 422
-    assert "IORails" in response.json()["error"]["message"]
+    assert response.json()["error"]["message"] == (
+        "LLMRails supports input and output rails only, not tool_call, tool_result"
+    )
+
+
+def test_check_with_tools_on_llmrails_returns_422(llmrails_server):
+    """LLMRails serving /v1/checks refuses a request carrying tools, even for an input check it can run."""
+    response = _post_check([{"role": "user", "content": "hi"}], ["input"], tools=[WEATHER_TOOL])
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == (
+        "LLMRails check() does not run tool rails, so it does not take tools; "
+        "tool_call checks run on the IORails engine only."
+    )

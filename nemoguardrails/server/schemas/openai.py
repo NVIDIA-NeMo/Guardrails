@@ -394,7 +394,7 @@ class GuardrailCheckRequest(OpenAIChatCompletionRequest):
     tools: Optional[list[dict]] = Field(
         default=None,
         description="Tools that `tool_call` rails validate calls against: the allowlist and each tool's argument "
-        "schema. Read only for `tool_call` checks on the IORails engine.",
+        "schema. Only the IORails engine runs tool checks; on LLMRails a request with `tools` returns 422.",
     )
     guardrails: GuardrailCheckDataInput = Field(
         default_factory=GuardrailCheckDataInput,
