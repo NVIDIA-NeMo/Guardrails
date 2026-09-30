@@ -15,6 +15,8 @@
 
 """Unit tests for ToolCallRailAction (allowlist + argument-schema validation)."""
 
+from typing import Any
+
 import pytest
 
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
@@ -101,6 +103,22 @@ class TestToolCallRailAction:
                 tool_name="get_weather",
                 argument_path="/city",
                 schema_keyword="required",
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_undeclared_call_with_a_non_string_id_is_still_reported(self):
+        """A call whose id is not a string blocks as ``tool_not_allowed`` with no id, rather than breaking the rail."""
+        non_string_id: Any = 5
+        call = ToolCall(id=non_string_id, function=ToolCallFunction(name="rm_rf", arguments={}))
+        result = await ToolCallRailAction().run(_toolset(), [call])
+        assert violations_in(result) == [
+            ToolViolation(
+                kind="tool_call",
+                violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+                reason="tool call 'rm_rf' is not an allowed tool",
+                tool_name="rm_rf",
+                index=0,
             )
         ]
 

@@ -1261,6 +1261,16 @@ class TestCheckToolRailConfiguration:
         ]
 
     @pytest.mark.asyncio
+    async def test_per_tool_rails_alone_leave_unlisted_tools_unchecked(self):
+        """Without the global validator only tools with per-tool rails are checked, so an undeclared tool passes."""
+        messages = _tool_call_turn(_wire_call("delete_files", "{}"))
+
+        async with started_iorails(PER_TOOL_ONLY_CONFIG) as engine:
+            result = await engine.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=[])
+
+        assert result.status == RailStatus.PASSED
+
+    @pytest.mark.asyncio
     async def test_per_tool_rails_with_no_flows_are_not_configured(self):
         """A ``per_tool`` map whose lists are all empty runs nothing, so the tool rail type counts as unconfigured."""
         config = {**TOOL_CONFIG, "rails": {"tool_output": {"per_tool": {"run_sql": []}}}}
