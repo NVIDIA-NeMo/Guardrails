@@ -3034,6 +3034,16 @@ class TestExtractLatestToolCalls:
         assert (error.index, error.tool_call_id, error.tool_name) == (0, "call_1", None)
         assert _SECRET_VALUE not in str(error)
 
+    def test_call_without_a_function_object_raises_malformed_tool_call(self, engine):
+        """A call with no ``function`` object is not the Chat Completions shape, so its arguments are never guessed."""
+        flat_call = {"id": "call_1", "type": "function", "name": "run_sql", "arguments": '{"q": "SECRET-VALUE"}'}
+        with pytest.raises(ToolCallExtractionError) as excinfo:
+            engine.extract_latest_tool_calls([_assistant_tool_calls(flat_call)])
+        error = excinfo.value
+        assert error.violation_type is ToolViolationType.MALFORMED_TOOL_CALL
+        assert (error.index, error.tool_call_id, error.tool_name) == (0, "call_1", None)
+        assert _SECRET_VALUE not in str(error)
+
     def test_legacy_function_call_raises(self, engine):
         """A last assistant message carrying only a legacy ``function_call`` raises rather than passing unchecked."""
         messages = [

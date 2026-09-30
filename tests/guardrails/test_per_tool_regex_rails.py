@@ -436,6 +436,36 @@ class TestAreToolResultsSafe:
         )
 
     @pytest.mark.asyncio
+    async def test_non_string_call_id_still_gives_a_structured_block(self):
+        """A result linked by a non-string call id is blocked by its per-tool rail with a violation, not an exception."""
+        manager = _build_manager(
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
+            regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
+        )
+        messages = self._messages("ssn: 123-45-6789")
+        messages[1]["tool_calls"][0]["id"] = 5
+        messages[2]["tool_call_id"] = 5
+
+        result = await manager.are_tool_results_safe(messages)
+
+        assert [(v.violation_type, v.tool_call_id, v.index) for v in result.tool_violations] == [
+            (ToolViolationType.PER_TOOL_RAIL, None, 2)
+        ]
+
+    @pytest.mark.asyncio
+    async def test_unresolvable_call_id_block_names_no_rail(self):
+        """The manager refuses an unresolvable result before any per-tool rail runs, so the block names no rail."""
+        manager = _build_manager(
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
+            regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
+        )
+        messages = self._messages("no sensitive data", name=None)
+        messages[-1]["tool_call_id"] = "call_unknown"
+        result = await manager.are_tool_results_safe(messages)
+        assert result.is_safe is False
+        assert result.triggered_rail is None
+
+    @pytest.mark.asyncio
     async def test_global_only_config_does_not_require_result_linkage(self):
         """A global-only config (no per-tool result policy enabled) must not impose its
         own identity-resolution requirement: a custom global rail may intentionally

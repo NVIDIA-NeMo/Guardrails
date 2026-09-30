@@ -569,14 +569,16 @@ def _parse_latest_tool_call(entry: object, index: int) -> ToolCall:
         )
     tool_call_id = _string_or_none(entry.get("id"))
     function = entry.get("function")
-    if function is not None and not isinstance(function, dict):
+    # A call without a function object is not the Chat Completions shape; ChatMessage.from_dict would
+    # read it as the legacy flat shape, which ignores an `arguments` key and validates `{}` instead.
+    if not isinstance(function, dict):
         raise ToolCallExtractionError(
-            f"{_describe_tool_call(index, tool_call_id)} has a malformed function",
+            f"{_describe_tool_call(index, tool_call_id)} does not carry a function object",
             violation_type=ToolViolationType.MALFORMED_TOOL_CALL,
             index=index,
             tool_call_id=tool_call_id,
         )
-    if function is not None and function.get("arguments") == "":
+    if function.get("arguments") == "":
         # Streaming finalization reads empty arguments as no arguments, so a check does too.
         entry = {**entry, "function": {**function, "arguments": {}}}
     try:
@@ -588,7 +590,7 @@ def _parse_latest_tool_call(entry: object, index: int) -> ToolCall:
             violation_type=ToolViolationType.MALFORMED_ARGUMENTS,
             index=index,
             tool_call_id=tool_call_id,
-            tool_name=_string_or_none((function or {}).get("name")),
+            tool_name=_string_or_none(function.get("name")),
         ) from None
     return cast(list[ToolCall], message.tool_calls)[0]
 

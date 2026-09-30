@@ -123,10 +123,12 @@ This lets an agent harness validate the tool calls its model produced, and the t
 
 | Rail type | What the check validates |
 |---|---|
-| `RailType.TOOL_CALL` | The tool calls on the last assistant message. Each call must name a declared tool, and its arguments must match that tool's JSON Schema. |
+| `RailType.TOOL_CALL` | The tool calls on the last assistant message. With `tool call validation` configured, each call must name a declared tool, and its arguments must match that tool's JSON Schema. |
 | `RailType.TOOL_RESULT` | Every `tool` message. Each result must link to exactly one earlier tool call by `tool_call_id`, must not name a different tool than that call, and must carry well-formed content. |
 
 A tool check runs the rails that generation runs for the same direction: the global validator (`tool call validation` or `tool result validation`) and any `per_tool` rails.
+Only the global validator enforces the declared-tool allowlist and argument schemas.
+A `per_tool` rail checks only the tools it is listed under, so with `per_tool` rails alone, a call to any other tool, declared or not, passes.
 It never calls the main model.
 
 Pass the tools your model was offered in `tools`, in the main model's wire format.
@@ -170,7 +172,7 @@ Keep the following behavior in mind:
   It logs an INFO message when the configuration has tool rails and the messages carry tool calls or tool results.
 - `tools` replaces the tools declared in the main model's `parameters.tools`, schemas included; it does not add to them.
   When you omit `tools`, the configured tools are the allowlist.
-  `tools=[]` declares no tools, so every call is blocked.
+  `tools=[]` declares no tools, so `tool call validation` blocks every call.
 - A `tool_call` check validates only the last assistant message.
   Earlier calls were validated when they were produced, and a `tool_result` check validates how results link to them.
 - A tool check needs a `main` model, because its engine selects the wire format.
@@ -236,7 +238,7 @@ Switch on `violation_type`, which is a closed set, and never on the `reason` tex
 | `unexpected_arguments` | Call | The tool declares no parameters, but the call passes arguments |
 | `invalid_tool_schema` | Call | The tool's declared schema is not valid JSON Schema |
 | `malformed_arguments` | Call | The arguments are not a JSON object |
-| `malformed_tool_call` | Call | The tool-call entry, or its `function`, is not an object |
+| `malformed_tool_call` | Call | The tool-call entry is not an object, or has no `function` object |
 | `legacy_function_call` | Call | The last assistant message carries a legacy `function_call`, which tool rails do not validate |
 | `invalid_toolset` | Call | The declared tools cannot be used, for example because a tool is declared twice |
 | `missing_call_id` | Result | The result has no `tool_call_id` |

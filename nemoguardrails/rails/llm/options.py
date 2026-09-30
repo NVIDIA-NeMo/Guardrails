@@ -80,7 +80,7 @@ To get more details on the LLM calls that were executed, including the raw respo
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -170,6 +170,12 @@ class ToolViolation(BaseModel):
     rail: Optional[str] = Field(
         default=None, description="The rail that blocked or failed (`per_tool_rail` and `rail_failed` only)."
     )
+
+    @field_validator("tool_call_id", "tool_name", mode="before")
+    @classmethod
+    def _string_identity_or_none(cls, value: Any) -> Optional[str]:
+        """Store a non-string id or name as None, so a malformed message cannot break building its violation."""
+        return value if isinstance(value, str) else None
 
 
 class GenerationLogOptions(BaseModel):
