@@ -190,7 +190,8 @@ The event-based API and `explain()` are not available on `IORails`.
 On the `Guardrails` facade, these raise `NotImplementedError` when `IORails` is the active engine.
 
 Both engines accept `messages` and `rail_types` and return the same `RailsResult`.
-Only `IORails` runs tool rails from a check, when `rail_types` names `tool_call` or `tool_result`, and only `IORails` accepts the `tools` argument.
+Only `IORails` runs tool rails from a check, when `rail_types` names `tool_call` or `tool_result`.
+`LLMRails` raises `RailTypeNotSupportedError` for those rail types and for the `tools` argument.
 `LLMRails` runs the check through the Colang runtime with the main model call disabled.
 `IORails` runs the rails directly through its rails manager and reuses the `generate_async` admission queue, request span, and request metrics.
 The two differ in what a blocked check reports and in how a direction with no content to check is handled.

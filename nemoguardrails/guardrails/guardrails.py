@@ -38,26 +38,10 @@ from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.options import (
-    TOOL_RAIL_TYPES,
-    GenerationOptions,
-    GenerationResponse,
-    RailsResult,
-    RailType,
-)
+from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse, RailsResult, RailType
 from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
-
-
-def _reject_tools_without_tool_rail_types(rail_types: Optional[List[RailType]], tools: Optional[List[dict]]) -> None:
-    """Refuse ``tools`` on LLMRails, which would drop them, unless a tool rail type is requested."""
-    # A requested tool rail type is left for LLMRails to reject, so that error comes first.
-    if tools is None:
-        return
-    if rail_types is not None and any(rail_type in TOOL_RAIL_TYPES for rail_type in rail_types):
-        return
-    raise NotImplementedError("LLMRails check() does not take tools; tool rail checks run on IORails only")
 
 
 class Guardrails(BaseGuardrails):
@@ -376,11 +360,7 @@ class Guardrails(BaseGuardrails):
         Supported by both LLMRails and IORails; tool rail types and ``tools`` by IORails only.
         """
         await self._ensure_started()
-        if isinstance(self.rails_engine, IORails):
-            return await self.rails_engine.check_async(messages, rail_types=rail_types, tools=tools)
-        llmrails = cast(LLMRails, self.rails_engine)
-        _reject_tools_without_tool_rail_types(rail_types, tools)
-        return await llmrails.check_async(messages, rail_types=rail_types)
+        return await self.rails_engine.check_async(messages, rail_types=rail_types, tools=tools)
 
     def check(
         self,
@@ -392,11 +372,7 @@ class Guardrails(BaseGuardrails):
         """Synchronous version of check_async.
         Supported by both LLMRails and IORails; tool rail types and ``tools`` by IORails only.
         """
-        if isinstance(self.rails_engine, IORails):
-            return self.rails_engine.check(messages, rail_types=rail_types, tools=tools)
-        llmrails = cast(LLMRails, self.rails_engine)
-        _reject_tools_without_tool_rail_types(rail_types, tools)
-        return llmrails.check(messages, rail_types=rail_types)
+        return self.rails_engine.check(messages, rail_types=rail_types, tools=tools)
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration.

@@ -495,7 +495,7 @@ def test_unsupported_rail_types_returns_422():
     """A rail type the serving engine cannot run is a 422 carrying the engine's message, not a 500."""
     mock = _mock_rails(RailsResult(status=RailStatus.PASSED, content="hi"))
     mock.check_async = AsyncMock(
-        side_effect=RailTypeNotSupportedError("tool_call rail checks run on the IORails engine only")
+        side_effect=RailTypeNotSupportedError("LLMRails supports input and output rails only, not tool_call")
     )
 
     with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
@@ -508,28 +508,25 @@ def test_unsupported_rail_types_returns_422():
         )
 
     assert resp.status_code == 422
-    assert "IORails" in resp.json()["error"]["message"]
+    assert resp.json()["error"]["message"] == "LLMRails supports input and output rails only, not tool_call"
 
 
 _WEATHER_TOOL = {"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object"}}}
 
 
-def test_engine_other_than_iorails_is_called_without_tools():
-    """Only an IORails engine is handed the request's tools; another engine's check_async has no such parameter."""
+@pytest.mark.parametrize("tools", [None, [_WEATHER_TOOL]], ids=["absent", "present"])
+def test_tools_passed_through(tools):
+    """The request's tools reach the engine's check_async unchanged; the engine decides whether it can use them."""
     mock = _mock_rails(RailsResult(status=RailStatus.PASSED, content="hi"))
+    body = {"model": "test", "messages": [{"role": "user", "content": "hi"}], "guardrails": {"config_id": "test"}}
+    if tools is not None:
+        body["tools"] = tools
 
     with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
-        resp = _post(
-            {
-                "model": "test",
-                "messages": [{"role": "user", "content": "hi"}],
-                "tools": [_WEATHER_TOOL],
-                "guardrails": {"config_id": "test"},
-            }
-        )
+        resp = _post(body)
 
     assert resp.status_code == 200
-    assert "tools" not in mock.check_async.call_args.kwargs
+    assert mock.check_async.call_args.kwargs["tools"] == tools
 
 
 def test_custom_tools_are_rejected():
