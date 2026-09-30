@@ -27,8 +27,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, List
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
+from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, violations_outcome
 from nemoguardrails.guardrails.tool_schema import validate_arguments
+from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
 
 if TYPE_CHECKING:
     from nemoguardrails.guardrails.tool_schema import Toolset
@@ -45,15 +46,39 @@ class ToolCallRailAction(ToolRailAction):
         return self._guarded(lambda: self._validate(toolset, tool_calls))
 
     def _validate(self, toolset: "Toolset", tool_calls: List["ToolCall"]) -> RailOutcome:
-        """Allowlist each call by name, then validate its arguments against the tool schema."""
-        for call in tool_calls:
-            # Hosted/server tools (e.g. web_search) have no function name; fall back to
-            # call.type, mirroring Tool.key = name or type used when indexing the toolset.
-            name = call.function.name or call.type
-            tool = toolset.get(name)
-            if tool is None:
-                return RailOutcome.block(reason=f"tool call '{name}' is not an allowed tool")
-            block_reason = validate_arguments(tool, call.function.arguments)
-            if block_reason is not None:
-                return RailOutcome.block(reason=block_reason)
-        return RailOutcome.allow()
+        """Allowlist each call by name, then validate its arguments, reporting every call that fails."""
+        violations: list[ToolViolation] = []
+        for index, call in enumerate(tool_calls):
+            violation = self._call_violation(toolset, index, call)
+            if violation is not None:
+                violations.append(violation)
+        return violations_outcome(violations)
+
+    def _call_violation(self, toolset: "Toolset", index: int, call: "ToolCall") -> "ToolViolation | None":
+        """The first check *call* fails, as a violation at its *index*, or None when it passes."""
+        # Hosted/server tools (e.g. web_search) have no function name; fall back to
+        # call.type, mirroring Tool.key = name or type used when indexing the toolset.
+        name = call.function.name or call.type
+        tool = toolset.get(name)
+        if tool is None:
+            return ToolViolation(
+                kind="tool_call",
+                violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+                reason=f"tool call '{name}' is not an allowed tool",
+                tool_call_id=call.id or None,
+                tool_name=name,
+                index=index,
+            )
+        arguments = validate_arguments(tool, call.function.arguments)
+        if arguments is None:
+            return None
+        return ToolViolation(
+            kind="tool_call",
+            violation_type=arguments.violation_type,
+            reason=arguments.reason,
+            tool_call_id=call.id or None,
+            tool_name=name,
+            index=index,
+            argument_path=arguments.argument_path,
+            schema_keyword=arguments.schema_keyword,
+        )

@@ -37,6 +37,7 @@ from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import ToolCall, ToolCallFunction
 from tests.guardrails.tool_helpers import assert_result_blocked
@@ -141,6 +142,26 @@ class TestAreToolCallsSafe:
         assert result.records[0].return_value["detections"] == [r"DROP\s+TABLE"]
 
     @pytest.mark.asyncio
+    async def test_per_tool_block_reports_the_blocked_call(self):
+        """A per-tool block gives one ``per_tool_rail`` violation naming the rail and the blocked call's position."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+        )
+        calls = [_sql_call("SELECT 1", call_id="call_1"), _sql_call("DROP TABLE users", call_id="call_2")]
+        result = await manager.are_tool_calls_safe(calls, _llm_params("run_sql"))
+        assert result.tool_violations == (
+            ToolViolation(
+                kind="tool_call",
+                violation_type=ToolViolationType.PER_TOOL_RAIL,
+                reason="regex check tool output",
+                tool_call_id="call_2",
+                tool_name="run_sql",
+                index=1,
+                rail="regex check tool output",
+            ),
+        )
+
+    @pytest.mark.asyncio
     async def test_matching_tool_non_matching_pattern_allows(self):
         manager = _build_manager(
             per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
@@ -240,6 +261,7 @@ def _tool_result_messages(content: str, *, name: str | None = "run_sql") -> list
 class TestAreToolResultsSafe:
     @pytest.mark.asyncio
     async def test_matching_tool_and_pattern_blocks(self):
+        """A per-tool result block gives one ``per_tool_rail`` violation at the tool message's position."""
         manager = _build_manager(
             per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
@@ -248,6 +270,17 @@ class TestAreToolResultsSafe:
         assert result.is_safe is False
         assert result.records[0].tool_name == "run_sql"
         assert result.records[0].rail_type == "tool_input"
+        assert result.tool_violations == (
+            ToolViolation(
+                kind="tool_result",
+                violation_type=ToolViolationType.PER_TOOL_RAIL,
+                reason="regex check tool input",
+                tool_call_id="call_1",
+                tool_name="run_sql",
+                index=2,
+                rail="regex check tool input",
+            ),
+        )
 
     @pytest.mark.asyncio
     async def test_non_matching_pattern_allows(self):
@@ -359,6 +392,15 @@ class TestAreToolResultsSafe:
         messages[-1]["tool_call_id"] = "call_unknown"
         result = await manager.are_tool_results_safe(messages)
         assert result.is_safe is False
+        assert result.tool_violations == (
+            ToolViolation(
+                kind="tool_result",
+                violation_type=ToolViolationType.UNLINKABLE_RESULT,
+                reason="tool result cannot be linked to exactly one prior call; per-tool policy cannot be verified",
+                tool_call_id="call_unknown",
+                index=2,
+            ),
+        )
 
     @pytest.mark.asyncio
     async def test_global_only_config_does_not_require_result_linkage(self):

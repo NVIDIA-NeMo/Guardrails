@@ -20,10 +20,10 @@ import pytest
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
-from nemoguardrails.exceptions import RailTypeNotConfiguredError
+from nemoguardrails.exceptions import RailTypeNotConfiguredError, RailTypeNotSupportedError
 from nemoguardrails.rails import LLMRails
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType
+from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType, ToolViolation, ToolViolationType
 from nemoguardrails.server import api
 from nemoguardrails.testing.fake_model import FakeLLMModel
 
@@ -136,9 +136,69 @@ def test_reason_returned_on_blocked():
     ids=["passed", "blocked-without-reason"],
 )
 def test_reason_absent_when_none(result):
-    """A result with no reason, as on a pass or an LLMRails block, omits reason from the response."""
+    """A result with no reason or tool violations, as on a pass or an LLMRails block, omits both from the response."""
     data = _checked(result)
     assert "reason" not in data
+    assert "tool_violations" not in data
+
+
+_UNLINKED_RESULT = ToolViolation(
+    kind="tool_result",
+    violation_type=ToolViolationType.UNKNOWN_CALL_ID,
+    reason="tool result for call_id 'call_9' does not correspond to a prior tool call",
+    tool_call_id="call_9",
+    index=3,
+)
+_UNDECLARED_CALL = ToolViolation(
+    kind="tool_call",
+    violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+    reason="tool call 'rm_rf' is not an allowed tool",
+    tool_call_id="call_1",
+    tool_name="rm_rf",
+    index=0,
+)
+
+
+def _tool_block(*violations: ToolViolation) -> RailsResult:
+    """A blocked tool check carrying *violations*."""
+    return RailsResult(
+        status=RailStatus.BLOCKED,
+        content="I'm sorry, I can't respond to that.",
+        rail="tool result validation",
+        reason=violations[0].reason,
+        tool_violations=list(violations),
+    )
+
+
+def test_tool_violations_returned_on_blocked():
+    """A blocked tool check's violations reach the response, without their unset fields."""
+    data = _checked(_tool_block(_UNDECLARED_CALL))
+    assert data["tool_violations"] == [
+        {
+            "kind": "tool_call",
+            "violation_type": "tool_not_allowed",
+            "reason": "tool call 'rm_rf' is not an allowed tool",
+            "tool_call_id": "call_1",
+            "tool_name": "rm_rf",
+            "index": 0,
+        }
+    ]
+
+
+def test_result_violation_index_skips_the_prepended_context():
+    """With context prepended, a result's index still counts the request's messages; a call's index is unchanged."""
+    mock = _mock_rails(_tool_block(_UNLINKED_RESULT, _UNDECLARED_CALL))
+
+    with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
+        resp = _post(
+            {
+                "model": "test",
+                "messages": [{"role": "user", "content": "hi"}],
+                "guardrails": {"config_id": "test", "context": {"topic": "weather"}},
+            }
+        )
+
+    assert [violation["index"] for violation in resp.json()["tool_violations"]] == [2, 0]
 
 
 # --- Config resolution ---
@@ -370,6 +430,8 @@ def test_context_prepended_to_messages():
         (["input"], [RailType.INPUT]),
         (["output"], [RailType.OUTPUT]),
         (["input", "output"], [RailType.INPUT, RailType.OUTPUT]),
+        (["tool_call"], [RailType.TOOL_CALL]),
+        (["tool_result"], [RailType.TOOL_RESULT]),
         (None, None),
     ],
 )
@@ -427,3 +489,57 @@ def test_unsatisfiable_rail_types_returns_422():
 
     assert resp.status_code == 422
     assert "output" in resp.json()["error"]["message"]
+
+
+def test_unsupported_rail_types_returns_422():
+    """A rail type the serving engine cannot run is a 422 carrying the engine's message, not a 500."""
+    mock = _mock_rails(RailsResult(status=RailStatus.PASSED, content="hi"))
+    mock.check_async = AsyncMock(
+        side_effect=RailTypeNotSupportedError("tool_call rail checks run on the IORails engine only")
+    )
+
+    with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
+        resp = _post(
+            {
+                "model": "test",
+                "messages": [{"role": "user", "content": "hi"}],
+                "guardrails": {"config_id": "test", "rail_types": ["tool_call"]},
+            }
+        )
+
+    assert resp.status_code == 422
+    assert "IORails" in resp.json()["error"]["message"]
+
+
+_WEATHER_TOOL = {"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object"}}}
+
+
+def test_engine_other_than_iorails_is_called_without_tools():
+    """Only an IORails engine is handed the request's tools; another engine's check_async has no such parameter."""
+    mock = _mock_rails(RailsResult(status=RailStatus.PASSED, content="hi"))
+
+    with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
+        resp = _post(
+            {
+                "model": "test",
+                "messages": [{"role": "user", "content": "hi"}],
+                "tools": [_WEATHER_TOOL],
+                "guardrails": {"config_id": "test"},
+            }
+        )
+
+    assert resp.status_code == 200
+    assert "tools" not in mock.check_async.call_args.kwargs
+
+
+def test_custom_tools_are_rejected():
+    """The request's tools are still validated as chat-completion tools, so a custom tool is a 422."""
+    resp = _post(
+        {
+            "model": "test",
+            "messages": [{"role": "user", "content": "hi"}],
+            "tools": [{"type": "custom", "custom": {"name": "grep"}}],
+            "guardrails": {"config_id": "test", "rail_types": ["tool_call"]},
+        }
+    )
+    assert resp.status_code == 422

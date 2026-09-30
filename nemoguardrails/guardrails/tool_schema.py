@@ -34,7 +34,7 @@ import functools
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Callable, NamedTuple
+from typing import Any, Callable, NamedTuple, cast
 
 import jsonschema
 
@@ -119,6 +119,8 @@ class ToolResult:
     name: str | None = None
     content: str | list[dict] | None = None
     is_error: bool = False
+    # Position of the result's message in the conversation, so a violation can point at it.
+    message_index: int | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -190,8 +192,18 @@ def _schema_rejects_argument(schema: dict, argument_name: str) -> bool:
     return not any(keyword in schema for keyword in ("anyOf", "oneOf", "allOf", "$ref"))
 
 
-def _no_arguments_reason(tool: Tool, arguments: dict) -> str | None:
-    """Block reason for a tool that accepts no arguments, or ``None`` when the call is allowed.
+@dataclass(frozen=True, slots=True)
+class ArgumentsViolation:
+    """Why a call's arguments fail its tool's declaration, stated without any argument value."""
+
+    violation_type: ToolViolationType
+    reason: str
+    argument_path: str | None = None
+    schema_keyword: str | None = None
+
+
+def _no_arguments_violation(tool: Tool, arguments: dict) -> ArgumentsViolation | None:
+    """The violation for a tool that accepts no arguments, or ``None`` when the call is allowed.
 
     Hosted/server tools (no ``name``) are allowlist-only -- the provider owns the call
     shape -- so arguments are accepted here. A function tool that declares no parameters
@@ -200,29 +212,106 @@ def _no_arguments_reason(tool: Tool, arguments: dict) -> str | None:
     if tool.name is None:
         return None
     if arguments:
-        return f"tool '{tool.key}' accepts no arguments but the call supplied: {sorted(arguments)}"
+        return ArgumentsViolation(
+            violation_type=ToolViolationType.UNEXPECTED_ARGUMENTS,
+            reason=f"tool '{tool.key}' accepts no arguments but the call supplied: {sorted(arguments)}",
+        )
     return None
 
 
-def validate_arguments(tool: Tool, arguments: dict) -> str | None:
+# A key the model invented can reach the path, so each segment is bounded.
+_MAX_POINTER_SEGMENT_LENGTH = 64
+
+
+def _json_pointer(segments: Iterable[object]) -> str:
+    """An RFC 6901 pointer into the arguments; the empty string is the arguments object itself."""
+    escaped = (str(segment)[:_MAX_POINTER_SEGMENT_LENGTH].replace("~", "~0").replace("/", "~1") for segment in segments)
+    return "".join(f"/{segment}" for segment in escaped)
+
+
+def _first_missing_name(names: list[str], instance: dict) -> str | None:
+    """The first of *names* the object lacks; the names come from the schema."""
+    return next((name for name in names if name not in instance), None)
+
+
+def _first_missing_dependency(dependencies: dict[str, list[str]], instance: dict) -> str | None:
+    """The first ``dependentRequired`` name the object lacks; the names come from the schema."""
+    for trigger, names in dependencies.items():
+        if trigger in instance:
+            missing = _first_missing_name(names, instance)
+            if missing is not None:
+                return missing
+    return None
+
+
+def _first_unexpected_key(schema: dict, instance: dict) -> str | None:
+    """The first key ``additionalProperties: false`` rejects, in the order the model sent them."""
+    declared = schema.get("properties", {})
+    patterns = schema.get("patternProperties", {})
+    for key in instance:
+        if key not in declared and not any(re.search(pattern, key) for pattern in patterns):
+            return key
+    return None
+
+
+def _offending_property(error: jsonschema.ValidationError) -> str | None:
+    """The property a keyword reported at its parent object is about, or None for any other keyword."""
+    # unevaluatedProperties is left out: naming its key exactly needs jsonschema's private
+    # evaluation helpers once allOf or $ref are involved.
+    if error.validator == "required":
+        return _first_missing_name(cast(list, error.validator_value), cast(dict, error.instance))
+    if error.validator == "dependentRequired":
+        return _first_missing_dependency(cast(dict, error.validator_value), cast(dict, error.instance))
+    if error.validator == "additionalProperties":
+        return _first_unexpected_key(cast(dict, error.schema), cast(dict, error.instance))
+    return None
+
+
+def _argument_path(error: jsonschema.ValidationError) -> str:
+    """Where in the arguments *error* failed, naming the property for keywords reported at its parent."""
+    segments: list[object] = list(error.absolute_path)
+    offending = _offending_property(error)
+    if offending is not None:
+        segments.append(offending)
+    return _json_pointer(segments)
+
+
+def _schema_mismatch_violation(tool: Tool, error: jsonschema.ValidationError) -> ArgumentsViolation:
+    """The violation for arguments that fail the schema, stated by keyword and path, never by value."""
+    # jsonschema's own message quotes the failing value, so it is not used.
+    keyword = str(error.validator)
+    path = _argument_path(error)
+    location = f"'{path}'" if path else "the top level"
+    return ArgumentsViolation(
+        violation_type=ToolViolationType.ARGUMENTS_INVALID,
+        reason=f"arguments for tool '{tool.key}' do not match its schema: '{keyword}' failed at {location}",
+        argument_path=path,
+        schema_keyword=keyword,
+    )
+
+
+def validate_arguments(tool: Tool, arguments: dict) -> ArgumentsViolation | None:
     """Validate model-supplied tool-call arguments against the tool's schema.
 
-    Returns ``None`` when the arguments are valid. Returns a human-readable reason when
+    Returns ``None`` when the arguments are valid. Returns an ``ArgumentsViolation`` when
     the arguments violate the schema, when the declared schema itself is not valid JSON
     Schema (e.g. a non-JSON-Schema dialect reaching this validator before its engine
     adapter normalizes it), or when a function tool that declares no parameters is called
     with arguments.
     """
     if tool.arguments_schema is None:
-        return _no_arguments_reason(tool, arguments)
+        return _no_arguments_violation(tool, arguments)
     try:
         jsonschema.validate(instance=arguments, schema=tool.arguments_schema)
     except jsonschema.ValidationError as exc:
-        return f"arguments for tool '{tool.key}' do not match its schema: {exc.message}"
+        return _schema_mismatch_violation(tool, exc)
     except jsonschema.SchemaError as exc:
-        return f"declared schema for tool '{tool.key}' is not valid JSON Schema: {exc.message}"
+        return ArgumentsViolation(
+            violation_type=ToolViolationType.INVALID_TOOL_SCHEMA,
+            reason=f"declared schema for tool '{tool.key}' is not valid JSON Schema: {exc.message}",
+        )
     if _schema_accepts_no_arguments(tool.arguments_schema):
-        return _no_arguments_reason(tool, arguments)
+        return _no_arguments_violation(tool, arguments)
     return None
 
 
@@ -243,9 +332,9 @@ def tool_output_validation(func: Callable[..., Any]) -> Callable[..., Any]:
         name = tool_call.function.name or tool_call.type
         if tool_definition is None:
             return RailOutcome.block(reason=f"tool call '{name}' is not an allowed tool")
-        reason = validate_arguments(tool_definition, tool_call.function.arguments)
-        if reason is not None:
-            return RailOutcome.block(reason=reason)
+        violation = validate_arguments(tool_definition, tool_call.function.arguments)
+        if violation is not None:
+            return RailOutcome.block(reason=violation.reason)
 
         argument_name = kwargs.get("argument_name")
         if argument_name is not None:

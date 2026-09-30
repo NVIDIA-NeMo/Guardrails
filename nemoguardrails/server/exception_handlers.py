@@ -28,6 +28,7 @@ from nemoguardrails.exceptions import (
     LLMCallException,
     LLMRateLimitError,
     RailTypeNotConfiguredError,
+    RailTypeNotSupportedError,
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
 )
@@ -123,6 +124,11 @@ async def bad_request_error_handler(request: Request, exc: StreamingNotSupported
 
 async def rail_type_not_configured_error_handler(request: Request, exc: RailTypeNotConfiguredError) -> Response:
     log.warning("Rail type not configured: %s", exc)
+    return _error_response(422, str(exc))
+
+
+async def rail_type_not_supported_error_handler(request: Request, exc: RailTypeNotSupportedError) -> Response:
+    log.warning("Rail type not supported: %s", exc)
     return _error_response(422, str(exc))
 
 

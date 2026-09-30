@@ -353,6 +353,15 @@ result = await rails.check_async(
 
 The `LLMRails` and `IORails` engines both implement these methods, and the `Guardrails` facade forwards the call to the engine it selected.
 
+On `IORails`, a check can also validate tool traffic without generation.
+Name `RailType.TOOL_CALL` or `RailType.TOOL_RESULT` in `rail_types`, and pass the tools the model was offered in `tools`:
+
+```python
+result = await rails.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=[weather_tool])
+```
+
+`LLMRails` does not run tool rails in a check, and raises `RailTypeNotSupportedError` for these rail types.
+
 For detailed usage, method signatures, engine differences, and examples, refer to [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages).
 
 ---
