@@ -556,7 +556,8 @@ def _rail_type_configured(config: RailsConfig, rail_type: RailType) -> bool:
     """Whether *config* has rails for *rail_type*; for a tool rail type, per-tool rails count too."""
     section = getattr(config.rails, _RAIL_TYPE_CONFIG_SECTION.get(rail_type, rail_type.value))
     if rail_type in TOOL_RAIL_TYPES:
-        return bool(section.flows or section.per_tool)
+        # A per_tool entry with no flows runs nothing, so it does not count.
+        return bool(section.flows) or any(section.per_tool.values())
     return bool(section.flows)
 
 
@@ -1416,8 +1417,9 @@ class IORails(BaseGuardrails):
         rails and returns PASSED.
 
         ``tools`` declares the tools a ``tool_call`` check validates calls
-        against, in the main model's wire format. It is merged over the tools
-        declared on the main model's parameters; ``[]`` declares none.
+        against, in the main model's wire format. It replaces the tools declared
+        on the main model's parameters, rather than adding to them; ``[]``
+        declares none.
 
         Submitted through the same admission queue as ``generate_async`` so the
         check path shares non-streaming concurrency limits, request metrics, and

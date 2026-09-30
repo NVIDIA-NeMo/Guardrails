@@ -599,12 +599,13 @@ def _latest_tool_calls_openai(messages: LLMMessages) -> list[ToolCall]:
     message = _latest_assistant_message(messages)
     if message is None:
         return []
-    raw_calls = message.get("tool_calls")
-    if raw_calls:
-        return [_parse_latest_tool_call(entry, index) for index, entry in enumerate(raw_calls)]
+    # Checked first: a function_call beside tool_calls would otherwise go unvalidated.
     if message.get("function_call"):
         raise _legacy_function_call_error(message["function_call"])
-    return []
+    raw_calls = message.get("tool_calls")
+    if not raw_calls:
+        return []
+    return [_parse_latest_tool_call(entry, index) for index, entry in enumerate(raw_calls)]
 
 
 def _latest_tool_calls_nim(messages: LLMMessages) -> list[ToolCall]:

@@ -67,7 +67,7 @@ class TestToolCallRailAction:
         assert violations_in(result) == [
             _call_violation(
                 ToolViolationType.UNEXPECTED_ARGUMENTS,
-                "tool 'ping' accepts no arguments but the call supplied: ['anything']",
+                "tool 'ping' accepts no arguments but the call supplied 1 argument",
                 tool_name="ping",
             )
         ]

@@ -39,7 +39,14 @@ from nemoguardrails.guardrails.guardrails_types import (
 )
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, reported_violations, violations_outcome
-from nemoguardrails.guardrails.tool_schema import Tool, ToolCallExtractionError, ToolExchange, ToolResult, Toolset
+from nemoguardrails.guardrails.tool_schema import (
+    DuplicateToolError,
+    Tool,
+    ToolCallExtractionError,
+    ToolExchange,
+    ToolResult,
+    Toolset,
+)
 from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
@@ -148,13 +155,22 @@ def _global_tool_rail_violations(
     return reported_violations(result.outcome)
 
 
+def _tool_parsing_failure_reason(error: Exception) -> str:
+    """The client-facing reason the declared tools failed to parse, quoting only a message known to be safe."""
+    if isinstance(error, DuplicateToolError):
+        return f"tool parsing failed: {error}"
+    return "tool parsing failed"
+
+
 def _per_tool_violation(
     result: RailResult, direction: SurfaceDirection, tool_call: ToolCall, index: Optional[int]
 ) -> ToolViolation:
-    """The violation for the call or result a per-tool rail blocked, naming that rail."""
+    """The violation for the call or result a per-tool rail blocked or broke on, naming that rail."""
+    # A rail that raised did not decide, so it is reported as rail_failed, as the global validators are.
+    violation_type = ToolViolationType.RAIL_FAILED if result.failed else ToolViolationType.PER_TOOL_RAIL
     return ToolViolation(
         kind="tool_call" if direction == SurfaceDirection.TOOL_OUTPUT else "tool_result",
-        violation_type=ToolViolationType.PER_TOOL_RAIL,
+        violation_type=violation_type,
         reason=client_reason(result),
         tool_call_id=tool_call.id or None,
         tool_name=tool_call.function.name or tool_call.type,
@@ -504,7 +520,7 @@ class RailsManager:
                 ToolViolation(
                     kind="tool_call",
                     violation_type=ToolViolationType.INVALID_TOOLSET,
-                    reason=f"tool parsing failed: {e}",
+                    reason=_tool_parsing_failure_reason(e),
                 )
             )
 
