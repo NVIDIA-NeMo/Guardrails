@@ -180,8 +180,8 @@ Tool rails are not manifest surfaces.
 
 | Flow | Section | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
-| `tool call validation` | `rails.tool_output.flows` | ✓ | ✓ | Validates model-emitted tool calls |
-| `tool result validation` | `rails.tool_input.flows` | ✓ | ✓ | Validates application-returned tool results |
+| `tool call validation` | `rails.tool_output.flows` | ✗ | ✓ | Validates model-emitted tool calls, in generation and in a `tool_call` check |
+| `tool result validation` | `rails.tool_input.flows` | ✗ | ✓ | Validates application-returned tool results, in generation and in a `tool_result` check |
 
 For configuration and behavior, refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
 

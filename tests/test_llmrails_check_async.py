@@ -18,7 +18,7 @@ import logging
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.exceptions import RailTypeNotConfiguredError
+from nemoguardrails.exceptions import RailTypeNotConfiguredError, RailTypeNotSupportedError
 from nemoguardrails.rails.llm.llmrails import (
     _determine_rails_from_messages,
     _get_blocking_rail,
@@ -585,6 +585,30 @@ class TestUnsatisfiableRailTypes:
         ]
         result = await input_only_rails.check_async(messages)
         assert result.status == RailStatus.PASSED
+
+
+_TOOL_RAIL_TYPE_REQUESTS = pytest.mark.parametrize(
+    "rail_types",
+    [[RailType.TOOL_CALL], [RailType.TOOL_RESULT], [RailType.INPUT, RailType.TOOL_CALL]],
+    ids=["tool_call", "tool_result", "input_and_tool_call"],
+)
+
+
+class TestToolRailTypesAreNotSupported:
+    """LLMRails check() runs input and output rails only, so a tool rail type fails loud instead of passing."""
+
+    @pytest.mark.asyncio
+    @_TOOL_RAIL_TYPE_REQUESTS
+    async def test_check_async_raises(self, mock_rails, rail_types):
+        """``check_async`` raises ``RailTypeNotSupportedError`` when any requested rail type is a tool rail type."""
+        with pytest.raises(RailTypeNotSupportedError, match="IORails"):
+            await mock_rails.check_async([{"role": "user", "content": "hello"}], rail_types=rail_types)
+
+    @_TOOL_RAIL_TYPE_REQUESTS
+    def test_check_raises(self, mock_rails, rail_types):
+        """Sync ``check`` raises ``RailTypeNotSupportedError`` when any requested rail type is a tool rail type."""
+        with pytest.raises(RailTypeNotSupportedError, match="IORails"):
+            mock_rails.check([{"role": "user", "content": "hello"}], rail_types=rail_types)
 
 
 @pytest.fixture

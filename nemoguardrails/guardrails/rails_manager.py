@@ -20,7 +20,7 @@ import logging
 import warnings
 from collections.abc import Coroutine, Mapping, Sequence
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, TypeVar, Union
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
@@ -31,18 +31,20 @@ from nemoguardrails.guardrails.guardrails_types import (
     RailCallRecord,
     RailDirection,
     RailResult,
+    client_reason,
     display_reason,
     get_request_id,
     last_user_content,
     rewrite_user_message,
 )
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
-from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
-from nemoguardrails.guardrails.tool_schema import Tool, ToolExchange, ToolResult, Toolset
+from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, reported_violations, violations_outcome
+from nemoguardrails.guardrails.tool_schema import Tool, ToolCallExtractionError, ToolExchange, ToolResult, Toolset
 from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
+from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
 from nemoguardrails.types import ToolCall, UsageInfo
 
 if TYPE_CHECKING:
@@ -106,6 +108,42 @@ def _tool_rail_result(outcome: RailOutcome, flow: str) -> RailResult:
         # Reading it as "not blocked" would allow the request and drop the rewrite unseen.
         raise NotImplementedError(f"tool rail {flow!r} returned a rewrite, which IORails cannot apply")
     return RailResult(outcome)
+
+
+def _blocked_before_rails(violation: ToolViolation, records: tuple[RailCallRecord, ...] = ()) -> RailResult:
+    """A block the manager makes itself, before any tool rail runs, stating the violation's reason."""
+    return RailResult.block(reason=violation.reason, tool_violations=(violation,), records=records)
+
+
+def _global_tool_rail_violations(
+    result: RailResult, kind: Literal["tool_call", "tool_result"], flow: str
+) -> tuple[ToolViolation, ...]:
+    """What a blocking global tool validator reported, or one ``rail_failed`` when it broke instead of deciding."""
+    if result.failed:
+        return (
+            ToolViolation(
+                kind=kind,
+                violation_type=ToolViolationType.RAIL_FAILED,
+                reason=client_reason(result),
+                rail=_get_flow_name(flow) or flow,
+            ),
+        )
+    return reported_violations(result.outcome)
+
+
+def _per_tool_violation(
+    result: RailResult, direction: SurfaceDirection, tool_call: ToolCall, index: Optional[int]
+) -> ToolViolation:
+    """The violation for the call or result a per-tool rail blocked, naming that rail."""
+    return ToolViolation(
+        kind="tool_call" if direction == SurfaceDirection.TOOL_OUTPUT else "tool_result",
+        violation_type=ToolViolationType.PER_TOOL_RAIL,
+        reason=client_reason(result),
+        tool_call_id=tool_call.id or None,
+        tool_name=tool_call.function.name or tool_call.type,
+        index=index,
+        rail=result.triggered_rail,
+    )
 
 
 def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -> str:
@@ -400,20 +438,22 @@ class RailsManager:
         """
         if not tool_calls:
             return RailResult.allow()
-
-        active = self._enabled_flows(list(self._tool_call_actions), enabled)
-        enabled_per_tool_flows = {
-            flow for flows in self.per_tool_call_flows.values() for flow in self._enabled_flows(flows, enabled)
-        }
-        if not active and not enabled_per_tool_flows:
+        if not self._any_tool_call_rail_enabled(enabled):
             return RailResult.allow()
 
+        active = self._enabled_flows(list(self._tool_call_actions), enabled)
         global_result = RailResult.allow()
         try:
             toolset = self.engine_registry.parse_tools(model_type, llm_params)
         except Exception as e:
             log.warning("[%s] tool parsing failed; blocking tool calls: %s", get_request_id(), e)
-            return RailResult.block(reason=f"tool parsing failed: {e}")
+            return _blocked_before_rails(
+                ToolViolation(
+                    kind="tool_call",
+                    violation_type=ToolViolationType.INVALID_TOOLSET,
+                    reason=f"tool parsing failed: {e}",
+                )
+            )
 
         if active:
             rails = {flow: self._run_tool_call_rail(flow, tool_calls, toolset) for flow in active}
@@ -428,7 +468,11 @@ class RailsManager:
             tool_definition = toolset.get(tool_name)
             for flow in flows:
                 per_tool_rails[f"{index}:{flow}"] = self._run_per_tool_rail(
-                    SurfaceDirection.TOOL_OUTPUT, flow, tool_call=tool_call, tool_definition=tool_definition
+                    SurfaceDirection.TOOL_OUTPUT,
+                    flow,
+                    tool_call=tool_call,
+                    tool_definition=tool_definition,
+                    index=index,
                 )
         if not per_tool_rails:
             return global_result
@@ -438,6 +482,45 @@ class RailsManager:
         if not per_tool_result.is_safe:
             return replace(per_tool_result, records=combined_records)
         return RailResult.allow(records=combined_records)
+
+    async def are_latest_tool_calls_safe(
+        self,
+        messages: list[dict],
+        llm_params: Optional[dict],
+        *,
+        enabled: Union[bool, list[str]] = True,
+        model_type: str = "main",
+    ) -> RailResult:
+        """Validate the tool calls on the last assistant message of *messages*, as a check with no model response."""
+        if not self._any_tool_call_rail_enabled(enabled):
+            return RailResult.allow()
+        try:
+            tool_calls = self.engine_registry.extract_latest_tool_calls(model_type, messages)
+        except ToolCallExtractionError as e:
+            log.warning("[%s] tool call extraction failed; blocking: %s", get_request_id(), e)
+            return _blocked_before_rails(
+                ToolViolation(
+                    kind="tool_call",
+                    violation_type=e.violation_type,
+                    reason=f"tool call extraction failed: {e}",
+                    tool_call_id=e.tool_call_id,
+                    tool_name=e.tool_name,
+                    index=e.index,
+                )
+            )
+        except Exception as e:
+            # Only a ToolCallExtractionError is written to omit argument text, so this one stays in the log.
+            log.warning("[%s] tool call extraction failed unexpectedly; blocking: %s", get_request_id(), e)
+            return _blocked_before_rails(
+                ToolViolation(
+                    kind="tool_call",
+                    violation_type=ToolViolationType.EXTRACTION_FAILED,
+                    reason="tool call extraction failed",
+                )
+            )
+        if not tool_calls:
+            log.debug("[%s] the latest assistant message carries no tool calls", get_request_id())
+        return await self.are_tool_calls_safe(tool_calls, llm_params, enabled=enabled, model_type=model_type)
 
     async def are_tool_results_safe(
         self,
@@ -463,8 +546,15 @@ class RailsManager:
         try:
             exchanges = self.engine_registry.extract_tool_exchanges(model_type, messages)
         except Exception as e:
+            # The exception's text is not known to omit message content, so it stays in the log.
             log.warning("[%s] tool exchange extraction failed; blocking: %s", get_request_id(), e)
-            return RailResult.block(reason=f"tool exchange extraction failed: {e}")
+            return _blocked_before_rails(
+                ToolViolation(
+                    kind="tool_result",
+                    violation_type=ToolViolationType.EXTRACTION_FAILED,
+                    reason="tool exchange extraction failed",
+                )
+            )
         if not any(exchange.results for exchange in exchanges):
             return RailResult.allow()
 
@@ -487,15 +577,26 @@ class RailsManager:
             if matched_call is None:
                 # Fail closed: a per-tool policy is enabled but this result's identity is
                 # unverifiable, so which policy applies can't be known.
-                return RailResult.block(
-                    reason="tool result cannot be linked to exactly one prior call; per-tool policy cannot be verified",
+                return _blocked_before_rails(
+                    ToolViolation(
+                        kind="tool_result",
+                        violation_type=ToolViolationType.UNLINKABLE_RESULT,
+                        reason="tool result cannot be linked to exactly one prior call; "
+                        "per-tool policy cannot be verified",
+                        tool_call_id=tool_result.call_id or None,
+                        index=tool_result.message_index,
+                    ),
                     records=global_result.records,
                 )
             tool_name = matched_call.function.name or matched_call.type
             flows = self._enabled_flows(self.per_tool_result_flows.get(tool_name, []), enabled)
             for flow in flows:
                 per_tool_rails[f"{index}:{flow}"] = self._run_per_tool_rail(
-                    SurfaceDirection.TOOL_INPUT, flow, tool_call=matched_call, tool_result=tool_result
+                    SurfaceDirection.TOOL_INPUT,
+                    flow,
+                    tool_call=matched_call,
+                    tool_result=tool_result,
+                    index=tool_result.message_index,
                 )
         if not per_tool_rails:
             return global_result
@@ -512,6 +613,12 @@ class RailsManager:
         """The flows this request runs, in the order it runs them: rewriting rails first."""
         active = self._enabled_flows(configured, enabled)
         return _transforms_first(_rewriting_flows(self._rails, direction, active), active)
+
+    def _any_tool_call_rail_enabled(self, enabled: Union[bool, list[str]]) -> bool:
+        """Whether the toggle leaves any global or per-tool tool-call rail to run."""
+        if self._enabled_flows(list(self._tool_call_actions), enabled):
+            return True
+        return any(self._enabled_flows(flows, enabled) for flows in self.per_tool_call_flows.values())
 
     @staticmethod
     def _enabled_flows(configured: list[str], enabled: Union[bool, list[str]]) -> list[str]:
@@ -570,6 +677,12 @@ class RailsManager:
         """Dispatch a single tool-call rail to its action, wrapped in an OUTPUT rail span."""
         with rail_span(self._tracer, flow, RailDirection.OUTPUT) as span:
             result = _tool_rail_result(await self._tool_call_actions[flow].run(toolset, tool_calls), flow)
+            if not result.is_safe:
+                result = replace(
+                    result,
+                    triggered_rail=_get_flow_name(flow) or flow,
+                    tool_violations=_global_tool_rail_violations(result, "tool_call", flow),
+                )
             result = replace(result, records=(_rail_call_record(flow, "tool_output", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
@@ -583,17 +696,18 @@ class RailsManager:
     async def _run_tool_result_rail(self, flow: str, exchanges: list[ToolExchange]) -> RailResult:
         """Validate each turn's results against that turn's calls, wrapped in an INPUT rail span.
 
-        Each exchange is validated independently so ``call_id`` linkage stays turn-local;
-        the first unsafe exchange short-circuits.
+        Each exchange is validated independently so ``call_id`` linkage stays turn-local, and
+        every exchange is checked so the result reports the violations of all of them.
         """
         action = self._tool_result_actions[flow]
         with rail_span(self._tracer, flow, RailDirection.INPUT) as span:
-            outcome = RailOutcome.allow()
-            for exchange in exchanges:
-                outcome = await action.run(exchange.results, exchange.calls)
-                if outcome.is_blocked:
-                    break
-            result = _tool_rail_result(outcome, flow)
+            result = _tool_rail_result(await self._outcome_across_exchanges(action, exchanges), flow)
+            if not result.is_safe:
+                result = replace(
+                    result,
+                    triggered_rail=_get_flow_name(flow) or flow,
+                    tool_violations=_global_tool_rail_violations(result, "tool_result", flow),
+                )
             result = replace(result, records=(_rail_call_record(flow, "tool_input", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
@@ -609,6 +723,19 @@ class RailsManager:
                 )
             return result
 
+    @staticmethod
+    async def _outcome_across_exchanges(action: ToolResultRailAction, exchanges: list[ToolExchange]) -> RailOutcome:
+        """Run the result validator on every turn and merge the violations each one reports."""
+        violations: list[ToolViolation] = []
+        for exchange in exchanges:
+            outcome = await action.run(exchange.results, exchange.calls)
+            reported = reported_violations(outcome)
+            if outcome.is_blocked and not reported:
+                # A block with nothing to merge, such as a validator that broke, stands as it is.
+                return outcome
+            violations.extend(reported)
+        return violations_outcome(violations)
+
     async def _run_per_tool_rail(
         self,
         direction: SurfaceDirection,
@@ -616,6 +743,8 @@ class RailsManager:
         tool_call: ToolCall,
         tool_result: Optional[ToolResult] = None,
         tool_definition: Optional[Tool] = None,
+        # Where the checked item sits: the call's position in tool_calls, or the result's message position.
+        index: Optional[int] = None,
     ) -> RailResult:
         """Dispatch one per-tool rail, passing the resolved ToolCall/ToolResult/Tool through."""
         tool_name = tool_call.function.name or tool_call.type
@@ -628,6 +757,7 @@ class RailsManager:
             result = _rail_result(rail_execution.outcome)
             if not result.is_safe:
                 result = replace(result, triggered_rail=_get_flow_name(flow) or flow)
+                result = replace(result, tool_violations=(_per_tool_violation(result, direction, tool_call, index),))
             record = _rail_call_record(flow, rail_type, result, rail_execution.llm_calls, tool_name=tool_name)
             result = replace(result, records=(record,))
             mark_rail_stop(span, result.is_safe)

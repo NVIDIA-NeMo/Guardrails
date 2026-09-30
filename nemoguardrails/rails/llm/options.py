@@ -78,9 +78,9 @@ To get more details on the LLM calls that were executed, including the raw respo
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -88,6 +88,12 @@ from nemoguardrails.logging.explain import LLMCallInfo
 class RailType(str, Enum):
     INPUT = "input"
     OUTPUT = "output"
+    # Tool rail types run on the IORails engine only; LLMRails check() rejects them.
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+
+
+TOOL_RAIL_TYPES = frozenset({RailType.TOOL_CALL, RailType.TOOL_RESULT})
 
 
 class RailStatus(str, Enum):
@@ -103,6 +109,10 @@ class RailsResult(BaseModel):
     reason: Optional[str] = Field(
         default=None,
         description="Why the rail blocked the content, when the engine reports it (IORails).",
+    )
+    tool_violations: Optional[List["ToolViolation"]] = Field(
+        default=None,
+        description="The tool calls or tool results a tool rail blocked (IORails). None unless a tool rail blocked.",
     )
 
 
@@ -130,6 +140,36 @@ class ToolViolationType(str, Enum):
     EXTRACTION_FAILED = "extraction_failed"
     RAIL_FAILED = "rail_failed"
     PER_TOOL_RAIL = "per_tool_rail"
+
+
+class ToolViolation(BaseModel):
+    """One tool call or tool result a tool rail blocked, identified so a caller can act on it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["tool_call", "tool_result"] = Field(description="Whether a tool call or a tool result was blocked.")
+    violation_type: ToolViolationType = Field(
+        description="What the call or result violated. Switch on this, never on `reason`."
+    )
+    reason: str = Field(description="Why it was blocked. Never contains argument values or tool-result content.")
+    tool_call_id: Optional[str] = Field(default=None, description="The call's id, or the id the result links to.")
+    tool_name: Optional[str] = Field(
+        default=None, description="The tool called. For a result, taken from the call it links to."
+    )
+    index: Optional[int] = Field(
+        default=None,
+        description="For a call, its position in the last assistant message's `tool_calls`. "
+        "For a result, its message's position in `messages`.",
+    )
+    argument_path: Optional[str] = Field(
+        default=None, description="JSON Pointer to the failing argument (`arguments_invalid` only)."
+    )
+    schema_keyword: Optional[str] = Field(
+        default=None, description="The JSON Schema keyword that failed (`arguments_invalid` only)."
+    )
+    rail: Optional[str] = Field(
+        default=None, description="The rail that blocked or failed (`per_tool_rail` and `rail_failed` only)."
+    )
 
 
 class GenerationLogOptions(BaseModel):

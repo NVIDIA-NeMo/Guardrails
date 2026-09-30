@@ -35,6 +35,7 @@ __all__ = [
     "StreamingCapacityExceededError",
     "StreamingNotSupportedError",
     "RailTypeNotConfiguredError",
+    "RailTypeNotSupportedError",
 ]
 
 
@@ -73,6 +74,12 @@ class StreamingNotSupportedError(InvalidRailsConfigurationError):
 
 class RailTypeNotConfiguredError(InvalidRailsConfigurationError):
     """Raised when an explicitly requested rail type has no configured flows."""
+
+    pass
+
+
+class RailTypeNotSupportedError(InvalidRailsConfigurationError):
+    """Raised when an explicitly requested rail type cannot run on the serving engine."""
 
     pass
 

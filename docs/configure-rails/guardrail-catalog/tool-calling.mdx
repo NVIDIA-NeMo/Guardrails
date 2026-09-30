@@ -276,12 +276,13 @@ models:
 
 ## Tool Call Validation
 
-The `tool call validation` rail inspects every tool call in the model's response and blocks the request on the first violation.
+The `tool call validation` rail inspects every tool call in the model's response and blocks the request when any call breaks a rule.
 
 - **Allowlist.** The call must name a tool you declared.
   IORails blocks a call to a tool that is not in the declared set, for example `tool call 'delete_database' is not an allowed tool`.
 - **Argument schema.** The call's arguments must validate against the tool's declared JSON Schema (the `function.parameters` block).
-  IORails blocks arguments that violate the schema, for example `arguments for tool 'get_weather' do not match its schema: 'city' is a required property`.
+  IORails blocks arguments that violate the schema, for example `arguments for tool 'get_weather' do not match its schema: 'required' failed at '/city'`.
+  The reason names the failing argument and the JSON Schema keyword, and never quotes an argument's value.
 - **No-argument tools.** A function tool that declares no parameters must receive no arguments.
   IORails blocks any supplied argument.
 - **Hosted tools.** IORails allowlists a hosted or server-side tool that only `type` identifies (for example a built-in web search) by type, and does not schema-validate its arguments because the provider owns the call shape.
@@ -337,6 +338,63 @@ response = await rails.generate_async(
         "rails": {"tool_output": True, "tool_input": False},
     },
 )
+```
+
+## Check Tool Calls and Results Without Generation
+
+An agent harness that calls its own model can use the same rails to validate tool traffic without IORails generating a response.
+Run a check with `RailType.TOOL_CALL` on the conversation that ends in the model's tool calls, and with `RailType.TOOL_RESULT` after appending the tool results:
+
+```python
+from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.rails.llm.options import RailStatus, RailType
+
+rails = Guardrails(RailsConfig.from_path("./config"), require_iorails=True)
+
+call_check = await rails.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=tools)
+if call_check.status == RailStatus.BLOCKED:
+    ...  # Drop or re-request the calls named in call_check.tool_violations.
+
+messages.append({"role": "tool", "tool_call_id": "call_1", "content": "18C"})
+result_check = await rails.check_async(messages, rail_types=[RailType.TOOL_RESULT])
+```
+
+A `tool_call` check validates the tool calls on the last assistant message against `tools`, merged over the tools declared on the main model.
+A `tool_result` check validates every `tool` message against the calls it answers.
+Both run the global validator and any `per_tool` rails, and neither calls the model.
+A blocked check reports each failing call or result in `tool_violations`, with a `violation_type` to switch on.
+For the full behavior, the violation types, and the engine requirements, refer to [Checking Messages Against Rails: Tool Rails](/run-guardrailed-inference/using-python-apis/check-messages#tool-rails-iorails-only).
+
+The server exposes the same check through `/v1/checks`.
+Run the server with `NEMO_GUARDRAILS_IORAILS_ENGINE=1` so the configuration is served by IORails; on `LLMRails`, the tool rail types return HTTP 422.
+Pass the tools in the request's top-level `tools` field:
+
+```json
+{
+  "model": "meta/llama-3.3-70b-instruct",
+  "messages": [
+    {"role": "user", "content": "What's the weather in Paris?"},
+    {"role": "assistant", "content": null, "tool_calls": [
+      {"id": "call_1", "type": "function", "function": {"name": "delete_files", "arguments": "{}"}}
+    ]}
+  ],
+  "tools": [{"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}}}],
+  "guardrails": {"config_id": "tools", "rail_types": ["tool_call"]}
+}
+```
+
+The call names a tool that is not declared, so the response is:
+
+```json
+{
+  "status": "blocked",
+  "content": "I'm sorry, I can't respond to that.",
+  "rail": "tool call validation",
+  "reason": "tool call 'delete_files' is not an allowed tool",
+  "tool_violations": [
+    {"kind": "tool_call", "violation_type": "tool_not_allowed", "reason": "tool call 'delete_files' is not an allowed tool", "tool_call_id": "call_1", "tool_name": "delete_files", "index": 0}
+  ]
+}
 ```
 
 ## Streaming

@@ -2899,6 +2899,13 @@ class TestExtractToolExchanges:
         engine = ModelEngine(_make_model(engine="openai"))
         assert self._ids(engine.extract_tool_exchanges(["garbage", *_TOOL_MESSAGES])) == [(["call_1"], ["call_1"])]
 
+    def test_records_each_results_message_index(self):
+        """Each result records its message's position in the conversation, counting non-dict and context messages."""
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = ["garbage", {"role": "context", "content": {"user_id": "u1"}}, *multi_turn_reused_call_id_messages()]
+        exchanges = engine.extract_tool_exchanges(messages)
+        assert [result.message_index for _calls, results in exchanges for result in results] == [4, 8]
+
     def test_malformed_arguments_degrade_to_empty_for_linkage(self):
         """A historical call with malformed argument JSON degrades to empty arguments
         (id/name preserved) instead of aborting extraction."""

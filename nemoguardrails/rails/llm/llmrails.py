@@ -72,6 +72,7 @@ from nemoguardrails.exceptions import (
     InvalidRailsConfigurationError,
     InvalidStateError,
     RailTypeNotConfiguredError,
+    RailTypeNotSupportedError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.kb.kb import KnowledgeBase
@@ -93,6 +94,7 @@ from nemoguardrails.rails.llm.config import (
     RailsConfig,
 )
 from nemoguardrails.rails.llm.options import (
+    TOOL_RAIL_TYPES,
     GenerationLog,
     GenerationOptions,
     GenerationResponse,
@@ -1680,10 +1682,13 @@ class LLMRails(BaseGuardrails):
                 result = await rails.check_async(messages, rail_types=[RailType.INPUT])
 
         Raises:
+            RailTypeNotSupportedError: If a requested rail type is ``tool_call`` or
+                ``tool_result``, which only the IORails engine runs.
             RailTypeNotConfiguredError: If a requested rail type has no
                 configured flows.
         """
         if rail_types is not None:
+            _reject_tool_rail_types(rail_types)
             for rt in rail_types:
                 if not getattr(self.config.rails, rt.value).flows:
                     raise RailTypeNotConfiguredError(f"Requested rail type '{rt.value}' has no configured rails.")
@@ -1736,6 +1741,8 @@ class LLMRails(BaseGuardrails):
             RailsResult containing status, content, and optional blocking rail name.
 
         Raises:
+            RailTypeNotSupportedError: If a requested rail type is ``tool_call`` or
+                ``tool_result``, which only the IORails engine runs.
             RailTypeNotConfiguredError: If a requested rail type has no
                 configured flows.
         """
@@ -2105,6 +2112,18 @@ class LLMRails(BaseGuardrails):
                 # yield the individual chunks directly from the buffer strategy
                 for chunk in user_output_chunks:
                     yield chunk
+
+
+def _reject_tool_rail_types(rail_types: List[RailType]) -> None:
+    """Raise when any requested rail type is a tool rail type, which LLMRails check() cannot run."""
+    # Checked before the configured-flows loop: without it a tool rail type raises AttributeError
+    # there, or would pass silently once the config grows a matching section.
+    requested = sorted(rail_type.value for rail_type in rail_types if rail_type in TOOL_RAIL_TYPES)
+    if requested:
+        raise RailTypeNotSupportedError(
+            f"{', '.join(requested)} rail checks run on the IORails engine only; "
+            "LLMRails check() runs input and output rails."
+        )
 
 
 def _determine_rails_from_messages(messages: List[dict]) -> Optional[dict]:

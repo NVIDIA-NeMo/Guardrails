@@ -147,11 +147,13 @@ With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
 | Tool-call passthrough | ✓ | ✓ | |
-| Tool-call validation rail | ✓ | ✓ | IORails flow: `tool call validation` |
-| Tool-result validation rail | ✓ | ✓ | IORails flow: `tool result validation` |
+| Tool-call validation rail | ✗ | ✓ | IORails flow: `tool call validation` |
+| Tool-result validation rail | ✗ | ✓ | IORails flow: `tool result validation` |
+| Tool rails in `check` / `check_async` | ✗ | ✓ | `RailType.TOOL_CALL` and `RailType.TOOL_RESULT`. LLMRails raises `RailTypeNotSupportedError` |
 
-Both engines support passing model tool calls through to the caller and validating tool calls and tool results.
-`LLMRails` handles these through the Colang runtime and tool rails.
+Both engines support passing model tool calls through to the caller.
+`LLMRails` runs the Colang flows you configure under `rails.tool_output` and `rails.tool_input` through the Colang runtime.
+The built-in `tool call validation` and `tool result validation` validators run on `IORails` only.
 
 `IORails` validates tool calls and tool results through directional flows: `tool call validation` on the tool-output rail and `tool result validation` on the tool-input rail.
 Tool calls are returned in the OpenAI-style `tool_calls` field of the response message.
@@ -163,7 +165,7 @@ Tool calls are returned in the OpenAI-style `tool_calls` field of the response m
 | `generate` / `generate_async` | ✓ | ✓ | |
 | `stream_async` | ✓ | ✓ | |
 | Event-based API (`generate_events` / `process_events`) | ✓ | ✗ | Requires the Colang runtime |
-| `check` / `check_async` (rails-only validation) | ✓ | ✓ | Input and output rails only on both engines. Neither runs tool rails |
+| `check` / `check_async` (rails-only validation) | ✓ | ✓ | Input and output rails on both engines. Only IORails runs tool rails, when they are named in `rail_types` |
 | `GenerationOptions` | ✓ | ◐ | IORails supports rail toggles, `llm_params`, and the `log` options that do not need Colang. `output_vars` raises. The separate `state` keyword argument also raises. |
 | `GenerationResponse` (structured response object) | ✓ | ✓ | Returned by both engines when `options` is passed |
 | `GenerationLog` `internal_events` / `colang_history` | ✓ | ✗ | Colang runtime only. IORails raises `NotImplementedError`. |
@@ -187,7 +189,8 @@ For the field-by-field comparison, refer to [Generation Options: IORails and LLM
 The event-based API and `explain()` are not available on `IORails`.
 On the `Guardrails` facade, these raise `NotImplementedError` when `IORails` is the active engine.
 
-Both engines accept the same `check` arguments and return the same `RailsResult`, and neither runs tool rails from a check.
+Both engines accept `messages` and `rail_types` and return the same `RailsResult`.
+Only `IORails` runs tool rails from a check, when `rail_types` names `tool_call` or `tool_result`, and only `IORails` accepts the `tools` argument.
 `LLMRails` runs the check through the Colang runtime with the main model call disabled.
 `IORails` runs the rails directly through its rails manager and reuses the `generate_async` admission queue, request span, and request metrics.
 The two differ in what a blocked check reports and in how a direction with no content to check is handled.

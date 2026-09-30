@@ -23,7 +23,7 @@ import re
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, List, Literal, Optional, Union
+from typing import Any, AsyncIterator, Callable, List, Literal, Optional, TypeGuard, Union
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -41,6 +41,7 @@ from nemoguardrails.exceptions import (
     LLMCallException,
     NonStreamingWorkQueueFullError,
     RailTypeNotConfiguredError,
+    RailTypeNotSupportedError,
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
 )
@@ -51,7 +52,7 @@ from nemoguardrails.llm.call import _prepend_think_tags
 from nemoguardrails.llm.clients._errors import build_error_payload, normalize_error_status
 from nemoguardrails.llm.models.initializer import ModelInitializationError
 from nemoguardrails.rails.llm.config import Model
-from nemoguardrails.rails.llm.options import GenerationResponse, RailStatus
+from nemoguardrails.rails.llm.options import GenerationResponse, RailStatus, ToolViolation
 from nemoguardrails.server.datastore.datastore import DataStore
 from nemoguardrails.server.exception_handlers import (
     bad_request_error_handler,
@@ -62,6 +63,7 @@ from nemoguardrails.server.exception_handlers import (
     model_initialization_error_handler,
     queue_full_error_handler,
     rail_type_not_configured_error_handler,
+    rail_type_not_supported_error_handler,
     streaming_capacity_error_handler,
     validation_error_handler,
 )
@@ -224,6 +226,7 @@ _EXCEPTION_HANDLERS = (
     (ModelInitializationError, model_initialization_error_handler),
     (StreamingNotSupportedError, bad_request_error_handler),
     (RailTypeNotConfiguredError, rail_type_not_configured_error_handler),
+    (RailTypeNotSupportedError, rail_type_not_supported_error_handler),
     (InvalidStateError, invalid_state_error_handler),
     (RequestValidationError, validation_error_handler),
     (StarletteHTTPException, http_exception_handler),
@@ -800,11 +803,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         # IORails-only: prefix `content` with `reasoning_content` and think-tags.
         # A Guardrails wrapper can fall back to an LLMRails engine, which already
         # inlines reasoning itself, so the engine check is what scopes this.
-        if (
-            isinstance(llm_rails, Guardrails)
-            and isinstance(llm_rails.rails_engine, IORails)
-            and isinstance(res, GenerationResponse)
-        ):
+        if _serves_on_iorails(llm_rails) and isinstance(res, GenerationResponse):
             res = _inline_reasoning_as_think_tags(res)
 
         # Extract bot message for thread storage if needed
@@ -843,6 +842,28 @@ def _map_rail_status(status: RailStatus) -> str:
     return status.value
 
 
+def _serves_on_iorails(llm_rails: Any) -> TypeGuard[Guardrails]:
+    """Whether *llm_rails* is a Guardrails facade running on the IORails engine rather than LLMRails."""
+    return isinstance(llm_rails, Guardrails) and isinstance(llm_rails.rails_engine, IORails)
+
+
+def _index_past_prepended_context(violation: ToolViolation) -> ToolViolation:
+    """*violation* with a tool result's message index counted in the request's own messages."""
+    # A call's index is its position in tool_calls, which the prepended message does not move.
+    if violation.kind == "tool_result" and violation.index is not None:
+        return violation.model_copy(update={"index": violation.index - 1})
+    return violation
+
+
+def _violations_in_request_positions(
+    violations: Optional[List[ToolViolation]], context_prepended: bool
+) -> Optional[List[ToolViolation]]:
+    """The tool violations with each index pointing into the messages the caller sent."""
+    if violations is None or not context_prepended:
+        return violations
+    return [_index_past_prepended_context(violation) for violation in violations]
+
+
 @app.post(
     "/v1/checks",
     response_model=GuardrailCheckResponse,
@@ -851,7 +872,8 @@ def _map_rail_status(status: RailStatus) -> str:
 async def guardrail_check(body: GuardrailCheckRequest, request: Request):
     """Guardrail check request.
 
-    Returns 422 when ``rail_types`` includes a type with no configured flows.
+    Returns 422 when ``rail_types`` includes a type with no configured flows, or a
+    tool rail type on a config the IORails engine does not serve.
     """
     api_request_headers.set(request.headers)
 
@@ -880,16 +902,22 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
         )
 
     messages = list(body.messages)
-    if body.guardrails.context:
+    context_prepended = bool(body.guardrails.context)
+    if context_prepended:
         messages.insert(0, {"role": "context", "content": body.guardrails.context})
 
-    result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types)
+    if _serves_on_iorails(llm_rails):
+        result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types, tools=body.tools)
+    else:
+        # LLMRails' check_async takes no tools; it refuses the tool rail types that would read them.
+        result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types)
 
     return GuardrailCheckResponse(
         status=_map_rail_status(result.status),
         content=result.content,
         rail=result.rail,
         reason=result.reason,
+        tool_violations=_violations_in_request_positions(result.tool_violations, context_prepended),
     )
 
 

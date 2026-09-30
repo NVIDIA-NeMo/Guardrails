@@ -431,7 +431,7 @@ _TOOL_PARSERS = {
 }
 
 
-def _tool_result_from_message(message: dict) -> ToolResult:
+def _tool_result_from_message(message: dict, message_index: int | None = None) -> ToolResult:
     """Normalize one OpenAI Chat Completions ``role:"tool"`` message into a ``ToolResult``.
 
     This shape has no error flag, so ``is_error`` is always ``False``.
@@ -440,6 +440,7 @@ def _tool_result_from_message(message: dict) -> ToolResult:
         call_id=message.get("tool_call_id"),
         name=message.get("name"),
         content=message.get("content"),
+        message_index=message_index,
     )
 
 
@@ -492,7 +493,8 @@ def _extract_tool_exchanges_openai(messages: LLMMessages) -> list[ToolExchange]:
     # it to None so the next tool result starts a fresh exchange instead of attaching to
     # a closed turn.
     open_exchange: ToolExchange | None = None
-    for message in messages:
+    # Every message counts toward the index, so a violation points into the caller's own list.
+    for message_index, message in enumerate(messages):
         if not isinstance(message, dict):
             continue
         role = message.get("role")
@@ -500,7 +502,7 @@ def _extract_tool_exchanges_openai(messages: LLMMessages) -> list[ToolExchange]:
             if open_exchange is None:
                 open_exchange = ToolExchange(calls=[], results=[])
                 exchanges.append(open_exchange)
-            open_exchange.results.append(_tool_result_from_message(message))
+            open_exchange.results.append(_tool_result_from_message(message, message_index))
         elif role == "assistant" and message.get("tool_calls"):
             open_exchange = ToolExchange(calls=_tool_calls_from_message(message), results=[])
             exchanges.append(open_exchange)

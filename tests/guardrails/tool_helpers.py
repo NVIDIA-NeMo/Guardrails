@@ -23,6 +23,8 @@ carry explicit messages since this module is not assertion-rewritten by pytest.
 
 from typing import Optional
 
+from nemoguardrails.rails.llm.options import ToolViolation
+
 WEATHER_SCHEMA = {
     "type": "object",
     "properties": {"city": {"type": "string"}},
@@ -52,6 +54,11 @@ def assert_result_blocked(result, *substrings: str) -> None:
     """
     assert result.is_safe is False, f"expected blocked, got {result!r}"
     _assert_reason_contains(result.reason, substrings, result)
+
+
+def violations_in(outcome) -> list[ToolViolation]:
+    """The ``ToolViolation``s a tool validator attached to its ``RailOutcome`` metadata."""
+    return [ToolViolation.model_validate(violation) for violation in outcome.metadata.get("tool_violations", [])]
 
 
 def make_tool_conversation(result_call_id: str = "call_1", result_name: Optional[str] = "get_weather") -> list:
