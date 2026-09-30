@@ -31,16 +31,19 @@ Completions is the engine implemented today.
 """
 
 import functools
+import logging
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Callable, NamedTuple, cast
+from typing import Any, Callable, NamedTuple
 
 import jsonschema
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.types import ToolCall
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +70,10 @@ class Tool:
         return self.name or self.type
 
 
+class DuplicateToolError(ValueError):
+    """A toolset declares the same tool key twice; the message names only that key."""
+
+
 class Toolset:
     """The set of tools declared on a request, indexed by tool key.
 
@@ -90,7 +97,7 @@ class Toolset:
             if not tool.key:
                 continue
             if tool.key in self._by_key:
-                raise ValueError(f"duplicate tool '{tool.key}' in toolset")
+                raise DuplicateToolError(f"duplicate tool '{tool.key}' in toolset")
             self._by_key[tool.key] = tool
 
     def get(self, key: str) -> Tool | None:
@@ -212,21 +219,53 @@ def _no_arguments_violation(tool: Tool, arguments: dict) -> ArgumentsViolation |
     if tool.name is None:
         return None
     if arguments:
+        # A count, not the names: the model chose them, so they can carry data.
+        noun = "argument" if len(arguments) == 1 else "arguments"
         return ArgumentsViolation(
             violation_type=ToolViolationType.UNEXPECTED_ARGUMENTS,
-            reason=f"tool '{tool.key}' accepts no arguments but the call supplied: {sorted(arguments)}",
+            reason=f"tool '{tool.key}' accepts no arguments but the call supplied {len(arguments)} {noun}",
         )
     return None
 
 
-# A key the model invented can reach the path, so each segment is bounded.
-_MAX_POINTER_SEGMENT_LENGTH = 64
+# Stands in for a path segment the model chose, such as a key in a map-shaped argument.
+_UNDECLARED_KEY = "*"
 
 
-def _json_pointer(segments: Iterable[object]) -> str:
+def _declared_segments(schema: Any, segments: Iterable[object]) -> list[str]:
+    """The path's segments, keeping array indices and property names the schema declares, masking the rest."""
+    # Only the direct `properties` count as declared, so a name reached through allOf or $ref is
+    # masked too: that shows less than it could, never text the model wrote.
+    declared: list[str] = []
+    current = schema
+    for segment in segments:
+        properties = _declared_properties(current)
+        if isinstance(segment, int):
+            declared.append(str(segment))
+            current = _array_items(current)
+        elif isinstance(segment, str) and segment in properties:
+            declared.append(segment)
+            current = properties[segment]
+        else:
+            declared.append(_UNDECLARED_KEY)
+            current = {}
+    return declared
+
+
+def _declared_properties(schema: Any) -> dict[str, Any]:
+    """The ``properties`` mapping *schema* declares, or an empty one."""
+    properties = schema.get("properties") if isinstance(schema, dict) else None
+    return properties if isinstance(properties, dict) else {}
+
+
+def _array_items(schema: Any) -> Any:
+    """The ``items`` subschema *schema* declares for array elements, or an empty one."""
+    return schema.get("items", {}) if isinstance(schema, dict) else {}
+
+
+def _json_pointer(segments: Iterable[str]) -> str:
     """An RFC 6901 pointer into the arguments; the empty string is the arguments object itself."""
-    escaped = (str(segment)[:_MAX_POINTER_SEGMENT_LENGTH].replace("~", "~0").replace("/", "~1") for segment in segments)
-    return "".join(f"/{segment}" for segment in escaped)
+    return "".join("/" + segment.replace("~", "~0").replace("/", "~1") for segment in segments)
 
 
 def _first_missing_name(names: list[str], instance: dict) -> str | None:
@@ -244,35 +283,27 @@ def _first_missing_dependency(dependencies: dict[str, list[str]], instance: dict
     return None
 
 
-def _first_unexpected_key(schema: dict, instance: dict) -> str | None:
-    """The first key ``additionalProperties: false`` rejects, in the order the model sent them."""
-    declared = schema.get("properties", {})
-    patterns = schema.get("patternProperties", {})
-    for key in instance:
-        if key not in declared and not any(re.search(pattern, key) for pattern in patterns):
-            return key
+def _missing_property(error: jsonschema.ValidationError) -> str | None:
+    """The schema-named property a ``required`` or ``dependentRequired`` failure is about, else None."""
+    # These keywords are reported at the object missing the property. Draft 3 writes `required: true`
+    # on the property itself, which jsonschema already reports at that property, so the type checks
+    # below leave its path alone.
+    value, instance = error.validator_value, error.instance
+    if not isinstance(instance, dict):
+        return None
+    if error.validator == "required" and isinstance(value, list):
+        return _first_missing_name(value, instance)
+    if error.validator == "dependentRequired" and isinstance(value, dict):
+        return _first_missing_dependency(value, instance)
     return None
 
 
-def _offending_property(error: jsonschema.ValidationError) -> str | None:
-    """The property a keyword reported at its parent object is about, or None for any other keyword."""
-    # unevaluatedProperties is left out: naming its key exactly needs jsonschema's private
-    # evaluation helpers once allOf or $ref are involved.
-    if error.validator == "required":
-        return _first_missing_name(cast(list, error.validator_value), cast(dict, error.instance))
-    if error.validator == "dependentRequired":
-        return _first_missing_dependency(cast(dict, error.validator_value), cast(dict, error.instance))
-    if error.validator == "additionalProperties":
-        return _first_unexpected_key(cast(dict, error.schema), cast(dict, error.instance))
-    return None
-
-
-def _argument_path(error: jsonschema.ValidationError) -> str:
-    """Where in the arguments *error* failed, naming the property for keywords reported at its parent."""
-    segments: list[object] = list(error.absolute_path)
-    offending = _offending_property(error)
-    if offending is not None:
-        segments.append(offending)
+def _argument_path(error: jsonschema.ValidationError, schema: dict) -> str:
+    """Where in the arguments *error* failed, in schema-declared names only."""
+    segments = _declared_segments(schema, error.absolute_path)
+    missing = _missing_property(error)
+    if missing is not None:
+        segments.append(missing)
     return _json_pointer(segments)
 
 
@@ -280,7 +311,7 @@ def _schema_mismatch_violation(tool: Tool, error: jsonschema.ValidationError) ->
     """The violation for arguments that fail the schema, stated by keyword and path, never by value."""
     # jsonschema's own message quotes the failing value, so it is not used.
     keyword = str(error.validator)
-    path = _argument_path(error)
+    path = _argument_path(error, tool.arguments_schema or {})
     location = f"'{path}'" if path else "the top level"
     return ArgumentsViolation(
         violation_type=ToolViolationType.ARGUMENTS_INVALID,
@@ -306,9 +337,11 @@ def validate_arguments(tool: Tool, arguments: dict) -> ArgumentsViolation | None
     except jsonschema.ValidationError as exc:
         return _schema_mismatch_violation(tool, exc)
     except jsonschema.SchemaError as exc:
+        # The message quotes the declared schema, which may be operator config, so it stays in the log.
+        log.warning("declared schema for tool '%s' is not valid JSON Schema: %s", tool.key, exc.message)
         return ArgumentsViolation(
             violation_type=ToolViolationType.INVALID_TOOL_SCHEMA,
-            reason=f"declared schema for tool '{tool.key}' is not valid JSON Schema: {exc.message}",
+            reason=f"declared schema for tool '{tool.key}' is not valid JSON Schema",
         )
     if _schema_accepts_no_arguments(tool.arguments_schema):
         return _no_arguments_violation(tool, arguments)

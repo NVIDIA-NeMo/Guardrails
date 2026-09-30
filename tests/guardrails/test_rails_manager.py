@@ -875,6 +875,25 @@ class TestRailsManagerToolCalls:
         )
 
     @pytest.mark.asyncio
+    async def test_unexpected_parsing_error_blocks_with_a_fixed_reason(self):
+        """A tool-parsing error other than a duplicate tool blocks with a fixed reason carrying none of its text."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError(_SECRET_VALUE)
+
+        mgr.engine_registry.parse_tools = _boom
+        result = await mgr.are_tool_calls_safe([_call("get_weather", {"city": "Paris"})], {"tools": [WEATHER_TOOL]})
+
+        assert result.tool_violations == (
+            ToolViolation(
+                kind="tool_call",
+                violation_type=ToolViolationType.INVALID_TOOLSET,
+                reason="tool parsing failed",
+            ),
+        )
+
+    @pytest.mark.asyncio
     async def test_disabled_toggle_skips_validation(self):
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
         result = await mgr.are_tool_calls_safe([_call("rm_rf", {})], {"tools": [WEATHER_TOOL]}, enabled=False)

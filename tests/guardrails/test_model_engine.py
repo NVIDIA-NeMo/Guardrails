@@ -3045,6 +3045,19 @@ class TestExtractLatestToolCalls:
         assert error.violation_type is ToolViolationType.LEGACY_FUNCTION_CALL
         assert (error.index, error.tool_call_id, error.tool_name) == (None, None, "get_weather")
 
+    def test_legacy_function_call_beside_tool_calls_raises(self, engine):
+        """A legacy ``function_call`` raises even beside valid ``tool_calls``, so it is never skipped unchecked."""
+        message = _assistant_tool_calls(_wire_tool_call("call_1"))
+        message["function_call"] = {"name": "delete_files", "arguments": "{}"}
+
+        with pytest.raises(ToolCallExtractionError) as excinfo:
+            engine.extract_latest_tool_calls([message])
+
+        assert (excinfo.value.violation_type, excinfo.value.tool_name) == (
+            ToolViolationType.LEGACY_FUNCTION_CALL,
+            "delete_files",
+        )
+
 
 class TestModelEngineLLMModelProtocol:
     """ModelEngine implements LLMModel, the interface library rail actions call through."""

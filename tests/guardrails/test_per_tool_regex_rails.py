@@ -158,6 +158,42 @@ class TestAreToolCallsSafe:
         )
 
     @pytest.mark.asyncio
+    async def test_failed_per_tool_rail_reports_rail_failed(self):
+        """A per-tool rail that raises reports ``rail_failed`` for the call it was checking, not a policy block."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output $argument=nope"]},
+            regex_detection=RUN_SQL_PATTERN_CONFIG,
+        )
+        closed_run_sql = {
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "run_sql",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                            "additionalProperties": False,
+                        },
+                    },
+                }
+            ]
+        }
+        result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], closed_run_sql)
+        assert result.failed is True
+        assert result.tool_violations == (
+            ToolViolation(
+                kind="tool_call",
+                violation_type=ToolViolationType.RAIL_FAILED,
+                reason="regex check tool output error",
+                tool_call_id="call_1",
+                tool_name="run_sql",
+                index=0,
+                rail="regex check tool output",
+            ),
+        )
+
+    @pytest.mark.asyncio
     async def test_matching_tool_non_matching_pattern_allows(self):
         manager = _build_manager(
             per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG

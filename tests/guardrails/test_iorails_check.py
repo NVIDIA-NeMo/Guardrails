@@ -988,6 +988,17 @@ class TestCheckToolCalls:
         assert [v.violation_type for v in result.tool_violations] == [ToolViolationType.TOOL_NOT_ALLOWED]
 
     @pytest.mark.asyncio
+    async def test_request_tools_replace_config_declared_tools(self, config_tools_iorails):
+        """``tools`` replaces the tools declared on the main model rather than adding to them."""
+        get_time = {"type": "function", "function": {"name": "get_time", "parameters": {"type": "object"}}}
+
+        result = await config_tools_iorails.check_async(
+            _tool_call_turn(_wire_call()), rail_types=[RailType.TOOL_CALL], tools=[get_time]
+        )
+
+        assert [v.violation_type for v in result.tool_violations] == [ToolViolationType.TOOL_NOT_ALLOWED]
+
+    @pytest.mark.asyncio
     async def test_duplicate_tool_definitions_block(self, tool_iorails):
         """A toolset that declares a tool twice fails closed with an ``invalid_toolset`` violation."""
         result = await tool_iorails.check_async(
@@ -1248,6 +1259,15 @@ class TestCheckToolRailConfiguration:
         assert [(v.violation_type, v.rail, v.index) for v in result.tool_violations] == [
             (ToolViolationType.PER_TOOL_RAIL, "regex check tool output", 0)
         ]
+
+    @pytest.mark.asyncio
+    async def test_per_tool_rails_with_no_flows_are_not_configured(self):
+        """A ``per_tool`` map whose lists are all empty runs nothing, so the tool rail type counts as unconfigured."""
+        config = {**TOOL_CONFIG, "rails": {"tool_output": {"per_tool": {"run_sql": []}}}}
+
+        async with started_iorails(config) as engine:
+            with pytest.raises(RailTypeNotConfiguredError, match="rail type 'tool_call' has no configured rails"):
+                await engine.check_async(_tool_call_turn(_wire_call()), rail_types=[RailType.TOOL_CALL])
 
     @pytest.mark.asyncio
     async def test_tool_rail_type_without_a_main_model_raises(self):

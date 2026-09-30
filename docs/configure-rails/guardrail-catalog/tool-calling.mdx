@@ -282,7 +282,8 @@ The `tool call validation` rail inspects every tool call in the model's response
   IORails blocks a call to a tool that is not in the declared set, for example `tool call 'delete_database' is not an allowed tool`.
 - **Argument schema.** The call's arguments must validate against the tool's declared JSON Schema (the `function.parameters` block).
   IORails blocks arguments that violate the schema, for example `arguments for tool 'get_weather' do not match its schema: 'required' failed at '/city'`.
-  The reason names the failing argument and the JSON Schema keyword, and never quotes an argument's value.
+  The reason names the failing argument as the schema declares it, and the JSON Schema keyword.
+  It never quotes an argument's value or a key the model chose, which appears as `*`.
 - **No-argument tools.** A function tool that declares no parameters must receive no arguments.
   IORails blocks any supplied argument.
 - **Hosted tools.** IORails allowlists a hosted or server-side tool that only `type` identifies (for example a built-in web search) by type, and does not schema-validate its arguments because the provider owns the call shape.
@@ -359,7 +360,7 @@ messages.append({"role": "tool", "tool_call_id": "call_1", "content": "18C"})
 result_check = await rails.check_async(messages, rail_types=[RailType.TOOL_RESULT])
 ```
 
-A `tool_call` check validates the tool calls on the last assistant message against `tools`, merged over the tools declared on the main model.
+A `tool_call` check validates the tool calls on the last assistant message against `tools`, which replace the tools declared on the main model.
 A `tool_result` check validates every `tool` message against the calls it answers.
 Both run the global validator and any `per_tool` rails, and neither calls the model.
 A blocked check reports each failing call or result in `tool_violations`, with a `violation_type` to switch on.

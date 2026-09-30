@@ -168,7 +168,7 @@ Keep the following behavior in mind:
 - Tool rails run only when you name them.
   When `rail_types` is omitted, a check runs input and output rails as described in [Automatic Detection](#automatic-detection-default).
   It logs an INFO message when the configuration has tool rails and the messages carry tool calls or tool results.
-- `tools` is merged over the tools declared in the main model's `parameters.tools`.
+- `tools` replaces the tools declared in the main model's `parameters.tools`, schemas included; it does not add to them.
   When you omit `tools`, the configured tools are the allowlist.
   `tools=[]` declares no tools, so every call is blocked.
 - A `tool_call` check validates only the last assistant message.
@@ -225,7 +225,7 @@ Switch on `violation_type`, which is a closed set, and never on the `reason` tex
 | `tool_call_id` | `Optional[str]` | The call's id, or the id a result links to |
 | `tool_name` | `Optional[str]` | The tool called. For a result, taken from the call it links to, never from the result's own `name` |
 | `index` | `Optional[int]` | For a call, its position in the last assistant message's `tool_calls`. For a result, the position of its message in `messages` |
-| `argument_path` | `Optional[str]` | For `arguments_invalid`, a JSON Pointer to the failing argument, such as `/city`. An empty string points at the arguments object itself |
+| `argument_path` | `Optional[str]` | For `arguments_invalid`, a JSON Pointer to the failing argument, such as `/city`. A key the schema does not declare appears as `*`. An empty string points at the arguments object itself |
 | `schema_keyword` | `Optional[str]` | For `arguments_invalid`, the JSON Schema keyword that failed, such as `required` |
 | `rail` | `Optional[str]` | For `per_tool_rail` and `rail_failed`, the rail that blocked or failed |
 
@@ -247,13 +247,15 @@ Switch on `violation_type`, which is a closed set, and never on the `reason` tex
 | `malformed_content` | Result | The content is neither a string nor a list of content blocks |
 | `unlinkable_result` | Result | A `per_tool` rail applies, but the result cannot be linked to exactly one call |
 | `extraction_failed` | Either | The messages could not be read in the main model's wire format |
-| `rail_failed` | Either | A global tool validator raised an error instead of deciding. The check returns the internal-error message |
+| `rail_failed` | Either | A tool rail raised an error instead of deciding. The check returns the internal-error message |
 | `per_tool_rail` | Either | A `per_tool` rail blocked the call or result |
 
-An `argument_path` points at the property that failed.
+An `argument_path` names only what the schema declares: property names from its `properties`, and array indices.
 For a missing required property, it names that property from the schema.
-For an unexpected property rejected by `additionalProperties: false`, it names the property the model supplied, truncated to 64 characters.
-Argument names can appear in `argument_path` and `reason`, but argument values never do.
+A key the model chose appears as `*`, for example a key inside a map-shaped argument such as `/contacts/*`.
+An unexpected property rejected by `additionalProperties: false` is reported at the object that holds it, without its name.
+So neither `argument_path` nor `reason` contains an argument value or a key the model wrote.
+For the same reason, `unexpected_arguments` reports how many arguments the call supplied, not their names.
 
 ### Which Content Is Reported
 
