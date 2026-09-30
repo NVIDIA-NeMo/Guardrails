@@ -275,12 +275,8 @@ def _first_missing_name(names: list[str], instance: dict) -> str | None:
 
 def _first_missing_dependency(dependencies: dict[str, list[str]], instance: dict) -> str | None:
     """The first ``dependentRequired`` name the object lacks; the names come from the schema."""
-    for trigger, names in dependencies.items():
-        if trigger in instance:
-            missing = _first_missing_name(names, instance)
-            if missing is not None:
-                return missing
-    return None
+    triggered = (names for trigger, names in dependencies.items() if trigger in instance)
+    return next((name for names in triggered for name in names if name not in instance), None)
 
 
 def _missing_property(error: jsonschema.ValidationError) -> str | None:

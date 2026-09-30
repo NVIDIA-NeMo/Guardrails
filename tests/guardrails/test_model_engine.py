@@ -3030,6 +3030,12 @@ class TestExtractLatestToolCalls:
         messages = [assistant_tool_calls({"id": "call_1", "type": "function", "function": function})]
         assert [c.function.arguments for c in engine.extract_latest_tool_calls(messages)] == [{}]
 
+    def test_call_without_an_id_is_named_by_its_position(self, engine):
+        """A malformed call with no id is named in the error by its position in ``tool_calls``."""
+        call = {"type": "function", "function": {"name": "get_weather", "arguments": "not json"}}
+        with pytest.raises(ToolCallExtractionError, match="^tool call at index 0 has malformed arguments$"):
+            engine.extract_latest_tool_calls([assistant_tool_calls(call)])
+
     @pytest.mark.parametrize(
         ("message", "expected"), list(_UNVALIDATABLE_TURNS.values()), ids=list(_UNVALIDATABLE_TURNS)
     )

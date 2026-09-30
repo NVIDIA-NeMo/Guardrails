@@ -1268,6 +1268,24 @@ class TestCheckToolRailConfiguration:
         assert _families_run(order) == ["input", "output"]
         assert "tool rails are configured but were not requested" in caplog.text
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("messages", "hint_count"),
+        [
+            ([{"role": "user", "content": "hi"}, {"role": "tool", "tool_call_id": "call_1", "content": "18C"}], 1),
+            ([{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}], 0),
+        ],
+        ids=["tool_result_only", "no_tool_traffic"],
+    )
+    async def test_auto_detection_hints_only_at_tool_traffic(self, tool_and_io_iorails, caplog, messages, hint_count):
+        """The INFO hint appears when the messages carry a tool result, and not when they carry no tool traffic."""
+        _record_calls(tool_and_io_iorails)
+
+        with caplog.at_level(logging.INFO, logger="nemoguardrails.guardrails.iorails"):
+            await tool_and_io_iorails.check_async(messages)
+
+        assert caplog.text.count("tool rails are configured but were not requested") == hint_count
+
     def test_sync_check_forwards_tools(self):
         """Sync ``check`` hands ``tools`` to the engine it spins up."""
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
