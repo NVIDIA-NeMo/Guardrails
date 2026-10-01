@@ -127,7 +127,7 @@ class RetryingHTTPClient:
         policy: RetryPolicy | None = None,
         *,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
-        random_value: Callable[[], float] = random.random,
+        random_value: Callable[[], float] | None = None,
         now: Callable[[], datetime] | None = None,
     ):
         """Initialize a retrying client.
@@ -143,7 +143,7 @@ class RetryingHTTPClient:
         self._client = client
         self._policy = policy or RetryPolicy()
         self._sleep = sleep
-        self._random_value = random_value
+        self._random_value = random_value if random_value is not None else random.random
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._closed = False
 

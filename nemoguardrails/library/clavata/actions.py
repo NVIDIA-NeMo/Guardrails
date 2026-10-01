@@ -251,6 +251,10 @@ async def clavata_check(
     try:
         labels = get_labels(clavata_config, labels=labels, rail=rail)
     except ClavataPluginValueError:
+        log.debug(
+            "No labels resolved for rail %r; falling back to whole-policy matching.",
+            rail,
+        )
         labels = None
 
     result = await evaluate_with_policy(text, str(policy_id), clavata_config, http_client=http_client)
