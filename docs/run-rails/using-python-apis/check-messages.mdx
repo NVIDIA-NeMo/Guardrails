@@ -293,7 +293,6 @@ When your application requires that a rail actually ran, assert that the message
   A check rejected by a full admission queue increments `guardrails.nonstream.rejections`.
   For more information, refer to [Metric Reference](/observability/metrics/reference).
 - Content capture records the checked messages in `guardrails.request.input` and the returned content in `guardrails.request.output` on the check's request span.
-  When an input or output rail rewrites the text it checked, for example to mask personal data, the span records the rewritten messages rather than the ones the caller sent.
   For more information, refer to [Capturing Prompt and Response Content](/observability/tracing/content-capture).
 
 The synchronous `check()` builds a short-lived engine with tracing and metrics disabled, so it emits no spans and no metrics. Use `check_async()` on instrumented paths.
