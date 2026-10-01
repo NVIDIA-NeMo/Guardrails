@@ -279,6 +279,14 @@ class TestCheckAsyncIntegration:
         assert result.rail is not None
 
     @pytest.mark.asyncio
+    async def test_blocked_has_no_reason(self, mock_rails):
+        """LLMRails names the blocking rail but reports no reason for the block."""
+        messages = [{"role": "user", "content": "block"}]
+        result = await mock_rails.check_async(messages)
+        assert result.status == RailStatus.BLOCKED
+        assert result.reason is None
+
+    @pytest.mark.asyncio
     async def test_input_modified(self, mock_rails):
         messages = [{"role": "user", "content": "modify"}]
         result = await mock_rails.check_async(messages)

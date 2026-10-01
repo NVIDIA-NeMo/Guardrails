@@ -402,3 +402,6 @@ class GuardrailCheckResponse(BaseModel):
     status: str = Field(..., description="Overall check result: passed, modified, or blocked.")
     content: str = Field(..., description="Content after rails processing.")
     rail: Optional[str] = Field(default=None, description="Name of the blocking rail, if any.")
+    reason: Optional[str] = Field(
+        default=None, description="Why the rail blocked the content, if the engine reports it."
+    )
