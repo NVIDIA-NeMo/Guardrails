@@ -79,6 +79,7 @@ _OPERATION_NAME = "chat"
 _ENGINE_BASE_URLS = {
     "nim": "https://integrate.api.nvidia.com",
     "openai": "https://api.openai.com",
+    "orcarouter": "https://api.orcarouter.ai",
 }
 
 _CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
@@ -679,6 +680,10 @@ class ModelEngine(BaseEngine):
 
         if engine == "openai":
             env_value = self._get_environment_variable("OPENAI_API_KEY")
+            return env_value
+
+        if engine == "orcarouter":
+            env_value = self._get_environment_variable("ORCAROUTER_API_KEY")
             return env_value
 
         # If no key is available, assume it's a local model that doesn't need one

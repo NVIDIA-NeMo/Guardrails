@@ -109,6 +109,7 @@ These engines work with `pip install nemoguardrails` and do not require extra pr
 | `nvidia_ai_endpoints`   | Alias for `nim`                                                                                                           |
 | `ollama`                | Ollama OpenAI-compatible endpoint at `http://localhost:11434/v1`                                                          |
 | `openai`                | OpenAI public API or any OpenAI-compatible endpoint using `parameters.base_url`                                           |
+| `orcarouter`            | OpenAI-compatible AI gateway at `https://api.orcarouter.ai/v1`; routes across many models with adaptive routing, automatic failover, and zero-markup inference. Set `parameters.api_key` or `ORCAROUTER_API_KEY`. |
 
 For OpenAI-compatible providers without a dedicated engine entry (vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp server, and similar), use `engine: openai` with `parameters.base_url` and `parameters.api_key`.
 
