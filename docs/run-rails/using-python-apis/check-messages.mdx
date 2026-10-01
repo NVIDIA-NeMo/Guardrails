@@ -219,6 +219,7 @@ The `RailStatus` enum represents the three possible outcomes of a rails check.
 
 When a tool rail blocks, `tool_violations` lists each tool call or tool result that failed, so an agent harness can drop, repair, or re-request that item.
 The global validators check every item, so one check can report several violations, and `reason` repeats the first one's reason.
+When a tool rail fails rather than deciding, the check returns the internal-error message, and `reason` is that rail's failure even when an earlier item has its own violation.
 Each tool call or tool result reports at most one violation: the first check it fails.
 Switch on `violation_type`, which is a closed set, and never on the `reason` text, which can change between releases.
 

@@ -964,7 +964,7 @@ _PARIS = '{"city": "Paris"}'
 # Case id -> (engine config, last call's arguments, tools, (violation type, argument path)).
 _BLOCKING_TOOL_CALL_CHECKS = {
     "schema_invalid_arguments": (TOOL_CONFIG, "{}", [WEATHER_TOOL], ("arguments_invalid", "/city")),
-    "empty_string_arguments_checked_as_empty_object": (TOOL_CONFIG, "", [WEATHER_TOOL], ("arguments_invalid", "/city")),
+    "empty_string_arguments_are_malformed": (TOOL_CONFIG, "", [WEATHER_TOOL], ("malformed_arguments", None)),
     "empty_tools_block_every_call": (CONFIG_TOOLS_CONFIG, _PARIS, [], ("tool_not_allowed", None)),
     "request_tools_replace_config_tools": (CONFIG_TOOLS_CONFIG, _PARIS, [_GET_TIME_TOOL], ("tool_not_allowed", None)),
     "duplicate_tool_definitions": (TOOL_CONFIG, _PARIS, [WEATHER_TOOL, WEATHER_TOOL], ("invalid_toolset", None)),

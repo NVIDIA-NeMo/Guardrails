@@ -608,9 +608,7 @@ def _parse_latest_tool_call(entry: object, index: int) -> ToolCall:
             tool_call_id=tool_call_id,
             tool_name=_string_or_none(function.get("name")) or None,
         )
-    if function.get("arguments") == "":
-        # Streaming finalization reads empty arguments as no arguments, so a check does too.
-        entry = {**entry, "function": {**function, "arguments": {}}}
+    # A completed turn's "" arguments are not JSON, so from_dict rejects them, as non-streaming generation does.
     try:
         message = ChatMessage.from_dict({"role": "assistant", "tool_calls": [entry]})
     except ValueError:
