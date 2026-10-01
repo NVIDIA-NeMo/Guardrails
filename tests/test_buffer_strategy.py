@@ -21,6 +21,11 @@ from nemoguardrails.rails.llm.buffer import (
     get_buffer_strategy,
 )
 from nemoguardrails.rails.llm.config import OutputRailsStreamingConfig
+from nemoguardrails.tool_call_types import (
+    ChunkToolCallDelta,
+    FunctionCallDelta,
+    ToolCallDelta,
+)
 
 
 async def fake_streaming_handler():
@@ -272,7 +277,10 @@ async def test_process_stream_with_metadata_dicts():
 
     async def metadata_streaming_handler():
         for token in ["Hello", " ", "world", "!"]:
-            yield {"text": token, "metadata": {"response_metadata": {"model_provider": "openai"}}}
+            yield {
+                "text": token,
+                "metadata": {"response_metadata": {"model_provider": "openai"}},
+            }
 
     buffer_strategy = RollingBuffer(buffer_context_size=1, buffer_chunk_size=2)
 
@@ -294,8 +302,14 @@ async def test_process_stream_with_mixed_chunk_types():
 
     async def mixed_streaming_handler():
         yield "Hello"
-        yield {"text": " ", "metadata": {"response_metadata": {"model_provider": "openai"}}}
-        yield {"text": "world", "metadata": {"response_metadata": {"model_provider": "openai"}}}
+        yield {
+            "text": " ",
+            "metadata": {"response_metadata": {"model_provider": "openai"}},
+        }
+        yield {
+            "text": "world",
+            "metadata": {"response_metadata": {"model_provider": "openai"}},
+        }
         yield "!"
 
     buffer_strategy = RollingBuffer(buffer_context_size=1, buffer_chunk_size=2)
@@ -534,3 +548,58 @@ async def test_complete_implementation_works():
     assert results[0].user_output_chunks == ["a", "b"]
     assert results[1].processing_context == ["c"]
     assert results[1].user_output_chunks == ["c"]
+
+
+def _tool_call_delta_json() -> str:
+    frame = ChunkToolCallDelta(
+        tool_calls=[
+            ToolCallDelta(
+                index=0,
+                id="call_1",
+                function=FunctionCallDelta(name="get_weather", arguments='{"city": "Boston"}'),
+            )
+        ]
+    )
+    return frame.model_dump_json()
+
+
+@pytest.mark.asyncio
+async def test_rolling_buffer_bypasses_tool_call_delta_chunk():
+    """A ChunkToolCallDelta frame is yielded straight through, not buffered as prose."""
+    tool_call_chunk = _tool_call_delta_json()
+
+    async def handler():
+        for token in ["Hello", " ", "world"]:
+            yield token
+        yield tool_call_chunk
+
+    buffer = RollingBuffer(buffer_context_size=1, buffer_chunk_size=10)
+    results = [batch async for batch in buffer.process_stream(handler())]
+
+    tool_call_batches = [b for b in results if b.user_output_chunks == [tool_call_chunk]]
+    assert len(tool_call_batches) == 1
+    assert tool_call_batches[0].processing_context == []
+
+    all_processing_text = "".join(chunk for b in results for chunk in b.processing_context)
+    assert "tool_call_delta" not in all_processing_text
+
+    all_user_output = [chunk for b in results for chunk in b.user_output_chunks]
+    assert tool_call_chunk in all_user_output
+    assert "".join(c for c in all_user_output if isinstance(c, str) and c != tool_call_chunk) == "Hello world"
+
+
+@pytest.mark.asyncio
+async def test_rolling_buffer_bypasses_tool_call_delta_chunk_with_metadata_wrapping():
+    """The {"text": ...} framing used under include_metadata=True is unwrapped before detection."""
+    tool_call_chunk = {"text": _tool_call_delta_json()}
+
+    async def handler():
+        yield {"text": "Hi"}
+        yield tool_call_chunk
+
+    buffer = RollingBuffer(buffer_context_size=0, buffer_chunk_size=10)
+    results = [batch async for batch in buffer.process_stream(handler())]
+
+    tool_call_batches = [b for b in results if b.user_output_chunks == [tool_call_chunk]]
+    assert len(tool_call_batches) == 1
+    assert tool_call_batches[0].processing_context == []

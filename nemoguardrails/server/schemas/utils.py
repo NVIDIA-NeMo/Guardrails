@@ -37,6 +37,7 @@ from nemoguardrails.server.schemas.openai import (
     GuardrailsDataOutput,
     OpenAIModel,
 )
+from nemoguardrails.tool_call_types import ChunkToolCallDelta
 
 log = logging.getLogger(__name__)
 
@@ -456,7 +457,34 @@ def format_streaming_chunk(
         chunk_id = f"chatcmpl-{uuid.uuid4()}"
 
     # Determine the payload format based on chunk type
-    if isinstance(chunk, dict):
+    if isinstance(chunk, ChunkToolCallDelta):
+        return {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": tool_call.index,
+                                "id": tool_call.id,
+                                "type": tool_call.type,
+                                "function": {
+                                    "name": tool_call.function.name,
+                                    "arguments": tool_call.function.arguments,
+                                },
+                            }
+                            for tool_call in chunk.tool_calls
+                        ]
+                    },
+                    "index": 0,
+                    "finish_reason": None,
+                }
+            ],
+        }
+    elif isinstance(chunk, dict):
         return {
             "id": chunk_id,
             "object": "chat.completion.chunk",
