@@ -2946,11 +2946,15 @@ def _with_second_call_arguments(arguments: Any) -> dict:
 _LEGACY_CALL = {"name": "get_weather", "arguments": "{}"}
 _FLAT_CALL = {"id": "call_1", "type": "function", "name": "run_sql", "arguments": '{"q": "SECRET-VALUE"}'}
 
-# Case id -> (a last assistant turn the extractor refuses, its (violation type, index, tool_call_id, tool_name)).
-_UNVALIDATABLE_TURNS = {
+# Case id -> (a last assistant turn with one call the extractor refuses, (violation type, index, tool_call_id, tool_name)).
+_UNPARSABLE_CALLS = {
     "invalid_json_arguments": (
         _with_second_call_arguments('{"city": "SECRET-VALUE"'),
         ("malformed_arguments", 1, "call_2", "get_weather"),
+    ),
+    "invalid_json_before_a_valid_call": (
+        assistant_tool_calls(wire_tool_call(arguments='{"city": "SECRET-VALUE"'), wire_tool_call(call_id="call_2")),
+        ("malformed_arguments", 0, "call_1", "get_weather"),
     ),
     "json_array_arguments": (
         _with_second_call_arguments('["SECRET-VALUE"]'),
@@ -2966,13 +2970,14 @@ _UNVALIDATABLE_TURNS = {
         ("malformed_tool_call", 0, "call_1", None),
     ),
     "no_function_object": (assistant_tool_calls(_FLAT_CALL), ("malformed_tool_call", 0, "call_1", None)),
-    "legacy_function_call": (
-        {"role": "assistant", "function_call": _LEGACY_CALL},
-        ("legacy_function_call", None, None, "get_weather"),
-    ),
+}
+
+# Case id -> (a last assistant turn carrying a legacy function_call, the tool name its error reports).
+_LEGACY_FUNCTION_CALL_TURNS = {
+    "legacy_function_call": ({"role": "assistant", "function_call": _LEGACY_CALL}, "get_weather"),
     "legacy_function_call_beside_tool_calls": (
         {**assistant_tool_calls(wire_tool_call()), "function_call": {**_LEGACY_CALL, "name": "delete_files"}},
-        ("legacy_function_call", None, None, "delete_files"),
+        "delete_files",
     ),
 }
 
@@ -3031,20 +3036,22 @@ class TestExtractLatestToolCalls:
         assert [c.function.arguments for c in engine.extract_latest_tool_calls(messages)] == [{}]
 
     def test_call_without_an_id_is_named_by_its_position(self, engine):
-        """A malformed call with no id is named in the error by its position in ``tool_calls``."""
+        """A malformed call with no id is named in its error by its position in ``tool_calls``."""
         call = {"type": "function", "function": {"name": "get_weather", "arguments": "not json"}}
-        with pytest.raises(ToolCallExtractionError, match="^tool call at index 0 has malformed arguments$"):
-            engine.extract_latest_tool_calls([assistant_tool_calls(call)])
 
-    @pytest.mark.parametrize(
-        ("message", "expected"), list(_UNVALIDATABLE_TURNS.values()), ids=list(_UNVALIDATABLE_TURNS)
-    )
-    def test_unvalidatable_latest_turn_raises(self, engine, message, expected):
-        """A last assistant turn that cannot be validated raises, naming the call but never quoting its text."""
+        [error] = engine.extract_latest_tool_calls([assistant_tool_calls(call)])
+
+        assert str(error) == "tool call at index 0 has malformed arguments"
+
+    @pytest.mark.parametrize(("message", "expected"), list(_UNPARSABLE_CALLS.values()), ids=list(_UNPARSABLE_CALLS))
+    def test_unparsable_call_is_returned_as_its_error_in_place(self, engine, message, expected):
+        """An unparsable call's error takes its place, naming it without quoting its text; every other call parses."""
         violation_type, index, tool_call_id, tool_name = expected
-        with pytest.raises(ToolCallExtractionError) as excinfo:
-            engine.extract_latest_tool_calls([message])
-        error = excinfo.value
+
+        extracted = engine.extract_latest_tool_calls([message])
+
+        error = extracted[index]
+        assert isinstance(error, ToolCallExtractionError)
         assert (error.violation_type, error.index, error.tool_call_id, error.tool_name) == (
             ToolViolationType(violation_type),
             index,
@@ -3052,6 +3059,22 @@ class TestExtractLatestToolCalls:
             tool_name,
         )
         assert _SECRET_VALUE not in str(error)
+        assert all(isinstance(entry, ToolCall) for position, entry in enumerate(extracted) if position != index)
+
+    @pytest.mark.parametrize(
+        ("message", "tool_name"), list(_LEGACY_FUNCTION_CALL_TURNS.values()), ids=list(_LEGACY_FUNCTION_CALL_TURNS)
+    )
+    def test_legacy_function_call_raises(self, engine, message, tool_name):
+        """A legacy ``function_call`` makes the whole turn unvalidatable, so extraction raises."""
+        with pytest.raises(ToolCallExtractionError) as excinfo:
+            engine.extract_latest_tool_calls([message])
+
+        error = excinfo.value
+        assert (error.violation_type, error.index, error.tool_name) == (
+            ToolViolationType.LEGACY_FUNCTION_CALL,
+            None,
+            tool_name,
+        )
 
 
 class TestModelEngineLLMModelProtocol:

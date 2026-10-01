@@ -164,6 +164,10 @@ class ToolCallExtractionError(ValueError):
         self.tool_name = tool_name
 
 
+# One entry per tool call on a checked turn: the parsed call, or the error that keeps it from being validated.
+LatestToolCall = ToolCall | ToolCallExtractionError
+
+
 def _schema_accepts_no_arguments(schema: dict) -> bool:
     """Whether an argument schema declares no way to supply arguments.
 

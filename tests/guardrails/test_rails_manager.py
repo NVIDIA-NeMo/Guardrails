@@ -1063,6 +1063,66 @@ class TestRailsManagerLatestToolCalls:
         assert result.tool_violations == (violation,)
 
     @pytest.mark.asyncio
+    async def test_unparsable_calls_do_not_hide_the_other_calls_violations(self):
+        """The calls that parse are still validated, and every violation is reported in call order."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        messages = tool_call_turn(
+            wire_tool_call("delete_files", "{}", "call_1"),
+            wire_tool_call(arguments='{"city": "SECRET-VALUE"', call_id="call_2"),
+            wire_tool_call(call_id="call_3"),
+            wire_tool_call("rm_rf", "{}", "call_4"),
+            {"id": "call_5", "type": "function", "name": "get_weather", "arguments": "{}"},
+        )
+
+        result = await mgr.are_latest_tool_calls_safe(messages, {"tools": [WEATHER_TOOL]})
+
+        not_allowed = "tool call '{}' is not an allowed tool"
+        assert result.tool_violations == (
+            call_violation(
+                "tool_not_allowed",
+                not_allowed.format("delete_files"),
+                tool_call_id="call_1",
+                tool_name="delete_files",
+                index=0,
+            ),
+            call_violation(
+                "malformed_arguments",
+                "tool call extraction failed: tool call 'call_2' has malformed arguments",
+                tool_call_id="call_2",
+                tool_name="get_weather",
+                index=1,
+            ),
+            call_violation(
+                "tool_not_allowed", not_allowed.format("rm_rf"), tool_call_id="call_4", tool_name="rm_rf", index=3
+            ),
+            call_violation(
+                "malformed_tool_call",
+                "tool call extraction failed: tool call 'call_5' does not carry a function object",
+                tool_call_id="call_5",
+                index=4,
+            ),
+        )
+        assert (result.is_safe, result.reason, result.triggered_rail) == (
+            False,
+            not_allowed.format("delete_files"),
+            None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_whole_turn_violation_leads_an_unparsable_calls_violation(self):
+        """A toolset violation, which no call position owns, is listed and reported ahead of an unparsable call's."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        messages = tool_call_turn(wire_tool_call(arguments="not json"), wire_tool_call(call_id="call_2"))
+
+        result = await mgr.are_latest_tool_calls_safe(messages, {"tools": [WEATHER_TOOL, WEATHER_TOOL]})
+
+        assert [(v.violation_type, v.index) for v in result.tool_violations] == [
+            (ToolViolationType.INVALID_TOOLSET, None),
+            (ToolViolationType.MALFORMED_ARGUMENTS, 0),
+        ]
+        assert result.reason == "tool parsing failed: duplicate tool 'get_weather' in toolset"
+
+    @pytest.mark.asyncio
     async def test_unexpected_extraction_error_blocks_with_a_fixed_reason(self):
         """Any other extraction error blocks with a fixed reason that carries none of the exception's text."""
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])

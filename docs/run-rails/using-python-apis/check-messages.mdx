@@ -129,7 +129,7 @@ This lets an agent harness validate the tool calls its model produced, and the t
 A tool check runs the rails that generation runs for the same direction: the global validator (`tool call validation` or `tool result validation`) and any `per_tool` rails.
 Only the global validator enforces the declared-tool allowlist and argument schemas.
 A `per_tool` rail checks only the tools it is listed under, so with `per_tool` rails alone, a call to any other tool, declared or not, passes.
-It never calls the main model.
+A tool check never calls the main model.
 
 Pass the tools your model was offered in `tools`, in the main model's wire format.
 For the `openai` and `nim` engines, that is the OpenAI Chat Completions tool shape:
@@ -183,6 +183,7 @@ Keep the following behavior in mind:
   The check stops at the first block.
 - Tool checks fail closed.
   A call whose arguments are not a JSON object blocks, and so does a legacy `function_call` on the last assistant message.
+  The other calls on that message are still validated, so `tool_violations` lists every failing call in call order, not only the one that could not be parsed.
 - Legacy `role: "function"` messages are not validated by the tool-result rails, in checks or in generation.
 - The configuration sections, and the `rail_type` recorded for tool rails in a generation's log, keep the names `tool_output` and `tool_input`.
 - `LLMRails` does not run tool rails in a check.
