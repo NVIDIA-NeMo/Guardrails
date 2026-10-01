@@ -259,7 +259,7 @@ That wording matches the sentence the Colang runtime produces on `LLMRails` when
 On `IORails`, a blocked check also sets `reason`, which explains the block for logs and diagnostics.
 When a rail fails to execute, `reason` names the rail that failed.
 It adds the model provider's error message, with credentials and URLs removed, only when the failure came from a model call.
-The full error goes to the logs and to the rail's trace span.
+The full error goes to the logs and is recorded as an exception on the rail's `guardrails.action` trace span.
 Each rail words its own reason, so the text can change between releases.
 
 In every case, treat `status` as the decision and `content` as the message to display.
