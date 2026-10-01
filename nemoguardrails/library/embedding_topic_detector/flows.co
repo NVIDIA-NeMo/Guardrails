@@ -1,0 +1,19 @@
+flow embedding topic check
+  $result = await EmbeddingTopicCheckAction
+
+  if not $result.on_topic
+    if $system.config.enable_rails_exceptions
+      send OffTopicRailException(message="Off-topic input blocked.")
+    else
+      bot refuse to respond
+    abort
+
+flow embedding topic check output
+  $result = await EmbeddingTopicCheckOutputAction
+
+  if not $result.on_topic
+    if $system.config.enable_rails_exceptions
+      send OffTopicOutputRailException(message="Off-topic output blocked.")
+    else
+      bot refuse to respond
+    abort
