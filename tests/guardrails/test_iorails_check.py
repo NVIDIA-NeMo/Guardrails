@@ -1306,6 +1306,24 @@ class TestCheckToolRailConfiguration:
 
         assert _families_run(order) == []
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("rail_types", "tools", "error"),
+        [
+            ([RailType.INPUT], [WEATHER_TOOL], InvalidCheckRequestError),
+            ([RailType.TOOL_CALL], None, RailTypeNotConfiguredError),
+        ],
+        ids=["unread_tools", "unconfigured_rail_type"],
+    )
+    async def test_request_error_is_raised_before_queueing(self, iorails, caplog, rail_types, tools, error):
+        """A request the check cannot serve raises before it is queued, so it takes no queue slot and logs no ERROR."""
+        with patch.object(iorails._generate_async_queue, "submit") as submit, caplog.at_level(logging.WARNING):
+            with pytest.raises(error):
+                await iorails.check_async(CONVERSATION, rail_types=rail_types, tools=tools)
+
+        submit.assert_not_called()
+        assert [record.getMessage() for record in caplog.records if record.levelno >= logging.ERROR] == []
+
     def test_sync_check_forwards_tools(self):
         """Sync ``check`` hands ``tools`` to the engine it spins up."""
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):

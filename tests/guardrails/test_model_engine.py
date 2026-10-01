@@ -2970,6 +2970,22 @@ _UNPARSABLE_CALLS = {
         ("malformed_tool_call", 0, "call_1", None),
     ),
     "no_function_object": (assistant_tool_calls(_FLAT_CALL), ("malformed_tool_call", 0, "call_1", None)),
+    "non_string_function_name": (
+        assistant_tool_calls({**wire_tool_call(), "function": {"name": {"x": 1}, "arguments": "{}"}}),
+        ("malformed_tool_call", 0, "call_1", None),
+    ),
+    "empty_function_name": (
+        assistant_tool_calls({**wire_tool_call(), "function": {"name": "", "arguments": "{}"}}),
+        ("malformed_tool_call", 0, "call_1", None),
+    ),
+    "non_string_type": (
+        assistant_tool_calls({**wire_tool_call(), "type": {"x": 1}}),
+        ("malformed_tool_call", 0, "call_1", "get_weather"),
+    ),
+    "non_string_id": (
+        assistant_tool_calls({**wire_tool_call(), "id": {"x": 1}}),
+        ("malformed_tool_call", 0, None, "get_weather"),
+    ),
 }
 
 # Case id -> (a last assistant turn carrying a legacy function_call, the tool name its error reports).
