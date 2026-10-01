@@ -872,3 +872,15 @@ class TestProperties:
         mc.provider_url = "https://example.com/v1"
         m = _model(mc)
         assert m.provider_url == "https://example.com/v1"
+
+    def test_api_key_getter_delegates_to_client(self):
+        mc = _mock_client()
+        mc.api_key = "sk-initial"
+        m = _model(mc)
+        assert m.api_key == "sk-initial"
+
+    def test_api_key_setter_delegates_to_client(self):
+        mc = _mock_client()
+        m = _model(mc)
+        m.api_key = "sk-rotated"
+        assert mc.api_key == "sk-rotated"

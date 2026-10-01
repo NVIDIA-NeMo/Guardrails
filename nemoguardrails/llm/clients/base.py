@@ -137,6 +137,23 @@ class BaseClient:
     def provider_url(self) -> Optional[str]:
         return None
 
+    @property
+    def api_key(self) -> Optional[str]:
+        """The bearer token/API key used for the Authorization header."""
+        return self._api_key
+
+    @api_key.setter
+    def api_key(self, value: Optional[str]) -> None:
+        """Update the API key in place.
+
+        Safe to call between requests on an in-flight client: headers are
+        rebuilt fresh per call in ``_build_headers()``, so this only affects
+        requests started after the assignment. Intended for callers that hold
+        one long-lived client/model across many short-lived credential
+        rotations (e.g. OAuth client-credentials tokens).
+        """
+        self._api_key = value
+
     def _error_context(self) -> ErrorContext:
         return ErrorContext(
             model_name=None,
