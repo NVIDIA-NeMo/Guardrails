@@ -554,6 +554,16 @@ def _blocked_message(result: RailResult) -> str:
     return REFUSAL_MESSAGE
 
 
+def _blocked_check_result(result: RailResult) -> RailsResult:
+    """The check result for a block, naming the rail that blocked and why."""
+    return RailsResult(
+        status=RailStatus.BLOCKED,
+        content=_blocked_message(result),
+        rail=result.triggered_rail,
+        reason=client_reason(result),
+    )
+
+
 def _rewritten_user_message(result: RailResult) -> Optional[str]:
     """What the input rails rewrote the user message to, or None when they left it as it came."""
     return result.outcome.transform_text.get(TransformTarget.USER_MESSAGE.value)
@@ -1449,11 +1459,7 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
-                    return RailsResult(
-                        status=RailStatus.BLOCKED,
-                        content=_blocked_message(input_result),
-                        rail=input_result.triggered_rail,
-                    )
+                    return _blocked_check_result(input_result)
                 rewritten = _rewritten_user_message(input_result)
                 if rewritten is not None:
                     log.info("[%s] Input rails rewrote the user message", req_id)
@@ -1474,11 +1480,7 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Output blocked: %s", req_id, display_reason(output_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.OUTPUT)
-                    return RailsResult(
-                        status=RailStatus.BLOCKED,
-                        content=_blocked_message(output_result),
-                        rail=output_result.triggered_rail,
-                    )
+                    return _blocked_check_result(output_result)
                 rewritten = _rewritten_bot_message(output_result)
                 if rewritten is not None:
                     log.info("[%s] Output rails rewrote the response", req_id)
