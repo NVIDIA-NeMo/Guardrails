@@ -653,10 +653,13 @@ class RailsManager:
         positions = [position for position, _ in parsed]
         violations.extend(_at_call_position(violation, positions) for violation in rails_result.tool_violations)
         violations.sort(key=_call_order)
+        # A rail that raised keeps this a failure, so the check answers with its internal-error message, not a refusal.
+        if rails_result.failed:
+            outcome = RailOutcome.failure(reason=violations[0].reason)
+        else:
+            outcome = RailOutcome.block(reason=violations[0].reason)
         # No triggered_rail: the block is the manager's, as for any call it cannot parse.
-        return RailResult.block(
-            reason=violations[0].reason, tool_violations=tuple(violations), records=rails_result.records
-        )
+        return RailResult(outcome, tool_violations=tuple(violations), records=rails_result.records)
 
     async def are_tool_results_safe(
         self,

@@ -57,6 +57,9 @@ RUN_SQL_RESULT_PATTERN_CONFIG = {
     "tool_input": {"run_sql": {"patterns": [r"ssn:\s*\d{3}-\d{2}-\d{4}"]}},
 }
 
+# A run_sql schema with no "nope" argument, so a per-tool rail scoped to `$argument=nope` raises.
+_CLOSED_QUERY_SCHEMA = {"type": "object", "properties": {"query": {"type": "string"}}, "additionalProperties": False}
+
 
 def _sql_call(query: str, call_id: str = "call_1") -> ToolCall:
     return ToolCall(id=call_id, type="function", function=ToolCallFunction(name="run_sql", arguments={"query": query}))
@@ -192,15 +195,36 @@ class TestAreToolCallsSafe:
         ]
 
     @pytest.mark.asyncio
+    async def test_failed_rail_beside_an_unparsable_call_stays_a_failure(self):
+        """A rail that raises while another call is unparsable keeps the result a failure, not a policy block."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output $argument=nope"]},
+            regex_detection=RUN_SQL_PATTERN_CONFIG,
+        )
+        messages = tool_call_turn(
+            wire_tool_call("run_sql", '{"query": "SELECT', "call_1"),
+            wire_tool_call("run_sql", '{"query": "SELECT 1"}', "call_2"),
+        )
+
+        result = await manager.are_latest_tool_calls_safe(
+            messages, _llm_params("run_sql", parameters=_CLOSED_QUERY_SCHEMA)
+        )
+
+        assert result.failed is True
+        assert [(v.violation_type, v.index) for v in result.tool_violations] == [
+            (ToolViolationType.MALFORMED_ARGUMENTS, 0),
+            (ToolViolationType.RAIL_FAILED, 1),
+        ]
+
+    @pytest.mark.asyncio
     async def test_failed_per_tool_rail_reports_rail_failed(self):
         """A per-tool rail that raises reports ``rail_failed`` for the call it was checking, not a policy block."""
         manager = _build_manager(
             per_tool_call_flows={"run_sql": ["regex check tool output $argument=nope"]},
             regex_detection=RUN_SQL_PATTERN_CONFIG,
         )
-        closed_query = {"type": "object", "properties": {"query": {"type": "string"}}, "additionalProperties": False}
         result = await manager.are_tool_calls_safe(
-            [_sql_call("SELECT 1")], _llm_params("run_sql", parameters=closed_query)
+            [_sql_call("SELECT 1")], _llm_params("run_sql", parameters=_CLOSED_QUERY_SCHEMA)
         )
         assert result.failed is True
         assert result.tool_violations == (
