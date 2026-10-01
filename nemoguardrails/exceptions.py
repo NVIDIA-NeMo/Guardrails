@@ -19,6 +19,7 @@ __all__ = [
     "ConfigurationError",
     "InvalidModelConfigurationError",
     "InvalidRailsConfigurationError",
+    "InvalidCheckRequestError",
     "InvalidStateError",
     "LLMCallException",
     "LLMClientError",
@@ -80,6 +81,12 @@ class RailTypeNotConfiguredError(InvalidRailsConfigurationError):
 
 class RailTypeNotSupportedError(InvalidRailsConfigurationError):
     """Raised when an explicitly requested rail type cannot run on the serving engine."""
+
+    pass
+
+
+class InvalidCheckRequestError(ValueError):
+    """Raised when a check's arguments contradict each other, such as `tools` without a `tool_call` check."""
 
     pass
 

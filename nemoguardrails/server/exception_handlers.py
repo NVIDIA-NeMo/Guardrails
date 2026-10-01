@@ -24,6 +24,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 
 from nemoguardrails.exceptions import (
+    InvalidCheckRequestError,
     InvalidStateError,
     LLMCallException,
     LLMRateLimitError,
@@ -129,6 +130,11 @@ async def rail_type_not_configured_error_handler(request: Request, exc: RailType
 
 async def rail_type_not_supported_error_handler(request: Request, exc: RailTypeNotSupportedError) -> Response:
     log.warning("Rail type not supported: %s", exc)
+    return _error_response(422, str(exc))
+
+
+async def invalid_check_request_error_handler(request: Request, exc: InvalidCheckRequestError) -> Response:
+    log.warning("Invalid check request: %s", exc)
     return _error_response(422, str(exc))
 
 

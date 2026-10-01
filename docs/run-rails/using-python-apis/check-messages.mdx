@@ -54,7 +54,7 @@ def check(
 |-----------|------|-------------|
 | `messages` | `List[dict]` | List of message dictionaries with `role` and `content` fields |
 | `rail_types` | `Optional[List[RailType]]` | Optional list of rail types to run. When provided, overrides automatic detection based on message roles. |
-| `tools` | `Optional[List[dict]]` | IORails only; `LLMRails` raises `RailTypeNotSupportedError`. The tools a `tool_call` check validates calls against, in the main model's wire format. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only). |
+| `tools` | `Optional[List[dict]]` | IORails only; `LLMRails` raises `RailTypeNotSupportedError`. The tools a `tool_call` check validates calls against, in the main model's wire format. Only a `tool_call` check reads them, so passing `tools` without `RailType.TOOL_CALL` in `rail_types` raises `InvalidCheckRequestError`. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only). |
 
 **Returns:** `RailsResult` object containing validation results.
 
@@ -173,6 +173,8 @@ Keep the following behavior in mind:
 - `tools` replaces the tools declared in the main model's `parameters.tools`, schemas included; it does not add to them.
   When you omit `tools`, the configured tools are the allowlist.
   `tools=[]` declares no tools, so `tool call validation` blocks every call.
+- Only a `tool_call` check reads `tools`.
+  Passing `tools` to any other check, including one that leaves `rail_types` to automatic detection, raises `InvalidCheckRequestError` rather than ignoring them.
 - A `tool_call` check validates only the last assistant message.
   Earlier calls were validated when they were produced, and a `tool_result` check validates how results link to them.
 - A tool check needs a `main` model, because its engine selects the wire format.
@@ -224,9 +226,9 @@ Switch on `violation_type`, which is a closed set, and never on the `reason` tex
 |---|---|---|
 | `kind` | `str` | `tool_call` or `tool_result` |
 | `violation_type` | `ToolViolationType` | What the call or result violated. Refer to the following table |
-| `reason` | `str` | Why it was blocked. Never contains argument values or tool-result content |
-| `tool_call_id` | `Optional[str]` | The call's id, or the id a result links to |
-| `tool_name` | `Optional[str]` | The tool called. For a result, taken from the call it links to, never from the result's own `name` |
+| `reason` | `str` | Why it was blocked. Never contains argument values or tool-result content. A tool name or call id it quotes is cut to 64 characters, followed by `...` |
+| `tool_call_id` | `Optional[str]` | The call's id, or the id a result links to. Always whole, so you can match the violation to its call |
+| `tool_name` | `Optional[str]` | The tool called. For a result, taken from the call it links to, never from the result's own `name`. A name longer than 64 characters is cut to 64, followed by `...` |
 | `index` | `Optional[int]` | For a call, its position in the last assistant message's `tool_calls`. For a result, the position of its message in `messages` |
 | `argument_path` | `Optional[str]` | For `arguments_invalid`, a JSON Pointer to the failing argument, such as `/city`. A key the schema does not declare appears as `*`. An empty string points at the arguments object itself |
 | `schema_keyword` | `Optional[str]` | For `arguments_invalid`, the JSON Schema keyword that failed, such as `required` |
@@ -437,6 +439,7 @@ Requesting a rail type with no configured flows returns HTTP 422.
 `guardrails.rail_types` accepts `tool_call` and `tool_result` on a configuration that `IORails` serves.
 On a configuration that `LLMRails` serves, they return HTTP 422.
 The request's top-level `tools` field sets the tools a `tool_call` check validates against.
+On a configuration that `IORails` serves, a request that carries `tools` without `tool_call` in `guardrails.rail_types` returns HTTP 422.
 On a configuration that `LLMRails` serves, a request that carries `tools` also returns HTTP 422.
 
 The response carries `status`, `content`, and, on a block, `rail`.

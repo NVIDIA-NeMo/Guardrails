@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import (
+    InvalidCheckRequestError,
     NonStreamingWorkQueueFullError,
     RailTypeNotConfiguredError,
     StreamingCapacityExceededError,
@@ -559,6 +560,18 @@ def _rail_type_configured(config: RailsConfig, rail_type: RailType) -> bool:
         # A per_tool entry with no flows runs nothing, so it does not count.
         return bool(section.flows) or any(section.per_tool.values())
     return bool(section.flows)
+
+
+def _reject_unread_tools(rail_types: Optional[list[RailType]], tools: Optional[list[dict]]) -> None:
+    """Raise when *tools* is passed to a check that runs no tool_call rails, which would leave it unread."""
+    # Refused rather than ignored, so a caller who expected its tool calls validated learns they were not.
+    if tools is None:
+        return
+    if rail_types is not None and RailType.TOOL_CALL in rail_types:
+        return
+    raise InvalidCheckRequestError(
+        "tools is read only by a tool_call check; include tool_call in rail_types or leave tools out"
+    )
 
 
 def _has_tool_traffic(messages: LLMMessages) -> bool:
@@ -1480,6 +1493,7 @@ class IORails(BaseGuardrails):
         log.info("[%s] check called", req_id)
         log.debug("[%s] check messages=%s", req_id, truncate(messages))
 
+        _reject_unread_tools(rail_types, tools)
         if rail_types is not None:
             self._validate_requested_rail_types(rail_types)
             rails_to_run = [rail_type.value for rail_type in rail_types]

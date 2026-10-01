@@ -29,6 +29,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, List
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.guardrails.guardrails_types import quoted_identity
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, violations_outcome
 from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
 
@@ -107,7 +108,7 @@ class ToolResultRailAction(ToolRailAction):
             ToolViolation(
                 kind="tool_result",
                 violation_type=ToolViolationType.DUPLICATE_PRIOR_CALL_ID,
-                reason=f"duplicate prior tool call id '{call_id}' makes tool-result linkage ambiguous",
+                reason=f"duplicate prior tool call id '{quoted_identity(call_id)}' makes tool-result linkage ambiguous",
                 tool_call_id=call_id,
             )
             for call_id in duplicated
@@ -135,32 +136,33 @@ class ToolResultRailAction(ToolRailAction):
         if not call_id:
             return _result_violation(result, ToolViolationType.MISSING_CALL_ID, "tool result is missing a call_id")
         prior = calls_by_id.get(call_id)
+        quoted_call_id = quoted_identity(call_id)
         if call_id in seen_ids:
             return _result_violation(
                 result,
                 ToolViolationType.DUPLICATE_RESULT,
-                f"duplicate tool result for call_id '{call_id}': each tool call must have exactly one result",
+                f"duplicate tool result for call_id '{quoted_call_id}': each tool call must have exactly one result",
                 prior,
             )
         if prior is None:
             return _result_violation(
                 result,
                 ToolViolationType.UNKNOWN_CALL_ID,
-                f"tool result for call_id '{call_id}' does not correspond to a prior tool call",
+                f"tool result for call_id '{quoted_call_id}' does not correspond to a prior tool call",
             )
         if _names_a_different_tool(result, prior):
             return _result_violation(
                 result,
                 ToolViolationType.NAME_MISMATCH,
-                f"tool result name '{result.name}' does not match the called tool "
-                f"'{prior.function.name}' for call_id '{call_id}'",
+                f"tool result name '{quoted_identity(result.name)}' does not match the called tool "
+                f"'{quoted_identity(prior.function.name)}' for call_id '{quoted_call_id}'",
                 prior,
             )
         if result.content is not None and not _is_well_formed_content(result.content):
             return _result_violation(
                 result,
                 ToolViolationType.MALFORMED_CONTENT,
-                f"tool result for call_id '{call_id}' has malformed content",
+                f"tool result for call_id '{quoted_call_id}' has malformed content",
                 prior,
             )
         return None

@@ -27,7 +27,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from nemoguardrails.exceptions import RailTypeNotConfiguredError
+from nemoguardrails.exceptions import InvalidCheckRequestError, RailTypeNotConfiguredError
 from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.iorails import (
     INTERNAL_ERROR_MESSAGE,
@@ -50,6 +50,7 @@ from tests.guardrails.test_tool_rails_iorails import (
 )
 from tests.guardrails.tool_helpers import (
     TOOL_CALL_QUESTION,
+    UNREAD_TOOLS_MESSAGE,
     call_violation,
     make_tool_conversation,
     malformed_prior_tool_call_messages,
@@ -1289,6 +1290,21 @@ class TestCheckToolRailConfiguration:
             await tool_and_io_iorails.check_async(messages)
 
         assert caplog.text.count("tool rails are configured but were not requested") == hint_count
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "rail_types",
+        [None, [], [RailType.INPUT], [RailType.OUTPUT, RailType.TOOL_RESULT]],
+        ids=["auto_detection", "empty", "input", "output_and_tool_result"],
+    )
+    async def test_tools_without_a_tool_call_check_raise(self, tool_and_io_iorails, rail_types):
+        """Only a tool_call check reads ``tools``, so any other check given them raises before a rail runs."""
+        order = _record_calls(tool_and_io_iorails)
+
+        with pytest.raises(InvalidCheckRequestError, match=f"^{UNREAD_TOOLS_MESSAGE}$"):
+            await tool_and_io_iorails.check_async(FULL_TURN, rail_types=rail_types, tools=[WEATHER_TOOL])
+
+        assert _families_run(order) == []
 
     def test_sync_check_forwards_tools(self):
         """Sync ``check`` hands ``tools`` to the engine it spins up."""

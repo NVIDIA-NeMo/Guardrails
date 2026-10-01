@@ -361,6 +361,7 @@ result_check = await rails.check_async(messages, rail_types=[RailType.TOOL_RESUL
 ```
 
 A `tool_call` check validates the tool calls on the last assistant message against `tools`, which replace the tools declared on the main model.
+Only a `tool_call` check reads `tools`, so passing them to any other check raises `InvalidCheckRequestError`, or returns HTTP 422 from the server.
 The allowlist and argument schemas are enforced by `tool call validation`; `per_tool` rails check only the tools they are listed under.
 A `tool_result` check validates every `tool` message against the calls it answers.
 Both run the global validator and any `per_tool` rails, and neither calls the model.
