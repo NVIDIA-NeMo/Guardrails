@@ -31,6 +31,7 @@ from nemoguardrails.server.experimental._buffered_kernel import (
     OperationCheckFailed,
     OperationCompleted,
     OperationModificationUnsupported,
+    OperationProjectionFailed,
     execute_buffered_operation,
 )
 from nemoguardrails.server.experimental._content_checker import (
@@ -148,7 +149,13 @@ class GuardedHttpOperation:
 
 HttpDispatch = Callable[[BufferedHttpRequest], Awaitable[BufferedHttpResponse]]
 OutcomeRenderer = Callable[
-    [OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | HttpOperationFailed],
+    [
+        OperationBlocked
+        | OperationCheckFailed
+        | OperationModificationUnsupported
+        | OperationProjectionFailed
+        | HttpOperationFailed
+    ],
     BufferedHttpResponse,
 ]
 
@@ -257,7 +264,13 @@ def _render_response(value: BufferedHttpResponse) -> Response:
 
 
 def _render_failure(
-    failure: OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | HttpOperationFailed,
+    failure: (
+        OperationBlocked
+        | OperationCheckFailed
+        | OperationModificationUnsupported
+        | OperationProjectionFailed
+        | HttpOperationFailed
+    ),
     render_outcome: OutcomeRenderer,
 ) -> Response:
     """Render one operation failure through the configured response mapping."""

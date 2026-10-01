@@ -32,7 +32,12 @@ from nemoguardrails.server.experimental._content_checker import (
     validate_content_check_decision,
     validate_content_checker,
 )
-from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation, GuardedMessageProjection
+from nemoguardrails.server.experimental._guarded_operation import (
+    BufferedGuardedOperation,
+    ContentInspectionNotApplicable,
+    GuardedMessageProjection,
+    UnsupportedGuardedPayload,
+)
 from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
 RequestT = TypeVar("RequestT")
@@ -78,16 +83,26 @@ class OperationModificationUnsupported:
     failure: UnsupportedContentModification
 
 
+@dataclass(frozen=True, slots=True)
+class OperationProjectionFailed:
+    """Stop an operation when a provider payload cannot be inspected safely."""
+
+    stage: InspectionStage
+    failure: UnsupportedGuardedPayload
+
+
 def _project_message(
     projection: GuardedMessageProjection[PayloadT],
     payload: PayloadT,
     expected_role: Literal["user", "assistant"],
-) -> GuardedMessage:
-    """Project and validate one message selected for content checking."""
+) -> GuardedMessage | ContentInspectionNotApplicable:
+    """Project and validate one result for content checking."""
 
     message = projection(payload)
+    if isinstance(message, ContentInspectionNotApplicable):
+        return message
     if not isinstance(message, GuardedMessage):
-        raise TypeError("A guarded operation projection must return GuardedMessage.")
+        raise TypeError("A guarded operation projection must return GuardedMessage or ContentInspectionNotApplicable.")
     if message.role != expected_role:
         raise ValueError(f"A guarded operation {expected_role} projection returned role {message.role!r}.")
     return message
@@ -136,13 +151,24 @@ async def execute_buffered_operation(
     checker: ContentChecker | _ResolvedContentChecker,
     request: RequestT,
     dispatch: Callable[[RequestT], Awaitable[ResponseT]],
-) -> OperationCompleted[ResponseT] | OperationBlocked | OperationCheckFailed | OperationModificationUnsupported:
+) -> (
+    OperationCompleted[ResponseT]
+    | OperationBlocked
+    | OperationCheckFailed
+    | OperationModificationUnsupported
+    | OperationProjectionFailed
+):
     """Execute one buffered operation with exactly one statically bound checker."""
 
     validated = checker if isinstance(checker, _ResolvedContentChecker) else validate_content_checker(checker)
     validated_checker = validated.checker
     policy = validated.policy
-    input_message = _project_message(operation.input_projection, request, "user")
+    try:
+        input_message = _project_message(operation.input_projection, request, "user")
+    except UnsupportedGuardedPayload as failure:
+        return OperationProjectionFailed(InspectionStage.INPUT, failure)
+    if isinstance(input_message, ContentInspectionNotApplicable):
+        raise TypeError("A guarded operation input projection cannot be inapplicable.")
 
     if policy.inspect_input:
         stopped = await _run_check(
@@ -155,7 +181,12 @@ async def execute_buffered_operation(
     response = await dispatch(request)
 
     if policy.inspect_output:
-        output_message = _project_message(operation.output_projection, response, "assistant")
+        try:
+            output_message = _project_message(operation.output_projection, response, "assistant")
+        except UnsupportedGuardedPayload as failure:
+            return OperationProjectionFailed(InspectionStage.OUTPUT, failure)
+        if isinstance(output_message, ContentInspectionNotApplicable):
+            return OperationCompleted(response)
         stopped = await _run_check(
             InspectionStage.OUTPUT,
             lambda: validated_checker.check_output(OutputContentCheck(input_message, output_message.content)),
