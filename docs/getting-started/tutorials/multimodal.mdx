@@ -8,7 +8,7 @@ content:
     type: "tutorial"
 ---
 
-Learn how to add safety checks to images and text using a vision model as LLM-as-a-Judge with [OpenAI GPT-4 Vision](https://platform.openai.com/docs/guides/vision), Llama Vision, or Llama Guard.
+Learn how to add safety checks to images and text using [Nemotron 3.5 Content Safety](https://build.nvidia.com/nvidia/nemotron-3.5-content-safety), a multimodal safety NIM that inspects both text and images in a single inference call.
 
 By following this tutorial, you learn how to:
 
@@ -25,8 +25,9 @@ The NeMo Guardrails library supports multimodal content safety for input and out
 
 ## Prerequisites
 
-- The NeMo Guardrails library [installed](/get-started/installation-guide) with the `openai` extra.
-- A personal NVIDIA API key generated on [https://build.nvidia.com/](https://build.nvidia.com/).
+- The NeMo Guardrails library [installed](/get-started/installation-guide) with the `nvidia` extra.
+- A personal NVIDIA API key generated on [build.nvidia.com](https://build.nvidia.com/).
+- An OpenAI API key (for the main model used to generate responses).
 
 ## Configure Guardrails
 
@@ -46,13 +47,14 @@ The NeMo Guardrails library supports multimodal content safety for input and out
         title="prompts.yml"
     />
 
-## Test with OpenAI
+## Test Multimodal Safety
 
-This example sends image requests to OpenAI endpoints and tests safety checks on a handgun image.
+This example sends image requests and tests safety checks on a handgun image. The content safety rail uses Nemotron 3.5 Content Safety NIM to evaluate both the text and the image. The main model uses OpenAI to generate responses.
 
-1. Set your OpenAI API key.
+1. Set your API keys.
 
     ```console
+    export NVIDIA_API_KEY=<your-nvidia-api-key>
     export OPENAI_API_KEY=<your-openai-api-key>
     ```
 

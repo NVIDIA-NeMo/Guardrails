@@ -7,7 +7,7 @@ description: "Check text inputs and outputs for harmful content using Nemotron C
 content:
   type: "tutorial"
 ---
-Learn how to add input and output guardrails that detect harmful content in multiple languages using [Llama 3.1 Nemotron Safety Guard 8B V3](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3).
+Learn how to add input and output guardrails that detect harmful content in multiple languages using [Nemotron 3.5 Content Safety](https://build.nvidia.com/nvidia/nemotron-3.5-content-safety).
 
 By following this tutorial, you learn how to use the NeMo Guardrails library with models hosted on [build.nvidia.com](https://build.nvidia.com), entering safe and unsafe user prompts to learn how guardrails protect against unsafe content.
 
@@ -32,11 +32,15 @@ Follow these steps to prepare the guardrails configuration.
    models:
      - type: main
        engine: nim
-       model: meta/llama-3.3-70b-instruct
+       model: nvidia/nemotron-3.5-lightning-30b-a3b
 
      - type: content_safety
        engine: nim
-       model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+       model: nvidia/nemotron-3.5-content-safety
+       parameters:
+         chat_template_kwargs:
+           enable_thinking: false
+           request_categories: "/categories"
 
    rails:
      input:
@@ -51,6 +55,11 @@ Follow these steps to prepare the guardrails configuration.
    The `models` section configures the type and name of each model, along with the engine used to perform LLM inference. The model with type `main` is used to generate responses to user queries.
    The `rails` section configures `input` and `output` rails.
    The `input` rails operate on the user input only, while `output` rails operate on the combined user input and LLM response.
+
+   The `chat_template_kwargs` parameters control the model's server-side chat template:
+   - `enable_thinking: false` — disables the reasoning trace for lower latency. Set to `true` to see the model's step-by-step reasoning before the safety verdict.
+   - `request_categories: "/categories"` — instructs the model to classify against the full 24-category safety taxonomy. Omitting this causes the model to default to `/no_categories`, which suppresses the `Safety Categories` field in the response.
+
    For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
 
 1. Save the following as `config/prompts.yml`.
@@ -58,100 +67,25 @@ Follow these steps to prepare the guardrails configuration.
    ```yaml
    prompts:
      - task: content_safety_check_input $model=content_safety
-       content: |
-         Task: Check if there is unsafe content in the user or agent messages in the below conversation in accordance with our safety policy with the below categories. Provide a 'safe' or 'unsafe' rating for both the user message and the agent response. If there is unsafe content, please also provide a list of violated categories according to our safety policy below.
-
-         <BEGIN UNSAFE CONTENT CATEGORIES>
-         S1: Violence.
-         S2: Sexual.
-         S3: Criminal Planning/Confessions.
-         S4: Guns and Illegal Weapons.
-         S5: Controlled/Regulated Substances.
-         S6: Suicide and Self Harm.
-         S7: Sexual (minor).
-         S8: Hate/Identity Hate.
-         S9: PII/Privacy.
-         S10: Harassment.
-         S11: Threat.
-         S12: Profanity.
-         S13: Needs Caution.
-         S14: Other.
-         S15: Manipulation.
-         S16: Fraud/Deception.
-         S17: Malware.
-         S18: High Risk Gov Decision Making.
-         S19: Political/Misinformation/Conspiracy.
-         S20: Copyright/Trademark/Plagiarism.
-         S21: Unauthorized Advice.
-         S22: Illegal Activity.
-         S23: Immoral/Unethical.
-         <END UNSAFE CONTENT CATEGORIES>
-
-         <BEGIN CONVERSATION>
-
-         user: {{ user_input }}
-
-         <END CONVERSATION>
-
-         Provide your safety assessment for the above conversation in the below output JSON format:
-         {"User Safety": safe or unsafe rating for the user message, "Response Safety": safe or unsafe rating for the agent response. Omit if no agent response present. "Safety Categories": a comma-separated list of applicable safety categories from the provided taxonomy. Omit if all safe.}
-
-         Do not include anything other than the output JSON in your response.
-         Output JSON:
-       output_parser: nemoguard_parse_prompt_safety
-       max_tokens: 50
+       messages:
+         - type: user
+           content: "{{ user_input }}"
+       output_parser: nemotron_content_safety_parse_prompt_safety
+       max_tokens: 100
+       max_length: 128000
 
      - task: content_safety_check_output $model=content_safety
-       content: |
-         Task: Check if there is unsafe content in the user or agent messages in the below conversation in accordance with our safety policy with the below categories. Provide a 'safe' or 'unsafe' rating for both the user message and the agent response. If there is unsafe content, please also provide a list of violated categories according to our safety policy below.
-
-         <BEGIN UNSAFE CONTENT CATEGORIES>
-         S1: Violence.
-         S2: Sexual.
-         S3: Criminal Planning/Confessions.
-         S4: Guns and Illegal Weapons.
-         S5: Controlled/Regulated Substances.
-         S6: Suicide and Self Harm.
-         S7: Sexual (minor).
-         S8: Hate/Identity Hate.
-         S9: PII/Privacy.
-         S10: Harassment.
-         S11: Threat.
-         S12: Profanity.
-         S13: Needs Caution.
-         S14: Other.
-         S15: Manipulation.
-         S16: Fraud/Deception.
-         S17: Malware.
-         S18: High Risk Gov Decision Making.
-         S19: Political/Misinformation/Conspiracy.
-         S20: Copyright/Trademark/Plagiarism.
-         S21: Unauthorized Advice.
-         S22: Illegal Activity.
-         S23: Immoral/Unethical.
-         <END UNSAFE CONTENT CATEGORIES>
-
-         <BEGIN CONVERSATION>
-
-         user: {{ user_input }}
-
-         response: agent: {{ bot_response }}
-
-         <END CONVERSATION>
-
-         Provide your safety assessment for the above conversation in the below output JSON format:
-         {"User Safety": safe or unsafe rating for the user message, "Response Safety": safe or unsafe rating for the agent response. Omit if no agent response present. "Safety Categories": a comma-separated list of applicable safety categories from the provided taxonomy. Omit if all safe.}
-
-         Do not include anything other than the output JSON in your response.
-         Output JSON:
-       output_parser: nemoguard_parse_response_safety
-       max_tokens: 50
+       messages:
+         - type: user
+           content: "{{ user_input }}"
+         - type: assistant
+           content: "{{ bot_response }}"
+       output_parser: nemotron_content_safety_parse_response_safety
+       max_tokens: 100
+       max_length: 128000
    ```
 
-   The `prompts.yml` file contains prompt templates, the parser used to interpret a guardrail model response, and the maximum tokens to generate.
-   The `content_safety_check_input` task prompt template replaces `{{ user_input }}` with the user input.
-   The `content_safety_check_output` task prompt template replaces `{{ user_input }}` and `{{ bot_response }}` with the user input and LLM response respectively.
-   For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
+   Unlike earlier Nemotron safety models, Nemotron 3.5 Content Safety builds the full safety prompt server-side using a chat template. The `prompts.yml` file passes only the conversation turns to classify — do not paste the safety taxonomy into the prompt, as the model would classify it as user input. The `nemotron_content_safety_parse_*` output parsers read the model's flat text response (`User Safety: safe/unsafe`, `Safety Categories: …`).
 
 ## Run the Guardrails chat application
 
@@ -234,34 +168,35 @@ Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable
 
    The model responds with information about rice, roti, and dal—common Indian foods.
 
-## Deploy Llama 3.1 Nemotron Safety Guard 8B V3 NIM locally
+## Deploy Nemotron 3.5 Content Safety NIM locally
 
-This section shows how to run the Nemotron Safety Guard 8B model locally while still using the build.nvidia.com hosted main model. The prerequisites are:
+This section shows how to run the Nemotron 3.5 Content Safety model locally while still using the build.nvidia.com hosted main model. The prerequisites are:
 
 - The NeMo Guardrails library [installed](/get-started/installation-guide).
 - A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
   For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
 - Docker [installed](https://docs.docker.com/engine/install/).
 - NVIDIA Container Toolkit [installed](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
-- The rest of the [software requirements for the Llama 3.1 Nemotron Safety Guard 8B V3 NIM](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html#software).
-- GPUs meeting the memory requirement specified in the [NVIDIA Llama 3.1 Nemotron Safety Guard 8B NIM Model Profiles](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html#about-model-profiles).
+- GPUs meeting the memory requirements for the [Nemotron 3.5 Content Safety NIM](https://catalog.ngc.nvidia.com/orgs/nim/nvidia/containers/nemotron-3.5-content-safety).
 
-To run the Llama 3.1 Nemotron Safety Guard 8B V3 in a Docker container, follow these steps:
+To run the Nemotron 3.5 Content Safety NIM in a Docker container, follow these steps:
 
-1. Update the `config.yml` file you created earlier to point to a local NIM deployment rather than build.nvidia.com. The following configuration adds a `base_url` and `model_name` field under `parameters`, which tells the NeMo Guardrails library to make requests to the `nvidia/llama-3.1-nemotron-safety-guard-8b-v3` model hosted at `http://localhost:8123/v1`. The Guardrails configuration must match the NIM Docker container configuration for them to communicate.
+1. Update the `config.yml` file you created earlier to point to a local NIM deployment rather than build.nvidia.com. The following configuration adds a `base_url` field under `parameters`, which tells the NeMo Guardrails library to make requests to the `nvidia/nemotron-3.5-content-safety` model hosted at `http://localhost:8123/v1`. The Guardrails configuration must match the NIM Docker container configuration for them to communicate.
 
    ```yaml
-    models:
+   models:
      - type: main
        engine: nim
-       model: meta/llama-3.3-70b-instruct
+       model: nvidia/nemotron-3.5-lightning-30b-a3b
 
      - type: content_safety
        engine: nim
-       model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+       model: nvidia/nemotron-3.5-content-safety
        parameters:
          base_url: "http://localhost:8123/v1"
-         model_name: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
+         chat_template_kwargs:
+           enable_thinking: false
+           request_categories: "/categories"
 
    rails:
      input:
@@ -272,7 +207,7 @@ To run the Llama 3.1 Nemotron Safety Guard 8B V3 in a Docker container, follow t
          - content safety check output $model=content_safety
    ```
 
-1. Start the Llama 3.1 Nemotron Safety Guard 8B V3 NIM Docker container. Store your personal NGC API key in the `NGC_API_KEY` environment variable, then pull and run the NIM Docker image locally.
+1. Start the Nemotron 3.5 Content Safety NIM Docker container. Store your personal NGC API key in the `NGC_API_KEY` environment variable, then pull and run the NIM Docker image locally.
 
      1. Log in to your NVIDIA NGC account.
 
@@ -291,13 +226,13 @@ To run the Llama 3.1 Nemotron Safety Guard 8B V3 in a Docker container, follow t
      1. Download the container.
 
            ```console
-           $ docker pull nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-8b-v3:1.14.0
+           $ docker pull nvcr.io/nim/nvidia/nemotron-3.5-content-safety:latest
            ```
 
      1. Create a model cache directory on the host machine.
 
          ```console
-         $ export LOCAL_NIM_CACHE=~/.cache/safetyguard8b
+         $ export LOCAL_NIM_CACHE=~/.cache/nim
          $ mkdir -p "${LOCAL_NIM_CACHE}"
          $ chmod 700 "${LOCAL_NIM_CACHE}"
          ```
@@ -308,17 +243,17 @@ To run the Llama 3.1 Nemotron Safety Guard 8B V3 in a Docker container, follow t
 
           ```console
           $ docker run -d \
-            --name safetyguard8b \
+            --name nemotron-content-safety \
             --gpus=all --runtime=nvidia \
             --shm-size=64GB \
             -e NGC_API_KEY \
-             -u $(id -u) \
-             -v "${LOCAL_NIM_CACHE}:/opt/nim/.cache/" \
-             -p 8123:8000 \
-             nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-8b-v3:1.14.0
+            -u $(id -u) \
+            -v "${LOCAL_NIM_CACHE}:/opt/nim/.cache/" \
+            -p 8123:8000 \
+            nvcr.io/nim/nvidia/nemotron-3.5-content-safety:latest
            ```
 
-         The container requires several minutes to start and download the model from NGC. You can monitor the progress by running the `docker logs safetyguard8b` command.
+         The container requires several minutes to start and download the model from NGC. You can monitor the progress by running the `docker logs nemotron-content-safety` command.
 
      1. Confirm the service is ready to respond to inference requests.
 
@@ -329,12 +264,13 @@ To run the Llama 3.1 Nemotron Safety Guard 8B V3 in a Docker container, follow t
          This returns the following response.
 
          ```console
-         "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
+         "nvidia/nemotron-3.5-content-safety"
          ```
 
 1. Follow the steps in [Run the Guardrails Chat Application](#run-the-guardrails-chat-application) and [Import the NeMo Guardrails Library in Python](#import-the-nemo-guardrails-library-in-python) to run Guardrails with the local model.
 
 ## Next Steps
 
-- [Nemotron Content Safety NIM documentation](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest)
-- [Customize safety categories](/configure-guardrails/yaml-schema/prompt-configuration) in the prompts
+- [Nemotron 3.5 Content Safety NIM on NGC](https://catalog.ngc.nvidia.com/orgs/nim/nvidia/containers/nemotron-3.5-content-safety)
+- [Content Safety guardrail catalog page](/configure-guardrails/guardrail-catalog/content-safety)
+- [Custom policy with Nemotron 3.5 Content Safety](/get-started/tutorials/nemoguard-topiccontrol-deployment)
