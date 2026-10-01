@@ -41,6 +41,7 @@ from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_r
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, reported_violations, violations_outcome
 from nemoguardrails.guardrails.tool_schema import (
     DuplicateToolError,
+    LatestToolCall,
     Tool,
     ToolCallExtractionError,
     ToolExchange,
@@ -120,6 +121,32 @@ def _tool_rail_result(outcome: RailOutcome, flow: str) -> RailResult:
 def _blocked_before_rails(violation: ToolViolation, records: tuple[RailCallRecord, ...] = ()) -> RailResult:
     """A block the manager makes itself, before any tool rail runs, stating the violation's reason."""
     return RailResult.block(reason=violation.reason, tool_violations=(violation,), records=records)
+
+
+def _extraction_violation(error: ToolCallExtractionError) -> ToolViolation:
+    """The violation for a tool call the extractor could not parse, with its content-free message as the reason."""
+    return ToolViolation(
+        kind="tool_call",
+        violation_type=error.violation_type,
+        reason=f"tool call extraction failed: {error}",
+        tool_call_id=error.tool_call_id,
+        tool_name=error.tool_name,
+        index=error.index,
+    )
+
+
+def _at_call_position(violation: ToolViolation, positions: list[int]) -> ToolViolation:
+    """*violation* re-indexed from the validated subset of calls to the call's position in ``tool_calls``."""
+    if violation.index is None:
+        return violation
+    return violation.model_copy(update={"index": positions[violation.index]})
+
+
+def _call_order(violation: ToolViolation) -> tuple[int, int]:
+    """Sort key putting violations about the whole turn first, then the rest by call position."""
+    if violation.index is None:
+        return (0, 0)
+    return (1, violation.index)
 
 
 def _global_tool_rail_violations(
@@ -511,19 +538,10 @@ class RailsManager:
         if not self._any_tool_call_rail_enabled(enabled):
             return RailResult.allow()
         try:
-            tool_calls = self.engine_registry.extract_latest_tool_calls(model_type, messages)
+            extracted = self.engine_registry.extract_latest_tool_calls(model_type, messages)
         except ToolCallExtractionError as e:
             log.warning("[%s] tool call extraction failed; blocking: %s", get_request_id(), e)
-            return _blocked_before_rails(
-                ToolViolation(
-                    kind="tool_call",
-                    violation_type=e.violation_type,
-                    reason=f"tool call extraction failed: {e}",
-                    tool_call_id=e.tool_call_id,
-                    tool_name=e.tool_name,
-                    index=e.index,
-                )
-            )
+            return _blocked_before_rails(_extraction_violation(e))
         except Exception as e:
             # Only a ToolCallExtractionError is written to omit argument text, so this one stays in the log.
             log.warning("[%s] tool call extraction failed unexpectedly; blocking: %s", get_request_id(), e)
@@ -534,9 +552,42 @@ class RailsManager:
                     reason="tool call extraction failed",
                 )
             )
+        if any(isinstance(entry, ToolCallExtractionError) for entry in extracted):
+            return await self._blocked_with_every_call_violation(
+                extracted, llm_params, enabled=enabled, model_type=model_type
+            )
+        tool_calls = [entry for entry in extracted if isinstance(entry, ToolCall)]
         if not tool_calls:
             log.debug("[%s] the latest assistant message carries no tool calls", get_request_id())
         return await self.are_tool_calls_safe(tool_calls, llm_params, enabled=enabled, model_type=model_type)
+
+    async def _blocked_with_every_call_violation(
+        self,
+        extracted: list[LatestToolCall],
+        llm_params: Optional[dict],
+        *,
+        enabled: Union[bool, list[str]],
+        model_type: str,
+    ) -> RailResult:
+        """Block a turn with unparsable calls, still validating the calls that parsed so no violation is hidden."""
+        violations = []
+        parsed: list[tuple[int, ToolCall]] = []
+        for position, entry in enumerate(extracted):
+            if isinstance(entry, ToolCallExtractionError):
+                log.warning("[%s] tool call extraction failed; blocking: %s", get_request_id(), entry)
+                violations.append(_extraction_violation(entry))
+            else:
+                parsed.append((position, entry))
+        rails_result = await self.are_tool_calls_safe(
+            [call for _, call in parsed], llm_params, enabled=enabled, model_type=model_type
+        )
+        positions = [position for position, _ in parsed]
+        violations.extend(_at_call_position(violation, positions) for violation in rails_result.tool_violations)
+        violations.sort(key=_call_order)
+        # No triggered_rail: the block is the manager's, as for any call it cannot parse.
+        return RailResult.block(
+            reason=violations[0].reason, tool_violations=tuple(violations), records=rails_result.records
+        )
 
     async def are_tool_results_safe(
         self,

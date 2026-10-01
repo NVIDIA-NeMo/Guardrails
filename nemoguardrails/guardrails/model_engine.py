@@ -55,7 +55,14 @@ from nemoguardrails.guardrails.telemetry import (
     set_llm_request_attributes,
     set_llm_response_attributes,
 )
-from nemoguardrails.guardrails.tool_schema import Tool, ToolCallExtractionError, ToolExchange, ToolResult, Toolset
+from nemoguardrails.guardrails.tool_schema import (
+    LatestToolCall,
+    Tool,
+    ToolCallExtractionError,
+    ToolExchange,
+    ToolResult,
+    Toolset,
+)
 from nemoguardrails.llm.clients._errors import ErrorContext, raise_for_sse_error, raise_for_status
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import ToolViolationType
@@ -595,8 +602,16 @@ def _parse_latest_tool_call(entry: object, index: int) -> ToolCall:
     return cast(list[ToolCall], message.tool_calls)[0]
 
 
-def _latest_tool_calls_openai(messages: LLMMessages) -> list[ToolCall]:
-    """Strictly parse the tool calls on the last assistant message, raising on any that cannot be validated."""
+def _parsed_or_error(entry: object, index: int) -> LatestToolCall:
+    """The parsed tool call, or the error that keeps it from being validated, so one bad call hides no other."""
+    try:
+        return _parse_latest_tool_call(entry, index)
+    except ToolCallExtractionError as error:
+        return error
+
+
+def _latest_tool_calls_openai(messages: LLMMessages) -> list[LatestToolCall]:
+    """Strictly parse the last assistant message's tool calls; an unparsable call's error takes its place."""
     # Only that message is parsed: ChatMessage rejects roles such as the server's "context".
     message = _latest_assistant_message(messages)
     if message is None:
@@ -607,10 +622,10 @@ def _latest_tool_calls_openai(messages: LLMMessages) -> list[ToolCall]:
     raw_calls = message.get("tool_calls")
     if not raw_calls:
         return []
-    return [_parse_latest_tool_call(entry, index) for index, entry in enumerate(raw_calls)]
+    return [_parsed_or_error(entry, index) for index, entry in enumerate(raw_calls)]
 
 
-def _latest_tool_calls_nim(messages: LLMMessages) -> list[ToolCall]:
+def _latest_tool_calls_nim(messages: LLMMessages) -> list[LatestToolCall]:
     """Parse NIM's latest tool calls. NIM uses the OpenAI Chat Completions shape."""
     return _latest_tool_calls_openai(messages)
 
@@ -1427,7 +1442,7 @@ class ModelEngine(BaseEngine):
         extractor = _TOOL_EXCHANGE_EXTRACTORS.get(self.model_config.engine, _extract_tool_exchanges_openai)
         return extractor(messages)
 
-    def extract_latest_tool_calls(self, messages: LLMMessages) -> list[ToolCall]:
+    def extract_latest_tool_calls(self, messages: LLMMessages) -> list[LatestToolCall]:
         """Strictly parse the last assistant message's tool calls in the wire shape of the model's engine."""
         extractor = _LATEST_TOOL_CALL_EXTRACTORS.get(self.model_config.engine, _latest_tool_calls_openai)
         return extractor(messages)

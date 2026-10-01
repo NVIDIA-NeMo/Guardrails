@@ -1031,15 +1031,19 @@ class TestCheckToolCalls:
         ]
 
     @pytest.mark.asyncio
-    async def test_malformed_arguments_block_without_quoting_them(self, tool_iorails):
-        """Arguments that are not a JSON object block with ``malformed_arguments``, and appear nowhere in the result."""
-        messages = tool_call_turn(wire_tool_call(arguments='{"city": "SECRET-VALUE"'))
+    async def test_malformed_arguments_block_without_hiding_later_calls(self, tool_iorails):
+        """Malformed arguments block with ``malformed_arguments``, never quoted, and the later calls are still checked."""
+        messages = tool_call_turn(
+            wire_tool_call(arguments='{"city": "SECRET-VALUE"'), wire_tool_call("delete_files", "{}", "call_2")
+        )
 
         result = await tool_iorails.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=[WEATHER_TOOL])
 
-        assert result.status == RailStatus.BLOCKED
+        assert (result.status, result.rail) == (RailStatus.BLOCKED, None)
+        assert result.reason == "tool call extraction failed: tool call 'call_1' has malformed arguments"
         assert [(v.violation_type, v.index, v.tool_call_id) for v in result.tool_violations] == [
-            (ToolViolationType.MALFORMED_ARGUMENTS, 0, "call_1")
+            (ToolViolationType.MALFORMED_ARGUMENTS, 0, "call_1"),
+            (ToolViolationType.TOOL_NOT_ALLOWED, 1, "call_2"),
         ]
         assert _SECRET_VALUE not in result.model_dump_json()
 

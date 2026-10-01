@@ -40,7 +40,13 @@ from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import ToolCall, ToolCallFunction
-from tests.guardrails.tool_helpers import assert_result_blocked, call_violation, result_violation
+from tests.guardrails.tool_helpers import (
+    assert_result_blocked,
+    call_violation,
+    result_violation,
+    tool_call_turn,
+    wire_tool_call,
+)
 
 STACK_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
 
@@ -148,6 +154,24 @@ class TestAreToolCallsSafe:
                 rail="regex check tool output",
             ),
         )
+
+    @pytest.mark.asyncio
+    async def test_unparsable_call_does_not_hide_a_later_per_tool_block(self):
+        """A per-tool rail still checks the calls after an unparsable one, reporting each call at its own position."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+        )
+        messages = tool_call_turn(
+            wire_tool_call("run_sql", '{"query": "SELECT', "call_1"),
+            wire_tool_call("run_sql", '{"query": "DROP TABLE users"}', "call_2"),
+        )
+
+        result = await manager.are_latest_tool_calls_safe(messages, _llm_params("run_sql"))
+
+        assert [(v.violation_type, v.tool_call_id, v.index, v.rail) for v in result.tool_violations] == [
+            (ToolViolationType.MALFORMED_ARGUMENTS, "call_1", 0, None),
+            (ToolViolationType.PER_TOOL_RAIL, "call_2", 1, "regex check tool output"),
+        ]
 
     @pytest.mark.asyncio
     async def test_failed_per_tool_rail_reports_rail_failed(self):
