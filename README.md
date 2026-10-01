@@ -288,7 +288,7 @@ LangChain integration is opt-in. To enable it, set the `NEMOGUARDRAILS_LLM_FRAME
 
 Evaluating the safety of a LLM-based conversational application is a complex task and still an open research question. To support proper evaluation, the NeMo Guardrails library provides the following:
 
-1. An [evaluation tool](nemoguardrails/evaluate/README.md), i.e. `nemoguardrails evaluate`, with support for topical rails, fact-checking, moderation (jailbreak and output moderation) and hallucination.
+1. An [evaluation tool](nemoguardrails/evaluate/README.md), i.e. `nemoguardrails eval rail`, with support for topical rails, fact-checking, moderation (jailbreak and output moderation) and hallucination.
 2. Sample LLM Vulnerability Scanning Reports, e.g, [ABC Bot - LLM Vulnerability Scan Results](https://docs.nvidia.com/nemo/guardrails/evaluation/llm-vulnerability-scanning.html)
 
 ## How is this different?
