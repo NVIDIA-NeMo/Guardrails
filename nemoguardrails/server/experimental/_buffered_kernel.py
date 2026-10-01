@@ -28,6 +28,7 @@ from nemoguardrails.server.experimental._content_checker import (
     InputContentCheck,
     OutputContentCheck,
     UnsupportedContentModification,
+    _ResolvedContentChecker,
     validate_content_check_decision,
     validate_content_checker,
 )
@@ -132,13 +133,13 @@ async def _run_check(
 
 async def execute_buffered_operation(
     operation: BufferedGuardedOperation[RequestT, ResponseT],
-    checker: ContentChecker,
+    checker: ContentChecker | _ResolvedContentChecker,
     request: RequestT,
     dispatch: Callable[[RequestT], Awaitable[ResponseT]],
 ) -> OperationCompleted[ResponseT] | OperationBlocked | OperationCheckFailed | OperationModificationUnsupported:
     """Execute one buffered operation with exactly one statically bound checker."""
 
-    validated = validate_content_checker(checker)
+    validated = checker if isinstance(checker, _ResolvedContentChecker) else validate_content_checker(checker)
     validated_checker = validated.checker
     policy = validated.policy
     input_message = _project_message(operation.input_projection, request, "user")
