@@ -17,7 +17,7 @@ import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions.actions import ActionResult
-from tests.utils import FakeLLMModel, any_event_conforms, event_conforms
+from tests.utils import FakeLLMModel, TestChat, any_event_conforms, event_conforms
 
 
 @pytest.fixture
@@ -78,3 +78,43 @@ async def test_simple_context_update_from_action(rails_config):
     # The last event before listen should be a context update for the counter to "2"
     assert any_event_conforms({"type": "ContextUpdate", "data": {"counter": 2}}, new_events)
     assert event_conforms({"type": "Listen"}, new_events[-1])
+
+
+def test_action_result_context_update_renders_in_bot_message():
+    """A Colang 1.0 flow reads a slot an action wrote with `context_updates`.
+
+    Pins the Colang 1.0 snippet documented under "ActionResult and Context
+    Updates" in `docs/configure-rails/actions/creating-actions.mdx`. The 1.0
+    runtime turns `context_updates` into a single `ContextUpdate` event
+    (`nemoguardrails/colang/v1_0/runtime/runtime.py`), so the key is readable as
+    `$user_name` in the rest of the flow.
+    """
+    config = RailsConfig.from_content(
+        """
+        define user express greeting
+            "hello"
+
+        define bot name user
+            "Got it $user_name"
+
+        define flow
+            user express greeting
+            execute remember_slot
+            bot name user
+        """
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "  express greeting",
+        ],
+    )
+
+    async def remember_slot():
+        return ActionResult(context_updates={"user_name": "Ngoc"})
+
+    chat.app.register_action(remember_slot, "remember_slot")
+
+    chat >> "hello"
+    chat << "Got it Ngoc"

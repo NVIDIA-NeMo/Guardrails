@@ -20,6 +20,7 @@ import pytest
 from rich.logging import RichHandler
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.llm.filters import co_v2
 from nemoguardrails.utils import new_event_dict
@@ -149,6 +150,51 @@ async def test_manifest_owned_action_result_is_hidden_from_history():
 
     assert event["is_rail_action"] is True
     assert co_v2([event]) == ""
+
+
+def test_action_writes_dialogue_state_via_context_updates():
+    """An action stores a slot with `ActionResult(context_updates=...)`.
+
+    Pins the Colang 2.0 snippet documented under "ActionResult and Context
+    Updates" in `docs/configure-rails/actions/creating-actions.mdx`. The second
+    turn is what proves the value outlives the turn that wrote it: the runtime
+    merges `context_updates` into `state.context`
+    (`nemoguardrails/colang/v2_x/runtime/runtime.py`), and `TestChat` carries
+    that state forward.
+    """
+    config = RailsConfig.from_content(
+        colang_content="""
+        flow bot say $text
+          await UtteranceBotAction(script=$text)
+
+        flow main
+          global $user_name
+          match UtteranceUserActionFinished(final_transcript="hi")
+          await RememberSlotAction(value="Ngoc")
+          bot say "Hello {$user_name}"
+          match UtteranceUserActionFinished(final_transcript="again")
+          bot say "Still {$user_name}"
+        """,
+        yaml_content="""
+        colang_version: "2.x"
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[],
+    )
+
+    async def remember_slot(value: str):
+        return ActionResult(context_updates={"user_name": value})
+
+    chat.app.register_action(remember_slot, "RememberSlotAction")
+
+    chat >> "hi"
+    chat << "Hello Ngoc"
+
+    chat >> "again"
+    chat << "Still Ngoc"
 
 
 if __name__ == "__main__":

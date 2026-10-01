@@ -60,8 +60,10 @@ In addition to all the custom user-defined parameters, the parameters listed bel
 
 ```python
 events: list # Recent history of events
-context: dict # Contains all global variables and can be updated via ContextUpdate event
+context: dict # Contains all global variables. See below for how to write to it
 config: dict # All configurations from the `config.yml` file
 llm_task_manager: LLMTaskManager # The llm task manage object of type LLMTaskManager
 state: State # The state machine state object
 ```
+
+To write a value back into the context, return `ActionResult(context_updates={"user_name": value})` from the action and declare the variable as `global` in the flow that reads it. A `ContextUpdate` event placed in `ActionResult.events` does not work here: Colang 2.0 attaches those events to the action's `ActionFinished` event and never applies them. See [ActionResult and Context Updates](/configure-guardrails/actions/creating-actions#actionresult-and-context-updates).
