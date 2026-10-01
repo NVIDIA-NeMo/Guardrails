@@ -38,6 +38,7 @@ from nemoguardrails.tracing.constants import SystemConstants
 from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk, UsageInfo
 from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
+from tests.guardrails.tool_helpers import tool_call_turn, wire_tool_call
 
 
 @pytest.fixture
@@ -1407,6 +1408,17 @@ class TestEngineRegistryToolDelegation:
         calls, results = exchanges[0]
         assert [(c.id, c.function.name, c.function.arguments) for c in calls] == [("c1", "get_weather", {"city": "X"})]
         assert [r.call_id for r in results] == ["c1"]
+
+    def test_extract_latest_tool_calls_delegates_to_model_engine(self, manager):
+        """The registry parses the last assistant message's tool calls through the named model engine."""
+        messages = tool_call_turn(wire_tool_call(arguments='{"city": "X"}', call_id="c1"))
+        calls = manager.extract_latest_tool_calls("main", messages)
+        assert [(c.id, c.function.name, c.function.arguments) for c in calls] == [("c1", "get_weather", {"city": "X"})]
+
+    def test_extract_latest_tool_calls_unknown_engine_raises_keyerror(self, manager):
+        """An unconfigured model type raises KeyError rather than guessing a wire format."""
+        with pytest.raises(KeyError):
+            manager.extract_latest_tool_calls("nonexistent", [])
 
     def test_parse_tools_unknown_engine_raises_keyerror(self, manager):
         with pytest.raises(KeyError):

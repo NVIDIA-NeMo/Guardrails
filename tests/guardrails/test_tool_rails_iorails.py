@@ -491,6 +491,29 @@ class TestStreamingToolCalls:
         assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
 
     @pytest.mark.asyncio
+    async def test_undeclared_streamed_tool_call_violation_carries_the_validator_reason(self, iorails):
+        """The violation message carries the validator's reason, not the name of the rail that blocked."""
+        _inject_sse_stream(iorails, _tool_call_sse_lines("rm_rf", ["{}"]))
+        chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
+
+        violations = _stream_violation_chunks(chunks)
+        assert violations[0]["error"]["message"] == (
+            "Blocked by tool output rails: tool call 'rm_rf' is not an allowed tool"
+        )
+
+    @pytest.mark.asyncio
+    async def test_streamed_schema_mismatch_violation_omits_the_argument_value(self, iorails):
+        """A streamed schema-mismatch violation names the failing argument but never quotes its value."""
+        _inject_sse_stream(iorails, _tool_call_sse_lines("get_weather", ['{"city": ["SECRET-VALUE"]}']))
+        chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
+
+        violations = _stream_violation_chunks(chunks)
+        assert violations[0]["error"]["message"] == (
+            "Blocked by tool output rails: "
+            "arguments for tool 'get_weather' do not match its schema: 'type' failed at '/city'"
+        )
+
+    @pytest.mark.asyncio
     async def test_truncated_streamed_tool_call_fails_closed(self, iorails):
         # Truncated tool-call args must fail closed (parity with non-streaming): no tool-call
         # chunk is surfaced with silently-empty args; a generation error is emitted instead.
@@ -514,6 +537,17 @@ class TestStreamingToolResults:
         assert violations[0]["error"]["param"] == "tool_input_rails"
         assert REFUSAL_MESSAGE not in chunks
         forbidden_post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unlinked_tool_result_violation_carries_the_validator_reason(self, iorails):
+        """The violation message carries the validator's reason, not the name of the rail that blocked."""
+        _inject_forbidden_transport(iorails)
+        chunks = await _collect(iorails.stream_async(make_tool_conversation(result_call_id="call_999")))
+
+        violations = _stream_violation_chunks(chunks)
+        assert violations[0]["error"]["message"] == (
+            "Blocked by tool input rails: tool result for call_id 'call_999' does not correspond to a prior tool call"
+        )
 
     @pytest.mark.asyncio
     async def test_nameless_linked_tool_result_streams_the_model_reply(self, iorails):

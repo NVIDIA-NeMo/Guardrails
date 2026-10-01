@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Checking Messages Against Rails"
 sidebar-title: "Check Messages"
-description: "Validate messages against input and output rails using check_async and check methods on the LLMRails and IORails engines."
-keywords: ["check_async", "check", "RailsResult", "RailStatus", "RailType", "input rails", "output rails", "validation", "IORails", "LLMRails"]
+description: "Validate messages against input, output, and tool rails using check_async and check methods on the LLMRails and IORails engines."
+keywords: ["check_async", "check", "RailsResult", "RailStatus", "RailType", "input rails", "output rails", "tool rails", "ToolViolation", "validation", "IORails", "LLMRails"]
 content:
   type: "reference"
 ---
@@ -13,7 +13,9 @@ The `check_async()` and `check()` methods validate messages against input and ou
 
 Both the `LLMRails` and `IORails` engines implement these methods.
 The `Guardrails` facade forwards each call to the selected engine.
-The method signatures and returned `RailsResult` type are the same on both engines.
+Both engines take `messages` and `rail_types` and return a `RailsResult`.
+`IORails` also runs tool-call and tool-result rails in a check, and takes a `tools` argument for them.
+For more information, refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only).
 For engine-specific rail selection and execution behavior, refer to [Engine Differences](#engine-differences).
 
 ## Method Signatures
@@ -28,6 +30,8 @@ The primary asynchronous method for checking messages against rails.
 async def check_async(
     messages: List[dict],
     rail_types: Optional[List[RailType]] = None,
+    *,
+    tools: Optional[List[dict]] = None,  # IORails and the Guardrails facade only
 ) -> RailsResult
 ```
 
@@ -39,6 +43,8 @@ Synchronous wrapper around `check_async()`.
 def check(
     messages: List[dict],
     rail_types: Optional[List[RailType]] = None,
+    *,
+    tools: Optional[List[dict]] = None,  # IORails and the Guardrails facade only
 ) -> RailsResult
 ```
 
@@ -48,6 +54,7 @@ def check(
 |-----------|------|-------------|
 | `messages` | `List[dict]` | List of message dictionaries with `role` and `content` fields |
 | `rail_types` | `Optional[List[RailType]]` | Optional list of rail types to run. When provided, overrides automatic detection based on message roles. |
+| `tools` | `Optional[List[dict]]` | IORails only; `LLMRails` raises `RailTypeNotSupportedError`. The tools a `tool_call` check validates calls against, in the main model's wire format. Only a `tool_call` check reads them, so passing `tools` without `RailType.TOOL_CALL` in `rail_types` raises `InvalidCheckRequestError`. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only). |
 
 **Returns:** `RailsResult` object containing validation results.
 
@@ -95,6 +102,8 @@ result = await rails.check_async(
 |-------|-------------|
 | `RailType.INPUT` | Run input rails |
 | `RailType.OUTPUT` | Run output rails |
+| `RailType.TOOL_CALL` | Run tool-call rails on the last assistant message's tool calls (IORails only) |
+| `RailType.TOOL_RESULT` | Run tool-result rails on the `tool` messages (IORails only) |
 
 On either engine, passing an empty list (`rail_types=[]`) runs no rails and returns a passed result.
 
@@ -107,12 +116,82 @@ input flows will raise an error instead of silently returning a passed result.
 
 </Note>
 
-### Tool Rails Are Not Included
+### Tool Rails (IORails Only)
 
-Neither engine runs tool-call or tool-result rails from `check()` or `check_async()`.
-`RailType` covers input and output rails only, so a configuration with tool rails still validates only its input and output flows here.
-To validate tool traffic, run it through `generate_async()`.
-For more information, refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
+`IORails` runs tool rails in a check when you name their rail types in `rail_types`.
+This lets an agent harness validate the tool calls its model produced, and the tool results it is about to send back, without generating a response.
+
+| Rail type | What the check validates |
+|---|---|
+| `RailType.TOOL_CALL` | The tool calls on the last assistant message. With `tool call validation` configured, each call must name a declared tool, and its arguments must match that tool's JSON Schema. |
+| `RailType.TOOL_RESULT` | Every `tool` message. Each result must link to exactly one earlier tool call by `tool_call_id`, must not name a different tool than that call, and must carry well-formed content. |
+
+A tool check runs the rails that generation runs for the same direction: the global validator (`tool call validation` or `tool result validation`) and any `per_tool` rails.
+Only the global validator enforces the declared-tool allowlist and argument schemas.
+A `per_tool` rail checks only the tools it is listed under, so with `per_tool` rails alone, a call to any other tool, declared or not, passes.
+A tool check never calls the main model.
+
+Pass the tools your model was offered in `tools`, in the main model's wire format.
+For the `openai` and `nim` engines, that is the OpenAI Chat Completions tool shape:
+
+```python
+from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.rails.llm.options import RailStatus, RailType
+
+config = RailsConfig.from_path("path/to/config")
+rails = Guardrails(config, use_iorails=True, require_iorails=True)
+
+weather_tool = {
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+    },
+}
+messages = [
+    {"role": "user", "content": "What's the weather in Paris?"},
+    {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": "{\"city\": \"Paris\"}"}}
+        ],
+    },
+]
+
+result = await rails.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=[weather_tool])
+if result.status == RailStatus.BLOCKED:
+    for violation in result.tool_violations:
+        print(f"{violation.violation_type.value}: call {violation.tool_call_id} at index {violation.index}")
+```
+
+Keep the following behavior in mind:
+
+- Tool rails run only when you name them.
+  When `rail_types` is omitted, a check runs input and output rails as described in [Automatic Detection](#automatic-detection-default).
+  It logs an INFO message when the configuration has tool rails and the messages carry tool calls or tool results.
+- `tools` replaces the tools declared in the main model's `parameters.tools`, schemas included; it does not add to them.
+  When you omit `tools`, the configured tools are the allowlist.
+  `tools=[]` declares no tools, so `tool call validation` blocks every call.
+- Only a `tool_call` check reads `tools`.
+  Passing `tools` to any other check, including one that leaves `rail_types` to automatic detection, raises `InvalidCheckRequestError` rather than ignoring them.
+- A `tool_call` check validates only the last assistant message.
+  Earlier calls were validated when they were produced, and a `tool_result` check validates how results link to them.
+- A tool check needs a `main` model, because its engine selects the wire format.
+  Without one, the check raises `RailTypeNotConfiguredError`.
+- A tool rail type counts as configured when its configuration section lists `flows` or `per_tool` rails: `rails.tool_output` for `tool_call`, and `rails.tool_input` for `tool_result`.
+  Otherwise the check raises `RailTypeNotConfiguredError`.
+- When you name several rail types, they run in the order generation runs them: `tool_result`, `input`, `tool_call`, then `output`.
+  The check stops at the first block.
+- Tool checks fail closed.
+  A call whose arguments are not a JSON object blocks, and so does a legacy `function_call` on the last assistant message.
+  The other calls on that message are still validated, so `tool_violations` lists every failing call in call order, not only the one that could not be parsed.
+- Legacy `role: "function"` messages are not validated by the tool-result rails, in checks or in generation.
+- The configuration sections, and the `rail_type` recorded for tool rails in a generation's log, keep the names `tool_output` and `tool_input`.
+- `LLMRails` does not run tool rails in a check.
+  Requesting a tool rail type, or passing `tools`, raises `RailTypeNotSupportedError` rather than ignoring the request.
+
+For configuration and the validation rules, refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
 
 ## RailsResult
 
@@ -124,6 +203,7 @@ The `RailsResult` object contains the outcome of the rails check.
 | `content` | `str` | The final content after rails processing |
 | `rail` | `Optional[str]` | Name of the rail that blocked the content (only when `BLOCKED`) |
 | `reason` | `Optional[str]` | Why the rail blocked the content (IORails only; `None` on `LLMRails` and when not `BLOCKED`) |
+| `tool_violations` | `Optional[List[ToolViolation]]` | The tool calls or tool results a tool rail blocked (IORails only; `None` unless a tool rail blocked). Refer to [Tool Violations](#tool-violations) |
 
 ### RailStatus Enum
 
@@ -135,15 +215,67 @@ The `RailStatus` enum represents the three possible outcomes of a rails check.
 | `MODIFIED` | Content was modified by rails but not blocked |
 | `BLOCKED` | Content was blocked by a rail |
 
+### Tool Violations
+
+When a tool rail blocks, `tool_violations` lists each tool call or tool result that failed, so an agent harness can drop, repair, or re-request that item.
+The global validators check every item, so one check can report several violations, and `reason` repeats the first one's reason.
+When a tool rail fails rather than deciding, the check returns the internal-error message, and `reason` is that rail's failure even when an earlier item has its own violation.
+Each tool call or tool result reports at most one violation: the first check it fails.
+Switch on `violation_type`, which is a closed set, and never on the `reason` text, which can change between releases.
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | `str` | `tool_call` or `tool_result` |
+| `violation_type` | `ToolViolationType` | What the call or result violated. Refer to the following table |
+| `reason` | `str` | Why it was blocked. Never contains argument values or tool-result content. A tool name or call id it quotes is cut to 64 characters, followed by `...` |
+| `tool_call_id` | `Optional[str]` | The call's id, or the id a result links to. Always whole, so you can match the violation to its call |
+| `tool_name` | `Optional[str]` | The tool called. For a result, taken from the call it links to, never from the result's own `name`. A name longer than 64 characters is cut to 64, followed by `...` |
+| `index` | `Optional[int]` | For a call, its position in the last assistant message's `tool_calls`. For a result, the position of its message in `messages` |
+| `argument_path` | `Optional[str]` | For `arguments_invalid`, a JSON Pointer to the failing argument, such as `/city`. A key the schema does not declare appears as `*`. An empty string points at the arguments object itself |
+| `schema_keyword` | `Optional[str]` | For `arguments_invalid`, the JSON Schema keyword that failed, such as `required` |
+| `rail` | `Optional[str]` | For `per_tool_rail` and `rail_failed`, the rail that blocked or failed |
+
+| `violation_type` | Kind | Meaning |
+|---|---|---|
+| `tool_not_allowed` | Call | The call names a tool that is not declared |
+| `arguments_invalid` | Call | The arguments do not match the tool's JSON Schema |
+| `unexpected_arguments` | Call | The tool declares no parameters, but the call passes arguments |
+| `invalid_tool_schema` | Call | The tool's declared schema is not valid JSON Schema |
+| `malformed_arguments` | Call | The arguments are not a JSON object |
+| `malformed_tool_call` | Call | The tool-call entry is not an object, has no `function` object, or has an `id`, `type`, or function name that is not a string. An empty function name counts as malformed |
+| `legacy_function_call` | Call | The last assistant message carries a legacy `function_call`, which tool rails do not validate |
+| `invalid_toolset` | Call | The declared tools cannot be used, for example because a tool is declared twice |
+| `missing_call_id` | Result | The result has no `tool_call_id` |
+| `unknown_call_id` | Result | No earlier call in the same turn has the result's `tool_call_id` |
+| `duplicate_result` | Result | An earlier result already answers the same call |
+| `duplicate_prior_call_id` | Result | Several calls in a turn share an id, so that turn's results cannot be linked and are not checked further |
+| `name_mismatch` | Result | The result names a different tool than the call it answers |
+| `malformed_content` | Result | The content is neither a string nor a list of content blocks |
+| `unlinkable_result` | Result | A `per_tool` rail applies, but the result cannot be linked to exactly one call |
+| `extraction_failed` | Either | The messages could not be read in the main model's wire format |
+| `rail_failed` | Either | A tool rail raised an error instead of deciding. The check returns the internal-error message |
+| `per_tool_rail` | Either | A `per_tool` rail blocked the call or result |
+
+An `argument_path` names only what the schema declares: property names from its `properties`, and array indices.
+For a missing required property, it names that property from the schema.
+A key the model chose appears as `*`, for example a key inside a map-shaped argument such as `/contacts/*`.
+An unexpected property rejected by `additionalProperties: false` is reported at the object that holds it, without its name.
+So neither `argument_path` nor `reason` contains an argument value or a key the model wrote.
+For the same reason, `unexpected_arguments` reports how many arguments the call supplied, not their names.
+
 ### Which Content Is Reported
 
 The `content` field reports the direction the caller asked about.
 A check that runs output rails reports the assistant text.
 A check that runs input rails only reports the user text.
 
+A `tool_call` check reports the assistant text, unless input rails run in the same check, in which case it reports the user text so that an input rewrite stays visible.
+A `tool_result` check reports the user text.
+
 Both engines compare the reported text against its original value to decide between `PASSED` and `MODIFIED`.
 When a check runs both directions and only the user message is rewritten, the status is `PASSED`, because the reported assistant text is unchanged.
 `MODIFIED` names no rail: a rewrite is not a rail blocking the request, and several rails can contribute to the final text.
+Tool rails never rewrite, so a check that runs only tool rails is `PASSED` or `BLOCKED`.
 
 ## Usage Examples
 
@@ -229,14 +361,14 @@ For more information, refer to [Engine Feature Support](/reference/engine-featur
 
 ## Engine Differences
 
-The API surface is identical on both engines, but each engine executes a check differently:
+Both engines take `messages` and `rail_types`, but each engine executes a check differently:
 
 | Behavior | LLMRails | IORails |
 |---|---|---|
 | How the check runs | Through the Colang runtime, as a generation with dialog rails and the unrequested rail types disabled | Directly through the engine's rails manager, with no Colang runtime |
 | Rails that can run | Every configured input and output flow, including community, third-party, and custom-action rails | The input and output rails IORails supports. A configuration outside that set routes to `LLMRails` |
 | Main LLM call | Not made | Not made |
-| Tool rails | Not run | Not run |
+| Tool rails | Not run. Requesting a tool rail type, or passing `tools`, raises `RailTypeNotSupportedError` | Run when named in `rail_types`. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only) |
 | `BLOCKED` content | The refusal message defined by the configuration's Colang flow | A fixed refusal message that the configuration does not change |
 | `BLOCKED` reason | Not reported. `reason` is `None` | The blocking rail's own explanation, or the rail's name when it gives none |
 | Rail that fails to execute | Handled by the Colang runtime's internal-error path | `BLOCKED` with an internal-error message that is distinct from the refusal message |
@@ -290,6 +422,7 @@ When your application requires that a rail actually ran, assert that the message
   For more information, refer to [Span Reference](/observability/tracing/span-reference#iorails).
 - Metrics record the check in `guardrails.requests`, `guardrails.requests.active`, `guardrails.request.duration`, and `guardrails.requests.errors`.
   A block also updates `guardrails.requests.blocked` with the `rail.type` label.
+  A tool-result block counts as an `Input` block and a tool-call block as an `Output` block, as in generation.
   A check rejected by a full admission queue increments `guardrails.nonstream.rejections`.
   For more information, refer to [Metric Reference](/observability/metrics/reference).
 - Content capture records the checked messages in `guardrails.request.input` and the returned content in `guardrails.request.output` on the check's request span.
@@ -304,9 +437,17 @@ The server resolves that engine through the top-level `LLMRails` import.
 Setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` runs compatible configurations on `IORails` and the rest on `LLMRails`.
 Requesting a rail type with no configured flows returns HTTP 422.
 
+`guardrails.rail_types` accepts `tool_call` and `tool_result` on a configuration that `IORails` serves.
+On a configuration that `LLMRails` serves, they return HTTP 422.
+The request's top-level `tools` field sets the tools a `tool_call` check validates against.
+On a configuration that `IORails` serves, a request that carries `tools` without `tool_call` in `guardrails.rail_types` returns HTTP 422.
+On a configuration that `LLMRails` serves, a request that carries `tools` also returns HTTP 422.
+
 The response carries `status`, `content`, and, on a block, `rail`.
-A block on `IORails` also carries `reason`.
-The response omits a field whose value is `None`, so a passed check and an `LLMRails` block carry no `reason`.
+A block on `IORails` also carries `reason`, and a tool rail block also carries `tool_violations`.
+When the request sets `guardrails.context`, the server prepends a context message, and each violation's `index` still counts positions in the request's own `messages`.
+The response omits a field whose value is `None`, so a passed check and an `LLMRails` block carry no `reason` and no `tool_violations`.
+For a request and response example, refer to [Tool Calling: Check Tool Calls and Results Without Generation](/configure-guardrails/guardrail-catalog/tool-calling#check-tool-calls-and-results-without-generation).
 
 <Note>
 

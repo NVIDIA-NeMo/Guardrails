@@ -26,6 +26,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from nemoguardrails import Guardrails
+from nemoguardrails.exceptions import RailTypeNotSupportedError
 from nemoguardrails.guardrails.compiled_rail import RailCompilationError, _is_installed, unservable_reason
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
@@ -43,6 +44,9 @@ from nemoguardrails.rails.llm.options import GenerationOptions, RailsResult, Rai
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.async_helpers import JAILBREAK_NIM_URL, mock_jailbreak_nim, mock_rail_model
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG, TOPIC_SAFETY_CONFIG
+from tests.utils import check_entry_points, run_check
+
+_TOOLS = [{"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object"}}}]
 
 # Valid IORails input/output rails for has_only_iorails_flows tests
 _IORAILS_BASE_RAILS = {
@@ -233,7 +237,7 @@ class TestGuardrailsRouting:
     async def test_check_delegates_to_iorails(
         self, mock_iorails_init, mock_start, mock_stop, _content_safety_rails_config
     ):
-        """check / check_async delegate to the IORails engine instead of raising."""
+        """check / check_async delegate to the IORails engine, forwarding rail_types and tools."""
         async with Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True) as guardrails:
             assert isinstance(guardrails.rails_engine, IORails)
 
@@ -243,13 +247,15 @@ class TestGuardrailsRouting:
 
             messages = [{"role": "user", "content": "hello"}]
 
-            result = await guardrails.check_async(messages, rail_types=[RailType.INPUT])
+            result = await guardrails.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=_TOOLS)
             assert result is expected
-            guardrails.rails_engine.check_async.assert_awaited_once_with(messages, rail_types=[RailType.INPUT])
+            guardrails.rails_engine.check_async.assert_awaited_once_with(
+                messages, rail_types=[RailType.TOOL_CALL], tools=_TOOLS
+            )
 
             sync_result = guardrails.check(messages)
             assert sync_result is expected
-            guardrails.rails_engine.check.assert_called_once_with(messages, rail_types=None)
+            guardrails.rails_engine.check.assert_called_once_with(messages, rail_types=None, tools=None)
 
     @pytest.mark.asyncio
     @patch.object(LLMRails, "__init__", return_value=None)
@@ -1543,7 +1549,7 @@ class TestLLMRailsOnlyMethods:
         messages = [{"role": "user", "content": "hi"}]
         result = guardrails.check(messages, rail_types=[RailType.INPUT])
 
-        mock_llmrails_instance.check.assert_called_once_with(messages, rail_types=[RailType.INPUT])
+        mock_llmrails_instance.check.assert_called_once_with(messages, rail_types=[RailType.INPUT], tools=None)
         assert result is sentinel
 
     @pytest.mark.asyncio
@@ -1560,7 +1566,7 @@ class TestLLMRailsOnlyMethods:
         messages = [{"role": "user", "content": "hi"}]
         result = await guardrails.check_async(messages, rail_types=[RailType.OUTPUT])
 
-        mock_llmrails_instance.check_async.assert_called_once_with(messages, rail_types=[RailType.OUTPUT])
+        mock_llmrails_instance.check_async.assert_called_once_with(messages, rail_types=[RailType.OUTPUT], tools=None)
         assert result is sentinel
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -2300,3 +2306,53 @@ class TestScopeGateCharacterization:
     def test_the_refusal_reason_names_the_limitation(self, flow, direction, expected):
         """Each class of refusal reports why, in wording a config author can act on."""
         assert self._surface_reason(flow, direction) == expected
+
+
+@pytest.fixture
+def llmrails_guardrails():
+    """A Guardrails facade serving a Colang input-rail config on LLMRails."""
+    config = RailsConfig.from_content(
+        """
+        define flow input rail
+          if $user_message == "block"
+            bot refuse to respond
+            stop
+        """,
+        """
+        rails:
+            input:
+                flows:
+                    - input rail
+        """,
+    )
+    return Guardrails(config=config, use_iorails=False)
+
+
+class TestCheckToolRailsOnLLMRails:
+    """On LLMRails, the facade fails loud for tool checks rather than ignoring what LLMRails cannot run."""
+
+    @check_entry_points
+    @pytest.mark.parametrize("tools", [None, _TOOLS], ids=["without_tools", "with_tools"])
+    def test_tool_rail_types_raise_not_supported(self, llmrails_guardrails, entry_point, tools):
+        """Tool rail types raise ``RailTypeNotSupportedError`` from either entry point, with or without ``tools``."""
+        with pytest.raises(RailTypeNotSupportedError):
+            run_check(
+                llmrails_guardrails,
+                entry_point,
+                [{"role": "user", "content": "hi"}],
+                rail_types=[RailType.TOOL_CALL, RailType.TOOL_RESULT],
+                tools=tools,
+            )
+
+    @check_entry_points
+    @pytest.mark.parametrize("rail_types", [None, [RailType.INPUT]], ids=["auto_detected", "input"])
+    def test_tools_alone_raise_not_supported(self, llmrails_guardrails, entry_point, rail_types):
+        """``tools`` without a tool rail type raises ``RailTypeNotSupportedError`` from either entry point."""
+        with pytest.raises(RailTypeNotSupportedError, match="tools"):
+            run_check(
+                llmrails_guardrails,
+                entry_point,
+                [{"role": "user", "content": "hi"}],
+                rail_types=rail_types,
+                tools=_TOOLS,
+            )

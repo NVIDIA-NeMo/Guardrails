@@ -78,9 +78,9 @@ To get more details on the LLM calls that were executed, including the raw respo
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -88,6 +88,12 @@ from nemoguardrails.logging.explain import LLMCallInfo
 class RailType(str, Enum):
     INPUT = "input"
     OUTPUT = "output"
+    # Tool rail types run on the IORails engine only; LLMRails check() rejects them.
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+
+
+TOOL_RAIL_TYPES = frozenset({RailType.TOOL_CALL, RailType.TOOL_RESULT})
 
 
 class RailStatus(str, Enum):
@@ -104,6 +110,85 @@ class RailsResult(BaseModel):
         default=None,
         description="Why the rail blocked the content, when the engine reports it (IORails).",
     )
+    tool_violations: Optional[List["ToolViolation"]] = Field(
+        default=None,
+        description="The tool calls or tool results a tool rail blocked (IORails). None unless a tool rail blocked.",
+    )
+
+
+class ToolViolationType(str, Enum):
+    """What a blocked tool call or tool result violated; callers switch on this, never on the reason text."""
+
+    # Tool calls
+    TOOL_NOT_ALLOWED = "tool_not_allowed"
+    ARGUMENTS_INVALID = "arguments_invalid"
+    UNEXPECTED_ARGUMENTS = "unexpected_arguments"
+    INVALID_TOOL_SCHEMA = "invalid_tool_schema"
+    MALFORMED_ARGUMENTS = "malformed_arguments"
+    MALFORMED_TOOL_CALL = "malformed_tool_call"
+    LEGACY_FUNCTION_CALL = "legacy_function_call"
+    INVALID_TOOLSET = "invalid_toolset"
+    # Tool results
+    MISSING_CALL_ID = "missing_call_id"
+    UNKNOWN_CALL_ID = "unknown_call_id"
+    DUPLICATE_RESULT = "duplicate_result"
+    DUPLICATE_PRIOR_CALL_ID = "duplicate_prior_call_id"
+    NAME_MISMATCH = "name_mismatch"
+    MALFORMED_CONTENT = "malformed_content"
+    UNLINKABLE_RESULT = "unlinkable_result"
+    # Either direction
+    EXTRACTION_FAILED = "extraction_failed"
+    RAIL_FAILED = "rail_failed"
+    PER_TOOL_RAIL = "per_tool_rail"
+
+
+# A tool name or call id is text the model or the caller chose, so a reason or violation keeps at most this much of it.
+MAX_QUOTED_IDENTITY_LENGTH = 64
+
+
+class ToolViolation(BaseModel):
+    """One tool call or tool result a tool rail blocked, identified so a caller can act on it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["tool_call", "tool_result"] = Field(description="Whether a tool call or a tool result was blocked.")
+    violation_type: ToolViolationType = Field(
+        description="What the call or result violated. Switch on this, never on `reason`."
+    )
+    reason: str = Field(description="Why it was blocked. Never contains argument values or tool-result content.")
+    tool_call_id: Optional[str] = Field(default=None, description="The call's id, or the id the result links to.")
+    tool_name: Optional[str] = Field(
+        default=None, description="The tool called. For a result, taken from the call it links to."
+    )
+    index: Optional[int] = Field(
+        default=None,
+        description="For a call, its position in the last assistant message's `tool_calls`. "
+        "For a result, its message's position in `messages`.",
+    )
+    argument_path: Optional[str] = Field(
+        default=None, description="JSON Pointer to the failing argument (`arguments_invalid` only)."
+    )
+    schema_keyword: Optional[str] = Field(
+        default=None, description="The JSON Schema keyword that failed (`arguments_invalid` only)."
+    )
+    rail: Optional[str] = Field(
+        default=None, description="The rail that blocked or failed (`per_tool_rail` and `rail_failed` only)."
+    )
+
+    @field_validator("tool_call_id", "tool_name", mode="before")
+    @classmethod
+    def _string_identity_or_none(cls, value: Any) -> Optional[str]:
+        """Store a non-string id or name as None, so a malformed message cannot break building its violation."""
+        return value if isinstance(value, str) else None
+
+    @field_validator("tool_name")
+    @classmethod
+    def _capped_tool_name(cls, value: Optional[str]) -> Optional[str]:
+        """Cut a tool name to ``MAX_QUOTED_IDENTITY_LENGTH`` characters, since an undeclared one is model-made."""
+        # The call id stays whole: it is the identity a harness matches the violation on.
+        if value is None or len(value) <= MAX_QUOTED_IDENTITY_LENGTH:
+            return value
+        return value[:MAX_QUOTED_IDENTITY_LENGTH] + "..."
 
 
 class GenerationLogOptions(BaseModel):
