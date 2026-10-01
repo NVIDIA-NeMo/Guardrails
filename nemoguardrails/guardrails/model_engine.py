@@ -566,6 +566,19 @@ def _legacy_function_call_error(function_call: object) -> ToolCallExtractionErro
     )
 
 
+def _malformed_tool_call_field(entry: dict, function: dict) -> str | None:
+    """The first identity field of a wire tool call that is not a string, or None when all of them are."""
+    tool_call_id = entry.get("id")
+    if tool_call_id is not None and not isinstance(tool_call_id, str):
+        return "id"
+    if not isinstance(entry.get("type", "function"), str):
+        return "type"
+    name = function.get("name")
+    if not isinstance(name, str) or not name:
+        return "function name"
+    return None
+
+
 def _parse_latest_tool_call(entry: object, index: int) -> ToolCall:
     """Strictly parse one wire tool call, raising a ``ToolCallExtractionError`` that omits its arguments."""
     if not isinstance(entry, dict):
@@ -585,6 +598,16 @@ def _parse_latest_tool_call(entry: object, index: int) -> ToolCall:
             index=index,
             tool_call_id=tool_call_id,
         )
+    malformed_field = _malformed_tool_call_field(entry, function)
+    if malformed_field is not None:
+        # ChatMessage.from_dict does not type these, and a non-string name breaks the per-tool rail lookup.
+        raise ToolCallExtractionError(
+            f"{_describe_tool_call(index, tool_call_id)} has a malformed {malformed_field}",
+            violation_type=ToolViolationType.MALFORMED_TOOL_CALL,
+            index=index,
+            tool_call_id=tool_call_id,
+            tool_name=_string_or_none(function.get("name")) or None,
+        )
     if function.get("arguments") == "":
         # Streaming finalization reads empty arguments as no arguments, so a check does too.
         entry = {**entry, "function": {**function, "arguments": {}}}
@@ -603,7 +626,7 @@ def _parse_latest_tool_call(entry: object, index: int) -> ToolCall:
 
 
 def _parsed_or_error(entry: object, index: int) -> LatestToolCall:
-    """The parsed tool call, or the error that keeps it from being validated, so one bad call hides no other."""
+    """The parsed call, or the error that keeps it from being validated, so one bad call doesn't stop the rest."""
     try:
         return _parse_latest_tool_call(entry, index)
     except ToolCallExtractionError as error:

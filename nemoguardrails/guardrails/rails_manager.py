@@ -569,15 +569,18 @@ class RailsManager:
         enabled: Union[bool, list[str]],
         model_type: str,
     ) -> RailResult:
-        """Block a turn with unparsable calls, still validating the calls that parsed so no violation is hidden."""
-        violations = []
-        parsed: list[tuple[int, ToolCall]] = []
-        for position, entry in enumerate(extracted):
-            if isinstance(entry, ToolCallExtractionError):
-                log.warning("[%s] tool call extraction failed; blocking: %s", get_request_id(), entry)
-                violations.append(_extraction_violation(entry))
-            else:
-                parsed.append((position, entry))
+        """Block a turn with unparsable calls, still validating the calls that parsed so they are reported too."""
+        failures = [entry for entry in extracted if isinstance(entry, ToolCallExtractionError)]
+        # One line per check, however many calls fail, so a large request cannot flood the log.
+        log.warning(
+            "[%s] tool call extraction failed for %d of %d tool calls; blocking. First: %s",
+            get_request_id(),
+            len(failures),
+            len(extracted),
+            failures[0],
+        )
+        violations = [_extraction_violation(failure) for failure in failures]
+        parsed = [(position, entry) for position, entry in enumerate(extracted) if isinstance(entry, ToolCall)]
         rails_result = await self.are_tool_calls_safe(
             [call for _, call in parsed], llm_params, enabled=enabled, model_type=model_type
         )

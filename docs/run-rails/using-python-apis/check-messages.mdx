@@ -241,7 +241,7 @@ Switch on `violation_type`, which is a closed set, and never on the `reason` tex
 | `unexpected_arguments` | Call | The tool declares no parameters, but the call passes arguments |
 | `invalid_tool_schema` | Call | The tool's declared schema is not valid JSON Schema |
 | `malformed_arguments` | Call | The arguments are not a JSON object |
-| `malformed_tool_call` | Call | The tool-call entry is not an object, or has no `function` object |
+| `malformed_tool_call` | Call | The tool-call entry is not an object, has no `function` object, or has an `id`, `type`, or function name that is not a string. An empty function name counts as malformed |
 | `legacy_function_call` | Call | The last assistant message carries a legacy `function_call`, which tool rails do not validate |
 | `invalid_toolset` | Call | The declared tools cannot be used, for example because a tool is declared twice |
 | `missing_call_id` | Result | The result has no `tool_call_id` |

@@ -1090,6 +1090,19 @@ class TestRailsManagerLatestToolCalls:
         )
 
     @pytest.mark.asyncio
+    async def test_unparsable_calls_log_one_warning_per_check(self, caplog):
+        """However many calls cannot be parsed, a check logs one WARNING, so a large request cannot flood the log."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        messages = tool_call_turn(*(wire_tool_call(arguments="not json", call_id=f"call_{n}") for n in range(5)))
+
+        with caplog.at_level(logging.WARNING, logger="nemoguardrails.guardrails.rails_manager"):
+            await mgr.are_latest_tool_calls_safe(messages, {"tools": [WEATHER_TOOL]})
+
+        warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
+        assert len(warnings) == 1
+        assert "5 tool calls" in warnings[0]
+
+    @pytest.mark.asyncio
     async def test_whole_turn_violation_leads_an_unparsable_calls_violation(self):
         """A toolset violation, which no call position owns, is listed and reported ahead of an unparsable call's."""
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])

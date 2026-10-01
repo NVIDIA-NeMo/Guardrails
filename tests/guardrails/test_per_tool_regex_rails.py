@@ -174,6 +174,20 @@ class TestAreToolCallsSafe:
         ]
 
     @pytest.mark.asyncio
+    async def test_non_string_tool_name_blocks_instead_of_raising(self):
+        """A call whose name is not a string is a ``malformed_tool_call`` block, not an error from the per-tool lookup."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+        )
+        messages = tool_call_turn({**wire_tool_call(), "function": {"name": {"x": 1}, "arguments": "{}"}})
+
+        result = await manager.are_latest_tool_calls_safe(messages, _llm_params("run_sql"))
+
+        assert [(v.violation_type, v.index) for v in result.tool_violations] == [
+            (ToolViolationType.MALFORMED_TOOL_CALL, 0)
+        ]
+
+    @pytest.mark.asyncio
     async def test_failed_per_tool_rail_reports_rail_failed(self):
         """A per-tool rail that raises reports ``rail_failed`` for the call it was checking, not a policy block."""
         manager = _build_manager(

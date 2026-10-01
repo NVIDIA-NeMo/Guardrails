@@ -121,14 +121,14 @@ class ToolResultRailAction(ToolRailAction):
         violations: list[ToolViolation] = []
         seen_ids: set[str] = set()
         for result in tool_results:
-            violation = self._result_violation(result, calls_by_id, seen_ids)
+            violation = self._first_failed_check(result, calls_by_id, seen_ids)
             if violation is not None:
                 violations.append(violation)
             if result.call_id:
                 seen_ids.add(result.call_id)
         return violations
 
-    def _result_violation(
+    def _first_failed_check(
         self, result: "ToolResult", calls_by_id: "dict[str, ToolCall]", seen_ids: set[str]
     ) -> "ToolViolation | None":
         """The first check *result* fails: its call_id, a duplicate, linkage, name, then content."""

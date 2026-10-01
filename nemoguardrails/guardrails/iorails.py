@@ -1441,10 +1441,16 @@ class IORails(BaseGuardrails):
         the per-request trace span.
 
         Raises:
+            InvalidCheckRequestError: If ``tools`` is given but ``rail_types``
+                does not include ``RailType.TOOL_CALL``.
             RailTypeNotConfiguredError: If a requested rail type has no
                 configured rails, or a tool rail type is requested on a config
                 with no ``main`` model.
         """
+        # Before queueing: a request the check cannot serve takes no queue slot and is not logged as a failed check.
+        _reject_unread_tools(rail_types, tools)
+        if rail_types is not None:
+            self._validate_requested_rail_types(rail_types)
         await self.start()
         metrics_ctx = request_metrics() if self._metrics_enabled else nullcontext()
         with metrics_ctx:
@@ -1493,9 +1499,7 @@ class IORails(BaseGuardrails):
         log.info("[%s] check called", req_id)
         log.debug("[%s] check messages=%s", req_id, truncate(messages))
 
-        _reject_unread_tools(rail_types, tools)
         if rail_types is not None:
-            self._validate_requested_rail_types(rail_types)
             rails_to_run = [rail_type.value for rail_type in rail_types]
         else:
             self._log_unrequested_tool_rails(messages, req_id)
