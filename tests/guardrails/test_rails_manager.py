@@ -1232,19 +1232,27 @@ class TestParallelPerToolDispatch:
             per_tool_call_flows={"run_sql": ["regex check tool output"]}, tool_output_parallel=True
         )
         in_flight = peak = 0
+        slots_full = asyncio.Event()
+        release = asyncio.Event()
 
         async def stub(direction, flow, tool_call, tool_result=None, tool_definition=None):
             nonlocal in_flight, peak
             in_flight += 1
             peak = max(peak, in_flight)
-            for _ in range(3):
-                await asyncio.sleep(0)
+            if in_flight == PER_TOOL_RAILS_MAX_CONCURRENCY:
+                slots_full.set()
+            await asyncio.wait_for(release.wait(), timeout=2)
             in_flight -= 1
             return RailResult.allow()
 
         mgr._run_per_tool_rail = stub
 
-        result = await mgr.are_tool_calls_safe(self._MANY_CALLS, self._RUN_SQL_PARAMS)
+        checks = asyncio.create_task(mgr.are_tool_calls_safe(self._MANY_CALLS, self._RUN_SQL_PARAMS))
+        # Checks a missing or higher cap would admit start before this wakes, so they're counted.
+        await asyncio.wait_for(slots_full.wait(), timeout=2)
+        assert in_flight == PER_TOOL_RAILS_MAX_CONCURRENCY
+        release.set()
+        result = await checks
 
         assert result.is_safe
         assert peak == PER_TOOL_RAILS_MAX_CONCURRENCY
@@ -1255,12 +1263,21 @@ class TestParallelPerToolDispatch:
             per_tool_call_flows={"run_sql": ["regex check tool output"]}, tool_output_parallel=True
         )
 
+        in_flight = 0
+        slots_full = asyncio.Event()
+        never_set = asyncio.Event()
+
         async def stub(direction, flow, tool_call, tool_result=None, tool_definition=None):
-            # Checks must pause, or each finishes in its first step and none ever waits for a slot.
+            # call_0 blocks only once every slot is taken, so the remaining checks are still
+            # waiting for one; the others hold their slots until the block cancels them.
+            nonlocal in_flight
+            in_flight += 1
+            if in_flight == PER_TOOL_RAILS_MAX_CONCURRENCY:
+                slots_full.set()
             if tool_call.id == "call_0":
-                await asyncio.sleep(0)
+                await asyncio.wait_for(slots_full.wait(), timeout=2)
                 return RailResult.block(reason="unsafe")
-            await asyncio.sleep(0.05)
+            await asyncio.wait_for(never_set.wait(), timeout=2)
             return RailResult.allow()
 
         mgr._run_per_tool_rail = stub
