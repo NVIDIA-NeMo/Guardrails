@@ -110,6 +110,7 @@ async def llama_guard_check_output(
     context: Optional[dict] = None,
     user_message: Optional[str] = None,
     bot_message: Optional[str] = None,
+    **kwargs,
 ) -> RailOutcome:
     """
     Check the bot response using the configured Llama Guard model
