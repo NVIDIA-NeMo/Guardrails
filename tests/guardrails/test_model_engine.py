@@ -2964,6 +2964,8 @@ _UNPARSABLE_CALLS = {
         _with_second_call_arguments([_SECRET_VALUE]),
         ("malformed_arguments", 1, "call_2", "get_weather"),
     ),
+    # A completed turn carries "{}" for a call without arguments; "" is not JSON, as in non-streaming generation.
+    "empty_string_arguments": (_with_second_call_arguments(""), ("malformed_arguments", 1, "call_2", "get_weather")),
     "non_dict_entry": (assistant_tool_calls(wire_tool_call(), _SECRET_VALUE), ("malformed_tool_call", 1, None, None)),
     "non_dict_function": (
         assistant_tool_calls({**wire_tool_call(), "function": _SECRET_VALUE}),
@@ -3041,14 +3043,9 @@ class TestExtractLatestToolCalls:
         assert engine.extract_latest_tool_calls([]) == []
         assert engine.extract_latest_tool_calls([{"role": "user", "content": "hi"}]) == []
 
-    @pytest.mark.parametrize(
-        "function",
-        [{"name": "list_files", "arguments": ""}, {"name": "list_files"}],
-        ids=["empty_string", "missing"],
-    )
-    def test_empty_or_missing_arguments_become_an_empty_object(self, engine, function):
-        """Empty-string or absent arguments parse as ``{}``, as the streaming parser treats them."""
-        messages = [assistant_tool_calls({"id": "call_1", "type": "function", "function": function})]
+    def test_missing_arguments_become_an_empty_object(self, engine):
+        """A call with no ``arguments`` key parses as ``{}``."""
+        messages = [assistant_tool_calls({"id": "call_1", "type": "function", "function": {"name": "list_files"}})]
         assert [c.function.arguments for c in engine.extract_latest_tool_calls(messages)] == [{}]
 
     def test_call_without_an_id_is_named_by_its_position(self, engine):

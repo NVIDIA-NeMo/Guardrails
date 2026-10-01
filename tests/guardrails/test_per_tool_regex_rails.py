@@ -196,7 +196,7 @@ class TestAreToolCallsSafe:
 
     @pytest.mark.asyncio
     async def test_failed_rail_beside_an_unparsable_call_stays_a_failure(self):
-        """A rail that raises while another call is unparsable keeps the result a failure, not a policy block."""
+        """A rail that raises beside an unparsable call keeps the result a failure, with the failed rail's reason."""
         manager = _build_manager(
             per_tool_call_flows={"run_sql": ["regex check tool output $argument=nope"]},
             regex_detection=RUN_SQL_PATTERN_CONFIG,
@@ -210,7 +210,7 @@ class TestAreToolCallsSafe:
             messages, _llm_params("run_sql", parameters=_CLOSED_QUERY_SCHEMA)
         )
 
-        assert result.failed is True
+        assert (result.failed, result.reason) == (True, "regex check tool output error")
         assert [(v.violation_type, v.index) for v in result.tool_violations] == [
             (ToolViolationType.MALFORMED_ARGUMENTS, 0),
             (ToolViolationType.RAIL_FAILED, 1),
