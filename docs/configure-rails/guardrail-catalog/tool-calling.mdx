@@ -167,10 +167,14 @@ To validate only the model's tool calls, configure `rails.tool_output` and leave
 </Warning>
 
 <Note>
-    IORails accepts the `parallel` field on the `tool_output` and `tool_input`
-    sections for symmetry with other rails, but does not honor it for tool rails
-    and emits a warning if you set it to `true`. Tool rails are local checks
-    with no I/O to overlap, so they always run sequentially.
+    IORails honors the `parallel` field on the `tool_output` and `tool_input`
+    sections, but `tool call validation` and `tool result validation` each
+    name at most one flow, so `parallel` has no observable effect on them:
+    they always run one at a time. `parallel` matters for per-tool checks
+    configured under `tool_output.per_tool` / `tool_input.per_tool`, where a
+    request can run several checks at once; refer to
+    [Rail Engine Support](/reference/rail-engine-support) for per-tool
+    configuration.
 </Note>
 
 ## Declare Tools
