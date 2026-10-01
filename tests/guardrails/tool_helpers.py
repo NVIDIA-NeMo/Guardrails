@@ -21,6 +21,8 @@ blocked-result assertion reused across the tool-rail test modules. Assertions
 carry explicit messages since this module is not assertion-rewritten by pytest.
 """
 
+from typing import Optional
+
 WEATHER_SCHEMA = {
     "type": "object",
     "properties": {"city": {"type": "string"}},
@@ -52,12 +54,16 @@ def assert_result_blocked(result, *substrings: str) -> None:
     _assert_reason_contains(result.reason, substrings, result)
 
 
-def make_tool_conversation(result_call_id: str = "call_1") -> list:
+def make_tool_conversation(result_call_id: str = "call_1", result_name: Optional[str] = "get_weather") -> list:
     """A user turn, an assistant ``get_weather`` tool call (id ``call_1``), then a tool result.
 
     ``result_call_id`` sets the tool result's ``tool_call_id`` so callers can test
-    linked (``call_1``) and unlinked (anything else) results.
+    linked (``call_1``) and unlinked (anything else) results. ``result_name`` sets the
+    result's ``name``; ``None`` omits the key, as an OpenAI tool message does.
     """
+    tool_message = {"role": "tool", "tool_call_id": result_call_id, "content": "18C"}
+    if result_name is not None:
+        tool_message["name"] = result_name
     return [
         {"role": "user", "content": "What's the weather in Paris?"},
         {
@@ -71,7 +77,7 @@ def make_tool_conversation(result_call_id: str = "call_1") -> list:
                 }
             ],
         },
-        {"role": "tool", "tool_call_id": result_call_id, "name": "get_weather", "content": "18C"},
+        tool_message,
     ]
 
 
