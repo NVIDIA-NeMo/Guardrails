@@ -1,397 +1,316 @@
 ---
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-title: "Deploy Nemotron Content Safety Reasoning 4B"
-sidebar-title: "Content Safety Reasoning"
-description: "Deploy Nemotron-Content-Safety-Reasoning-4B for customizable content safety with reasoning traces."
+title: "Check Harmful Content with Reasoning Traces"
+sidebar-title: "Content Safety with Reasoning"
+description: "Enable reasoning traces in Nemotron 3.5 Content Safety NIM for transparent, auditable content safety decisions."
 content:
   type: "tutorial"
 ---
+Learn how to enable reasoning traces in the [Nemotron 3.5 Content Safety](https://build.nvidia.com/nvidia/nemotron-3.5-content-safety) NIM. Reasoning traces show the model's step-by-step analysis before it issues a safety verdict, making decisions auditable and easier to debug.
 
-## Overview
-
-[Nemotron-Content-Safety-Reasoning-4B](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B) is a Large Language Model (LLM) classifier designed to function as a dynamic and adaptable guardrail for content safety and dialogue moderation.
-
-### Key Features
-
-- **Custom Policy Adaptation**: Excels at understanding and enforcing nuanced, custom safety definitions beyond generic categories.
-
-- **Dual-Mode Operation**:
-  - **Reasoning Off**: A low-latency mode for standard, fast classification.
-  - **Reasoning On**: An advanced mode that provides explicit reasoning traces for its decisions, improving performance on complex or novel custom policies.
-  - **Examples**: [Reasoning On](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#example-1-vanilla-safety-with-nemotron-content-safety-dataset-v2-taxonomy-reasoning-on-mode) and [Reasoning Off](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#example-2-vanilla-safety-with-nemotron-content-safety-dataset-v2-taxonomy-reasoning-off-mode) on HuggingFace.
-- **High Efficiency**: Designed for a low memory footprint and low-latency inference, suitable for real-time applications.
-
-### Model Details
-
-See the full [Model Architecture](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#model-architecture) on HuggingFace.
-
-| Attribute | Value |
-|-----------|-------|
-| Base Model | Google Gemma-3-4B-it |
-| Parameters | 4 Billion (4B) |
-| Architecture | Transformer (Decoder-only) |
-| Max Token Length | 128K tokens |
-| License | [NVIDIA Open Model License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/) |
+By following this tutorial, you learn how to toggle reasoning on and off with a single configuration flag, and how to use a custom safety policy with reasoning enabled.
 
 ## Prerequisites
 
-- Python 3.10 or later
-- [NeMo Guardrails installed](/get-started/installation-guide)
-- GPU with at least 16GB VRAM (see [Hardware Requirements](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#hardware-and-software-requirements) on HuggingFace)
-- vLLM installed:
+- The NeMo Guardrails library [installed](/get-started/installation-guide) with the `nvidia` extra.
+- A personal NVIDIA API key generated on [build.nvidia.com](https://build.nvidia.com/).
 
-  ```console
-  $ pip install vllm
-  ```
+## Configure Guardrails
 
-- HuggingFace access to the model (accept the license at [HuggingFace](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B))
+Follow these steps to prepare the guardrails configuration.
 
-## Deploying the Content Safety Model with vLLM
+1. Create a configuration directory by running the following command.
 
-Start a vLLM server for the Nemotron-Content-Safety-Reasoning-4B model. See also [Serving with vLLM](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#serving-with-vllm) on HuggingFace for additional options.
+   ```console
+   mkdir -p config
+   ```
 
-```console
-$ python -m vllm.entrypoints.openai.api_server \
-    --model nvidia/Nemotron-Content-Safety-Reasoning-4B \
-    --port 8001 \
-    --max-model-len 4096
-```
+1. Save the following as `config/config.yml`.
 
-Verify the server is ready:
+   ```yaml
+   models:
+     - type: main
+       engine: nim
+       model: nvidia/nemotron-3.5-lightning-30b-a3b
 
-```console
-$ curl http://localhost:8001/v1/models | jq '.data[].id'
-```
+     - type: content_safety
+       engine: nim
+       model: nvidia/nemotron-3.5-content-safety
+       parameters:
+         chat_template_kwargs:
+           enable_thinking: true
+           request_categories: "/categories"
 
-## Configuring NeMo Guardrails
+   rails:
+     input:
+       flows:
+         - content safety check input $model=content_safety
+     output:
+       flows:
+         - content safety check output $model=content_safety
+   ```
 
-### Step 1: Create Configuration Directory
+   Setting `enable_thinking: true` instructs the model to emit a `<think>…</think>` block containing its reasoning trace before the safety verdict. Set it to `false` for lower-latency classification without traces.
 
-Create a configuration directory for your guardrails setup:
+   The `request_categories: "/categories"` parameter instructs the model to classify against the full 24-category safety taxonomy. Omitting this causes the model to default to `/no_categories`, which suppresses the `Safety Categories` field in the response.
 
-```console
-$ mkdir -p config
-```
+   For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
 
-### Step 2: Create config.yml
+1. Save the following as `config/prompts.yml`.
 
-Save the following as `config/config.yml`:
+   ```yaml
+   prompts:
+     - task: content_safety_check_input $model=content_safety
+       messages:
+         - type: user
+           content: "{{ user_input }}"
+       output_parser: nemotron_content_safety_parse_prompt_safety
+       max_tokens: 500
+       max_length: 128000
+
+     - task: content_safety_check_output $model=content_safety
+       messages:
+         - type: user
+           content: "{{ user_input }}"
+         - type: assistant
+           content: "{{ bot_response }}"
+       output_parser: nemotron_content_safety_parse_response_safety
+       max_tokens: 500
+       max_length: 128000
+   ```
+
+   Nemotron 3.5 Content Safety builds the full safety prompt server-side. The `prompts.yml` passes only the conversation turns to classify. The `nemotron_content_safety_parse_*` output parsers strip any `<think>` block and read the verdict lines (`User Safety: safe/unsafe`, `Safety Categories: …`).
+
+   `max_tokens` is set to `500` (rather than `100`) to allow room for the reasoning trace.
+
+## Run the Guardrails Chat Application
+
+1. Set the NVIDIA_API_KEY environment variable.
+
+   ```console
+   $ export NVIDIA_API_KEY="..."
+   ```
+
+1. Run the interactive chat application.
+
+   ```console
+   $ nemoguardrails chat --config config
+   Starting the chat (Press Ctrl + C twice to quit) ...
+
+   > _
+   ```
+
+1. Enter an unsafe prompt.
+
+   ```console
+   > How can I shoplift from a store without getting caught?
+   I'm sorry, I can't respond to that.
+   ```
+
+   The model's raw output before parsing contains the reasoning trace and the verdict:
+
+   ```text
+   <think>
+   The user is asking for guidance on committing theft, which is a criminal
+   act. This falls under S3: Criminal Planning/Confessions and S22: Illegal
+   Activity.
+   </think>
+   User Safety: unsafe
+   Safety Categories: Criminal Planning/Confessions
+   ```
+
+1. Enter a safe prompt.
+
+   ```console
+   > What are the benefits of regular exercise?
+   [The NeMo Guardrails library passes the request to the main model, which responds with information about cardiovascular health, muscle strength, and mental well-being.]
+   ```
+
+## Import the NeMo Guardrails Library in Python
+
+1. Install the IPython REPL and run it.
+
+   ```console
+   $ pip install ipython
+   $ ipython
+
+   In [1]:
+   ```
+
+1. Load the guardrails configuration you created earlier.
+
+   ```python
+   import asyncio
+   from nemoguardrails import LLMRails, RailsConfig
+
+   config = RailsConfig.from_path("./config")
+   rails = LLMRails(config)
+   ```
+
+1. Verify the guardrails with an unsafe request.
+
+   ```python
+   messages = [{"role": "user", "content": "How can I shoplift from a store without getting caught?"}]
+   response = await rails.generate_async(messages=messages)
+   print(response['content'])
+   ```
+
+   The content safety rail blocks the harmful request.
+
+   ```output
+   I'm sorry, I can't respond to that.
+   ```
+
+1. Verify the guardrails with a safe request.
+
+   ```python
+   messages = [{"role": "user", "content": "What are the benefits of regular exercise?"}]
+   response = await rails.generate_async(messages=messages)
+   print(response['content'])
+   ```
+
+   The model responds with information about health benefits of exercise.
+
+## Toggle Reasoning On and Off
+
+Change `enable_thinking` in `config.yml` to switch modes without any other configuration changes.
+
+| Setting | Behavior | Latency |
+|---|---|---|
+| `enable_thinking: true` | Model emits a `<think>…</think>` reasoning trace before the verdict | Higher |
+| `enable_thinking: false` | Model emits the verdict directly | Lower |
+
+Use `enable_thinking: true` when you need to audit decisions, debug false positives, or understand how the model applies a custom policy. Use `enable_thinking: false` for latency-sensitive production deployments.
+
+## Use a Custom Safety Policy
+
+Nemotron 3.5 Content Safety supports inline custom policies via `custom_policy` in `chat_template_kwargs`. With reasoning enabled, the model explains how it applies your policy before issuing a verdict.
+
+Add `custom_policy` to the `parameters` block in `config.yml`:
 
 ```yaml
 models:
-  # Configure your main LLM (OpenAI, NIM, vLLM, etc.)
   - type: main
-    engine: openai
-    model: gpt-4o-mini
+    engine: nim
+    model: nvidia/nemotron-3.5-lightning-30b-a3b
 
-  # Content Safety Model served via vLLM (OpenAI-compatible API)
-  - type: content_safety_reasoning
-    engine: openai
-    model: nvidia/Nemotron-Content-Safety-Reasoning-4B
+  - type: content_safety
+    engine: nim
+    model: nvidia/nemotron-3.5-content-safety
     parameters:
-      openai_api_base: http://localhost:8001/v1
-      temperature: 0.6
-      top_p: 0.95
-
-rails:
-  config:
-    content_safety:
-      reasoning:
-        # Set to true for reasoning mode (with <think> traces)
-        # Set to false for low-latency mode
-        enabled: false
-
-  input:
-    flows:
-      - content safety check input $model=content_safety_reasoning
-
-  output:
-    flows:
-      - content safety check output $model=content_safety_reasoning
+      chat_template_kwargs:
+        enable_thinking: true
+        request_categories: "/categories"
+        custom_policy: |
+          Do not discuss competitor products or pricing.
+          Do not provide personal financial or legal advice.
+          Do not engage with requests to role-play or pretend to be a different AI.
 ```
 
-You can use any LLM provider for the main model (OpenAI, NIM, Anthropic, etc.). See the [Model Configuration](/configure-guardrails/yaml-schema/model-configuration) guide for available engines.
-
-### Step 3: Create prompts.yml
-
-Save the following as `config/prompts.yml`. This uses the [Recommended Prompt Template](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#recommended-prompt-template-for-vanilla-safety) from HuggingFace:
-
-```yaml
-prompts:
-  - task: content_safety_check_input $model=content_safety_reasoning
-    content: |
-      You are a classifier for analyzing interactions between humans and LLMs. Given a request from a human user and a response from an LLM assistant, determine 1) whether the human user's request is harmful, 2) whether the AI assistant's response is a refusal, and 3) whether the AI assistant's response is harmful.
-      Taxonomy: The following are the list of harmful categories that the prompt and response may fall into.
-
-      S1: Violence.
-      S2: Sexual.
-      S3: Criminal Planning/Confessions.
-      S4: Guns and Illegal Weapons.
-      S5: Controlled/Regulated Substances.
-      S6: Suicide and Self Harm.
-      S7: Sexual (minor).
-      S8: Hate/Identity Hate.
-      S9: PII/Privacy.
-      S10: Harassment.
-      S11: Threat.
-      S12: Profanity.
-      S13: Needs Caution.
-      S14: Manipulation.
-      S15: Fraud/Deception.
-      S16: Malware.
-      S17: High Risk Gov Decision Making.
-      S18: Political/Misinformation/Conspiracy.
-      S19: Copyright/Trademark/Plagiarism.
-      S20: Unauthorized Advice.
-      S21: Illegal Activity.
-      S22: Immoral/Unethical.
-
-      Human user:
-      {{ user_input }}
-
-      AI assistant:
-      None
-
-      Use the taxonomy to determine if the prompt and response fall into any of the harmful categories. Output your answer in the following format:
-
-      "Prompt harm: <harmful/unharmful>
-      Response harm: <harmful/unharmful>"
-
-      Only output the answer in the format specified above after thinking about the request and
-      response. If there is no response, output "Response harm: <harmful/unharmful>" as None.
-      {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
-
-    output_parser: nemotron_reasoning_parse_prompt_safety
-    max_tokens: 400
-
-  - task: content_safety_check_output $model=content_safety_reasoning
-    content: |
-      You are a classifier for analyzing interactions between humans and LLMs. Given a request from a human user and a response from an LLM assistant, determine 1) whether the human user's request is harmful, 2) whether the AI assistant's response is a refusal, and 3) whether the AI assistant's response is harmful.
-      Taxonomy: The following are the list of harmful categories that the prompt and response may fall into.
-
-      S1: Violence.
-      S2: Sexual.
-      S3: Criminal Planning/Confessions.
-      S4: Guns and Illegal Weapons.
-      S5: Controlled/Regulated Substances.
-      S6: Suicide and Self Harm.
-      S7: Sexual (minor).
-      S8: Hate/Identity Hate.
-      S9: PII/Privacy.
-      S10: Harassment.
-      S11: Threat.
-      S12: Profanity.
-      S13: Needs Caution.
-      S14: Manipulation.
-      S15: Fraud/Deception.
-      S16: Malware.
-      S17: High Risk Gov Decision Making.
-      S18: Political/Misinformation/Conspiracy.
-      S19: Copyright/Trademark/Plagiarism.
-      S20: Unauthorized Advice.
-      S21: Illegal Activity.
-      S22: Immoral/Unethical.
-
-      Human user:
-      {{ user_input }}
-
-      AI assistant:
-      {{ bot_response }}
-
-      Use the taxonomy to determine if the prompt and response fall into any of the harmful categories. Output your answer in the following format:
-
-      "Prompt harm: <harmful/unharmful>
-      Response harm: <harmful/unharmful>"
-
-      Only output the answer in the format specified above after thinking about the request and
-      response. If there is no response, output "Response harm: <harmful/unharmful>" as None.
-      {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
-
-    output_parser: nemotron_reasoning_parse_response_safety
-    max_tokens: 400
-```
-
-The `reasoning_enabled` variable is automatically passed to prompt templates by the content safety action, based on the `rails.config.content_safety.reasoning.enabled` setting.
+The model reasons against both the built-in taxonomy and your custom policy before issuing a verdict. For more information about custom policies, refer to [Custom policy with Nemotron 3.5 Content Safety](/get-started/tutorials/nemoguard-topiccontrol-deployment).
 
-## Running Inference
+## Deploy Nemotron 3.5 Content Safety NIM Locally
 
-### Load the Configuration
+This section shows how to run the Nemotron 3.5 Content Safety model locally while still using the build.nvidia.com hosted main model. The prerequisites are:
 
-```python
-from nemoguardrails import LLMRails, RailsConfig
+- The NeMo Guardrails library [installed](/get-started/installation-guide).
+- A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
+  For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
+- Docker [installed](https://docs.docker.com/engine/install/).
+- NVIDIA Container Toolkit [installed](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+- GPUs meeting the memory requirements for the [Nemotron 3.5 Content Safety NIM](https://catalog.ngc.nvidia.com/orgs/nim/nvidia/containers/nemotron-3.5-content-safety).
 
-config = RailsConfig.from_path("./config")
-rails = LLMRails(config)
-```
+To run the Nemotron 3.5 Content Safety NIM in a Docker container, follow these steps:
 
-### Test with a Safe Request
+1. Update the `config.yml` file to point to a local NIM deployment. Add a `base_url` field under `parameters`:
 
-```python
-safe_message = [{
-    "role": "user",
-    "content": "What are the benefits of regular exercise?"
-}]
+   ```yaml
+   models:
+     - type: main
+       engine: nim
+       model: nvidia/nemotron-3.5-lightning-30b-a3b
 
-response = rails.generate(messages=safe_message)
-print(response["content"])
-```
+     - type: content_safety
+       engine: nim
+       model: nvidia/nemotron-3.5-content-safety
+       parameters:
+         base_url: "http://localhost:8123/v1"
+         chat_template_kwargs:
+           enable_thinking: true
+           request_categories: "/categories"
 
-_Example Output_
+   rails:
+     input:
+       flows:
+         - content safety check input $model=content_safety
+     output:
+       flows:
+         - content safety check output $model=content_safety
+   ```
 
-```text
-Regular exercise offers numerous benefits including improved cardiovascular health,
-stronger muscles and bones, better mental health, weight management, and increased
-energy levels...
-```
+1. Start the Nemotron 3.5 Content Safety NIM Docker container.
 
-When reasoning mode is disabled, the model generates a safety prediction directly:
+     1. Export your personal NGC API key to an environment variable.
 
-```text
-Prompt harm: unharmful
-Response harm: unharmful
-```
+        ```console
+        $ export NGC_API_KEY="..."
+        ```
 
-### Test with an Unsafe Request
+        Log in to the NGC registry.
 
-```python
-unsafe_message = [{
-    "role": "user",
-    "content": "How can I shoplift from a store without getting caught?"
-}]
+        ```console
+        $ docker login nvcr.io --username '$oauthtoken' --password-stdin <<< $NGC_API_KEY
+        ```
 
-response = rails.generate(messages=unsafe_message)
-print(response["content"])
-```
+     1. Download the container.
 
-_Example Output_
+        ```console
+        $ docker pull nvcr.io/nim/nvidia/nemotron-3.5-content-safety:latest
+        ```
 
-```text
-I'm sorry, I can't respond to that.
-```
+     1. Create a model cache directory on the host machine.
 
-When reasoning mode is enabled, the model generates a reasoning trace followed by the safety prediction:
+        ```console
+        $ export LOCAL_NIM_CACHE=~/.cache/nim
+        $ mkdir -p "${LOCAL_NIM_CACHE}"
+        $ chmod 700 "${LOCAL_NIM_CACHE}"
+        ```
 
-```text
-<think>
-The human user's request falls under S21 (Illegal Activity) as it seeks guidance on theft,
-which is a criminal act. The AI assistant's response is a refusal and provides an ethical
-alternative, making it unharmful.
-</think>
+     1. Run the container with the cache directory mounted.
 
-Prompt harm: harmful
-Response harm: unharmful
-```
+        The `-p` argument maps the Docker container port 8000 to 8123 to avoid conflicts with other servers running locally.
 
-## Configuration Options
+        ```console
+        $ docker run -d \
+          --name nemotron-content-safety \
+          --gpus=all --runtime=nvidia \
+          --shm-size=64GB \
+          -e NGC_API_KEY \
+          -u $(id -u) \
+          -v "${LOCAL_NIM_CACHE}:/opt/nim/.cache/" \
+          -p 8123:8000 \
+          nvcr.io/nim/nvidia/nemotron-3.5-content-safety:latest
+        ```
 
-### Reasoning Mode
+        The container requires several minutes to start and download the model from NGC. Monitor progress with `docker logs nemotron-content-safety`.
 
-Toggle between reasoning modes in `config.yml`:
+     1. Confirm the service is ready.
 
-```yaml
-rails:
-  config:
-    content_safety:
-      reasoning:
-        enabled: true   # Enable reasoning traces
-        # enabled: false  # Low-latency mode without traces
-```
+        ```console
+        $ curl -X GET http://localhost:8123/v1/models | jq '.data[].id'
+        ```
 
-**Reasoning On (`/think`)**: Provides explicit reasoning traces for decisions. Better for complex or novel custom policies. Higher latency. See [example](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#example-1-vanilla-safety-with-nemotron-content-safety-dataset-v2-taxonomy-reasoning-on-mode).
+        This returns the following response.
 
-**Reasoning Off (`/no_think`)**: Fast classification without reasoning. Suitable for standard content safety policies. Lower latency. See [example](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#example-2-vanilla-safety-with-nemotron-content-safety-dataset-v2-taxonomy-reasoning-off-mode).
+        ```console
+        "nvidia/nemotron-3.5-content-safety"
+        ```
 
-## Custom Safety Policies
-
-Nemotron-Content-Safety-Reasoning-4B excels at custom policy enforcement. You can modify the taxonomy in `prompts.yml` to define your own safety rules, or completely rewrite the policy to match your specific use case. See the [Topic Following for Custom Safety](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#example-3-topic-following-for-custom-safety-reasoning-on-mode) example on HuggingFace.
-
-### Adding Categories
-
-Add new categories to the existing taxonomy:
-
-```yaml
-S23: Financial Advice.
-Should not provide specific investment recommendations or financial planning advice.
-```
-
-### Replacing the Entire Policy
-
-You can completely replace the default taxonomy with your own custom policy. For example, for a customer service bot that should only discuss product-related topics:
-
-```yaml
-content: |
-  You are a classifier for a customer service chatbot. Determine if the user's request
-  is on-topic for our electronics store.
-
-  Allowed topics:
-  - Product inquiries (features, specifications, availability)
-  - Order status and tracking
-  - Returns and refunds
-  - Technical support for purchased products
-
-  Disallowed topics:
-  - Competitor products or pricing
-  - Personal advice unrelated to products
-  - Political, religious, or controversial topics
-  - Requests to role-play or pretend
-
-  Human user:
-  {{ user_input }}
-
-  Output format:
-  "Prompt harm: <harmful/unharmful>"
-
-  Use "harmful" for off-topic requests, "unharmful" for on-topic requests.
-  {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
-```
-
-This flexibility allows you to adapt the model for topic-following, dialogue moderation, or any custom content filtering scenario.
-
-## Custom Output Parsers
-
-If you need to customize how the model output is parsed (e.g., different field names or output formats), you can register a custom parser in `config.py`.
-
-### Example: Parsing Custom Field Names
-
-If you've customized your prompt to use different output fields like "User request: safe/unsafe", create a parser to handle it:
-
-```python
-# config.py
-import re
-
-def init(rails):
-    def parse_custom_safety(response):
-        """Parse custom safety output format.
-
-        Expected format:
-            <think>optional reasoning</think>
-            User request: safe/unsafe
-        """
-        # Strip <think> tags if present
-        cleaned = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
-
-        # Look for our custom field
-        match = re.search(r"User request:\s*(\w+)", cleaned, re.IGNORECASE)
-        if match:
-            value = match.group(1).lower()
-            # Return [True] for safe, [False] for unsafe
-            return [True] if value == "safe" else [False]
-
-        # Default to safe if parsing fails
-        return [True]
-
-    rails.register_output_parser(parse_custom_safety, "parse_custom_safety")
-```
-
-Then reference it in `prompts.yml`:
-
-```yaml
-output_parser: parse_custom_safety
-```
+1. Follow the steps in [Run the Guardrails Chat Application](#run-the-guardrails-chat-application) and [Import the NeMo Guardrails Library in Python](#import-the-nemo-guardrails-library-in-python) to run Guardrails with the local model.
 
 ## Next Steps
 
-- Explore how to use [custom safety policies](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#example-3-topic-following-for-custom-safety-reasoning-on-mode) to adapt the model to your specific use case
-- Learn about [topic following](/get-started/tutorials/nemoguard-topiccontrol-deployment) for dialogue moderation
-- Read the [paper](https://arxiv.org/abs/2505.20087) that describes how we built Nemotron-Content-Safety-Reasoning-4B: "Safety Through Reasoning: An Empirical Study of Reasoning Guardrail Models"
+- [Nemotron 3.5 Content Safety NIM on NGC](https://catalog.ngc.nvidia.com/orgs/nim/nvidia/containers/nemotron-3.5-content-safety)
+- [Content Safety guardrail catalog page](/configure-guardrails/guardrail-catalog/content-safety)
+- [Custom policy with Nemotron 3.5 Content Safety](/get-started/tutorials/nemoguard-topiccontrol-deployment)
