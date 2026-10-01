@@ -18,6 +18,7 @@ import logging
 from rich.logging import RichHandler
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.colang.v2_x.runtime.runtime import _generated_flow_name
 from tests.utils import TestChat
 
 FORMAT = "%(message)s"
@@ -104,3 +105,12 @@ def test_check_for_active_flow_finished_match_action():
 
 if __name__ == "__main__":
     test_check_for_active_flow_finished_match_action()
+
+
+def test_generated_flow_name_falls_back_for_malformed_content():
+    """The placeholder-flow name must not crash for content whose first line has no space."""
+    assert _generated_flow_name("flow greet\n  bot say hi") == "greet"
+    assert _generated_flow_name("```colang\nflow broken\n```") == "unknown_flow"
+    assert _generated_flow_name("") == "unknown_flow"
+    assert _generated_flow_name("flow") == "unknown_flow"
+    assert _generated_flow_name("\nflow x\n") == "unknown_flow"
