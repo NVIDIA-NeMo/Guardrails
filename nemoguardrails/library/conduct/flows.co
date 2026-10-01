@@ -1,0 +1,24 @@
+# Colang flows for the Conduct guard rail.
+#
+# See nemoguardrails/library/conduct/rail.py for the RailManifest.
+
+flow conduct check input
+  """Evaluate the current user message against Conduct Guard policy."""
+  $result = await ConductCheckAction(text=$user_message, rail="input")
+  if $result.is_blocked
+    if $system.config.enable_rails_exceptions
+      send ConductGuardException(message=$result.metadata.message)
+    else
+      bot refuse to respond
+    abort
+
+
+flow conduct check output
+  """Evaluate the bot message against Conduct Guard policy."""
+  $result = await ConductCheckAction(text=$bot_message, rail="output")
+  if $result.is_blocked
+    if $system.config.enable_rails_exceptions
+      send ConductGuardException(message=$result.metadata.message)
+    else
+      bot refuse to respond
+    abort
