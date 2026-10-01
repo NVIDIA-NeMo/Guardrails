@@ -1,15 +1,22 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 models:
   - type: main
     engine: openai
     model: gpt-4o-mini
 
-  - type: vision_rails
-    engine: openai
-    model: gpt-4o-mini
+  - type: content_safety
+    engine: nim
+    model: nvidia/nemotron-3.5-content-safety
+    parameters:
+      chat_template_kwargs:
+        enable_thinking: false
+        request_categories: "/categories"
+
 rails:
   input:
     flows:
-      - content safety check input $model=vision_rails
+      - content safety check input $model=content_safety
   dialog:
     single_call:
       enabled: False
