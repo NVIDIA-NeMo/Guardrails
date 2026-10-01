@@ -49,6 +49,10 @@ def _result(
 # Content types ToolResult does not declare, as a malformed client payload carries them.
 _NON_DICT_BLOCKS: Any = [1, 2, 3]
 
+# A call id longer than a reason quotes: the reason keeps 64 characters, the violation the whole id.
+_LONG_ID = "i" * 200
+_CAPPED_ID = "i" * 64 + "..."
+
 # Case id -> (results, prior calls) the validator accepts.
 _ACCEPTED = {
     "linked_result_with_matching_name": ([_result("c1", name="get_weather")], _prior_calls()),
@@ -130,6 +134,27 @@ _REJECTED = {
             "duplicate tool result for call_id 'c1': each tool call must have exactly one result",
             tool_call_id="c1",
             tool_name="get_weather",
+            index=3,
+        ),
+    ),
+    "long_unknown_call_id_capped_in_the_reason": (
+        [_result(_LONG_ID, message_index=3)],
+        _prior_calls(),
+        result_violation(
+            "unknown_call_id",
+            f"tool result for call_id '{_CAPPED_ID}' does not correspond to a prior tool call",
+            tool_call_id=_LONG_ID,
+            index=3,
+        ),
+    ),
+    "long_names_capped_in_the_reason": (
+        [_result("c1", name="r" * 200, message_index=3)],
+        [_prior_call("c1", "n" * 200)],
+        result_violation(
+            "name_mismatch",
+            f"tool result name '{'r' * 64}...' does not match the called tool '{'n' * 64}...' for call_id 'c1'",
+            tool_call_id="c1",
+            tool_name="n" * 64 + "...",
             index=3,
         ),
     ),

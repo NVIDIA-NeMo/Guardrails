@@ -48,7 +48,7 @@ from nemoguardrails.guardrails._http import (
     safe_read_body,
 )
 from nemoguardrails.guardrails.base_engine import BaseEngine
-from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
+from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, quoted_identity, truncate
 from nemoguardrails.guardrails.telemetry import (
     llm_call_span,
     set_llm_call_content,
@@ -552,7 +552,7 @@ def _string_or_none(value: object) -> str | None:
 def _describe_tool_call(index: int, tool_call_id: str | None) -> str:
     """Name a tool call in an error message by its id, else by its position."""
     if tool_call_id:
-        return f"tool call '{tool_call_id}'"
+        return f"tool call '{quoted_identity(tool_call_id)}'"
     return f"tool call at index {index}"
 
 

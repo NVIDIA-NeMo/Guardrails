@@ -70,6 +70,8 @@ def result_violation(violation_type: str, reason: str, **identity: Any) -> ToolV
 
 TOOL_CALL_QUESTION = "What's the weather in Paris?"
 
+UNREAD_TOOLS_MESSAGE = "tools is read only by a tool_call check; include tool_call in rail_types or leave tools out"
+
 
 def wire_tool_call(name: str = "get_weather", arguments: Any = '{"city": "Paris"}', call_id: str = "call_1") -> dict:
     """One OpenAI Chat Completions tool call as it appears on an assistant message."""

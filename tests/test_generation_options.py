@@ -688,3 +688,16 @@ def test_tool_violation_stores_non_string_identity_as_none():
     )
 
     assert (violation.tool_call_id, violation.tool_name) == (None, None)
+
+
+def test_tool_violation_caps_the_tool_name_but_keeps_the_call_id_whole():
+    """A tool name, which the model can make up, is cut to 64 characters; the call id stays whole as identity."""
+    violation = ToolViolation(
+        kind="tool_call",
+        violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+        reason="tool call is not an allowed tool",
+        tool_call_id="i" * 200,
+        tool_name="n" * 200,
+    )
+
+    assert (violation.tool_call_id, violation.tool_name) == ("i" * 200, "n" * 64 + "...")

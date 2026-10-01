@@ -21,7 +21,11 @@ import pytest
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
-from nemoguardrails.exceptions import RailTypeNotConfiguredError, RailTypeNotSupportedError
+from nemoguardrails.exceptions import (
+    InvalidCheckRequestError,
+    RailTypeNotConfiguredError,
+    RailTypeNotSupportedError,
+)
 from nemoguardrails.rails import LLMRails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType, ToolViolation
@@ -476,11 +480,12 @@ def test_rail_types_invalid_value_returns_422():
     [
         (RailTypeNotConfiguredError("Requested rail type 'output' has no configured rails."), ["output"]),
         (RailTypeNotSupportedError("LLMRails supports input and output rails only, not tool_call"), ["tool_call"]),
+        (InvalidCheckRequestError("tools is read only by a tool_call check"), ["input"]),
     ],
-    ids=["not_configured", "not_supported"],
+    ids=["not_configured", "not_supported", "invalid_check_request"],
 )
-def test_rail_type_errors_return_422(error, rail_types):
-    """A rail type with no configured rails, or one the serving engine cannot run, is a 422 carrying its message."""
+def test_check_request_errors_return_422(error, rail_types):
+    """An unconfigured or unsupported rail type, or contradictory check arguments, give a 422 carrying the message."""
     mock = _mock_rails(RailsResult(status=RailStatus.PASSED, content="hi"))
     mock.check_async = AsyncMock(side_effect=error)
 

@@ -36,6 +36,7 @@ from starlette.responses import JSONResponse, RedirectResponse, StreamingRespons
 
 from nemoguardrails import Guardrails, LLMRails, RailsConfig, utils
 from nemoguardrails.exceptions import (
+    InvalidCheckRequestError,
     InvalidModelConfigurationError,
     InvalidStateError,
     LLMCallException,
@@ -58,6 +59,7 @@ from nemoguardrails.server.exception_handlers import (
     bad_request_error_handler,
     http_exception_handler,
     internal_error_handler,
+    invalid_check_request_error_handler,
     invalid_state_error_handler,
     llm_call_exception_handler,
     model_initialization_error_handler,
@@ -227,6 +229,7 @@ _EXCEPTION_HANDLERS = (
     (StreamingNotSupportedError, bad_request_error_handler),
     (RailTypeNotConfiguredError, rail_type_not_configured_error_handler),
     (RailTypeNotSupportedError, rail_type_not_supported_error_handler),
+    (InvalidCheckRequestError, invalid_check_request_error_handler),
     (InvalidStateError, invalid_state_error_handler),
     (RequestValidationError, validation_error_handler),
     (StarletteHTTPException, http_exception_handler),

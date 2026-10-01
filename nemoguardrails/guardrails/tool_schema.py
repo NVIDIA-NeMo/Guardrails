@@ -31,6 +31,7 @@ Completions is the engine implemented today.
 """
 
 import functools
+import json
 import logging
 import re
 from collections.abc import Iterable
@@ -38,6 +39,8 @@ from dataclasses import dataclass
 from typing import Any, Callable, NamedTuple
 
 import jsonschema
+from jsonschema.exceptions import best_match
+from jsonschema.validators import validator_for
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.rails.llm.options import ToolViolationType
@@ -333,19 +336,40 @@ def validate_arguments(tool: Tool, arguments: dict) -> ArgumentsViolation | None
     if tool.arguments_schema is None:
         return _no_arguments_violation(tool, arguments)
     try:
-        jsonschema.validate(instance=arguments, schema=tool.arguments_schema)
-    except jsonschema.ValidationError as exc:
-        return _schema_mismatch_violation(tool, exc)
+        schema_json = json.dumps(tool.arguments_schema, sort_keys=True)
+    except (TypeError, ValueError) as exc:
+        return _invalid_schema_violation(tool, str(exc))
+    try:
+        validator = _checked_validator(schema_json)
     except jsonschema.SchemaError as exc:
-        # The message quotes the declared schema, which may be operator config, so it stays in the log.
-        log.warning("declared schema for tool '%s' is not valid JSON Schema: %s", tool.key, exc.message)
-        return ArgumentsViolation(
-            violation_type=ToolViolationType.INVALID_TOOL_SCHEMA,
-            reason=f"declared schema for tool '{tool.key}' is not valid JSON Schema",
-        )
+        return _invalid_schema_violation(tool, exc.message)
+    # best_match picks the error jsonschema.validate would have raised.
+    error = best_match(validator.iter_errors(arguments))
+    if error is not None:
+        return _schema_mismatch_violation(tool, error)
     if _schema_accepts_no_arguments(tool.arguments_schema):
         return _no_arguments_violation(tool, arguments)
     return None
+
+
+@functools.lru_cache(maxsize=256)
+def _checked_validator(schema_json: str) -> Any:
+    """A validator for one argument schema, checked against its metaschema once rather than on every call."""
+    # Built from the JSON text, not the caller's dict, so a later change to that dict cannot reach the cache.
+    schema = json.loads(schema_json)
+    validator_class = validator_for(schema)
+    validator_class.check_schema(schema)
+    return validator_class(schema)
+
+
+def _invalid_schema_violation(tool: Tool, detail: str) -> ArgumentsViolation:
+    """The violation for a declared schema that is not JSON Schema, with the detail kept to the log."""
+    # The detail can quote the declared schema, which may be operator config, so it stays in the log.
+    log.warning("declared schema for tool '%s' is not valid JSON Schema: %s", tool.key, detail)
+    return ArgumentsViolation(
+        violation_type=ToolViolationType.INVALID_TOOL_SCHEMA,
+        reason=f"declared schema for tool '{tool.key}' is not valid JSON Schema",
+    )
 
 
 def tool_output_validation(func: Callable[..., Any]) -> Callable[..., Any]:

@@ -27,6 +27,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, List
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.guardrails.guardrails_types import quoted_identity
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, violations_outcome
 from nemoguardrails.guardrails.tool_schema import validate_arguments
 from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
@@ -64,7 +65,7 @@ class ToolCallRailAction(ToolRailAction):
             return ToolViolation(
                 kind="tool_call",
                 violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
-                reason=f"tool call '{name}' is not an allowed tool",
+                reason=f"tool call '{quoted_identity(name)}' is not an allowed tool",
                 tool_call_id=call.id or None,
                 tool_name=name,
                 index=index,

@@ -22,7 +22,7 @@ from enum import Enum
 from typing import Any, Optional, TypeAlias
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.rails.llm.options import ToolViolation
+from nemoguardrails.rails.llm.options import MAX_QUOTED_IDENTITY_LENGTH, ToolViolation
 from nemoguardrails.types import LLMResponse, UsageInfo
 
 # LLMMessage can contain role/content, plus optional tool_calls / tool_call_id / name; content may be None
@@ -242,6 +242,11 @@ def truncate(text: object, max_len: int | None = None) -> str:
     if len(s) <= limit:
         return s
     return s[:limit] + "..."
+
+
+def quoted_identity(value: object) -> str:
+    """A tool name or call id as a reason quotes it: cut to ``MAX_QUOTED_IDENTITY_LENGTH`` characters."""
+    return truncate(value, MAX_QUOTED_IDENTITY_LENGTH)
 
 
 def serialize_prompt(messages: list[dict]) -> str:

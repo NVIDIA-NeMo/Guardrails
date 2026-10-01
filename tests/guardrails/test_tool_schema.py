@@ -15,10 +15,13 @@
 
 """Unit tests for the tool_schema module (canonical tool types + arg validation)."""
 
+import uuid
 from dataclasses import FrozenInstanceError
 from typing import Any
+from unittest.mock import patch
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.tool_schema import (
@@ -224,6 +227,24 @@ class TestValidateArguments:
         violation = validate_arguments(bad, {})
         assert violation.violation_type is ToolViolationType.INVALID_TOOL_SCHEMA
         assert violation.reason == "declared schema for tool 'bad' is not valid JSON Schema"
+
+    def test_schema_that_is_not_json_is_reported_as_invalid(self):
+        """A schema that cannot be written as JSON, here one holding a set, gives ``invalid_tool_schema``."""
+        odd = Tool(name="odd", arguments_schema={"type": "object", "default": {"a", "b"}})
+        violation = validate_arguments(odd, {})
+        assert violation.violation_type is ToolViolationType.INVALID_TOOL_SCHEMA
+        assert violation.reason == "declared schema for tool 'odd' is not valid JSON Schema"
+
+    def test_a_schema_is_checked_once_however_many_calls_use_it(self):
+        """Validating several calls against one schema checks the schema against its metaschema only once."""
+        # A schema no other test uses, so no earlier validation has cached it.
+        tool = Tool(name="get_weather", arguments_schema={**_WEATHER_SCHEMA, "$comment": str(uuid.uuid4())})
+        check_schema = Draft202012Validator.check_schema
+
+        with patch.object(Draft202012Validator, "check_schema", wraps=check_schema) as schema_checks:
+            violations = [validate_arguments(tool, {"city": city}) for city in ("Paris", "Rome", "Oslo")]
+
+        assert (violations, schema_checks.call_count) == ([None, None, None], 1)
 
 
 _CLOSED_WEATHER_SCHEMA = {

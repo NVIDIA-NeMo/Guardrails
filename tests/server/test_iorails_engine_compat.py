@@ -41,7 +41,12 @@ from nemoguardrails.testing.fake_model import FakeLLMModel
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
 from tests.guardrails.test_tool_rails_iorails import TOOL_CONFIG, WEATHER_TOOL
-from tests.guardrails.tool_helpers import make_tool_conversation, tool_call_turn, wire_tool_call
+from tests.guardrails.tool_helpers import (
+    UNREAD_TOOLS_MESSAGE,
+    make_tool_conversation,
+    tool_call_turn,
+    wire_tool_call,
+)
 
 REASONING_TRACE = "The user asked for a capital city."
 LLM_ANSWER = "Paris."
@@ -443,12 +448,16 @@ def test_check_round_trip_under_iorails_alias(tool_rails_alias, stubbed_main_mod
     stubbed_main_model.assert_not_awaited()
 
 
-@pytest.mark.parametrize("rail_type", ["tool_call", "tool_result"])
-def test_tool_checks_accept_guardrails_context_under_iorails_alias(tool_rails_alias, stubbed_main_model, rail_type):
+@pytest.mark.parametrize(
+    ("rail_type", "tools"), [("tool_call", [WEATHER_TOOL]), ("tool_result", None)], ids=["tool_call", "tool_result"]
+)
+def test_tool_checks_accept_guardrails_context_under_iorails_alias(
+    tool_rails_alias, stubbed_main_model, rail_type, tools
+):
     """The context message the server prepends does not break either tool check."""
     messages = [*tool_call_turn(wire_tool_call()), {"role": "tool", "tool_call_id": "call_1", "content": "18C"}]
 
-    response = _post_check(messages, [rail_type], tools=[WEATHER_TOOL], context={"user_id": "u1"})
+    response = _post_check(messages, [rail_type], tools=tools, context={"user_id": "u1"})
 
     assert response.status_code == 200
     assert response.json()["status"] == "passed"
@@ -461,6 +470,16 @@ def test_result_violation_index_counts_request_messages_under_iorails_alias(tool
     response = _post_check(messages, ["tool_result"], context={"user_id": "u1"})
 
     assert [violation["index"] for violation in response.json()["tool_violations"]] == [2]
+
+
+@pytest.mark.parametrize("rail_types", [None, ["tool_result"]], ids=["auto_detection", "tool_result"])
+def test_check_with_unread_tools_returns_422_under_iorails_alias(tool_rails_alias, stubbed_main_model, rail_types):
+    """IORails refuses tools on a check that runs no tool_call rails with a 422, rather than ignoring them."""
+    response = _post_check(make_tool_conversation(result_name=None), rail_types, tools=[WEATHER_TOOL])
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == UNREAD_TOOLS_MESSAGE
+    stubbed_main_model.assert_not_awaited()
 
 
 # A Colang input rail, which LLMRails runs through its own runtime: the config the server holds when

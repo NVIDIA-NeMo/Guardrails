@@ -3043,6 +3043,14 @@ class TestExtractLatestToolCalls:
 
         assert str(error) == "tool call at index 0 has malformed arguments"
 
+    def test_long_call_id_is_capped_in_the_message_but_kept_whole(self, engine):
+        """A call id, which the model chose, is cut to 64 characters in the message but kept whole as identity."""
+        call_id = "i" * 200
+
+        [error] = engine.extract_latest_tool_calls([assistant_tool_calls(wire_tool_call("f", "not json", call_id))])
+
+        assert (str(error), error.tool_call_id) == (f"tool call '{'i' * 64}...' has malformed arguments", call_id)
+
     @pytest.mark.parametrize(("message", "expected"), list(_UNPARSABLE_CALLS.values()), ids=list(_UNPARSABLE_CALLS))
     def test_unparsable_call_is_returned_as_its_error_in_place(self, engine, message, expected):
         """An unparsable call's error takes its place, naming it without quoting its text; every other call parses."""

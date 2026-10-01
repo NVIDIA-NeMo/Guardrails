@@ -142,6 +142,10 @@ class ToolViolationType(str, Enum):
     PER_TOOL_RAIL = "per_tool_rail"
 
 
+# A tool name or call id is text the model or the caller chose, so a reason or violation keeps at most this much of it.
+MAX_QUOTED_IDENTITY_LENGTH = 64
+
+
 class ToolViolation(BaseModel):
     """One tool call or tool result a tool rail blocked, identified so a caller can act on it."""
 
@@ -176,6 +180,15 @@ class ToolViolation(BaseModel):
     def _string_identity_or_none(cls, value: Any) -> Optional[str]:
         """Store a non-string id or name as None, so a malformed message cannot break building its violation."""
         return value if isinstance(value, str) else None
+
+    @field_validator("tool_name")
+    @classmethod
+    def _capped_tool_name(cls, value: Optional[str]) -> Optional[str]:
+        """Cut a tool name to ``MAX_QUOTED_IDENTITY_LENGTH`` characters, since an undeclared one is model-made."""
+        # The call id stays whole: it is the identity a harness matches the violation on.
+        if value is None or len(value) <= MAX_QUOTED_IDENTITY_LENGTH:
+            return value
+        return value[:MAX_QUOTED_IDENTITY_LENGTH] + "..."
 
 
 class GenerationLogOptions(BaseModel):

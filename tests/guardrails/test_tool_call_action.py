@@ -77,6 +77,16 @@ class TestToolCallRailAction:
         ]
 
     @pytest.mark.asyncio
+    async def test_undeclared_tool_name_is_capped(self):
+        """An undeclared name, which the model made up, is cut to 64 characters in the reason and the violation."""
+        capped = "x" * 64 + "..."
+
+        result = await ToolCallRailAction().run(_toolset(), [_call("x" * 200, {})])
+
+        assert result.reason == f"tool call '{capped}' is not an allowed tool"
+        assert [violation.tool_name for violation in violations_in(result)] == [capped]
+
+    @pytest.mark.asyncio
     async def test_invalid_arguments_are_blocked(self):
         """Schema-invalid arguments block with an ``arguments_invalid`` violation pointing at the failing argument."""
         result = await ToolCallRailAction().run(_toolset(), [_call("get_weather", {})])
