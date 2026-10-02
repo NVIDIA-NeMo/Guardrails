@@ -32,7 +32,8 @@ SDD_SETUP_PRESENT = (
     and check_optional_dependency("presidio_anonymizer")
     and check_optional_dependency("spacy")
 )
-import spacy  # noqa: E402
+if SDD_SETUP_PRESENT:
+    import spacy  # noqa: E402
 
 
 def setup_module(module):
