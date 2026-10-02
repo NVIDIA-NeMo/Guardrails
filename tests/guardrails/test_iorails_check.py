@@ -836,6 +836,80 @@ class TestCheckWithRewritingRails:
         assert result.rail == "content safety check output"
 
 
+@pytest.mark.asyncio
+class TestCheckContentCaptureRecordsMaskedMessages:
+    """Capture records the checked messages as the rails masked them, so a span cannot carry what a mask removed."""
+
+    async def test_an_input_mask_is_captured_masked(self, iorails):
+        """The captured user message is the one the input rails masked."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async([{"role": "user", "content": USER_TEXT}])
+
+        assert capture.call_args.args[1] == [{"role": "user", "content": MASKED_USER_TEXT}]
+
+    async def test_an_output_mask_is_captured_masked(self, iorails):
+        """The captured assistant message is the one the output rails masked."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite(MASKED_BOT_TEXT))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async(CONVERSATION, rail_types=[RailType.OUTPUT])
+
+        assert capture.call_args.args[1] == [
+            {"role": "user", "content": USER_TEXT},
+            {"role": "assistant", "content": MASKED_BOT_TEXT},
+        ]
+
+    async def test_both_masks_are_captured_masked(self, iorails):
+        """With both directions masked, neither raw text reaches the span."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite(MASKED_BOT_TEXT))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async(CONVERSATION)
+
+        assert capture.call_args.args[1] == [
+            {"role": "user", "content": MASKED_USER_TEXT},
+            {"role": "assistant", "content": MASKED_BOT_TEXT},
+        ]
+
+    async def test_an_input_mask_is_captured_masked_when_the_output_blocks(self, iorails):
+        """A block after an input mask still captures the masked user message."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=_unsafe("content safety check output"))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async(CONVERSATION)
+
+        assert capture.call_args.args[1][0] == {"role": "user", "content": MASKED_USER_TEXT}
+
+    async def test_an_unmasked_check_is_captured_as_it_arrived(self, iorails):
+        """With no rewrite, the span records the messages the caller sent."""
+        iorails._content_capture_enabled = True
+        _mock_rails(iorails)
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async(CONVERSATION)
+
+        assert capture.call_args.args[1] == CONVERSATION
+
+    async def test_an_output_mask_leaves_the_callers_messages_unchanged(self, iorails):
+        """Masking for the span copies the conversation rather than editing the caller's list."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite(MASKED_BOT_TEXT))
+        messages = [dict(message) for message in CONVERSATION]
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content"):
+            await iorails.check_async(messages, rail_types=[RailType.OUTPUT])
+
+        assert messages == CONVERSATION
+
+
 class TestUnsatisfiableRailTypes:
     """Requesting a rail type with no configured flows raises RailTypeNotConfiguredError."""
 
