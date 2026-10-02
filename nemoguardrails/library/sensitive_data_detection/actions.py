@@ -90,7 +90,7 @@ def _get_ad_hoc_recognizers(sdd_config: SensitiveDataDetection):
 
     ad_hoc_recognizers = []
     for recognizer in sdd_config.recognizers:
-        ad_hoc_recognizers.append(PatternRecognizer.from_dict(recognizer))
+        ad_hoc_recognizers.append(PatternRecognizer.from_dict(dict(recognizer)))
     return ad_hoc_recognizers
 
 

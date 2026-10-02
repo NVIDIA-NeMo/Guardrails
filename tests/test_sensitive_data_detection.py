@@ -32,6 +32,7 @@ SDD_SETUP_PRESENT = (
     and check_optional_dependency("presidio_anonymizer")
     and check_optional_dependency("spacy")
 )
+import spacy  # noqa: E402
 
 
 def setup_module(module):
@@ -420,3 +421,43 @@ def test_high_score_threshold_disables_rails():
     # This will trigger the input rail
     chat >> "Hi! I am Mr. John!"
     chat << "Hi! My name is John as well."
+
+
+@pytest.mark.skipif(
+    not check_optional_dependency("presidio_analyzer"),
+    reason="presidio_analyzer is not installed.",
+)
+@pytest.mark.unit
+def test_custom_pattern_recognizer_survives_repeated_calls():
+    """
+    From @durgadasepalli
+
+    Regression test: PatternRecognizer.from_dict() mutates the dict
+    it's given in place, replacing "patterns" dicts with Pattern
+    objects. SensitiveDataDetection.recognizers is reused unmodified
+    across every invocation, so a second call used to raise TypeError.
+    Only reproduces with patterns-based recognizers, not deny_list-based
+    ones, which is why the existing suite missed it.
+    """
+    from nemoguardrails.library.sensitive_data_detection.actions import (
+        _get_ad_hoc_recognizers,
+    )
+    from nemoguardrails.rails.llm.config import SensitiveDataDetection
+
+    sdd_config = SensitiveDataDetection(
+        recognizers=[
+            {
+                "name": "Custom ID recognizer",
+                "supported_language": "en",
+                "supported_entity": "CUSTOM_ID",
+                "patterns": [{"name": "custom_id_pattern", "regex": r"ID-\d{4}", "score": 0.9}],
+            }
+        ]
+    )
+
+    first = _get_ad_hoc_recognizers(sdd_config)
+    assert len(first) == 1
+    assert isinstance(sdd_config.recognizers[0]["patterns"][0]["regex"], str)
+
+    second = _get_ad_hoc_recognizers(sdd_config)
+    assert len(second) == 1
