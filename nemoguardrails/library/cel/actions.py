@@ -26,11 +26,19 @@ from nemoguardrails.types import ToolCall
 log = logging.getLogger(__name__)
 
 
+def _tool_options(config: RailsConfig, source: str, tool_name: str) -> Optional[CelOptions]:
+    """Return the tool's CEL options for *source*, or None when none are configured."""
+    cel_config = config.rails.config.cel
+    if cel_config is None:
+        return None
+    return getattr(cel_config, source).get(tool_name)
+
+
 def _evaluate(source: str, tool_name: str, variables: Dict[str, Any], options: Optional[CelOptions]) -> RailOutcome:
     """Evaluate all of a tool's CEL expressions, blocking when any is true.
 
-    A match blocks even if another expression fails. With no match, a failing expression
-    (an error or a non-boolean result) raises, so the rail fails closed.
+    A failing expression (an error or a non-boolean result) raises even if another expression
+    matched, so the rail fails closed.
     """
     metadata: Dict[str, Any] = {"source": source}
     if options is None or not options.compiled_expressions:
@@ -60,11 +68,11 @@ def _evaluate(source: str, tool_name: str, variables: Dict[str, Any], options: O
             log.info("CEL expression matched: %s", expression)
             matched.append(expression)
 
-    if matched:
-        return RailOutcome.block(metadata={**metadata, "matched_expressions": matched})
     if failures:
         details = "; ".join(f"{expression!r}: {type(error).__name__}: {error}" for expression, error in failures)
         raise RuntimeError(f"CEL expressions for tool {tool_name!r} failed: {details}")
+    if matched:
+        return RailOutcome.block(metadata={**metadata, "matched_expressions": matched})
     return RailOutcome.allow(metadata=metadata)
 
 
@@ -94,7 +102,7 @@ async def evaluate_tool_output_cel(
         raise ValueError("source must be 'tool_output'")
 
     tool_name = tool_call.function.name or tool_call.type
-    options = getattr(config.rails.config.cel, source).get(tool_name)
+    options = _tool_options(config, source, tool_name)
     variables = {"args": tool_call.function.arguments, "tool": tool_name}
     return _evaluate(source, tool_name, variables, options)
 
@@ -124,6 +132,6 @@ async def evaluate_tool_input_cel(
         raise ValueError("source must be 'tool_input'")
 
     tool_name = tool_call.function.name or tool_call.type
-    options = getattr(config.rails.config.cel, source).get(tool_name)
+    options = _tool_options(config, source, tool_name)
     variables = {"result": tool_result.content, "args": tool_call.function.arguments, "tool": tool_name}
     return _evaluate(source, tool_name, variables, options)

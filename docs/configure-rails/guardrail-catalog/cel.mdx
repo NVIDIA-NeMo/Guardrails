@@ -35,8 +35,11 @@ To use the CEL rail, you should:
           tool_output:
             run_shell:
               expressions:
-                - 'args.command.matches("(?i)\\brm\\s+-[a-z]*r[a-z]*f")'
-                - 'has(args.cwd) && args.cwd.startsWith("/etc")'
+                - 'args.command.matches("(?i)\\brm\\s+-[a-z]*(r[a-z]*f|f[a-z]*r)")'
+            write_file:
+              expressions:
+                - 'args.path.startsWith("/etc/") || args.path.startsWith("/root/")'
+                - 'has(args.mode) && args.mode == "append" && args.path.endsWith(".bashrc")'
           tool_input:
             run_shell:
               expressions:
@@ -51,6 +54,8 @@ To use the CEL rail, you should:
         per_tool:
           run_shell:
             - "cel check tool output"
+          write_file:
+            - "cel check tool output"
       tool_input:
         per_tool:
           run_shell:
@@ -59,7 +64,7 @@ To use the CEL rail, you should:
 
     The `cel check tool output` flow evaluates the tool's `tool_output` expressions against each call to the tool, and the `cel check tool input` flow evaluates its `tool_input` expressions against each result the tool returns. A tool with no expressions configured for a direction is allowed.
 
-3. Declare the tool, either in the main model's `parameters.tools` or per request in `options.llm_params.tools`. `cel check tool output` blocks a call to an undeclared tool before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
+3. Declare the tool in the main model's `parameters.tools`, or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server. `cel check tool output` blocks a call to an undeclared tool before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
 
 The `cel check tool output` and `cel check tool input` rails execute the [`evaluate_tool_output_cel`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/cel/actions.py) and [`evaluate_tool_input_cel`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/cel/actions.py) actions respectively.
 
@@ -85,7 +90,7 @@ The rail evaluates every expression configured for the tool:
 
 - If any expression evaluates to `true`, the rail blocks the tool call or result. The block lists the expressions that matched in its `matched_expressions` metadata. The metadata never includes the checked arguments or content.
 - If no expression evaluates to `true`, the rail allows the tool call or result.
-- If an expression fails to evaluate, for example because it reads an argument the call did not include, or it returns a value that is not a boolean, the rail logs a warning and continues with the remaining expressions. A match from another expression still blocks. If no expression matched, the rail fails closed: the tool call or result is blocked and reported as a rail failure rather than a policy decision, and the logged error lists each expression that failed and why.
+- If any expression fails to evaluate, for example because it reads an argument the call did not include, or it returns a value that is not a boolean, the rail fails closed, even if another expression matched. The tool call or result is blocked and reported as a rail failure rather than a policy decision, and the logged error lists each expression that failed and why.
 
 ## Write Expressions
 
@@ -93,7 +98,7 @@ Expressions use [CEL syntax](https://github.com/google/cel-spec/blob/master/doc/
 
 When you write expressions, keep the following in mind:
 
-- Guard optional arguments with `has()`, for example `has(args.cwd) && args.cwd.startsWith("/etc")`. Without the guard, a call that omits the argument fails to evaluate.
+- Guard optional arguments with `has()`, for example `has(args.mode) && args.mode == "append"`. Without the guard, a call that omits the argument fails to evaluate.
 - If a tool can return either a string or a list of content blocks, check the type first, for example `type(result) == string && result.contains("password")`.
 - Each expression must evaluate to a boolean. An expression such as `args.command` that returns a string fails to evaluate.
 
@@ -101,7 +106,7 @@ The rail checks each expression's syntax when the configuration loads, so a synt
 
 ## Complete Example
 
-The following configuration blocks recursive forced deletes and writes under `/etc` in a `run_shell` tool, and blocks any result that contains a private key:
+The following configuration blocks recursive forced deletes in `run_shell`, writes to `/etc` or `/root` and appends to `.bashrc` through `write_file`, and any `run_shell` result that contains a private key:
 
 ```yaml
 models:
@@ -115,8 +120,11 @@ rails:
       tool_output:
         run_shell:
           expressions:
-            - 'args.command.matches("(?i)\\brm\\s+-[a-z]*r[a-z]*f")'
-            - 'has(args.cwd) && args.cwd.startsWith("/etc")'
+            - 'args.command.matches("(?i)\\brm\\s+-[a-z]*(r[a-z]*f|f[a-z]*r)")'
+        write_file:
+          expressions:
+            - 'args.path.startsWith("/etc/") || args.path.startsWith("/root/")'
+            - 'has(args.mode) && args.mode == "append" && args.path.endsWith(".bashrc")'
       tool_input:
         run_shell:
           expressions:
@@ -125,11 +133,19 @@ rails:
     per_tool:
       run_shell:
         - "cel check tool output"
+      write_file:
+        - "cel check tool output"
   tool_input:
     per_tool:
       run_shell:
         - "cel check tool input"
 ```
+
+<Note>
+
+This configuration doesn't declare `run_shell` or `write_file`. Declare them in the main model's `parameters.tools`, or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server. Otherwise `cel check tool output` blocks every call to them before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the declaration format.
+
+</Note>
 
 ## Schema Validation
 
