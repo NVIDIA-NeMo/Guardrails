@@ -64,7 +64,7 @@ To use the CEL rail, you should:
 
     The `cel check tool output` flow evaluates the tool's `tool_output` expressions against each call to the tool, and the `cel check tool input` flow evaluates its `tool_input` expressions against each result the tool returns. A tool with no expressions configured for a direction is allowed.
 
-3. Declare the tool in the main model's `parameters.tools`, or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server. `cel check tool output` blocks a call to an undeclared tool before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
+3. Declare the tool in the main model's `parameters.tools`, or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server, which the server currently accepts only for non-streaming requests on a configuration with `passthrough: true`. `cel check tool output` blocks a call to an undeclared tool before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
 
 The `cel check tool output` and `cel check tool input` rails execute the [`evaluate_tool_output_cel`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/cel/actions.py) and [`evaluate_tool_input_cel`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/cel/actions.py) actions respectively.
 
@@ -143,7 +143,7 @@ rails:
 
 <Note>
 
-This configuration doesn't declare `run_shell` or `write_file`. Declare them in the main model's `parameters.tools`, or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server. Otherwise `cel check tool output` blocks every call to them before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the declaration format.
+This configuration doesn't declare `run_shell` or `write_file`. Declare them in the main model's `parameters.tools`, or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server, which the server currently accepts only for non-streaming requests on a configuration with `passthrough: true`. Otherwise `cel check tool output` blocks every call to them before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the declaration format.
 
 </Note>
 
