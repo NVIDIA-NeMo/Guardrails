@@ -68,6 +68,16 @@ async def _check_result(config: RailsConfig, content, call: ToolCall = None):
     )
 
 
+# Expressions that compile but fail on a `run_shell` call with only `command` set, keyed by case,
+# with the exception type the evaluation error names.
+_EVALUATION_ERRORS = {
+    "argument_typo": ('args.comand == "rm"', "KeyError"),
+    "variable_typo": ('arg.command == "rm"', "RuntimeError"),
+    "function_typo": ('args.command.lowerAsci() == "rm"', "RuntimeError"),
+    "type_mismatch": ("args.command > 5", "TypeError"),
+}
+
+
 class TestConfig:
     def test_expressions_compile_at_load(self):
         config = _config("tool_output", 'args.command == "ls"', "true")
@@ -76,6 +86,22 @@ class TestConfig:
     def test_syntax_error_fails_the_load(self):
         with pytest.raises(ValueError, match=r"Invalid CEL expression at index 1 \('args.command.matches\('\)"):
             _config("tool_output", "true", "args.command.matches(")
+
+    @pytest.mark.parametrize(
+        "expression",
+        ['args.command == "rm', "args.command ==", "args.command && && true"],
+        ids=["unterminated_string", "dangling_operator", "repeated_operator"],
+    )
+    def test_other_syntax_errors_fail_the_load(self, expression):
+        with pytest.raises(ValueError, match="Invalid CEL expression at index 0"):
+            _config("tool_output", expression)
+
+    @pytest.mark.parametrize(
+        "expression", [expression for expression, _ in _EVALUATION_ERRORS.values()], ids=_EVALUATION_ERRORS.keys()
+    )
+    def test_only_syntax_is_checked_at_load(self, expression):
+        """Typos and type mismatches compile, and are caught only when evaluated (see TestFailures)."""
+        _config("tool_output", expression)
 
     def test_missing_extra_names_it(self, monkeypatch):
         monkeypatch.setitem(sys.modules, "cel", None)
@@ -112,6 +138,12 @@ class TestToolOutput:
     @pytest.mark.asyncio
     async def test_tool_without_expressions_allows(self):
         outcome = await _check_call(_config("tool_output", "true", tool="other_tool"), _shell_call(command="rm"))
+        assert outcome.decision is RailDecision.ALLOW
+
+    @pytest.mark.asyncio
+    async def test_null_cel_section_allows(self):
+        config = RailsConfig.from_content(config={"rails": {"config": {"cel": None}}})
+        outcome = await _check_call(config, _shell_call(command="rm -rf /"))
         assert outcome.decision is RailDecision.ALLOW
 
     @pytest.mark.asyncio
@@ -153,11 +185,17 @@ class TestToolOutput:
 
 class TestFailures:
     @pytest.mark.asyncio
-    async def test_match_blocks_despite_a_failing_expression(self):
+    @pytest.mark.parametrize("expression, error_type", _EVALUATION_ERRORS.values(), ids=_EVALUATION_ERRORS.keys())
+    async def test_evaluation_error_fails_closed(self, expression, error_type):
+        with pytest.raises(RuntimeError) as excinfo:
+            await _check_call(_config("tool_output", expression), _shell_call(command="rm"))
+        assert f"{expression!r}: {error_type}: " in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_failing_expression_raises_despite_a_match(self):
         config = _config("tool_output", 'args.flags.exists(f, f == "--force")', 'args.command == "rm"')
-        outcome = await _check_call(config, _shell_call(command="rm"))
-        assert outcome.decision is RailDecision.BLOCK
-        assert outcome.metadata["matched_expressions"] == ['args.command == "rm"']
+        with pytest.raises(RuntimeError, match="KeyError: 'flags'"):
+            await _check_call(config, _shell_call(command="rm"))
 
     @pytest.mark.asyncio
     async def test_failures_without_a_match_raise_listing_each(self):
@@ -207,6 +245,12 @@ class TestToolInput:
         for content in ([{"type": "text", "text": "password"}], None):
             outcome = await _check_result(config, content)
             assert outcome.decision is RailDecision.ALLOW
+
+    @pytest.mark.asyncio
+    async def test_null_cel_section_allows(self):
+        config = RailsConfig.from_content(config={"rails": {"config": {"cel": None}}})
+        outcome = await _check_result(config, "-----BEGIN RSA PRIVATE KEY-----")
+        assert outcome.decision is RailDecision.ALLOW
 
     @pytest.mark.asyncio
     async def test_args_and_tool_come_from_the_answered_call(self):
