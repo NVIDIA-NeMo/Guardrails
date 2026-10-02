@@ -22,6 +22,7 @@ is_output_safe to control verdicts.
 
 import asyncio
 import logging
+from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -917,6 +918,31 @@ class TestCheckContentCaptureRecordsMaskedMessages:
             await iorails.check_async(CONVERSATION)
 
         assert capture.call_args.args[1][0] == {"role": "user", "content": MASKED_USER_TEXT}
+
+    async def test_an_input_mask_is_captured_masked_when_the_input_blocks(self, iorails):
+        """A block behind the input mask still captures the user message as the mask left it."""
+        iorails._content_capture_enabled = True
+        blocked = replace(_unsafe("content safety check input"), rewrite_before_block=MASKED_USER_TEXT)
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=blocked)
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async([{"role": "user", "content": USER_TEXT}])
+
+        assert capture.call_args.args[1] == [{"role": "user", "content": MASKED_USER_TEXT}]
+
+    async def test_an_output_mask_is_captured_masked_when_the_output_blocks(self, iorails):
+        """A block behind the output mask still captures the checked response as the mask left it."""
+        iorails._content_capture_enabled = True
+        blocked = replace(_unsafe("content safety check output"), rewrite_before_block=MASKED_BOT_TEXT)
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=blocked)
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.check_async(CONVERSATION, rail_types=[RailType.OUTPUT])
+
+        assert capture.call_args.args[1] == [
+            {"role": "user", "content": USER_TEXT},
+            {"role": "assistant", "content": MASKED_BOT_TEXT},
+        ]
 
     async def test_an_unmasked_check_is_captured_as_it_arrived(self, iorails):
         """With no rewrite, the span records the messages the caller sent."""
