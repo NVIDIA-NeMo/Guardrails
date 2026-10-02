@@ -598,6 +598,20 @@ def _rewrite_last_assistant_message(messages: LLMMessages, text: str) -> LLMMess
     raise ValueError("no assistant message to rewrite")
 
 
+def _apply_input_rewrite_before_block(messages: LLMMessages, blocked: RailResult) -> LLMMessages:
+    """Return *messages* with the user turn as the input rails rewrote it before one of them blocked."""
+    if blocked.rewrite_before_block is None:
+        return messages
+    return rewrite_user_message(messages, blocked.rewrite_before_block)
+
+
+def _apply_output_rewrite_before_block(messages: LLMMessages, blocked: RailResult) -> LLMMessages:
+    """Return *messages* with the checked response as the output rails rewrote it before one of them blocked."""
+    if blocked.rewrite_before_block is None:
+        return messages
+    return _rewrite_last_assistant_message(messages, blocked.rewrite_before_block)
+
+
 def _blocked_message(result: RailResult) -> str:
     """The text a blocked turn returns, which says whether the rail broke or fired."""
     if result.failed:
@@ -638,7 +652,7 @@ class _TurnConversation:
 
 @dataclass(frozen=True, slots=True)
 class _GeneratedTurn:
-    """The main model's response and the messages it read, or no response when the rails blocked.
+    """The main model's response and the messages it read, or on a block no response and the messages the rails left.
 
     ``blocked_by`` carries the verdict that stopped the turn, because the caller renders the
     message from it and a rail that broke reads differently from one that fired.
@@ -1138,6 +1152,9 @@ class IORails(BaseGuardrails):
                 messages, req_id, llm_kwargs, input_enabled=input_enabled, records_out=records
             )
 
+        # Before the blocked return, so a block behind a mask still records the masked messages.
+        if conversation is not None:
+            conversation.messages = turn.messages
         if turn.blocked_by is not None:
             return _blocked_return(turn.blocked_by)
 
@@ -1149,8 +1166,6 @@ class IORails(BaseGuardrails):
             # generation bug to the caller as a guardrail decision.
             raise RuntimeError("generation returned no response without naming a blocking rail")
         messages = turn.messages
-        if conversation is not None:
-            conversation.messages = messages
 
         # Log raw content before reasoning extraction and think-token removal
         log.debug("[%s] Raw LLM response: %s", req_id, truncate(response.content))
@@ -1241,7 +1256,8 @@ class IORails(BaseGuardrails):
             log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.INPUT)
-            return _GeneratedTurn(response=None, messages=messages, blocked_by=input_result)
+            rewritten_messages = _apply_input_rewrite_before_block(messages, input_result)
+            return _GeneratedTurn(response=None, messages=rewritten_messages, blocked_by=input_result)
 
         rewritten = _rewritten_user_message(input_result)
         if rewritten is not None:
@@ -1543,6 +1559,8 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
+                    if conversation is not None:
+                        conversation.messages = _apply_input_rewrite_before_block(messages, input_result)
                     return _blocked_check_result(input_result)
                 rewritten = _rewritten_user_message(input_result)
                 if rewritten is not None:
@@ -1571,6 +1589,8 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Output blocked: %s", req_id, display_reason(output_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.OUTPUT)
+                    if conversation is not None:
+                        conversation.messages = _apply_output_rewrite_before_block(messages, output_result)
                     return _blocked_check_result(output_result)
                 rewritten = _rewritten_bot_message(output_result)
                 if rewritten is not None:
@@ -1749,6 +1769,9 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
+                    # The request span records ``messages`` once the stream ends, so a mask applied
+                    # ahead of the block has to reach it before the caller can see the stream close.
+                    messages = _apply_input_rewrite_before_block(messages, input_result)
                     await streaming_handler.push_chunk(
                         self._guardrails_violation_payload(
                             f"Blocked by input rails: {client_reason(input_result)}", "input_rails"

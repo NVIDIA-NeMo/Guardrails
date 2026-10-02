@@ -263,6 +263,18 @@ def _result_after_rewrites(
     return RailResult(RailOutcome.transform([(_REWRITABLE_TARGET[direction], final_text)]), records=records)
 
 
+def _blocked_after_rewrites(
+    blocked: RailResult,
+    original_text: str,
+    final_text: str,
+    records: tuple[RailCallRecord, ...],
+) -> RailResult:
+    """Keep the block as the verdict, and what the rails ahead of it rewrote, so a record of the request keeps a mask."""
+    if final_text == original_text:
+        return replace(blocked, records=records)
+    return replace(blocked, records=records, rewrite_before_block=final_text)
+
+
 def _model_free_record(
     flow: str, rail_type: str, result: RailResult, tool_name: Optional[str] = None
 ) -> RailCallRecord:
@@ -962,7 +974,7 @@ class RailsManager:
             log.debug("[%s] %s flow %s result %s", req_id, direction.value, flow, result)
             if not result.is_safe:
                 log.info("[%s] %s flow %s blocked", req_id, direction.value, flow)
-                return replace(result, records=tuple(collected))
+                return _blocked_after_rewrites(result, original_text, final_text, tuple(collected))
             if result.outcome.is_transform:
                 final_text = _rewritten_text(result.outcome, direction, flow)
                 log.info("[%s] %s flow %s rewrote the text it checked", req_id, direction.value, flow)
