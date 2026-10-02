@@ -1,0 +1,145 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Common Expression Language (CEL)"
+sidebar-title: "Common Expression Language (CEL)"
+description: "Reference for the per-tool rail that blocks tool calls or tool results matching Common Expression Language (CEL) expressions you write per tool."
+content:
+  type: "reference"
+---
+
+The CEL rail checks a tool call's arguments, or a tool result's content, against [Common Expression Language (CEL)](https://cel.dev) expressions that you write per tool. CEL is a small, side-effect-free expression language used for policy rules in systems such as Kubernetes admission policies and Envoy. Each expression evaluates to `true` when the tool is being used in a way you want to block.
+
+Unlike [Regex Detection](/configure-guardrails/guardrail-catalog/community/regex), which matches text patterns, CEL expressions address the structured fields of a tool call directly, so one rule can combine several arguments. Unlike [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check), the check is deterministic and calls no model. It is scoped per tool through the same `rails.tool_output.per_tool` and `rails.tool_input.per_tool` dispatch mechanism as both.
+
+## Installation
+
+The CEL rail requires the optional `cel` extra, which installs the [`common-expression-language`](https://pypi.org/project/common-expression-language/) package and is available on Python 3.11 and later:
+
+```bash
+pip install "nemoguardrails[cel]"
+```
+
+If the extra is not installed, a configuration that uses the CEL rail fails to load with an error naming the extra.
+
+## Configure the Rail
+
+To use the CEL rail, you should:
+
+1. Write the expressions for each tool in the `rails.config.cel` section of the `config.yml` file, under `tool_output` to check tool calls and `tool_input` to check tool results:
+
+    ```yaml
+    rails:
+      config:
+        cel:
+          tool_output:
+            run_shell:
+              expressions:
+                - 'args.command.matches("(?i)\\brm\\s+-[a-z]*r[a-z]*f")'
+                - 'has(args.cwd) && args.cwd.startsWith("/etc")'
+          tool_input:
+            run_shell:
+              expressions:
+                - 'type(result) == string && result.contains("BEGIN RSA PRIVATE KEY")'
+    ```
+
+2. Scope the check to the tool in the `tool_output` and `tool_input` rails sections of the `config.yml` file:
+
+    ```yaml
+    rails:
+      tool_output:
+        per_tool:
+          run_shell:
+            - "cel check tool output"
+      tool_input:
+        per_tool:
+          run_shell:
+            - "cel check tool input"
+    ```
+
+    The `cel check tool output` flow evaluates the tool's `tool_output` expressions against each call to the tool, and the `cel check tool input` flow evaluates its `tool_input` expressions against each result the tool returns. A tool with no expressions configured for a direction is allowed.
+
+3. Declare the tool, either in the main model's `parameters.tools` or per request in `options.llm_params.tools`. `cel check tool output` blocks a call to an undeclared tool before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
+
+The `cel check tool output` and `cel check tool input` rails execute the [`evaluate_tool_output_cel`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/cel/actions.py) and [`evaluate_tool_input_cel`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/cel/actions.py) actions respectively.
+
+## Expression Variables
+
+Each expression can read the following variables:
+
+| Flow | Variable | Value |
+|---|---|---|
+| `cel check tool output` | `args` | The tool call's arguments, as a map |
+| | `tool` | The tool's name |
+| `cel check tool input` | `result` | The tool result's content, exactly as the tool returned it: a string, a list of content blocks, or `null` |
+| | `args` | The arguments of the tool call that the result answers |
+| | `tool` | The tool's name |
+
+Nested arguments are available at any depth, for example `args.options.recursive` or `args.files.exists(f, f.path.startsWith("/etc"))`.
+
+A tool result that contains JSON text is still a string, so check it with string functions such as `contains()` and `matches()`.
+
+## How Expressions Are Evaluated
+
+The rail evaluates every expression configured for the tool:
+
+- If any expression evaluates to `true`, the rail blocks the tool call or result. The block lists the expressions that matched in its `matched_expressions` metadata. The metadata never includes the checked arguments or content.
+- If no expression evaluates to `true`, the rail allows the tool call or result.
+- If an expression fails to evaluate, for example because it reads an argument the call did not include, or it returns a value that is not a boolean, the rail logs a warning and continues with the remaining expressions. A match from another expression still blocks. If no expression matched, the rail fails closed: the tool call or result is blocked and reported as a rail failure rather than a policy decision, and the logged error lists each expression that failed and why.
+
+## Write Expressions
+
+Expressions use [CEL syntax](https://github.com/google/cel-spec/blob/master/doc/langdef.md), including comparisons, `&&` and `||`, the `in` operator, the `exists()` and `all()` macros, and string functions such as `contains()`, `startsWith()`, `endsWith()`, and `matches()`, which uses RE2 regular expression syntax. The rail also provides the cel-go extension functions, such as `lowerAscii()`, `split()`, and `lists.range()`.
+
+When you write expressions, keep the following in mind:
+
+- Guard optional arguments with `has()`, for example `has(args.cwd) && args.cwd.startsWith("/etc")`. Without the guard, a call that omits the argument fails to evaluate.
+- If a tool can return either a string or a list of content blocks, check the type first, for example `type(result) == string && result.contains("password")`.
+- Each expression must evaluate to a boolean. An expression such as `args.command` that returns a string fails to evaluate.
+
+The rail checks each expression's syntax when the configuration loads, so a syntax error fails the load. A misspelled variable, field, or function, or a type mismatch, is detected only when the expression is evaluated, so test your expressions against representative tool calls and results before deploying them.
+
+## Complete Example
+
+The following configuration blocks recursive forced deletes and writes under `/etc` in a `run_shell` tool, and blocks any result that contains a private key:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+
+rails:
+  config:
+    cel:
+      tool_output:
+        run_shell:
+          expressions:
+            - 'args.command.matches("(?i)\\brm\\s+-[a-z]*r[a-z]*f")'
+            - 'has(args.cwd) && args.cwd.startsWith("/etc")'
+      tool_input:
+        run_shell:
+          expressions:
+            - 'type(result) == string && result.contains("BEGIN RSA PRIVATE KEY")'
+  tool_output:
+    per_tool:
+      run_shell:
+        - "cel check tool output"
+  tool_input:
+    per_tool:
+      run_shell:
+        - "cel check tool input"
+```
+
+## Schema Validation
+
+`cel check tool output` runs behind `@tool_output_validation`: a call to a tool the model has not declared, or whose arguments violate the tool's declared JSON schema, is blocked before any expression is evaluated. `cel check tool input` has no such gate, matching regex detection's asymmetry between the two directions.
+
+## Engine Support
+
+| Flow | LLMRails | IORails |
+|---|:---:|:---:|
+| `cel check tool output` | ✗ | ✓ |
+| `cel check tool input` | ✗ | ✓ |
+
+Per-tool checks are an `IORails`-only capability by design. For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

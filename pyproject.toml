@@ -69,6 +69,8 @@ gcp = ["google-cloud-language (>=2.14.0)"]
 
 jailbreak = ["yara-python (>=4.5.1,<5.0.0)"]
 
+cel = ["common-expression-language (>=0.10.0,<0.11.0) ; python_version>='3.11'"]
+
 multilingual = ["fast-langdetect (>=1.0.0)"]
 
 chat-ui = ["chainlit (>=2.11.0,<3.0.0)"]
@@ -108,6 +110,7 @@ all = [
   "opentelemetry-exporter-prometheus (>=0.63b0,<1.0.0)",
   "prometheus-client (>=0.20.0,<2.0.0)",
   "chainlit (>=2.11.0,<3.0.0)",
+  "common-expression-language (>=0.10.0,<0.11.0) ; python_version>='3.11'",
 ]
 
 [dependency-groups]
@@ -127,6 +130,7 @@ test_integration = [
   "aioresponses>=0.7.6",
   "streamlit>=1.37.0",
   "yara-python>=4.5.1,<5.0.0",
+  "common-expression-language>=0.10.0,<0.11.0 ; python_version>='3.11'",
   "opentelemetry-api>=1.34.1,<2.0.0",
   "opentelemetry-sdk>=1.34.1,<2.0.0",
   "opentelemetry-exporter-prometheus>=0.63b0,<1.0.0",
