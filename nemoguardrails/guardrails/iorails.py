@@ -592,6 +592,16 @@ def _reports_assistant_content(rails_to_run: list[str]) -> bool:
     return "tool_call" in rails_to_run and "input" not in rails_to_run
 
 
+def _rewrite_last_assistant_message(messages: LLMMessages, text: str) -> LLMMessages:
+    """Return a copy of *messages* with the last assistant message's content rewritten to *text*."""
+    for index in range(len(messages) - 1, -1, -1):
+        if messages[index].get("role") == "assistant":
+            rewritten = list(messages)
+            rewritten[index] = {**messages[index], "content": text}
+            return rewritten
+    raise ValueError("no assistant message to rewrite")
+
+
 def _blocked_message(result: RailResult) -> str:
     """The text a blocked turn returns, which says whether the rail broke or fired."""
     if result.failed:
@@ -1466,16 +1476,19 @@ class IORails(BaseGuardrails):
     ) -> RailsResult:
         """Queue-worker entry for ``check_async``: wrap the rails in a request span."""
         tracer = self._tracer if self._tracing_enabled else None
+        conversation = _TurnConversation(messages=messages)
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
-                result = await self._do_check(messages, rail_types, req_id, tools=tools)
+                result = await self._do_check(messages, rail_types, req_id, tools=tools, conversation=conversation)
             except Exception:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] check failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
+            # The messages as the rails masked them, as _run_generate captures them. A check's
+            # messages carry the checked response too, so an output mask must reach them as well.
             if self._content_capture_enabled:
-                set_request_content(request_span, messages, result.content)
+                set_request_content(request_span, conversation.messages, result.content)
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info(
                 "[%s] check completed time=%.1fms status=%s",
@@ -1492,6 +1505,7 @@ class IORails(BaseGuardrails):
         req_id: str,
         *,
         tools: Optional[list[dict]] = None,
+        conversation: Optional["_TurnConversation"] = None,
     ) -> RailsResult:
         """Core check pipeline: run the requested input, output and tool rails on messages."""
         log.info("[%s] check called", req_id)
@@ -1538,6 +1552,8 @@ class IORails(BaseGuardrails):
                 if rewritten is not None:
                     log.info("[%s] Input rails rewrote the user message", req_id)
                     messages = rewrite_user_message(messages, rewritten)
+                    if conversation is not None:
+                        conversation.messages = messages
                     if not reports_output:
                         pass_content = rewritten
             else:
@@ -1564,6 +1580,9 @@ class IORails(BaseGuardrails):
                 if rewritten is not None:
                     log.info("[%s] Output rails rewrote the response", req_id)
                     pass_content = rewritten
+                    messages = _rewrite_last_assistant_message(messages, rewritten)
+                    if conversation is not None:
+                        conversation.messages = messages
             else:
                 log.info("[%s] Output rails requested but no assistant content to check; skipping", req_id)
 

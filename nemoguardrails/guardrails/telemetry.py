@@ -712,7 +712,8 @@ def set_request_content(
     different values and confuse backends correlating the two.
 
     ``guardrails.request.input`` is always a JSON-encoded list of role/content
-    message objects matching the caller's input.  ``guardrails.request.output``
+    message objects, as the rails left them: after any rewrite, such as a mask,
+    rather than as the caller sent them.  ``guardrails.request.output``
     is the plain string that IORails returned (REFUSAL_MESSAGE on block paths,
     the model's response text on the success path).  ``output_text=None``
     suppresses the output attribute entirely — used by the streaming path when
