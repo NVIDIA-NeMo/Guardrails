@@ -53,6 +53,44 @@
       "title": "AutoAlignRailConfig",
       "type": "object"
     },
+    "CelConfig": {
+      "description": "Configuration for CEL expression checks.",
+      "properties": {
+        "tool_input": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CelOptions"
+          },
+          "description": "Per-tool CEL expressions to check against a tool result, keyed by tool name.",
+          "title": "Tool Input",
+          "type": "object"
+        },
+        "tool_output": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CelOptions"
+          },
+          "description": "Per-tool CEL expressions to check against a tool call, keyed by tool name.",
+          "title": "Tool Output",
+          "type": "object"
+        }
+      },
+      "title": "CelConfig",
+      "type": "object"
+    },
+    "CelOptions": {
+      "description": "CEL expressions to check for one tool.",
+      "properties": {
+        "expressions": {
+          "description": "List of CEL expressions to evaluate, where any that evaluates to true is a match.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Expressions",
+          "type": "array"
+        }
+      },
+      "title": "CelOptions",
+      "type": "object"
+    },
     "ClavataRailConfig": {
       "description": "Configuration data for the Clavata API",
       "properties": {
@@ -1143,6 +1181,17 @@
     "autoalign": {
       "$ref": "#/$defs/AutoAlignRailConfig",
       "description": "Configuration data for the AutoAlign guardrails API."
+    },
+    "cel": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CelConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for CEL expression checks."
     },
     "clavata": {
       "anyOf": [

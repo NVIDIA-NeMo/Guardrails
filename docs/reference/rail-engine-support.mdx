@@ -40,9 +40,9 @@ The following table summarizes surface support by direction:
 | Input | 32 | 32 | 31 |
 | Output | 35 | 35 | 28 |
 | Retrieval | 11 | 11 | 0 |
-| Tool_output | 2 | 0 | 2 |
-| Tool_input | 2 | 0 | 2 |
-| **Total** | **82** | **78** | **63** |
+| Tool_output | 3 | 0 | 3 |
+| Tool_input | 3 | 0 | 3 |
+| **Total** | **84** | **78** | **65** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
 A configuration that declares one routes to `LLMRails` by default.
@@ -160,6 +160,7 @@ Per-tool checks are an `IORails`-only capability by design:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
+| `cel check tool output` | Common Expression Language (CEL) | ✗ | ✓ | IORails-only capability by design |
 | `regex check tool output` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
 | `tool safety check output` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
 
@@ -170,10 +171,11 @@ Per-tool checks are an `IORails`-only capability by design:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
+| `cel check tool input` | Common Expression Language (CEL) | ✗ | ✓ | IORails-only capability by design |
 | `regex check tool input` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
 | `tool safety check input` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
 
-For worked per-tool configuration examples, refer to [Regular Expression Detection Integration](/configure-guardrails/guardrail-catalog/community/regex) (includes the `$argument=` scoping option) and [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check) (an LLM-judged check with `$model=`/`$variant=`).
+For worked per-tool configuration examples, refer to [Regular Expression Detection Integration](/configure-guardrails/guardrail-catalog/community/regex) (includes the `$argument=` scoping option), [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check) (an LLM-judged check with `$model=`/`$variant=`), and [Common Expression Language (CEL)](/configure-guardrails/guardrail-catalog/cel) (deterministic expressions over a tool call's arguments or a tool result's content).
 
 ### Tool Surfaces
 

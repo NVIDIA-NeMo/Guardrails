@@ -127,6 +127,9 @@ navigation:
           - page: Tool Safety Check
             path: configure-rails/guardrail-catalog/tool-safety-check.mdx
             slug: tool-safety-check
+          - page: Common Expression Language (CEL)
+            path: configure-rails/guardrail-catalog/cel.mdx
+            slug: cel
           - page: Hallucinations & Fact-Checking
             path: configure-rails/guardrail-catalog/fact-checking.mdx
             slug: fact-checking
