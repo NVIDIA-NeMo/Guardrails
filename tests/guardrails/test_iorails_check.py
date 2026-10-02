@@ -868,7 +868,7 @@ class TestCheckWithRewritingRails:
 
 @pytest.mark.asyncio
 class TestCheckContentCaptureRecordsMaskedMessages:
-    """Capture records the checked messages as the rails masked them, so a span cannot carry what a mask removed."""
+    """Capture records the checked messages as the rails masked them, so the request span cannot carry what a mask removed."""
 
     async def test_an_input_mask_is_captured_masked(self, iorails):
         """The captured user message is the one the input rails masked."""
