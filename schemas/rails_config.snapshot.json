@@ -542,7 +542,7 @@
             }
           ],
           "default": null,
-          "description": "Base URL for jailbreak detection model. Example: http://localhost:8000/v1",
+          "description": "Base URL for jailbreak detection model. Use HTTPS for remote endpoints. HTTP is allowed only for loopback/local development (e.g., http://localhost:8000/v1).",
           "title": "Nim Base Url"
         },
         "nim_port": {

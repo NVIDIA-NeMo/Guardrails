@@ -15,7 +15,9 @@
 
 import logging
 import os
+from ipaddress import ip_address
 from typing import Optional
+from urllib.parse import urlsplit
 
 from nemoguardrails.manifests.config_schema import (
     Field,
@@ -27,6 +29,21 @@ from nemoguardrails.manifests.config_schema import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _is_loopback_host(host: Optional[str]) -> bool:
+    """Return True when host is localhost or a loopback IP."""
+    if not host:
+        return False
+
+    normalized_host = host.strip().strip("[]").lower()
+    if normalized_host == "localhost":
+        return True
+
+    try:
+        return ip_address(normalized_host).is_loopback
+    except ValueError:
+        return False
 
 
 class JailbreakDetectionConfig(RailConfigBaseModel):
@@ -42,7 +59,11 @@ class JailbreakDetectionConfig(RailConfigBaseModel):
     )
     nim_base_url: Optional[str] = Field(
         default=None,
-        description="Base URL for jailbreak detection model. Example: http://localhost:8000/v1",
+        description=(
+            "Base URL for jailbreak detection model. "
+            "Use HTTPS for remote endpoints. HTTP is allowed only for loopback/local development "
+            "(e.g., http://localhost:8000/v1)."
+        ),
     )
     nim_server_endpoint: Optional[str] = Field(
         default="classify",
@@ -76,7 +97,8 @@ class JailbreakDetectionConfig(RailConfigBaseModel):
         """Migrate deprecated nim_url/nim_port fields to nim_base_url format."""
         if self.nim_url and not self.nim_base_url:
             port = self.nim_port or 8000
-            self.nim_base_url = f"http://{self.nim_url}:{port}/v1"
+            scheme = "http" if _is_loopback_host(self.nim_url) else "https"
+            self.nim_base_url = f"{scheme}://{self.nim_url}:{port}/v1"
         return self
 
     @model_validator(mode="after")
@@ -84,6 +106,13 @@ class JailbreakDetectionConfig(RailConfigBaseModel):
         """Validate URL formats for endpoints."""
         if self.nim_base_url and not self.nim_base_url.startswith(("http://", "https://")):
             raise ValueError(f"nim_base_url must start with 'http://' or 'https://', got '{self.nim_base_url}'")
+        if self.nim_base_url:
+            parsed_nim_base_url = urlsplit(self.nim_base_url)
+            if parsed_nim_base_url.scheme == "http" and not _is_loopback_host(parsed_nim_base_url.hostname):
+                raise ValueError(
+                    "nim_base_url must use 'https://' for non-loopback hosts; "
+                    "plain HTTP is only allowed for localhost/loopback development endpoints"
+                )
         if self.server_endpoint and not self.server_endpoint.startswith(("http://", "https://")):
             raise ValueError(f"server_endpoint must start with 'http://' or 'https://', got '{self.server_endpoint}'")
         return self
