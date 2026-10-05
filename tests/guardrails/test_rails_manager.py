@@ -2542,3 +2542,17 @@ class TestARewriteWithNoTurnToLandOn:
         )
 
         assert len(result.records) == 1
+
+    async def test_the_rewrite_already_applied_is_kept_for_the_record(self, nemoguards_rails_manager):
+        """The block keeps the text the rails ahead of it left, so the record of the request keeps their mask."""
+        nemoguards_rails_manager._rails[(RailDirection.INPUT, CONTENT_SAFETY_INPUT_FLOW)] = StubRail(
+            _mask_user_message("")
+        )
+        nemoguards_rails_manager._rails[(RailDirection.INPUT, TOPIC_SAFETY_INPUT_FLOW)] = StubRail(
+            _mask_user_message(MASKED)
+        )
+
+        result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
+
+        assert result.is_safe is False
+        assert result.rewrite_before_block == ""
