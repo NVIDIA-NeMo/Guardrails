@@ -57,6 +57,22 @@ def test_guarded_message_preserves_role_and_content():
     assert GuardedMessage("assistant", "answer").content == "answer"
 
 
+@pytest.mark.parametrize("role", ["tool", "system", "User", "", None])
+def test_guarded_message_rejects_undeclared_roles(role):
+    """Reject roles outside the provider-neutral checker boundary."""
+
+    with pytest.raises(ValueError, match="role"):
+        GuardedMessage(role, "question")
+
+
+@pytest.mark.parametrize("content", [123, None, b"question", object()])
+def test_guarded_message_rejects_non_string_content(content):
+    """Reject content that a checker cannot inspect as text."""
+
+    with pytest.raises(TypeError, match="content must be a string"):
+        GuardedMessage("user", content)
+
+
 def test_output_check_preserves_source_contract():
     """Carry effective input context alongside generated output text."""
 

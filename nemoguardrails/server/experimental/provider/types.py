@@ -25,3 +25,11 @@ class GuardedMessage:
 
     role: Literal["user", "assistant"]
     content: str
+
+    def __post_init__(self) -> None:
+        """Reject roles and content that the checker boundary does not define."""
+
+        if self.role not in ("user", "assistant"):
+            raise ValueError("A guarded message role must be 'user' or 'assistant'.")
+        if not isinstance(self.content, str):
+            raise TypeError("Guarded message content must be a string.")
