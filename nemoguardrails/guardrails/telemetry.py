@@ -701,7 +701,7 @@ def set_request_content(
     input_messages: LLMMessages,
     output_text: Optional[str] = None,
 ) -> None:
-    """Capture caller-facing input/output on the ``guardrails.request`` SERVER span.
+    """Capture the request's input/output on the ``guardrails.request`` SERVER span.
 
     Uses ``guardrails.request.input`` (JSON-encoded input messages) and
     ``guardrails.request.output`` (the text actually returned to the caller)

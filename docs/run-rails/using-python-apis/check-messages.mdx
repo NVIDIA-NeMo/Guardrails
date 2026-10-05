@@ -428,6 +428,7 @@ When your application requires that a rail actually ran, assert that the message
   For more information, refer to [Metric Reference](/observability/metrics/reference).
 - Content capture records the checked messages in `guardrails.request.input` and the returned content in `guardrails.request.output` on the check's request span.
   When an input or output rail rewrites the text it checked, for example to mask personal data, the span records the rewritten messages rather than the ones the caller sent, even when a later rail blocks the check.
+  An output rail that never runs masks nothing: when an input rail blocks first, or `rail_types` leaves out `RailType.OUTPUT`, the span records the checked response as the caller sent it.
   For more information, refer to [Capturing Prompt and Response Content](/observability/tracing/content-capture).
 
 The synchronous `check()` builds a short-lived engine with tracing and metrics disabled, so it emits no spans and no metrics. Use `check_async()` on instrumented paths.
