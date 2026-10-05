@@ -34,7 +34,9 @@ from nemoguardrails.server.experimental._buffered_kernel import (
     OperationCompleted,
     OperationModificationUnsupported,
     OperationProjectionFailed,
-    execute_buffered_operation,
+    PreparedOperationInput,
+    execute_prepared_buffered_operation,
+    prepare_operation_input,
 )
 from nemoguardrails.server.experimental._content_checker import (
     ContentChecker,
@@ -148,12 +150,20 @@ class BufferedHttpResponse:
 
 @dataclass(frozen=True, slots=True)
 class GuardedHttpOperation:
-    """Bind one buffered guarded operation to an owned HTTP path."""
+    """Bind one guarded operation to an owned HTTP path.
+
+    The prepared-request handler is the private response-mode seam used while
+    buffered and streaming transports remain separately injected. It runs only
+    after the shared input projection and check have completed.
+    """
 
     operation_path: GuardedOperationPath
     operation: BufferedGuardedOperation[Any, BufferedHttpResponse]
     prepare_request: Callable[[BufferedHttpRequest], Any] | None = None
     forward_request: Callable[[Any], BufferedHttpRequest] | None = None
+    prepared_request_handler: (
+        Callable[[PreparedOperationInput[Any]], Awaitable[BufferedHttpResponse | Response | None]] | None
+    ) = None
     documented_responses: dict[int | str, dict[str, Any]] | None = None
     guarded_operation_paths: tuple[GuardedOperationPath, ...] = ()
     openapi_extra: dict[str, Any] | None = None
@@ -484,11 +494,24 @@ def _guarded_handler(
                 return _render_failure(
                     OperationProjectionFailed(InspectionStage.INPUT, failure),
                     render_outcome,
+                    request.method,
                 )
-            outcome = await execute_buffered_operation(
+            prepared = await prepare_operation_input(
                 declaration.operation,
                 checker,
                 operation_request,
+            )
+            if not isinstance(prepared, PreparedOperationInput):
+                return _render_failure(prepared, render_outcome, request.method)
+            if declaration.prepared_request_handler is not None:
+                response = await declaration.prepared_request_handler(prepared)
+                if isinstance(response, BufferedHttpResponse):
+                    return _render_response(response, request.method)
+                if response is not None:
+                    return response
+            outcome = await execute_prepared_buffered_operation(
+                declaration.operation,
+                prepared,
                 bounded_dispatch,
             )
         except RequestBodyTooLarge as failure:

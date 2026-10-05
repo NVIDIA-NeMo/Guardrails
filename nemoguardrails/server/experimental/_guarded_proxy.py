@@ -13,18 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Compose provider declarations with the guarded buffered HTTP pipeline."""
+"""Compose provider declarations with the guarded HTTP pipeline."""
 
 from dataclasses import dataclass
 
 from pydantic import ValidationError
 
+from nemoguardrails.server.experimental._buffered_kernel import (
+    InspectionStage,
+    OperationProjectionFailed,
+    PreparedOperationInput,
+)
 from nemoguardrails.server.experimental._guarded_operation import (
     BufferedGuardedOperation,
     ContentInspectionNotApplicable,
     InvalidGuardedPayload,
     UnsupportedGuardedPayload,
     UnsupportedGuardedRepresentation,
+)
+from nemoguardrails.server.experimental._guarded_stream import (
+    StreamInspectionUnsupported,
+    UnsupportedStreamInspection,
 )
 from nemoguardrails.server.experimental._http_kernel import (
     BufferedHttpRequest,
@@ -33,6 +42,7 @@ from nemoguardrails.server.experimental._http_kernel import (
     GuardedOperationPath,
 )
 from nemoguardrails.server.experimental._json_payload import InvalidJson, UnsupportedJsonShape, parse_json_object
+from nemoguardrails.server.experimental._streaming_http import StreamingHttpDispatch, execute_streaming_http
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapping
 from nemoguardrails.server.experimental.provider.payload import GuardedMessageTarget, guarded_schema_error
@@ -47,6 +57,7 @@ class GuardableProviderRequest:
 
     request: BufferedHttpRequest
     target: GuardedMessageTarget
+    streaming: bool = False
 
 
 def _header(headers: tuple[tuple[bytes, bytes], ...], name: bytes) -> str | None:
@@ -99,21 +110,27 @@ def _prepare_guardable_request(
         raise UnsupportedGuardedPayload(
             guarded_schema_error(error, "request"), endpoint.unsupported_request_code
         ) from error
-    if projection.streams_response:
+    streaming = projection.streams_response
+    if streaming and endpoint.stream_adapter_factory is None:
         raise UnsupportedGuardedPayload(
-            "The guarded endpoint does not support streaming responses yet.", endpoint.unsupported_request_code
+            "The guarded endpoint does not support streaming responses.", endpoint.unsupported_request_code
         )
     return GuardableProviderRequest(
         request=request,
         target=target,
+        streaming=streaming,
     )
 
 
-def create_buffered_guarded_http_operation(
+def create_guarded_http_operation(
     endpoint: GuardedJsonEndpoint,
     errors: ProviderErrorMapping,
+    *,
+    stream_dispatch: StreamingHttpDispatch | None = None,
+    max_stream_event_bytes: int,
+    max_pending_stream_bytes: int,
 ) -> GuardedHttpOperation:
-    """Create one buffered HTTP operation from the provider endpoint contract."""
+    """Create one buffered-and-streaming operation from an endpoint contract."""
 
     def prepare_request(request: BufferedHttpRequest) -> GuardableProviderRequest:
         """Prepare one buffered HTTP request for guarded execution."""
@@ -164,6 +181,50 @@ def create_buffered_guarded_http_operation(
         if issubclass(request_model, PolicyModel)
         else request_model.model_json_schema()
     )
+
+    async def handle_prepared_request(
+        prepared_input: PreparedOperationInput[GuardableProviderRequest],
+    ):
+        guardable = prepared_input.request
+        if not guardable.streaming:
+            return None
+        if stream_dispatch is None:
+            return errors.renderer(
+                OperationProjectionFailed(
+                    InspectionStage.INPUT,
+                    UnsupportedGuardedPayload("The guarded endpoint does not have streaming dispatch configured."),
+                )
+            )
+        streaming_policy = prepared_input.resolved.policy.stream_buffering
+        if prepared_input.resolved.policy.inspect_output and streaming_policy is None:
+            return errors.renderer(
+                StreamInspectionUnsupported(
+                    UnsupportedStreamInspection("Guarded output streaming requires a buffering policy.")
+                )
+            )
+        adapter_factory = endpoint.stream_adapter_factory
+        if adapter_factory is None:
+            raise AssertionError("A streaming request requires an endpoint stream adapter.")
+        return await execute_streaming_http(
+            guardable.request,
+            dispatch=stream_dispatch,
+            checker=prepared_input.resolved.checker,
+            streaming_policy=streaming_policy,
+            input_message=guardable.target.message,
+            adapter=adapter_factory(),
+            render_outcome=errors.renderer,
+            max_event_bytes=max_stream_event_bytes,
+            max_pending_bytes=max_pending_stream_bytes,
+        )
+
+    success_content = {"application/json": {"schema": {}}}
+    if endpoint.stream_adapter_factory is not None:
+        success_content["text/event-stream"] = {"schema": {"type": "string"}}
+    documented_responses = errors.documented_responses
+    documented_responses[200] = {
+        "description": "Provider-native successful response.",
+        "content": success_content,
+    }
     openapi_extra = {
         "requestBody": {
             "required": True,
@@ -188,7 +249,8 @@ def create_buffered_guarded_http_operation(
         operation=operation,
         prepare_request=prepare_request,
         forward_request=forward_request,
-        documented_responses=errors.documented_responses,
+        prepared_request_handler=handle_prepared_request,
+        documented_responses=documented_responses,
         guarded_operation_paths=endpoint.operation_paths,
         openapi_extra=openapi_extra,
     )
