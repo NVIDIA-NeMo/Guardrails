@@ -16,6 +16,7 @@
 """Declare provider endpoints handled by the guarded JSON pipeline."""
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from nemoguardrails.server.experimental._http_paths import GuardedOperationPath
@@ -24,6 +25,7 @@ from nemoguardrails.server.experimental.provider.payload import (
     GuardedRequestModel,
     validate_payload_projection_contract,
 )
+from nemoguardrails.server.experimental.provider.stream import ProviderStreamAdapter, StreamProjectionContract
 from nemoguardrails.server.experimental.provider.transport import ProviderApiRevisionBinding
 
 
@@ -42,6 +44,7 @@ class GuardedJsonEndpoint:
     contract_name: str | None = None
     method: str = "POST"
     api_revision: ProviderApiRevisionBinding | None = None
+    stream_adapter_factory: Callable[[], ProviderStreamAdapter] | None = None
     operation_paths: tuple[GuardedOperationPath, ...] = ()
 
     def __post_init__(self) -> None:
@@ -75,3 +78,10 @@ class GuardedJsonEndpoint:
         response_contract = validate_payload_projection_contract(self.guarded_response_model, "response")
         if request_contract.profile != response_contract.profile:
             raise ValueError("Guarded request and response capability profiles must match.")
+        if self.stream_adapter_factory is not None:
+            adapter = self.stream_adapter_factory()
+            required_methods = ("classify_event", "validate_end_of_stream", "encode_error")
+            if any(not callable(getattr(adapter, method, None)) for method in required_methods):
+                raise ValueError("The stream adapter factory must create a provider stream adapter.")
+            if not isinstance(getattr(adapter, "contract", None), StreamProjectionContract):
+                raise ValueError("The stream adapter must declare its stream projection contract.")

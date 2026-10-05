@@ -20,13 +20,14 @@ from collections.abc import Collection, Mapping
 from fastapi import APIRouter
 
 from nemoguardrails.server.experimental._content_checker import ContentChecker
-from nemoguardrails.server.experimental._guarded_proxy import create_buffered_guarded_http_operation
+from nemoguardrails.server.experimental._guarded_proxy import create_guarded_http_operation
 from nemoguardrails.server.experimental._http_kernel import (
     DEFAULT_MAX_REQUEST_BODY_BYTES,
     DEFAULT_MAX_RESPONSE_BODY_BYTES,
     HttpDispatch,
     create_http_proxy_router,
 )
+from nemoguardrails.server.experimental._streaming_http import StreamingHttpDispatch
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import (
     CHAT_COMPLETIONS_ENDPOINT,
 )
@@ -37,14 +38,23 @@ def create_openai_chat_router(
     *,
     checker: ContentChecker,
     dispatch: HttpDispatch,
+    stream_dispatch: StreamingHttpDispatch | None = None,
     reserved_routes: Mapping[str, Collection[str]] | None = None,
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
     max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
 ) -> APIRouter:
-    """Create the private buffered OpenAI Chat proxy surface."""
+    """Create the private buffered and streaming OpenAI Chat proxy surface."""
 
     return create_http_proxy_router(
-        operations=(create_buffered_guarded_http_operation(CHAT_COMPLETIONS_ENDPOINT, OPENAI_ERROR_MAPPING),),
+        operations=(
+            create_guarded_http_operation(
+                CHAT_COMPLETIONS_ENDPOINT,
+                OPENAI_ERROR_MAPPING,
+                stream_dispatch=stream_dispatch,
+                max_stream_event_bytes=max_response_body_bytes,
+                max_pending_stream_bytes=max_response_body_bytes,
+            ),
+        ),
         checker=checker,
         dispatch=dispatch,
         render_outcome=OPENAI_ERROR_MAPPING.renderer,

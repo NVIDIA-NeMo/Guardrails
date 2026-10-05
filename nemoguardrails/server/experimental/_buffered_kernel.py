@@ -91,6 +91,15 @@ class OperationProjectionFailed:
     failure: UnsupportedGuardedPayload
 
 
+@dataclass(frozen=True, slots=True)
+class PreparedOperationInput(Generic[RequestT]):
+    """Carry one projected and inspected input into its response mode."""
+
+    request: RequestT
+    input_message: GuardedMessage
+    resolved: _ResolvedContentChecker
+
+
 def _project_message(
     projection: GuardedMessageProjection[PayloadT],
     payload: PayloadT,
@@ -146,19 +155,18 @@ async def _run_check(
     return _stopped_operation(stage, decision)
 
 
-async def execute_buffered_operation(
+async def prepare_operation_input(
     operation: BufferedGuardedOperation[RequestT, ResponseT],
     checker: ContentChecker | _ResolvedContentChecker,
     request: RequestT,
-    dispatch: Callable[[RequestT], Awaitable[ResponseT]],
 ) -> (
-    OperationCompleted[ResponseT]
+    PreparedOperationInput[RequestT]
     | OperationBlocked
     | OperationCheckFailed
     | OperationModificationUnsupported
     | OperationProjectionFailed
 ):
-    """Execute one buffered operation with exactly one statically bound checker."""
+    """Project and inspect one operation input exactly once."""
 
     validated = checker if isinstance(checker, _ResolvedContentChecker) else validate_content_checker(checker)
     validated_checker = validated.checker
@@ -178,9 +186,25 @@ async def execute_buffered_operation(
         if stopped is not None:
             return stopped
 
-    response = await dispatch(request)
+    return PreparedOperationInput(request, input_message, validated)
 
-    if policy.inspect_output:
+
+async def execute_prepared_buffered_operation(
+    operation: BufferedGuardedOperation[RequestT, ResponseT],
+    prepared: PreparedOperationInput[RequestT],
+    dispatch: Callable[[RequestT], Awaitable[ResponseT]],
+) -> (
+    OperationCompleted[ResponseT]
+    | OperationBlocked
+    | OperationCheckFailed
+    | OperationModificationUnsupported
+    | OperationProjectionFailed
+):
+    """Dispatch and inspect a buffered response for one prepared input."""
+
+    response = await dispatch(prepared.request)
+
+    if prepared.resolved.policy.inspect_output:
         try:
             output_message = _project_message(operation.output_projection, response, "assistant")
         except UnsupportedGuardedPayload as failure:
@@ -189,9 +213,31 @@ async def execute_buffered_operation(
             return OperationCompleted(response)
         stopped = await _run_check(
             InspectionStage.OUTPUT,
-            lambda: validated_checker.check_output(OutputContentCheck(input_message, output_message.content)),
+            lambda: prepared.resolved.checker.check_output(
+                OutputContentCheck(prepared.input_message, output_message.content)
+            ),
         )
         if stopped is not None:
             return stopped
 
     return OperationCompleted(response)
+
+
+async def execute_buffered_operation(
+    operation: BufferedGuardedOperation[RequestT, ResponseT],
+    checker: ContentChecker | _ResolvedContentChecker,
+    request: RequestT,
+    dispatch: Callable[[RequestT], Awaitable[ResponseT]],
+) -> (
+    OperationCompleted[ResponseT]
+    | OperationBlocked
+    | OperationCheckFailed
+    | OperationModificationUnsupported
+    | OperationProjectionFailed
+):
+    """Execute one buffered operation with exactly one statically bound checker."""
+
+    prepared = await prepare_operation_input(operation, checker, request)
+    if not isinstance(prepared, PreparedOperationInput):
+        return prepared
+    return await execute_prepared_buffered_operation(operation, prepared, dispatch)

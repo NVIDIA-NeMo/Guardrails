@@ -83,11 +83,19 @@ class StreamProcessingFailed:
     failure: BaseException
 
 
+@dataclass(frozen=True, slots=True)
+class StreamInspectionUnsupported:
+    """Stop before dispatch when output inspection cannot guard a stream."""
+
+    failure: UnsupportedStreamInspection
+
+
 StreamOutcome = (
     OperationBlocked
     | OperationCheckFailed
     | OperationModificationUnsupported
     | OperationProjectionFailed
+    | StreamInspectionUnsupported
     | StreamUpstreamFailed
     | StreamProcessingFailed
 )

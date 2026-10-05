@@ -15,12 +15,16 @@
 
 """Bind provider-native runtime errors to their documented response models."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel
 
-from nemoguardrails.server.experimental._http_kernel import OutcomeRenderer
+from nemoguardrails.server.experimental._guarded_stream import StreamOutcome
+from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse, HttpOperationFailed, HttpRouteRejected
+
+ProviderOutcomeRenderer = Callable[[StreamOutcome | HttpOperationFailed | HttpRouteRejected], BufferedHttpResponse]
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +40,7 @@ class ProviderErrorResponse:
 class ProviderErrorMapping:
     """Make one provider error authority serve runtime and OpenAPI."""
 
-    renderer: OutcomeRenderer
+    renderer: ProviderOutcomeRenderer
     responses: tuple[ProviderErrorResponse, ...]
 
     def __post_init__(self) -> None:

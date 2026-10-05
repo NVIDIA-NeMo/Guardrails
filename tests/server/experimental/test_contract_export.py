@@ -193,7 +193,7 @@ def test_export_follows_changed_endpoint_metadata(example_endpoint):
 
 def test_http_schema_does_not_require_exportable_unions(example_endpoint):
     """Policy-aware HTTP schemas preserve unions outside the contract format."""
-    from nemoguardrails.server.experimental._guarded_proxy import create_buffered_guarded_http_operation
+    from nemoguardrails.server.experimental._guarded_proxy import create_guarded_http_operation
     from nemoguardrails.server.experimental.provider.projection_policy import constrained
     from nemoguardrails.server.experimental.providers.openai.errors import OPENAI_ERROR_MAPPING
 
@@ -214,7 +214,9 @@ def test_http_schema_does_not_require_exportable_unions(example_endpoint):
     with pytest.raises(ValueError, match="disjoint nullable"):
         export_guard_contract(endpoint)
 
-    operation = create_buffered_guarded_http_operation(endpoint, OPENAI_ERROR_MAPPING)
+    operation = create_guarded_http_operation(
+        endpoint, OPENAI_ERROR_MAPPING, max_stream_event_bytes=1024, max_pending_stream_bytes=1024
+    )
     schema = operation.openapi_extra["requestBody"]["content"]["application/json"]["schema"]
     assert schema["additionalProperties"] is False
     assert schema["properties"]["option"]["anyOf"] == [{"type": "string"}, {"type": "integer"}]
@@ -226,7 +228,7 @@ def test_http_schema_does_not_require_exportable_unions(example_endpoint):
 
 def test_http_schema_supports_models_without_policy_annotations(example_endpoint):
     """Handwritten bindings need not support contract export to construct a route."""
-    from nemoguardrails.server.experimental._guarded_proxy import create_buffered_guarded_http_operation
+    from nemoguardrails.server.experimental._guarded_proxy import create_guarded_http_operation
     from nemoguardrails.server.experimental.providers.openai.errors import OPENAI_ERROR_MAPPING
 
     class PlainRequest(GuardedRequestModel):
@@ -240,7 +242,9 @@ def test_http_schema_supports_models_without_policy_annotations(example_endpoint
     PlainRequest.guarded_text_location = example_endpoint.guarded_request_model.guarded_text_location
     endpoint = replace(example_endpoint, guarded_request_model=PlainRequest)
 
-    operation = create_buffered_guarded_http_operation(endpoint, OPENAI_ERROR_MAPPING)
+    operation = create_guarded_http_operation(
+        endpoint, OPENAI_ERROR_MAPPING, max_stream_event_bytes=1024, max_pending_stream_bytes=1024
+    )
 
     assert operation.openapi_extra["requestBody"]["content"]["application/json"]["schema"] == (
         PlainRequest.model_json_schema()
