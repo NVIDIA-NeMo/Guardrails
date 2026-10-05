@@ -232,11 +232,12 @@ In both cases, if no content was produced, IORails omits the output rather than 
 - Captured content can include PII or other sensitive data. Treat your tracing backend as a system that stores user content, and apply the same access controls and retention limits you would apply to any store of conversation data.
 - Masking rails limit what the request span records, not what the whole trace records.
   `guardrails.request.input` records the turn a masking rail checked as the rail rewrote it, even when a later rail blocks the request.
-  Earlier turns of the conversation, which no rail checks, are recorded as the caller sent them.
-  When no mask reaches the request, `guardrails.request.input` records the turn as the caller sent it: the masking rail fails, a tool-result rail blocks before the input rails run, or a stream closes before its input rails finish.
+  It records earlier turns of the conversation, which no rail checks, as the caller sent them.
+  When no mask reaches the request, it records the turn as the caller sent it: the masking rail fails, a tool-result rail blocks before the input rails run, or a stream closes or fails before its input rails finish.
+  On a `check_async()` call, it records the checked response as the caller sent it when no output rail runs to mask it: an input rail blocks first, or `rail_types` leaves out `RailType.OUTPUT`.
   Each `guardrails.rail` span records the input its rail received, so the masking rail's own span carries the text before the mask.
   A rail that calls an LLM also records the prompt it built from that input on the call's own `chat <model>` CLIENT span.
-  On a `check_async()` call, whose conversation includes the checked response, every rail that runs records that response as it was sent.
+  On a `check_async()` call, whose conversation includes the checked response, every rail that runs records that response as the caller sent it.
   On `generate_async()` and `stream_async()`, the protected model's `chat <model>` CLIENT span records its response before an output rail masks it.
 - Use `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false` to force capture off across every service from the environment, regardless of what individual configs request. This is useful as a deployment-wide guardrail for regulated environments.
 - The [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/) recommend against capturing message content by default because of these privacy risks.
