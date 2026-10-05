@@ -41,6 +41,9 @@ from nemoguardrails.server.experimental._http_kernel import (
     HttpDispatchFailed,
     HttpFailureKind,
     HttpOperationFailed,
+    HttpRouteRejected,
+    HttpRouteRejectionKind,
+    _render_response,
     _request_path,
     create_http_proxy_router,
 )
@@ -80,6 +83,13 @@ def project_response(response):
 
 
 def render_test_outcome(outcome):
+    if isinstance(outcome, HttpRouteRejected):
+        status_codes = {
+            HttpRouteRejectionKind.METHOD_NOT_ALLOWED: 405,
+            HttpRouteRejectionKind.NON_CANONICAL_PATH: 422,
+            HttpRouteRejectionKind.INVALID_REQUEST_PATH: 400,
+        }
+        return BufferedHttpResponse(status_codes[outcome.kind], (), outcome.kind.value.encode())
     if isinstance(outcome, HttpOperationFailed):
         status_codes = {
             HttpFailureKind.INVALID_CONTENT_LENGTH: 400,
@@ -471,7 +481,7 @@ def test_guarded_http_path_rejects_path_spanning_parameters():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("content_length", ["invalid", "-1"])
+@pytest.mark.parametrize("content_length", ["invalid", "-1", "+2", " 2", "2,2"])
 async def test_invalid_content_length_is_rendered_without_dispatch(guarded_operation, content_length):
     """Render malformed content lengths without provider dispatch."""
 
@@ -641,3 +651,407 @@ def test_request_path_fallback_percent_encodes_unicode():
     )
 
     assert _request_path(request) == b"/v1/caf%C3%A9"
+
+
+async def asgi_exchange(app, path, raw_path, *, method="POST", headers=(), body=b"{}"):
+    """Deliver a scope without client-side URL or framing normalization."""
+
+    messages = []
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    await app(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": method,
+            "scheme": "http",
+            "path": path,
+            "raw_path": raw_path,
+            "root_path": "",
+            "query_string": b"opaque=query",
+            "headers": list(headers),
+            "server": ("proxy.test", 80),
+            "client": ("127.0.0.1", 1),
+        },
+        receive,
+        send,
+    )
+    return httpx.Response(
+        messages[0]["status"],
+        headers=messages[0]["headers"],
+        content=b"".join(message.get("body", b"") for message in messages[1:]),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["", "/proxy"])
+@pytest.mark.parametrize("method", ["POST", "PUT"])
+@pytest.mark.parametrize(
+    ("path", "raw_path"),
+    [
+        ("/v1/./generate", b"/v1/./generate"),
+        ("/v1/x/../generate", b"/v1/x/../generate"),
+        ("/v1/x/../generate", b"/v1/x/%2e%2e/generate"),
+        ("/../v1/generate", b"/../v1/generate"),
+        ("/v1/generate?", b"/v1/generate%3F"),
+        ("/v1/generate#", b"/v1/generate%23"),
+    ],
+)
+async def test_guarded_url_aliases_are_rendered_before_dispatch(guarded_operation, prefix, method, path, raw_path):
+    """Reject aliases with one mapped outcome before checking or forwarding."""
+
+    checker = StaticChecker()
+    outcomes = []
+
+    async def dispatch(_request):
+        pytest.fail("a guarded URL alias must not reach dispatch")
+
+    def render(outcome):
+        outcomes.append(outcome)
+        return render_test_outcome(outcome)
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation], checker=checker, dispatch=dispatch, render_outcome=render
+        ),
+        prefix=prefix,
+    )
+    response = await asgi_exchange(app, prefix + path, prefix.encode() + raw_path, method=method)
+
+    assert response.status_code == (422 if method == "POST" else 405)
+    assert len(outcomes) == 1
+    assert isinstance(outcomes[0], HttpRouteRejected)
+    assert response.content == outcomes[0].kind.value.encode()
+    if method == "PUT":
+        assert response.headers["allow"] == "POST"
+    assert checker.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "raw_path"),
+    [
+        ("//evil.example/v1/generate", b"//evil.example/v1/generate"),
+        ("/v1\\generate", b"/v1%5Cgenerate"),
+        ("/v1/provider\x00", b"/v1/provider%00"),
+        ("/v1/provider", b"//evil.example/v1/provider"),
+        ("/v1/provider", b"/v1/provider?query"),
+        ("/v1/generate", b"//evil.example/v1/generate"),
+    ],
+)
+async def test_ambiguous_sender_paths_are_rejected(guarded_operation, path, raw_path):
+    """Stop destination-changing path forms independently of sender behavior."""
+
+    async def dispatch(_request):
+        pytest.fail("an ambiguous request path must not reach dispatch")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+        )
+    )
+    response = await asgi_exchange(app, path, raw_path)
+
+    assert response.status_code == 400
+    assert response.content == b"invalid_request_path"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raw_path", [b"/v1/provider%3Fopaque%23fragment", None])
+async def test_unrelated_encoded_delimiters_preserve_scope_path(guarded_operation, raw_path):
+    """Preserve literal decoded delimiters and their encoding outside guarded aliases."""
+
+    dispatched = []
+    checker = StaticChecker()
+
+    async def dispatch(request):
+        dispatched.append(request)
+        return BufferedHttpResponse(200, (), b"opaque")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation], checker=checker, dispatch=dispatch, render_outcome=render_test_outcome
+        )
+    )
+    response = await asgi_exchange(app, "/v1/provider?opaque#fragment", raw_path)
+
+    assert response.status_code == 200
+    assert dispatched[0].path == "/v1/provider?opaque#fragment"
+    assert dispatched[0].raw_path == b"/v1/provider%3Fopaque%23fragment"
+    assert dispatched[0].query == b"opaque=query"
+    assert checker.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/v1/generate", "/v1/provider-owned"])
+@pytest.mark.parametrize(
+    "headers",
+    [
+        ((b"content-length", b"0"),),
+        ((b"content-length", b"999"),),
+        ((b"content-length", b"2"), (b"transfer-encoding", b"chunked")),
+    ],
+)
+async def test_inconsistent_request_framing_stops_before_dispatch(guarded_operation, path, headers):
+    """Reject body length mismatches and conflicting transfer framing on both paths."""
+
+    async def dispatch(_request):
+        pytest.fail("an inconsistently framed request must not reach dispatch")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+        )
+    )
+    response = await asgi_exchange(app, path, path.encode(), headers=headers)
+
+    assert response.status_code == 400
+    assert response.content == b"invalid_content_length"
+
+
+def test_response_framing_is_rebuilt_without_changing_end_to_end_values():
+    """Remove connection metadata and retain encoded bytes and duplicate safe headers."""
+
+    body = b"opaque encoded bytes"
+    response = _render_response(
+        BufferedHttpResponse(
+            200,
+            (
+                (b"Content-Length", b"999"),
+                (b"content-length", b"1"),
+                (b"Transfer-Encoding", b"chunked"),
+                (b"Connection", b"x-remove, Keep-Alive"),
+                (b"X-Remove", b"connection-specific"),
+                (b"keep-alive", b"timeout=5"),
+                (b"content-encoding", b"gzip"),
+                (b"set-cookie", b"first=1"),
+                (b"set-cookie", b"second=2"),
+            ),
+            body,
+        )
+    )
+
+    assert response.body == body
+    assert response.raw_headers == [
+        (b"content-encoding", b"gzip"),
+        (b"set-cookie", b"first=1"),
+        (b"set-cookie", b"second=2"),
+        (b"content-length", str(len(body)).encode()),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("method", "status_code", "length", "expected_length"),
+    [
+        ("HEAD", 200, b"42", "42"),
+        ("GET", 304, b"42", "42"),
+        ("HEAD", 200, b"invalid", None),
+        ("GET", 204, b"42", None),
+        ("GET", 205, b"42", "0"),
+        ("HEAD", 205, b"42", "0"),
+        ("GET", 101, b"42", None),
+    ],
+)
+def test_bodyless_response_framing_preserves_only_valid_representation_lengths(
+    method, status_code, length, expected_length
+):
+    """Suppress forbidden bodies while retaining HEAD and 304 representation metadata."""
+
+    response = _render_response(
+        BufferedHttpResponse(status_code, ((b"content-length", length),), b"not a body"), method
+    )
+
+    assert response.body == b""
+    assert response.headers.get("content-length") == expected_length
+
+
+@pytest.mark.parametrize(
+    "routes",
+    [
+        {"relative": {"GET"}},
+        {"//health": {"GET"}},
+        {"/health/../other": {"GET"}},
+        {"/health?query": {"GET"}},
+        {"/{key:unknown}": {"GET"}},
+        {"/health": set()},
+        {"/health": {"get"}},
+        {"/health": {"BREW"}},
+        {"/health": "GET"},
+    ],
+)
+def test_invalid_reserved_declarations_fail_at_construction(guarded_operation, routes):
+    """Reject reservations that cannot establish deterministic route ownership."""
+
+    with pytest.raises(ValueError, match="reserved HTTP|Reserved HTTP"):
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=lambda _request: None,
+            render_outcome=render_test_outcome,
+            reserved_routes=routes,
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("reserved", "path"), [("/", "/.."), ("/health/", "/x/../health/")])
+async def test_application_root_and_trailing_slash_reservations_are_supported(guarded_operation, reserved, path):
+    """Keep application route forms reserved after ownership normalization."""
+
+    async def dispatch(_request):
+        pytest.fail("a reserved application route must not be dispatched")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+            reserved_routes={reserved: {"GET"}},
+        )
+    )
+    response = await asgi_exchange(app, path, path.encode())
+
+    assert response.status_code == 405
+    assert response.headers["allow"] == "GET"
+    assert response.content == b"method_not_allowed"
+
+
+@pytest.mark.parametrize(
+    ("status_code", "headers", "body", "error"),
+    [
+        (700, (), b"", ValueError),
+        (200, (), "text", TypeError),
+        (200, (("header", b"value"),), b"", TypeError),
+        (200, ((b"header", "value"),), b"", TypeError),
+    ],
+)
+def test_buffered_response_rejects_invalid_wire_values(status_code, headers, body, error):
+    """Require status, headers, and body values that the renderer can send."""
+
+    with pytest.raises(error):
+        BufferedHttpResponse(status_code, headers, body)
+
+
+@pytest.mark.parametrize("path", ["relative", "/", "/trailing/", "/{key:unknown}"])
+def test_guarded_path_rejects_invalid_templates(path):
+    """Reject invalid guarded route ownership declarations."""
+
+    with pytest.raises(ValueError, match="guarded HTTP path"):
+        GuardedOperationPath(path)
+
+
+@pytest.mark.parametrize("methods", [frozenset(), frozenset({"post"}), frozenset({"BREW"})])
+def test_guarded_path_rejects_invalid_methods(methods):
+    """Require explicit supported methods for guarded route ownership."""
+
+    with pytest.raises(ValueError, match="Guarded HTTP methods"):
+        GuardedOperationPath("/v1/generate", methods)
+
+
+@pytest.mark.parametrize("limit", [0, -1, True, 1.5])
+@pytest.mark.parametrize("option", ["max_request_body_bytes", "max_response_body_bytes"])
+def test_router_rejects_invalid_buffer_limits(guarded_operation, option, limit):
+    """Require positive integer byte limits before accepting requests."""
+
+    with pytest.raises(ValueError, match="positive integers"):
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=lambda _request: None,
+            render_outcome=render_test_outcome,
+            **{option: limit},
+        )
+
+
+def test_router_rejects_empty_or_duplicate_operation_identities(guarded_operation):
+    """Reject declarations that cannot identify a unique guarded operation."""
+
+    for operations, message in [([], "At least one"), ([guarded_operation, guarded_operation], "names must be unique")]:
+        with pytest.raises(ValueError, match=message):
+            create_http_proxy_router(
+                operations=operations,
+                checker=StaticChecker(),
+                dispatch=lambda _request: None,
+                render_outcome=render_test_outcome,
+            )
+
+
+def test_disjoint_typed_and_static_guarded_routes_can_coexist(guarded_operation):
+    """Allow typed parameters that cannot overlap a static operation path."""
+
+    parameterized = GuardedHttpOperation(
+        GuardedOperationPath("/v1/{key:int}"),
+        BufferedGuardedOperation("test.integer", project_request, project_response),
+    )
+    router = create_http_proxy_router(
+        operations=[parameterized, guarded_operation],
+        checker=StaticChecker(),
+        dispatch=lambda _request: None,
+        render_outcome=render_test_outcome,
+    )
+
+    assert len(router.routes) == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("length", "expected_status"), [("9" * 5000, 413), ("0" * 5000 + "2", 200)])
+async def test_large_content_length_headers_do_not_depend_on_integer_digit_limits(
+    guarded_operation, length, expected_status
+):
+    """Bound large declared lengths before integer conversion and accept leading zeroes."""
+
+    async def dispatch(_request):
+        return BufferedHttpResponse(200, (), b"opaque")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+        )
+    )
+    response = await asgi_exchange(app, "/provider", b"/provider", headers=((b"content-length", length.encode()),))
+
+    assert response.status_code == expected_status
+
+
+@pytest.mark.asyncio
+async def test_head_failures_have_no_response_body(guarded_operation):
+    """Apply HEAD framing to both route and buffering failures."""
+
+    async def dispatch(_request):
+        pytest.fail("a rejected HEAD request must not be dispatched")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=StaticChecker(),
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+        )
+    )
+    for path, expected_status in [("/v1/generate", 405), ("/provider", 400)]:
+        response = await asgi_exchange(app, path, path.encode(), method="HEAD", headers=((b"content-length", b"999"),))
+
+        assert response.status_code == expected_status
+        assert response.content == b""

@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from enum import Enum
 from urllib.parse import quote
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request
 from starlette.convertors import PathConvertor
 from starlette.responses import Response
 from starlette.routing import compile_path
@@ -44,6 +44,19 @@ HTTP_METHODS = ("DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT")
 DEFAULT_MAX_REQUEST_BODY_BYTES = 1024 * 1024
 DEFAULT_MAX_RESPONSE_BODY_BYTES = 10 * 1024 * 1024
 HttpHeaders = tuple[tuple[bytes, bytes], ...]
+_HOP_BY_HOP_HEADERS = frozenset(
+    {
+        b"connection",
+        b"keep-alive",
+        b"proxy-authenticate",
+        b"proxy-authorization",
+        b"proxy-connection",
+        b"te",
+        b"trailer",
+        b"transfer-encoding",
+        b"upgrade",
+    }
+)
 
 
 class RequestBodyTooLarge(Exception):
@@ -60,6 +73,26 @@ class InvalidContentLength(ValueError):
 
 class HttpDispatchFailed(Exception):
     """Report a typed outbound dispatch failure."""
+
+
+class InvalidRequestPath(ValueError):
+    """Reject paths that a sender could reinterpret as a different destination."""
+
+
+class HttpRouteRejectionKind(str, Enum):
+    """Classify proxy-owned route rejections before provider dispatch."""
+
+    METHOD_NOT_ALLOWED = "method_not_allowed"
+    NON_CANONICAL_PATH = "non_canonical_path"
+    INVALID_REQUEST_PATH = "invalid_request_path"
+
+
+@dataclass(frozen=True, slots=True)
+class HttpRouteRejected:
+    """Carry a route rejection and its allowed methods to the response mapping."""
+
+    kind: HttpRouteRejectionKind
+    allowed_methods: frozenset[str] = frozenset()
 
 
 class HttpFailureKind(str, Enum):
@@ -148,7 +181,13 @@ class GuardedHttpOperation:
 
 HttpDispatch = Callable[[BufferedHttpRequest], Awaitable[BufferedHttpResponse]]
 OutcomeRenderer = Callable[
-    [OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | HttpOperationFailed],
+    [
+        OperationBlocked
+        | OperationCheckFailed
+        | OperationModificationUnsupported
+        | HttpOperationFailed
+        | HttpRouteRejected
+    ],
     BufferedHttpResponse,
 ]
 
@@ -215,32 +254,101 @@ def _request_path(request: Request) -> bytes:
     raw_path = request.scope.get("raw_path")
     if isinstance(raw_path, bytes):
         return raw_path
-    return quote(request.url.path, safe="/").encode("ascii")
+    return quote(request.scope["path"], safe="/").encode("ascii")
+
+
+def _normalized_route_path(path: str) -> str:
+    """Normalize ownership checks without changing the forwarded path."""
+
+    segments = []
+    for segment in path.split("/"):
+        if not segment or segment == ".":
+            continue
+        if segment == "..":
+            if segments:
+                segments.pop()
+        else:
+            segments.append(segment)
+    return "/" + "/".join(segments)
+
+
+def _route_path_candidates(path: str) -> frozenset[str]:
+    """Account for decoded delimiters being reparsed by an injected sender."""
+
+    return frozenset(_normalized_route_path(candidate) for candidate in (path, re.split(r"[?#]", path, maxsplit=1)[0]))
+
+
+def _validate_request_path(request: Request) -> None:
+    """Reject network references, backslashes, and path control characters."""
+
+    path = request.scope["path"]
+    raw_path = _request_path(request)
+    if (
+        not path.startswith("/")
+        or path.startswith("//")
+        or "\\" in path
+        or any(ord(character) < 32 or ord(character) == 127 for character in path)
+        or not raw_path.startswith(b"/")
+        or raw_path.startswith(b"//")
+        or any(character < 32 or character == 127 for character in raw_path)
+        or any(character in raw_path for character in (b"\\", b"?", b"#"))
+    ):
+        raise InvalidRequestPath("The request must contain an unambiguous absolute path.")
+
+
+def _validate_reserved_routes(
+    routes: Mapping[str, Collection[str]],
+) -> tuple[tuple[re.Pattern[str], frozenset[str]], ...]:
+    """Validate application route reservations, including root and trailing slash routes."""
+
+    resolved = []
+    for path, methods in routes.items():
+        if (
+            not isinstance(path, str)
+            or not path.startswith("/")
+            or "//" in path
+            or any(character in path for character in ("\\", "?", "#"))
+            or any(segment in {".", ".."} for segment in path.split("/"))
+        ):
+            raise ValueError("A reserved HTTP path must be an unambiguous absolute route template.")
+        try:
+            path_regex, _, _ = compile_path(path.rstrip("/") or "/")
+        except (AssertionError, KeyError, ValueError) as error:
+            raise ValueError("A reserved HTTP path must be a valid route template.") from error
+        if isinstance(methods, (str, bytes)) or not methods or any(method not in HTTP_METHODS for method in methods):
+            raise ValueError("Reserved HTTP methods must be supported uppercase methods.")
+        resolved.append((path_regex, frozenset(methods)))
+    return tuple(resolved)
 
 
 async def _buffer_request(request: Request, max_body_bytes: int) -> BufferedHttpRequest:
     """Read and preserve one request within the configured body limit."""
 
+    _validate_request_path(request)
     content_lengths = request.headers.getlist("content-length")
+    parsed_content_length = None
     if len(content_lengths) > 1:
         raise InvalidContentLength("Content-Length must not be repeated.")
     if content_lengths:
-        try:
-            parsed_content_length = int(content_lengths[0])
-        except ValueError as error:
-            raise InvalidContentLength("Content-Length must be an integer.") from error
-        if parsed_content_length < 0:
-            raise InvalidContentLength("Content-Length must not be negative.")
-        if parsed_content_length > max_body_bytes:
+        if request.headers.getlist("transfer-encoding"):
+            raise InvalidContentLength("Content-Length must not accompany Transfer-Encoding.")
+        if re.fullmatch(r"[0-9]+", content_lengths[0]) is None:
+            raise InvalidContentLength("Content-Length must contain only decimal digits.")
+        digits = content_lengths[0].lstrip("0") or "0"
+        limit = str(max_body_bytes)
+        if len(digits) > len(limit) or (len(digits) == len(limit) and digits > limit):
             raise RequestBodyTooLarge
+        parsed_content_length = int(digits)
     body = bytearray()
     async for chunk in request.stream():
         if len(body) + len(chunk) > max_body_bytes:
             raise RequestBodyTooLarge
         body.extend(chunk)
+    if parsed_content_length is not None and parsed_content_length != len(body):
+        raise InvalidContentLength("Content-Length must match the buffered request body.")
     return BufferedHttpRequest(
         method=request.method,
-        path=request.url.path,
+        path=request.scope["path"],
         raw_path=_request_path(request),
         query=request.scope.get("query_string", b""),
         headers=tuple(request.scope.get("headers", ())),
@@ -248,21 +356,48 @@ async def _buffer_request(request: Request, max_body_bytes: int) -> BufferedHttp
     )
 
 
-def _render_response(value: BufferedHttpResponse) -> Response:
-    """Render a buffered response without normalizing its headers or body."""
+def _render_response(value: BufferedHttpResponse, request_method: str | None = None) -> Response:
+    """Preserve end-to-end values while generating safe downstream framing."""
 
-    response = Response(content=value.body, status_code=value.status_code)
-    response.raw_headers = list(value.headers)
+    connection_tokens = {
+        token.strip().lower()
+        for name, content in value.headers
+        if name.lower() == b"connection"
+        for token in content.split(b",")
+    }
+    excluded = _HOP_BY_HOP_HEADERS | connection_tokens | {b"content-length"}
+    headers = [(name, content) for name, content in value.headers if name.lower() not in excluded]
+    bodyless = request_method == "HEAD" or value.status_code < 200 or value.status_code in {204, 205, 304}
+    response = Response(content=b"" if bodyless else value.body, status_code=value.status_code)
+    if value.status_code == 205:
+        headers.append((b"content-length", b"0"))
+    elif value.status_code == 304 or (
+        request_method == "HEAD" and value.status_code >= 200 and value.status_code != 204
+    ):
+        lengths = [content for name, content in value.headers if name.lower() == b"content-length"]
+        if len(lengths) == 1 and re.fullmatch(rb"[0-9]+", lengths[0]) is not None:
+            headers.append((b"content-length", lengths[0]))
+    elif request_method != "HEAD":
+        headers.extend(response.raw_headers)
+    response.raw_headers = headers
     return response
 
 
 def _render_failure(
-    failure: OperationBlocked | OperationCheckFailed | OperationModificationUnsupported | HttpOperationFailed,
+    failure: OperationBlocked
+    | OperationCheckFailed
+    | OperationModificationUnsupported
+    | HttpOperationFailed
+    | HttpRouteRejected,
     render_outcome: OutcomeRenderer,
+    request_method: str | None = None,
 ) -> Response:
     """Render one operation failure through the configured response mapping."""
 
-    return _render_response(render_outcome(failure))
+    response = _render_response(render_outcome(failure), request_method)
+    if isinstance(failure, HttpRouteRejected) and failure.allowed_methods:
+        response.headers["allow"] = ", ".join(sorted(failure.allowed_methods))
+    return response
 
 
 def _guarded_handler(
@@ -298,25 +433,33 @@ def _guarded_handler(
             return _render_failure(
                 HttpOperationFailed(HttpFailureKind.REQUEST_BODY_TOO_LARGE, failure),
                 render_outcome,
+                request.method,
             )
         except InvalidContentLength as failure:
             return _render_failure(
                 HttpOperationFailed(HttpFailureKind.INVALID_CONTENT_LENGTH, failure),
                 render_outcome,
+                request.method,
+            )
+        except InvalidRequestPath:
+            return _render_failure(
+                HttpRouteRejected(HttpRouteRejectionKind.INVALID_REQUEST_PATH), render_outcome, request.method
             )
         except HttpDispatchFailed as failure:
             return _render_failure(
                 HttpOperationFailed(HttpFailureKind.UPSTREAM_REQUEST_FAILED, failure),
                 render_outcome,
+                request.method,
             )
         except ResponseBodyTooLarge as failure:
             return _render_failure(
                 HttpOperationFailed(HttpFailureKind.RESPONSE_BODY_TOO_LARGE, failure),
                 render_outcome,
+                request.method,
             )
         if isinstance(outcome, OperationCompleted):
-            return _render_response(outcome.response)
-        return _render_failure(outcome, render_outcome)
+            return _render_response(outcome.response, request.method)
+        return _render_failure(outcome, render_outcome, request.method)
 
     return handle
 
@@ -338,14 +481,11 @@ def create_http_proxy_router(
     """
 
     resolved_operations = _validate_operations(operations)
-    if max_request_body_bytes <= 0 or max_response_body_bytes <= 0:
-        raise ValueError("Buffered HTTP body limits must be positive.")
+    if any(type(limit) is not int or limit <= 0 for limit in (max_request_body_bytes, max_response_body_bytes)):
+        raise ValueError("Buffered HTTP body limits must be positive integers.")
     validated_checker = validate_content_checker(checker)
     guarded_matchers = []
-    reserved_matchers = tuple(
-        (compile_path(path)[0], frozenset(method.upper() for method in methods))
-        for path, methods in (reserved_routes or {}).items()
-    )
+    reserved_matchers = _validate_reserved_routes(reserved_routes or {})
     router = APIRouter()
 
     for declaration in resolved_operations:
@@ -370,29 +510,43 @@ def create_http_proxy_router(
     async def passthrough(request: Request, path: str) -> Response:
         """Forward provider-owned routes without content checking."""
 
-        normalized_path = re.sub(r"/+", "/", f"/{path}").rstrip("/") or "/"
+        try:
+            _validate_request_path(request)
+        except InvalidRequestPath:
+            return _render_failure(
+                HttpRouteRejected(HttpRouteRejectionKind.INVALID_REQUEST_PATH), render_outcome, request.method
+            )
+        candidates = _route_path_candidates(f"/{path}")
         reserved_methods = next(
-            (methods for path_regex, methods in reserved_matchers if path_regex.fullmatch(normalized_path) is not None),
+            (
+                methods
+                for path_regex, methods in reserved_matchers
+                if any(path_regex.fullmatch(candidate) is not None for candidate in candidates)
+            ),
             None,
         )
         if reserved_methods is not None:
-            return Response(
-                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                headers={"allow": ", ".join(sorted(reserved_methods))},
+            return _render_failure(
+                HttpRouteRejected(HttpRouteRejectionKind.METHOD_NOT_ALLOWED, reserved_methods),
+                render_outcome,
+                request.method,
             )
         matched_methods = {
             method
             for operation_path in guarded_matchers
-            if operation_path.matches(normalized_path)
+            if any(operation_path.matches(candidate) for candidate in candidates)
             for method in operation_path.methods
         }
         if matched_methods:
             if request.method not in matched_methods:
-                return Response(
-                    status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                    headers={"allow": ", ".join(sorted(matched_methods))},
+                return _render_failure(
+                    HttpRouteRejected(HttpRouteRejectionKind.METHOD_NOT_ALLOWED, frozenset(matched_methods)),
+                    render_outcome,
+                    request.method,
                 )
-            return Response(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
+            return _render_failure(
+                HttpRouteRejected(HttpRouteRejectionKind.NON_CANONICAL_PATH), render_outcome, request.method
+            )
         try:
             buffered_request = await _buffer_request(request, max_request_body_bytes)
             response = await dispatch(buffered_request)
@@ -400,22 +554,26 @@ def create_http_proxy_router(
             return _render_failure(
                 HttpOperationFailed(HttpFailureKind.REQUEST_BODY_TOO_LARGE, failure),
                 render_outcome,
+                request.method,
             )
         except InvalidContentLength as failure:
             return _render_failure(
                 HttpOperationFailed(HttpFailureKind.INVALID_CONTENT_LENGTH, failure),
                 render_outcome,
+                request.method,
             )
         except HttpDispatchFailed as failure:
             return _render_failure(
                 HttpOperationFailed(HttpFailureKind.UPSTREAM_REQUEST_FAILED, failure),
                 render_outcome,
+                request.method,
             )
         if len(response.body) > max_response_body_bytes:
             return _render_failure(
                 HttpOperationFailed(HttpFailureKind.RESPONSE_BODY_TOO_LARGE, ResponseBodyTooLarge()),
                 render_outcome,
+                request.method,
             )
-        return _render_response(response)
+        return _render_response(response, request.method)
 
     return router
