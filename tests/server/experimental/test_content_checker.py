@@ -25,6 +25,7 @@ from nemoguardrails.server.experimental._content_checker import (
     InputContentCheck,
     InvalidContentChecker,
     OutputContentCheck,
+    StreamBufferingPolicy,
     UnsupportedContentCheckerConfiguration,
     UnsupportedContentModification,
     validate_content_check_decision,
@@ -157,3 +158,27 @@ def test_input_check_carries_the_guarded_message():
     message = GuardedMessage("user", "question")
 
     assert InputContentCheck(message).message is message
+
+
+def test_stream_buffering_policy_is_part_of_output_inspection():
+    buffering = StreamBufferingPolicy(chunk_size=2, context_size=1)
+
+    assert ContentInspectionPolicy(True, True, buffering).stream_buffering is buffering
+
+
+@pytest.mark.parametrize(
+    "buffering",
+    [
+        pytest.param(lambda: StreamBufferingPolicy(0, 0), id="zero-chunk"),
+        pytest.param(lambda: StreamBufferingPolicy(1, -1), id="negative-context"),
+        pytest.param(lambda: StreamBufferingPolicy(1, 0, 1), id="non-boolean-release"),
+    ],
+)
+def test_stream_buffering_policy_rejects_invalid_values(buffering):
+    with pytest.raises((TypeError, ValueError)):
+        buffering()
+
+
+def test_stream_buffering_requires_output_inspection():
+    with pytest.raises(ValueError, match="requires output inspection"):
+        ContentInspectionPolicy(True, False, StreamBufferingPolicy(1, 0))

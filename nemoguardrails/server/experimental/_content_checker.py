@@ -34,17 +34,39 @@ class UnsupportedContentModification(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
+class StreamBufferingPolicy:
+    """Declare how guarded stream deltas are checked before release."""
+
+    chunk_size: int
+    context_size: int
+    release_before_check: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.chunk_size, int) or self.chunk_size <= 0:
+            raise ValueError("A stream chunk size must be a positive integer.")
+        if not isinstance(self.context_size, int) or self.context_size < 0:
+            raise ValueError("A stream context size must be a non-negative integer.")
+        if not isinstance(self.release_before_check, bool):
+            raise TypeError("The stream release policy must be a boolean.")
+
+
+@dataclass(frozen=True, slots=True)
 class ContentInspectionPolicy:
     """Record whether a checker examines input and output content."""
 
     inspect_input: bool
     inspect_output: bool
+    stream_buffering: StreamBufferingPolicy | None = None
 
     def __post_init__(self) -> None:
         """Reject non-boolean inspection flags."""
 
         if not isinstance(self.inspect_input, bool) or not isinstance(self.inspect_output, bool):
             raise TypeError("Content inspection flags must be booleans.")
+        if self.stream_buffering is not None and not isinstance(self.stream_buffering, StreamBufferingPolicy):
+            raise TypeError("Stream buffering must be a StreamBufferingPolicy.")
+        if not self.inspect_output and self.stream_buffering is not None:
+            raise ValueError("Stream buffering requires output inspection.")
 
 
 @dataclass(frozen=True, slots=True)
