@@ -85,10 +85,20 @@ def test_output_check_preserves_source_contract():
     assert check.output_content == "answer"
 
 
-def test_source_unsupported_configuration_exception_is_available():
-    """Keep unsupported checker configuration as a value error."""
+def test_checker_validation_propagates_unsupported_configuration():
+    """Let a checker reject its own configuration while reporting its policy."""
 
-    assert issubclass(UnsupportedContentCheckerConfiguration, ValueError)
+    checker = StaticChecker()
+
+    def reject_configuration():
+        raise UnsupportedContentCheckerConfiguration("retrieval rails")
+
+    checker.inspection_policy = reject_configuration
+
+    with pytest.raises(UnsupportedContentCheckerConfiguration, match="retrieval rails") as failure:
+        validate_content_checker(checker)
+
+    assert isinstance(failure.value, ValueError)
 
 
 def test_static_checker_is_validated_once_without_a_resolver():
