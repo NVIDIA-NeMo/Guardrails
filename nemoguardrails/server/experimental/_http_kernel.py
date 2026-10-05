@@ -374,17 +374,25 @@ async def _buffer_request(request: Request, max_body_bytes: int) -> BufferedHttp
     )
 
 
-def _render_response(value: BufferedHttpResponse, request_method: str | None = None) -> Response:
-    """Preserve end-to-end values while generating safe downstream framing."""
+def _end_to_end_headers(headers: HttpHeaders) -> list[tuple[bytes, bytes]]:
+    """Remove connection-specific metadata from buffered and streamed responses."""
 
     connection_tokens = {
         token.strip().lower()
-        for name, content in value.headers
+        for name, content in headers
         if name.lower() == b"connection"
         for token in content.split(b",")
     }
-    excluded = _HOP_BY_HOP_HEADERS | connection_tokens | {b"content-length"}
-    headers = [(name, content) for name, content in value.headers if name.lower() not in excluded]
+    excluded = _HOP_BY_HOP_HEADERS | connection_tokens
+    return [(name, content) for name, content in headers if name.lower() not in excluded]
+
+
+def _render_response(value: BufferedHttpResponse, request_method: str | None = None) -> Response:
+    """Preserve end-to-end values while generating safe downstream framing."""
+
+    headers = [
+        (name, content) for name, content in _end_to_end_headers(value.headers) if name.lower() != b"content-length"
+    ]
     bodyless = request_method == "HEAD" or value.status_code < 200 or value.status_code in {204, 205, 304}
     response = Response(content=b"" if bodyless else value.body, status_code=value.status_code)
     if value.status_code == 205:
