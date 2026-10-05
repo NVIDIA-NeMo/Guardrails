@@ -418,3 +418,65 @@ def test_openai_error_mapping_is_the_openapi_response_authority():
         assert documented["content"]["application/json"]["schema"]["$ref"].endswith(
             f"/{OpenAIProxyErrorResponse.__name__}"
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["", "/proxy"])
+@pytest.mark.parametrize(
+    ("method", "path", "status_code", "code", "allowed"),
+    [
+        ("GET", "/v1/chat/completions", 405, "method_not_allowed", "POST"),
+        ("POST", "/v1//chat/completions", 422, "non_canonical_path", None),
+        ("POST", "/v1/%2e/chat/completions", 422, "non_canonical_path", None),
+        ("GET", "/v1%5Cmodels", 400, "invalid_request_path", None),
+        ("POST", "/health", 405, "method_not_allowed", "GET"),
+    ],
+)
+async def test_route_rejections_use_native_errors_before_checking_or_dispatch(
+    prefix, method, path, status_code, code, allowed
+):
+    """Render native route errors while keeping method metadata and stopping dispatch."""
+
+    checker = StaticChecker()
+
+    async def dispatch(_request):
+        pytest.fail("a rejected route must not reach provider dispatch")
+
+    app = FastAPI()
+    app.include_router(
+        create_openai_chat_router(checker=checker, dispatch=dispatch, reserved_routes={"/health": {"GET"}}),
+        prefix=prefix,
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.request(
+            method, prefix + path, content=_request_body(), headers={"content-type": "application/json"}
+        )
+
+    assert response.status_code == status_code
+    assert response.json()["error"]["code"] == code
+    assert response.headers.get("allow") == allowed
+    assert checker.calls == []
+    assert status_code in {response.status_code for response in OPENAI_ERROR_MAPPING.responses}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("status_code", "body"), [(200, b"{}"), (204, b"")])
+async def test_success_without_guarded_chat_content_fails_provider_projection(status_code, body):
+    """Keep successful-response applicability fail-closed in the Chat binding."""
+
+    checker = StaticChecker()
+
+    async def dispatch(_request):
+        return BufferedHttpResponse(status_code, _json_headers((b"x-provider-secret", b"hidden")), body)
+
+    app = FastAPI()
+    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post(
+            "/v1/chat/completions", content=_request_body(), headers={"content-type": "application/json"}
+        )
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "unsupported_chat_completions_response_shape"
+    assert "x-provider-secret" not in response.headers
+    assert [stage for stage, _check in checker.calls] == ["input"]

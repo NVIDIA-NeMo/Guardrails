@@ -34,6 +34,8 @@ from nemoguardrails.server.experimental._http_kernel import (
     BufferedHttpResponse,
     HttpFailureKind,
     HttpOperationFailed,
+    HttpRouteRejected,
+    HttpRouteRejectionKind,
 )
 from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapping, ProviderErrorResponse
 
@@ -82,10 +84,26 @@ def render_openai_error(
         | OperationModificationUnsupported
         | OperationProjectionFailed
         | HttpOperationFailed
+        | HttpRouteRejected
     ),
 ) -> BufferedHttpResponse:
     """Render one typed proxy outcome with the OpenAI-compatible envelope."""
 
+    if isinstance(outcome, HttpRouteRejected):
+        status_code, error_type, message = {
+            HttpRouteRejectionKind.METHOD_NOT_ALLOWED: (
+                405,
+                "invalid_request_error",
+                "The request method is not allowed.",
+            ),
+            HttpRouteRejectionKind.NON_CANONICAL_PATH: (
+                422,
+                "unsupported_request",
+                "The guarded operation requires its canonical path.",
+            ),
+            HttpRouteRejectionKind.INVALID_REQUEST_PATH: (400, "invalid_request_error", "The request path is invalid."),
+        }[outcome.kind]
+        return _error_response(status_code, message, error_type, outcome.kind.value)
     if isinstance(outcome, OperationBlocked):
         return _error_response(
             400,
@@ -148,7 +166,12 @@ OPENAI_ERROR_MAPPING = ProviderErrorMapping(
         ProviderErrorResponse(
             400,
             OpenAIProxyErrorResponse,
-            "Invalid request framing, malformed JSON, or content rejected by Guardrails.",
+            "Invalid request path or framing, malformed JSON, or content rejected by Guardrails.",
+        ),
+        ProviderErrorResponse(
+            405,
+            OpenAIProxyErrorResponse,
+            "Request method rejected for a guarded or reserved operation.",
         ),
         ProviderErrorResponse(
             413,
@@ -163,7 +186,7 @@ OPENAI_ERROR_MAPPING = ProviderErrorMapping(
         ProviderErrorResponse(
             422,
             OpenAIProxyErrorResponse,
-            "Request shape or configured Guardrails unsupported by the guarded proxy path.",
+            "Request path, shape, or configured Guardrails unsupported by the guarded proxy path.",
         ),
         ProviderErrorResponse(
             502,
