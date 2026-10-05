@@ -1,4 +1,4 @@
-# Chat Completions buffered policy
+# Chat Completions projection policy
 
 The handwritten request and response projection models are the source of truth
 for the buffered field policy. Types express accepted values, annotations express
@@ -37,9 +37,9 @@ validators.
 Streaming classification, stateful hooks, and endpoint construction are outside
 this buffered projection layer.
 
-Existing validation behavior is preserved: omitted disabled fields default to
-null, explicit non-null disabled values fail, `stream` is a strict boolean,
-and response annotations accept only null or an empty list. `n` accepts only the
+Existing buffered validation behavior is preserved: omitted disabled fields
+default to null, explicit non-null disabled values fail, `stream` is a strict
+boolean, and response annotations accept only null or an empty list. `n` accepts only the
 integer `1`; booleans, strings, and floats are rejected. Generic JSON Schema
 and Python validation are not claimed to be interchangeable. Canonical exports
 are closed by default and explicitly declare configurable unknown-field handling
@@ -53,6 +53,39 @@ rejected by default. This schema still does not encode arbitrary Python validato
 The [contract guide](../../../contracts/README.md) defines the document format;
 the [OpenAI boundary summary](../../../contracts/openai/README.md) records its
 scope and provider provenance. Neither is loaded by the models or bindings.
+
+## Streaming declarations
+
+[stream_projection.py](stream_projection.py) uses the same field annotations and
+`ObjectPolicy` for the experimental `single_text_delta.v1` boundary. A chunk
+accepts zero or one choice with a strict integer index of zero, and `logprobs`
+must be null. The root, choice, and delta reject unreviewed members; reviewed
+root metadata such as `id`, `model`, and `usage` passes through unchanged.
+Missing or null content is metadata, while empty string content is still guarded
+text. Error messages are constrained fields, not guarded assistant output. The
+error envelope rejects unreviewed members, and its error object rejects them
+unless trusted configuration allows unknown fields; the stream classifier
+always validates with the closed default.
+
+[stream_classifier.py](stream_classifier.py) owns explicit `StreamEventRule`
+declarations for content and provider errors, along with the opaque `[DONE]`
+sentinel. Field coverage comes from the models; shape coverage comes from event
+rules, missing-text fallbacks, and transport declarations. The shared
+[stream policy helpers](../../../provider/stream_policy.py) derive a text path
+from typed fields, without schema generation, only when there is one subject
+and every traversed array has at most one item. A null container or null text
+on that path is missing text. Union containers and multi-item selectors remain
+explicit event-rule paths. Buffered extraction still requires exactly one item;
+the streaming helper does not relax it.
+
+[stream_hooks.py](stream_hooks.py) remains handwritten. It enforces terminal
+ordering, distinguishes real `[DONE]` events from keepalives, accepts provider
+errors as terminal outcomes, and frames native errors. These checks require
+history and do not belong in field annotations or a stateless classifier.
+
+The projections and classifier can be used independently of endpoint wiring.
+This stage does not bind them to the HTTP endpoint or extend the shared buffered
+contract exporter with streaming declarations.
 
 ## Buffered contract export
 
