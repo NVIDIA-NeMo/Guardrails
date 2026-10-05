@@ -976,24 +976,25 @@ class RailsManager:
                 log.info("[%s] %s flow %s blocked", req_id, direction.value, flow)
                 return _blocked_after_rewrites(result, original_text, final_text, tuple(collected))
             if result.outcome.is_transform:
-                final_text = _rewritten_text(result.outcome, direction, flow)
+                rewritten_text = _rewritten_text(result.outcome, direction, flow)
                 log.info("[%s] %s flow %s rewrote the text it checked", req_id, direction.value, flow)
                 if direction is RailDirection.INPUT:
                     try:
-                        messages = rewrite_user_message(messages, final_text)
+                        messages = rewrite_user_message(messages, rewritten_text)
                     except ValueError:
                         # Blocking keeps a misbehaving rail inside the fail-closed envelope,
                         # rather than failing the request as a server error.
                         log.error(
                             "[%s] %s flow %s rewrote a turn this request does not have", req_id, direction.value, flow
                         )
-                        return RailResult.block(
+                        blocked = RailResult.block(
                             reason="a rail rewrote a message this request does not have",
                             triggered_rail=_get_flow_name(flow) or flow,
-                            records=tuple(collected),
                         )
+                        return _blocked_after_rewrites(blocked, original_text, final_text, tuple(collected))
                 else:
-                    bot_response = final_text
+                    bot_response = rewritten_text
+                final_text = rewritten_text
         return _result_after_rewrites(direction, original_text, final_text, tuple(collected))
 
     async def _run_tool_rails_sequential(
