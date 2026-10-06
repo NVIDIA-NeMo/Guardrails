@@ -89,6 +89,11 @@ class _ClosingStreamingResponse(StreamingResponse):
                     await _close_source(self.source)
 
 
+_BODY_DEPENDENT_HEADERS = frozenset(
+    {b"content-length", b"content-md5", b"content-digest", b"digest", b"etag", b"repr-digest"}
+)
+
+
 def _streaming_response(
     value: StreamingHttpResponse,
     body: AsyncIterator[bytes],
@@ -99,7 +104,7 @@ def _streaming_response(
     response.raw_headers = [
         (name, header_value)
         for name, header_value in _end_to_end_headers(value.headers)
-        if not may_modify or name.lower() != b"content-length"
+        if not may_modify or name.lower() not in _BODY_DEPENDENT_HEADERS
     ]
     return response
 
