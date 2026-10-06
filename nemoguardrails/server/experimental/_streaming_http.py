@@ -20,7 +20,9 @@ import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 
+import anyio
 from starlette.responses import Response, StreamingResponse
+from starlette.types import Receive, Scope, Send
 
 from nemoguardrails.server.experimental._buffered_kernel import InspectionStage, OperationProjectionFailed
 from nemoguardrails.server.experimental._content_checker import ContentChecker, StreamBufferingPolicy
@@ -46,7 +48,11 @@ from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
 @dataclass(frozen=True, slots=True)
 class StreamingHttpResponse:
-    """Carry one successful response without choosing an HTTP client."""
+    """Carry one successful response without choosing an HTTP client.
+
+    The returned HTTP response closes ``body`` when it ends, possibly more than
+    once, so closing ``body`` must be idempotent.
+    """
 
     status_code: int
     headers: HttpHeaders
@@ -64,13 +70,32 @@ class StreamingHttpResponse:
 StreamingHttpDispatch = Callable[[BufferedHttpRequest], Awaitable[StreamingHttpResponse | BufferedHttpResponse]]
 
 
+class _ClosingStreamingResponse(StreamingResponse):
+    """Close the provider body however the response ends, even before iteration."""
+
+    def __init__(self, body: AsyncIterator[bytes], source: AsyncIterator[bytes], *, status_code: int):
+        super().__init__(body, status_code=status_code)
+        self.owned_body = body
+        self.source = source
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            with anyio.CancelScope(shield=True):
+                try:
+                    await _close_source(self.owned_body)
+                finally:
+                    await _close_source(self.source)
+
+
 def _streaming_response(
     value: StreamingHttpResponse,
     body: AsyncIterator[bytes],
     *,
     may_modify: bool,
 ) -> StreamingResponse:
-    response = StreamingResponse(body, status_code=value.status_code)
+    response = _ClosingStreamingResponse(body, value.body, status_code=value.status_code)
     response.raw_headers = [
         (name, header_value)
         for name, header_value in _end_to_end_headers(value.headers)
@@ -137,6 +162,8 @@ async def execute_streaming_http(
 
     if any(type(limit) is not int or limit <= 0 for limit in (max_event_bytes, max_pending_bytes)):
         raise ValueError("Streaming HTTP byte limits must be positive.")
+    if input_message.role != "user":
+        raise ValueError("A guarded stream requires a user input message.")
     if streaming_policy is not None:
         validate_streaming_policy(streaming_policy)
 

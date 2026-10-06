@@ -13,16 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 
+import anyio
 import pytest
 
 from nemoguardrails.server.experimental._buffered_kernel import OperationProjectionFailed
 from nemoguardrails.server.experimental._content_checker import ContentAllowed, StreamBufferingPolicy
 from nemoguardrails.server.experimental._guarded_stream import StreamProcessingFailed, StreamUpstreamFailed
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpRequest, BufferedHttpResponse
-from nemoguardrails.server.experimental._streaming_http import StreamingHttpResponse, execute_streaming_http
-from nemoguardrails.server.experimental.provider.sse import ServerSentEvent
+from nemoguardrails.server.experimental._streaming_http import (
+    StreamingHttpResponse,
+    _ClosingStreamingResponse,
+    execute_streaming_http,
+)
+from nemoguardrails.server.experimental.provider.sse import ServerSentEvent, iter_sse_events
 from nemoguardrails.server.experimental.provider.stream import (
     ClassifiedStreamAdapter,
     GuardedStreamEvent,
@@ -32,6 +38,9 @@ from nemoguardrails.server.experimental.provider.stream import (
     StreamShapeCoverage,
 )
 from nemoguardrails.server.experimental.provider.types import GuardedMessage
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_classifier import STREAM_CLASSIFIER
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_hooks import ChatCompletionsStreamHooks
+from nemoguardrails.server.experimental.providers.openai.errors import render_openai_error
 
 CONTRACT = StreamProjectionContract(
     projection_id="test.stream",
@@ -77,17 +86,20 @@ class Source:
     def __init__(self, chunks):
         self.chunks = iter(chunks)
         self.closed = False
+        self.read_calls = 0
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
+        self.read_calls += 1
         try:
             return next(self.chunks)
         except StopIteration:
             raise StopAsyncIteration
 
     async def aclose(self):
+        await anyio.sleep(0)
         self.closed = True
 
 
@@ -349,4 +361,215 @@ async def test_uninspected_stream_length_mismatch_aborts_and_closes_source(lengt
 
     with pytest.raises(ValueError, match="declared Content-Length"):
         await response_body(response)
+    assert source.closed is True
+
+
+@pytest.mark.asyncio
+async def test_assistant_input_message_is_rejected_before_dispatch():
+    async def dispatch(_request):
+        raise AssertionError("dispatch must not run")
+
+    with pytest.raises(ValueError, match="user input message"):
+        await execute_streaming_http(
+            REQUEST,
+            dispatch=dispatch,
+            checker=Checker(),
+            streaming_policy=StreamBufferingPolicy(1, 0),
+            input_message=GuardedMessage("assistant", "answer"),
+            adapter=ClassifiedStreamAdapter(Classifier(), Hooks()),
+            render_outcome=render_outcome,
+            max_event_bytes=1024,
+            max_pending_bytes=1024,
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy", [None, StreamBufferingPolicy(1, 0)])
+@pytest.mark.parametrize("spec_version", ["2.0", "2.4"])
+@pytest.mark.parametrize("failure_type", ["http.response.start", "http.response.body"])
+async def test_http_send_failure_closes_source(policy, spec_version, failure_type):
+    source = Source([b'data: {"text":"answer"}\n\n'])
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, ((b"content-type", b"text/event-stream"),), source)
+
+    response = await execute(dispatch, policy=policy)
+
+    async def receive():
+        await asyncio.Event().wait()
+
+    async def send(message):
+        if message["type"] == failure_type:
+            raise OSError("downstream disconnected")
+
+    with pytest.raises(Exception):
+        await response({"type": "http", "asgi": {"spec_version": spec_version}}, receive, send)
+
+    assert source.closed is True
+    if failure_type == "http.response.start":
+        assert source.read_calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy", [None, StreamBufferingPolicy(1, 0)])
+async def test_http_disconnect_before_first_iteration_closes_source(policy):
+    source = Source([b"unused"])
+    started = asyncio.Event()
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, ((b"content-type", b"text/event-stream"),), source)
+
+    response = await execute(dispatch, policy=policy)
+
+    async def receive():
+        await started.wait()
+        return {"type": "http.disconnect"}
+
+    async def send(_message):
+        started.set()
+        await asyncio.Event().wait()
+
+    await response({"type": "http", "asgi": {"spec_version": "2.0"}}, receive, send)
+
+    assert source.closed is True
+    assert source.read_calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy", [None, StreamBufferingPolicy(1, 0)])
+async def test_http_task_cancellation_before_first_iteration_closes_source(policy):
+    source = Source([b"unused"])
+    started = asyncio.Event()
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, ((b"content-type", b"text/event-stream"),), source)
+
+    response = await execute(dispatch, policy=policy)
+
+    async def receive():
+        await asyncio.Event().wait()
+
+    async def send(_message):
+        started.set()
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send))
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert source.closed is True
+    assert source.read_calls == 0
+
+
+def openai_block(text, ending=b"\n\n"):
+    payload = {"object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": text}}]}
+    return b"data: " + json.dumps(payload).encode() + ending
+
+
+async def openai_response(source, checker, policy=StreamBufferingPolicy(2, 0)):
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, ((b"content-type", b"text/event-stream"),), source)
+
+    return await execute_streaming_http(
+        REQUEST,
+        dispatch=dispatch,
+        checker=checker,
+        streaming_policy=policy,
+        input_message=GuardedMessage("user", "question"),
+        adapter=ClassifiedStreamAdapter(STREAM_CLASSIFIER, ChatCompletionsStreamHooks()),
+        render_outcome=render_openai_error,
+        max_event_bytes=1024,
+        max_pending_bytes=4096,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ending", [b"\n\r\n", b"\r\n\n", b"\r\r"])
+@pytest.mark.parametrize("fragmented", [False, True])
+async def test_openai_classifier_receives_correct_blocks_and_preserves_bom_and_metadata(ending, fragmented):
+    raw = (
+        b"\xef\xbb\xbf"
+        + openai_block("one ", ending)
+        + b": comment\n\n\n"
+        + openai_block("two", ending)
+        + b"data: [DONE]\n\n"
+    )
+    chunks = [bytes([byte]) for byte in raw] if fragmented else [raw]
+    source = Source(chunks)
+    checker = Checker()
+
+    response = await openai_response(source, checker)
+
+    assert await response_body(response) == raw
+    assert [call.output_content for call in checker.calls] == ["one two"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tail", [openai_block("hidden")[:-2], b"event: unknown", b" "])
+async def test_openai_truncation_hides_pending_text_and_emits_complete_native_error(tail):
+    source = Source([openai_block("pending"), tail])
+    checker = Checker()
+
+    response = await openai_response(source, checker)
+    result = await response_body(response)
+
+    assert b"pending" not in result
+    assert b"hidden" not in result
+    assert result.startswith(b'data: {"error":')
+    assert result.endswith(b"\n\ndata: [DONE]\n\n")
+    assert checker.calls == []
+
+
+@pytest.mark.asyncio
+async def test_openai_comment_tail_is_dropped_after_approved_complete_block():
+    block = openai_block("answer", b"\n\r\n") + b"data: [DONE]\n\n"
+    source = Source([block, b": unfinished comment"])
+    checker = Checker()
+
+    response = await openai_response(source, checker)
+
+    assert await response_body(response) == block
+    assert [call.output_content for call in checker.calls] == ["answer"]
+
+
+@pytest.mark.asyncio
+async def test_openai_error_encoding_is_complete_sse_blocks():
+    chunks = ChatCompletionsStreamHooks().encode_error(b'{"error":{"message":"blocked"}}')
+
+    async def source():
+        for chunk in chunks:
+            yield chunk
+
+    events = [event async for event in iter_sse_events(source())]
+
+    assert b"".join(event.raw for event in events) == b"".join(chunks)
+    assert [event.data for event in events] == [b'{"error":{"message":"blocked"}}', b"[DONE]"]
+
+
+@pytest.mark.asyncio
+async def test_source_is_closed_when_closing_the_body_fails():
+    class FailingBody:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
+
+        async def aclose(self):
+            raise RuntimeError("body cleanup failed")
+
+    source = Source([])
+    response = _ClosingStreamingResponse(FailingBody(), source, status_code=200)
+
+    async def receive():
+        await asyncio.Event().wait()
+
+    async def send(_message):
+        pass
+
+    with pytest.raises(RuntimeError, match="body cleanup failed"):
+        await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+
     assert source.closed is True
