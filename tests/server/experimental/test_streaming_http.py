@@ -573,3 +573,30 @@ async def test_source_is_closed_when_closing_the_body_fails():
         await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
 
     assert source.closed is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy", [None, StreamBufferingPolicy(1, 0)])
+async def test_body_dependent_headers_are_removed_only_when_the_stream_may_change(policy):
+    stream = b'data: {"text":"answer"}\n\ndata: [END]\n\n'
+    body_dependent = (
+        (b"ETag", b'"provider"'),
+        (b"content-md5", b"md5"),
+        (b"digest", b"sha-256=digest"),
+        (b"content-digest", b"sha-256=:digest:"),
+        (b"repr-digest", b"sha-256=:digest:"),
+    )
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(
+            200,
+            ((b"content-type", b"text/event-stream"), (b"x-provider-id", b"stream-id"), *body_dependent),
+            Source([stream]),
+        )
+
+    response = await execute(dispatch, policy=policy)
+
+    assert await response_body(response) == stream
+    assert (b"x-provider-id", b"stream-id") in response.raw_headers
+    forwarded = [header for header in body_dependent if header in response.raw_headers]
+    assert forwarded == ([] if policy is not None else list(body_dependent))
