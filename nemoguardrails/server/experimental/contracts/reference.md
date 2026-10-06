@@ -153,6 +153,11 @@ kind, its role, and its replacement policy. This version supports one kind,
 `text`, because rails currently inspect text only. Other kinds require new
 capability profiles.
 
+A contract declares exactly one `profile`, which governs its request, response,
+and stream. Profiles are not combined: an operation that carries text and images in
+one turn needs its own profile that defines how those subjects relate, rather
+than a text profile and an image profile side by side.
+
 The `single_text.v1` profile identifies one user or assistant text subject.
 Selected native representations do not permit multiple independent subjects.
 Because each direction has exactly one subject, its role currently matches the
