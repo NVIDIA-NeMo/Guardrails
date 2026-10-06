@@ -65,6 +65,10 @@ def _sql_call(query: str, call_id: str = "call_1") -> ToolCall:
     return ToolCall(id=call_id, type="function", function=ToolCallFunction(name="run_sql", arguments={"query": query}))
 
 
+def _call_with_arguments(name: str, arguments: dict, call_id: str) -> ToolCall:
+    return ToolCall(id=call_id, type="function", function=ToolCallFunction(name=name, arguments=arguments))
+
+
 def _other_call(call_id: str = "call_2") -> ToolCall:
     return ToolCall(
         id=call_id, type="function", function=ToolCallFunction(name="list_tables", arguments={"query": "DROP TABLE x"})
@@ -305,6 +309,52 @@ class TestAreToolCallsSafe:
         )
         result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], {})
         assert_result_blocked(result)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("parallel", [False, True], ids=["sequential", "parallel"])
+    @pytest.mark.parametrize(
+        ("calls", "llm_params", "expected"),
+        [
+            (
+                [_sql_call("SELECT 1")],
+                {},
+                call_violation(
+                    "tool_not_allowed",
+                    "tool call 'run_sql' is not an allowed tool",
+                    tool_call_id="call_1",
+                    tool_name="run_sql",
+                    index=0,
+                    rail="regex check tool output",
+                ),
+            ),
+            (
+                [_sql_call("SELECT 1", "call_1"), _call_with_arguments("run_sql", {"query": 5}, "call_2")],
+                _llm_params("run_sql", parameters=_CLOSED_QUERY_SCHEMA),
+                call_violation(
+                    "arguments_invalid",
+                    "arguments for tool 'run_sql' do not match its schema: 'type' failed at '/query'",
+                    tool_call_id="call_2",
+                    tool_name="run_sql",
+                    index=1,
+                    argument_path="/query",
+                    schema_keyword="type",
+                    rail="regex check tool output",
+                ),
+            ),
+        ],
+        ids=["undeclared_tool", "schema_invalid_arguments"],
+    )
+    async def test_per_tool_schema_gate_reports_the_underlying_violation(self, calls, llm_params, expected, parallel):
+        """A per-tool rail's own allowlist and schema gate reports the underlying violation, naming that rail."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]},
+            regex_detection=RUN_SQL_PATTERN_CONFIG,
+            tool_output_parallel=parallel,
+        )
+
+        result = await manager.are_tool_calls_safe(calls, llm_params)
+
+        assert result.tool_violations == (expected,)
 
     @pytest.mark.asyncio
     async def test_global_flow_blocks_before_per_tool_runs(self):

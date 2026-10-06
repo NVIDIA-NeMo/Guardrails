@@ -361,6 +361,15 @@ class TestToolOutputValidation:
         return RailOutcome.allow()
 
     @pytest.mark.asyncio
+    async def test_undeclared_tool_name_is_capped_in_the_reason(self):
+        """An undeclared name, which the model made up, is cut to 64 characters in the block reason."""
+        call = ToolCall(id="call_1", type="function", function=ToolCallFunction(name="x" * 200, arguments={}))
+
+        outcome = await self._action(tool_call=call, tool_definition=None)
+
+        assert outcome.reason == f"tool call '{'x' * 64}...' is not an allowed tool"
+
+    @pytest.mark.asyncio
     async def test_no_argument_name_skips_the_check(self):
         outcome = await self._action(tool_call=_weather_call({"city": "Paris"}), tool_definition=_weather_tool())
         assert outcome == RailOutcome.allow()

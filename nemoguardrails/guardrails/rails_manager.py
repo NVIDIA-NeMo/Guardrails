@@ -40,6 +40,7 @@ from nemoguardrails.guardrails.guardrails_types import (
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, reported_violations, violations_outcome
 from nemoguardrails.guardrails.tool_schema import (
+    ArgumentsViolation,
     DuplicateToolError,
     LatestToolCall,
     Tool,
@@ -47,6 +48,7 @@ from nemoguardrails.guardrails.tool_schema import (
     ToolExchange,
     ToolResult,
     Toolset,
+    schema_gate_violation,
 )
 from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -193,17 +195,30 @@ def _per_tool_violation(
     result: RailResult, direction: SurfaceDirection, tool_call: ToolCall, index: Optional[int]
 ) -> ToolViolation:
     """The violation for the call or result a per-tool rail blocked or broke on, naming that rail."""
-    # A rail that raised did not decide, so it is reported as rail_failed, as the global validators are.
-    violation_type = ToolViolationType.RAIL_FAILED if result.failed else ToolViolationType.PER_TOOL_RAIL
+    category = _per_tool_block_category(result)
     return ToolViolation(
         kind="tool_call" if direction == SurfaceDirection.TOOL_OUTPUT else "tool_result",
-        violation_type=violation_type,
+        violation_type=category.violation_type,
         reason=client_reason(result),
         tool_call_id=tool_call.id or None,
         tool_name=tool_call.function.name or tool_call.type,
         index=index,
+        argument_path=category.argument_path,
+        schema_keyword=category.schema_keyword,
         rail=result.triggered_rail,
     )
+
+
+def _per_tool_block_category(result: RailResult) -> ArgumentsViolation:
+    """The violation type, and any argument path, for a per-tool rail's block or failure."""
+    # A rail that raised did not decide, so it is reported as rail_failed, as the global validators are.
+    if result.failed:
+        return ArgumentsViolation(violation_type=ToolViolationType.RAIL_FAILED, reason=client_reason(result))
+    # The rail's own allowlist or schema gate blocked, so the call is categorized as the global validator would.
+    gate_violation = schema_gate_violation(result.outcome)
+    if gate_violation is not None:
+        return gate_violation
+    return ArgumentsViolation(violation_type=ToolViolationType.PER_TOOL_RAIL, reason=client_reason(result))
 
 
 def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -> str:

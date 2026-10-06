@@ -892,6 +892,14 @@ PER_TOOL_ONLY_CONFIG = {
     },
 }
 
+_CLOSED_RUN_SQL = {
+    "type": "function",
+    "function": {
+        "name": "run_sql",
+        "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "additionalProperties": False},
+    },
+}
+
 
 @pytest_asyncio.fixture
 async def tool_iorails():
@@ -1010,6 +1018,33 @@ class TestCheckToolCalls:
         assert [(v.violation_type, v.argument_path) for v in result.tool_violations] == [
             (ToolViolationType(violation_type), argument_path)
         ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("configured_tool_iorails", "rail"),
+        [(TOOL_CONFIG, "tool call validation"), (PER_TOOL_ONLY_CONFIG, "regex check tool output")],
+        ids=["global_validator", "per_tool_rail_only"],
+        indirect=["configured_tool_iorails"],
+    )
+    @pytest.mark.parametrize(
+        ("arguments", "tools", "expected"),
+        [
+            ('{"query": "SELECT 1"}', [], (ToolViolationType.TOOL_NOT_ALLOWED, None, None)),
+            ('{"query": 5}', [_CLOSED_RUN_SQL], (ToolViolationType.ARGUMENTS_INVALID, "/query", "type")),
+        ],
+        ids=["undeclared_tool", "schema_invalid_arguments"],
+    )
+    async def test_a_bad_call_is_categorized_alike_whichever_rails_check_it(
+        self, configured_tool_iorails, rail, arguments, tools, expected
+    ):
+        """The global validator and a per-tool rail's gate report the same violation; only the rail differs."""
+        result = await configured_tool_iorails.check_async(
+            tool_call_turn(wire_tool_call("run_sql", arguments)), rail_types=[RailType.TOOL_CALL], tools=tools
+        )
+
+        assert [(v.violation_type, v.argument_path, v.schema_keyword) for v in result.tool_violations] == [expected]
+        assert [(v.index, v.tool_call_id) for v in result.tool_violations] == [(0, "call_1")]
+        assert result.rail == rail
 
     @pytest.mark.asyncio
     async def test_undeclared_call_blocks(self, tool_iorails):

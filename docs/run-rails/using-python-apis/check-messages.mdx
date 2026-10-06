@@ -127,7 +127,8 @@ This lets an agent harness validate the tool calls its model produced, and the t
 | `RailType.TOOL_RESULT` | Every `tool` message. Each result must link to exactly one earlier tool call by `tool_call_id`, must not name a different tool than that call, and must carry well-formed content. |
 
 A tool check runs the rails that generation runs for the same direction: the global validator (`tool call validation` or `tool result validation`) and any `per_tool` rails.
-Only the global validator enforces the declared-tool allowlist and argument schemas.
+The global validator enforces the declared-tool allowlist and argument schemas for every call.
+A `per_tool` rail on tool calls enforces them too, but only for the calls it checks, before its own check runs.
 A `per_tool` rail checks only the tools it is listed under, so with `per_tool` rails alone, a call to any other tool, declared or not, passes.
 A tool check never calls the main model.
 
@@ -233,7 +234,7 @@ Switch on `violation_type`, which is a closed set, and never on the `reason` tex
 | `index` | `Optional[int]` | For a call, its position in the last assistant message's `tool_calls`. For a result, the position of its message in `messages` |
 | `argument_path` | `Optional[str]` | For `arguments_invalid`, a JSON Pointer to the failing argument, such as `/city`. A key the schema does not declare appears as `*`. An empty string points at the arguments object itself |
 | `schema_keyword` | `Optional[str]` | For `arguments_invalid`, the JSON Schema keyword that failed, such as `required` |
-| `rail` | `Optional[str]` | For `per_tool_rail` and `rail_failed`, the rail that blocked or failed |
+| `rail` | `Optional[str]` | For `per_tool_rail` and `rail_failed`, the rail that blocked or failed. Also set when a `per_tool` rail's own allowlist or schema check blocked a call, naming that rail |
 
 | `violation_type` | Kind | Meaning |
 |---|---|---|
@@ -254,7 +255,7 @@ Switch on `violation_type`, which is a closed set, and never on the `reason` tex
 | `unlinkable_result` | Result | A `per_tool` rail applies, but the result cannot be linked to exactly one call |
 | `extraction_failed` | Either | The messages could not be read in the main model's wire format |
 | `rail_failed` | Either | A tool rail raised an error instead of deciding. The check returns the internal-error message |
-| `per_tool_rail` | Either | A `per_tool` rail blocked the call or result |
+| `per_tool_rail` | Either | A `per_tool` rail blocked the call or result. When a `per_tool` rail blocks a call for an undeclared tool or schema-invalid arguments, the violation carries that underlying type instead, such as `tool_not_allowed` or `arguments_invalid`, so a call is categorized the same way whichever rails are configured |
 
 An `argument_path` names only what the schema declares: property names from its `properties`, and array indices.
 For a missing required property, it names that property from the schema.

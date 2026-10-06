@@ -43,6 +43,7 @@ from jsonschema.exceptions import best_match
 from jsonschema.validators import validator_for
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.guardrails.guardrails_types import quoted_identity
 from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.types import ToolCall
 
@@ -214,6 +215,34 @@ class ArgumentsViolation:
     reason: str
     argument_path: str | None = None
     schema_keyword: str | None = None
+
+
+# Where tool_output_validation records the allowlist or schema violation it blocked on, so a per-tool rail's
+# block is reported with the same type and argument path the global validator gives the same call.
+SCHEMA_GATE_VIOLATION_KEY = "tool_schema_violation"
+
+
+def _schema_gate_block(violation: ArgumentsViolation) -> RailOutcome:
+    """A block stating *violation*'s reason and carrying its type and argument path in the metadata."""
+    recorded = {
+        "violation_type": violation.violation_type.value,
+        "argument_path": violation.argument_path,
+        "schema_keyword": violation.schema_keyword,
+    }
+    return RailOutcome.block(reason=violation.reason, metadata={SCHEMA_GATE_VIOLATION_KEY: recorded})
+
+
+def schema_gate_violation(outcome: RailOutcome) -> ArgumentsViolation | None:
+    """The violation tool_output_validation blocked *outcome* on, or None when the rail itself decided."""
+    recorded = outcome.metadata.get(SCHEMA_GATE_VIOLATION_KEY)
+    if not isinstance(recorded, dict):
+        return None
+    return ArgumentsViolation(
+        violation_type=ToolViolationType(recorded["violation_type"]),
+        reason=outcome.reason or "",
+        argument_path=recorded.get("argument_path"),
+        schema_keyword=recorded.get("schema_keyword"),
+    )
 
 
 def _no_arguments_violation(tool: Tool, arguments: dict) -> ArgumentsViolation | None:
@@ -388,10 +417,15 @@ def tool_output_validation(func: Callable[..., Any]) -> Callable[..., Any]:
         tool_definition: Tool | None = kwargs["tool_definition"]
         name = tool_call.function.name or tool_call.type
         if tool_definition is None:
-            return RailOutcome.block(reason=f"tool call '{name}' is not an allowed tool")
+            return _schema_gate_block(
+                ArgumentsViolation(
+                    violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+                    reason=f"tool call '{quoted_identity(name)}' is not an allowed tool",
+                )
+            )
         violation = validate_arguments(tool_definition, tool_call.function.arguments)
         if violation is not None:
-            return RailOutcome.block(reason=violation.reason)
+            return _schema_gate_block(violation)
 
         argument_name = kwargs.get("argument_name")
         if argument_name is not None:
