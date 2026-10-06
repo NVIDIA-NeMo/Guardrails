@@ -277,7 +277,7 @@ class TestAreToolResultsSafe:
             per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
         )
-        result = await manager.are_tool_results_safe(self._messages("ssn: 123-45-6789", name=None))
+        result = await manager.are_tool_results_safe(_tool_result_messages("ssn: 123-45-6789", name=None))
         assert result.is_safe is False
         assert result.triggered_rail == "regex check tool input"
         assert [record.flow for record in result.records] == ["tool result validation", "regex check tool input"]
