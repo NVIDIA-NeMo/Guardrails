@@ -1,24 +1,22 @@
 # Guard contract reference
 
-This is the syntax and semantic specification for `1.0.0-alpha.1`
-(experimental). Start with the [README](README.md) for a complete small example
-and the editing workflow. This reference defines what an implementation must
-preserve, not just how the compiler currently generates Python.
+This is the syntax and semantic specification for guard contract version
+`1.0.0-alpha.1` (experimental) in the NVIDIA NeMo Guardrails library. Start with
+the [README](README.md) for a complete small example and the editing workflow.
+This reference defines what an implementation must preserve.
 
 The [authoring schema](guard-contract.schema.json) defines accepted syntax:
 a limited subset of JSON Schema with local `x-nemo-guardrails` annotations.
-Generic JSON Schema tools do not enforce Guardrails-specific semantics.
 
 ## Authority and scope
 
 The pinned provider description owns HTTP paths, source schemas, and provider
-facts. Evidence-backed normalization corrects that description before guard
-policy is interpreted. A guard contract selects a supported boundary; it does
-not redefine the whole provider API or claim to configure all detectors,
-prompts, input/output rails, or deployment settings.
+facts. A guard contract selects a supported boundary; it does not redefine the
+whole provider API or claim to configure all detectors, prompts, input/output
+rails, or deployment settings.
 
-Request and response policy describes structural acceptance and text targets.
-The deployment separately selects which rails inspect that text and whether a
+Request and response policy describes structural acceptance and guarded subjects.
+The deployment separately selects which rails inspect that content and whether a
 rail result permits, rejects, or replaces it. A marked subject is a guardable
 surface, not a guarantee that every deployment runs a particular safety check.
 
@@ -30,12 +28,9 @@ introduced with their provider capabilities.
 
 For authoring and validation steps, use the [guard contract guide](README.md).
 
-Root component names, projection inventories, operation bindings, and source
-bindings are derived. They are not a second set of authoring decisions.
-
 ## Payload Projections
 
-A Payload Projection is a normal OpenAPI Schema Object with local Guardrails
+A Payload Projection is a normal OpenAPI Schema Object with local guardrail
 annotations. It describes either a request or a buffered JSON response.
 
 ### Minimal request example
@@ -89,11 +84,12 @@ request:
     stream_selector_field: stream
 ```
 
-The schema describes the local request policy. The frontend derives the root
-provider source, direction, and capability metadata from the contract and
-selected operation. Optional `title` and `x-nemo-guardrails.model` give stable
-projection and class-name overrides. `stream_selector_field` identifies the
-boolean request field that selects streaming.
+The schema describes the local request policy. Do not declare the source
+schema, direction, or capability profile on the projection root: they come from
+`operationId`, the `request` or `response` key, and the top-level `profile`.
+Optional `title` and `x-nemo-guardrails.model` give stable projection and
+class-name overrides. `stream_selector_field` identifies the boolean request
+field that selects streaming.
 
 ### Complete field accounting
 
@@ -102,9 +98,9 @@ once:
 
 | Classification | Meaning |
 | --- | --- |
-| `guarded` | Contains or leads to content inspected by Guardrails. |
+| `guarded` | Contains or leads to content that rails inspect. |
 | `constrained` | Narrows the provider shape so guarded extraction, replacement, or response handling is safe and unambiguous. |
-| `opaque` | Remains provider-owned and is forwarded without Guardrails interpretation. |
+| `opaque` | Remains provider-owned and is forwarded without interpretation by the library. |
 | local extension | Does not exist in the provider source; it is an explicitly capability-gated compatibility field. |
 
 For example:
@@ -134,14 +130,15 @@ properties:
       classification: opaque
 ```
 
-Compilation fails if a field from the provider source reaches this object and
-is not reviewed. This is the provider-drift boundary: a new provider field
-cannot silently acquire guard semantics.
+This is the provider-drift boundary: a field that the provider adds later must
+not reach the guarded boundary without an explicit review decision.
+Provider-aware validation, which compares the contract with the pinned provider
+source, enforces this; it is not part of this format definition.
 
-`opaque` does not mean “unknown” or “ignored.” It records a deliberate decision
+`opaque` does not mean "unknown" or "ignored." It records a deliberate decision
 that the field does not affect the guarded capability and can remain under
 provider authority. Opaque does not mean trusted or safe: the entire value is
-delegated to the provider and must be preserved without local assertions.
+delegated to the provider.
 
 `opaque_fields` is shorthand for individually annotated opaque properties on
 this object. Names must be explicit and unique, cannot overlap `properties`,
@@ -149,7 +146,12 @@ and cannot use wildcards. It does not review nested fields inside an opaque
 value. New known fields at a selected boundary require review even when
 runtime unknown fields are allowed.
 
-### Guarded text subjects
+### Guarded subjects
+
+A subject marks the content that rails inspect and declares its meaning: its
+kind, its role, and its replacement policy. This version supports one kind,
+`text`, because rails currently inspect text only. Other kinds require new
+capability profiles.
 
 The `single_text.v1` profile identifies one user or assistant text subject.
 Selected native representations do not permit multiple independent subjects.
@@ -174,8 +176,9 @@ Subject keys are:
 
 | Key | Meaning |
 | --- | --- |
-| `role` | `user` for input or `assistant` for generated output. |
-| `replaceable` | Whether a buffered Guardrails decision may replace this provider field. Required by `single_text.v1`. |
+| `kind` | Required content kind. This version accepts only `text`. |
+| `role` | Required. `user` for input or `assistant` for generated output. |
+| `replaceable` | Whether a buffered rail decision may replace this provider field. The `single_text.v1` profile requires it; the authoring schema does not enforce that requirement. |
 | `replacement_blocked_by` | Related provider field that may make replacement unsafe. |
 | `replacement_reason` | Structured reason for a restriction on replacement. |
 
@@ -190,26 +193,28 @@ subject:
   replacement_reason: provider_integrity.cited_text
 ```
 
-The runtime can replace the text only when the related field is absent. If
-`replaceable` is false, or replacement is conditional, a
-`replacement_reason` is required.
+Replacement is permitted only when the related field is absent. If
+`replaceable` is false, or replacement is conditional, a `replacement_reason`
+is required.
+
+Replacement policy is declared, not yet executed: the guarded proxy rejects every
+replacement decision until safe replacement is implemented. Declaring it now
+keeps each contract's replacement review next to the field it protects.
 
 ### Constraints and capability gates
 
-Standard JSON Schema keywords describe the narrowed provider value. The
-semantic compiler currently recognizes these selection and validation
-keywords:
+Standard JSON Schema keywords describe the narrowed provider value. The format
+accepts these selection and validation keywords:
 
 ```text
 type, const, default, enum,
 minItems, maxItems, minLength, maxLength, pattern
 ```
 
-The compiler rejects unsupported schema keywords and unknown Guardrails keys
-with the component and nested property location. Other `x-*` schema annotations
-are available to non-Guardrails tooling and ignored by Guardrails. Keys beginning
-with `x-nemo-guardrails` are reserved; only the exact `x-nemo-guardrails` key is
-accepted. Descriptive annotations such as `description` and `examples` are not
+The authoring schema rejects other schema keywords and unknown
+`x-nemo-guardrails` keys. Other `x-*` schema annotations are available to other
+tooling and ignored by the library. Keys beginning with `x-nemo-guardrails` are
+reserved; only the exact `x-nemo-guardrails` key is accepted. Descriptive annotations such as `description` and `examples` are not
 treated as constraints. Opaque properties cannot carry validation assertions:
 classify a property as constrained when the guard projection should validate it.
 A disabled gate must agree with its null-only schema.
@@ -249,8 +254,8 @@ tools:
 `gate: disabled` means the guarded operation does not support that capability;
 it does not mean the provider lacks it. A gated field must be constrained and
 must provide a reason. A disabled field may be absent or null but must not
-enable the unsupported feature. Normalization must not disguise this local
-restriction as a provider fact.
+enable the unsupported feature. Do not disguise this local restriction as a
+provider fact.
 
 Reason identifiers use one of these namespaces:
 
@@ -267,7 +272,7 @@ free-form explanations.
 ### Defaults
 
 `default` is an annotation, not permission to insert an absent property into
-the forwarded provider payload. Generated models may use defaults internally;
+the forwarded provider payload. An implementation may use defaults internally;
 that does not authorize rewriting provider input. See the
 [JSON Schema annotation guidance](https://json-schema.org/understanding-json-schema/reference/annotations).
 
@@ -289,7 +294,7 @@ being promoted to local validation.
 
 ### Nested objects and arrays
 
-Attach object metadata to every nested object that the compiler traverses:
+Attach object metadata to every nested object that the projection traverses:
 
 ```yaml
 message:
@@ -418,9 +423,8 @@ content:
     classification: guarded
 ```
 
-Each representation must lead to exactly one text subject with the same
-provider-neutral meaning. The compiler derives multiple native bindings for
-one semantic subject.
+Each representation must lead to exactly one subject with the same
+provider-neutral meaning.
 
 ### Unknown-field policies
 
@@ -428,7 +432,7 @@ Use standard `additionalProperties` for object closure. Add
 `x-nemo-guardrails.unknown_fields: configurable` only for a content boundary
 whose closure the runtime may override:
 
-| Value | Generated behavior |
+| Value | Behavior |
 | --- | --- |
 | `additionalProperties: true` or omitted | Accept additional provider fields. |
 | `additionalProperties: false` | Reject additional fields, while retaining declared opaque properties. |
@@ -439,7 +443,7 @@ in the extension.
 
 These policies do not replace field accounting against the pinned provider
 contract. Known provider fields at a guarded boundary must still be marked
-guarded, constrained, or opaque during compilation.
+guarded, constrained, or opaque.
 
 ### Local extension fields
 
@@ -465,11 +469,10 @@ A local extension must be a disabled constrained capability. Do not use
 Stream policy describes decoded provider data events and declared SSE framing.
 It does not implicitly upgrade the source to OpenAPI 3.2 transport `itemSchema`.
 
-A Stream Projection describes complete SSE event payloads. The compiler uses it
-to generate typed event models and a stateless per-event classifier.
-
-The projection does not describe cross-event ordering. Stateful sequence
-validation and provider-native error framing remain handwritten stream hooks.
+A Stream Projection describes complete SSE event payloads, one event at a
+time. It does not describe cross-event ordering. Stateful sequence validation
+and provider-native error framing belong to the stream hooks bound under
+`integration.endpoint.stream_hooks`.
 
 ### Stream root
 
@@ -556,68 +559,63 @@ When `require_sse_event` is true, `data_discriminator` is required.
 ### Stream event review
 
 Every schema in the selected provider stream union must be accepted or named
-in `excluded_stream_events` with a nonblank author reason. Unknown, duplicate,
-stale, or simultaneously accepted/excluded entries are errors. A new event
-schema must require a new author decision; implicit rejection is insufficient
-as source-update review. External provider-error variants retain the existing
-evidence-rationale requirement. Nested provider union coverage remains governed
-by the existing selection checks; the exclusion list covers top-level event
-schemas, not every future nested union alternative.
+in `excluded_stream_events` with a nonblank author reason:
+
+```yaml
+excluded_stream_events:
+  - reason: outside_single_text_stream_profile
+    sources: [ProviderAudioDeltaEvent, ProviderAudioDoneEvent]
+```
+
+Unknown, duplicate, stale, or simultaneously accepted/excluded entries are
+errors. A new event schema must require a new author decision; implicit
+rejection is insufficient as source-update review. External provider-error
+variants still need an `external_reason`. Nested provider unions are covered by
+the ordinary selection rules; the exclusion list covers top-level event schemas,
+not every future nested union alternative.
 
 ### Event families
 
 Each root `oneOf` entry, such as `ExampleStreamPayloadProjection` in the
-preceding example, is an event family: one projection model and one Guardrails
+preceding example, is an event family: one projection model and one guardrail
 role shared by one or more native provider variants.
 
 Event classifications are:
 
-| Classification | Runtime role | Meaning |
-| --- | --- | --- |
-| `guarded_delta` | `GUARDED_TEXT` | Carries a new text delta inspected by Guardrails. |
-| `snapshot` | `TEXT_SNAPSHOT` | Carries accumulated text checked against previously observed deltas. |
-| `opaque` | `OPAQUE_METADATA` | Contains no guarded text. |
-| `provider_error` | `PROVIDER_ERROR` | Provider-native in-stream failure. |
+| Classification | Meaning |
+| --- | --- |
+| `guarded_delta` | Carries a new text delta that rails inspect. |
+| `snapshot` | Carries accumulated text checked against previously observed deltas. |
+| `opaque` | Contains no guarded content. |
+| `provider_error` | Provider-native in-stream failure. |
 
 Each event variant has:
 
 | Key | Meaning |
 | --- | --- |
 | `source_schema` | Provider component represented by this variant. |
-| `shape` | Stable Guardrails name returned after classification. |
+| `shape` | Stable shape name returned after classification. |
 | `match` | Dotted JSON selectors and scalar values that identify the event. |
 | `required_fields` | Top-level fields that must be required to distinguish the event. |
 | `external_reason` | Evidence reason for a provider-error schema accepted outside the primary stream union. Other external variants are not supported. |
 
-A variant must have at least one `match` entry or required field. The compiler
-proves selectors against the provider schema and rejects duplicate selectors.
-Rules must also be semantically disjoint: the runtime rejects an event if more
-than one rule matches it.
+A variant must have at least one `match` entry or required field. Selectors
+must be provable against the provider schema and must not be duplicated. Rules
+must also be semantically disjoint: an event that matches more than one rule is
+rejected.
 
 ### Text paths are derived
 
-Authors do not write a `text_path`. They mark the nested text property with a
-guarded subject. From the preceding example, the compiler derives something
-equivalent to:
-
-```python
-StreamEventRule(
-    shape="chat.chunk:content",
-    role=StreamEventRole.GUARDED_TEXT,
-    match=(("object", "chat.chunk"),),
-    text_path=("choices", 0, "delta", "content"),
-)
-```
-
-The generated path means
-`payload["choices"][0]["delta"]["content"]`. Keeping the path derived prevents
-the extraction logic from drifting away from the schema that validates it.
+Authors do not write a text path. They mark the nested text property with a
+guarded subject, and the path follows from that marking. In the preceding
+example it is `choices[0].delta.content`. Keeping the path derived prevents
+extraction from drifting away from the schema that validates it.
 
 ### Events without text
 
 An opaque event family is not an opaque property: the family still has a
 selected schema and constrained fields. Those constraints remain enforced even
-though the family has no guarded text subject.
+though the family has no subject.
 
 A structurally valid event in a guarded family may omit its text field. Choose
 that behavior explicitly:
@@ -631,63 +629,24 @@ that behavior explicitly:
 Only `guarded_delta` families may use `opaque`; only `snapshot` families may
 use `empty`.
 
-For example, Chat Completions chunks may carry role, usage, or finish metadata
-without a content delta:
+For example, the chat chunks in the stream root example may carry role, usage,
+or finish metadata without a content delta:
 
 ```yaml
 event:
   classification: guarded_delta
   variants: [...]
   missing_text: opaque
-  missing_text_shape: chat.completion.chunk:metadata
+  missing_text_shape: chat.chunk:metadata
 ```
-
-### Classifier versus hooks
-
-The generated classifier answers questions about one event in isolation:
-
-- Is its JSON shape valid?
-- Which declared variant matched?
-- Does it carry guarded text, a snapshot, metadata, or an error?
-- What text should the shared runner inspect?
-
-Handwritten hooks answer questions that require history or executable provider
-behavior:
-
-- Was a block started before receiving its delta?
-- Is this event legal after the preceding event?
-- Did the stream end with unfinished provider state?
-- How should a Guardrails failure be framed as provider-native SSE?
-
-An operation with streaming declares a hooks class under its endpoint metadata.
-The class must be constructible without arguments and implement
-`observe_event`, `validate_end_of_stream`, and `encode_error`. A fresh hooks
-instance is created for every upstream stream; the stateless generated
-classifier may be shared.
 
 ## Integration and stable identities
 
 `integration.endpoint` holds error codes and optional route, label, stream-hook,
 and API-revision bindings. When `route_path` or `operation_label` is omitted,
 the route defaults to the selected provider path and the label is derived from
-the operation name. Stateful stream behavior is
-still implemented by the declared hook; changing a hook is a behavior change.
-
-`integration.name` optionally preserves an existing artifact identity. Otherwise
-the name is derived from `operationId`, for example `createText` becomes
-`create_text`. Root component names, projection references, and operation binding
-actions are derived. Existing `title` and `x-nemo-guardrails.model` overrides
-remain supported to preserve names; renaming them may change generated imports.
-Unnamed object alternatives need an explicit source or one event variant so
-their derived identity does not depend on list position.
-
-Types may be inferred only where unambiguous. A scalar whose provider type is
-nullable, a union, or absent needs an explicit type. Selecting an object union
-may require `x-nemo-guardrails.source`. No classification or subject is inferred.
-
-## Endpoint binding
-
-Runtime metadata belongs in the contract's integration section:
+the operation name. Stateful stream behavior is implemented by the declared
+hook; changing a hook is a behavior change.
 
 ```yaml
 integration:
@@ -705,9 +664,6 @@ integration:
       name: EXAMPLE_API_REVISION
 ```
 
-The compiler derives projection references and the operation declaration.
-`integration.name` is optional and otherwise derived from `operationId`.
-
 Endpoint keys are:
 
 | Key | Meaning |
@@ -717,11 +673,21 @@ Endpoint keys are:
 | `unsupported_request_code` | Provider-facing error code for unsupported request shapes. |
 | `unsupported_response_code` | Provider-facing error code for unsupported response or stream shapes. |
 | `stream_hooks` | Optional provider-package Python symbol for stateful streaming behavior. |
-| `api_revision` | Optional provider-package `ProviderApiRevisionBinding` symbol. |
+| `api_revision` | Optional provider-package symbol that binds the provider API revision. |
 
-Python symbols must live inside the runtime package declared by
-`provider.yaml`. Stream hooks are required when a stream projection is bound
-and forbidden when no stream projection exists.
+Python symbols must live inside the provider's runtime package. Stream hooks are
+required when a stream projection is bound and forbidden when no stream
+projection exists.
+
+`integration.name` names the integration. When omitted, it is derived from
+`operationId`, for example `createText` becomes `create_text`. `title` and
+`x-nemo-guardrails.model` give projections and models stable names; renaming
+them is a visible change. Unnamed object alternatives need an explicit source or
+one event variant so their derived identity does not depend on list position.
+
+Types may be inferred only where unambiguous. A scalar whose provider type is
+nullable, a union, or absent needs an explicit type. Selecting an object union
+may require `x-nemo-guardrails.source`. No classification or subject is inferred.
 
 ## `x-nemo-guardrails` quick reference
 
@@ -753,7 +719,7 @@ These keys appear on a property Schema Object:
 | `reason` | Structured capability, integrity, or projection-policy rationale. |
 | `gate` | Currently only `disabled`; requires a constrained field and reason. |
 | `extension` | Marks a local compatibility field absent from the provider source. Only valid for a disabled constrained field. |
-| `model` | Optional generated name for a nested object, overriding its `title`. |
+| `model` | Optional model name for a nested object, overriding its `title`. |
 | `source` | Binds that nested object to a provider component. |
 | `unknown_fields` | Sets that nested object's unknown-field policy. |
 
@@ -773,122 +739,27 @@ classification.
 | stream event family | `event.missing_text` | `reject`, `opaque`, or `empty`. |
 | stream event family | `event.missing_text_shape` | Optional alternate shape used when guarded text is absent. |
 
-## Evidence-backed normalization
-
-A guard contract narrows a correct provider contract. It should not silently
-repair an incomplete one.
-
-When the pinned provider OpenAPI omits or misstates a fact required for
-compilation, record authoritative evidence in `evidence.yaml` and apply a
-separate `normalization.overlay.yaml` before guard contracts.
-
-```yaml
-version: 1
-provider: example
-primary:
-  id: example_openapi
-  kind: openapi
-  origin: https://example.com/openapi.yaml
-  revision: provider-revision
-  sha256: <source digest>
-supplemental:
-  - id: example_streaming_docs
-    kind: reviewed_documentation
-    origin: https://example.com/docs/streaming
-    revision: reviewed-2026-09-22
-    claims:
-      - POST /chat returns an SSE stream when stream is true
-    claims_sha256: <digest of the canonical claims array>
-```
-
-Each normalization action cites one declared evidence source:
-
-```yaml
-overlay: 1.1.0
-info:
-  title: Complete the example streaming contract
-  version: 1.0.0
-actions:
-  - target: $.paths['/chat'].post.responses
-    description: Add the documented SSE response.
-    x-guard-evidence: example_streaming_docs
-    update:
-      '200':
-        content:
-          text/event-stream:
-            schema:
-              $ref: '#/components/schemas/ProviderChatStreamEvent'
-            x-guard-source-evidence: reviewed-2026-09-22
-```
-
-Evidence kinds are `openapi`, `sdk_types`, and `reviewed_documentation`.
-Machine-readable evidence pins the downloaded artifact with `sha256`.
-Reviewed documentation pins a canonical list of claims with `claims_sha256`
-because a mutable web page cannot be treated as an immutable artifact.
-The digest is SHA-256 over the compact, ASCII JSON representation of the claims
-array. For example:
-
-```bash
-uv run --locked python -c 'import hashlib,json; claims=["POST /chat returns SSE"]; print(hashlib.sha256(json.dumps(claims,separators=(",",":"),ensure_ascii=True).encode()).hexdigest())'
-```
-
-Normalization and guard policy have different responsibilities and formats:
-
-```text
-normalization Overlay: make the provider contract factually complete
-guard contract:        define the supported guarded subset
-```
-
-## Reading compiler failures
-
-Semantic failures report three pieces of information:
-
-```text
-compile <projection identifier>
-<semantic path>
-<explanation>
-```
-
-Treat the semantic path as the authoring location to inspect. Common failures
-mean:
-
-| Failure | Likely cause |
-| --- | --- |
-| `provider contract has unreviewed fields` | A bound provider object contains fields not classified by the projection. |
-| `field is absent from provider contract` | The projection claims a field that the pinned provider schema does not expose; use normalization only with evidence. |
-| `does not identify one provider schema branch` | A `type`, `const`, or representation selection is ambiguous or unsupported by the provider union. |
-| `requires exactly one matching guarded array variant` | The current capability profile cannot identify one text target. Narrow array cardinality or variant selection. |
-| `stream event selection is duplicated` | Two stream variants declare the same selector. Give each native shape a unique selector. |
-| runtime reports an ambiguous stream event | Different selectors can still match the same payload. Make the authored rules semantically disjoint. |
-| `stream text paths require explicit array cardinality` | A generated stream extraction path crosses an unconstrained array. |
-| `must bind its declared stream projection` | Endpoint metadata, stream projection, and handwritten hooks are inconsistent. |
-
-Do not respond to a compiler proof failure by weakening coverage or marking an
-unknown content-bearing field opaque without review. The failure is the desired
-signal that the guarded boundary changed.
-
 ## Validation and compatibility limits
 
 There are three different checks: authoring syntax, provider-aware semantic
 validation, and runtime enforcement. A generic JSON Schema validator knows only
 standard assertions; it does not enforce subjects, configurable policies,
-variant cardinality, review decisions, or hook behavior.
+variant cardinality, review decisions, or hook behavior. Provider coverage,
+source reachability, text-target cardinality, and hook compatibility require
+validation against the provider source.
 
-The current frontend requires component-reference operation roots, JSON
-requests, HTTP 200 JSON responses, and optional HTTP 200 SSE responses. Only
-the documented single-text profiles are supported. Tools, images, audio,
-multiple independent guarded messages, structured output, and other semantic
-content kinds require explicit shared runtime and compiler capability designs.
+This version supports component-reference operation roots, JSON requests, HTTP
+200 JSON responses, and optional HTTP 200 SSE responses. Only the documented
+single-text profiles are supported. Tools, images, audio, multiple independent
+guarded messages, structured output, and other semantic content kinds require
+explicit shared runtime capability designs.
 
 Public JSON Schema and runtime acceptance are not identical in every case.
 Selected-variant cardinality, optional/null/default handling, provider-owned
-requiredness, and disabled gates need separate conformance work. Characterization
-tests record concrete cases; artifact reproducibility is not proof of complete
-schema/runtime equivalence.
+requiredness, and disabled gates are known areas where the two can differ.
 
-If implementation and this semantic specification disagree, record the mismatch
-and add a conformance case; do not silently weaken either definition.
+If an implementation and this specification disagree, treat it as a defect and
+resolve it explicitly; do not silently weaken either definition.
 
-Human authoring trials are still needed to assess readability and editing effort.
 The alpha label makes no stable compatibility promise; see the
 [version policy](README.md#version-and-stability).
