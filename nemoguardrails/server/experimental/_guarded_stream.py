@@ -41,6 +41,7 @@ from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse
 from nemoguardrails.server.experimental.provider.sse import (
     ServerSentEvent,
     ServerSentEventTooLarge,
+    TruncatedServerSentEvent,
     iter_sse_events,
 )
 from nemoguardrails.server.experimental.provider.stream import (
@@ -191,12 +192,21 @@ async def guard_provider_stream(
     max_event_bytes: int = 1024 * 1024,
     max_pending_bytes: int = 10 * 1024 * 1024,
 ) -> AsyncIterator[bytes]:
-    """Release provider SSE events only after required output checks pass."""
+    """Release provider SSE events only after required output checks pass.
 
-    if input_message.role != "user":
-        raise ValueError("A guarded stream requires a user input message.")
-    if any(type(limit) is not int or limit <= 0 for limit in (max_event_bytes, max_pending_bytes)):
-        raise ValueError("Stream byte limits must be positive.")
+    Iteration closes ``source`` when it ends, including when arguments are
+    rejected. A stream that is never iterated does not run that cleanup, so its
+    caller must close ``source``.
+    """
+
+    try:
+        if input_message.role != "user":
+            raise ValueError("A guarded stream requires a user input message.")
+        if any(type(limit) is not int or limit <= 0 for limit in (max_event_bytes, max_pending_bytes)):
+            raise ValueError("Stream byte limits must be positive.")
+    except ValueError:
+        await _close_source(source)
+        raise
 
     try:
         if streaming_policy is None:
@@ -279,6 +289,7 @@ async def guard_provider_stream(
     except (
         PendingStreamBufferTooLarge,
         ServerSentEventTooLarge,
+        TruncatedServerSentEvent,
         StreamSnapshotHistoryTooLarge,
         UnsupportedProviderStream,
     ) as failure:

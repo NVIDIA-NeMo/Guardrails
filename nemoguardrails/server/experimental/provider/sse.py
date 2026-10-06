@@ -19,12 +19,16 @@ The parser preserves complete upstream events byte-for-byte while exposing the
 event type and joined data fields needed by provider adapters.
 """
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 
 
 class ServerSentEventTooLarge(ValueError):
     """Report an SSE event that exceeds the configured buffering limit."""
+
+
+class TruncatedServerSentEvent(ValueError):
+    """Report an unfinished SSE block containing fields at end of stream."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,18 +49,17 @@ class ServerSentEvent:
         """Create an event while retaining its original representation.
 
         Args:
-            raw: Complete SSE event bytes.
+            raw: Exactly one complete SSE block, without stream-start BOM handling.
 
         Returns:
             The parsed event representation.
         """
 
-        body = raw
-        for separator in (b"\r\n\r\n", b"\n\n", b"\r\r"):
-            if body.endswith(separator):
-                body = body[: -len(separator)]
-                break
-        return cls(raw=raw, lines=tuple(body.replace(b"\r\n", b"\n").replace(b"\r", b"\n").split(b"\n")))
+        framer = _SSEFramer(max_event_bytes=max(1, len(raw)), stream_start=False)
+        events = [*framer.feed(raw), *framer.finish()]
+        if len(events) != 1 or events[0].raw != raw:
+            raise ValueError("Expected exactly one complete SSE block.")
+        return events[0]
 
     @property
     def data(self) -> bytes | None:
@@ -83,13 +86,72 @@ class ServerSentEvent:
         return value
 
 
-def _event_boundary(buffer: bytes) -> tuple[int, int] | None:
-    boundaries = []
-    for separator in (b"\r\n\r\n", b"\n\n", b"\r\r"):
-        index = buffer.find(separator)
-        if index >= 0:
-            boundaries.append((index, len(separator)))
-    return min(boundaries) if boundaries else None
+class _SSEFramer:
+    def __init__(self, *, max_event_bytes: int, stream_start: bool = True):
+        self.max_event_bytes = max_event_bytes
+        self.raw = bytearray()
+        self.lines: list[bytes] = []
+        self.line_start = 0
+        self.pending_cr = False
+        self.stream_start = stream_start
+
+    def _append(self, value: int) -> None:
+        if len(self.raw) >= self.max_event_bytes:
+            raise ServerSentEventTooLarge
+        self.raw.append(value)
+
+    def _field_line(self, line: bytes) -> bytes:
+        if self.stream_start:
+            self.stream_start = False
+            return line.removeprefix(b"\xef\xbb\xbf")
+        return line
+
+    def _end_line(self, ending_length: int) -> ServerSentEvent | None:
+        line = self._field_line(bytes(self.raw[self.line_start : -ending_length]))
+        if line:
+            self.lines.append(line)
+            self.line_start = len(self.raw)
+            return None
+        event = ServerSentEvent(bytes(self.raw), tuple(self.lines))
+        self.raw.clear()
+        self.lines.clear()
+        self.line_start = 0
+        return event
+
+    def feed(self, chunk: bytes) -> Iterator[ServerSentEvent]:
+        for value in chunk:
+            if self.pending_cr:
+                self.pending_cr = False
+                if value == 10:
+                    self._append(value)
+                    event = self._end_line(2)
+                    if event is not None:
+                        yield event
+                    continue
+                event = self._end_line(1)
+                if event is not None:
+                    yield event
+            self._append(value)
+            if value == 13:
+                self.pending_cr = True
+            elif value == 10:
+                event = self._end_line(1)
+                if event is not None:
+                    yield event
+
+    def finish(self) -> Iterator[ServerSentEvent]:
+        if self.pending_cr:
+            self.pending_cr = False
+            event = self._end_line(1)
+            if event is not None:
+                yield event
+        if self.raw:
+            tail = self._field_line(bytes(self.raw[self.line_start :]))
+            if any(line and not line.startswith(b":") for line in (*self.lines, tail)):
+                raise TruncatedServerSentEvent("The provider stream ends with an unfinished SSE field block.")
+            self.raw.clear()
+            self.lines.clear()
+            self.line_start = 0
 
 
 async def iter_sse_events(
@@ -97,7 +159,10 @@ async def iter_sse_events(
     *,
     max_event_bytes: int = 1024 * 1024,
 ) -> AsyncIterator[ServerSentEvent]:
-    """Yield complete SSE events from arbitrary HTTP byte chunks.
+    """Yield complete SSE blocks from arbitrary HTTP byte chunks.
+
+    Preserve raw bytes, including an initial BOM ignored only for field parsing.
+    Drop unfinished comment tails; reject all other unfinished field blocks.
 
     Args:
         source: Raw upstream response byte stream.
@@ -109,23 +174,15 @@ async def iter_sse_events(
     Raises:
         ValueError: If ``max_event_bytes`` is not positive.
         ServerSentEventTooLarge: If one event exceeds the limit.
+        TruncatedServerSentEvent: If the stream ends in an unfinished field block.
     """
 
-    if max_event_bytes <= 0:
+    if type(max_event_bytes) is not int or max_event_bytes <= 0:
         raise ValueError("max_event_bytes must be positive.")
 
-    buffer = b""
+    framer = _SSEFramer(max_event_bytes=max_event_bytes)
     async for chunk in source:
-        buffer += chunk
-        while boundary := _event_boundary(buffer):
-            index, separator_length = boundary
-            event_length = index + separator_length
-            if event_length > max_event_bytes:
-                raise ServerSentEventTooLarge
-            raw, buffer = buffer[:event_length], buffer[event_length:]
-            yield ServerSentEvent.from_bytes(raw)
-        if len(buffer) > max_event_bytes:
-            raise ServerSentEventTooLarge
-
-    if buffer:
-        yield ServerSentEvent.from_bytes(buffer)
+        for event in framer.feed(chunk):
+            yield event
+    for event in framer.finish():
+        yield event

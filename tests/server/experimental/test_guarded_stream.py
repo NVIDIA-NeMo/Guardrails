@@ -351,3 +351,59 @@ def test_stream_policy_must_buffer_before_release():
 
     with pytest.raises(UnsupportedStreamInspection, match="cannot release"):
         validate_streaming_policy(StreamBufferingPolicy(1, 0, True))
+
+
+@pytest.mark.asyncio
+async def test_truncation_withholds_pending_bytes_and_error_starts_on_complete_boundary():
+    approved = stream_event({"text": "approved"})
+    incomplete = stream_event({"text": "hidden"})[:-2]
+    source = Source([approved, incomplete])
+    hooks = Hooks()
+
+    result = await collect(source, StaticChecker(), hooks)
+
+    assert result.startswith(approved + b"data: ")
+    assert b"hidden" not in result
+    assert b'"code": "unsupported_stream"' in result
+    assert hooks.finished is False
+    assert source.closed is True
+
+
+@pytest.mark.asyncio
+async def test_end_validation_failure_withholds_pending_window():
+    class RejectingHooks(Hooks):
+        def validate_end_of_stream(self):
+            raise UnsupportedProviderStream("truncated provider lifecycle")
+
+    checker = StaticChecker()
+    source = Source([stream_event({"text": "hidden"})])
+
+    result = await collect(source, checker, RejectingHooks(), policy=StreamBufferingPolicy(2, 0))
+
+    assert b"hidden" not in result
+    assert b'"code": "unsupported_stream"' in result
+    assert checker.calls == []
+    assert source.closed is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("role", "limits"),
+    [("assistant", {}), ("user", {"max_event_bytes": 0}), ("user", {"max_pending_bytes": -1})],
+)
+async def test_rejected_arguments_raise_and_close_source(role, limits):
+    source = Source([stream_event({"text": "answer"})])
+    stream = guard_provider_stream(
+        source,
+        checker=StaticChecker(),
+        streaming_policy=StreamBufferingPolicy(1, 0),
+        input_message=GuardedMessage(role, "question"),
+        adapter=ClassifiedStreamAdapter(Classifier(), Hooks()),
+        render_outcome=render_outcome,
+        **limits,
+    )
+
+    with pytest.raises(ValueError):
+        await anext(stream)
+
+    assert source.closed is True

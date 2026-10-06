@@ -153,7 +153,7 @@ class ProviderStreamHooks(Protocol):
         ...
 
     def encode_error(self, rendered_body: bytes) -> Sequence[bytes]:
-        """Frame a proxy error and its provider-native body for the stream."""
+        """Frame a proxy error and its provider-native body as complete SSE blocks."""
 
         ...
 
@@ -174,7 +174,7 @@ class ProviderStreamAdapter(Protocol):
         ...
 
     def encode_error(self, rendered_body: bytes) -> Sequence[bytes]:
-        """Frame a proxy error and its provider-native body for the stream."""
+        """Frame a proxy error and its provider-native body as complete SSE blocks."""
 
         ...
 
