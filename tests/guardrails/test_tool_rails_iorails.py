@@ -226,6 +226,20 @@ def _tool_call_sse_lines(name: str, arg_fragments: list, call_id: str = "call_1"
     return lines
 
 
+def _text_sse_lines(text: str) -> list:
+    """SSE lines streaming *text* as a single assistant delta, then finish."""
+    return [
+        _sse(
+            {
+                "id": "c1",
+                "choices": [{"index": 0, "delta": {"role": "assistant", "content": text}, "finish_reason": None}],
+            }
+        ),
+        _sse({"id": "c1", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}),
+        b"data: [DONE]\n\n",
+    ]
+
+
 async def _collect(stream) -> list:
     return [chunk async for chunk in stream]
 
@@ -248,6 +262,13 @@ def _stream_violation_chunks(chunks: list) -> list:
 async def iorails():
     """A started IORails with both tool rails enabled (transport mocked per test)."""
     async with started_iorails(TOOL_CONFIG) as engine:
+        yield engine
+
+
+@pytest_asyncio.fixture
+async def iorails_config_tools():
+    """A started IORails with both tool rails enabled and get_weather declared on the model."""
+    async with started_iorails(CONFIG_TOOLS_CONFIG) as engine:
         yield engine
 
 
@@ -363,11 +384,6 @@ class TestConfigDeclaredTools:
     """Tools declared on the model (models[].parameters.tools) are validated by the tool-call
     rail end to end, even when the request carries no options.llm_params.tools."""
 
-    @pytest_asyncio.fixture
-    async def iorails_config_tools(self):
-        async with started_iorails(CONFIG_TOOLS_CONFIG) as engine:
-            yield engine
-
     @pytest.mark.asyncio
     async def test_config_declared_tool_call_passes(self, iorails_config_tools):
         """A call to a config-declared tool passes the rail when the request carries no llm_params."""
@@ -409,6 +425,23 @@ class TestNonStreamingToolResults:
         forbidden_post.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_nameless_linked_tool_result_reaches_the_model(self, iorails):
+        """A tool result without a name, linked by its call id, passes the tool-result rail and reaches the model."""
+        _inject_json_response(iorails, _text_payload("It is sunny."))
+        result = await iorails.generate_async(messages=make_tool_conversation(result_name=None))
+        assert result == {"role": "assistant", "content": "It is sunny."}
+
+    @pytest.mark.asyncio
+    async def test_nameless_unlinked_tool_result_blocked_before_generation(self, iorails):
+        """A tool result without a name whose call id links to no prior call is refused without calling the model."""
+        forbidden_post = _inject_forbidden_transport(iorails)
+        result = await iorails.generate_async(
+            messages=make_tool_conversation(result_call_id="call_999", result_name=None)
+        )
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        forbidden_post.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_recycled_call_ids_across_turns_not_blocked(self, iorails):
         """Multi-turn conversation reusing the same call_id across turns is valid"""
 
@@ -422,6 +455,22 @@ class TestNonStreamingToolResults:
         _inject_json_response(iorails, _text_payload("It's 12C in London."))
         result = await iorails.generate_async(messages=malformed_prior_tool_call_messages())
         assert result == {"role": "assistant", "content": "It's 12C in London."}
+
+
+class TestToolCallRoundTrip:
+    """A client runs the tool call IORails returned and sends the result back on the next turn."""
+
+    @pytest.mark.asyncio
+    async def test_spec_shaped_result_for_a_returned_tool_call_reaches_the_model(self, iorails_config_tools):
+        """A tool call IORails returned, answered by a tool message without a name, passes both tool rails next turn."""
+        _inject_json_response(iorails_config_tools, _tool_call_payload("get_weather", '{"city": "Paris"}'))
+        assistant_message = await iorails_config_tools.generate_async(messages=MESSAGES)
+        assert assistant_message["tool_calls"][0]["function"]["name"] == "get_weather"
+
+        tool_message = {"role": "tool", "tool_call_id": assistant_message["tool_calls"][0]["id"], "content": "18C"}
+        _inject_json_response(iorails_config_tools, _text_payload("It is 18C in Paris."))
+        result = await iorails_config_tools.generate_async(messages=[*MESSAGES, assistant_message, tool_message])
+        assert result == {"role": "assistant", "content": "It is 18C in Paris."}
 
 
 class TestStreamingToolCalls:
@@ -470,6 +519,13 @@ class TestStreamingToolResults:
         assert REFUSAL_MESSAGE not in chunks
         forbidden_post.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_nameless_linked_tool_result_streams_the_model_reply(self, iorails):
+        """A tool result without a name, linked by its call id, passes the tool-result rail and the reply streams."""
+        _inject_sse_stream(iorails, _text_sse_lines("It is sunny."))
+        chunks = await _collect(iorails.stream_async(make_tool_conversation(result_name=None)))
+        assert "".join(chunks) == "It is sunny."
+
 
 class TestPerRequestToggles:
     @pytest.mark.asyncio
@@ -513,17 +569,7 @@ class TestPerRequestToggles:
         """In streaming, options.rails.input is forwarded to is_input_safe as the enabled argument."""
         spy = AsyncMock(wraps=iorails.rails_manager.is_input_safe)
         iorails.rails_manager.is_input_safe = spy
-        text_lines = [
-            _sse(
-                {
-                    "id": "c1",
-                    "choices": [{"index": 0, "delta": {"role": "assistant", "content": "ok"}, "finish_reason": None}],
-                }
-            ),
-            _sse({"id": "c1", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}),
-            b"data: [DONE]\n\n",
-        ]
-        _inject_sse_stream(iorails, text_lines)
+        _inject_sse_stream(iorails, _text_sse_lines("ok"))
         await _collect(iorails.stream_async(MESSAGES, options={"rails": {"input": False}}))
         assert spy.await_args.kwargs.get("enabled") is False
 

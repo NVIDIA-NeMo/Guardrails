@@ -270,6 +270,20 @@ class TestAreToolResultsSafe:
         assert result.records[0].tool_name == "run_sql"
 
     @pytest.mark.asyncio
+    async def test_nameless_result_passes_global_rail_and_reaches_per_tool_rail(self):
+        """A result without a name passes the global rail, then its per-tool rail, resolved by call id, blocks it."""
+        manager = _build_manager(
+            tool_result_flows=["tool result validation"],
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
+            regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
+        )
+        result = await manager.are_tool_results_safe(_tool_result_messages("ssn: 123-45-6789", name=None))
+        assert result.is_safe is False
+        assert result.triggered_rail == "regex check tool input"
+        assert [record.flow for record in result.records] == ["tool result validation", "regex check tool input"]
+        assert result.records[1].tool_name == "run_sql"
+
+    @pytest.mark.asyncio
     async def test_tool_result_not_listed_in_per_tool_skips_check(self):
         """A result for a tool with no per_tool_result_flows entry resolves fine via
         call_id, but has nothing configured to check it against, so it must not block."""
