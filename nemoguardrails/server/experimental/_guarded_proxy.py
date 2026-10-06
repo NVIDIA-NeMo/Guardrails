@@ -218,7 +218,7 @@ def create_guarded_http_operation(
         )
 
     success_content = {"application/json": {"schema": {}}}
-    if endpoint.stream_adapter_factory is not None:
+    if endpoint.stream_adapter_factory is not None and stream_dispatch is not None:
         success_content["text/event-stream"] = {"schema": {"type": "string"}}
     documented_responses = errors.documented_responses
     documented_responses[200] = {

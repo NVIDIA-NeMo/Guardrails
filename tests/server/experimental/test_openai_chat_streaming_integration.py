@@ -408,19 +408,27 @@ def test_openai_endpoint_creates_fresh_stream_adapters():
     assert first.classifier is second.classifier
 
 
-def test_openapi_documents_both_chat_success_response_modes():
+@pytest.mark.parametrize(
+    ("configure_stream_dispatch", "media_types"),
+    [(True, {"application/json", "text/event-stream"}), (False, {"application/json"})],
+)
+def test_openapi_documents_chat_success_modes_that_can_be_dispatched(configure_stream_dispatch, media_types):
     async def dispatch(_request):
         raise AssertionError
 
     app = FastAPI()
     app.include_router(
-        create_openai_chat_router(checker=StaticChecker(ContentInspectionPolicy(True, True)), dispatch=dispatch)
+        create_openai_chat_router(
+            checker=StaticChecker(ContentInspectionPolicy(True, True)),
+            dispatch=dispatch,
+            stream_dispatch=dispatch if configure_stream_dispatch else None,
+        )
     )
 
     success = app.openapi()["paths"]["/v1/chat/completions"]["post"]["responses"]["200"]
 
     assert success["description"] == "Provider-native successful response."
-    assert set(success["content"]) == {"application/json", "text/event-stream"}
+    assert set(success["content"]) == media_types
 
 
 @pytest.mark.asyncio
