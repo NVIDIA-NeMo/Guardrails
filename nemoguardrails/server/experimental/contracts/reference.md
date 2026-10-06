@@ -155,6 +155,10 @@ capability profiles.
 
 The `single_text.v1` profile identifies one user or assistant text subject.
 Selected native representations do not permit multiple independent subjects.
+Because each direction has exactly one subject, its role currently matches the
+direction: request subjects are `user` and response subjects are `assistant`.
+`role` remains required so that profiles carrying several subjects in one
+direction, such as a full conversation, can distinguish them.
 Replacement may affect only the selected text; unrelated metadata and declared
 replacement restrictions must be preserved.
 
