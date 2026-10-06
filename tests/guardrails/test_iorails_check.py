@@ -36,6 +36,7 @@ from nemoguardrails.guardrails.iorails import (
     _determine_rails_from_messages,
     _get_last_content_by_role,
 )
+from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.guardrails.rail_stubs import bot_message_rewrite, rail_failure, user_message_rewrite
@@ -468,6 +469,90 @@ class TestCheckAsyncBlockedResult:
         assert result.rail is None
 
 
+class TestCheckAsyncBlockReason:
+    """A BLOCKED check says why it blocked; a check that did not block carries no reason."""
+
+    @pytest.mark.asyncio
+    async def test_input_block_carries_the_rail_reason(self, iorails):
+        """An input block reports the blocking rail's own reason."""
+        blocked = RailResult.block(reason="unsafe request", triggered_rail="content safety check input")
+        _mock_rails(iorails, input_result=blocked)
+
+        result = await iorails.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.reason == "unsafe request"
+
+    @pytest.mark.asyncio
+    async def test_output_block_carries_the_rail_reason(self, iorails):
+        """An output block reports the blocking rail's own reason."""
+        blocked = RailResult.block(reason="unsafe answer", triggered_rail="content safety check output")
+        _mock_rails(iorails, output_result=blocked)
+
+        result = await iorails.check_async([{"role": "assistant", "content": "bad answer"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.reason == "unsafe answer"
+
+    @pytest.mark.asyncio
+    async def test_reason_falls_back_to_the_triggered_rail(self, iorails):
+        """A block whose rail gave no reason reports the rail's name as the reason."""
+        _mock_rails(iorails, input_result=RailResult.block(triggered_rail="content safety check input"))
+
+        result = await iorails.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.reason == "content safety check input"
+
+    @pytest.mark.asyncio
+    async def test_reason_falls_back_to_unspecified(self, iorails):
+        """A block naming neither a reason nor a rail reports the reason as unspecified."""
+        _mock_rails(iorails, input_result=RailResult.block())
+
+        result = await iorails.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.reason == "unspecified"
+
+    @pytest.mark.asyncio
+    async def test_failed_rail_reports_its_redacted_failure_reason(self, iorails):
+        """A rail that broke reports the client-facing failure reason the fail-closed envelope wrote."""
+        _mock_rails(iorails, input_result=rail_failure("f5 guardrails scan input"))
+
+        result = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert result.reason == "f5 guardrails scan input error: provider call failed"
+
+    @pytest.mark.asyncio
+    async def test_failed_rail_reason_carries_no_exception_text(self, iorails):
+        """A rail that raised an unclassified error is reported by name only, whatever the exception said."""
+        exc = ValueError("Details: see https://internal.example/debug token nvapi-abc123secret")
+        failure = rail_error_outcome(None, "policyai moderation on input", exc)
+        _mock_rails(iorails, input_result=RailResult(failure, triggered_rail="policyai moderation on input"))
+
+        result = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert result.reason == "policyai moderation on input error"
+
+    @pytest.mark.asyncio
+    async def test_passed_has_no_reason(self, iorails):
+        """A passed check carries no reason."""
+        _mock_rails(iorails)
+
+        result = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert result.status == RailStatus.PASSED
+        assert result.reason is None
+
+    @pytest.mark.asyncio
+    async def test_modified_has_no_reason(self, iorails):
+        """A rewritten check carries no reason, because nothing blocked it."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite("masked"))
+
+        result = await iorails.check_async([{"role": "user", "content": "raw"}])
+
+        assert result.status == RailStatus.MODIFIED
+        assert result.reason is None
+
+
 class TestCheckAsyncFailedRail:
     """A rail that failed is reported as an internal error, not as a content refusal."""
 
@@ -530,6 +615,15 @@ class TestCheckSync:
 
         assert result.status == RailStatus.BLOCKED
         assert result.rail == "content safety check input"
+
+    def test_check_blocked_carries_the_reason(self, iorails_sync):
+        """Sync check() reports why the check blocked, as check_async does."""
+        _mock_rails(iorails_sync, input_result=_unsafe("content safety check input"))
+
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails_sync):
+            result = iorails_sync.check([{"role": "user", "content": "bad"}])
+
+        assert result.reason == "unsafe"
 
     def test_check_renders_the_internal_error_for_a_failed_rail(self, iorails_sync):
         """The sync wrapper carries the failed-rail rendering, not just the async path."""
