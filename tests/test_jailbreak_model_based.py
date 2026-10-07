@@ -151,6 +151,33 @@ def test_snowflake_embed_torch_imports(monkeypatch):
     assert np.array_equal(result, fake_embedding)
 
 
+def test_snowflake_embed_loads_without_remote_code(monkeypatch):
+    """
+    Regression test for #2439. The Snowflake repository's remote code looks for
+    pytorch_model.bin (the repository ships only safetensors) and its forward pass uses
+    helpers removed in transformers 5, so loading it with trust_remote_code=True fails on
+    the transformers version this rail pins. The architecture is native to transformers
+    (NomicBert), so the loader must not ask for remote code.
+    """
+    mock_torch = mock.MagicMock()
+    mock_torch.cuda.is_available.return_value = False
+    mock_transformers = mock.MagicMock()
+    monkeypatch.setitem(sys.modules, "torch", mock_torch)
+    monkeypatch.setitem(sys.modules, "transformers", mock_transformers)
+
+    import nemoguardrails.library.jailbreak_detection.model_based.models as models
+
+    models.SnowflakeEmbed()
+
+    tokenizer_call = mock_transformers.AutoTokenizer.from_pretrained.call_args
+    model_call = mock_transformers.AutoModel.from_pretrained.call_args
+    assert tokenizer_call.args == (models.SNOWFLAKE_MODEL_ID,)
+    assert model_call.args == (models.SNOWFLAKE_MODEL_ID,)
+    for call in (tokenizer_call, model_call):
+        assert call.kwargs.get("trust_remote_code") is not True
+    assert model_call.kwargs.get("use_safetensors") is True
+
+
 # Test 6: Check jailbreak function with classifier parameter
 
 
