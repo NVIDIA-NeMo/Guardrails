@@ -31,6 +31,7 @@ from nemoguardrails.server.experimental._buffered_kernel import (
     OperationCheckFailed,
     OperationCompleted,
     OperationModificationUnsupported,
+    OperationProjectionFailed,
     execute_buffered_operation,
 )
 from nemoguardrails.server.experimental._content_checker import (
@@ -185,6 +186,7 @@ OutcomeRenderer = Callable[
         OperationBlocked
         | OperationCheckFailed
         | OperationModificationUnsupported
+        | OperationProjectionFailed
         | HttpOperationFailed
         | HttpRouteRejected
     ],
@@ -414,6 +416,7 @@ def _render_failure(
     failure: OperationBlocked
     | OperationCheckFailed
     | OperationModificationUnsupported
+    | OperationProjectionFailed
     | HttpOperationFailed
     | HttpRouteRejected,
     render_outcome: OutcomeRenderer,
