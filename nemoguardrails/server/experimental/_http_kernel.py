@@ -421,6 +421,10 @@ def _guarded_handler(
     async def handle(request: Request) -> Response:
         """Buffer, check, dispatch, and render one guarded request."""
 
+        if _normalized_route_path(request.scope["path"]) != request.scope["path"]:
+            return _render_failure(
+                HttpRouteRejected(HttpRouteRejectionKind.NON_CANONICAL_PATH), render_outcome, request.method
+            )
         try:
             buffered_request = await _buffer_request(request, max_request_body_bytes)
             outcome = await execute_buffered_operation(

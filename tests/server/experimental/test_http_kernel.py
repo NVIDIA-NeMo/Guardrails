@@ -735,6 +735,103 @@ async def test_guarded_url_aliases_are_rendered_before_dispatch(guarded_operatio
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["", "/proxy"])
+@pytest.mark.parametrize("method", ["POST", "PUT"])
+@pytest.mark.parametrize(
+    ("path", "raw_path"),
+    [
+        ("/v1/models/../generate", b"/v1/models/../generate"),
+        ("/v1/models/../generate", b"/v1/models/%2e%2e/generate"),
+        ("/v1/models/../generate", b"/v1/models/.%2E/generate"),
+        ("/v1/models/./generate", b"/v1/models/./generate"),
+        ("/v1/models/./generate", b"/v1/models/%2e/generate"),
+    ],
+)
+async def test_parameterized_guarded_routes_reject_dot_segments(guarded_operation, prefix, method, path, raw_path):
+    checker = StaticChecker()
+    projections = []
+    dispatched = []
+    outcomes = []
+
+    def project(request):
+        projections.append(request)
+        return project_request(request)
+
+    parameterized = GuardedHttpOperation(
+        operation_path=GuardedOperationPath("/v1/models/{model}/generate", frozenset({"POST", "PUT"})),
+        operation=BufferedGuardedOperation(
+            name="models.generate", input_projection=project, output_projection=project_response
+        ),
+    )
+
+    async def dispatch(request):
+        dispatched.append(request)
+        return BufferedHttpResponse(200, (), b'{"output":"answer"}')
+
+    def render(outcome):
+        outcomes.append(outcome)
+        return render_test_outcome(outcome)
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation, parameterized], checker=checker, dispatch=dispatch, render_outcome=render
+        ),
+        prefix=prefix,
+    )
+
+    response = await asgi_exchange(
+        app, prefix + path, prefix.encode() + raw_path, method=method, body=b'{"input":"question"}'
+    )
+
+    assert response.status_code == 422
+    assert len(outcomes) == 1
+    assert outcomes[0].kind is HttpRouteRejectionKind.NON_CANONICAL_PATH
+    assert response.content == b"non_canonical_path"
+    assert projections == []
+    assert checker.calls == []
+    assert dispatched == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("model", "raw_model"),
+    [("model-v1.2", b"model-v1.2"), ("..model", b"..model"), ("model..", b"model.."), ("model.v2", b"model%2Ev2")],
+)
+async def test_parameterized_guarded_routes_preserve_canonical_model_paths(model, raw_model):
+    checker = StaticChecker()
+    dispatched = []
+    declaration = GuardedHttpOperation(
+        operation_path=GuardedOperationPath("/v1/models/{model}/generate"),
+        operation=BufferedGuardedOperation(
+            name="models.generate", input_projection=project_request, output_projection=project_response
+        ),
+    )
+
+    async def dispatch(request):
+        dispatched.append(request)
+        return BufferedHttpResponse(200, (), b'{"output":"answer"}')
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[declaration], checker=checker, dispatch=dispatch, render_outcome=render_test_outcome
+        ),
+        prefix="/proxy",
+    )
+    path = f"/proxy/v1/models/{model}/generate"
+    raw_path = b"/proxy/v1/models/" + raw_model + b"/generate"
+
+    response = await asgi_exchange(app, path, raw_path, body=b'{"input":"question"}')
+
+    assert response.status_code == 200
+    assert response.content == b'{"output":"answer"}'
+    assert [stage for stage, _ in checker.calls] == ["input", "output"]
+    assert len(dispatched) == 1
+    assert (dispatched[0].path, dispatched[0].raw_path) == (path, raw_path)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("path", "raw_path"),
     [
