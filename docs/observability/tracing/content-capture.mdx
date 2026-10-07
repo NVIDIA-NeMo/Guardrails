@@ -234,7 +234,7 @@ In both cases, if no content was produced, IORails omits the output rather than 
   `guardrails.request.input` records the turn a masking rail checked as the rail rewrote it, even when a later rail blocks the request.
   It records earlier turns of the conversation, which no rail checks, as the caller sent them.
   When no mask reaches the request, it records the turn as the caller sent it: the masking rail fails, a tool-result rail blocks before the input rails run, or a stream closes or fails before its input rails finish.
-  On a `check_async()` call, it records the checked response as the caller sent it when no output rail runs to mask it: an input rail blocks first, or `rail_types` leaves out `RailType.OUTPUT`.
+  On a `check_async()` call, it records the checked response as the caller sent it when no output rail runs to mask it: another rail blocks before the output rails run, or `rail_types` leaves out `RailType.OUTPUT`.
   Each `guardrails.rail` span records the input its rail received, so the masking rail's own span carries the text before the mask.
   A rail that calls an LLM also records the prompt it built from that input on the call's own `chat <model>` CLIENT span.
   On a `check_async()` call, whose conversation includes the checked response, every rail that runs records that response as the caller sent it.
