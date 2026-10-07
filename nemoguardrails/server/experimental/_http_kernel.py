@@ -22,7 +22,7 @@ from enum import Enum
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
-from starlette.convertors import PathConvertor
+from starlette.convertors import FloatConvertor, IntegerConvertor, PathConvertor, StringConvertor, UUIDConvertor
 from starlette.responses import Response
 from starlette.routing import compile_path
 
@@ -201,24 +201,51 @@ def _route_shape(path: str) -> str:
     return path_format
 
 
-def _route_sample(path: str) -> str:
-    """Materialize one path accepted by a guarded route template."""
+def _route_boundaries_overlap(left: str, right: str) -> bool:
+    """Compare the fixed prefix and suffix of two compiled route formats."""
 
-    _, path_format, convertors = compile_path(path)
-    values = {}
-    candidates = ("value", "1", "1.0", "00000000-0000-0000-0000-000000000000")
-    for name, convertor in convertors.items():
-        values[name] = next(candidate for candidate in candidates if re.fullmatch(convertor.regex, candidate))
-    return path_format.format(**values)
+    left_prefix, right_prefix = left.split("{", 1)[0], right.split("{", 1)[0]
+    if not (left_prefix.startswith(right_prefix) or right_prefix.startswith(left_prefix)):
+        return False
+    left_suffix, right_suffix = left.rsplit("}", 1)[-1], right.rsplit("}", 1)[-1]
+    return left_suffix.endswith(right_suffix) or right_suffix.endswith(left_suffix)
+
+
+def _route_segments_overlap(left: str, right: str) -> bool:
+    """Return whether two segments may overlap."""
+
+    left_regex, left_format, left_convertors = compile_path(f"/{left}")
+    right_regex, right_format, right_convertors = compile_path(f"/{right}")
+    if not left_convertors:
+        return right_regex.fullmatch(f"/{left}") is not None
+    if not right_convertors:
+        return left_regex.fullmatch(f"/{right}") is not None
+    return _route_boundaries_overlap(left_format, right_format)
 
 
 def _routes_overlap(left: str, right: str) -> bool:
-    """Return whether two guarded route templates accept a common path."""
+    """Conservatively reject routes unless their segments prove disjoint.
 
-    left_regex, _, _ = compile_path(left)
-    right_regex, _, _ = compile_path(right)
-    return (
-        left_regex.fullmatch(_route_sample(right)) is not None or right_regex.fullmatch(_route_sample(left)) is not None
+    Custom converters may span segments, so only whole-route literal boundaries
+    can prove two dynamic routes using them disjoint.
+    """
+
+    left_regex, left_format, left_convertors = compile_path(left)
+    right_regex, right_format, right_convertors = compile_path(right)
+    if not left_convertors:
+        return right_regex.fullmatch(left) is not None
+    if not right_convertors:
+        return left_regex.fullmatch(right) is not None
+    segment_convertors = (StringConvertor, IntegerConvertor, FloatConvertor, UUIDConvertor)
+    if any(
+        type(convertor) not in segment_convertors
+        for convertor in (*left_convertors.values(), *right_convertors.values())
+    ):
+        return _route_boundaries_overlap(left_format, right_format)
+    left_segments, right_segments = left.split("/"), right.split("/")
+    return len(left_segments) == len(right_segments) and all(
+        _route_segments_overlap(left_segment, right_segment)
+        for left_segment, right_segment in zip(left_segments, right_segments)
     )
 
 

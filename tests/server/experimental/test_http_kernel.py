@@ -473,6 +473,134 @@ def test_overlapping_guarded_routes_are_rejected(guarded_operation):
         )
 
 
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    ("left", "right", "witness"),
+    [
+        ("/v1/{name}/generate", "/v1/models/{action}", "/v1/models/generate"),
+        ("/v1/{name}/fixed/{tail}", "/v1/models/{action}/done", "/v1/models/fixed/done"),
+        ("/v1/{key:int}/generate", "/v1/42/{action}", "/v1/42/generate"),
+        ("/v1/{key:float}/generate", "/v1/2.5/{action}", "/v1/2.5/generate"),
+        ("/v1/{key:int}", "/v1/{identifier:uuid}", "/v1/" + "0" * 32),
+        ("/v1/{key:float}", "/v1/{identifier:uuid}", "/v1/" + "0" * 32),
+        ("/v1/{left}a", "/v1/b{right}", "/v1/ba"),
+        ("/v1/{model}:generate", "/v1/models-{name}:generate", "/v1/models-example:generate"),
+        ("/v1/{key:int}", "/v1/{value:float}", "/v1/1"),
+    ],
+)
+def test_guarded_route_intersections_are_rejected_in_both_orders(left, right, witness, reverse):
+    assert GuardedOperationPath(left).matches(witness)
+    assert GuardedOperationPath(right).matches(witness)
+    operations = [
+        GuardedHttpOperation(
+            GuardedOperationPath(path), BufferedGuardedOperation(name, project_request, project_response)
+        )
+        for name, path in [("left", left), ("right", right)]
+    ]
+    if reverse:
+        operations.reverse()
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        create_http_proxy_router(
+            operations=operations,
+            checker=StaticChecker(),
+            dispatch=lambda _request: None,
+            render_outcome=render_test_outcome,
+        )
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    ("left", "right"),
+    [
+        ("/v1/{key:int}/generate", "/v1/models/{action}"),
+        ("/v1/{key:float}/generate", "/v1/models/{action}"),
+        ("/v1/{key:uuid}/generate", "/v1/models/{action}"),
+        ("/v1/{name}/generate", "/v2/models/{action}"),
+        ("/v1/{name}/generate", "/v1/models/{action}/extra"),
+        ("/v1/first-{name}", "/v1/second-{name}"),
+        ("/v1/{model}:generateContent", "/v1/{model}:streamGenerateContent"),
+    ],
+)
+def test_disjoint_guarded_route_segments_remain_accepted(left, right, reverse):
+    operations = [
+        GuardedHttpOperation(
+            GuardedOperationPath(path), BufferedGuardedOperation(name, project_request, project_response)
+        )
+        for name, path in [("left", left), ("right", right)]
+    ]
+    if reverse:
+        operations.reverse()
+
+    router = create_http_proxy_router(
+        operations=operations,
+        checker=StaticChecker(),
+        dispatch=lambda _request: None,
+        render_outcome=render_test_outcome,
+    )
+
+    assert len(router.routes) == 3
+
+
+def test_overlapping_guarded_routes_with_different_methods_remain_accepted():
+    operations = [
+        GuardedHttpOperation(
+            GuardedOperationPath(path, frozenset({method})),
+            BufferedGuardedOperation(name, project_request, project_response),
+        )
+        for name, path, method in [("left", "/v1/{name}/generate", "POST"), ("right", "/v1/models/{action}", "GET")]
+    ]
+
+    router = create_http_proxy_router(
+        operations=operations,
+        checker=StaticChecker(),
+        dispatch=lambda _request: None,
+        render_outcome=render_test_outcome,
+    )
+
+    assert len(router.routes) == 3
+
+
+@pytest.mark.parametrize(
+    ("left", "right", "witness"),
+    [
+        ("/v1/{part:review_custom}/generate", "/v1/models/{action}", "/v1/models/generate"),
+        ("/v1/red/{part:review_custom}", "/v1/blue/{action}", None),
+        ("/v1/{part:review_custom}/red", "/v1/{action}/blue", None),
+    ],
+)
+def test_custom_converter_routes_are_checked_without_example_values(monkeypatch, left, right, witness):
+    from starlette.convertors import CONVERTOR_TYPES, StringConvertor
+
+    class SpanningConvertor(StringConvertor):
+        regex = ".+"
+
+    monkeypatch.setitem(CONVERTOR_TYPES, "review_custom", SpanningConvertor())
+    paths = [left, right]
+    operations = [
+        GuardedHttpOperation(
+            GuardedOperationPath(path),
+            BufferedGuardedOperation(f"test.custom{index}", project_request, project_response),
+        )
+        for index, path in enumerate(paths)
+    ]
+
+    def create_router():
+        return create_http_proxy_router(
+            operations=operations,
+            checker=StaticChecker(),
+            dispatch=lambda _request: None,
+            render_outcome=render_test_outcome,
+        )
+
+    if witness is None:
+        assert len(create_router().routes) == 3
+    else:
+        assert all(GuardedOperationPath(path).matches(witness) for path in paths)
+        with pytest.raises(ValueError, match="must not overlap"):
+            create_router()
+
+
 def test_guarded_http_path_rejects_path_spanning_parameters():
     """Reject guarded templates that can consume multiple path segments."""
 
