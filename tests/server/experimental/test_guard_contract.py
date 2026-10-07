@@ -54,6 +54,28 @@ def test_minimal_guard_contract_matches_schema(guard_contract_schema: dict, mini
     Draft202012Validator(guard_contract_schema).validate(minimal_guard_contract)
 
 
+@pytest.mark.parametrize("projection", ["request", "response"])
+@pytest.mark.parametrize("payload", [None, True, 42, "text", []])
+def test_minimal_guard_projection_rejects_non_objects(
+    minimal_guard_contract: dict, projection: str, payload: object
+) -> None:
+    """Both example projections require object payloads."""
+    with pytest.raises(ValidationError):
+        Draft202012Validator(minimal_guard_contract[projection]).validate(payload)
+
+
+@pytest.mark.parametrize(("projection", "field"), [("request", "prompt"), ("response", "text")])
+def test_minimal_guard_projection_requires_its_text_field(
+    minimal_guard_contract: dict, projection: str, field: str
+) -> None:
+    """Object payloads pass only when the required text field is present."""
+    validator = Draft202012Validator(minimal_guard_contract[projection])
+    validator.validate({field: "hello"})
+
+    with pytest.raises(ValidationError, match="required property"):
+        validator.validate({})
+
+
 def test_guard_contract_rejects_unknown_version(guard_contract_schema: dict, minimal_guard_contract: dict) -> None:
     """The schema rejects contracts authored for an unsupported version."""
     contract = minimal_guard_contract | {"version": "1.0.0"}

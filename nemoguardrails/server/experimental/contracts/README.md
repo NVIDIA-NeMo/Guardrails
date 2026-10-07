@@ -20,6 +20,7 @@ version: '1.0.0-alpha.1'
 operationId: createText
 profile: single_text.v1
 request:
+  type: object
   required: [prompt]
   properties:
     prompt:
@@ -34,6 +35,7 @@ request:
   x-nemo-guardrails:
     opaque_fields: [model]
 response:
+  type: object
   required: [text]
   properties:
     text:
