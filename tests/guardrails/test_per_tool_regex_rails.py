@@ -37,9 +37,16 @@ from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import ToolCall, ToolCallFunction
-from tests.guardrails.tool_helpers import assert_result_blocked
+from tests.guardrails.tool_helpers import (
+    assert_result_blocked,
+    call_violation,
+    result_violation,
+    tool_call_turn,
+    wire_tool_call,
+)
 
 STACK_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
 
@@ -50,9 +57,16 @@ RUN_SQL_RESULT_PATTERN_CONFIG = {
     "tool_input": {"run_sql": {"patterns": [r"ssn:\s*\d{3}-\d{2}-\d{4}"]}},
 }
 
+# A run_sql schema with no "nope" argument, so a per-tool rail scoped to `$argument=nope` raises.
+_CLOSED_QUERY_SCHEMA = {"type": "object", "properties": {"query": {"type": "string"}}, "additionalProperties": False}
+
 
 def _sql_call(query: str, call_id: str = "call_1") -> ToolCall:
     return ToolCall(id=call_id, type="function", function=ToolCallFunction(name="run_sql", arguments={"query": query}))
+
+
+def _call_with_arguments(name: str, arguments: dict, call_id: str) -> ToolCall:
+    return ToolCall(id=call_id, type="function", function=ToolCallFunction(name=name, arguments=arguments))
 
 
 def _other_call(call_id: str = "call_2") -> ToolCall:
@@ -61,22 +75,15 @@ def _other_call(call_id: str = "call_2") -> ToolCall:
     )
 
 
-def _llm_params(*tool_names: str) -> dict:
-    """Declare *tool_names* with a schema permissive enough to accept any arguments.
+def _llm_params(*tool_names: str, parameters: dict | None = None) -> dict:
+    """Declare *tool_names* with a schema permissive enough to accept any arguments, or with *parameters*.
 
     @tool_output_validation blocks a call whose tool isn't declared here, so per-tool
     tests that expect the regex check itself to run (not the schema gate) need their
     tool declared.
     """
-    return {
-        "tools": [
-            {
-                "type": "function",
-                "function": {"name": name, "parameters": {"type": "object", "additionalProperties": True}},
-            }
-            for name in tool_names
-        ]
-    }
+    schema = parameters or {"type": "object", "additionalProperties": True}
+    return {"tools": [{"type": "function", "function": {"name": name, "parameters": schema}} for name in tool_names]}
 
 
 def _build_manager(
@@ -139,6 +146,101 @@ class TestAreToolCallsSafe:
         assert result.records[0].flow == "regex check tool output"
         assert result.records[0].rail_type == "tool_output"
         assert result.records[0].return_value["detections"] == [r"DROP\s+TABLE"]
+
+    @pytest.mark.asyncio
+    async def test_per_tool_block_reports_the_blocked_call(self):
+        """A per-tool block gives one ``per_tool_rail`` violation naming the rail and the blocked call's position."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+        )
+        calls = [_sql_call("SELECT 1", call_id="call_1"), _sql_call("DROP TABLE users", call_id="call_2")]
+        result = await manager.are_tool_calls_safe(calls, _llm_params("run_sql"))
+        assert result.tool_violations == (
+            call_violation(
+                "per_tool_rail",
+                "regex check tool output",
+                tool_call_id="call_2",
+                tool_name="run_sql",
+                index=1,
+                rail="regex check tool output",
+            ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_unparsable_call_does_not_hide_a_later_per_tool_block(self):
+        """A per-tool rail still checks the calls after an unparsable one, reporting each call at its own position."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+        )
+        messages = tool_call_turn(
+            wire_tool_call("run_sql", '{"query": "SELECT', "call_1"),
+            wire_tool_call("run_sql", '{"query": "DROP TABLE users"}', "call_2"),
+        )
+
+        result = await manager.are_latest_tool_calls_safe(messages, _llm_params("run_sql"))
+
+        assert [(v.violation_type, v.tool_call_id, v.index, v.rail) for v in result.tool_violations] == [
+            (ToolViolationType.MALFORMED_ARGUMENTS, "call_1", 0, None),
+            (ToolViolationType.PER_TOOL_RAIL, "call_2", 1, "regex check tool output"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_non_string_tool_name_blocks_instead_of_raising(self):
+        """A call whose name is not a string is a ``malformed_tool_call`` block, not an error from the per-tool lookup."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, regex_detection=RUN_SQL_PATTERN_CONFIG
+        )
+        messages = tool_call_turn({**wire_tool_call(), "function": {"name": {"x": 1}, "arguments": "{}"}})
+
+        result = await manager.are_latest_tool_calls_safe(messages, _llm_params("run_sql"))
+
+        assert [(v.violation_type, v.index) for v in result.tool_violations] == [
+            (ToolViolationType.MALFORMED_TOOL_CALL, 0)
+        ]
+
+    @pytest.mark.asyncio
+    async def test_failed_rail_beside_an_unparsable_call_stays_a_failure(self):
+        """A rail that raises beside an unparsable call keeps the result a failure, with the failed rail's reason."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output $argument=nope"]},
+            regex_detection=RUN_SQL_PATTERN_CONFIG,
+        )
+        messages = tool_call_turn(
+            wire_tool_call("run_sql", '{"query": "SELECT', "call_1"),
+            wire_tool_call("run_sql", '{"query": "SELECT 1"}', "call_2"),
+        )
+
+        result = await manager.are_latest_tool_calls_safe(
+            messages, _llm_params("run_sql", parameters=_CLOSED_QUERY_SCHEMA)
+        )
+
+        assert (result.failed, result.reason) == (True, "regex check tool output error")
+        assert [(v.violation_type, v.index) for v in result.tool_violations] == [
+            (ToolViolationType.MALFORMED_ARGUMENTS, 0),
+            (ToolViolationType.RAIL_FAILED, 1),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_failed_per_tool_rail_reports_rail_failed(self):
+        """A per-tool rail that raises reports ``rail_failed`` for the call it was checking, not a policy block."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output $argument=nope"]},
+            regex_detection=RUN_SQL_PATTERN_CONFIG,
+        )
+        result = await manager.are_tool_calls_safe(
+            [_sql_call("SELECT 1")], _llm_params("run_sql", parameters=_CLOSED_QUERY_SCHEMA)
+        )
+        assert result.failed is True
+        assert result.tool_violations == (
+            call_violation(
+                "rail_failed",
+                "regex check tool output error",
+                tool_call_id="call_1",
+                tool_name="run_sql",
+                index=0,
+                rail="regex check tool output",
+            ),
+        )
 
     @pytest.mark.asyncio
     async def test_matching_tool_non_matching_pattern_allows(self):
@@ -209,6 +311,52 @@ class TestAreToolCallsSafe:
         assert_result_blocked(result)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("parallel", [False, True], ids=["sequential", "parallel"])
+    @pytest.mark.parametrize(
+        ("calls", "llm_params", "expected"),
+        [
+            (
+                [_sql_call("SELECT 1")],
+                {},
+                call_violation(
+                    "tool_not_allowed",
+                    "tool call 'run_sql' is not an allowed tool",
+                    tool_call_id="call_1",
+                    tool_name="run_sql",
+                    index=0,
+                    rail="regex check tool output",
+                ),
+            ),
+            (
+                [_sql_call("SELECT 1", "call_1"), _call_with_arguments("run_sql", {"query": 5}, "call_2")],
+                _llm_params("run_sql", parameters=_CLOSED_QUERY_SCHEMA),
+                call_violation(
+                    "arguments_invalid",
+                    "arguments for tool 'run_sql' do not match its schema: 'type' failed at '/query'",
+                    tool_call_id="call_2",
+                    tool_name="run_sql",
+                    index=1,
+                    argument_path="/query",
+                    schema_keyword="type",
+                    rail="regex check tool output",
+                ),
+            ),
+        ],
+        ids=["undeclared_tool", "schema_invalid_arguments"],
+    )
+    async def test_per_tool_schema_gate_reports_the_underlying_violation(self, calls, llm_params, expected, parallel):
+        """A per-tool rail's own allowlist and schema gate reports the underlying violation, naming that rail."""
+        manager = _build_manager(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]},
+            regex_detection=RUN_SQL_PATTERN_CONFIG,
+            tool_output_parallel=parallel,
+        )
+
+        result = await manager.are_tool_calls_safe(calls, llm_params)
+
+        assert result.tool_violations == (expected,)
+
+    @pytest.mark.asyncio
     async def test_global_flow_blocks_before_per_tool_runs(self):
         manager = _build_manager(
             tool_call_flows=["tool call validation"],
@@ -240,6 +388,7 @@ def _tool_result_messages(content: str, *, name: str | None = "run_sql") -> list
 class TestAreToolResultsSafe:
     @pytest.mark.asyncio
     async def test_matching_tool_and_pattern_blocks(self):
+        """A per-tool result block gives one ``per_tool_rail`` violation at the tool message's position."""
         manager = _build_manager(
             per_tool_result_flows={"run_sql": ["regex check tool input"]},
             regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
@@ -248,6 +397,16 @@ class TestAreToolResultsSafe:
         assert result.is_safe is False
         assert result.records[0].tool_name == "run_sql"
         assert result.records[0].rail_type == "tool_input"
+        assert result.tool_violations == (
+            result_violation(
+                "per_tool_rail",
+                "regex check tool input",
+                tool_call_id="call_1",
+                tool_name="run_sql",
+                index=2,
+                rail="regex check tool input",
+            ),
+        )
 
     @pytest.mark.asyncio
     async def test_non_matching_pattern_allows(self):
@@ -359,6 +518,44 @@ class TestAreToolResultsSafe:
         messages[-1]["tool_call_id"] = "call_unknown"
         result = await manager.are_tool_results_safe(messages)
         assert result.is_safe is False
+        assert result.tool_violations == (
+            result_violation(
+                "unlinkable_result",
+                "tool result cannot be linked to exactly one prior call; per-tool policy cannot be verified",
+                tool_call_id="call_unknown",
+                index=2,
+            ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_non_string_call_id_still_gives_a_structured_block(self):
+        """A result linked by a non-string call id is blocked by its per-tool rail with a violation, not an exception."""
+        manager = _build_manager(
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
+            regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
+        )
+        messages = _tool_result_messages("ssn: 123-45-6789")
+        messages[1]["tool_calls"][0]["id"] = 5
+        messages[2]["tool_call_id"] = 5
+
+        result = await manager.are_tool_results_safe(messages)
+
+        assert [(v.violation_type, v.tool_call_id, v.index) for v in result.tool_violations] == [
+            (ToolViolationType.PER_TOOL_RAIL, None, 2)
+        ]
+
+    @pytest.mark.asyncio
+    async def test_unresolvable_call_id_block_names_no_rail(self):
+        """The manager refuses an unresolvable result before any per-tool rail runs, so the block names no rail."""
+        manager = _build_manager(
+            per_tool_result_flows={"run_sql": ["regex check tool input"]},
+            regex_detection=RUN_SQL_RESULT_PATTERN_CONFIG,
+        )
+        messages = _tool_result_messages("no sensitive data", name=None)
+        messages[-1]["tool_call_id"] = "call_unknown"
+        result = await manager.are_tool_results_safe(messages)
+        assert result.is_safe is False
+        assert result.triggered_rail is None
 
     @pytest.mark.asyncio
     async def test_global_only_config_does_not_require_result_linkage(self):

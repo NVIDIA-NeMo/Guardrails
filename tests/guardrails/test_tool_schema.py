@@ -15,9 +15,13 @@
 
 """Unit tests for the tool_schema module (canonical tool types + arg validation)."""
 
+import uuid
 from dataclasses import FrozenInstanceError
+from typing import Any
+from unittest.mock import patch
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.tool_schema import (
@@ -28,7 +32,10 @@ from nemoguardrails.guardrails.tool_schema import (
     tool_output_validation,
     validate_arguments,
 )
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.types import ToolCall, ToolCallFunction
+
+_SECRET_VALUE = "SECRET-VALUE"
 
 _WEATHER_SCHEMA = {
     "type": "object",
@@ -139,14 +146,26 @@ class TestValidateArguments:
         assert validate_arguments(_weather_tool(), {"city": "Paris"}) is None
 
     def test_type_mismatch_is_rejected(self):
-        reason = validate_arguments(_weather_tool(), {"city": 123})
-        assert reason is not None
-        assert "get_weather" in reason
+        """A type mismatch names the failing argument and keyword, never the value that failed."""
+        violation = validate_arguments(_weather_tool(), {"city": "Paris", "days": _SECRET_VALUE})
+        assert (violation.violation_type, violation.argument_path, violation.schema_keyword) == (
+            ToolViolationType.ARGUMENTS_INVALID,
+            "/days",
+            "type",
+        )
+        assert violation.reason == "arguments for tool 'get_weather' do not match its schema: 'type' failed at '/days'"
 
     def test_missing_required_is_rejected(self):
-        reason = validate_arguments(_weather_tool(), {})
-        assert reason is not None
-        assert "get_weather" in reason
+        """A missing required argument is named in the path, although jsonschema reports it at the parent object."""
+        violation = validate_arguments(_weather_tool(), {})
+        assert (violation.violation_type, violation.argument_path, violation.schema_keyword) == (
+            ToolViolationType.ARGUMENTS_INVALID,
+            "/city",
+            "required",
+        )
+        assert violation.reason == (
+            "arguments for tool 'get_weather' do not match its schema: 'required' failed at '/city'"
+        )
 
     def test_hosted_tool_without_schema_skips_validation(self):
         """A hosted/server tool (name is None) declares no schema and the provider owns the call shape, so it stays allowlist-only: any arguments are accepted here."""
@@ -161,34 +180,31 @@ class TestValidateArguments:
     def test_function_tool_without_parameters_rejects_arguments(self):
         """A function tool that declares no parameters accepts no arguments, so supplying any blocks instead of skipping."""
         tool = Tool(name="get_time", arguments_schema=None)
-        reason = validate_arguments(tool, {"path": "/etc/shadow"})
-        assert reason is not None
-        assert "get_time" in reason
-        assert "no arguments" in reason
+        violation = validate_arguments(tool, {"path": "/etc/shadow"})
+        assert (violation.violation_type, violation.argument_path, violation.schema_keyword) == (
+            ToolViolationType.UNEXPECTED_ARGUMENTS,
+            None,
+            None,
+        )
+        assert violation.reason == "tool 'get_time' accepts no arguments but the call supplied 1 argument"
 
     def test_function_tool_empty_dict_schema_rejects_arguments(self):
         """An explicit empty schema ({}) declares no properties; jsonschema would accept anything, so it is treated as no-args."""
         tool = Tool(name="ping", arguments_schema={})
-        reason = validate_arguments(tool, {"x": 1})
-        assert reason is not None
-        assert "ping" in reason
-        assert "no arguments" in reason
+        violation = validate_arguments(tool, {"x": 1})
+        assert violation.violation_type is ToolViolationType.UNEXPECTED_ARGUMENTS
 
     def test_function_tool_empty_properties_rejects_arguments(self):
         """An object schema with empty properties and no additionalProperties:false defaults to permissive, so it is treated as no-args."""
         tool = Tool(name="ping", arguments_schema={"type": "object", "properties": {}})
-        reason = validate_arguments(tool, {"x": 1})
-        assert reason is not None
-        assert "ping" in reason
-        assert "no arguments" in reason
+        violation = validate_arguments(tool, {"x": 1})
+        assert violation.violation_type is ToolViolationType.UNEXPECTED_ARGUMENTS
 
     def test_function_tool_object_schema_without_properties_rejects_arguments(self):
         """An object schema with no properties key at all declares no inputs, so it is treated as no-args."""
         tool = Tool(name="ping", arguments_schema={"type": "object"})
-        reason = validate_arguments(tool, {"x": 1})
-        assert reason is not None
-        assert "ping" in reason
-        assert "no arguments" in reason
+        violation = validate_arguments(tool, {"x": 1})
+        assert violation.violation_type is ToolViolationType.UNEXPECTED_ARGUMENTS
 
     def test_function_tool_additional_properties_schema_accepts_arguments(self):
         """A schema that opens additionalProperties declares an input channel, so it is not treated as no-args and free-form arguments pass."""
@@ -206,13 +222,114 @@ class TestValidateArguments:
         assert validate_arguments(tool, {"x": 1}) is None
 
     def test_malformed_schema_is_reported_not_raised(self):
-        # A declared schema that is not valid JSON Schema degrades to a reason
-        # rather than raising (e.g. a non-JSON-Schema dialect reaching the
-        # validator before its engine adapter normalizes it).
+        """A declared schema that is not valid JSON Schema gives ``invalid_tool_schema`` rather than raising."""
         bad = Tool(name="bad", arguments_schema={"type": "not-a-real-type"})
-        reason = validate_arguments(bad, {})
-        assert reason is not None
-        assert "bad" in reason
+        violation = validate_arguments(bad, {})
+        assert violation.violation_type is ToolViolationType.INVALID_TOOL_SCHEMA
+        assert violation.reason == "declared schema for tool 'bad' is not valid JSON Schema"
+
+    def test_schema_that_is_not_json_is_reported_as_invalid(self):
+        """A schema that cannot be written as JSON, here one holding a set, gives ``invalid_tool_schema``."""
+        odd = Tool(name="odd", arguments_schema={"type": "object", "default": {"a", "b"}})
+        violation = validate_arguments(odd, {})
+        assert violation.violation_type is ToolViolationType.INVALID_TOOL_SCHEMA
+        assert violation.reason == "declared schema for tool 'odd' is not valid JSON Schema"
+
+    def test_a_schema_is_checked_once_however_many_calls_use_it(self):
+        """Validating several calls against one schema checks the schema against its metaschema only once."""
+        # A schema no other test uses, so no earlier validation has cached it.
+        tool = Tool(name="get_weather", arguments_schema={**_WEATHER_SCHEMA, "$comment": str(uuid.uuid4())})
+        check_schema = Draft202012Validator.check_schema
+
+        with patch.object(Draft202012Validator, "check_schema", wraps=check_schema) as schema_checks:
+            violations = [validate_arguments(tool, {"city": city}) for city in ("Paris", "Rome", "Oslo")]
+
+        assert (violations, schema_checks.call_count) == ([None, None, None], 1)
+
+
+_CLOSED_WEATHER_SCHEMA = {
+    "type": "object",
+    "properties": {"city": {"type": "string"}},
+    "additionalProperties": False,
+}
+
+
+def _object(properties: dict, **keywords: Any) -> dict:
+    """An object schema declaring *properties*, plus any other keywords."""
+    return {"type": "object", "properties": properties, **keywords}
+
+
+_DRAFT3 = {"$schema": "http://json-schema.org/draft-03/schema#"}
+
+# Case id -> (arguments schema, arguments, (argument_path, schema_keyword)).
+_ARGUMENT_PATHS = {
+    "unexpected_key_not_named": (
+        _CLOSED_WEATHER_SCHEMA,
+        {"city": "Paris", _SECRET_VALUE: 1},
+        ("", "additionalProperties"),
+    ),
+    "map_key_masked": (
+        _object({"contacts": {"type": "object", "additionalProperties": {"type": "integer"}}}),
+        {"contacts": {_SECRET_VALUE: "x"}},
+        ("/contacts/*", "type"),
+    ),
+    "array_index_kept": (
+        _object({"cities": {"type": "array", "items": {"type": "string"}}}),
+        {"cities": ["Paris", 3]},
+        ("/cities/1", "type"),
+    ),
+    "nested_declared_names": (
+        _object({"opts": _object({"units": {"type": "string"}})}),
+        {"opts": {"units": 5}},
+        ("/opts/units", "type"),
+    ),
+    "missing_dependency_named": (
+        _object({"a": {}, "b": {}}, dependentRequired={"a": ["b"]}),
+        {"a": 1},
+        ("/b", "dependentRequired"),
+    ),
+    "segments_escaped": (_object({"a/b~c": {"type": "string"}}), {"a/b~c": 1}, ("/a~1b~0c", "type")),
+    "property_name_failure_at_parent": (
+        _object({"a": {}}, propertyNames={"maxLength": 3}),
+        {_SECRET_VALUE: 1},
+        ("", "maxLength"),
+    ),
+    "unevaluated_property_at_parent": (
+        _object({"city": {"type": "string"}}, unevaluatedProperties=False),
+        {"city": "Paris", "debug": 1},
+        ("", "unevaluatedProperties"),
+    ),
+    "draft3_required_at_property": (
+        _object({"a": {"type": "string", "required": True}}, **_DRAFT3),
+        {},
+        ("/a", "required"),
+    ),
+}
+
+
+class TestArgumentPath:
+    """Where ``validate_arguments`` points ``argument_path`` for each kind of schema failure."""
+
+    @pytest.mark.parametrize(
+        ("schema", "arguments", "expected"), list(_ARGUMENT_PATHS.values()), ids=list(_ARGUMENT_PATHS)
+    )
+    def test_argument_path_names_only_what_the_schema_declares(self, schema, arguments, expected):
+        """The path names only declared properties and indices, and the reason quotes no argument value or key."""
+        violation = validate_arguments(Tool(name="tool", arguments_schema=schema), arguments)
+        assert (violation.violation_type, violation.argument_path, violation.schema_keyword) == (
+            ToolViolationType.ARGUMENTS_INVALID,
+            *expected,
+        )
+        assert _SECRET_VALUE not in violation.reason
+
+    def test_top_level_failure_reads_as_the_top_level(self):
+        """A failure at the root keeps an empty ``argument_path``, and its reason says "the top level"."""
+        schema = _object({"a": {}, "b": {}}, minProperties=2)
+        violation = validate_arguments(Tool(name="pair", arguments_schema=schema), {"a": 1})
+        assert violation.argument_path == ""
+        assert violation.reason == (
+            "arguments for tool 'pair' do not match its schema: 'minProperties' failed at the top level"
+        )
 
 
 def _weather_call(arguments: dict) -> ToolCall:
@@ -242,6 +359,15 @@ class TestToolOutputValidation:
     @tool_output_validation
     async def _action(tool_call, tool_definition, argument_name=None, **kwargs):
         return RailOutcome.allow()
+
+    @pytest.mark.asyncio
+    async def test_undeclared_tool_name_is_capped_in_the_reason(self):
+        """An undeclared name, which the model made up, is cut to 64 characters in the block reason."""
+        call = ToolCall(id="call_1", type="function", function=ToolCallFunction(name="x" * 200, arguments={}))
+
+        outcome = await self._action(tool_call=call, tool_definition=None)
+
+        assert outcome.reason == f"tool call '{'x' * 64}...' is not an allowed tool"
 
     @pytest.mark.asyncio
     async def test_no_argument_name_skips_the_check(self):

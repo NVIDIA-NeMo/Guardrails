@@ -353,22 +353,26 @@ class Guardrails(BaseGuardrails):
         self,
         messages: List[dict],
         rail_types: Optional[List[RailType]] = None,
+        *,
+        tools: Optional[List[dict]] = None,
     ) -> RailsResult:
         """Run rails on messages based on their content (asynchronous).
-        Supported by both LLMRails and IORails.
+        Supported by both LLMRails and IORails; tool rail types and ``tools`` by IORails only.
         """
         await self._ensure_started()
-        return await self.rails_engine.check_async(messages, rail_types=rail_types)
+        return await self.rails_engine.check_async(messages, rail_types=rail_types, tools=tools)
 
     def check(
         self,
         messages: List[dict],
         rail_types: Optional[List[RailType]] = None,
+        *,
+        tools: Optional[List[dict]] = None,
     ) -> RailsResult:
         """Synchronous version of check_async.
-        Supported by both LLMRails and IORails.
+        Supported by both LLMRails and IORails; tool rail types and ``tools`` by IORails only.
         """
-        return self.rails_engine.check(messages, rail_types=rail_types)
+        return self.rails_engine.check(messages, rail_types=rail_types, tools=tools)
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration.

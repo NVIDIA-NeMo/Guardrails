@@ -21,7 +21,9 @@ blocked-result assertion reused across the tool-rail test modules. Assertions
 carry explicit messages since this module is not assertion-rewritten by pytest.
 """
 
-from typing import Optional
+from typing import Any, Optional
+
+from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
 
 WEATHER_SCHEMA = {
     "type": "object",
@@ -52,6 +54,43 @@ def assert_result_blocked(result, *substrings: str) -> None:
     """
     assert result.is_safe is False, f"expected blocked, got {result!r}"
     _assert_reason_contains(result.reason, substrings, result)
+
+
+def call_violation(violation_type: str, reason: str, **identity: Any) -> ToolViolation:
+    """A tool-call ``ToolViolation``; *violation_type* is its wire value, such as ``"tool_not_allowed"``."""
+    return ToolViolation(kind="tool_call", violation_type=ToolViolationType(violation_type), reason=reason, **identity)
+
+
+def result_violation(violation_type: str, reason: str, **identity: Any) -> ToolViolation:
+    """A tool-result ``ToolViolation``; *violation_type* is its wire value, such as ``"unknown_call_id"``."""
+    return ToolViolation(
+        kind="tool_result", violation_type=ToolViolationType(violation_type), reason=reason, **identity
+    )
+
+
+TOOL_CALL_QUESTION = "What's the weather in Paris?"
+
+UNREAD_TOOLS_MESSAGE = "tools is read only by a tool_call check; include tool_call in rail_types or leave tools out"
+
+
+def wire_tool_call(name: str = "get_weather", arguments: Any = '{"city": "Paris"}', call_id: str = "call_1") -> dict:
+    """One OpenAI Chat Completions tool call as it appears on an assistant message."""
+    return {"id": call_id, "type": "function", "function": {"name": name, "arguments": arguments}}
+
+
+def assistant_tool_calls(*calls: Any, content: Optional[str] = None) -> dict:
+    """An assistant message carrying *calls*, with *content* as its text."""
+    return {"role": "assistant", "content": content, "tool_calls": list(calls)}
+
+
+def tool_call_turn(*calls: Any, content: Optional[str] = None) -> list:
+    """A user question, then an assistant turn carrying *calls*."""
+    return [{"role": "user", "content": TOOL_CALL_QUESTION}, assistant_tool_calls(*calls, content=content)]
+
+
+def violations_in(outcome) -> list[ToolViolation]:
+    """The ``ToolViolation``s a tool validator attached to its ``RailOutcome`` metadata."""
+    return [ToolViolation.model_validate(violation) for violation in outcome.metadata.get("tool_violations", [])]
 
 
 def make_tool_conversation(result_call_id: str = "call_1", result_name: Optional[str] = "get_weather") -> list:

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -20,12 +21,17 @@ import pytest
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
-from nemoguardrails.exceptions import RailTypeNotConfiguredError
+from nemoguardrails.exceptions import (
+    InvalidCheckRequestError,
+    RailTypeNotConfiguredError,
+    RailTypeNotSupportedError,
+)
 from nemoguardrails.rails import LLMRails
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType
+from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType, ToolViolation
 from nemoguardrails.server import api
 from nemoguardrails.testing.fake_model import FakeLLMModel
+from tests.guardrails.tool_helpers import call_violation, result_violation
 
 client = TestClient(api.app)
 
@@ -50,6 +56,16 @@ def _mock_rails(check_result: RailsResult, colang_version: str = "1.0") -> Magic
 
 def _post(body: dict, **kwargs):
     return client.post(ENDPOINT, json=body, **kwargs)
+
+
+def _check_body(guardrails: Optional[dict] = None, **fields: Any) -> dict:
+    """A check body for one user turn against config ``test``, with extra ``guardrails`` options and top-level fields."""
+    return {
+        "model": "test",
+        "messages": [{"role": "user", "content": "hi"}],
+        "guardrails": {"config_id": "test", **(guardrails or {})},
+        **fields,
+    }
 
 
 def _checked(result, config_id="test", colang_version="1.0"):
@@ -136,9 +152,57 @@ def test_reason_returned_on_blocked():
     ids=["passed", "blocked-without-reason"],
 )
 def test_reason_absent_when_none(result):
-    """A result with no reason, as on a pass or an LLMRails block, omits reason from the response."""
+    """A result with no reason or tool violations, as on a pass or an LLMRails block, omits both from the response."""
     data = _checked(result)
     assert "reason" not in data
+    assert "tool_violations" not in data
+
+
+_UNLINKED_RESULT = result_violation(
+    "unknown_call_id",
+    "tool result for call_id 'call_9' does not correspond to a prior tool call",
+    tool_call_id="call_9",
+    index=3,
+)
+_UNDECLARED_CALL = call_violation(
+    "tool_not_allowed", "tool call 'rm_rf' is not an allowed tool", tool_call_id="call_1", tool_name="rm_rf", index=0
+)
+
+
+def _tool_block(*violations: ToolViolation) -> RailsResult:
+    """A blocked tool check carrying *violations*."""
+    return RailsResult(
+        status=RailStatus.BLOCKED,
+        content="I'm sorry, I can't respond to that.",
+        rail="tool result validation",
+        reason=violations[0].reason,
+        tool_violations=list(violations),
+    )
+
+
+def test_tool_violations_returned_on_blocked():
+    """A blocked tool check's violations reach the response, without their unset fields."""
+    data = _checked(_tool_block(_UNDECLARED_CALL))
+    assert data["tool_violations"] == [
+        {
+            "kind": "tool_call",
+            "violation_type": "tool_not_allowed",
+            "reason": "tool call 'rm_rf' is not an allowed tool",
+            "tool_call_id": "call_1",
+            "tool_name": "rm_rf",
+            "index": 0,
+        }
+    ]
+
+
+def test_result_violation_index_skips_the_prepended_context():
+    """With context prepended, a result's index still counts the request's messages; a call's index is unchanged."""
+    mock = _mock_rails(_tool_block(_UNLINKED_RESULT, _UNDECLARED_CALL))
+
+    with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
+        resp = _post(_check_body({"context": {"topic": "weather"}}))
+
+    assert [violation["index"] for violation in resp.json()["tool_violations"]] == [2, 0]
 
 
 # --- Config resolution ---
@@ -370,6 +434,8 @@ def test_context_prepended_to_messages():
         (["input"], [RailType.INPUT]),
         (["output"], [RailType.OUTPUT]),
         (["input", "output"], [RailType.INPUT, RailType.OUTPUT]),
+        (["tool_call"], [RailType.TOOL_CALL]),
+        (["tool_result"], [RailType.TOOL_RESULT]),
         (None, None),
     ],
 )
@@ -409,21 +475,46 @@ def test_rail_types_invalid_value_returns_422():
 # --- Unsatisfiable rail_types ---
 
 
-def test_unsatisfiable_rail_types_returns_422():
-    result = RailsResult(status=RailStatus.PASSED, content="hi")
-    mock = _mock_rails(result)
-    mock.check_async = AsyncMock(
-        side_effect=RailTypeNotConfiguredError("Requested rail type 'output' has no configured rails.")
-    )
+@pytest.mark.parametrize(
+    ("error", "rail_types"),
+    [
+        (RailTypeNotConfiguredError("Requested rail type 'output' has no configured rails."), ["output"]),
+        (RailTypeNotSupportedError("LLMRails supports input and output rails only, not tool_call"), ["tool_call"]),
+        (InvalidCheckRequestError("tools is read only by a tool_call check"), ["input"]),
+    ],
+    ids=["not_configured", "not_supported", "invalid_check_request"],
+)
+def test_check_request_errors_return_422(error, rail_types):
+    """An unconfigured or unsupported rail type, or contradictory check arguments, give a 422 carrying the message."""
+    mock = _mock_rails(RailsResult(status=RailStatus.PASSED, content="hi"))
+    mock.check_async = AsyncMock(side_effect=error)
 
     with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
-        resp = _post(
-            {
-                "model": "test",
-                "messages": [{"role": "user", "content": "hi"}],
-                "guardrails": {"config_id": "test", "rail_types": ["output"]},
-            }
-        )
+        resp = _post(_check_body({"rail_types": rail_types}))
 
     assert resp.status_code == 422
-    assert "output" in resp.json()["error"]["message"]
+    assert resp.json()["error"]["message"] == str(error)
+
+
+_WEATHER_TOOL = {"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object"}}}
+
+
+@pytest.mark.parametrize("tools", [None, [_WEATHER_TOOL]], ids=["absent", "present"])
+def test_tools_passed_through(tools):
+    """The request's tools reach the engine's check_async unchanged; the engine decides whether it can use them."""
+    mock = _mock_rails(RailsResult(status=RailStatus.PASSED, content="hi"))
+    body = _check_body()
+    if tools is not None:
+        body["tools"] = tools
+
+    with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
+        resp = _post(body)
+
+    assert resp.status_code == 200
+    assert mock.check_async.call_args.kwargs["tools"] == tools
+
+
+def test_custom_tools_are_rejected():
+    """The request's tools are still validated as chat-completion tools, so a custom tool is a 422."""
+    resp = _post(_check_body({"rail_types": ["tool_call"]}, tools=[{"type": "custom", "custom": {"name": "grep"}}]))
+    assert resp.status_code == 422

@@ -22,6 +22,7 @@ from enum import Enum
 from typing import Any, Optional, TypeAlias
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.rails.llm.options import MAX_QUOTED_IDENTITY_LENGTH, ToolViolation
 from nemoguardrails.types import LLMResponse, UsageInfo
 
 # LLMMessage can contain role/content, plus optional tool_calls / tool_call_id / name; content may be None
@@ -101,7 +102,8 @@ class RailResult:
     truth: ``is_safe``, ``reason`` and ``return_value`` are derived views of it rather
     than a second copy that could drift. What this type adds is the aggregation
     ``RailOutcome`` has no concept of, because it belongs to running *many* rails:
-    which one blocked (``triggered_rail``) and what every rail did (``records``).
+    which one blocked (``triggered_rail``), which tool calls or results it blocked
+    (``tool_violations``) and what every rail did (``records``).
 
     ``records`` carries the per-rail execution records for every rail that ran in this
     check (not just the blocking one), so IORails can synthesize a ``GenerationLog``.
@@ -115,6 +117,7 @@ class RailResult:
 
     outcome: RailOutcome
     triggered_rail: str | None = None
+    tool_violations: tuple[ToolViolation, ...] = ()
     records: tuple[RailCallRecord, ...] = field(default=(), compare=False)
     __hash__ = None
 
@@ -170,12 +173,14 @@ class RailResult:
         reason: str | None = None,
         metadata: Mapping[str, Any] | None = None,
         triggered_rail: str | None = None,
+        tool_violations: tuple[ToolViolation, ...] = (),
         records: tuple[RailCallRecord, ...] = (),
     ) -> "RailResult":
-        """A result that stops the content. Only a block names a triggering rail."""
+        """A result that stops the content. Only a block names a triggering rail or tool violations."""
         return cls(
             RailOutcome.block(reason=reason, metadata=metadata),
             triggered_rail=triggered_rail,
+            tool_violations=tool_violations,
             records=records,
         )
 
@@ -237,6 +242,11 @@ def truncate(text: object, max_len: int | None = None) -> str:
     if len(s) <= limit:
         return s
     return s[:limit] + "..."
+
+
+def quoted_identity(value: object) -> str:
+    """A tool name or call id as a reason quotes it: cut to ``MAX_QUOTED_IDENTITY_LENGTH`` characters."""
+    return truncate(value, MAX_QUOTED_IDENTITY_LENGTH)
 
 
 def serialize_prompt(messages: list[dict]) -> str:
