@@ -741,68 +741,84 @@ async def run_guardrails_eval(
     config_path: str,
     api_key: Optional[str],
     nim_base_url: Optional[str],
+    main_nim_url: Optional[str] = None,
+    main_model_name: Optional[str] = None,
+    concurrency: int = 1,
 ) -> list[Verdict]:
     """
     Run each prompt through the Guardrails input rail and record whether it was blocked.
 
-    We only care whether the content safety INPUT RAIL fires, not about the main
-    LLM response. To avoid unnecessary remote API calls (and timeouts) for safe
-    prompts, the main model is replaced with the content safety NIM itself as a
-    stub. Its responses ("User Safety: safe/unsafe ...") never start with
-    REFUSAL_PREFIX, so safe prompts are always recorded correctly as "safe".
-    Unsafe prompts trigger the input rail before the main model is called at all.
+    When main_nim_url is provided, the main model is wired to a real local LLM NIM
+    (e.g. nemotron-3.5-lightning-30b-a3b) so safe prompts receive a genuine response
+    and the output rail also fires. This produces a full end-to-end pipeline measurement.
+
+    When main_nim_url is omitted, the main model is stubbed as the content safety NIM
+    itself — only the input rail fires, which is sufficient to verify chat_template_kwargs
+    propagation without incurring extra LLM calls for safe prompts.
 
     Model wiring:
       - content_safety: nim_base_url if provided, else remote API via NVIDIA_API_KEY
-      - main (stub): same NIM as content_safety — no real main LLM call needed
+      - main (real):    main_nim_url when provided
+      - main (stub):    content safety NIM at nim_base_url when main_nim_url is absent
+
+    Concurrency: when concurrency > 1, up to that many generate_async calls run in
+    parallel. Each concurrent call gets its own LLMRails instance to avoid shared
+    in-process state between simultaneous requests.
     """
     from nemoguardrails import LLMRails, RailsConfig  # type: ignore[import]
 
     print(f"  Loading Guardrails config from {config_path}...")
-    config = RailsConfig.from_path(config_path)
 
-    for model_cfg in config.models:
-        if model_cfg.type == "content_safety":
-            if nim_base_url:
-                model_cfg.parameters = model_cfg.parameters or {}
-                model_cfg.parameters["base_url"] = nim_base_url
-            else:
-                model_cfg.api_key_env_var = "NVIDIA_API_KEY"
-        elif model_cfg.type == "main":
-            # Stub: reuse the content safety NIM so safe prompts don't incur a
-            # real main-LLM call. The CS NIM response never matches REFUSAL_PREFIX.
-            model_cfg.model = "nvidia/nemotron-3.5-content-safety"
-            if nim_base_url:
-                model_cfg.parameters = model_cfg.parameters or {}
-                model_cfg.parameters["base_url"] = nim_base_url
-            else:
-                model_cfg.api_key_env_var = "NVIDIA_API_KEY"
+    def _build_rails() -> LLMRails:
+        config = RailsConfig.from_path(config_path)
+        for model_cfg in config.models:
+            if model_cfg.type == "content_safety":
+                if nim_base_url:
+                    model_cfg.parameters = model_cfg.parameters or {}
+                    model_cfg.parameters["base_url"] = nim_base_url
+                else:
+                    model_cfg.api_key_env_var = "NVIDIA_API_KEY"
+            elif model_cfg.type == "main":
+                if main_nim_url:
+                    if main_model_name:
+                        model_cfg.model = main_model_name
+                    model_cfg.parameters = model_cfg.parameters or {}
+                    model_cfg.parameters["base_url"] = main_nim_url
+                else:
+                    model_cfg.model = "nvidia/nemotron-3.5-content-safety"
+                    if nim_base_url:
+                        model_cfg.parameters = model_cfg.parameters or {}
+                        model_cfg.parameters["base_url"] = nim_base_url
+                    else:
+                        model_cfg.api_key_env_var = "NVIDIA_API_KEY"
+        return LLMRails(config)
 
-    rails = LLMRails(config)
-    verdicts: list[Verdict] = []
+    # Pre-build a pool of rails instances (one per concurrency slot).
+    rails_pool = [_build_rails() for _ in range(concurrency)]
+    sem = asyncio.Semaphore(concurrency)
+    counter = {"done": 0}
+    total = len(samples)
+    verdicts: list[Optional[Verdict]] = [None] * total
 
-    for i, s in enumerate(samples, 1):
-        t0 = time.monotonic()
-        try:
-            result = await rails.generate_async(messages=[{"role": "user", "content": s.text}])
-            latency_ms = (time.monotonic() - t0) * 1000
-            content = result.get("content", "") if isinstance(result, dict) else str(result)
-        except Exception as exc:
-            # Stub main model error after input rail passed → rail said "safe"
-            latency_ms = (time.monotonic() - t0) * 1000
-            content = f"STUB_ERROR: {exc}"
+    async def eval_one(idx: int, s: Sample) -> None:
+        async with sem:
+            rails = rails_pool[idx % concurrency]
+            t0 = time.monotonic()
+            try:
+                result = await rails.generate_async(messages=[{"role": "user", "content": s.text}])
+                latency_ms = (time.monotonic() - t0) * 1000
+                content = result.get("content", "") if isinstance(result, dict) else str(result)
+            except Exception as exc:
+                latency_ms = (time.monotonic() - t0) * 1000
+                content = f"STUB_ERROR: {exc}"
+            blocked = content.strip().startswith(REFUSAL_PREFIX)
+            verdicts[idx] = Verdict(is_safe=not blocked, raw=content, latency_ms=latency_ms)
+            counter["done"] += 1
+            n = counter["done"]
+            if n % 5 == 0 or n == total:
+                print(f"  {n}/{total} evaluated via Guardrails...", end="\r", flush=True)
 
-        blocked = content.strip().startswith(REFUSAL_PREFIX)
-        verdicts.append(
-            Verdict(
-                is_safe=not blocked,
-                raw=content,
-                latency_ms=latency_ms,
-            )
-        )
-        if i % 5 == 0 or i == len(samples):
-            print(f"  {i}/{len(samples)} evaluated via Guardrails...", end="\r", flush=True)
-
+    await asyncio.gather(*[eval_one(i, s) for i, s in enumerate(samples)])
     print()
     return verdicts
 
@@ -1039,6 +1055,31 @@ def build_parser() -> argparse.ArgumentParser:
         default="examples/configs/nemotron-3.5-content-safety",
         help="Path to Guardrails config for --compare-guardrails",
     )
+    p.add_argument(
+        "--main-nim-url",
+        default=None,
+        help=(
+            "Base URL of a local main-LLM NIM for --compare-guardrails "
+            "(e.g. http://localhost:8001/v1). When omitted the main model is stubbed "
+            "as the content safety NIM (propagation-only test)."
+        ),
+    )
+    p.add_argument(
+        "--guardrails-concurrency",
+        type=int,
+        default=5,
+        help="Max parallel Guardrails calls when --compare-guardrails is set (default: 5)",
+    )
+    p.add_argument(
+        "--main-model-name",
+        default=None,
+        help=(
+            "Model ID to use when calling --main-nim-url. Overrides the model name in "
+            "the Guardrails config (useful when a local NIM reports a shorter ID than "
+            "the remote endpoint, e.g. 'nvidia/nemotron-3.5-lightning' vs. "
+            "'nvidia/nemotron-3.5-lightning-30b-a3b')."
+        ),
+    )
     return p
 
 
@@ -1124,6 +1165,9 @@ async def main() -> None:
                 config_path,
                 api_key if api_key != "placeholder" else None,
                 args.nim_base_url,
+                main_nim_url=args.main_nim_url,
+                main_model_name=args.main_model_name,
+                concurrency=args.guardrails_concurrency,
             )
             gr_metrics = compute_metrics(samples, gr_verdicts)
             print_results(args.dataset, args.text_type, gr_metrics, gr_verdicts, label="guardrails")
