@@ -90,8 +90,10 @@ errors as terminal outcomes, and frames native errors. These checks require
 history and do not belong in field annotations or a stateless classifier.
 
 The projections and classifier can be used independently of endpoint wiring.
-This stage does not bind them to the HTTP endpoint or extend the shared buffered
-contract exporter with streaming declarations.
+The endpoint binds the classifier and a fresh hook instance per request through
+the stream adapter factory. The router selects buffered or streaming dispatch
+after the shared request projection and input check. Streaming requests require
+an injected streaming dispatcher; without one, they fail before dispatch.
 
 ## Buffered contract export
 
@@ -132,10 +134,12 @@ The [exported buffered contract](../../../contracts/openai/_generated/chat-compl
 gets its field policy from the Python models and endpoint labels, route, and
 error codes from `CHAT_COMPLETIONS_ENDPOINT`. Do not edit the artifact by hand.
 This is a buffered-only export: there is no stream section or streaming hook.
-The request model recognizes the `stream` flag, but this integration still
-rejects streaming requests before dispatch. Replacement eligibility is declared
-by the models, while applying replacement outcomes remains unsupported by this
-integration. Exporting the policy does not enable either runtime feature.
+The request model recognizes the `stream` flag, and the router supports both
+response modes when their dispatchers are supplied. The export remains
+buffered-only even when the endpoint binds a stream adapter. Streaming export
+is separate work. Replacement eligibility is declared by the models, while
+applying replacement outcomes remains unsupported by this integration.
+Exporting the policy does not enable runtime features.
 
 A successful response whose assistant content is empty or null is relayed
 unchanged without output checks, but only after the full response passes the
