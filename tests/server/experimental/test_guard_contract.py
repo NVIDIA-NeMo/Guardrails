@@ -27,9 +27,8 @@ REPOSITORY_ROOT = Path(__file__).parents[3]
 CONTRACTS_ROOT = REPOSITORY_ROOT / "nemoguardrails/server/experimental/contracts"
 SCHEMA_PATH = CONTRACTS_ROOT / "guard-contract.schema.json"
 MINIMAL_CONTRACT_PATH = CONTRACTS_ROOT / "minimal.guard.example.yaml"
-REFERENCE_PATH = CONTRACTS_ROOT / "reference.md"
 MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
-STREAM_ROOT_EXAMPLE = re.compile(r"### Stream root\n\n```yaml\n(?P<yaml>.*?)\n```", re.DOTALL)
+EXTENSION = "x-nemo-guardrails"
 
 
 @pytest.fixture(scope="module")
@@ -42,6 +41,37 @@ def guard_contract_schema() -> dict:
 def minimal_guard_contract() -> dict:
     """Load the minimal guard contract example."""
     return yaml.safe_load(MINIMAL_CONTRACT_PATH.read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def streaming_guard_contract(minimal_guard_contract: dict) -> dict:
+    """Describe a text event and SSE sentinel without an endpoint implementation."""
+    contract = deepcopy(minimal_guard_contract)
+    event = deepcopy(contract["response"])
+    event[EXTENSION] = {
+        "event": {
+            "classification": "guarded_delta",
+            "variants": [
+                {
+                    "source_schema": "ExampleTextEvent",
+                    "shape": "text.delta",
+                    "required_fields": ["text"],
+                }
+            ],
+            "missing_text": "reject",
+        }
+    }
+    contract["stream"] = {
+        "oneOf": [event],
+        EXTENSION: {
+            "transport": {
+                "require_sse_event": False,
+                "non_data_shape": "[DONE]",
+                "sentinels": {"[DONE]": "[DONE]"},
+            }
+        },
+    }
+    return contract
 
 
 def test_guard_contract_schema_is_valid(guard_contract_schema: dict) -> None:
@@ -77,7 +107,7 @@ def test_minimal_guard_projection_requires_its_text_field(
 
 
 def test_guard_contract_rejects_unknown_version(guard_contract_schema: dict, minimal_guard_contract: dict) -> None:
-    """The schema rejects contracts authored for an unsupported version."""
+    """The schema rejects documents with an unsupported format version."""
     contract = minimal_guard_contract | {"version": "1.0.0"}
 
     with pytest.raises(ValidationError):
@@ -115,24 +145,46 @@ def test_guard_contract_rejects_guardrails_extension_lookalikes(
         Draft202012Validator(guard_contract_schema).validate(contract)
 
 
-def test_stream_root_documentation_example_matches_schema(
-    guard_contract_schema: dict, minimal_guard_contract: dict
-) -> None:
-    """The documented stream root forms a schema-valid contract section."""
-    reference = REFERENCE_PATH.read_text(encoding="utf-8")
-    match = STREAM_ROOT_EXAMPLE.search(reference)
-    assert match is not None
-    contract = deepcopy(minimal_guard_contract)
-    contract.update(yaml.safe_load(match.group("yaml")))
+def test_stream_contract_matches_schema(guard_contract_schema: dict, streaming_guard_contract: dict) -> None:
+    """The format supports a stream section independently of runtime support."""
+    Draft202012Validator(guard_contract_schema).validate(streaming_guard_contract)
 
-    Draft202012Validator(guard_contract_schema).validate(contract)
+
+@pytest.mark.parametrize("section", ["transport", "event"])
+def test_stream_contract_requires_framing_and_event_policy(
+    guard_contract_schema: dict, streaming_guard_contract: dict, section: str
+) -> None:
+    """Stream roots need transport metadata and each family needs event policy."""
+    stream = streaming_guard_contract["stream"]
+    metadata = stream[EXTENSION] if section == "transport" else stream["oneOf"][0][EXTENSION]
+    del metadata[section]
+
+    with pytest.raises(ValidationError):
+        Draft202012Validator(guard_contract_schema).validate(streaming_guard_contract)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("event_schema_binding", "operation_response"),
+        ("event_schema_reason", "provider_integrity.component_source"),
+    ],
+)
+def test_stream_contract_rejects_source_resolution_settings(
+    guard_contract_schema: dict, streaming_guard_contract: dict, key: str, value: str
+) -> None:
+    """Source resolution settings are not part of the exported policy vocabulary."""
+    streaming_guard_contract["stream"][EXTENSION][key] = value
+
+    with pytest.raises(ValidationError):
+        Draft202012Validator(guard_contract_schema).validate(streaming_guard_contract)
 
 
 def test_contract_documentation_has_no_broken_local_links() -> None:
     """Relative links in the contract documentation resolve locally."""
     broken_links: list[str] = []
 
-    for document in CONTRACTS_ROOT.glob("*.md"):
+    for document in CONTRACTS_ROOT.rglob("*.md"):
         for link in MARKDOWN_LINK.findall(document.read_text(encoding="utf-8")):
             if "://" in link or link.startswith("#"):
                 continue
