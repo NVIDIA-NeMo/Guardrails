@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:nemo-guardrails:guard-contract:1.0.0-alpha.1",
   "title": "NeMo Guard Contract 1.0.0-alpha.1 (experimental)",
-  "description": "Policy-first authoring format. Schema validation checks syntax, not provider coverage or runtime capability.",
+  "description": "Guard contract document format. Schema validation checks syntax, not provider coverage or runtime capability.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -379,16 +379,6 @@
         },
         "event": {
           "$ref": "#/$defs/event"
-        },
-        "event_schema_binding": {
-          "enum": [
-            "operation_response",
-            "component"
-          ]
-        },
-        "event_schema_reason": {
-          "type": "string",
-          "pattern": "^(core_capability|provider_integrity|projection_policy)\\.[a-z][a-z0-9_]*$"
         },
         "transport": {
           "$ref": "#/$defs/transport"
