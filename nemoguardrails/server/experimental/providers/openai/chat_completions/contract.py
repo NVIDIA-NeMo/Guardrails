@@ -13,6 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Export the buffered Chat contract from the models wired into its endpoint.
+
+Python declarations remain authoritative. The export describes field policy and
+endpoint metadata for readers; it is not loaded by request handling and does not
+enable streaming or replacement support. The CLI validates the contract format
+and can write an artifact or check a checked-in artifact for drift.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -34,6 +42,20 @@ OPERATION_ID = "createChatCompletion"
 
 
 def export_contract() -> dict[str, Any]:
+    """Return a fresh buffered contract from the endpoint's bound policy models.
+
+    Model schemas supply constraints, defaults, and guard annotations; the
+    endpoint supplies its route, label, and rejection codes. No authored YAML
+    is read. Streaming is intentionally absent from this buffered integration.
+
+    Raises:
+        TypeError: An endpoint model does not carry projection policy.
+        ValueError: Runtime coverage metadata is invalid or a payload schema
+            uses a construct unsupported by the shared exporter.
+
+    The CLI performs document-format validation. This function does not prove
+    upstream compatibility or encode arbitrary Python validation behavior.
+    """
     endpoint = CHAT_COMPLETIONS_ENDPOINT
     request_model = endpoint.guarded_request_model
     response_model = endpoint.guarded_response_model
@@ -63,6 +85,12 @@ def export_contract() -> dict[str, Any]:
 
 
 def main() -> None:
+    """Validate and emit the contract, or check an artifact for exact drift.
+
+    With --output, create parent directories and overwrite the selected file.
+    With --check, leave files untouched and exit with status 1 on missing or
+    differing content. With neither option, write the YAML document to stdout.
+    """
     import yaml
     from jsonschema import Draft202012Validator
 

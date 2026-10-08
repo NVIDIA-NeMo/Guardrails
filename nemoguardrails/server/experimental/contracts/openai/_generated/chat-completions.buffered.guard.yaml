@@ -29,6 +29,8 @@ request:
     messages:
       items:
         additionalProperties: true
+        description: Accept one user text message with reviewed optional provider
+          metadata.
         properties:
           content:
             minLength: 1
@@ -161,6 +163,7 @@ response:
     choices:
       items:
         additionalProperties: true
+        description: Expose the guarded message while preserving opaque choice metadata.
         properties:
           finish_reason:
             default: null
@@ -179,6 +182,8 @@ response:
               reason: provider_integrity.token_logprobs
           message:
             additionalProperties: true
+            description: Accept assistant text while preventing replacement of annotated
+              content.
             properties:
               annotations:
                 default: null

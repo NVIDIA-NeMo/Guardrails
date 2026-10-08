@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Check that the buffered contract stays derived from the runtime endpoint."""
+
 import json
 import subprocess
 import sys
