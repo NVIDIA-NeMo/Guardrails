@@ -1,0 +1,285 @@
+version: 1.0.0-alpha.1
+operationId: createChatCompletion
+profile: single_text.v1
+request:
+  additionalProperties: true
+  description: Bind the handwritten projection to its guarded runtime semantics.
+  properties:
+    audio:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.audio_content
+    function_call:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.tool_content
+    functions:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.tool_content
+    messages:
+      items:
+        additionalProperties: true
+        properties:
+          content:
+            minLength: 1
+            type: string
+            x-nemo-guardrails:
+              classification: guarded
+              subject:
+                kind: text
+                replaceable: true
+                role: user
+          name:
+            default: null
+            x-nemo-guardrails:
+              classification: opaque
+          role:
+            const: user
+            type: string
+            x-nemo-guardrails:
+              classification: constrained
+        required:
+        - content
+        - role
+        title: ChatCompletionsUserMessageProjection
+        type: object
+        x-nemo-guardrails:
+          source: '#/components/schemas/ChatCompletionRequestUserMessage'
+          unknown_fields: configurable
+      maxItems: 1
+      minItems: 1
+      type: array
+      x-nemo-guardrails:
+        classification: guarded
+    modalities:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.multimodal_content
+    n:
+      const: 1
+      default: 1
+      type: integer
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.single_text_target
+    parallel_tool_calls:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.tool_content
+    prediction:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.predicted_content
+    response_format:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: projection_policy.plain_text_output
+    stream:
+      default: false
+      type: boolean
+      x-nemo-guardrails:
+        classification: constrained
+    tool_choice:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.tool_content
+    tools:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.tool_content
+    web_search_options:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.tool_content
+  required:
+  - messages
+  title: openai.chat_completions.request.text.v1
+  type: object
+  x-nemo-guardrails:
+    opaque_fields:
+    - frequency_penalty
+    - logit_bias
+    - logprobs
+    - max_completion_tokens
+    - max_tokens
+    - metadata
+    - model
+    - moderation
+    - presence_penalty
+    - prompt_cache_key
+    - prompt_cache_options
+    - prompt_cache_retention
+    - reasoning_effort
+    - safety_identifier
+    - seed
+    - service_tier
+    - stop
+    - store
+    - stream_options
+    - temperature
+    - top_logprobs
+    - top_p
+    - user
+    - verbosity
+    model: ChatCompletionsGuardedRequest
+    stream_selector_field: stream
+response:
+  additionalProperties: true
+  description: Bind the handwritten projection to its guarded runtime semantics.
+  properties:
+    choices:
+      items:
+        additionalProperties: true
+        properties:
+          finish_reason:
+            default: null
+            x-nemo-guardrails:
+              classification: opaque
+          index:
+            default: null
+            x-nemo-guardrails:
+              classification: opaque
+          logprobs:
+            default: null
+            type: 'null'
+            x-nemo-guardrails:
+              classification: constrained
+              gate: disabled
+              reason: provider_integrity.token_logprobs
+          message:
+            additionalProperties: true
+            properties:
+              annotations:
+                default: null
+                x-nemo-guardrails:
+                  classification: constrained
+                oneOf:
+                - items: {}
+                  type: array
+                - type: 'null'
+              audio:
+                default: null
+                type: 'null'
+                x-nemo-guardrails:
+                  classification: constrained
+                  gate: disabled
+                  reason: core_capability.audio_content
+              content:
+                minLength: 1
+                type: string
+                x-nemo-guardrails:
+                  classification: guarded
+                  subject:
+                    kind: text
+                    replaceable: true
+                    replacement_blocked_by: annotations
+                    replacement_reason: provider_integrity.annotated_text
+                    role: assistant
+              function_call:
+                default: null
+                type: 'null'
+                x-nemo-guardrails:
+                  classification: constrained
+                  gate: disabled
+                  reason: core_capability.tool_content
+              reasoning_content:
+                default: null
+                type: 'null'
+                x-nemo-guardrails:
+                  classification: constrained
+                  extension: true
+                  gate: disabled
+                  reason: core_capability.reasoning_content
+              refusal:
+                default: null
+                type: 'null'
+                x-nemo-guardrails:
+                  classification: constrained
+                  gate: disabled
+                  reason: core_capability.refusal_content
+              role:
+                const: assistant
+                type: string
+                x-nemo-guardrails:
+                  classification: constrained
+              tool_calls:
+                default: null
+                type: 'null'
+                x-nemo-guardrails:
+                  classification: constrained
+                  gate: disabled
+                  reason: core_capability.tool_content
+            required:
+            - content
+            - role
+            title: ChatCompletionsAssistantMessageProjection
+            type: object
+            x-nemo-guardrails:
+              classification: guarded
+              source: '#/components/schemas/ChatCompletionResponseMessage'
+              unknown_fields: configurable
+        required:
+        - message
+        title: ChatCompletionsChoiceProjection
+        type: object
+        x-nemo-guardrails:
+          unknown_fields: configurable
+      maxItems: 1
+      minItems: 1
+      type: array
+      x-nemo-guardrails:
+        classification: guarded
+  required:
+  - choices
+  title: openai.chat_completions.response.text.v1
+  type: object
+  x-nemo-guardrails:
+    opaque_fields:
+    - created
+    - id
+    - metadata
+    - model
+    - moderation
+    - object
+    - service_tier
+    - system_fingerprint
+    - usage
+    model: ChatCompletionsGuardedResponse
+integration:
+  name: chat_completions
+  endpoint:
+    route_path: /v1/chat/completions
+    operation_label: OpenAI Chat Completions
+    unsupported_request_code: unsupported_chat_completions_shape
+    unsupported_response_code: unsupported_chat_completions_response_shape

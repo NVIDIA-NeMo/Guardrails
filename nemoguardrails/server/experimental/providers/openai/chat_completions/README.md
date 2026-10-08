@@ -39,3 +39,29 @@ and Python validation are not claimed to be interchangeable.
 The [contract guide](../../../contracts/README.md) defines the document format;
 the [OpenAI boundary summary](../../../contracts/openai/README.md) records its
 scope and provider provenance. Neither is loaded by the models or bindings.
+
+## Buffered contract export
+
+Run the exporter from the repository root:
+
+```bash
+poetry run python -m nemoguardrails.server.experimental.providers.openai.chat_completions.contract \
+  --output nemoguardrails/server/experimental/contracts/openai/_generated/chat-completions.buffered.guard.yaml
+```
+
+Use `--check` instead of `--output` with the same path to detect drift. Without
+either option the document is written to stdout. The command validates against
+the existing contract format before writing.
+
+The [exported buffered contract](../../../contracts/openai/_generated/chat-completions.buffered.guard.yaml)
+gets its field policy from the Python models and endpoint labels, route, and
+error codes from `CHAT_COMPLETIONS_ENDPOINT`. Do not edit the artifact by hand.
+This is a buffered-only export: there is no stream section or streaming hook.
+The request model recognizes the `stream` flag, but this integration still
+rejects streaming requests before dispatch. Replacement eligibility is declared
+by the models, while applying replacement outcomes remains unsupported by this
+integration. Exporting the policy does not enable either runtime feature.
+
+Nullable annotations are exported as disjoint array/null `oneOf` branches.
+No new contract format version, provider download, or runtime YAML loading is
+introduced.
