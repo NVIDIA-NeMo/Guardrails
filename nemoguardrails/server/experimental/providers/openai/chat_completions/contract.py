@@ -94,9 +94,7 @@ def main() -> None:
     import yaml
     from jsonschema import Draft202012Validator
 
-    parser = argparse.ArgumentParser(
-        description="Export the handwritten buffered Chat policy; no compiler is required."
-    )
+    parser = argparse.ArgumentParser(description="Export the buffered Chat policy from its Python declarations.")
     destination = parser.add_mutually_exclusive_group()
     destination.add_argument("--output", type=Path)
     destination.add_argument("--check", type=Path)
