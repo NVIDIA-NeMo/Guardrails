@@ -24,18 +24,22 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
+from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
 from nemoguardrails.server.experimental.provider.projection_policy import CONTRACT_VERSION, EXTENSION
-from nemoguardrails.server.experimental.providers.openai.chat_completions.contract import export_contract
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 
 ROOT = Path(__file__).parents[3]
 CONTRACTS = ROOT / "nemoguardrails/server/experimental/contracts"
 EXPORTED = CONTRACTS / "openai/_generated/chat-completions.buffered.guard.yaml"
-MODULE = "nemoguardrails.server.experimental.providers.openai.chat_completions.contract"
+MODULE = "nemoguardrails.server.experimental.provider.contract_export"
+ENDPOINT = "nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint:CHAT_COMPLETIONS_ENDPOINT"
+CLI = [sys.executable, "-m", MODULE, ENDPOINT, "--operation-id", "createChatCompletion", "--name", "chat_completions"]
 
 
 def test_buffered_export_matches_checked_in_artifact_and_format():
-    contract = export_contract()
+    contract = export_guard_contract(
+        CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions"
+    )
     assert contract == yaml.safe_load(EXPORTED.read_text(encoding="utf-8"))
     schema = json.loads((CONTRACTS / "guard-contract.schema.json").read_text(encoding="utf-8"))
     Draft202012Validator(schema).validate(contract)
@@ -45,7 +49,9 @@ def test_buffered_export_matches_checked_in_artifact_and_format():
 
 
 def test_export_uses_the_runtime_endpoint_metadata():
-    exported = export_contract()
+    exported = export_guard_contract(
+        CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions"
+    )
     endpoint = CHAT_COMPLETIONS_ENDPOINT
     assert exported["integration"]["endpoint"] == {
         "route_path": endpoint.route_path,
@@ -63,39 +69,95 @@ def test_export_uses_the_runtime_endpoint_metadata():
     )
 
 
-def test_export_never_reads_the_earlier_authored_contract(monkeypatch):
+def test_export_does_not_read_files(monkeypatch):
     def unexpected_read(*args, **kwargs):
         raise AssertionError("Export must derive from Python, not read YAML")
 
     monkeypatch.setattr(Path, "read_text", unexpected_read)
-    assert export_contract()["operationId"] == "createChatCompletion"
+    assert (
+        export_guard_contract(CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions")[
+            "operationId"
+        ]
+        == "createChatCompletion"
+    )
 
 
 def test_export_is_fresh_and_deterministic():
-    first = export_contract()
+    first = export_guard_contract(
+        CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions"
+    )
     first["request"]["properties"].clear()
-    second = export_contract()
+    second = export_guard_contract(
+        CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions"
+    )
     assert "messages" in second["request"]["properties"]
-    assert second == export_contract()
+    assert second == export_guard_contract(
+        CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions"
+    )
 
 
 @pytest.mark.parametrize("annotations", [None, [], [{"provider": "opaque"}]])
 def test_export_preserves_nullable_annotations_and_replacement_policy(annotations):
     response = {"choices": [{"message": {"role": "assistant", "content": "answer", "annotations": annotations}}]}
-    Draft202012Validator(export_contract()["response"]).validate(response)
+    Draft202012Validator(
+        export_guard_contract(CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions")[
+            "response"
+        ]
+    ).validate(response)
     projection = CHAT_COMPLETIONS_ENDPOINT.guarded_response_model.validate_payload(response)
     target = projection.locate_guarded_message(response)
     assert target.allows_replacement is (not bool(annotations))
 
 
 def test_cli_check_and_regenerate(tmp_path):
-    checked = subprocess.run([sys.executable, "-m", MODULE, "--check", str(EXPORTED)], capture_output=True, text=True)
+    checked = subprocess.run([*CLI, "--check", str(EXPORTED)], capture_output=True, text=True)
     assert checked.returncode == 0, checked.stderr
     output = tmp_path / "exported.guard.yaml"
-    generated = subprocess.run([sys.executable, "-m", MODULE, "--output", str(output)], capture_output=True, text=True)
+    generated = subprocess.run([*CLI, "--output", str(output)], capture_output=True, text=True)
     assert generated.returncode == 0, generated.stderr
     assert output.read_bytes() == EXPORTED.read_bytes()
     output.write_text("changed\n", encoding="utf-8")
-    mismatch = subprocess.run([sys.executable, "-m", MODULE, "--check", str(output)], capture_output=True, text=True)
+    mismatch = subprocess.run([*CLI, "--check", str(output)], capture_output=True, text=True)
     assert mismatch.returncode == 1
     assert "Export differs" in mismatch.stderr
+    assert output.read_text(encoding="utf-8") == "changed\n"
+
+
+def test_cli_stdout_matches_checked_in_artifact():
+    """The shared CLI preserves the deterministic default stdout mode."""
+    completed = subprocess.run(CLI, capture_output=True, text=True)
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout == EXPORTED.read_text(encoding="utf-8")
+
+
+def test_cli_missing_check_does_not_create_an_artifact(tmp_path):
+    """Check mode fails without writing a missing destination."""
+    missing = tmp_path / "missing" / "contract.yaml"
+    completed = subprocess.run([*CLI, "--check", str(missing)], capture_output=True, text=True)
+    assert completed.returncode == 1
+    assert "Export differs" in completed.stderr
+    assert not missing.parent.exists()
+
+
+@pytest.mark.parametrize("arguments", [["--operation-id", ""], ["--name", "Bad.Name"]])
+def test_cli_invalid_identity_does_not_overwrite_an_artifact(tmp_path, arguments):
+    """Bad metadata fails before an existing destination can be overwritten."""
+    destination = tmp_path / "contract.yaml"
+    destination.write_text("keep\n", encoding="utf-8")
+    completed = subprocess.run([*CLI, *arguments, "--output", str(destination)], capture_output=True, text=True)
+    assert completed.returncode == 2
+    assert "error:" in completed.stderr
+    assert destination.read_text(encoding="utf-8") == "keep\n"
+
+
+def test_cli_rejects_wrong_endpoint_without_creating_an_artifact(tmp_path):
+    """A module attribute must be an endpoint instance, not arbitrary Python data."""
+    destination = tmp_path / "contract.yaml"
+    completed = subprocess.run(
+        [sys.executable, "-m", MODULE, "pathlib:Path", "--operation-id", "example", "--output", str(destination)],
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 2
+    assert "not a GuardedJsonEndpoint" in completed.stderr
+    assert not destination.exists()

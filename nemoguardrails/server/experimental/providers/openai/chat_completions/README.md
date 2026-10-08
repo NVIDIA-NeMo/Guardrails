@@ -42,16 +42,38 @@ scope and provider provenance. Neither is loaded by the models or bindings.
 
 ## Buffered contract export
 
-Run the exporter from the repository root:
+The shared [contract exporter](../../../provider/contract_export.py) takes the
+runtime endpoint and its document identity. No per-operation exporter is needed:
+
+```python
+from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
+from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
+
+contract = export_guard_contract(
+    CHAT_COMPLETIONS_ENDPOINT,
+    operation_id="createChatCompletion",
+    name="chat_completions",
+)
+```
+
+Run the shared CLI from the repository root:
 
 ```bash
-poetry run python -m nemoguardrails.server.experimental.providers.openai.chat_completions.contract \
+poetry run python -m nemoguardrails.server.experimental.provider.contract_export \
+  nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint:CHAT_COMPLETIONS_ENDPOINT \
+  --operation-id createChatCompletion --name chat_completions \
   --output nemoguardrails/server/experimental/contracts/openai/_generated/chat-completions.buffered.guard.yaml
 ```
 
 Use `--check` instead of `--output` with the same path to detect drift. Without
 either option the document is written to stdout. The command validates against
-the existing contract format before writing.
+the existing contract format before writing. The optional `--name` identifies
+the integration; `--operation-id` identifies the provider operation.
+
+The endpoint argument imports trusted local Python code. Do not obtain it from
+requests or untrusted documents. The CLI does not scan providers or load runtime
+configuration from YAML. Its YAML/JSON Schema dependencies are needed only for
+serialization and format validation, not endpoint construction.
 
 The [exported buffered contract](../../../contracts/openai/_generated/chat-completions.buffered.guard.yaml)
 gets its field policy from the Python models and endpoint labels, route, and
@@ -61,6 +83,10 @@ The request model recognizes the `stream` flag, but this integration still
 rejects streaming requests before dispatch. Replacement eligibility is declared
 by the models, while applying replacement outcomes remains unsupported by this
 integration. Exporting the policy does not enable either runtime feature.
+
+The shared exporter describes buffered payload policy and endpoint labels, not
+arbitrary transport behavior: header/query API-revision bindings and alternate
+route ownership are not serialized.
 
 Nullable annotations are exported as disjoint array/null `oneOf` branches.
 No new contract format version, provider download, or runtime YAML loading is
