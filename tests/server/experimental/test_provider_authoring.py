@@ -125,8 +125,8 @@ def test_export_preserves_nullable_annotation_schema():
     )
     annotations = exported["properties"]["choices"]["items"]["properties"]["message"]["properties"]["annotations"]
     assert annotations["default"] is None
-    assert {"type": "null"} in annotations["anyOf"]
-    assert {"type": "array", "items": {}} in annotations["anyOf"]
+    assert {"type": "null"} in annotations["oneOf"]
+    assert {"type": "array", "items": {}} in annotations["oneOf"]
 
 
 def test_missing_policy_fails_at_class_definition():
@@ -134,6 +134,14 @@ def test_missing_policy_fails_at_class_definition():
 
         class Invalid(PolicyModel):
             text: str
+
+
+def test_export_rejects_overlapping_unions_instead_of_changing_their_meaning():
+    class Invalid(PolicyModel):
+        text: Annotated[str | Literal["special"], constrained()]
+
+    with pytest.raises(ValueError, match="disjoint nullable"):
+        export_payload_schema(Invalid, projection_id="test.request")
 
 
 def test_missing_disabled_default_fails_at_class_definition():

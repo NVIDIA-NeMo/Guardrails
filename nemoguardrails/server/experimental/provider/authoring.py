@@ -207,6 +207,16 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
             result.pop("title", None)
         if "items" in result:
             result["items"] = expand(result["items"], active)
+        if "anyOf" in result:
+            alternatives = result.pop("anyOf")
+            non_null = [branch for branch in alternatives if branch != {"type": "null"}]
+            if (
+                len(alternatives) != 2
+                or len(non_null) != 1
+                or non_null[0].get("type") not in {"array", "object", "string", "boolean", "integer", "number"}
+            ):
+                raise ValueError("Contract export supports only disjoint nullable anyOf unions")
+            result["oneOf"] = alternatives
         for keyword in ("anyOf", "oneOf", "allOf"):
             if keyword in result:
                 result[keyword] = [expand(child, active) for child in result[keyword]]
