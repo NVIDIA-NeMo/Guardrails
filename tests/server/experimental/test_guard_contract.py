@@ -134,12 +134,15 @@ def test_guard_contract_allows_non_guardrails_schema_extensions(
     Draft202012Validator(guard_contract_schema).validate(contract)
 
 
+@pytest.mark.parametrize("key", ["x-nemo-guardrail", "x-nemo-guardrails-extra", "x-nemoguardrails"])
+@pytest.mark.parametrize("on_field", [False, True])
 def test_guard_contract_rejects_guardrails_extension_lookalikes(
-    guard_contract_schema: dict, minimal_guard_contract: dict
+    guard_contract_schema: dict, minimal_guard_contract: dict, key: str, on_field: bool
 ) -> None:
-    """The Guardrails extension namespace rejects misspelled sibling keys."""
+    """The reserved x-nemo namespace rejects misspelled Guardrails keys on objects and fields."""
     contract = deepcopy(minimal_guard_contract)
-    contract["request"]["x-nemo-guardrails-extra"] = {}
+    target = contract["request"]["properties"]["prompt"] if on_field else contract["request"]
+    target[key] = {"classification": "opaque"}
 
     with pytest.raises(ValidationError):
         Draft202012Validator(guard_contract_schema).validate(contract)

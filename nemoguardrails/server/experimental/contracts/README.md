@@ -30,7 +30,8 @@ output of a provider integration.
 
 Payload projections use a subset of JSON Schema vocabulary: `type`,
 `properties`, `required`, `items`, `oneOf`, constants, enums, and bounds.
-NeMo policy is carried by `x-nemo-guardrails`.
+Guard annotations use the `x-nemo-guardrails` key. Other `x-` extensions are
+allowed, but every other key starting with `x-nemo` is reserved and rejected.
 
 ## Field policy
 

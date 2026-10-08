@@ -482,7 +482,7 @@
         }
       },
       "patternProperties": {
-        "^x-(?!nemo-guardrails)": {}
+        "^x-(?!nemo)": {}
       }
     },
     "field": {
