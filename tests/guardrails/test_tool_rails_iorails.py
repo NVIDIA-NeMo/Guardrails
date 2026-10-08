@@ -226,6 +226,32 @@ def _tool_call_sse_lines(name: str, arg_fragments: list, call_id: str = "call_1"
     return lines
 
 
+def _tool_calls_sse_lines(*calls: tuple[str, str]) -> list:
+    """SSE lines streaming one tool call per ``(name, arguments)`` pair, at ``tool_calls`` indexes 0, 1, ..."""
+    deltas = []
+    for index, (name, arguments) in enumerate(calls):
+        deltas.append(
+            {
+                "tool_calls": [
+                    {
+                        "index": index,
+                        "id": f"call_{index}",
+                        "type": "function",
+                        "function": {"name": name, "arguments": ""},
+                    }
+                ]
+            }
+        )
+        deltas.append({"tool_calls": [{"index": index, "function": {"arguments": arguments}}]})
+    deltas[0] = {"role": "assistant", **deltas[0]}
+    lines = [
+        _sse({"id": "chatcmpl-1", "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}) for delta in deltas
+    ]
+    lines.append(_sse({"id": "chatcmpl-1", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}))
+    lines.append(b"data: [DONE]\n\n")
+    return lines
+
+
 def _text_sse_lines(text: str) -> list:
     """SSE lines streaming *text* as a single assistant delta, then finish."""
     return [

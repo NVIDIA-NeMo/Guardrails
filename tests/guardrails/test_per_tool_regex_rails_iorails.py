@@ -21,6 +21,8 @@ test_tool_rails_e2e.py. Reuses that module's transport-mocking helpers rather th
 duplicating them.
 """
 
+import json
+
 import pytest
 import pytest_asyncio
 
@@ -32,8 +34,10 @@ from tests.guardrails.test_tool_rails_iorails import (
     _inject_sse_stream,
     _stream_violation_chunks,
     _text_payload,
+    _text_sse_lines,
     _tool_call_payload,
     _tool_call_sse_lines,
+    _tool_calls_sse_lines,
 )
 
 BASE_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
@@ -166,30 +170,72 @@ class TestStreamingPerToolCallRegex:
         chunks = await _collect(call_pattern_iorails.stream_async(MESSAGES))
         assert _stream_violation_chunks(chunks) == []
 
+    @pytest.mark.asyncio
+    async def test_matching_second_call_blocks_stream(self, call_pattern_iorails):
+        # Only the second call matches, so this fails if a later streamed call skips the rails.
+        lines = _tool_calls_sse_lines(
+            ("run_sql", '{"query": "SELECT 1"}'), ("run_sql", '{"query": "DROP TABLE users"}')
+        )
+        _inject_sse_stream(call_pattern_iorails, lines)
+        chunks = await _collect(call_pattern_iorails.stream_async(MESSAGES))
+        violations = _stream_violation_chunks(chunks)
+        assert len(violations) == 1
+        assert violations[0]["error"]["param"] == "tool_output_rails"
+        assert not any('"tool_calls"' in chunk for chunk in chunks)
 
-class TestNonStreamingPerToolResultRegex:
-    def _tool_conversation(self, content: str) -> list:
-        return [
-            {"role": "user", "content": "run a query"},
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {"id": "call_1", "type": "function", "function": {"name": "run_sql", "arguments": "{}"}}
-                ],
-            },
-            {"role": "tool", "tool_call_id": "call_1", "name": "run_sql", "content": content},
+    @pytest.mark.asyncio
+    async def test_several_non_matching_calls_stream_through(self, call_pattern_iorails):
+        lines = _tool_calls_sse_lines(("run_sql", '{"query": "SELECT 1"}'), ("run_sql", '{"query": "SELECT 2"}'))
+        _inject_sse_stream(call_pattern_iorails, lines)
+        chunks = await _collect(call_pattern_iorails.stream_async(MESSAGES))
+        assert _stream_violation_chunks(chunks) == []
+        streamed = json.loads(chunks[-1])["tool_calls"]
+        assert [call["function"]["arguments"] for call in streamed] == [
+            '{"query": "SELECT 1"}',
+            '{"query": "SELECT 2"}',
         ]
 
+
+def _tool_conversation(content: str) -> list:
+    return [
+        {"role": "user", "content": "run a query"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "run_sql", "arguments": "{}"}}],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "name": "run_sql", "content": content},
+    ]
+
+
+class TestNonStreamingPerToolResultRegex:
     @pytest.mark.asyncio
     async def test_matching_pattern_blocked_before_generation(self, result_pattern_iorails):
         forbidden_post = _inject_forbidden_transport(result_pattern_iorails)
-        result = await result_pattern_iorails.generate_async(messages=self._tool_conversation("ssn: 123-45-6789"))
+        result = await result_pattern_iorails.generate_async(messages=_tool_conversation("ssn: 123-45-6789"))
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         forbidden_post.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_non_matching_pattern_passes(self, result_pattern_iorails):
         _inject_json_response(result_pattern_iorails, _text_payload("no sensitive data found"))
-        result = await result_pattern_iorails.generate_async(messages=self._tool_conversation("no sensitive data"))
+        result = await result_pattern_iorails.generate_async(messages=_tool_conversation("no sensitive data"))
         assert result == {"role": "assistant", "content": "no sensitive data found"}
+
+
+class TestStreamingPerToolResultRegex:
+    @pytest.mark.asyncio
+    async def test_matching_pattern_blocks_stream_before_generation(self, result_pattern_iorails):
+        forbidden_post = _inject_forbidden_transport(result_pattern_iorails)
+        chunks = await _collect(result_pattern_iorails.stream_async(_tool_conversation("ssn: 123-45-6789")))
+        violations = _stream_violation_chunks(chunks)
+        assert len(violations) == 1
+        assert violations[0]["error"]["param"] == "tool_input_rails"
+        forbidden_post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_non_matching_pattern_streams_through(self, result_pattern_iorails):
+        _inject_sse_stream(result_pattern_iorails, _text_sse_lines("ok"))
+        chunks = await _collect(result_pattern_iorails.stream_async(_tool_conversation("no sensitive data")))
+        assert _stream_violation_chunks(chunks) == []
+        assert "ok" in chunks
