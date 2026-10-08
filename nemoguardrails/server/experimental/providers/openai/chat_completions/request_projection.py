@@ -17,7 +17,7 @@
 
 from typing import Annotated, Any, ClassVar, Literal
 
-from pydantic import StrictBool
+from pydantic import BeforeValidator, StrictBool
 
 from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedRequestModel
 from nemoguardrails.server.experimental.provider.projection_policy import (
@@ -28,6 +28,13 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     guarded,
     opaque,
 )
+
+
+def _require_int(value: object) -> object:
+    """Reject booleans, strings, and floats before Literal[1] can coerce them."""
+    if type(value) is not int:
+        raise ValueError("n must be the integer 1")
+    return value
 
 
 class ChatCompletionsUserMessageProjection(PolicyModel, GuardedContentModel):
@@ -77,7 +84,9 @@ class ChatCompletionsGuardedRequestProjection(PolicyModel, GuardedRequestModel):
         )
     )
     messages: Annotated[list[ChatCompletionsUserMessageProjection], guarded(min_length=1, max_length=1)]
-    n: Annotated[Literal[1], constrained(reason="core_capability.single_text_target")] = 1
+    n: Annotated[
+        Literal[1], BeforeValidator(_require_int), constrained(reason="core_capability.single_text_target")
+    ] = 1
     stream: Annotated[StrictBool, constrained()] = False
     audio: Annotated[None, disabled("core_capability.audio_content")] = None
     function_call: Annotated[None, disabled("core_capability.tool_content")] = None

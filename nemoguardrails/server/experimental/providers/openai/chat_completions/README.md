@@ -5,7 +5,7 @@ for the buffered field policy. Types express accepted values, annotations expres
 guarded/constrained/disabled/opaque policy, and assignments express defaults:
 
 ```python
-n: Annotated[Literal[1], constrained(reason="core_capability.single_text_target")] = 1
+n: Annotated[Literal[1], BeforeValidator(_require_int), constrained(reason="core_capability.single_text_target")] = 1
 stream: Annotated[StrictBool, constrained()] = False
 audio: Annotated[None, disabled("core_capability.audio_content")] = None
 ```
@@ -31,9 +31,9 @@ this buffered projection layer.
 
 Existing validation behavior is preserved: omitted disabled fields default to
 null, explicit non-null disabled values fail, `stream` is a strict boolean,
-and nullable response annotations remain nullable. Pydantic's existing
-`Literal[1]` acceptance of `True` is unchanged; generic JSON Schema and Python
-validation are not claimed to be interchangeable.
+and nullable response annotations remain nullable. `n` accepts only the
+integer `1`; booleans, strings, and floats are rejected. Generic JSON Schema
+and Python validation are not claimed to be interchangeable.
 
 The [contract guide](../../../contracts/README.md) defines the document format;
 the [OpenAI boundary summary](../../../contracts/openai/README.md) records its

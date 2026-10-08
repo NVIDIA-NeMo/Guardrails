@@ -70,9 +70,15 @@ def test_annotations_preserve_existing_nullable_behavior(value):
     assert message.annotations == value
 
 
-def test_existing_literal_boolean_coercion_is_unchanged():
-    request = ChatCompletionsGuardedRequest.model_validate({"messages": [{"role": "user", "content": "q"}], "n": True})
+def test_n_accepts_the_integer_one():
+    request = ChatCompletionsGuardedRequest.model_validate({"messages": [{"role": "user", "content": "q"}], "n": 1})
     assert request.n == 1
+
+
+@pytest.mark.parametrize("value", [True, False, "1", 1.0, 0, 2, None])
+def test_n_rejects_coercible_and_other_values(value):
+    with pytest.raises(ValidationError):
+        ChatCompletionsGuardedRequest.model_validate({"messages": [{"role": "user", "content": "q"}], "n": value})
 
 
 @pytest.mark.parametrize("value", [0, 1, "true", None])
@@ -220,8 +226,9 @@ def test_field_validation_matches_original_unannotated_declarations():
             return "rejected"
 
     values = [None, True, False, 0, 1, 1.0, 2, "1", "true", "", [], {}, ["x"]]
-    for n, stream, audio in product(values, repeat=3):
-        fields = {"n": n, "stream": stream, "audio": audio}
+    # n is intentionally stricter than Literal[1]; test_n_rejects_coercible_and_other_values covers it.
+    for stream, audio in product(values, repeat=2):
+        fields = {"n": 1, "stream": stream, "audio": audio}
         old = validated(OriginalRequestFields, fields)
         new = validated(
             ChatCompletionsGuardedRequestProjection,
