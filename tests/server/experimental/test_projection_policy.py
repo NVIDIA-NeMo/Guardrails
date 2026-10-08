@@ -18,9 +18,9 @@ from typing import Annotated, ClassVar, Literal
 import pytest
 from pydantic import ValidationError
 
-from nemoguardrails.server.experimental.provider.authoring import (
+from nemoguardrails.server.experimental.provider.projection_policy import (
     EXTENSION,
-    Policy,
+    ObjectPolicy,
     PolicyModel,
     constrained,
     disabled,
@@ -101,7 +101,7 @@ def test_bindings_derive_coverage_and_targets_from_the_typed_models():
 
 def test_changed_python_policy_changes_coverage_and_export():
     class Message(PolicyModel):
-        policy: ClassVar[Policy] = Policy(source="Message", opaque=("provider_id",))
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="Message", opaque=("provider_id",))
         text: Annotated[str, guarded("user", replaceable=False, min_length=2)]
         role: Annotated[Literal["user"], constrained()]
         tools: Annotated[None, disabled("core_capability.tool_content")] = None
@@ -155,7 +155,7 @@ def test_opaque_overlap_fails_at_class_definition():
     with pytest.raises(ValueError, match="overlaps declared"):
 
         class Invalid(PolicyModel):
-            policy: ClassVar[Policy] = Policy(opaque=("text",))
+            policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("text",))
             text: Annotated[str, guarded("user")]
 
 
@@ -163,7 +163,7 @@ def test_duplicate_opaque_inventory_fails_at_class_definition():
     with pytest.raises(ValueError, match="duplicate opaque"):
 
         class Invalid(PolicyModel):
-            policy: ClassVar[Policy] = Policy(opaque=("id", "id"))
+            policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("id", "id"))
 
 
 @pytest.mark.parametrize("helper", [guarded, constrained])

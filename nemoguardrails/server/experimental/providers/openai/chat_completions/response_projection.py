@@ -13,21 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Declare buffered Chat response policy and text replacement restrictions."""
+
 from typing import Annotated, Any, ClassVar, Literal
 
-from nemoguardrails.server.experimental.provider.authoring import (
-    Policy,
+from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedPayloadModel
+from nemoguardrails.server.experimental.provider.projection_policy import (
+    ObjectPolicy,
     PolicyModel,
     constrained,
     disabled,
     guarded,
     opaque,
 )
-from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedPayloadModel
 
 
 class ChatCompletionsAssistantMessageProjection(PolicyModel, GuardedContentModel):
-    policy: ClassVar[Policy] = Policy(source="ChatCompletionResponseMessage", unknown_fields="configurable")
+    """Accept assistant text while preventing replacement of annotated content."""
+
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ChatCompletionResponseMessage", unknown_fields="configurable")
     content: Annotated[
         str,
         guarded(
@@ -48,7 +52,9 @@ class ChatCompletionsAssistantMessageProjection(PolicyModel, GuardedContentModel
 
 
 class ChatCompletionsChoiceProjection(PolicyModel, GuardedContentModel):
-    policy: ClassVar[Policy] = Policy(unknown_fields="configurable")
+    """Expose the guarded message while preserving opaque choice metadata."""
+
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(unknown_fields="configurable")
     message: Annotated[ChatCompletionsAssistantMessageProjection, guarded()]
     finish_reason: Annotated[Any, opaque()] = None
     index: Annotated[Any, opaque()] = None
@@ -56,7 +62,9 @@ class ChatCompletionsChoiceProjection(PolicyModel, GuardedContentModel):
 
 
 class ChatCompletionsGuardedResponseProjection(PolicyModel, GuardedPayloadModel):
-    policy: ClassVar[Policy] = Policy(
+    """Require one guarded choice and retain reviewed provider-owned response fields."""
+
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(
         opaque=(
             "service_tier",
             "created",

@@ -15,7 +15,7 @@
 
 """Bind the handwritten Chat Completions request policy to the runtime."""
 
-from nemoguardrails.server.experimental.provider.authoring import payload_contract, text_location
+from nemoguardrails.server.experimental.provider.projection_policy import payload_contract, text_location
 from nemoguardrails.server.experimental.providers.openai.chat_completions.request_projection import (
     ChatCompletionsGuardedRequestProjection,
 )

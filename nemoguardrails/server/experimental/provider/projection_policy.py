@@ -13,6 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Declare projection policy and derive buffered runtime metadata and schemas.
+
+Model field types define accepted values; Annotated field helpers attach guard
+policy, and assignments declare defaults. ObjectPolicy records object-level
+source and coverage information. PolicyModel checks local declaration consistency.
+
+Bindings use these declarations to derive coverage and a single guarded text
+location. The exporter produces a read-side schema without loading YAML, checking
+an upstream provider document, or compiling a contract into Python. These helpers
+operate on trusted framework-authored models, not externally supplied Python.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -34,17 +46,41 @@ CONTRACT_VERSION = "1.0.0-alpha.1"
 
 
 @dataclass(frozen=True)
-class Policy:
+class ObjectPolicy:
+    """Describe the reviewed boundary of one JSON object.
+
+    Attributes:
+        source: Provider component schema name, without a JSON Pointer prefix.
+            This is provenance metadata, not a schema lookup or validation step.
+        opaque: Reviewed passthrough fields not declared as Pydantic fields.
+            Names must be unique and must not overlap declared fields.
+        unknown_fields: Export marker indicating that the content boundary
+            supports configurable handling of unreviewed fields. Enforcement
+            belongs to the runtime content model and validation context.
+
+    This metadata does not select guardrails, a deployment configuration, or a
+    capability profile. Field-specific policy belongs on the field annotations.
+    """
+
     source: str | None = None
     opaque: tuple[str, ...] = ()
     unknown_fields: Literal["configurable"] | None = None
 
 
 class PolicyModel(BaseModel):
-    policy: ClassVar[Policy] = Policy()
+    """Require declared fields to carry guard policy metadata.
+
+    Combine this base with the appropriate runtime projection base. At subclass
+    creation it checks field classifications, opaque inventory overlap, disabled
+    field defaults, and unsupported aliases. It does not prove upstream field
+    coverage or serialize arbitrary custom validators into the exported schema.
+    """
+
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy()
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        """Check local policy consistency after Pydantic has assembled fields."""
         super().__pydantic_init_subclass__(**kwargs)
         if len(set(cls.policy.opaque)) != len(cls.policy.opaque):
             raise ValueError(f"{cls.__name__}: duplicate opaque fields")
@@ -64,6 +100,10 @@ class PolicyModel(BaseModel):
 
 
 def field_policy(field: FieldInfo) -> dict[str, Any]:
+    """Read a field's guard metadata, returning an empty mapping if absent.
+
+    The returned mapping may belong to the field; callers must not mutate it.
+    """
     extra = field.json_schema_extra
     if not isinstance(extra, dict):
         return {}
@@ -72,6 +112,7 @@ def field_policy(field: FieldInfo) -> dict[str, Any]:
 
 
 def _field(metadata: dict[str, Any], constraints: dict[str, Any]) -> Any:
+    """Build Annotated field metadata while keeping defaults in assignments."""
     if {"default", "default_factory", "alias"} & constraints.keys():
         raise ValueError("Declare defaults explicitly on the field; aliases are not supported")
     return Field(json_schema_extra={EXTENSION: metadata}, **constraints)
@@ -85,6 +126,19 @@ def guarded(
     replacement_reason: str | None = None,
     **constraints: Any,
 ) -> Any:
+    """Mark guarded content or a container leading to guarded content.
+
+    Args:
+        role: Text subject role. Omit for structural container fields.
+        replaceable: Whether the subject permits replacement. The buffered
+            binding defaults to read-only when this is not declared.
+        blocked_by: Sibling field whose non-empty value prevents replacement.
+        replacement_reason: Structured reason for the replacement restriction.
+        **constraints: Pydantic validation constraints, such as min_length.
+
+    Use inside Annotated and put defaults on the field assignment. Declaring
+    replacement eligibility does not enable runtime replacement support.
+    """
     metadata: dict[str, Any] = {"classification": "guarded"}
     if role is None and any(value is not None for value in (replaceable, blocked_by, replacement_reason)):
         raise ValueError("Text replacement policy requires a subject role")
@@ -101,6 +155,12 @@ def guarded(
 
 
 def constrained(*, reason: str | None = None, **constraints: Any) -> Any:
+    """Mark a field restricted by its type and optional Pydantic constraints.
+
+    The optional reason explains the restriction in the exported contract.
+    This helper adds no restriction by itself; the annotation and constraints
+    must express it. Defaults belong on the field assignment.
+    """
     metadata: dict[str, Any] = {"classification": "constrained"}
     if reason is not None:
         metadata["reason"] = reason
@@ -108,6 +168,13 @@ def constrained(*, reason: str | None = None, **constraints: Any) -> Any:
 
 
 def disabled(reason: str, *, extension: bool = False) -> Any:
+    """Declare an unsupported feature as an omittable, null-only field.
+
+    Use field: Annotated[None, disabled(reason)] = None. Non-null values are
+    rejected by the field type, and PolicyModel checks this declaration.
+    A nonblank structured reason explains the restriction. Set extension for a
+    locally recognized field outside the pinned provider schema.
+    """
     if not reason.strip():
         raise ValueError("Disabled fields require a reason")
     metadata: dict[str, Any] = {"classification": "constrained", "gate": "disabled", "reason": reason}
@@ -117,13 +184,26 @@ def disabled(reason: str, *, extension: bool = False) -> Any:
 
 
 def opaque() -> Any:
+    """Mark a declared field as provider-owned data outside guarded content.
+
+    Use field: Annotated[Any, opaque()] = None for an unconstrained optional
+    value. ObjectPolicy.opaque is the alternative for reviewed fields that do
+    not need a model attribute. Do not declare the same field in both places.
+    """
     return _field({"classification": "opaque"}, {})
 
 
 def model_graph(root: type[PolicyModel]) -> dict[str, type[PolicyModel]]:
+    """Collect the root and nested policy models in traversal order.
+
+    Models are keyed by class name. Reject nested models without policy and
+    distinct models sharing a name. Repeated references are visited once;
+    recursive schema export is rejected separately.
+    """
     models: dict[str, type[PolicyModel]] = {}
 
     def visit(annotation: Any) -> None:
+        """Follow model fields and container or union type arguments once."""
         if isinstance(annotation, type) and issubclass(annotation, BaseModel):
             if not issubclass(annotation, PolicyModel):
                 raise ValueError("Nested models must declare field policies")
@@ -143,6 +223,12 @@ def model_graph(root: type[PolicyModel]) -> dict[str, type[PolicyModel]]:
 
 
 def field_coverage(model: type[PolicyModel]) -> ProjectionFieldCoverage:
+    """Derive disjoint runtime field inventories from one object's declarations.
+
+    Local extensions occupy a separate inventory even when their annotation
+    is constrained. The opaque inventory includes declared opaque attributes
+    and ObjectPolicy.opaque names. This does not check an upstream schema.
+    """
     groups: dict[str, set[str]] = {
         "guarded": set(),
         "constrained": set(),
@@ -168,6 +254,18 @@ def payload_contract(
     direction: Literal["request", "response"],
     profile: PayloadCapabilityProfile = PayloadCapabilityProfile.SINGLE_TEXT_V1,
 ) -> PayloadProjectionContract:
+    """Build runtime coverage metadata for a request or response projection.
+
+    Args:
+        model: Policy-annotated root, with policy-annotated nested models.
+        projection_id: Stable identifier for this payload projection.
+        direction: Whether the projection describes a request or response.
+        profile: Framework-defined capability implemented by the runtime.
+
+    Returns:
+        Root and nested-model coverage, ready to attach in a binding module.
+        Text extraction is derived separately by text_location.
+    """
     return PayloadProjectionContract(
         projection_id=projection_id,
         direction=direction,
@@ -182,11 +280,31 @@ def payload_contract(
 
 
 def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> dict[str, Any]:
+    """Export a fresh, inline schema with object and field guard annotations.
+
+    Args:
+        model: Trusted policy-annotated model to describe.
+        projection_id: Exported root title; the class name remains model metadata.
+
+    Returns:
+        A payload schema, not a complete operation contract.
+        Defaults and nullable types are retained. Disjoint nullable anyOf
+        branches are rendered as oneOf for the current contract vocabulary.
+
+    Raises:
+        ValueError: Nested models are not policy-annotated, names collide,
+            references recurse, or an anyOf union cannot be safely converted.
+
+    This function does not validate the complete contract format, inspect an
+    upstream provider schema, or capture arbitrary Python validator behavior.
+    The operation exporter is responsible for format validation.
+    """
     document = model.model_json_schema()
     definitions = document.pop("$defs", {})
     models = model_graph(model)
 
     def expand(node: dict[str, Any], active: tuple[str, ...] = ()) -> dict[str, Any]:
+        """Inline references and attach object policy without mutating the input."""
         if "$ref" in node:
             name = node["$ref"].removeprefix("#/$defs/")
             if name in active:
@@ -231,9 +349,21 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
 
 
 def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
+    """Derive one buffered text target by following guarded object fields.
+
+    Traversed arrays must constrain their size to exactly one item. The subject
+    must be a named string field; its role and replacement restrictions become
+    runtime location metadata. This helper does not provide union selectors or
+    streaming classification and does not itself attach the result to a model.
+
+    Raises:
+        ValueError: No unique text subject can be derived, a traversed array is
+            not constrained to one item, or the schema cannot be exported.
+    """
     locations: list[GuardedTextLocation] = []
 
     def visit(node: dict[str, Any], path: tuple[str | int, ...]) -> None:
+        """Accumulate subject locations along guarded object and array paths."""
         subject = node.get(EXTENSION, {}).get("subject")
         if subject:
             if node.get("type") != "string" or not path or not isinstance(path[-1], str):

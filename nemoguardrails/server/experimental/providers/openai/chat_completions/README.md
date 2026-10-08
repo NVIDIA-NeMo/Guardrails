@@ -10,7 +10,9 @@ stream: Annotated[StrictBool, constrained()] = False
 audio: Annotated[None, disabled("core_capability.audio_content")] = None
 ```
 
-`Policy` records object-level provider schema names, reviewed opaque fields, and
+The shared [projection policy module](../../../provider/projection_policy.py)
+provides the declaration helpers, runtime metadata derivation, and schema export.
+`ObjectPolicy` records object-level provider schema names, reviewed opaque fields, and
 unknown-field policy. It is not a deployment profile selector. The capability
 profile remains `single_text.v1`; the exported document format remains experimental
 `1.0.0-alpha.1`.

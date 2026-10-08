@@ -13,30 +13,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Declare Chat request field policy without duplicating runtime binding metadata."""
+
 from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import StrictBool
 
-from nemoguardrails.server.experimental.provider.authoring import (
-    Policy,
+from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedRequestModel
+from nemoguardrails.server.experimental.provider.projection_policy import (
+    ObjectPolicy,
     PolicyModel,
     constrained,
     disabled,
     guarded,
     opaque,
 )
-from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedRequestModel
 
 
 class ChatCompletionsUserMessageProjection(PolicyModel, GuardedContentModel):
-    policy: ClassVar[Policy] = Policy(source="ChatCompletionRequestUserMessage", unknown_fields="configurable")
+    """Accept one user text message with reviewed optional provider metadata."""
+
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(
+        source="ChatCompletionRequestUserMessage", unknown_fields="configurable"
+    )
     content: Annotated[str, guarded("user", replaceable=True, min_length=1)]
     name: Annotated[Any, opaque()] = None
     role: Annotated[Literal["user"], constrained()]
 
 
 class ChatCompletionsGuardedRequestProjection(PolicyModel, GuardedRequestModel):
-    policy: ClassVar[Policy] = Policy(
+    """Declare the single-message request shape and explicit feature restrictions.
+
+    The request binding attaches extraction, coverage, and response-mode metadata.
+    Recognizing the stream flag does not imply that an endpoint supports streaming.
+    """
+
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(
         opaque=(
             "safety_identifier",
             "logit_bias",
