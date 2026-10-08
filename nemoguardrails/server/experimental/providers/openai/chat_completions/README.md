@@ -24,8 +24,8 @@ at each traversed array boundary; unsupported or ambiguous boundaries fail.
 No YAML is loaded to construct these bindings.
 
 `export_payload_schema` exports the declared schema and policy for readers.
-It does not prove upstream provider compatibility, serialize arbitrary Python
-validators, or compile contracts back into models. No compiler is shipped here.
+It does not prove upstream provider compatibility or serialize arbitrary Python
+validators.
 Streaming classification, stateful hooks, and endpoint construction are outside
 this buffered projection layer.
 
@@ -35,7 +35,6 @@ and nullable response annotations remain nullable. Pydantic's existing
 `Literal[1]` acceptance of `True` is unchanged; generic JSON Schema and Python
 validation are not claimed to be interchangeable.
 
-The earlier full-operation YAML and contract documentation belong to the
-preceding contract PRs and are not rewritten in this local buffered review.
-They are not read by the models, bindings, or exporter. Their conversion to
-read-side documentation remains separate work.
+The [contract guide](../../../contracts/README.md) defines the document format;
+the [OpenAI boundary summary](../../../contracts/openai/README.md) records its
+scope and provider provenance. Neither is loaded by the models or bindings.
