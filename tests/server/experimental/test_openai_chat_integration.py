@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 import httpx
 import pytest
 import pytest_asyncio
@@ -232,6 +234,75 @@ async def test_output_block_hides_provider_response_in_openai_error():
     assert response.json()["error"]["code"] == "content_blocked"
     assert provider_body not in response.content
     assert "x-provider-secret" not in response.headers
+
+
+async def _relay_through_proxy(message, finish_reason="stop"):
+    """Send one provider response message through the proxy and record its checks."""
+    checker = StaticChecker(output_decision=ContentBlocked("Response blocked."))
+    choice = {"index": 0, "finish_reason": finish_reason}
+    if message is not None:
+        choice["message"] = message
+    provider_body = json.dumps({"id": "chatcmpl-example", "choices": [choice]}, separators=(",", ":")).encode()
+
+    async def dispatch(_request):
+        """Return the provider response under test."""
+        return BufferedHttpResponse(200, _json_headers(), provider_body)
+
+    app = FastAPI()
+    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post(
+            "/v1/chat/completions", content=_request_body(), headers={"content-type": "application/json"}
+        )
+    return response, provider_body, [stage for stage, _check in checker.calls]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("content", "finish_reason"),
+    [("", "length"), (None, "content_filter"), (None, "stop")],
+)
+async def test_response_without_text_is_relayed_without_output_check(content, finish_reason):
+    """A validated response with no text skips output rails and is relayed unchanged."""
+    response, provider_body, stages = await _relay_through_proxy(
+        {"role": "assistant", "content": content}, finish_reason
+    )
+
+    assert response.status_code == 200
+    assert response.content == provider_body
+    assert stages == ["input"]
+
+
+@pytest.mark.asyncio
+async def test_response_with_text_is_still_output_checked():
+    """Ordinary assistant text still goes through output rails."""
+    response, provider_body, stages = await _relay_through_proxy({"role": "assistant", "content": "answer"})
+
+    assert response.status_code == 400
+    assert provider_body not in response.content
+    assert stages == ["input", "output"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "message",
+    [
+        None,
+        {"role": "assistant"},
+        {"role": "assistant", "content": None, "refusal": "untrusted model text"},
+        {"role": "assistant", "content": None, "reasoning_content": "untrusted model text"},
+        {"role": "assistant", "content": None, "tool_calls": [{"id": "call", "type": "function"}]},
+        {"role": "assistant", "content": None, "annotations": [{"type": "url_citation"}]},
+    ],
+)
+async def test_response_without_text_cannot_skip_shape_validation(message):
+    """Missing text never excuses content in another field or a missing message."""
+    response, provider_body, stages = await _relay_through_proxy(message)
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "unsupported_chat_completions_response_shape"
+    assert provider_body not in response.content
+    assert stages == ["input"]
 
 
 @pytest.mark.asyncio

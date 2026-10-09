@@ -163,7 +163,12 @@ def create_buffered_guarded_http_operation(
         try:
             document = parse_json_object(payload.body)
             projection = endpoint.guarded_response_model.validate_payload(document)
-            return projection.locate_guarded_message(document).message
+            target = projection.locate_guarded_message(document)
+            # Validation has already rejected content in any other reviewed
+            # field, so a response without text has nothing to inspect.
+            if not target.has_text:
+                return ContentInspectionNotApplicable()
+            return target.message
         except ValidationError as error:
             raise UnsupportedGuardedPayload(guarded_schema_error(error, "successful response")) from error
         except (InvalidJson, UnsupportedJsonShape) as error:
