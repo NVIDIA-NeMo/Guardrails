@@ -494,3 +494,17 @@ async def test_line_leading_bom_mid_stream_fails_closed_without_release(split):
     assert b"EVIL" not in result
     assert b'"code": "unsupported_stream"' in result
     assert source.closed is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "event", [stream_event({"text": "a\ud800b"}), b'data: {"text":"a\xed\xa0\x80b"}\n\n'], ids=["escape", "bytes"]
+)
+async def test_unpaired_surrogate_text_is_rejected_as_unsupported(event):
+    """Guarded text must be valid Unicode; an unpaired surrogate is a shape error, not a crash."""
+    checker = StaticChecker()
+    result = await collect(Source([event]), checker, Hooks())
+
+    assert b'"code": "unsupported_stream"' in result
+    assert b"\xed\xa0\x80" not in result
+    assert checker.calls == []
