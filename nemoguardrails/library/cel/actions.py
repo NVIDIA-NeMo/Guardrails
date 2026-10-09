@@ -13,17 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, tool_output_validation
-from nemoguardrails.library.cel.rail_config import CelOptions
+from nemoguardrails.library.cel.rail_config import CelOptions, compile_expression
 from nemoguardrails.types import ToolCall
 
+if TYPE_CHECKING:
+    from cel import Program
+
 log = logging.getLogger(__name__)
+
+
+@functools.lru_cache(maxsize=1024)
+def _program(expression: str) -> "Program":
+    """The compiled program for *expression*, cached outside the config (see CelOptions.compile_expressions)."""
+    return compile_expression(expression)
 
 
 def _tool_options(config: RailsConfig, source: str, tool_name: str) -> Optional[CelOptions]:
@@ -41,7 +51,7 @@ def _evaluate(source: str, tool_name: str, variables: Dict[str, Any], options: O
     matched, so the rail fails closed.
     """
     metadata: Dict[str, Any] = {"source": source}
-    if options is None or not options.compiled_expressions:
+    if options is None:
         log.debug("No CEL expressions configured for tool %r under source: %s", tool_name, source)
         return RailOutcome.allow(metadata=metadata)
 
@@ -55,13 +65,12 @@ def _evaluate(source: str, tool_name: str, variables: Dict[str, Any], options: O
 
     matched: List[str] = []
     failures: List[Tuple[str, Exception]] = []
-    for program, expression in zip(options.compiled_expressions, options.expressions):
+    for expression in options.expressions:
         try:
-            result = program.execute(context)
+            result = _program(expression).execute(context)
             if not isinstance(result, bool):
                 raise TypeError(f"returned {type(result).__name__}, not bool")
         except Exception as e:
-            log.warning("CEL expression %r for tool %r failed: %s: %s", expression, tool_name, type(e).__name__, e)
             failures.append((expression, e))
             continue
         if result:
@@ -69,7 +78,8 @@ def _evaluate(source: str, tool_name: str, variables: Dict[str, Any], options: O
             matched.append(expression)
 
     if failures:
-        details = "; ".join(f"{expression!r}: {type(error).__name__}: {error}" for expression, error in failures)
+        # Only the exception type: its message can quote the checked arguments or result.
+        details = "; ".join(f"{expression!r}: {type(error).__name__}" for expression, error in failures)
         raise RuntimeError(f"CEL expressions for tool {tool_name!r} failed: {details}")
     if matched:
         return RailOutcome.block(metadata={**metadata, "matched_expressions": matched})

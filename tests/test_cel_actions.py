@@ -19,9 +19,12 @@ The action-level companion to tests/guardrails/test_per_tool_cel_rails_iorails.p
 the same rail through IORails.
 """
 
+import copy
+import pickle
 import sys
 
 import pytest
+from pydantic import ValidationError
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailDecision
@@ -79,22 +82,39 @@ _EVALUATION_ERRORS = {
 
 
 class TestConfig:
-    def test_expressions_compile_at_load(self):
-        config = _config("tool_output", 'args.command == "ls"', "true")
-        assert len(config.rails.config.cel.tool_output["run_shell"].compiled_expressions) == 2
-
-    def test_syntax_error_fails_the_load(self):
-        with pytest.raises(ValueError, match=r"Invalid CEL expression at index 1 \('args.command.matches\('\)"):
-            _config("tool_output", "true", "args.command.matches(")
+    def test_config_can_be_deep_copied_and_pickled(self):
+        # The synchronous generate() and check() deep-copy the config, which a compiled cel.Program cannot survive.
+        config = _config("tool_output", 'args.command == "ls"')
+        assert copy.deepcopy(config).rails.config.cel == config.rails.config.cel
+        assert pickle.loads(pickle.dumps(config)).rails.config.cel == config.rails.config.cel
 
     @pytest.mark.parametrize(
-        "expression",
-        ['args.command == "rm', "args.command ==", "args.command && && true"],
-        ids=["unterminated_string", "dangling_operator", "repeated_operator"],
+        "cel_config",
+        [
+            {"tool_output": {"run_shell": {"expresions": ["true"]}}},
+            {"tool_ouput": {"run_shell": {"expressions": ["true"]}}},
+            {"tool_output": {"run_shell": {"expressions": []}}},
+            {"tool_output": {"run_shell": {}}},
+        ],
+        ids=["misspelled_key", "misspelled_section", "empty_expressions", "missing_expressions"],
     )
-    def test_other_syntax_errors_fail_the_load(self, expression):
-        with pytest.raises(ValueError, match="Invalid CEL expression at index 0"):
-            _config("tool_output", expression)
+    def test_misconfiguration_fails_the_load(self, cel_config):
+        with pytest.raises(ValidationError):
+            RailsConfig.from_content(config={"rails": {"config": {"cel": cel_config}}})
+
+    @pytest.mark.parametrize(
+        "expressions, index",
+        [
+            (["true", "args.command.matches("], 1),
+            (['args.command == "rm'], 0),
+            (["args.command =="], 0),
+            (["args.command && && true"], 0),
+        ],
+        ids=["unclosed_call", "unterminated_string", "dangling_operator", "repeated_operator"],
+    )
+    def test_syntax_error_fails_the_load(self, expressions, index):
+        with pytest.raises(ValueError, match=f"Invalid CEL expression at index {index} "):
+            _config("tool_output", *expressions)
 
     @pytest.mark.parametrize(
         "expression", [expression for expression, _ in _EVALUATION_ERRORS.values()], ids=_EVALUATION_ERRORS.keys()
@@ -107,10 +127,6 @@ class TestConfig:
         monkeypatch.setitem(sys.modules, "cel", None)
         with pytest.raises(ImportError, match=r"nemoguardrails\[cel\]"):
             CelOptions(expressions=["true"])
-
-    def test_no_expressions_needs_no_cel(self, monkeypatch):
-        monkeypatch.setitem(sys.modules, "cel", None)
-        assert CelOptions().compiled_expressions == []
 
 
 class TestToolOutput:
@@ -189,12 +205,12 @@ class TestFailures:
     async def test_evaluation_error_fails_closed(self, expression, error_type):
         with pytest.raises(RuntimeError) as excinfo:
             await _check_call(_config("tool_output", expression), _shell_call(command="rm"))
-        assert f"{expression!r}: {error_type}: " in str(excinfo.value)
+        assert str(excinfo.value).endswith(f"{expression!r}: {error_type}")
 
     @pytest.mark.asyncio
     async def test_failing_expression_raises_despite_a_match(self):
         config = _config("tool_output", 'args.flags.exists(f, f == "--force")', 'args.command == "rm"')
-        with pytest.raises(RuntimeError, match="KeyError: 'flags'"):
+        with pytest.raises(RuntimeError, match="KeyError"):
             await _check_call(config, _shell_call(command="rm"))
 
     @pytest.mark.asyncio
@@ -204,14 +220,19 @@ class TestFailures:
             await _check_call(config, _shell_call(command="ls"))
         message = str(excinfo.value)
         assert message.startswith("CEL expressions for tool 'run_shell' failed: ")
-        assert "'args.flags.exists(f, f == \"--force\")': KeyError: 'flags'" in message
-        assert "'args.command': TypeError: returned str, not bool" in message
+        assert "'args.flags.exists(f, f == \"--force\")': KeyError" in message
+        assert "'args.command': TypeError" in message
 
     @pytest.mark.asyncio
-    async def test_failure_message_carries_no_argument_values(self):
-        config = _config("tool_output", "args.command > 5")
+    @pytest.mark.parametrize(
+        "expression",
+        ['args[args.command] == "x"', "args.command.matches(args.command)"],
+        ids=["dynamic_key", "argument_as_pattern"],
+    )
+    async def test_failure_message_carries_no_argument_values(self, expression):
+        # Both make the CEL error itself quote the argument, which must not reach the message.
         with pytest.raises(RuntimeError) as excinfo:
-            await _check_call(config, _shell_call(command="SECRET_TOKEN"))
+            await _check_call(_config("tool_output", expression), _shell_call(command="SECRET_TOKEN["))
         assert "SECRET_TOKEN" not in str(excinfo.value)
 
 

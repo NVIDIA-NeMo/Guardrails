@@ -90,7 +90,7 @@ The rail evaluates every expression configured for the tool:
 
 - If any expression evaluates to `true`, the rail blocks the tool call or result. The block lists the expressions that matched in its `matched_expressions` metadata. The metadata never includes the checked arguments or content.
 - If no expression evaluates to `true`, the rail allows the tool call or result.
-- If any expression fails to evaluate, for example because it reads an argument the call did not include, or it returns a value that is not a boolean, the rail fails closed, even if another expression matched. The tool call or result is blocked and reported as a rail failure rather than a policy decision, and the logged error lists each expression that failed and why.
+- If any expression fails to evaluate, for example because it reads an argument the call did not include, or it returns a value that is not a boolean, the rail fails closed, even if another expression matched. The tool call or result is blocked and reported as a rail failure rather than a policy decision, and the logged error lists each expression that failed with its error type.
 
 ## Write Expressions
 
@@ -102,11 +102,17 @@ When you write expressions, keep the following in mind:
 - If a tool can return either a string or a list of content blocks, check the type first, for example `type(result) == string && result.contains("password")`.
 - Each expression must evaluate to a boolean. An expression such as `args.command` that returns a string fails to evaluate.
 
-The rail checks each expression's syntax when the configuration loads, so a syntax error fails the load. A misspelled variable, field, or function, or a type mismatch, is detected only when the expression is evaluated, so test your expressions against representative tool calls and results before deploying them.
+The rail checks each expression's syntax when the configuration loads, so a syntax error fails the load. Everything else is checked when an expression is evaluated: the CEL library the rail uses resolves variable and function names only at evaluation, and `args` and `result` hold the values of each tool call or result, so whether a field exists or has the expected type is known only then. A mistake found at evaluation makes the rail fail closed, so test your expressions against representative tool calls and results before deploying them.
 
 ## Complete Example
 
 The following configuration blocks recursive forced deletes in `run_shell`, writes to `/etc` or `/root` and appends to `.bashrc` through `write_file`, and any `run_shell` result that contains a private key:
+
+<Warning>
+
+The expressions on this page illustrate how the rail works; they are not complete security policies. Write and test expressions for the actual threats your tools face.
+
+</Warning>
 
 ```yaml
 models:
