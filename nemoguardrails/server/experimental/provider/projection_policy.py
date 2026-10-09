@@ -30,8 +30,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, cast, get_args
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic.fields import FieldInfo
+from typing_extensions import Self
 
 from nemoguardrails.server.experimental.provider.payload import (
     GuardedTextLocation,
@@ -72,8 +73,10 @@ class PolicyModel(BaseModel):
 
     Combine this base with the appropriate runtime projection base. At subclass
     creation it checks field classifications, opaque inventory overlap, disabled
-    field defaults, and unsupported aliases. It does not prove upstream field
-    coverage or serialize arbitrary custom validators into the exported schema.
+    field defaults, and unsupported aliases. At validation it rejects extra
+    members whose names match a reviewed field only case-insensitively. It does
+    not prove upstream field coverage or serialize arbitrary custom validators
+    into the exported schema.
     """
 
     policy: ClassVar[ObjectPolicy] = ObjectPolicy()
@@ -97,6 +100,20 @@ class PolicyModel(BaseModel):
                 field.annotation is not type(None) or field.is_required() or field.default is not None
             ):
                 raise ValueError(f"{cls.__name__}.{name}: disabled fields must be optional and null-only")
+
+    @model_validator(mode="after")
+    def reject_case_variant_fields(self) -> Self:
+        """Reject unreviewed members that differ from a reviewed name only by case.
+
+        Some providers match member names case-insensitively, so a member such
+        as ``Tools`` could reach a field this policy disables or inspects.
+        """
+        reviewed = {name.casefold(): name for name in (*type(self).model_fields, *self.policy.opaque)}
+        for name in self.model_extra or {}:
+            reviewed_name = reviewed.get(name.casefold())
+            if reviewed_name is not None and reviewed_name != name:
+                raise ValueError(f"field {name!r} differs from reviewed field {reviewed_name!r} only by case")
+        return self
 
 
 def field_policy(field: FieldInfo) -> dict[str, Any]:

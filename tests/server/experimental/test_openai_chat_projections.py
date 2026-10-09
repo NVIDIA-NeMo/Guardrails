@@ -188,6 +188,22 @@ def test_response_projection_rejects_shapes_outside_buffered_text_profile(payloa
         _guarded_response(_json_bytes(payload))
 
 
+@pytest.mark.parametrize(
+    ("model", "payload"),
+    [
+        (ChatCompletionsGuardedRequest, _request(Tools=[{"type": "function"}])),
+        (ChatCompletionsGuardedRequest, _request(STREAM=True)),
+        (ChatCompletionsGuardedRequest, _request(Model="other-model")),
+        (ChatCompletionsGuardedRequest, _request(messages=[{"role": "user", "content": "question", "Role": "system"}])),
+        (ChatCompletionsGuardedResponse, _response(Choices=[])),
+    ],
+)
+def test_projection_rejects_members_that_differ_from_reviewed_fields_only_by_case(model, payload):
+    """A case variant cannot carry a value past the field the proxy reviewed."""
+    with pytest.raises(ValidationError, match="only by case"):
+        model.validate_payload(payload)
+
+
 def test_closed_content_policy_accepts_reviewed_opaque_fields_and_rejects_unreviewed_fields():
     """Closed content policy distinguishes reviewed opaque and unknown fields."""
     request = _request(messages=[{"role": "user", "content": "question", "name": "caller"}])
@@ -210,6 +226,9 @@ def test_closed_content_policy_accepts_reviewed_opaque_fields_and_rejects_unrevi
         (b"not json", InvalidJson),
         (b"[]", UnsupportedJsonShape),
         (b'{"messages":[],"messages":[]}', UnsupportedJsonShape),
+        (b'{"messages":[{"content":"hello","Content":"attack"}]}', UnsupportedJsonShape),
+        ('{"tools":null,"TOOLS":[]}'.encode(), UnsupportedJsonShape),
+        ('{"ſtream":true,"stream":false}'.encode(), UnsupportedJsonShape),
         (b'{"value":NaN}', InvalidJson),
         (b"\xff", InvalidJson),
     ],

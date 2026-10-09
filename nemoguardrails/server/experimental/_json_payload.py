@@ -30,11 +30,19 @@ class UnsupportedJsonShape(ValueError):
 
 
 def _unique_object(pairs: Sequence[tuple[str, Any]]) -> JsonObject:
-    """Build an object while rejecting duplicate member names."""
+    """Build an object while rejecting duplicate member names.
+
+    Names that differ only by case also count as duplicates: some providers
+    match member names case-insensitively, so they could read a different
+    member than the one this proxy inspected.
+    """
     result: JsonObject = {}
+    folded_keys: set[str] = set()
     for key, value in pairs:
-        if key in result:
+        folded_key = key.casefold()
+        if folded_key in folded_keys:
             raise UnsupportedJsonShape(f"Duplicate JSON member {key!r} is not supported.")
+        folded_keys.add(folded_key)
         result[key] = value
     return result
 
