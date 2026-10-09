@@ -25,8 +25,10 @@ import re
 from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, cast, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
+from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, ValidationInfo, model_validator
 from pydantic.fields import FieldInfo
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import CoreSchema
 from typing_extensions import Self
 
 from nemoguardrails.server.experimental.provider.payload import (
@@ -118,6 +120,31 @@ class PolicyModel(BaseModel):
                 field.annotation is not type(None) or field.is_required() or field.default is not None
             ):
                 raise ValueError(f"{cls.__name__}.{name}: disabled fields must be optional and null-only")
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler) -> JsonSchemaValue:
+        """Attach policy using model identity, independent of schema display titles.
+
+        Keep Pydantic's references and validation assertions. Object closure
+        describes default validation; trusted overrides and case-alias checks
+        remain explicit guard annotations.
+        """
+        node = dict(handler.resolve_ref_schema(handler(core_schema)))
+        if node.get("type") != "object" or "properties" not in node:
+            raise ValueError(f"{cls.__name__}: ObjectPolicy requires an object schema")
+        metadata = dict(node.get(EXTENSION, {}))
+        if cls.policy.source:
+            metadata["source"] = "#/components/schemas/" + cls.policy.source
+        node["additionalProperties"] = False
+        metadata["unknown_fields"] = cls.policy.unknown_fields
+        metadata["reject_case_aliases"] = True
+        properties = {
+            **node["properties"],
+            **{name: {EXTENSION: {"classification": "opaque"}} for name in cls.policy.opaque},
+        }
+        node["properties"] = dict(sorted(properties.items()))
+        node[EXTENSION] = metadata
+        return node
 
     @model_validator(mode="after")
     def reject_unreviewed_fields(self, info: ValidationInfo) -> Self:
@@ -341,24 +368,8 @@ def policy_json_schema(model: type[PolicyModel]) -> dict[str, Any]:
     union semantics. Recursive models cannot be inlined and are rejected.
     The result is fresh; arbitrary Python validators are not serialized.
     """
+    model_graph(model)
     document = model.model_json_schema()
-    models = model_graph(model)
-    for node in (document, *document.get("$defs", {}).values()):
-        if "properties" not in node or node.get("title") not in models:
-            continue
-        policy = models[node["title"]].policy
-        metadata = dict(node.get(EXTENSION, {}))
-        if policy.source:
-            metadata["source"] = "#/components/schemas/" + policy.source
-        node["additionalProperties"] = False
-        metadata["unknown_fields"] = policy.unknown_fields
-        metadata["reject_case_aliases"] = True
-        properties = {
-            **node["properties"],
-            **{name: {EXTENSION: {"classification": "opaque"}} for name in policy.opaque},
-        }
-        node["properties"] = dict(sorted(properties.items()))
-        node[EXTENSION] = metadata
     definitions = document.pop("$defs", {})
 
     def inline(node: dict[str, Any], active: tuple[str, ...] = ()) -> dict[str, Any]:
@@ -373,6 +384,11 @@ def policy_json_schema(model: type[PolicyModel]) -> dict[str, Any]:
             return inline(resolved, (*active, name))
         result = dict(node)
         if "properties" in result:
+            metadata = dict(result.get(EXTENSION, {}))
+            for keyword in ("source", "unknown_fields", "reject_case_aliases"):
+                if keyword in metadata:
+                    metadata[keyword] = metadata.pop(keyword)
+            result[EXTENSION] = metadata
             result["properties"] = {name: inline(child, active) for name, child in result["properties"].items()}
         if "items" in result:
             result["items"] = inline(result["items"], active)

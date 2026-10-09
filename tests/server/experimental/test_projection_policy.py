@@ -29,6 +29,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     export_payload_schema,
     guarded,
     payload_contract,
+    policy_json_schema,
     text_location,
 )
 from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
@@ -63,6 +64,44 @@ def test_policy_models_reject_conflicting_extra_configuration(extra):
             model_config = ConfigDict(extra=extra)
             policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("provider_id",))
             text: Annotated[str, guarded("user")]
+
+
+@pytest.mark.parametrize("export", [False, True])
+def test_object_policy_uses_model_identity_not_schema_titles(export, export_policy_validator):
+    """Display titles and field titles cannot hide or swap object policies."""
+
+    class Left(PolicyModel):
+        model_config = ConfigDict(title="Shared display title")
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("left_metadata",))
+        text: Annotated[str, guarded("user")]
+
+    class Right(PolicyModel):
+        model_config = ConfigDict(title="Shared display title")
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("right_metadata",))
+        value: Annotated[str, constrained()]
+
+    class Root(PolicyModel):
+        model_config = ConfigDict(title="Readable request")
+        left: Annotated[Left, guarded(), Field(title="Friendly field")]
+        right: Annotated[Right, constrained()]
+
+    schema = export_payload_schema(Root, projection_id="test.request") if export else policy_json_schema(Root)
+    assert schema["additionalProperties"] is False
+    assert schema[EXTENSION]["unknown_fields"] == "forbid"
+    for field, expected in (("left", "left_metadata"), ("right", "right_metadata")):
+        node = schema["properties"][field]
+        assert node["additionalProperties"] is False
+        assert node[EXTENSION]["reject_case_aliases"] is True
+        assert expected in node["properties"]
+    assert "right_metadata" not in schema["properties"]["left"]["properties"]
+    payload = {"left": {"text": "q", "left_metadata": 1}, "right": {"value": "v", "right_metadata": 2}}
+    validator = export_policy_validator(schema, UnknownContentFieldPolicy.FORBID)
+    assert validator.is_valid(payload)
+    Root.model_validate(payload)
+    payload["left"]["unreviewed"] = "x"
+    assert not validator.is_valid(payload)
+    with pytest.raises(ValidationError):
+        Root.model_validate(payload)
 
 
 def test_missing_policy_fails_at_class_definition():
