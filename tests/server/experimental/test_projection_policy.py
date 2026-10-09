@@ -13,13 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
 import pytest
-from pydantic import ValidationError
+from jsonschema import Draft202012Validator
+from pydantic import Field, ValidationError
 
 from nemoguardrails.server.experimental.provider.payload import GuardedContentModel
 from nemoguardrails.server.experimental.provider.projection_policy import (
+    CONTRACT_VERSION,
     EXTENSION,
     ObjectPolicy,
     PolicyModel,
@@ -321,3 +325,39 @@ def test_export_does_not_require_contract_yaml(monkeypatch):
     assert (
         export_payload_schema(ChatCompletionsGuardedRequestProjection, projection_id="test.request")["type"] == "object"
     )
+
+
+GUARD_CONTRACT_SCHEMA = (
+    Path(__file__).parents[3] / "nemoguardrails/server/experimental/contracts/guard-contract.schema.json"
+)
+
+
+def _contract_errors(request: type[PolicyModel], response: type[PolicyModel]) -> list[str]:
+    """Wrap two payload exports in a minimal operation contract and validate it."""
+    contract = {
+        "version": CONTRACT_VERSION,
+        "operationId": "createChatCompletion",
+        "profile": "single_text.v1",
+        "request": export_payload_schema(request, projection_id=REQUEST_CONTRACT.projection_id),
+        "response": export_payload_schema(response, projection_id=RESPONSE_CONTRACT.projection_id),
+        "integration": {
+            "endpoint": {
+                "unsupported_request_code": "unsupported_request",
+                "unsupported_response_code": "unsupported_response",
+            }
+        },
+    }
+    validator = Draft202012Validator(json.loads(GUARD_CONTRACT_SCHEMA.read_text(encoding="utf-8")))
+    return [error.message for error in validator.iter_errors(contract)]
+
+
+def test_chat_exports_conform_to_the_guard_contract_schema():
+    assert _contract_errors(ChatCompletionsGuardedRequestProjection, ChatCompletionsGuardedResponseProjection) == []
+
+
+def test_contract_schema_check_catches_unexportable_constraints():
+    class Response(PolicyModel):
+        text: Annotated[str, guarded("assistant")]
+        count: Annotated[int, Field(ge=0), constrained()]
+
+    assert _contract_errors(ChatCompletionsGuardedRequestProjection, Response)
