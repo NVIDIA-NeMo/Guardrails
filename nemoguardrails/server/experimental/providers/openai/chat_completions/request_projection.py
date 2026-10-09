@@ -19,7 +19,7 @@ from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import BeforeValidator, StrictBool
 
-from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedRequestModel
+from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedRequestModel, StrictFalse
 from nemoguardrails.server.experimental.provider.projection_policy import (
     ObjectPolicy,
     PolicyModel,
@@ -75,11 +75,9 @@ class ChatCompletionsGuardedRequestProjection(PolicyModel, GuardedRequestModel):
             "max_tokens",
             "max_completion_tokens",
             "frequency_penalty",
-            "top_logprobs",
             "prompt_cache_key",
             "model",
             "metadata",
-            "logprobs",
             "prompt_cache_retention",
         )
     )
@@ -98,3 +96,8 @@ class ChatCompletionsGuardedRequestProjection(PolicyModel, GuardedRequestModel):
     tool_choice: Annotated[None, disabled("core_capability.tool_content")] = None
     tools: Annotated[None, disabled("core_capability.tool_content")] = None
     web_search_options: Annotated[None, disabled("core_capability.tool_content")] = None
+    # Response logprobs carry token text that output rails do not inspect, and
+    # the response projection accepts only null logprobs. Reject requests for
+    # them before dispatch instead of failing the provider response afterwards.
+    logprobs: Annotated[StrictFalse | None, constrained(reason="provider_integrity.token_logprobs")] = None
+    top_logprobs: Annotated[None, disabled("provider_integrity.token_logprobs")] = None

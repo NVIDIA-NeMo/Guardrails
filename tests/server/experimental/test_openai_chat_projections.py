@@ -129,12 +129,24 @@ def test_request_binding_targets_original_provider_object_without_rewriting_byte
         _request(n=2),
         _request(tools=[{"type": "function"}]),
         _request(response_format={"type": "json_object"}),
+        _request(logprobs=True),
+        _request(logprobs=0),
+        _request(top_logprobs=3),
+        _request(logprobs=False, top_logprobs=0),
     ],
 )
 def test_request_projection_rejects_shapes_outside_buffered_text_profile(payload):
     """The request projection rejects shapes outside its supported text profile."""
     with pytest.raises(ValidationError):
         _guarded_request(_json_bytes(payload))
+
+
+@pytest.mark.parametrize("logprobs", [None, False])
+def test_request_projection_accepts_requests_without_logprobs(logprobs):
+    """Clients may state that they do not want log probabilities."""
+    _, projection, _ = _guarded_request(_json_bytes(_request(logprobs=logprobs, top_logprobs=None)))
+
+    assert projection.logprobs is logprobs
 
 
 def test_request_projection_reports_streaming_response_mode():

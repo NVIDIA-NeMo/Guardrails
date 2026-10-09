@@ -23,9 +23,10 @@ it requests plain text or no tools. Response `tool_calls` is the one exception:
 it is constrained to null or an empty list, because OpenAI's schema allows an
 empty list and it carries no tool content.
 
-Request `logprobs` and `top_logprobs` settings are provider-owned, while non-null
-buffered response `choices[0].logprobs` is unsupported. That asymmetry is a
-boundary limitation, not something document validation resolves.
+Log probabilities are unsupported: they carry token text that rails do not
+inspect. Request `logprobs` accepts only `false` or null, request `top_logprobs`
+accepts only null, and buffered response `choices[0].logprobs` accepts only null.
+The request check applies even when output inspection is off.
 
 Text replacement eligibility is separate from endpoint support for replacement
 outcomes. Non-empty response annotations block text replacement; their mere
