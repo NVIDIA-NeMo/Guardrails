@@ -410,8 +410,9 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
     """Derive one buffered text target by following guarded object fields.
 
     Traversed arrays must constrain their size to exactly one item. The subject
-    must be a named string field; its role and replacement restrictions become
-    runtime location metadata. This helper does not provide union selectors or
+    must be a named string field, optionally nullable; its role and replacement
+    restrictions become runtime location metadata. A nullable subject, or one
+    without a minimum length, may hold no text. This helper does not provide union selectors or
     streaming classification and does not itself attach the result to a model.
 
     Raises:
@@ -425,8 +426,13 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
         """Accumulate subject locations along guarded object and array paths."""
         subject = node.get(EXTENSION, {}).get("subject")
         if subject:
-            if node.get("type") != "string" or not path or not isinstance(path[-1], str):
+            branches = node.get("oneOf", [node])
+            types = [branch.get("type") for branch in branches]
+            if types not in (["string"], ["string", "null"], ["null", "string"]):
                 raise ValueError("A guarded subject must be a named string field")
+            if not path or not isinstance(path[-1], str):
+                raise ValueError("A guarded subject must be a named string field")
+            text = branches[types.index("string")]
             locations.append(
                 GuardedTextLocation(
                     role=subject["role"],
@@ -434,6 +440,8 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
                     member=path[-1],
                     allows_replacement=subject.get("replaceable", False),
                     replacement_blocked_by=subject.get("replacement_blocked_by"),
+                    # A nullable subject, or one without a minimum length, may hold no text.
+                    allows_empty="null" in types or text.get("minLength", 0) < 1,
                 )
             )
         if node.get("type") == "array":

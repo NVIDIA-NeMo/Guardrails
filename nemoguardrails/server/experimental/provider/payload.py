@@ -195,6 +195,17 @@ class GuardedMessageTarget:
     allows_replacement: bool
 
     @property
+    def has_text(self) -> bool:
+        """Return whether the target holds text for content checks.
+
+        A validated projection reaches an empty or null target only when its
+        location allows empty text. The projection has then shown that no
+        other reviewed field carries content, so there is nothing to inspect.
+        """
+        content = self._object.get(self._member)
+        return isinstance(content, str) and content != ""
+
+    @property
     def message(self) -> GuardedMessage:
         """Return the message currently stored at the target."""
         content = self._object[self._member]
@@ -243,6 +254,7 @@ class GuardedTextLocation:
     member: str
     allows_replacement: bool
     replacement_blocked_by: str | None = None
+    allows_empty: bool = False
 
     def locate(self, payload: JsonObject) -> GuardedMessageTarget:
         """Locate guarded text in the original provider payload."""
@@ -280,7 +292,10 @@ class GuardedTextLocation:
                 value = segment.select(cast(list[object], value))
             else:
                 raise ValueError("Guarded text location does not match the provider projection.")
-        if not isinstance(value, BaseModel) or not isinstance(getattr(value, self.member, None), str):
+        if not isinstance(value, BaseModel):
+            raise ValueError("Guarded text location does not resolve to projected text.")
+        text = getattr(value, self.member, None)
+        if not isinstance(text, str) and not (self.allows_empty and text is None):
             raise ValueError("Guarded text location does not resolve to projected text.")
 
     def matches_projection(self, projection: BaseModel) -> bool:

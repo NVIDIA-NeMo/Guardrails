@@ -32,14 +32,16 @@ class ChatCompletionsAssistantMessageProjection(PolicyModel, GuardedContentModel
     """Accept assistant text while preventing replacement of annotated content."""
 
     policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ChatCompletionResponseMessage", unknown_fields="configurable")
+    # OpenAI allows empty or null content, for example when generation stops
+    # at a length limit or a content filter. Every other reviewed field is
+    # content-free here, so such a response has nothing to inspect.
     content: Annotated[
-        str,
+        str | None,
         guarded(
             "assistant",
             replaceable=True,
             blocked_by="annotations",
             replacement_reason="provider_integrity.annotated_text",
-            min_length=1,
         ),
     ]
     role: Annotated[Literal["assistant"], constrained()]

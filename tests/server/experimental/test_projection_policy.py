@@ -288,6 +288,16 @@ def test_extraction_accepts_opaque_replacement_blocker():
     assert text_location(Message).replacement_blocked_by == "citations"
 
 
+def test_extraction_allows_empty_text_only_where_the_subject_type_does():
+    assert ChatCompletionsGuardedResponse.guarded_text_location.allows_empty is True
+    assert ChatCompletionsGuardedRequest.guarded_text_location.allows_empty is False
+
+    class Message(PolicyModel):
+        text: Annotated[str, guarded("user")]
+
+    assert text_location(Message).allows_empty is True
+
+
 def test_extraction_rejects_multiple_subjects():
     class Request(PolicyModel):
         first: Annotated[str, guarded("user")]
@@ -310,7 +320,7 @@ def test_field_validation_matches_original_unannotated_declarations():
 
     class OriginalResponseFields(BaseModel):
         annotations: Annotated[list[Any] | None, Field(max_length=0)] = None
-        content: Annotated[str, Field(min_length=1)]
+        content: str | None
         logprobs: None = None
 
     def validated(model, payload):

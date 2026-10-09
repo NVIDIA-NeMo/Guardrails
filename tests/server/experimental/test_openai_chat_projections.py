@@ -206,6 +206,43 @@ def test_response_projection_accepts_absent_tool_calls(tool_calls):
     assert target.message == GuardedMessage("assistant", "answer")
 
 
+@pytest.mark.parametrize(
+    ("content", "finish_reason"),
+    [("", "length"), (None, "content_filter"), (None, "stop")],
+)
+def test_response_without_text_has_nothing_to_inspect(content, finish_reason):
+    """Empty or null content in an otherwise content-free response yields no checked text."""
+    response = _response()
+    response["choices"][0]["message"]["content"] = content
+    response["choices"][0]["finish_reason"] = finish_reason
+
+    _, _, target = _guarded_response(_json_bytes(response))
+
+    assert target.has_text is False
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {"role": "assistant", "content": None, "refusal": "untrusted model text"},
+        {"role": "assistant", "content": None, "tool_calls": [{"id": "call", "type": "function"}]},
+        {"role": "assistant", "content": None, "annotations": [{"type": "url_citation"}]},
+        {"role": "assistant", "content": None, "reasoning_content": "untrusted model text"},
+        {"role": "assistant"},
+    ],
+)
+def test_response_without_text_is_rejected_when_other_fields_carry_content(message):
+    """Null content does not excuse uninspected content elsewhere in the message."""
+    with pytest.raises(ValidationError):
+        _guarded_response(_json_bytes(_response(choices=[{"index": 0, "message": message}])))
+
+
+def test_response_with_text_has_text_to_inspect():
+    _, _, target = _guarded_response(_json_bytes(_response()))
+
+    assert target.has_text is True
+
+
 def test_response_binding_allows_unannotated_text_replacement():
     """Unannotated assistant text remains eligible for replacement."""
     response = _response()
@@ -222,7 +259,6 @@ def test_response_binding_allows_unannotated_text_replacement():
         _response(choices=[]),
         _response(choices=[_response()["choices"][0], _response()["choices"][0]]),
         _response(choices=[{"message": {"role": "user", "content": "answer"}}]),
-        _response(choices=[{"message": {"role": "assistant", "content": ""}}]),
         _response(
             choices=[
                 {
