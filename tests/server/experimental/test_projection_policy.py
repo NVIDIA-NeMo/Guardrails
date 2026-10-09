@@ -135,6 +135,17 @@ def test_export_preserves_nullable_annotation_schema():
     assert {"type": "array", "items": {}} in annotations["oneOf"]
 
 
+def test_export_marks_response_choice_and_message_closed():
+    exported = export_payload_schema(
+        ChatCompletionsGuardedResponseProjection, projection_id=RESPONSE_CONTRACT.projection_id
+    )
+    choice = exported["properties"]["choices"]["items"]
+    message = choice["properties"]["message"]
+    assert choice["additionalProperties"] is False
+    assert message["additionalProperties"] is False
+    assert "unknown_fields" not in message[EXTENSION]
+
+
 def test_missing_policy_fails_at_class_definition():
     with pytest.raises(ValueError, match="missing field policy"):
 

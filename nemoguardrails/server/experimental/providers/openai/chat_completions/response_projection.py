@@ -17,6 +17,8 @@
 
 from typing import Annotated, Any, ClassVar, Literal
 
+from pydantic import ConfigDict
+
 from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedPayloadModel
 from nemoguardrails.server.experimental.provider.projection_policy import (
     ObjectPolicy,
@@ -29,9 +31,14 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
 
 
 class ChatCompletionsAssistantMessageProjection(PolicyModel, GuardedContentModel):
-    """Accept assistant text while preventing replacement of annotated content."""
+    """Accept assistant text while preventing replacement of annotated content.
 
-    policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ChatCompletionResponseMessage", unknown_fields="configurable")
+    The message is closed: a member outside the reviewed fields could carry
+    text that output rails never inspect.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ChatCompletionResponseMessage")
     content: Annotated[
         str,
         guarded(
@@ -52,9 +59,10 @@ class ChatCompletionsAssistantMessageProjection(PolicyModel, GuardedContentModel
 
 
 class ChatCompletionsChoiceProjection(PolicyModel, GuardedContentModel):
-    """Expose the guarded message while preserving opaque choice metadata."""
+    """Expose the guarded message while rejecting unreviewed choice members."""
 
-    policy: ClassVar[ObjectPolicy] = ObjectPolicy(unknown_fields="configurable")
+    model_config = ConfigDict(extra="forbid")
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy()
     message: Annotated[ChatCompletionsAssistantMessageProjection, guarded()]
     finish_reason: Annotated[Any, opaque()] = None
     index: Annotated[Any, opaque()] = None

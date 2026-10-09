@@ -79,7 +79,6 @@ def _response(**updates):
                     "role": "assistant",
                     "content": "answer",
                     "annotations": [{"provider": "opaque"}],
-                    "future": True,
                 },
             }
         ],
@@ -180,6 +179,20 @@ def test_response_binding_allows_unannotated_text_replacement():
         _response(choices=[{"message": {"role": "assistant", "content": "answer", "reasoning_content": "hidden"}}]),
         _response(choices=[{"logprobs": {"content": []}, "message": {"role": "assistant", "content": "answer"}}]),
         _response(choices=[{"message": {"role": "assistant", "content": "answer", "annotations": "invalid"}}]),
+        _response(choices=[{"message": {"role": "assistant", "content": "answer", "future": True}}]),
+        _response(choices=[{"message": {"role": "assistant", "content": "answer", "reasoning": "hidden"}}]),
+        _response(
+            choices=[
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "answer",
+                        "provider_specific_fields": {"reasoning": "hidden"},
+                    }
+                }
+            ]
+        ),
+        _response(choices=[{"token_ids": [1, 2], "message": {"role": "assistant", "content": "answer"}}]),
     ],
 )
 def test_response_projection_rejects_shapes_outside_buffered_text_profile(payload):
