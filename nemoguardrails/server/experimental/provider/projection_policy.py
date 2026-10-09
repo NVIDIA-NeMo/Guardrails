@@ -23,10 +23,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal, cast, get_args
+from types import UnionType
+from typing import Annotated, Any, ClassVar, Literal, Union, cast, get_args, get_origin
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
+from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, ValidationInfo, model_validator
 from pydantic.fields import FieldInfo
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import CoreSchema
 from typing_extensions import Self
 
 from nemoguardrails.server.experimental.provider.payload import (
@@ -101,6 +104,8 @@ class PolicyModel(BaseModel):
     def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
         """Check local policy consistency after Pydantic has assembled fields."""
         super().__pydantic_init_subclass__(**kwargs)
+        if cls.model_config.get("extra") != "allow":
+            raise ValueError(f"{cls.__name__}: ObjectPolicy requires extra='allow' to validate unreviewed members")
         if len(set(cls.policy.opaque)) != len(cls.policy.opaque):
             raise ValueError(f"{cls.__name__}: duplicate opaque fields")
         overlap = set(cls.policy.opaque) & cls.model_fields.keys()
@@ -116,6 +121,31 @@ class PolicyModel(BaseModel):
                 field.annotation is not type(None) or field.is_required() or field.default is not None
             ):
                 raise ValueError(f"{cls.__name__}.{name}: disabled fields must be optional and null-only")
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler) -> JsonSchemaValue:
+        """Attach policy using model identity, independent of schema display titles.
+
+        Keep Pydantic's references and validation assertions. Object closure
+        describes default validation; trusted overrides and case-alias checks
+        remain explicit guard annotations.
+        """
+        node = dict(handler.resolve_ref_schema(handler(core_schema)))
+        if node.get("type") != "object" or "properties" not in node:
+            raise ValueError(f"{cls.__name__}: ObjectPolicy requires an object schema")
+        metadata = dict(node.get(EXTENSION, {}))
+        if cls.policy.source:
+            metadata["source"] = "#/components/schemas/" + cls.policy.source
+        node["additionalProperties"] = False
+        metadata["unknown_fields"] = cls.policy.unknown_fields
+        metadata["reject_case_aliases"] = True
+        properties = {
+            **node["properties"],
+            **{name: {EXTENSION: {"classification": "opaque"}} for name in cls.policy.opaque},
+        }
+        node["properties"] = dict(sorted(properties.items()))
+        node[EXTENSION] = metadata
+        return node
 
     @model_validator(mode="after")
     def reject_unreviewed_fields(self, info: ValidationInfo) -> Self:
@@ -330,6 +360,49 @@ def payload_contract(
     )
 
 
+def policy_json_schema(model: type[PolicyModel]) -> dict[str, Any]:
+    """Describe default object validation without the contract's union restrictions.
+
+    Add reviewed opaque properties, default closure, and explicit object policy
+    to the root and nested model definitions. Inline references so the schema can
+    be embedded in an OpenAPI document without dangling definition paths; retain
+    union semantics. Recursive models cannot be inlined and are rejected.
+    The result is fresh; arbitrary Python validators are not serialized.
+    """
+    model_graph(model)
+    document = model.model_json_schema()
+    definitions = document.pop("$defs", {})
+
+    def inline(node: dict[str, Any], active: tuple[str, ...] = ()) -> dict[str, Any]:
+        """Resolve schema references without rewriting unions or opaque values."""
+        if "$ref" in node:
+            name = node["$ref"].removeprefix("#/$defs/")
+            if name in active:
+                raise ValueError("Recursive models are not supported by the inline policy schema")
+            resolved = {**definitions[name], **{key: value for key, value in node.items() if key != "$ref"}}
+            if EXTENSION in resolved:
+                resolved[EXTENSION] = {**node.get(EXTENSION, {}), **definitions[name].get(EXTENSION, {})}
+            return inline(resolved, (*active, name))
+        result = dict(node)
+        if "properties" in result:
+            metadata = dict(result.get(EXTENSION, {}))
+            for keyword in ("source", "unknown_fields", "reject_case_aliases"):
+                if keyword in metadata:
+                    metadata[keyword] = metadata.pop(keyword)
+            result[EXTENSION] = metadata
+            result["properties"] = {name: inline(child, active) for name, child in result["properties"].items()}
+        if "items" in result:
+            result["items"] = inline(result["items"], active)
+        if isinstance(result.get("additionalProperties"), dict):
+            result["additionalProperties"] = inline(result["additionalProperties"], active)
+        for keyword in ("anyOf", "oneOf", "allOf", "prefixItems"):
+            if keyword in result:
+                result[keyword] = [inline(child, active) for child in result[keyword]]
+        return result
+
+    return inline(document)
+
+
 def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> dict[str, Any]:
     """Export a fresh, inline schema with object and field guard annotations.
 
@@ -342,7 +415,9 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
         Defaults and nullable types are retained. Disjoint nullable anyOf
         branches are rendered as oneOf for the current contract vocabulary.
         Reviewed opaque names are exported as opaque-classified properties,
-        and additionalProperties follows the object's unknown-field policy.
+        and additionalProperties reflects closed-by-default validation. Object
+        metadata explicitly describes trusted unknown-field overrides and Unicode
+        case-alias rejection.
 
     Raises:
         ValueError: Nested models are not policy-annotated, names collide,
@@ -352,37 +427,18 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
     upstream provider schema, or capture arbitrary Python validator behavior.
     The operation exporter is responsible for format validation.
     """
-    document = model.model_json_schema()
-    definitions = document.pop("$defs", {})
-    models = model_graph(model)
+    document = policy_json_schema(model)
 
-    def expand(node: dict[str, Any], active: tuple[str, ...] = ()) -> dict[str, Any]:
-        """Inline references and attach object policy without mutating the input."""
-        if "$ref" in node:
-            name = node["$ref"].removeprefix("#/$defs/")
-            if name in active:
-                raise ValueError("Recursive models are not supported by the contract export")
-            return expand({**definitions[name], **{k: v for k, v in node.items() if k != "$ref"}}, (*active, name))
+    def expand(node: dict[str, Any]) -> dict[str, Any]:
+        """Normalize the inline schema to the narrower contract vocabulary."""
         result = dict(node)
         metadata = dict(result.get(EXTENSION, {}))
         if "properties" in result:
-            policy = models[result["title"]].policy
-            if policy.source:
-                metadata["source"] = "#/components/schemas/" + policy.source
-            result["additionalProperties"] = policy.unknown_fields == "configurable"
-            if policy.unknown_fields == "configurable":
-                metadata["unknown_fields"] = policy.unknown_fields
-            # Opaque values stay runtime extras, but the export lists them as
-            # properties so additionalProperties describes only unreviewed members.
-            properties = {
-                **result["properties"],
-                **{name: {EXTENSION: {"classification": "opaque"}} for name in policy.opaque},
-            }
-            result["properties"] = {name: expand(child, active) for name, child in sorted(properties.items())}
+            result["properties"] = {name: expand(child) for name, child in result["properties"].items()}
         else:
             result.pop("title", None)
         if "items" in result:
-            result["items"] = expand(result["items"], active)
+            result["items"] = expand(result["items"])
         if "anyOf" in result:
             alternatives = result.pop("anyOf")
             non_null = [branch for branch in alternatives if branch != {"type": "null"}]
@@ -395,7 +451,7 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
             result["oneOf"] = alternatives
         for keyword in ("anyOf", "oneOf", "allOf"):
             if keyword in result:
-                result[keyword] = [expand(child, active) for child in result[keyword]]
+                result[keyword] = [expand(child) for child in result[keyword]]
         if metadata:
             result[EXTENSION] = metadata
         return result
@@ -407,56 +463,86 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
 
 
 def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
-    """Derive one buffered text target by following guarded object fields.
+    """Derive one buffered text target directly from typed field declarations.
 
-    Traversed arrays must constrain their size to exactly one item. The subject
-    must be a named string field, optionally nullable; its role and replacement
-    restrictions become runtime location metadata. A nullable subject, or one
-    without a minimum length, may hold no text. This helper does not provide union selectors or
-    streaming classification and does not itself attach the result to a model.
+    Follow guarded models and exactly-one-item lists without schema generation
+    or contract-format conversion. A nullable subject, or one without a minimum
+    length, may hold no text. Union selectors need explicit bindings.
 
     Raises:
-        ValueError: No unique text subject can be derived, a traversed array is
-            not constrained to one item, a replacement blocker is not a field of
-            the subject's object, or the schema cannot be exported.
+        ValueError: A subject is missing or ambiguous, a guarded container is
+            unsupported, or a replacement blocker is not a reviewed sibling.
     """
     locations: list[GuardedTextLocation] = []
 
-    def visit(node: dict[str, Any], path: tuple[str | int, ...]) -> None:
-        """Accumulate subject locations along guarded object and array paths."""
-        subject = node.get(EXTENSION, {}).get("subject")
-        if subject:
-            branches = node.get("oneOf", [node])
-            types = [branch.get("type") for branch in branches]
-            if types not in (["string"], ["string", "null"], ["null", "string"]):
+    def unwrap(annotation: Any, metadata: list[Any]) -> tuple[Any, list[Any]]:
+        """Read Annotated container arguments without serializing their types."""
+        if get_origin(annotation) is Annotated:
+            annotation, *inner = get_args(annotation)
+            metadata = [*inner, *metadata]
+        return annotation, metadata
+
+    def bound(metadata: list[Any], name: str, default: int | None = None) -> int | None:
+        """Read the last declared length constraint, matching field precedence."""
+        return next((getattr(item, name) for item in reversed(metadata) if hasattr(item, name)), default)
+
+    def visit_container(
+        annotation: Any, metadata: list[Any], path: tuple[str | int, ...], active: tuple[type[PolicyModel], ...]
+    ) -> None:
+        """Follow only explicitly guarded model and singleton-list containers."""
+        annotation, metadata = unwrap(annotation, metadata)
+        if get_origin(annotation) is list:
+            if bound(metadata, "min_length") != 1 or bound(metadata, "max_length") != 1:
+                raise ValueError("Buffered text extraction requires exactly one array item")
+            visit_container(get_args(annotation)[0], [], (*path, 0), active)
+        elif isinstance(annotation, type) and issubclass(annotation, PolicyModel):
+            visit_model(annotation, path, active)
+        else:
+            raise ValueError(
+                "Guarded containers must lead to a named string field; alternatives need explicit bindings"
+            )
+
+    def visit_model(
+        current: type[PolicyModel], path: tuple[str | int, ...], active: tuple[type[PolicyModel], ...]
+    ) -> None:
+        """Collect subjects from the model objects that own their policies."""
+        if current in active:
+            raise ValueError("Recursive guarded text paths are not supported")
+        reviewed = set(current.model_fields) | set(current.policy.opaque)
+        for name, field in current.model_fields.items():
+            policy = field_policy(field)
+            if policy.get("classification") != "guarded":
+                continue
+            subject = policy.get("subject")
+            if not subject:
+                visit_container(field.annotation, field.metadata, (*path, name), (*active, current))
+                continue
+            annotation, metadata = unwrap(field.annotation, field.metadata)
+            nullable = get_origin(annotation) in (Union, UnionType) and type(None) in get_args(annotation)
+            if nullable:
+                alternatives = [item for item in get_args(annotation) if item is not type(None)]
+                annotation = alternatives[0] if len(alternatives) == 1 else None
+                annotation, metadata = unwrap(annotation, metadata)
+            literal_text = get_origin(annotation) is Literal and all(
+                isinstance(value, str) for value in get_args(annotation)
+            )
+            if annotation is not str and not literal_text:
                 raise ValueError("A guarded subject must be a named string field")
-            if not path or not isinstance(path[-1], str):
-                raise ValueError("A guarded subject must be a named string field")
-            text = branches[types.index("string")]
+            blocker = subject.get("replacement_blocked_by")
+            if blocker is not None and blocker not in reviewed:
+                raise ValueError(f"Replacement blocker {blocker!r} is not a field of the subject's object")
             locations.append(
                 GuardedTextLocation(
                     role=subject["role"],
-                    object_path=path[:-1],
-                    member=path[-1],
+                    object_path=path,
+                    member=name,
                     allows_replacement=subject.get("replaceable", False),
-                    replacement_blocked_by=subject.get("replacement_blocked_by"),
-                    # A nullable subject, or one without a minimum length, may hold no text.
-                    allows_empty="null" in types or text.get("minLength", 0) < 1,
+                    replacement_blocked_by=blocker,
+                    allows_empty=nullable or (bound(metadata, "min_length", 0) or 0) < 1,
                 )
             )
-        if node.get("type") == "array":
-            if node.get("minItems") != 1 or node.get("maxItems") != 1:
-                raise ValueError("Buffered text extraction requires exactly one array item")
-            visit(node["items"], (*path, 0))
-        for name, child in node.get("properties", {}).items():
-            blocker = child.get(EXTENSION, {}).get("subject", {}).get("replacement_blocked_by")
-            # A misspelled blocker would never match and silently allow replacement.
-            if blocker is not None and blocker not in node["properties"]:
-                raise ValueError(f"Replacement blocker {blocker!r} is not a field of the subject's object")
-            if child.get(EXTENSION, {}).get("classification") == "guarded":
-                visit(child, (*path, name))
 
-    visit(export_payload_schema(model, projection_id=model.__name__), ())
+    visit_model(model, (), ())
     if len(locations) != 1:
         raise ValueError("Buffered text extraction requires exactly one guarded subject")
     return locations[0]

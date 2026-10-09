@@ -39,8 +39,8 @@ def _lower_export(node: object, policy: UnknownContentFieldPolicy) -> object:
     """Derive a JSON Schema validator input from an exported payload schema alone.
 
     Configurable objects accept unknown members only under trusted ALLOW. Any
-    member that matches a listed property only case-insensitively is rejected,
-    which the contract vocabulary does not express but its semantics require.
+    member that matches a listed property only after Unicode case folding is
+    rejected when the exported object explicitly declares that rule.
     """
     if isinstance(node, list):
         return [_lower_export(child, policy) for child in node]
@@ -50,7 +50,8 @@ def _lower_export(node: object, policy: UnknownContentFieldPolicy) -> object:
     if "properties" in node:
         if node.get(EXTENSION, {}).get("unknown_fields") == "configurable":
             lowered["additionalProperties"] = policy == UnknownContentFieldPolicy.ALLOW
-        lowered["x-test-reviewed-properties"] = list(node["properties"])
+        if node.get(EXTENSION, {}).get("reject_case_aliases") is True:
+            lowered["x-test-reviewed-properties"] = list(node["properties"])
         lowered["properties"] = {name: _lower_export(child, policy) for name, child in node["properties"].items()}
     return lowered
 

@@ -354,7 +354,9 @@
           "pattern": "^#/components/schemas/[A-Za-z_][A-Za-z0-9._-]*$"
         },
         "unknown_fields": {
+          "description": "forbid rejects unreviewed members; configurable permits them only under a trusted ALLOW validation context. The default is FORBID.",
           "enum": [
+            "forbid",
             "configurable"
           ]
         },
@@ -382,6 +384,10 @@
         },
         "transport": {
           "$ref": "#/$defs/transport"
+        },
+        "reject_case_aliases": {
+          "description": "Reject any member not listed in properties whose Unicode casefold equals that of a listed property, even under trusted ALLOW. Exact names remain valid; whitespace is significant. Opaque values are not traversed.",
+          "const": true
         }
       }
     },

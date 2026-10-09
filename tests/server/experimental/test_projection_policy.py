@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
 import pytest
-from pydantic import Field, ValidationError
+from pydantic import ConfigDict, Field, ValidationError
 
 from nemoguardrails.server.experimental.provider.payload import GuardedContentModel
 from nemoguardrails.server.experimental.provider.projection_policy import (
@@ -29,6 +29,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     export_payload_schema,
     guarded,
     payload_contract,
+    policy_json_schema,
     text_location,
 )
 from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
@@ -52,6 +53,55 @@ def test_changed_python_policy_changes_coverage_and_export():
     assert message["properties"]["text"]["minLength"] == 2
     assert message[EXTENSION]["source"] == "#/components/schemas/Message"
     assert message["properties"]["tools"]["default"] is None
+
+
+@pytest.mark.parametrize("extra", ["ignore", "forbid", None])
+def test_policy_models_reject_conflicting_extra_configuration(extra):
+    """Object policy must see all extras before deciding whether to accept them."""
+    with pytest.raises(ValueError, match="requires extra='allow'"):
+
+        class Invalid(PolicyModel):
+            model_config = ConfigDict(extra=extra)
+            policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("provider_id",))
+            text: Annotated[str, guarded("user")]
+
+
+@pytest.mark.parametrize("export", [False, True])
+def test_object_policy_uses_model_identity_not_schema_titles(export, export_policy_validator):
+    """Display titles and field titles cannot hide or swap object policies."""
+
+    class Left(PolicyModel):
+        model_config = ConfigDict(title="Shared display title")
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("left_metadata",))
+        text: Annotated[str, guarded("user")]
+
+    class Right(PolicyModel):
+        model_config = ConfigDict(title="Shared display title")
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("right_metadata",))
+        value: Annotated[str, constrained()]
+
+    class Root(PolicyModel):
+        model_config = ConfigDict(title="Readable request")
+        left: Annotated[Left, guarded(), Field(title="Friendly field")]
+        right: Annotated[Right, constrained()]
+
+    schema = export_payload_schema(Root, projection_id="test.request") if export else policy_json_schema(Root)
+    assert schema["additionalProperties"] is False
+    assert schema[EXTENSION]["unknown_fields"] == "forbid"
+    for field, expected in (("left", "left_metadata"), ("right", "right_metadata")):
+        node = schema["properties"][field]
+        assert node["additionalProperties"] is False
+        assert node[EXTENSION]["reject_case_aliases"] is True
+        assert expected in node["properties"]
+    assert "right_metadata" not in schema["properties"]["left"]["properties"]
+    payload = {"left": {"text": "q", "left_metadata": 1}, "right": {"value": "v", "right_metadata": 2}}
+    validator = export_policy_validator(schema, UnknownContentFieldPolicy.FORBID)
+    assert validator.is_valid(payload)
+    Root.model_validate(payload)
+    payload["left"]["unreviewed"] = "x"
+    assert not validator.is_valid(payload)
+    with pytest.raises(ValidationError):
+        Root.model_validate(payload)
 
 
 def test_missing_policy_fails_at_class_definition():
@@ -158,6 +208,28 @@ def test_replacement_policy_requires_subject():
         guarded(replaceable=True)
 
 
+def test_text_binding_derivation_does_not_generate_schemas(monkeypatch):
+    """Unrelated unions and schema-export availability cannot change a text path."""
+    import nemoguardrails.server.experimental.provider.projection_policy as policies
+
+    class Request(PolicyModel):
+        text: Annotated[str, guarded("user", min_length=2)]
+        option: Annotated[str | int, constrained()]
+
+    def unexpected_schema(*args, **kwargs):
+        raise AssertionError("Runtime binding derivation must not generate schemas")
+
+    monkeypatch.setattr(policies, "export_payload_schema", unexpected_schema)
+    monkeypatch.setattr(policies, "policy_json_schema", unexpected_schema)
+    monkeypatch.setattr(Request, "model_json_schema", unexpected_schema)
+
+    location = text_location(Request)
+    assert location.object_path == ()
+    assert location.member == "text"
+    assert location.role == "user"
+    assert location.allows_empty is False
+
+
 def test_extraction_rejects_non_singleton_arrays():
     class Message(PolicyModel):
         text: Annotated[str, guarded("user")]
@@ -167,6 +239,17 @@ def test_extraction_rejects_non_singleton_arrays():
 
     with pytest.raises(ValueError, match="exactly one array item"):
         text_location(Request)
+
+
+def test_extraction_rejects_recursive_guarded_paths():
+    """Recursive guarded containers fail explicitly rather than recursing forever."""
+
+    class Node(PolicyModel):
+        children: Annotated["list[Node]", guarded(min_length=1, max_length=1)]
+
+    Node.model_rebuild()
+    with pytest.raises(ValueError, match="Recursive guarded text paths"):
+        text_location(Node)
 
 
 def test_extraction_rejects_unknown_replacement_blocker():
@@ -326,3 +409,44 @@ def test_extraction_requires_a_named_string_subject(annotation):
 
     with pytest.raises(ValueError, match="named string field"):
         text_location(root)
+
+
+@pytest.mark.parametrize("policy", list(UnknownContentFieldPolicy))
+@pytest.mark.parametrize("member", ["key", "Straße", "Key", "STRASSE", "Content", "future", "Content\n"])
+def test_explicit_export_member_rules_match_runtime(member, policy, export_policy_validator):
+    from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedPayloadModel
+
+    class Message(PolicyModel, GuardedContentModel):
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("key", "Straße"), unknown_fields="configurable")
+        content: Annotated[str, guarded("user", min_length=1)]
+
+    class Request(PolicyModel, GuardedPayloadModel):
+        message: Annotated[Message, guarded()]
+
+    document = {"message": {"content": "q", member: "opaque"}}
+    exported = export_payload_schema(Request, projection_id="example.request")
+    expected = member in {"key", "Straße"} or (
+        policy == UnknownContentFieldPolicy.ALLOW and member in {"future", "Content\n"}
+    )
+    assert export_policy_validator(exported, policy).is_valid(document) is expected
+    if expected:
+        Request.validate_payload(document, unknown_content_fields=policy)
+    else:
+        with pytest.raises(ValidationError):
+            Request.validate_payload(document, unknown_content_fields=policy)
+    if policy == UnknownContentFieldPolicy.ALLOW and member in {"Key", "STRASSE", "Content"}:
+        del exported["properties"]["message"][EXTENSION]["reject_case_aliases"]
+        assert export_policy_validator(exported, policy).is_valid(document)
+
+
+def test_export_inlines_policy_models_used_as_mapping_values():
+    class Part(PolicyModel):
+        text: Annotated[str, guarded("user")]
+
+    class Root(PolicyModel):
+        parts: Annotated[dict[str, Part], constrained()]
+
+    values = export_payload_schema(Root, projection_id="test")["properties"]["parts"]["additionalProperties"]
+    assert "$ref" not in values
+    assert values["properties"]["text"][EXTENSION]["classification"] == "guarded"
+    assert values[EXTENSION]["unknown_fields"] == "forbid"

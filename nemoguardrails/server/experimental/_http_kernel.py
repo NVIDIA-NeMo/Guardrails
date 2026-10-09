@@ -17,16 +17,18 @@
 
 import re
 from collections.abc import Awaitable, Callable, Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
+from typing import Any, cast
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
-from starlette.convertors import FloatConvertor, IntegerConvertor, PathConvertor, StringConvertor, UUIDConvertor
+from starlette.convertors import FloatConvertor, IntegerConvertor, StringConvertor, UUIDConvertor
 from starlette.responses import Response
 from starlette.routing import compile_path
 
 from nemoguardrails.server.experimental._buffered_kernel import (
+    InspectionStage,
     OperationBlocked,
     OperationCheckFailed,
     OperationCompleted,
@@ -39,9 +41,9 @@ from nemoguardrails.server.experimental._content_checker import (
     _ResolvedContentChecker,
     validate_content_checker,
 )
-from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation
+from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation, UnsupportedGuardedPayload
+from nemoguardrails.server.experimental._http_paths import HTTP_METHODS, GuardedOperationPath
 
-HTTP_METHODS = ("DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT")
 DEFAULT_MAX_REQUEST_BODY_BYTES = 1024 * 1024
 DEFAULT_MAX_RESPONSE_BODY_BYTES = 10 * 1024 * 1024
 HttpHeaders = tuple[tuple[bytes, bytes], ...]
@@ -145,39 +147,24 @@ class BufferedHttpResponse:
 
 
 @dataclass(frozen=True, slots=True)
-class GuardedOperationPath:
-    """Describe a path shape owned by one guarded provider operation."""
-
-    route_path: str
-    methods: frozenset[str] = frozenset({"POST"})
-
-    def __post_init__(self) -> None:
-        """Validate the route template and its allowed methods."""
-
-        if not self.route_path.startswith("/") or self.route_path == "/" or self.route_path.endswith("/"):
-            raise ValueError("A guarded HTTP path must be absolute, non-root, and have no trailing slash.")
-        try:
-            _, _, convertors = compile_path(self.route_path)
-        except (AssertionError, KeyError, ValueError) as error:
-            raise ValueError("A guarded HTTP path must be a valid route template.") from error
-        if any(isinstance(convertor, PathConvertor) for convertor in convertors.values()):
-            raise ValueError("A guarded HTTP path must not contain a path-spanning parameter.")
-        if not self.methods or any(method not in HTTP_METHODS for method in self.methods):
-            raise ValueError("Guarded HTTP methods must be supported uppercase methods.")
-
-    def matches(self, path: str) -> bool:
-        """Return whether a concrete path belongs to this operation."""
-
-        path_regex, _, _ = compile_path(self.route_path)
-        return path_regex.fullmatch(path) is not None
-
-
-@dataclass(frozen=True, slots=True)
 class GuardedHttpOperation:
     """Bind one buffered guarded operation to an owned HTTP path."""
 
     operation_path: GuardedOperationPath
-    operation: BufferedGuardedOperation[BufferedHttpRequest, BufferedHttpResponse]
+    operation: BufferedGuardedOperation[Any, BufferedHttpResponse]
+    prepare_request: Callable[[BufferedHttpRequest], Any] | None = None
+    forward_request: Callable[[Any], BufferedHttpRequest] | None = None
+    documented_responses: dict[int | str, dict[str, Any]] | None = None
+    guarded_operation_paths: tuple[GuardedOperationPath, ...] = ()
+    openapi_extra: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        """Validate adapters and derive the default guarded route set."""
+
+        if (self.prepare_request is None) != (self.forward_request is None):
+            raise ValueError("Guarded HTTP request preparation and forwarding adapters must be declared together.")
+        if not self.guarded_operation_paths:
+            object.__setattr__(self, "guarded_operation_paths", (self.operation_path,))
 
 
 HttpDispatch = Callable[[BufferedHttpRequest], Awaitable[BufferedHttpResponse]]
@@ -251,7 +238,9 @@ def _routes_overlap(left: str, right: str) -> bool:
     )
 
 
-def _validate_operations(operations: Collection[GuardedHttpOperation]) -> tuple[GuardedHttpOperation, ...]:
+def _validate_operations(
+    operations: Collection[GuardedHttpOperation],
+) -> tuple[GuardedHttpOperation, ...]:
     """Require at least one operation with unique names and routes."""
 
     resolved = tuple(operations)
@@ -412,6 +401,19 @@ def _render_response(value: BufferedHttpResponse, request_method: str | None = N
     return response
 
 
+def _request_identity_encoding(headers: HttpHeaders) -> HttpHeaders:
+    """Ask the provider for an unencoded response that output checks can read.
+
+    Clients such as the OpenAI SDK accept gzip, and an encoded successful
+    response cannot be inspected. Without output checks the response is relayed
+    unchanged, so the client's own preference is kept.
+    """
+    return (
+        *((name, value) for name, value in headers if name.lower() != b"accept-encoding"),
+        (b"accept-encoding", b"identity"),
+    )
+
+
 def _render_failure(
     failure: OperationBlocked
     | OperationCheckFailed
@@ -440,10 +442,17 @@ def _guarded_handler(
 ) -> Callable[[Request], Awaitable[Response]]:
     """Create the HTTP handler for one guarded operation."""
 
-    async def bounded_dispatch(request: BufferedHttpRequest) -> BufferedHttpResponse:
+    async def bounded_dispatch(request: Any) -> BufferedHttpResponse:
         """Dispatch one request and enforce the response body limit."""
 
-        response = await dispatch(request)
+        forwarded = (
+            declaration.forward_request(request)
+            if declaration.forward_request is not None
+            else cast(BufferedHttpRequest, request)
+        )
+        if checker.policy.inspect_output:
+            forwarded = replace(forwarded, headers=_request_identity_encoding(forwarded.headers))
+        response = await dispatch(forwarded)
         if len(response.body) > max_response_body_bytes:
             raise ResponseBodyTooLarge
         return response
@@ -457,10 +466,21 @@ def _guarded_handler(
             )
         try:
             buffered_request = await _buffer_request(request, max_request_body_bytes)
+            try:
+                operation_request = (
+                    declaration.prepare_request(buffered_request)
+                    if declaration.prepare_request is not None
+                    else buffered_request
+                )
+            except UnsupportedGuardedPayload as failure:
+                return _render_failure(
+                    OperationProjectionFailed(InspectionStage.INPUT, failure),
+                    render_outcome,
+                )
             outcome = await execute_buffered_operation(
                 declaration.operation,
                 checker,
-                buffered_request,
+                operation_request,
                 bounded_dispatch,
             )
         except RequestBodyTooLarge as failure:
@@ -523,7 +543,7 @@ def create_http_proxy_router(
     router = APIRouter()
 
     for declaration in resolved_operations:
-        guarded_matchers.append(declaration.operation_path)
+        guarded_matchers.extend(declaration.guarded_operation_paths)
         router.add_api_route(
             declaration.operation_path.route_path,
             _guarded_handler(
@@ -538,6 +558,8 @@ def create_http_proxy_router(
             name=declaration.operation.name,
             operation_id=declaration.operation.name,
             response_class=Response,
+            responses=declaration.documented_responses,
+            openapi_extra=declaration.openapi_extra,
         )
 
     @router.api_route("/{path:path}", methods=list(HTTP_METHODS), include_in_schema=False)

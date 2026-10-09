@@ -1,0 +1,191 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Check that the buffered contract stays derived from the runtime endpoint."""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+import yaml
+from jsonschema import Draft202012Validator
+from pydantic import ValidationError
+
+from nemoguardrails.server.experimental.provider import contract_export
+from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
+from nemoguardrails.server.experimental.provider.projection_policy import CONTRACT_VERSION, EXTENSION
+from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
+
+ROOT = Path(__file__).parents[3]
+CONTRACTS = ROOT / "nemoguardrails/server/experimental/contracts"
+EXPORTED = CONTRACTS / "openai/_generated/chat-completions.buffered.guard.yaml"
+MODULE = "nemoguardrails.server.experimental.provider.contract_export"
+ENDPOINT = "nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint:CHAT_COMPLETIONS_ENDPOINT"
+CLI = [sys.executable, "-m", MODULE, ENDPOINT]
+
+
+def test_buffered_export_matches_checked_in_artifact_and_format():
+    contract = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
+    assert contract == yaml.safe_load(EXPORTED.read_text(encoding="utf-8"))
+    schema = json.loads((CONTRACTS / "guard-contract.schema.json").read_text(encoding="utf-8"))
+    Draft202012Validator(schema).validate(contract)
+    assert contract["version"] == CONTRACT_VERSION == "1.0.0-alpha.1"
+    assert "stream" not in contract
+    assert "stream_hooks" not in contract["integration"]["endpoint"]
+
+
+def test_export_uses_the_runtime_endpoint_metadata():
+    exported = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
+    endpoint = CHAT_COMPLETIONS_ENDPOINT
+    assert exported["operationId"] == endpoint.provider_operation_id
+    assert exported["integration"]["name"] == endpoint.contract_name
+    assert exported["integration"]["endpoint"] == {
+        "route_path": endpoint.route_path,
+        "operation_label": endpoint.operation,
+        "unsupported_request_code": endpoint.unsupported_request_code,
+        "unsupported_response_code": endpoint.unsupported_response_code,
+    }
+    runtime_contract = endpoint.guarded_request_model.projection_contract
+    assert runtime_contract is not None
+    assert exported["profile"] == runtime_contract.profile.value
+    assert exported["request"][EXTENSION]["model"] == endpoint.guarded_request_model.__name__
+    assert exported["response"][EXTENSION]["model"] == endpoint.guarded_response_model.__name__
+    assert (
+        exported["request"][EXTENSION]["stream_selector_field"] == endpoint.guarded_request_model.stream_selector_field
+    )
+
+
+def test_export_does_not_read_files(monkeypatch):
+    def unexpected_read(*args, **kwargs):
+        raise AssertionError("Export must derive from Python, not read YAML")
+
+    monkeypatch.setattr(Path, "read_text", unexpected_read)
+    assert export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)["operationId"] == "createChatCompletion"
+
+
+def test_export_is_fresh_and_deterministic():
+    first = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
+    first["request"]["properties"].clear()
+    second = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
+    assert "messages" in second["request"]["properties"]
+    assert second == export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
+
+
+@pytest.mark.parametrize("annotations", [None, [], [{"type": "url_citation"}]])
+def test_export_and_runtime_accept_only_null_or_empty_annotations(annotations):
+    response = {"choices": [{"message": {"role": "assistant", "content": "answer", "annotations": annotations}}]}
+    validator = Draft202012Validator(export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)["response"])
+    if annotations:
+        assert not validator.is_valid(response)
+        with pytest.raises(ValidationError):
+            CHAT_COMPLETIONS_ENDPOINT.guarded_response_model.validate_payload(response)
+        return
+    validator.validate(response)
+    projection = CHAT_COMPLETIONS_ENDPOINT.guarded_response_model.validate_payload(response)
+    assert projection.locate_guarded_message(response).allows_replacement is True
+
+
+def test_cli_check_and_regenerate(tmp_path):
+    checked = subprocess.run([*CLI, "--check", str(EXPORTED)], capture_output=True, text=True)
+    assert checked.returncode == 0, checked.stderr
+    output = tmp_path / "exported.guard.yaml"
+    generated = subprocess.run([*CLI, "--output", str(output)], capture_output=True, text=True)
+    assert generated.returncode == 0, generated.stderr
+    assert output.read_bytes() == EXPORTED.read_bytes()
+    output.write_text("changed\n", encoding="utf-8")
+    mismatch = subprocess.run([*CLI, "--check", str(output)], capture_output=True, text=True)
+    assert mismatch.returncode == 1
+    assert "Export differs" in mismatch.stderr
+    assert output.read_text(encoding="utf-8") == "changed\n"
+
+
+def test_cli_stdout_matches_checked_in_artifact():
+    """The shared CLI preserves the deterministic default stdout mode."""
+    completed = subprocess.run(CLI, capture_output=True, text=True)
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout == EXPORTED.read_text(encoding="utf-8")
+
+
+def test_cli_missing_check_does_not_create_an_artifact(tmp_path):
+    """Check mode fails without writing a missing destination."""
+    missing = tmp_path / "missing" / "contract.yaml"
+    completed = subprocess.run([*CLI, "--check", str(missing)], capture_output=True, text=True)
+    assert completed.returncode == 1
+    assert "Export differs" in completed.stderr
+    assert not missing.parent.exists()
+
+
+@pytest.mark.parametrize("arguments", [["--operation-id", ""], ["--name", "Bad.Name"]])
+def test_cli_rejects_identity_overrides_without_overwriting_an_artifact(tmp_path, arguments):
+    """Identity belongs to the endpoint and cannot be overridden by CLI flags."""
+    destination = tmp_path / "contract.yaml"
+    destination.write_text("keep\n", encoding="utf-8")
+    completed = subprocess.run([*CLI, *arguments, "--output", str(destination)], capture_output=True, text=True)
+    assert completed.returncode == 2
+    assert "error:" in completed.stderr
+    assert destination.read_text(encoding="utf-8") == "keep\n"
+
+
+def test_cli_rejects_wrong_endpoint_without_creating_an_artifact(tmp_path):
+    """A module attribute must be an endpoint instance, not arbitrary Python data."""
+    destination = tmp_path / "contract.yaml"
+    completed = subprocess.run(
+        [sys.executable, "-m", MODULE, "pathlib:Path", "--output", str(destination)],
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 2
+    assert "not a GuardedJsonEndpoint" in completed.stderr
+    assert not destination.exists()
+
+
+def _run_cli_in_process(monkeypatch, *arguments):
+    """Run the CLI in this process; the subprocess tests cover the module entry point."""
+    monkeypatch.setattr(sys, "argv", [MODULE, ENDPOINT, *arguments])
+    contract_export.main()
+
+
+def test_cli_modes_in_process(tmp_path, monkeypatch, capsys):
+    """Stdout, output, matching check, and mismatching check behave as in the subprocess."""
+    _run_cli_in_process(monkeypatch)
+    assert capsys.readouterr().out == EXPORTED.read_text(encoding="utf-8")
+
+    output = tmp_path / "nested" / "contract.yaml"
+    _run_cli_in_process(monkeypatch, "--output", str(output))
+    assert output.read_bytes() == EXPORTED.read_bytes()
+    _run_cli_in_process(monkeypatch, "--check", str(output))
+
+    output.write_text("changed\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as mismatch:
+        _run_cli_in_process(monkeypatch, "--check", str(output))
+    assert mismatch.value.code == 1
+    assert "Export differs" in capsys.readouterr().err
+
+
+def test_cli_reports_export_failures_without_writing(tmp_path, monkeypatch, capsys):
+    """An endpoint whose policy cannot be exported is a usage error, and nothing is written."""
+
+    def reject(_endpoint):
+        raise ValueError("binding drift")
+
+    monkeypatch.setattr(contract_export, "export_guard_contract", reject)
+    destination = tmp_path / "contract.yaml"
+    with pytest.raises(SystemExit) as failure:
+        _run_cli_in_process(monkeypatch, "--output", str(destination))
+    assert failure.value.code == 2
+    assert "binding drift" in capsys.readouterr().err
+    assert not destination.exists()

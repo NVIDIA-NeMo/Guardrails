@@ -66,21 +66,25 @@ enables a detector or a runtime capability.
 ## Object and stream metadata
 
 `model` identifies the Python model; `source` identifies a provider schema
-component. `unknown_fields: configurable` marks an object whose unknown-field
-handling depends on runtime validation context. Validation rejects unknown
-members by default; only trusted configuration may allow them on such an object.
-Objects without the marker always reject them. Generic JSON Schema validators
-do not enforce this annotation. Reviewed opaque names appear as properties
-classified `opaque`, so `additionalProperties` describes only unreviewed members.
+component. Canonical exports explicitly declare `unknown_fields: forbid` or
+`unknown_fields: configurable` on every reviewed object. Both use
+`additionalProperties: false` for default validation. Only trusted configuration
+may select `ALLOW` on a configurable object; a contract-aware validator then
+permits its unreviewed members. Closed objects remain closed under either policy.
+Objects without the marker are closed. Generic JSON Schema validators
+apply the default closure but do not implement trusted overrides. Reviewed opaque
+names appear as properties classified `opaque`, so `additionalProperties` describes only unreviewed members.
 
-A member whose name matches a listed property only after Unicode case folding
-(`casefold()`), such as `Tools` beside `tools`, is always rejected, even where
-unknown members are allowed: some providers match names case-insensitively.
-Whitespace remains part of the name. JSON Schema could state this with
-`propertyNames`, but the contract vocabulary does not include it, so runtimes
-and generators must implement the rule themselves. `additionalProperties` remains the ordinary
-schema-level object closure rule. Provider-required opaque fields may be left
-to provider validation; a projection is not a full provider request validator.
+Canonical exports also declare `reject_case_aliases: true` on every reviewed
+object. A member not listed in `properties` is rejected when its Unicode
+`casefold()` equals the fold of a listed name, even under trusted `ALLOW`.
+This includes multi-character folds (`Straße` and `STRASSE`), the Kelvin sign
+(`key` and `Key`), and long-s (`refusal` and `refuſal`). Exact listed names remain
+valid, whitespace remains significant, and opaque values are not traversed.
+Some providers match names case-insensitively, so runtimes and generators must
+enforce this explicit guardrail annotation. Generic JSON Schema ignores it.
+`additionalProperties` remains the ordinary schema-level object closure rule.
+Provider-required opaque fields may be left to provider validation; a projection is not a full provider request validator.
 
 Object `variant` metadata describes discriminator matching and selected-variant
 cardinality. This is distinct from ordinary array length constraints.
