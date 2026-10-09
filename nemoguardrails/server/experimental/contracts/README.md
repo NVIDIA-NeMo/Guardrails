@@ -65,7 +65,9 @@ enables a detector or a runtime capability.
 
 `model` identifies the Python model; `source` identifies a provider schema
 component. `unknown_fields: configurable` marks an object whose unknown-field
-handling depends on runtime validation context. Generic JSON Schema validators
+handling depends on runtime validation context. Validation rejects unknown
+members by default; only trusted configuration may allow them on such an object.
+Objects without the marker always reject them. Generic JSON Schema validators
 do not enforce this annotation. `additionalProperties` remains the ordinary
 schema-level object closure rule. Provider-required opaque fields may be left
 to provider validation; a projection is not a full provider request validator.

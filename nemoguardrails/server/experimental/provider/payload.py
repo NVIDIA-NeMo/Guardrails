@@ -26,7 +26,6 @@ from typing_extensions import Self
 from nemoguardrails.server.experimental.provider.types import GuardedMessage, JsonObject, UnknownContentFieldPolicy
 
 _UNKNOWN_CONTENT_FIELDS_CONTEXT = "unknown_content_fields"
-_PROJECTION_COVERAGE_CONTEXT = "projection_coverage"
 
 
 def _require_boolean(value: object) -> object:
@@ -163,43 +162,27 @@ class GuardedProjectionModel(BaseModel):
         cls,
         document: object,
         *,
-        unknown_content_fields: UnknownContentFieldPolicy = UnknownContentFieldPolicy.ALLOW,
+        unknown_content_fields: UnknownContentFieldPolicy = UnknownContentFieldPolicy.FORBID,
     ) -> Self:
-        """Validate a provider payload with the requested unknown-field policy."""
-        coverage = (
-            {entry.model: entry.coverage for entry in cls.projection_contract.content_models}
-            if cls.projection_contract is not None
-            else {}
-        )
-        return cls.model_validate(
-            document,
-            context={
-                _UNKNOWN_CONTENT_FIELDS_CONTEXT: unknown_content_fields,
-                _PROJECTION_COVERAGE_CONTEXT: coverage,
-            },
-        )
+        """Validate a provider payload with the requested unknown-field policy.
+
+        FORBID is the default. ALLOW opens only objects whose policy declares
+        configurable unknown fields, and is reserved for trusted configuration.
+        """
+        return cls.model_validate(document, context={_UNKNOWN_CONTENT_FIELDS_CONTEXT: unknown_content_fields})
+
+
+def unknown_content_field_policy(info: ValidationInfo) -> UnknownContentFieldPolicy:
+    """Return the unknown-field policy requested for a validation, closed by default."""
+    policy = (info.context or {}).get(_UNKNOWN_CONTENT_FIELDS_CONTEXT, UnknownContentFieldPolicy.FORBID)
+    return UnknownContentFieldPolicy(policy)
 
 
 class GuardedContentModel(GuardedProjectionModel):
-    """Validate the guarded subset of a content-bearing provider object."""
+    """Mark a content-bearing provider object.
 
-    @model_validator(mode="after")
-    def reject_unreviewed_fields(self, info: ValidationInfo) -> Self:
-        """Reject unknown content fields when closed validation is requested."""
-        context = info.context or {}
-        if context.get(_UNKNOWN_CONTENT_FIELDS_CONTEXT) != UnknownContentFieldPolicy.FORBID:
-            return self
-        coverage_by_model = cast(
-            dict[type[BaseModel], ProjectionFieldCoverage],
-            context.get(_PROJECTION_COVERAGE_CONTEXT, {}),
-        )
-        coverage = coverage_by_model.get(type(self))
-        opaque_fields = coverage.opaque_fields if coverage is not None else frozenset()
-        unreviewed_fields = set(self.model_extra or {}) - opaque_fields
-        if unreviewed_fields:
-            fields = ", ".join(sorted(unreviewed_fields))
-            raise ValueError(f"unreviewed content fields are forbidden: {fields}")
-        return self
+    Its object policy decides whether unreviewed members are accepted.
+    """
 
 
 @dataclass(slots=True)

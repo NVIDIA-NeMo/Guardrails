@@ -31,7 +31,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, cast, get_args
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
 from pydantic.fields import FieldInfo
 from typing_extensions import Self
 
@@ -41,7 +41,9 @@ from nemoguardrails.server.experimental.provider.payload import (
     PayloadProjectionContract,
     ProjectionFieldCoverage,
     ProjectionModelContract,
+    unknown_content_field_policy,
 )
+from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
 
 EXTENSION = "x-nemo-guardrails"
 CONTRACT_VERSION = "1.0.0-alpha.1"
@@ -66,9 +68,10 @@ class ObjectPolicy:
             This is provenance metadata, not a schema lookup or validation step.
         opaque: Reviewed passthrough fields not declared as Pydantic fields.
             Names must be unique and must not overlap declared fields.
-        unknown_fields: Export marker indicating that the content boundary
-            supports configurable handling of unreviewed fields. Enforcement
-            belongs to the runtime content model and validation context.
+        unknown_fields: How unreviewed members are handled. "forbid" always
+            rejects them. "configurable" rejects them unless validation
+            explicitly allows unknown content fields, which is reserved for
+            trusted configuration. Members listed in opaque are reviewed.
 
     This metadata does not select guardrails, a deployment configuration, or a
     capability profile. Field-specific policy belongs on the field annotations.
@@ -76,7 +79,7 @@ class ObjectPolicy:
 
     source: str | None = None
     opaque: tuple[str, ...] = ()
-    unknown_fields: Literal["configurable"] | None = None
+    unknown_fields: Literal["forbid", "configurable"] = "forbid"
 
     def __post_init__(self) -> None:
         """Reject values the exported contract format cannot represent."""
@@ -91,12 +94,13 @@ class PolicyModel(BaseModel):
 
     Combine this base with the appropriate runtime projection base. At subclass
     creation it checks field classifications, opaque inventory overlap, disabled
-    field defaults, and unsupported aliases. At validation it rejects extra
-    members whose names match a reviewed field only case-insensitively. It does
-    not prove upstream field coverage or serialize arbitrary custom validators
-    into the exported schema.
+    field defaults, and unsupported aliases. At validation it enforces the
+    object's unknown-field policy. It does not prove upstream field coverage or
+    serialize arbitrary custom validators into the exported schema.
     """
 
+    # Unknown members are kept so the object policy, not Pydantic, decides them.
+    model_config = ConfigDict(extra="allow")
     policy: ClassVar[ObjectPolicy] = ObjectPolicy()
 
     @classmethod
@@ -120,17 +124,25 @@ class PolicyModel(BaseModel):
                 raise ValueError(f"{cls.__name__}.{name}: disabled fields must be optional and null-only")
 
     @model_validator(mode="after")
-    def reject_case_variant_fields(self) -> Self:
-        """Reject unreviewed members that differ from a reviewed name only by case.
+    def reject_unreviewed_fields(self, info: ValidationInfo) -> Self:
+        """Reject members outside the reviewed fields unless policy allows them.
 
-        Some providers match member names case-insensitively, so a member such
-        as ``Tools`` could reach a field this policy disables or inspects.
+        A case variant of a reviewed name, such as ``Tools``, is always
+        rejected: some providers match member names case-insensitively, so it
+        could reach a field this policy disables or inspects.
         """
         reviewed = {name.casefold(): name for name in (*type(self).model_fields, *self.policy.opaque)}
-        for name in self.model_extra or {}:
+        unreviewed = sorted(set(self.model_extra or {}) - set(self.policy.opaque))
+        for name in unreviewed:
             reviewed_name = reviewed.get(name.casefold())
-            if reviewed_name is not None and reviewed_name != name:
+            if reviewed_name is not None:
                 raise ValueError(f"field {name!r} differs from reviewed field {reviewed_name!r} only by case")
+        allowed = (
+            self.policy.unknown_fields == "configurable"
+            and unknown_content_field_policy(info) == UnknownContentFieldPolicy.ALLOW
+        )
+        if unreviewed and not allowed:
+            raise ValueError(f"unreviewed fields are forbidden: {', '.join(unreviewed)}")
         return self
 
 
@@ -363,7 +375,8 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
                 metadata["source"] = "#/components/schemas/" + policy.source
             if policy.opaque:
                 metadata["opaque_fields"] = sorted(policy.opaque)
-            if policy.unknown_fields:
+            result["additionalProperties"] = policy.unknown_fields == "configurable"
+            if policy.unknown_fields == "configurable":
                 metadata["unknown_fields"] = policy.unknown_fields
             result["properties"] = {name: expand(child, active) for name, child in sorted(result["properties"].items())}
         else:

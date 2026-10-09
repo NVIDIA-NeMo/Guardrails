@@ -35,6 +35,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     payload_contract,
     text_location,
 )
+from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
 from nemoguardrails.server.experimental.providers.openai.chat_completions.request_binding import (
     PAYLOAD_CONTRACT as REQUEST_CONTRACT,
 )
@@ -142,15 +143,17 @@ def test_export_preserves_nullable_annotation_schema():
     assert {"type": "array", "items": {}, "maxItems": 0} in annotations["oneOf"]
 
 
-def test_export_marks_response_choice_and_message_closed():
-    exported = export_payload_schema(
-        ChatCompletionsGuardedResponseProjection, projection_id=RESPONSE_CONTRACT.projection_id
-    )
-    choice = exported["properties"]["choices"]["items"]
-    message = choice["properties"]["message"]
-    assert choice["additionalProperties"] is False
-    assert message["additionalProperties"] is False
-    assert "unknown_fields" not in message[EXTENSION]
+def test_export_follows_each_object_unknown_field_policy():
+    request = export_payload_schema(ChatCompletionsGuardedRequestProjection, projection_id="test.request")
+    response = export_payload_schema(ChatCompletionsGuardedResponseProjection, projection_id="test.response")
+    choice = response["properties"]["choices"]["items"]
+    configurable = (request["properties"]["messages"]["items"], choice, choice["properties"]["message"])
+    for content in configurable:
+        assert content["additionalProperties"] is True
+        assert content[EXTENSION]["unknown_fields"] == "configurable"
+    for root in (request, response):
+        assert root["additionalProperties"] is False
+        assert "unknown_fields" not in root[EXTENSION]
 
 
 def test_missing_policy_fails_at_class_definition():
@@ -203,15 +206,25 @@ def test_helpers_reject_constraints_the_contract_cannot_express(helper, constrai
         helper(**{constraint: 1})
 
 
-def test_open_policy_models_reject_case_variants_of_reviewed_fields():
+def test_policy_models_are_closed_unless_configurable_fields_are_allowed():
     class Message(PolicyModel, GuardedContentModel):
-        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("model",))
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("model",), unknown_fields="configurable")
         content: Annotated[str, guarded("user")]
 
-    Message.model_validate({"content": "q", "model": "m", "unreviewed": "kept open"})
+    class Root(PolicyModel, GuardedContentModel):
+        content: Annotated[str, guarded("user")]
+
+    allow = UnknownContentFieldPolicy.ALLOW
+    Message.model_validate({"content": "q", "model": "m"})
+    for model in (Message, Root):
+        with pytest.raises(ValidationError, match="unreviewed fields are forbidden: unreviewed"):
+            model.model_validate({"content": "q", "unreviewed": "x"})
+    Message.validate_payload({"content": "q", "unreviewed": "x"}, unknown_content_fields=allow)
+    with pytest.raises(ValidationError, match="unreviewed fields are forbidden"):
+        Root.validate_payload({"content": "q", "unreviewed": "x"}, unknown_content_fields=allow)
     for variant in ({"Content": "x"}, {"MODEL": "x"}, {"cOnTeNt": "x"}):
         with pytest.raises(ValidationError, match="only by case"):
-            Message.model_validate({"content": "q", **variant})
+            Message.validate_payload({"content": "q", **variant}, unknown_content_fields=allow)
 
 
 @pytest.mark.parametrize(

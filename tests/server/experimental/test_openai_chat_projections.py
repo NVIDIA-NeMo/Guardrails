@@ -26,7 +26,7 @@ from nemoguardrails.server.experimental.provider.payload import (
     GuardedMessageTarget,
     validate_payload_projection_contract,
 )
-from nemoguardrails.server.experimental.provider.types import GuardedMessage
+from nemoguardrails.server.experimental.provider.types import GuardedMessage, UnknownContentFieldPolicy
 from nemoguardrails.server.experimental.providers.openai.chat_completions.request_binding import (
     CAPABILITY_PROFILE as REQUEST_PROFILE,
 )
@@ -305,8 +305,21 @@ def test_response_projection_rejects_shapes_outside_buffered_text_profile(payloa
 )
 def test_request_projection_rejects_members_outside_openai_fields(payload):
     """Compatible servers can render extra request members into the prompt unseen."""
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+    with pytest.raises(ValidationError, match="unreviewed fields are forbidden|only by case"):
         ChatCompletionsGuardedRequest.validate_payload(payload)
+
+
+def test_trusted_unknown_field_policy_opens_only_configurable_objects():
+    """Allowing unknown fields opens configurable content objects, never the closed root."""
+    request = _request(messages=[{"role": "user", "content": "question", "future": 1}])
+    with pytest.raises(ValidationError, match="unreviewed fields are forbidden: future"):
+        ChatCompletionsGuardedRequest.validate_payload(request)
+    ChatCompletionsGuardedRequest.validate_payload(request, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
+
+    with pytest.raises(ValidationError, match="unreviewed fields are forbidden: future"):
+        ChatCompletionsGuardedRequest.validate_payload(
+            _request(future=1), unknown_content_fields=UnknownContentFieldPolicy.ALLOW
+        )
 
 
 @pytest.mark.parametrize(

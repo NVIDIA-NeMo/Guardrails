@@ -15,9 +15,9 @@
 
 """Declare Chat request field policy without duplicating runtime binding metadata."""
 
-from typing import Annotated, Any, ClassVar, Literal
+from typing import Annotated, ClassVar, Literal
 
-from pydantic import BeforeValidator, ConfigDict, StrictBool
+from pydantic import BeforeValidator, StrictBool
 
 from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedRequestModel, StrictFalse
 from nemoguardrails.server.experimental.provider.projection_policy import (
@@ -26,7 +26,6 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     constrained,
     disabled,
     guarded,
-    opaque,
 )
 
 
@@ -38,14 +37,11 @@ def _require_int(value: object) -> object:
 
 
 class ChatCompletionsUserMessageProjection(PolicyModel, GuardedContentModel):
-    """Accept one user text message with reviewed optional provider metadata.
+    """Accept one user text message with reviewed optional provider metadata."""
 
-    The message is closed to OpenAI's fields: compatible servers can render
-    other message members into the prompt without input rails seeing them.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-    policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ChatCompletionRequestUserMessage")
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(
+        source="ChatCompletionRequestUserMessage", unknown_fields="configurable"
+    )
     content: Annotated[str, guarded("user", replaceable=True, min_length=1)]
     # The participant name is shown to the model but is not inspected text.
     name: Annotated[None, disabled("core_capability.participant_name")] = None
@@ -57,9 +53,35 @@ class ChatCompletionsGuardedRequestProjection(PolicyModel, GuardedRequestModel):
 
     The request binding attaches extraction, coverage, and response-mode metadata.
     Recognizing the stream flag does not imply that an endpoint supports streaming.
+    The request is closed to OpenAI's fields: compatible servers render some
+    other fields, such as chat_template_kwargs or documents, into the prompt.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(
+        opaque=(
+            "safety_identifier",
+            "logit_bias",
+            "presence_penalty",
+            "store",
+            "stop",
+            "top_p",
+            "verbosity",
+            "seed",
+            "stream_options",
+            "moderation",
+            "service_tier",
+            "user",
+            "prompt_cache_options",
+            "temperature",
+            "max_tokens",
+            "max_completion_tokens",
+            "frequency_penalty",
+            "prompt_cache_key",
+            "model",
+            "metadata",
+            "prompt_cache_retention",
+        )
+    )
     messages: Annotated[list[ChatCompletionsUserMessageProjection], guarded(min_length=1, max_length=1)]
     n: Annotated[
         Literal[1], BeforeValidator(_require_int), constrained(reason="core_capability.single_text_target")
@@ -85,27 +107,3 @@ class ChatCompletionsGuardedRequestProjection(PolicyModel, GuardedRequestModel):
     reasoning_effort: Annotated[
         Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None, constrained()
     ] = None
-    # Reviewed provider settings, forwarded without interpretation. The request
-    # is closed to OpenAI's fields: compatible servers render some extra fields,
-    # such as chat_template_kwargs or documents, into the prompt.
-    frequency_penalty: Annotated[Any, opaque()] = None
-    logit_bias: Annotated[Any, opaque()] = None
-    max_completion_tokens: Annotated[Any, opaque()] = None
-    max_tokens: Annotated[Any, opaque()] = None
-    metadata: Annotated[Any, opaque()] = None
-    model: Annotated[Any, opaque()] = None
-    moderation: Annotated[Any, opaque()] = None
-    presence_penalty: Annotated[Any, opaque()] = None
-    prompt_cache_key: Annotated[Any, opaque()] = None
-    prompt_cache_options: Annotated[Any, opaque()] = None
-    prompt_cache_retention: Annotated[Any, opaque()] = None
-    safety_identifier: Annotated[Any, opaque()] = None
-    seed: Annotated[Any, opaque()] = None
-    service_tier: Annotated[Any, opaque()] = None
-    stop: Annotated[Any, opaque()] = None
-    store: Annotated[Any, opaque()] = None
-    stream_options: Annotated[Any, opaque()] = None
-    temperature: Annotated[Any, opaque()] = None
-    top_p: Annotated[Any, opaque()] = None
-    user: Annotated[Any, opaque()] = None
-    verbosity: Annotated[Any, opaque()] = None

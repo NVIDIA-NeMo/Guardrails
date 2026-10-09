@@ -17,8 +17,6 @@
 
 from typing import Annotated, Any, ClassVar, Literal
 
-from pydantic import ConfigDict
-
 from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedPayloadModel
 from nemoguardrails.server.experimental.provider.projection_policy import (
     ObjectPolicy,
@@ -31,14 +29,9 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
 
 
 class ChatCompletionsAssistantMessageProjection(PolicyModel, GuardedContentModel):
-    """Accept assistant text while preventing replacement of annotated content.
+    """Accept assistant text while preventing replacement of annotated content."""
 
-    The message is closed: a member outside the reviewed fields could carry
-    text that output rails never inspect.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-    policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ChatCompletionResponseMessage")
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ChatCompletionResponseMessage", unknown_fields="configurable")
     content: Annotated[
         str,
         guarded(
@@ -65,10 +58,9 @@ class ChatCompletionsAssistantMessageProjection(PolicyModel, GuardedContentModel
 
 
 class ChatCompletionsChoiceProjection(PolicyModel, GuardedContentModel):
-    """Expose the guarded message while rejecting unreviewed choice members."""
+    """Expose the guarded message while preserving opaque choice metadata."""
 
-    model_config = ConfigDict(extra="forbid")
-    policy: ClassVar[ObjectPolicy] = ObjectPolicy()
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(unknown_fields="configurable")
     message: Annotated[ChatCompletionsAssistantMessageProjection, guarded()]
     finish_reason: Annotated[Any, opaque()] = None
     index: Annotated[Any, opaque()] = None
@@ -82,15 +74,17 @@ class ChatCompletionsGuardedResponseProjection(PolicyModel, GuardedPayloadModel)
     carry generated text that output rails never inspect.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(
+        opaque=(
+            "service_tier",
+            "created",
+            "object",
+            "system_fingerprint",
+            "usage",
+            "id",
+            "model",
+            "metadata",
+            "moderation",
+        )
+    )
     choices: Annotated[list[ChatCompletionsChoiceProjection], guarded(min_length=1, max_length=1)]
-    # Reviewed provider metadata, forwarded without interpretation.
-    created: Annotated[Any, opaque()] = None
-    id: Annotated[Any, opaque()] = None
-    metadata: Annotated[Any, opaque()] = None
-    model: Annotated[Any, opaque()] = None
-    moderation: Annotated[Any, opaque()] = None
-    object: Annotated[Any, opaque()] = None
-    service_tier: Annotated[Any, opaque()] = None
-    system_fingerprint: Annotated[Any, opaque()] = None
-    usage: Annotated[Any, opaque()] = None
