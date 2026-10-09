@@ -18,7 +18,7 @@
 import inspect
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import anyio
 from starlette.responses import Response, StreamingResponse
@@ -41,6 +41,7 @@ from nemoguardrails.server.experimental._http_kernel import (
     ResponseBodyTooLarge,
     _end_to_end_headers,
     _render_response,
+    _request_identity_encoding,
 )
 from nemoguardrails.server.experimental.provider.stream import ProviderStreamAdapter
 from nemoguardrails.server.experimental.provider.types import GuardedMessage
@@ -171,6 +172,8 @@ async def execute_streaming_http(
         raise ValueError("A guarded stream requires a user input message.")
     if streaming_policy is not None:
         validate_streaming_policy(streaming_policy)
+        # An encoded stream cannot be inspected; uninspected relays keep the client's preference.
+        request = replace(request, headers=_request_identity_encoding(request.headers))
 
     try:
         upstream = await dispatch(request)

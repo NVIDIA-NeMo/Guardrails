@@ -15,6 +15,7 @@
 
 import asyncio
 import json
+from dataclasses import replace
 
 import anyio
 import pytest
@@ -600,3 +601,30 @@ async def test_body_dependent_headers_are_removed_only_when_the_stream_may_chang
     assert (b"x-provider-id", b"stream-id") in response.raw_headers
     forwarded = [header for header in body_dependent if header in response.raw_headers]
     assert forwarded == ([] if policy is not None else list(body_dependent))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("policy", "expected"), [(StreamBufferingPolicy(1, 0), [b"identity"]), (None, [b"gzip, br"])])
+async def test_identity_encoding_is_requested_only_for_inspected_streams(policy, expected):
+    """Inspected streams need readable bytes; uninspected relays forward the client's preference."""
+    dispatched = []
+
+    async def dispatch(request):
+        dispatched.append(request)
+        return StreamingHttpResponse(200, ((b"content-type", b"text/event-stream"),), Source([b"data: [END]\n\n"]))
+
+    request = replace(REQUEST, headers=((b"accept-encoding", b"gzip, br"),))
+    response = await execute_streaming_http(
+        request,
+        dispatch=dispatch,
+        checker=Checker(),
+        streaming_policy=policy,
+        input_message=GuardedMessage("user", "question"),
+        adapter=ClassifiedStreamAdapter(Classifier(), Hooks()),
+        render_outcome=render_outcome,
+        max_event_bytes=1024,
+        max_pending_bytes=1024,
+    )
+    await response_body(response)
+
+    assert [value for name, value in dispatched[0].headers if name.lower() == b"accept-encoding"] == expected
