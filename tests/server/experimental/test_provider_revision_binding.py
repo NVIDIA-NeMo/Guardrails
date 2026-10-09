@@ -59,6 +59,32 @@ def test_provider_api_revision_binding_accepts_exact_header_or_query_revision(lo
     binding.validate(metadata)
 
 
+@pytest.mark.parametrize("location", [TransportLocation.HEADER, TransportLocation.QUERY])
+@pytest.mark.parametrize(
+    "revisions",
+    [("unreviewed", "2026-09-25"), ("2026-09-25", "unreviewed"), ("2026-09-25", "2026-09-25")],
+)
+def test_provider_api_revision_binding_rejects_duplicate_selectors(location, revisions):
+    """Reject ambiguous revision transport before an upstream can interpret it."""
+    binding = ProviderApiRevisionBinding(
+        accepted=ExactApiRevision("2026-09-25"),
+        location=location,
+        transport_name="api-version",
+        error_code="ambiguous_test_revision",
+    )
+    if location is TransportLocation.HEADER:
+        metadata = RequestMetadata(
+            headers=((b"api-version", revisions[0].encode()), (b"API-Version", revisions[1].encode()))
+        )
+    else:
+        metadata = RequestMetadata(query=f"api-version={revisions[0]}&api-version={revisions[1]}".encode())
+
+    with pytest.raises(ProviderBindingViolation, match="must not be repeated") as exc_info:
+        binding.validate(metadata)
+
+    assert exc_info.value.code == "ambiguous_test_revision"
+
+
 def test_provider_api_revision_binding_rejects_missing_revision_with_stable_code():
     """A missing required revision reports a stable provider error code."""
     binding = ProviderApiRevisionBinding(

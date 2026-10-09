@@ -139,12 +139,11 @@ class ProviderApiRevisionBinding:
             raise ValueError("Provider API revision binding values must not be empty.")
 
     def validate(self, request: ProviderTransportRequest) -> None:
-        """Validate a client-selected header or query revision."""
+        """Validate one revision selector, rejecting even identical duplicates."""
 
         if self.location is TransportLocation.HEADER:
             encoded_name = self.transport_name.lower().encode("ascii")
             values = [value.decode("latin-1") for name, value in request.headers if name.lower() == encoded_name]
-            received = values[-1] if values else None
         else:
             try:
                 query = request.query.decode("ascii")
@@ -154,7 +153,12 @@ class ProviderApiRevisionBinding:
                     code=self.error_code,
                 ) from error
             values = parse_qs(query, keep_blank_values=True).get(self.transport_name, [])
-            received = values[-1] if values else None
+        if len(values) > 1:
+            raise ProviderBindingViolation(
+                f"The provider revision selector {self.transport_name} must not be repeated.",
+                code=self.error_code,
+            )
+        received = values[0] if values else None
         if not self.accepted.accepts(received):
             raise ProviderBindingViolation(
                 f"The guarded route requires {self.transport_name}: {self.accepted.describe()}.",
