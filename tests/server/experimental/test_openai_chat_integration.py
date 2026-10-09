@@ -33,7 +33,11 @@ from nemoguardrails.server.experimental._content_checker import (
 )
 from nemoguardrails.server.experimental._guarded_operation import UnsupportedGuardedPayload
 from nemoguardrails.server.experimental._guarded_proxy import create_buffered_guarded_http_operation
-from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse, create_http_proxy_router
+from nemoguardrails.server.experimental._http_kernel import (
+    BufferedHttpRequest,
+    BufferedHttpResponse,
+    create_http_proxy_router,
+)
 from nemoguardrails.server.experimental.provider.projection_policy import EXTENSION
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 from nemoguardrails.server.experimental.providers.openai.errors import (
@@ -94,6 +98,24 @@ def test_openai_chat_router_constructs_its_buffered_operation():
     router = create_openai_chat_router(checker=StaticChecker(), dispatch=dispatch)
 
     assert any(isinstance(route, APIRoute) and route.path == "/v1/chat/completions" for route in router.routes)
+
+
+def test_buffered_request_preparation_preserves_the_complete_provider_request():
+    """Projection selects text without normalizing provider bytes or metadata."""
+    request = BufferedHttpRequest(
+        method="POST",
+        path="/v1/chat/completions",
+        raw_path=b"/v1/chat/completions",
+        query=b"opaque=%2Fvalue&opaque=second",
+        headers=_json_headers((b"x-provider-opaque", b"first"), (b"x-provider-opaque", b"second")),
+        body=_request_body(),
+    )
+    operation = create_buffered_guarded_http_operation(CHAT_COMPLETIONS_ENDPOINT, OPENAI_ERROR_MAPPING)
+
+    prepared = operation.prepare_request(request)
+
+    assert operation.operation.input_projection(prepared).content == "question"
+    assert operation.forward_request(prepared) is request
 
 
 @pytest_asyncio.fixture

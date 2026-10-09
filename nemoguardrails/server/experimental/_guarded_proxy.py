@@ -15,7 +15,7 @@
 
 """Compose provider declarations with the guarded buffered HTTP pipeline."""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from pydantic import ValidationError
 
@@ -38,7 +38,7 @@ from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapp
 from nemoguardrails.server.experimental.provider.payload import GuardedMessageTarget, guarded_schema_error
 from nemoguardrails.server.experimental.provider.projection_policy import PolicyModel, policy_json_schema
 from nemoguardrails.server.experimental.provider.transport import ProviderBindingViolation
-from nemoguardrails.server.experimental.provider.types import GuardedMessage, JsonObject
+from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
 
 @dataclass(slots=True)
@@ -46,20 +46,7 @@ class GuardableProviderRequest:
     """Hold one original HTTP request and its validated exact guarded target."""
 
     request: BufferedHttpRequest
-    raw_body: bytes
-    payload: JsonObject
     target: GuardedMessageTarget
-    streaming: bool
-
-
-@dataclass(frozen=True, slots=True)
-class PreparedProviderRequest:
-    """Hold the exact provider request state after input inspection."""
-
-    body: bytes
-    input_message: GuardedMessage
-    body_modified: bool
-    streaming: bool
 
 
 def _header(headers: tuple[tuple[bytes, bytes], ...], name: bytes) -> str | None:
@@ -118,20 +105,7 @@ def _prepare_guardable_request(
         )
     return GuardableProviderRequest(
         request=request,
-        raw_body=request.body,
-        payload=payload,
         target=target,
-        streaming=False,
-    )
-
-
-def _prepare_provider_request(request: GuardableProviderRequest) -> PreparedProviderRequest:
-    """Preserve the original provider body after input inspection."""
-    return PreparedProviderRequest(
-        body=request.raw_body,
-        input_message=request.target.message,
-        body_modified=False,
-        streaming=request.streaming,
     )
 
 
@@ -150,9 +124,8 @@ def create_buffered_guarded_http_operation(
         return payload.target.message
 
     def forward_request(request: GuardableProviderRequest) -> BufferedHttpRequest:
-        """Return the provider request that should be dispatched."""
-        prepared = _prepare_provider_request(request)
-        return replace(request.request, body=prepared.body)
+        """Forward the original HTTP request without reserializing its body."""
+        return request.request
 
     def project_response(
         payload: BufferedHttpResponse,
