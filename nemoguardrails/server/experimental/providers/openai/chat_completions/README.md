@@ -88,9 +88,11 @@ unchanged without output checks, but only after the full response passes the
 closed projection. Null content alongside refusal, reasoning, tool, or citation
 content is still rejected.
 
-Guarded requests ask the provider for `accept-encoding: identity`, replacing
-any client value, because an encoded response cannot be inspected. A
-successful response that is still encoded is rejected, not relayed.
+When output checks run, guarded requests ask the provider for
+`accept-encoding: identity`, replacing any client value, because an encoded
+response cannot be inspected. A successful response that is still encoded is
+rejected, not relayed. Without output checks, the client's own preference is
+forwarded and the response is relayed unchanged.
 
 The shared exporter describes buffered payload policy and endpoint labels, not
 arbitrary transport behavior: header/query API-revision bindings and alternate

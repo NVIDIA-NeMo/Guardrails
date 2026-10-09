@@ -423,6 +423,52 @@ async def test_buffered_request_limit_fails_before_dispatch(guarded_operation, p
     assert dispatched == []
 
 
+class PolicyChecker(StaticChecker):
+    """Allow content under an explicit inspection policy."""
+
+    def __init__(self, policy):
+        super().__init__()
+        self.policy = policy
+
+    def inspection_policy(self):
+        self.policy_reads += 1
+        return self.policy
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("policy", "path", "expected"),
+    [
+        (ContentInspectionPolicy(True, True), "/v1/generate", [b"identity"]),
+        (ContentInspectionPolicy(True, False), "/v1/generate", [b"gzip, br"]),
+        (ContentInspectionPolicy(False, False), "/v1/generate", [b"gzip, br"]),
+        (ContentInspectionPolicy(True, True), "/v1/provider-owned", [b"gzip, br"]),
+    ],
+)
+async def test_identity_encoding_is_requested_only_for_inspected_output(guarded_operation, policy, path, expected):
+    """Output checks need a readable body; otherwise the client's encoding preference is forwarded."""
+    dispatched = []
+
+    async def dispatch(request):
+        dispatched.append(request)
+        return BufferedHttpResponse(200, ((b"content-type", b"application/json"),), b'{"output":"answer"}')
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=[guarded_operation],
+            checker=PolicyChecker(policy),
+            dispatch=dispatch,
+            render_outcome=render_test_outcome,
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post(path, json={"input": "question"}, headers={"accept-encoding": "gzip, br"})
+
+    assert response.status_code == 200
+    assert [value for name, value in dispatched[0].headers if name.lower() == b"accept-encoding"] == expected
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["/v1/generate", "/v1/provider-owned"])
 async def test_buffered_response_limit_hides_upstream_body(guarded_operation, path):

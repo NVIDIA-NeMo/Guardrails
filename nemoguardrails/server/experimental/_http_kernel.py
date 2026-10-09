@@ -17,7 +17,7 @@
 
 import re
 from collections.abc import Awaitable, Callable, Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any, cast
 from urllib.parse import quote
@@ -401,6 +401,19 @@ def _render_response(value: BufferedHttpResponse, request_method: str | None = N
     return response
 
 
+def _request_identity_encoding(headers: HttpHeaders) -> HttpHeaders:
+    """Ask the provider for an unencoded response that output checks can read.
+
+    Clients such as the OpenAI SDK accept gzip, and an encoded successful
+    response cannot be inspected. Without output checks the response is relayed
+    unchanged, so the client's own preference is kept.
+    """
+    return (
+        *((name, value) for name, value in headers if name.lower() != b"accept-encoding"),
+        (b"accept-encoding", b"identity"),
+    )
+
+
 def _render_failure(
     failure: OperationBlocked
     | OperationCheckFailed
@@ -437,6 +450,8 @@ def _guarded_handler(
             if declaration.forward_request is not None
             else cast(BufferedHttpRequest, request)
         )
+        if checker.policy.inspect_output:
+            forwarded = replace(forwarded, headers=_request_identity_encoding(forwarded.headers))
         response = await dispatch(forwarded)
         if len(response.body) > max_response_body_bytes:
             raise ResponseBodyTooLarge
