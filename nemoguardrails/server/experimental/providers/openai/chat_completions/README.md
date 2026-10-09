@@ -78,6 +78,12 @@ on that path is missing text. Union containers and multi-item selectors remain
 explicit event-rule paths. Buffered extraction still requires exactly one item;
 the streaming helper does not relax it.
 
+The typed classifier builder checks the text path, assistant subject, event roles,
+and coverage against these declarations before runtime use. A mismatched path
+cannot silently turn guarded text into a metadata-only event. The lower-level
+classifier API remains available for handwritten bindings; those do not
+automatically satisfy typed-policy validation or contract export.
+
 [stream_hooks.py](stream_hooks.py) remains handwritten. It enforces terminal
 ordering, distinguishes real `[DONE]` events from keepalives, accepts provider
 errors as terminal outcomes, and frames native errors. These checks require
