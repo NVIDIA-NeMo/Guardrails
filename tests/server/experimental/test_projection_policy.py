@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
 import pytest
-from pydantic import Field, ValidationError
+from pydantic import ConfigDict, Field, ValidationError
 
 from nemoguardrails.server.experimental.provider.payload import GuardedContentModel
 from nemoguardrails.server.experimental.provider.projection_policy import (
@@ -52,6 +52,17 @@ def test_changed_python_policy_changes_coverage_and_export():
     assert message["properties"]["text"]["minLength"] == 2
     assert message[EXTENSION]["source"] == "#/components/schemas/Message"
     assert message["properties"]["tools"]["default"] is None
+
+
+@pytest.mark.parametrize("extra", ["ignore", "forbid", None])
+def test_policy_models_reject_conflicting_extra_configuration(extra):
+    """Object policy must see all extras before deciding whether to accept them."""
+    with pytest.raises(ValueError, match="requires extra='allow'"):
+
+        class Invalid(PolicyModel):
+            model_config = ConfigDict(extra=extra)
+            policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("provider_id",))
+            text: Annotated[str, guarded("user")]
 
 
 def test_missing_policy_fails_at_class_definition():

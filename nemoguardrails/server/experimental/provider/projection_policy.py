@@ -101,6 +101,8 @@ class PolicyModel(BaseModel):
     def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
         """Check local policy consistency after Pydantic has assembled fields."""
         super().__pydantic_init_subclass__(**kwargs)
+        if cls.model_config.get("extra") != "allow":
+            raise ValueError(f"{cls.__name__}: ObjectPolicy requires extra='allow' to validate unreviewed members")
         if len(set(cls.policy.opaque)) != len(cls.policy.opaque):
             raise ValueError(f"{cls.__name__}: duplicate opaque fields")
         overlap = set(cls.policy.opaque) & cls.model_fields.keys()
