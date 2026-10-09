@@ -214,6 +214,34 @@ def test_open_policy_models_reject_case_variants_of_reviewed_fields():
             Message.model_validate({"content": "q", **variant})
 
 
+@pytest.mark.parametrize(
+    "declare",
+    [
+        lambda: disabled("tools are off"),
+        lambda: disabled(" "),
+        lambda: constrained(reason="Core_capability.tools"),
+        lambda: guarded("assistant", replacement_reason="annotated text"),
+    ],
+)
+def test_helpers_reject_unstructured_reasons(declare):
+    with pytest.raises(ValueError, match="structured reason"):
+        declare()
+
+
+@pytest.mark.parametrize(
+    ("policy", "message"),
+    [
+        (lambda: ObjectPolicy(source="#/components/schemas/Message"), "bare component"),
+        (lambda: ObjectPolicy(source="Message Schema"), "bare component"),
+        (lambda: ObjectPolicy(opaque=("*",)), "wildcards"),
+        (lambda: ObjectPolicy(opaque=("",)), "wildcards"),
+    ],
+)
+def test_object_policy_rejects_values_the_contract_cannot_represent(policy, message):
+    with pytest.raises(ValueError, match=message):
+        policy()
+
+
 def test_replacement_policy_requires_subject():
     with pytest.raises(ValueError, match="requires a subject"):
         guarded(replaceable=True)

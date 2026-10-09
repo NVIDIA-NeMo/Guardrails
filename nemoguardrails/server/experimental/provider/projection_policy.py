@@ -27,6 +27,7 @@ operate on trusted framework-authored models, not externally supplied Python.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, cast, get_args
 
@@ -44,6 +45,16 @@ from nemoguardrails.server.experimental.provider.payload import (
 
 EXTENSION = "x-nemo-guardrails"
 CONTRACT_VERSION = "1.0.0-alpha.1"
+
+# Formats from guard-contract.schema.json, checked when policy is declared.
+_REASON = re.compile(r"(core_capability|provider_integrity|projection_policy)\.[a-z][a-z0-9_]*")
+_SOURCE_COMPONENT = re.compile(r"[A-Za-z_][A-Za-z0-9._-]*")
+
+
+def _check_reason(reason: str) -> None:
+    """Require a structured reason such as core_capability.tool_content."""
+    if not _REASON.fullmatch(reason):
+        raise ValueError(f"Reason {reason!r} must be a structured reason such as 'core_capability.tool_content'")
 
 
 @dataclass(frozen=True)
@@ -66,6 +77,13 @@ class ObjectPolicy:
     source: str | None = None
     opaque: tuple[str, ...] = ()
     unknown_fields: Literal["configurable"] | None = None
+
+    def __post_init__(self) -> None:
+        """Reject values the exported contract format cannot represent."""
+        if self.source is not None and not _SOURCE_COMPONENT.fullmatch(self.source):
+            raise ValueError(f"Source {self.source!r} must be a bare component schema name")
+        if any(not name or name == "*" for name in self.opaque):
+            raise ValueError("Opaque fields must be named; wildcards are not supported")
 
 
 class PolicyModel(BaseModel):
@@ -175,6 +193,7 @@ def guarded(
         if blocked_by is not None:
             subject["replacement_blocked_by"] = blocked_by
         if replacement_reason is not None:
+            _check_reason(replacement_reason)
             subject["replacement_reason"] = replacement_reason
         metadata["subject"] = subject
     return _field(metadata, constraints)
@@ -189,6 +208,7 @@ def constrained(*, reason: str | None = None, **constraints: Any) -> Any:
     """
     metadata: dict[str, Any] = {"classification": "constrained"}
     if reason is not None:
+        _check_reason(reason)
         metadata["reason"] = reason
     return _field(metadata, constraints)
 
@@ -201,8 +221,7 @@ def disabled(reason: str, *, extension: bool = False) -> Any:
     A nonblank structured reason explains the restriction. Set extension for a
     locally recognized field outside the pinned provider schema.
     """
-    if not reason.strip():
-        raise ValueError("Disabled fields require a reason")
+    _check_reason(reason)
     metadata: dict[str, Any] = {"classification": "constrained", "gate": "disabled", "reason": reason}
     if extension:
         metadata["extension"] = True
