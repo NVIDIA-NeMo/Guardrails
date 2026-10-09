@@ -82,7 +82,6 @@ def _response(**updates):
             }
         ],
         "usage": {"total_tokens": 2},
-        "future": {"provider": "opaque"},
     }
     payload.update(updates)
     return payload
@@ -225,6 +224,10 @@ def test_response_binding_allows_unannotated_text_replacement():
             ]
         ),
         _response(choices=[{"token_ids": [1, 2], "message": {"role": "assistant", "content": "answer"}}]),
+        _response(future={"provider": "opaque"}),
+        _response(output_text="uninspected"),
+        _response(prompt_text="uninspected"),
+        _response(__verbose={"content": "uninspected"}),
     ],
 )
 def test_response_projection_rejects_shapes_outside_buffered_text_profile(payload):

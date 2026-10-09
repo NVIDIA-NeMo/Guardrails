@@ -71,19 +71,21 @@ class ChatCompletionsChoiceProjection(PolicyModel, GuardedContentModel):
 
 
 class ChatCompletionsGuardedResponseProjection(PolicyModel, GuardedPayloadModel):
-    """Require one guarded choice and retain reviewed provider-owned response fields."""
+    """Require one guarded choice and retain reviewed provider-owned response fields.
 
-    policy: ClassVar[ObjectPolicy] = ObjectPolicy(
-        opaque=(
-            "service_tier",
-            "created",
-            "object",
-            "system_fingerprint",
-            "usage",
-            "id",
-            "model",
-            "metadata",
-            "moderation",
-        )
-    )
+    The response is closed to OpenAI's fields: a member outside them could
+    carry generated text that output rails never inspect.
+    """
+
+    model_config = ConfigDict(extra="forbid")
     choices: Annotated[list[ChatCompletionsChoiceProjection], guarded(min_length=1, max_length=1)]
+    # Reviewed provider metadata, forwarded without interpretation.
+    created: Annotated[Any, opaque()] = None
+    id: Annotated[Any, opaque()] = None
+    metadata: Annotated[Any, opaque()] = None
+    model: Annotated[Any, opaque()] = None
+    moderation: Annotated[Any, opaque()] = None
+    object: Annotated[Any, opaque()] = None
+    service_tier: Annotated[Any, opaque()] = None
+    system_fingerprint: Annotated[Any, opaque()] = None
+    usage: Annotated[Any, opaque()] = None
