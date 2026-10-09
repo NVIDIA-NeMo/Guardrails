@@ -21,7 +21,12 @@ import pytest
 from pydantic import ValidationError
 
 import nemoguardrails.server.experimental._json_payload as json_payload
-from nemoguardrails.server.experimental._json_payload import InvalidJson, UnsupportedJsonShape, parse_json_object
+from nemoguardrails.server.experimental._json_payload import (
+    InvalidJson,
+    UnsupportedJsonShape,
+    encode_json_object,
+    parse_json_object,
+)
 from nemoguardrails.server.experimental.provider.payload import (
     GuardedMessageTarget,
     validate_payload_projection_contract,
@@ -372,6 +377,19 @@ def test_strict_json_parser_rejects_ambiguous_or_non_object_payloads(body, error
     """Strict JSON parsing rejects ambiguous, invalid, and non-object bodies."""
     with pytest.raises(error):
         parse_json_object(body)
+
+
+def test_strict_json_parser_rejects_non_finite_numbers_and_non_bytes():
+    """Overflowing floats are invalid, and only raw bytes are parsed."""
+    with pytest.raises(InvalidJson):
+        parse_json_object(b'{"value":1e400}')
+    with pytest.raises(TypeError, match="must be bytes"):
+        parse_json_object('{"value":1}')
+
+
+def test_modified_objects_encode_as_compact_utf8_json():
+    """A modified provider object is serialized without escapes or extra whitespace."""
+    assert encode_json_object({"text": "caf\u00e9", "n": [1, 2]}) == '{"text":"caf\u00e9","n":[1,2]}'.encode()
 
 
 def test_strict_json_parser_keeps_case_variant_names_in_opaque_data():

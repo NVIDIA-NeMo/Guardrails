@@ -545,3 +545,75 @@ def test_export_reference_matches_unicode_casefold_and_exact_names(member, forbi
     else:
         with pytest.raises(ValidationError):
             Content.validate_payload(document, unknown_content_fields=policy)
+
+
+def test_policy_models_reject_aliases_and_unpolicied_nested_models():
+    from pydantic import BaseModel
+
+    with pytest.raises(ValueError, match="aliases are not supported"):
+
+        class Aliased(PolicyModel):
+            text: Annotated[str, guarded("user"), Field(alias="Text")]
+
+    class Plain(BaseModel):
+        text: str
+
+    class Root(PolicyModel):
+        items: Annotated[list[Plain], guarded(min_length=1, max_length=1)]
+
+    with pytest.raises(ValueError, match="Nested models must declare field policies"):
+        payload_contract(Root, projection_id="test", direction="request")
+
+
+def test_model_graph_visits_shared_models_once_and_rejects_name_collisions():
+    from nemoguardrails.server.experimental.provider.projection_policy import model_graph
+
+    class Part(PolicyModel):
+        text: Annotated[str, guarded("user")]
+
+    class Root(PolicyModel):
+        first: Annotated[Part, guarded()]
+        second: Annotated[Part | None, constrained()] = None
+
+    assert list(model_graph(Root)) == ["Root", "Part"]
+
+    def other_part() -> type[PolicyModel]:
+        class Part(PolicyModel):
+            value: Annotated[str, constrained()]
+
+        return Part
+
+    class Colliding(PolicyModel):
+        first: Annotated[Part, guarded()]
+        second: Annotated[other_part() | None, constrained()] = None
+
+    with pytest.raises(ValueError, match="Model names must be unique"):
+        model_graph(Colliding)
+
+
+def test_export_rejects_recursive_models():
+    class Node(PolicyModel):
+        text: Annotated[str, guarded("user")]
+        children: Annotated["list[Node]", constrained()] = []
+
+    Node.model_rebuild()
+    with pytest.raises(ValueError, match="Recursive models"):
+        export_payload_schema(Node, projection_id="test")
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        Annotated[int, guarded("user")],
+        Annotated[list[Annotated[str, guarded("user")]], guarded(min_length=1, max_length=1)],
+    ],
+)
+def test_extraction_requires_a_named_string_subject(annotation):
+    root = type(
+        "Root",
+        (PolicyModel,),
+        {"__annotations__": {"value": annotation}, "__module__": __name__},
+    )
+
+    with pytest.raises(ValueError, match="named string field"):
+        text_location(root)
