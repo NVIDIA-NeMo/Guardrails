@@ -384,7 +384,8 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
 
     Raises:
         ValueError: No unique text subject can be derived, a traversed array is
-            not constrained to one item, or the schema cannot be exported.
+            not constrained to one item, a replacement blocker is not a field of
+            the subject's object, or the schema cannot be exported.
     """
     locations: list[GuardedTextLocation] = []
 
@@ -408,6 +409,11 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
                 raise ValueError("Buffered text extraction requires exactly one array item")
             visit(node["items"], (*path, 0))
         for name, child in node.get("properties", {}).items():
+            blocker = child.get(EXTENSION, {}).get("subject", {}).get("replacement_blocked_by")
+            # A misspelled blocker would never match and silently allow replacement.
+            if blocker is not None and blocker not in node["properties"]:
+                if blocker not in node.get(EXTENSION, {}).get("opaque_fields", ()):
+                    raise ValueError(f"Replacement blocker {blocker!r} is not a field of the subject's object")
             if child.get(EXTENSION, {}).get("classification") == "guarded":
                 visit(child, (*path, name))
 

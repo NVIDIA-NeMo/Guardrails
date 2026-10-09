@@ -226,6 +226,23 @@ def test_extraction_rejects_non_singleton_arrays():
         text_location(Request)
 
 
+def test_extraction_rejects_unknown_replacement_blocker():
+    class Message(PolicyModel):
+        text: Annotated[str, guarded("assistant", replaceable=True, blocked_by="annotatons")]
+        annotations: Annotated[list[str] | None, constrained()] = None
+
+    with pytest.raises(ValueError, match="'annotatons' is not a field"):
+        text_location(Message)
+
+
+def test_extraction_accepts_opaque_replacement_blocker():
+    class Message(PolicyModel):
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("citations",))
+        text: Annotated[str, guarded("assistant", replaceable=True, blocked_by="citations")]
+
+    assert text_location(Message).replacement_blocked_by == "citations"
+
+
 def test_extraction_rejects_multiple_subjects():
     class Request(PolicyModel):
         first: Annotated[str, guarded("user")]
