@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 import yaml
 from jsonschema import Draft202012Validator
+from pydantic import ValidationError
 
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
 from nemoguardrails.server.experimental.provider.projection_policy import CONTRACT_VERSION, EXTENSION
@@ -96,17 +97,22 @@ def test_export_is_fresh_and_deterministic():
     )
 
 
-@pytest.mark.parametrize("annotations", [None, [], [{"provider": "opaque"}]])
-def test_export_preserves_nullable_annotations_and_replacement_policy(annotations):
+@pytest.mark.parametrize("annotations", [None, [], [{"type": "url_citation"}]])
+def test_export_and_runtime_accept_only_null_or_empty_annotations(annotations):
     response = {"choices": [{"message": {"role": "assistant", "content": "answer", "annotations": annotations}}]}
-    Draft202012Validator(
+    validator = Draft202012Validator(
         export_guard_contract(CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions")[
             "response"
         ]
-    ).validate(response)
+    )
+    if annotations:
+        assert not validator.is_valid(response)
+        with pytest.raises(ValidationError):
+            CHAT_COMPLETIONS_ENDPOINT.guarded_response_model.validate_payload(response)
+        return
+    validator.validate(response)
     projection = CHAT_COMPLETIONS_ENDPOINT.guarded_response_model.validate_payload(response)
-    target = projection.locate_guarded_message(response)
-    assert target.allows_replacement is (not bool(annotations))
+    assert projection.locate_guarded_message(response).allows_replacement is True
 
 
 def test_cli_check_and_regenerate(tmp_path):

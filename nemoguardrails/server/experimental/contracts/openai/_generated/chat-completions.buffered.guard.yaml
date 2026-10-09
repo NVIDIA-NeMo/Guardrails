@@ -2,7 +2,7 @@ version: 1.0.0-alpha.1
 operationId: createChatCompletion
 profile: single_text.v1
 request:
-  additionalProperties: true
+  additionalProperties: false
   description: Bind the handwritten projection to its guarded runtime semantics.
   properties:
     audio:
@@ -12,6 +12,9 @@ request:
         classification: constrained
         gate: disabled
         reason: core_capability.audio_content
+    frequency_penalty:
+      x-nemo-guardrails:
+        classification: opaque
     function_call:
       default: null
       type: 'null'
@@ -26,6 +29,24 @@ request:
         classification: constrained
         gate: disabled
         reason: core_capability.tool_content
+    logit_bias:
+      x-nemo-guardrails:
+        classification: opaque
+    logprobs:
+      default: null
+      x-nemo-guardrails:
+        classification: constrained
+        reason: provider_integrity.token_logprobs
+      oneOf:
+      - const: false
+        type: boolean
+      - type: 'null'
+    max_completion_tokens:
+      x-nemo-guardrails:
+        classification: opaque
+    max_tokens:
+      x-nemo-guardrails:
+        classification: opaque
     messages:
       items:
         additionalProperties: true
@@ -43,8 +64,11 @@ request:
                 role: user
           name:
             default: null
+            type: 'null'
             x-nemo-guardrails:
-              classification: opaque
+              classification: constrained
+              gate: disabled
+              reason: core_capability.participant_name
           role:
             const: user
             type: string
@@ -63,6 +87,9 @@ request:
       type: array
       x-nemo-guardrails:
         classification: guarded
+    metadata:
+      x-nemo-guardrails:
+        classification: opaque
     modalities:
       default: null
       type: 'null'
@@ -70,6 +97,12 @@ request:
         classification: constrained
         gate: disabled
         reason: core_capability.multimodal_content
+    model:
+      x-nemo-guardrails:
+        classification: opaque
+    moderation:
+      x-nemo-guardrails:
+        classification: opaque
     n:
       const: 1
       default: 1
@@ -91,6 +124,33 @@ request:
         classification: constrained
         gate: disabled
         reason: core_capability.predicted_content
+    presence_penalty:
+      x-nemo-guardrails:
+        classification: opaque
+    prompt_cache_key:
+      x-nemo-guardrails:
+        classification: opaque
+    prompt_cache_options:
+      x-nemo-guardrails:
+        classification: opaque
+    prompt_cache_retention:
+      x-nemo-guardrails:
+        classification: opaque
+    reasoning_effort:
+      default: null
+      x-nemo-guardrails:
+        classification: constrained
+      oneOf:
+      - enum:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+        type: string
+      - type: 'null'
     response_format:
       default: null
       type: 'null'
@@ -98,11 +158,32 @@ request:
         classification: constrained
         gate: disabled
         reason: projection_policy.plain_text_output
+    safety_identifier:
+      x-nemo-guardrails:
+        classification: opaque
+    seed:
+      x-nemo-guardrails:
+        classification: opaque
+    service_tier:
+      x-nemo-guardrails:
+        classification: opaque
+    stop:
+      x-nemo-guardrails:
+        classification: opaque
+    store:
+      x-nemo-guardrails:
+        classification: opaque
     stream:
       default: false
       type: boolean
       x-nemo-guardrails:
         classification: constrained
+    stream_options:
+      x-nemo-guardrails:
+        classification: opaque
+    temperature:
+      x-nemo-guardrails:
+        classification: opaque
     tool_choice:
       default: null
       type: 'null'
@@ -117,6 +198,22 @@ request:
         classification: constrained
         gate: disabled
         reason: core_capability.tool_content
+    top_logprobs:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: provider_integrity.token_logprobs
+    top_p:
+      x-nemo-guardrails:
+        classification: opaque
+    user:
+      x-nemo-guardrails:
+        classification: opaque
+    verbosity:
+      x-nemo-guardrails:
+        classification: opaque
     web_search_options:
       default: null
       type: 'null'
@@ -129,35 +226,10 @@ request:
   title: openai.chat_completions.request.text.v1
   type: object
   x-nemo-guardrails:
-    opaque_fields:
-    - frequency_penalty
-    - logit_bias
-    - logprobs
-    - max_completion_tokens
-    - max_tokens
-    - metadata
-    - model
-    - moderation
-    - presence_penalty
-    - prompt_cache_key
-    - prompt_cache_options
-    - prompt_cache_retention
-    - reasoning_effort
-    - safety_identifier
-    - seed
-    - service_tier
-    - stop
-    - store
-    - stream_options
-    - temperature
-    - top_logprobs
-    - top_p
-    - user
-    - verbosity
     model: ChatCompletionsGuardedRequest
     stream_selector_field: stream
 response:
-  additionalProperties: true
+  additionalProperties: false
   description: Bind the handwritten projection to its guarded runtime semantics.
   properties:
     choices:
@@ -189,8 +261,10 @@ response:
                 default: null
                 x-nemo-guardrails:
                   classification: constrained
+                  reason: core_capability.citation_content
                 oneOf:
                 - items: {}
+                  maxItems: 0
                   type: array
                 - type: 'null'
               audio:
@@ -201,8 +275,6 @@ response:
                   gate: disabled
                   reason: core_capability.audio_content
               content:
-                minLength: 1
-                type: string
                 x-nemo-guardrails:
                   classification: guarded
                   subject:
@@ -211,6 +283,9 @@ response:
                     replacement_blocked_by: annotations
                     replacement_reason: provider_integrity.annotated_text
                     role: assistant
+                oneOf:
+                - type: string
+                - type: 'null'
               function_call:
                 default: null
                 type: 'null'
@@ -240,11 +315,14 @@ response:
                   classification: constrained
               tool_calls:
                 default: null
-                type: 'null'
                 x-nemo-guardrails:
                   classification: constrained
-                  gate: disabled
                   reason: core_capability.tool_content
+                oneOf:
+                - items: {}
+                  maxItems: 0
+                  type: array
+                - type: 'null'
             required:
             - content
             - role
@@ -265,21 +343,38 @@ response:
       type: array
       x-nemo-guardrails:
         classification: guarded
+    created:
+      x-nemo-guardrails:
+        classification: opaque
+    id:
+      x-nemo-guardrails:
+        classification: opaque
+    metadata:
+      x-nemo-guardrails:
+        classification: opaque
+    model:
+      x-nemo-guardrails:
+        classification: opaque
+    moderation:
+      x-nemo-guardrails:
+        classification: opaque
+    object:
+      x-nemo-guardrails:
+        classification: opaque
+    service_tier:
+      x-nemo-guardrails:
+        classification: opaque
+    system_fingerprint:
+      x-nemo-guardrails:
+        classification: opaque
+    usage:
+      x-nemo-guardrails:
+        classification: opaque
   required:
   - choices
   title: openai.chat_completions.response.text.v1
   type: object
   x-nemo-guardrails:
-    opaque_fields:
-    - created
-    - id
-    - metadata
-    - model
-    - moderation
-    - object
-    - service_tier
-    - system_fingerprint
-    - usage
     model: ChatCompletionsGuardedResponse
 integration:
   name: chat_completions

@@ -64,12 +64,12 @@ class StaticChecker:
 
 def _request_body():
     """Return a representative OpenAI Chat request body."""
-    return b'{ "messages" : [ { "role" : "user", "content" : "question" } ], "model" : "gpt-example", "opaque" : { "keep" : true } }'
+    return b'{ "messages" : [ { "role" : "user", "content" : "question" } ], "model" : "gpt-example", "metadata" : { "keep" : "true" } }'
 
 
 def _response_body():
     """Return a representative OpenAI Chat response body."""
-    return b'{ "id" : "chatcmpl-example", "choices" : [ { "index" : 0, "message" : { "role" : "assistant", "content" : "answer" } } ], "opaque" : [ 1, 2 ] }'
+    return b'{ "id" : "chatcmpl-example", "choices" : [ { "index" : 0, "message" : { "role" : "assistant", "content" : "answer" } } ], "usage" : { "total_tokens" : 2 } }'
 
 
 def _json_headers(*headers):
@@ -261,7 +261,7 @@ async def test_unsupported_request_is_openai_shaped_and_not_dispatched():
 @pytest.mark.asyncio
 async def test_unsupported_success_response_is_hidden_in_openai_error():
     """Unsupported successful responses are hidden behind an OpenAI error."""
-    provider_body = b'{"choices":[{"message":{"role":"assistant","content":"answer","tool_calls":[]}}]}'
+    provider_body = b'{"choices":[{"message":{"role":"assistant","content":"answer","tool_calls":[{"id":"call"}]}}]}'
 
     async def dispatch(_request):
         """Return an unsupported provider response with private metadata."""
