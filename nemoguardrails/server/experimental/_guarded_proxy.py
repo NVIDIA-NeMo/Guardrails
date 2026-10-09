@@ -104,14 +104,18 @@ def _prepare_guardable_request(
     except InvalidJson as error:
         raise InvalidGuardedPayload("The request body must be valid JSON.") from error
     except UnsupportedJsonShape as error:
-        raise UnsupportedGuardedPayload(str(error)) from error
+        raise UnsupportedGuardedPayload(str(error), endpoint.unsupported_request_code) from error
     try:
         projection = endpoint.guarded_request_model.validate_payload(payload)
         target = projection.locate_guarded_message(payload)
     except ValidationError as error:
-        raise UnsupportedGuardedPayload(guarded_schema_error(error, "request")) from error
+        raise UnsupportedGuardedPayload(
+            guarded_schema_error(error, "request"), endpoint.unsupported_request_code
+        ) from error
     if projection.streams_response:
-        raise UnsupportedGuardedPayload("The guarded endpoint does not support streaming responses yet.")
+        raise UnsupportedGuardedPayload(
+            "The guarded endpoint does not support streaming responses yet.", endpoint.unsupported_request_code
+        )
     return GuardableProviderRequest(
         request=request,
         raw_body=request.body,
@@ -157,10 +161,14 @@ def create_buffered_guarded_http_operation(
         if not 200 <= payload.status_code < 300:
             return ContentInspectionNotApplicable()
         if _media_type(_header(payload.headers, b"content-type")) != "application/json":
-            raise UnsupportedGuardedPayload("The successful provider response must use application/json.")
+            raise UnsupportedGuardedPayload(
+                "The successful provider response must use application/json.", endpoint.unsupported_response_code
+            )
         content_encoding = _header(payload.headers, b"content-encoding")
         if content_encoding is not None and content_encoding.strip().lower() not in {"", "identity"}:
-            raise UnsupportedGuardedPayload("Encoded successful provider responses are not supported.")
+            raise UnsupportedGuardedPayload(
+                "Encoded successful provider responses are not supported.", endpoint.unsupported_response_code
+            )
         try:
             document = parse_json_object(payload.body)
             projection = endpoint.guarded_response_model.validate_payload(document)
@@ -171,9 +179,11 @@ def create_buffered_guarded_http_operation(
                 return ContentInspectionNotApplicable()
             return target.message
         except ValidationError as error:
-            raise UnsupportedGuardedPayload(guarded_schema_error(error, "successful response")) from error
+            raise UnsupportedGuardedPayload(
+                guarded_schema_error(error, "successful response"), endpoint.unsupported_response_code
+            ) from error
         except (InvalidJson, UnsupportedJsonShape) as error:
-            raise UnsupportedGuardedPayload(str(error)) from error
+            raise UnsupportedGuardedPayload(str(error), endpoint.unsupported_response_code) from error
 
     request_model = endpoint.guarded_request_model
     request_schema = (

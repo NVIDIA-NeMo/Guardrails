@@ -148,15 +148,15 @@ def render_openai_error(
             return _error_response(415, str(outcome.failure), "unsupported_request", outcome.failure.code)
         return _error_response(
             422,
-            "The OpenAI Chat Completions request is outside the guarded profile.",
+            "The provider request is outside the guarded profile.",
             "unsupported_request",
             outcome.failure.code or "unsupported_chat_completions_shape",
         )
     return _error_response(
         502,
-        "The OpenAI Chat Completions response is outside the guarded profile.",
+        "The provider response is outside the guarded profile.",
         "unsupported_response",
-        "unsupported_chat_completions_response_shape",
+        outcome.failure.code or "unsupported_chat_completions_response_shape",
     )
 
 

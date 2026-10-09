@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import json
+from dataclasses import replace
 
 import httpx
 import pytest
@@ -31,7 +32,8 @@ from nemoguardrails.server.experimental._content_checker import (
     ContentInspectionPolicy,
 )
 from nemoguardrails.server.experimental._guarded_operation import UnsupportedGuardedPayload
-from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse
+from nemoguardrails.server.experimental._guarded_proxy import create_buffered_guarded_http_operation
+from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse, create_http_proxy_router
 from nemoguardrails.server.experimental.provider.projection_policy import EXTENSION
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 from nemoguardrails.server.experimental.providers.openai.errors import (
@@ -503,6 +505,65 @@ def test_openai_error_preserves_provider_binding_failure_code():
 
     assert response.status_code == 422
     assert b'"code":"unsupported_provider_api_revision"' in response.body
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("stage", "body", "headers", "status", "code"),
+    [
+        ("request", b'{"messages":[]}', _json_headers(), 422, "example_request_shape"),
+        ("request", b'["private-payload"]', _json_headers(), 422, "example_request_shape"),
+        ("request", b'{"messages":[],"stream":true}', _json_headers(), 422, "example_request_shape"),
+        ("request", b'{"private-payload":', _json_headers(), 400, "invalid_json"),
+        ("request", _request_body(), ((b"content-type", b"text/plain"),), 415, "unsupported_media_type"),
+        ("response", b'{"choices":[]}', _json_headers(), 502, "example_response_shape"),
+        ("response", b'["private-payload"]', _json_headers(), 502, "example_response_shape"),
+        ("response", b'{"private-payload":', _json_headers(), 502, "example_response_shape"),
+        ("response", b"private-payload", ((b"content-type", b"text/plain"),), 502, "example_response_shape"),
+        (
+            "response",
+            b"private-payload",
+            _json_headers((b"content-encoding", b"gzip")),
+            502,
+            "example_response_shape",
+        ),
+    ],
+)
+async def test_endpoint_error_codes_control_guarded_http_failures(stage, body, headers, status, code):
+    """Endpoint-specific shape codes survive the shared pipeline and safe renderer."""
+    endpoint = replace(
+        CHAT_COMPLETIONS_ENDPOINT,
+        unsupported_request_code="example_request_shape",
+        unsupported_response_code="example_response_shape",
+    )
+    checker = StaticChecker()
+    dispatched = []
+
+    async def dispatch(request):
+        dispatched.append(request)
+        assert stage == "response"
+        return BufferedHttpResponse(200, headers, body)
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=(create_buffered_guarded_http_operation(endpoint, OPENAI_ERROR_MAPPING),),
+            checker=checker,
+            dispatch=dispatch,
+            render_outcome=OPENAI_ERROR_MAPPING.renderer,
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post(
+            endpoint.route_path,
+            content=body if stage == "request" else _request_body(),
+            headers=headers if stage == "request" else _json_headers(),
+        )
+    assert response.status_code == status
+    assert response.json()["error"]["code"] == code
+    assert "private-payload" not in response.text
+    assert len(dispatched) == (stage == "response")
+    assert [call[0] for call in checker.calls] == (["input"] if stage == "response" else [])
 
 
 @pytest.mark.parametrize(
