@@ -71,7 +71,7 @@ component. Canonical exports explicitly declare `unknown_fields: forbid` or
 `additionalProperties: false` for default validation. Only trusted configuration
 may select `ALLOW` on a configurable object; a contract-aware validator then
 permits its unreviewed members. Closed objects remain closed under either policy.
-Legacy objects without the marker are closed. Generic JSON Schema validators
+Objects without the marker are closed. Generic JSON Schema validators
 apply the default closure but do not implement trusted overrides. Reviewed opaque
 names appear as properties classified `opaque`, so `additionalProperties` describes only unreviewed members.
 
@@ -83,7 +83,6 @@ This includes multi-character folds (`Straße` and `STRASSE`), the Kelvin sign
 valid, whitespace remains significant, and opaque values are not traversed.
 Some providers match names case-insensitively, so runtimes and generators must
 enforce this explicit guardrail annotation. Generic JSON Schema ignores it.
-Legacy documents omitted the marker but followed the same case-alias convention.
 `additionalProperties` remains the ordinary schema-level object closure rule.
 Provider-required opaque fields may be left to provider validation; a projection is not a full provider request validator.
 
