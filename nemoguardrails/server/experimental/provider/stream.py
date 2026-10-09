@@ -181,7 +181,7 @@ class ProviderStreamAdapter(Protocol):
 
 @dataclass(slots=True)
 class ClassifiedStreamAdapter:
-    """Compose a generated classifier with handwritten protocol hooks."""
+    """Compose a stateless classifier with handwritten protocol hooks."""
 
     classifier: ProviderStreamClassifier
     hooks: ProviderStreamHooks
@@ -210,10 +210,35 @@ class ClassifiedStreamAdapter:
         return self.hooks.encode_error(rendered_body)
 
 
-def create_classified_stream_adapter_factory(
-    classifier: ProviderStreamClassifier,
-    hooks_factory: Callable[[], ProviderStreamHooks],
-) -> Callable[[], ProviderStreamAdapter]:
-    """Create a zero-argument adapter factory for an endpoint declaration."""
+@dataclass(frozen=True, slots=True)
+class StreamBinding:
+    """Bind shared classification to a fresh set of protocol hooks per request.
 
-    return lambda: ClassifiedStreamAdapter(classifier, hooks_factory())
+    Construction checks declarations without running the hook factory. Runtime
+    uses create_adapter; inspection can read the classifier directly. Factories
+    must return independent hook instances so lifecycle state is never shared.
+    Handwritten classifiers are supported at runtime, but are not automatically
+    representable by a guard contract.
+    """
+
+    classifier: ProviderStreamClassifier
+    hooks_factory: Callable[[], ProviderStreamHooks]
+
+    def __post_init__(self) -> None:
+        """Reject malformed bindings without creating request state."""
+        if not isinstance(getattr(self.classifier, "contract", None), StreamProjectionContract):
+            raise TypeError("A stream binding requires a classifier with a stream projection contract.")
+        if not callable(getattr(self.classifier, "classify_event", None)):
+            raise TypeError("A stream binding requires a callable classifier.")
+        if not callable(self.hooks_factory):
+            raise TypeError("A stream binding requires a callable hook factory.")
+
+    def create_adapter(self) -> ClassifiedStreamAdapter:
+        """Create request-local hooks and validate their protocol interface."""
+        hooks = self.hooks_factory()
+        if any(
+            not callable(getattr(hooks, method, None))
+            for method in ("observe_event", "validate_end_of_stream", "encode_error")
+        ):
+            raise TypeError("The hook factory must create provider stream hooks.")
+        return ClassifiedStreamAdapter(self.classifier, hooks)

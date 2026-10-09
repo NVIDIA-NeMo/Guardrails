@@ -430,10 +430,10 @@ async def test_upstream_iterator_failure_is_encoded_after_streaming_starts():
 
 
 def test_openai_endpoint_creates_fresh_stream_adapters():
-    assert CHAT_COMPLETIONS_ENDPOINT.stream_adapter_factory is not None
+    assert CHAT_COMPLETIONS_ENDPOINT.stream is not None
 
-    first = CHAT_COMPLETIONS_ENDPOINT.stream_adapter_factory()
-    second = CHAT_COMPLETIONS_ENDPOINT.stream_adapter_factory()
+    first = CHAT_COMPLETIONS_ENDPOINT.stream.create_adapter()
+    second = CHAT_COMPLETIONS_ENDPOINT.stream.create_adapter()
 
     assert first is not second
     assert first.hooks is not second.hooks

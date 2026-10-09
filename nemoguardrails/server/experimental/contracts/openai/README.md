@@ -11,6 +11,7 @@ behavior. See [Guard contracts](../README.md) for the document vocabulary.
 | --- | --- |
 | Request | One user message with non-empty string content at `messages[0].content`. |
 | Buffered response | One assistant choice with string content at `choices[0].message.content`. Empty or null content means the response has nothing to inspect, because every other reviewed field is content-free. The projection reports this through `has_text`, and the buffered integration relays such a response without output checks. |
+| Streamed response | At most one choice, with integer index zero and optional assistant text at `choices[0].delta.content`. Missing or null text is metadata; an empty choices array allows usage chunks. Reviewed root metadata passes through. |
 | Constrained values | User/assistant roles, single-item arrays, and request `n` constrained to one. |
 | Unsupported content | Tool, audio, multimodal, refusal, participant name, and separate reasoning content where explicitly disabled. |
 | Opaque data | Reviewed provider-owned metadata and controls, not additional guarded subjects. |
@@ -26,7 +27,7 @@ request `logprobs` accepts null or `false`.
 
 Log probabilities are unsupported: they carry token text that rails do not
 inspect. Request `logprobs` accepts only `false` or null, request `top_logprobs`
-accepts only null, and buffered response `choices[0].logprobs` accepts only null.
+accepts only null, and both buffered and stream `choices[0].logprobs` accept only null.
 The request check applies even when output inspection is off.
 
 Text replacement eligibility is separate from endpoint support for replacement
@@ -35,11 +36,20 @@ not inspected. The policy still declares that non-empty annotations would block
 text replacement. Unrelated provider data must remain intact.
 
 The Python projections, bindings, and endpoint determine exact acceptance and
-runtime behavior. Their machine-readable contract belongs with the integration,
-not in a separately maintained handwritten policy here. Recognizing the request
-`stream` flag does not itself provide a streaming endpoint. Streaming needs its
-own event classification, lifecycle handling, and implementation tests; the
-buffered boundary is not a claim about accepted stream events.
+runtime behavior. The [exported contract](_generated/chat-completions.guard.yaml)
+describes buffered payloads and the bound stream classifier, not a separately
+maintained handwritten policy. The stream root, choice, delta, and error envelope
+are closed. Error details are configurable, but the classifier validates with
+the closed default, so unreviewed error fields are rejected too.
+
+The stream export includes event selection, roles, missing-text handling, and
+SSE sentinel/non-data declarations. Stateful hooks enforce completion and event
+ordering and frame provider-native errors; they remain handwritten and are not
+serialized. Exporting a contract does not enable streaming dispatch or reproduce
+arbitrary Python validation. For example, the runtime rejects choice index
+`0.0`, while JSON Schema treats it as the integer zero. See the integration's
+[export guide](../../providers/openai/chat_completions/README.md#contract-export)
+for generation, drift checks, and limitations.
 
 ## Provider provenance
 

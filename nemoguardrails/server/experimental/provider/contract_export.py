@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Export buffered guard contracts from trusted Python endpoint declarations.
+"""Export guard contracts from trusted Python endpoint declarations.
 
 Provider integrations supply an endpoint and document identity, not exporter
 implementations. Model annotations describe payload policy; endpoint metadata
@@ -50,6 +50,84 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     payload_contract,
     text_location,
 )
+from nemoguardrails.server.experimental.provider.stream import StreamBinding, StreamCapabilityProfile, StreamEventRole
+from nemoguardrails.server.experimental.provider.stream_classifier import (
+    StreamClassifier,
+    StreamClassifierDefinition,
+    StreamEventRule,
+)
+from nemoguardrails.server.experimental.provider.stream_policy import build_policy_stream_classifier
+
+
+def _export_stream_event(rule: StreamEventRule) -> dict[str, Any]:
+    """Describe a typed event rule without dropping unsupported selection or fallback semantics."""
+    if type(rule) is not StreamEventRule:
+        raise TypeError("Stream contract export requires standard declarative event rules")
+    if not issubclass(rule.model, PolicyModel) or not rule.model.policy.source:
+        raise ValueError("Stream event export requires an explicit policy source schema")
+    if len(dict(rule.match)) != len(rule.match) or any(type(value) not in (str, int, bool) for _, value in rule.match):
+        raise ValueError("Stream event export requires unique match keys with string, integer, or boolean values")
+    roles = {
+        StreamEventRole.GUARDED_TEXT: "guarded_delta",
+        StreamEventRole.TEXT_SNAPSHOT: "snapshot",
+        StreamEventRole.OPAQUE_METADATA: "opaque",
+        StreamEventRole.PROVIDER_ERROR: "provider_error",
+    }
+    variant: dict[str, Any] = {"source_schema": rule.model.policy.source, "shape": rule.shape}
+    if rule.match:
+        variant["match"] = dict(rule.match)
+    if rule.required_fields:
+        variant["required_fields"] = sorted(rule.required_fields)
+    event: dict[str, Any] = {"classification": roles[rule.role], "variants": [variant]}
+    if rule.role in {StreamEventRole.GUARDED_TEXT, StreamEventRole.TEXT_SNAPSHOT}:
+        if rule.missing_text_role is None:
+            event["missing_text"] = "reject"
+        elif rule.missing_text_role is StreamEventRole.OPAQUE_METADATA and rule.missing_text_value is None:
+            event["missing_text"] = "opaque"
+        elif rule.missing_text_role is rule.role and rule.missing_text_value == "":
+            event["missing_text"] = "empty"
+        else:
+            raise ValueError("Stream missing-text fallback cannot be represented by the contract")
+        if rule.missing_text_shape is not None:
+            event["missing_text_shape"] = rule.missing_text_shape
+    schema = export_payload_schema(rule.model, projection_id=rule.model.__name__)
+    schema[EXTENSION]["event"] = event
+    return schema
+
+
+def _export_stream(binding: StreamBinding) -> dict[str, Any]:
+    """Export supported classifier declarations, never instantiate or serialize protocol hooks."""
+    classifier = binding.classifier
+    if type(classifier) is not StreamClassifier:
+        raise TypeError("Stream contract export requires the standard declarative StreamClassifier")
+    if classifier.contract.profile is not StreamCapabilityProfile.SINGLE_TEXT_DELTA_V1:
+        raise ValueError("Stream capability profile cannot be represented by the contract")
+    build_policy_stream_classifier(
+        StreamClassifierDefinition(
+            subject=classifier.subject,
+            contract=classifier.contract,
+            rules=classifier.rules,
+            sentinels=classifier.sentinels,
+            non_data_shape=classifier.non_data_shape,
+            event_type_field=classifier.event_type_field,
+            require_event_type=classifier.require_event_type,
+        )
+    )
+    transport: dict[str, Any] = {"require_sse_event": classifier.require_event_type}
+    if classifier.event_type_field is not None:
+        transport["data_discriminator"] = classifier.event_type_field
+    if classifier.non_data_shape is not None:
+        transport["non_data_shape"] = classifier.non_data_shape
+    if classifier.sentinels:
+        try:
+            transport["sentinels"] = {value.decode("utf-8"): shape for value, shape in classifier.sentinels}
+        except UnicodeDecodeError as error:
+            raise ValueError("Stream contract sentinels must be UTF-8 text") from error
+    return {
+        "title": classifier.contract.projection_id,
+        "oneOf": [_export_stream_event(rule) for rule in classifier.rules],
+        EXTENSION: {"transport": transport},
+    }
 
 
 def _validate_policy_binding(
@@ -86,17 +164,17 @@ def _validate_stream_selector(model: type[GuardedRequestModel]) -> None:
 
 
 def export_guard_contract(endpoint: GuardedJsonEndpoint) -> dict[str, Any]:
-    """Describe the buffered policy of the models actually bound to an endpoint.
+    """Describe the payload and stream policy actually bound to an endpoint.
 
     Args:
         endpoint: A trusted endpoint with policy-annotated request and response
             models and their runtime bindings.
 
     Returns:
-        A fresh document with payload schemas, profile, and endpoint labels.
-        The optional request stream selector is descriptive; there is no stream
-        event section. Header/query revision bindings, alternate route ownership,
-        and arbitrary Python behavior are not serialized.
+        A fresh document with payload schemas, profile, endpoint labels, and
+        optional stream event rules and transport metadata. Stateful hooks,
+        header/query revision bindings, alternate route ownership, and arbitrary
+        Python behavior are not serialized.
 
     Raises:
         TypeError: The endpoint or its models do not support policy export.
@@ -130,7 +208,7 @@ def export_guard_contract(endpoint: GuardedJsonEndpoint) -> dict[str, Any]:
         "unsupported_request_code": endpoint.unsupported_request_code,
         "unsupported_response_code": endpoint.unsupported_response_code,
     }
-    return {
+    document = {
         "version": CONTRACT_VERSION,
         "operationId": endpoint.provider_operation_id,
         "profile": request_contract.profile.value,
@@ -138,6 +216,9 @@ def export_guard_contract(endpoint: GuardedJsonEndpoint) -> dict[str, Any]:
         "response": response,
         "integration": integration,
     }
+    if endpoint.stream is not None:
+        document["stream"] = _export_stream(endpoint.stream)
+    return document
 
 
 def _load_endpoint(reference: str) -> GuardedJsonEndpoint:
@@ -155,14 +236,14 @@ def _load_endpoint(reference: str) -> GuardedJsonEndpoint:
 
 
 def main() -> None:
-    """Validate and emit a buffered contract, or check an artifact for exact drift.
+    """Validate and emit a guard contract, or check an artifact for exact drift.
 
     The endpoint argument imports trusted Python code. With --output, create
     parent directories and overwrite the selected file. With --check, leave files
     untouched and exit with status 1 on missing or differing content. With neither
     option, write YAML to stdout. Invalid declarations fail before file writes.
     """
-    parser = argparse.ArgumentParser(description="Export a buffered guard contract from a trusted Python endpoint.")
+    parser = argparse.ArgumentParser(description="Export a guard contract from a trusted Python endpoint.")
     parser.add_argument("endpoint", type=_load_endpoint, help="trusted Python module:attribute (imports code)")
     destination = parser.add_mutually_exclusive_group()
     destination.add_argument("--output", type=Path)

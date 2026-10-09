@@ -456,6 +456,12 @@
         "pattern": {
           "type": "string"
         },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
         "properties": {
           "type": "object",
           "additionalProperties": {

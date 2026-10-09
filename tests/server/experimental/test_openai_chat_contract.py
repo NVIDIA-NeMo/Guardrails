@@ -132,9 +132,10 @@ def test_chat_exports_conform_to_the_guard_contract_schema():
     assert _contract_errors(ChatCompletionsGuardedRequestProjection, ChatCompletionsGuardedResponseProjection) == []
 
 
-def test_contract_schema_check_catches_unexportable_constraints():
+@pytest.mark.parametrize(("bound", "exportable"), [({"ge": 0}, True), ({"le": 0}, True), ({"gt": 0}, False)])
+def test_contract_schema_supports_only_inclusive_numeric_bounds(bound, exportable):
     class Response(PolicyModel):
         text: Annotated[str, guarded("assistant")]
-        count: Annotated[int, Field(ge=0), constrained()]
+        count: Annotated[int, Field(**bound), constrained()]
 
-    assert _contract_errors(ChatCompletionsGuardedRequestProjection, Response)
+    assert (_contract_errors(ChatCompletionsGuardedRequestProjection, Response) == []) is exportable
