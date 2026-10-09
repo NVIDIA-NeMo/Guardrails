@@ -20,6 +20,8 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from jsonschema import Draft202012Validator
+from pydantic import ValidationError
 
 from nemoguardrails.server.experimental._buffered_kernel import InspectionStage, OperationProjectionFailed
 from nemoguardrails.server.experimental._content_checker import (
@@ -30,6 +32,8 @@ from nemoguardrails.server.experimental._content_checker import (
 )
 from nemoguardrails.server.experimental._guarded_operation import UnsupportedGuardedPayload
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse
+from nemoguardrails.server.experimental.provider.projection_policy import EXTENSION
+from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 from nemoguardrails.server.experimental.providers.openai.errors import (
     OPENAI_ERROR_MAPPING,
     OpenAIProxyErrorResponse,
@@ -499,6 +503,46 @@ def test_openai_error_preserves_provider_binding_failure_code():
 
     assert response.status_code == 422
     assert b'"code":"unsupported_provider_api_revision"' in response.body
+
+
+@pytest.mark.parametrize(
+    ("location", "member", "accepted"),
+    [
+        ("root", "model", True),
+        ("root", "metadata", True),
+        ("root", "future_field", False),
+        ("root", "Model", False),
+        ("message", "future_field", False),
+        ("message", "Content", False),
+    ],
+)
+def test_openai_request_openapi_matches_default_object_policy(location, member, accepted):
+    """Published request schemas retain opaque members and close unreviewed ones."""
+    app = FastAPI()
+
+    async def dispatch(_request):
+        raise AssertionError("OpenAPI generation must not dispatch")
+
+    app.include_router(create_openai_chat_router(checker=StaticChecker(), dispatch=dispatch))
+    document = app.openapi()
+    schema = document["paths"]["/v1/chat/completions"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+    message_schema = schema["properties"]["messages"]["items"]
+    assert schema["additionalProperties"] is False
+    assert schema[EXTENSION]["unknown_fields"] == "forbid"
+    assert message_schema["additionalProperties"] is False
+    assert message_schema[EXTENSION]["unknown_fields"] == "configurable"
+    assert message_schema[EXTENSION]["reject_case_aliases"] is True
+    assert schema["properties"]["model"][EXTENSION]["classification"] == "opaque"
+
+    payload = json.loads(_request_body())
+    target = payload if location == "root" else payload["messages"][0]
+    target[member] = {"arbitrary": [1, "opaque"]} if member == "metadata" else "value"
+    assert Draft202012Validator(document).evolve(schema=schema).is_valid(payload) is accepted
+    if accepted:
+        CHAT_COMPLETIONS_ENDPOINT.guarded_request_model.validate_payload(payload)
+    else:
+        with pytest.raises(ValidationError):
+            CHAT_COMPLETIONS_ENDPOINT.guarded_request_model.validate_payload(payload)
 
 
 def test_openai_error_mapping_is_the_openapi_response_authority():

@@ -115,6 +115,62 @@ def test_export_follows_changed_endpoint_metadata(example_endpoint):
     assert contract["integration"]["endpoint"]["unsupported_response_code"] == "different_response_error"
 
 
+def test_http_schema_does_not_require_exportable_unions(example_endpoint):
+    """Policy-aware HTTP schemas preserve unions outside the contract format."""
+    from nemoguardrails.server.experimental._guarded_proxy import create_buffered_guarded_http_operation
+    from nemoguardrails.server.experimental.provider.projection_policy import constrained
+    from nemoguardrails.server.experimental.providers.openai.errors import OPENAI_ERROR_MAPPING
+
+    class UnionRequest(PolicyModel, GuardedRequestModel):
+        prompt: Annotated[str, guarded("user")]
+        option: Annotated[str | int, constrained()]
+
+        @property
+        def streams_response(self) -> bool:
+            return False
+
+    UnionRequest.projection_contract = payload_contract(
+        UnionRequest, projection_id="example.request", direction="request"
+    )
+    UnionRequest.guarded_text_location = example_endpoint.guarded_request_model.guarded_text_location
+    endpoint = replace(example_endpoint, guarded_request_model=UnionRequest)
+
+    with pytest.raises(ValueError, match="disjoint nullable"):
+        export_guard_contract(endpoint)
+
+    operation = create_buffered_guarded_http_operation(endpoint, OPENAI_ERROR_MAPPING)
+    schema = operation.openapi_extra["requestBody"]["content"]["application/json"]["schema"]
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["option"]["anyOf"] == [{"type": "string"}, {"type": "integer"}]
+    for option in ("value", 1):
+        payload = {"prompt": "q", "option": option}
+        Draft202012Validator(schema).validate(payload)
+        UnionRequest.validate_payload(payload)
+
+
+def test_http_schema_supports_models_without_policy_annotations(example_endpoint):
+    """Handwritten bindings need not support contract export to construct a route."""
+    from nemoguardrails.server.experimental._guarded_proxy import create_buffered_guarded_http_operation
+    from nemoguardrails.server.experimental.providers.openai.errors import OPENAI_ERROR_MAPPING
+
+    class PlainRequest(GuardedRequestModel):
+        prompt: str
+
+        @property
+        def streams_response(self) -> bool:
+            return False
+
+    PlainRequest.projection_contract = example_endpoint.guarded_request_model.projection_contract
+    PlainRequest.guarded_text_location = example_endpoint.guarded_request_model.guarded_text_location
+    endpoint = replace(example_endpoint, guarded_request_model=PlainRequest)
+
+    operation = create_buffered_guarded_http_operation(endpoint, OPENAI_ERROR_MAPPING)
+
+    assert operation.openapi_extra["requestBody"]["content"]["application/json"]["schema"] == (
+        PlainRequest.model_json_schema()
+    )
+
+
 @pytest.mark.parametrize("direction", ["request", "response"])
 def test_export_requires_policy_annotated_models(example_endpoint, direction):
     """Valid handwritten runtime bindings alone do not promise exportable policy."""

@@ -39,6 +39,10 @@ are closed by default and explicitly declare configurable unknown-field handling
 and Unicode case-alias rejection. Contract-aware tools must implement those
 annotations when trusted configuration selects `ALLOW`.
 
+The HTTP route publishes the same object-policy rules in its OpenAPI request
+schema: reviewed opaque members remain available, and unreviewed members are
+rejected by default. This schema still does not encode arbitrary Python validators.
+
 The [contract guide](../../../contracts/README.md) defines the document format;
 the [OpenAI boundary summary](../../../contracts/openai/README.md) records its
 scope and provider provenance. Neither is loaded by the models or bindings.

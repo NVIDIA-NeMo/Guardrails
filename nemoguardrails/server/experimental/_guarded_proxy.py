@@ -36,6 +36,7 @@ from nemoguardrails.server.experimental._json_payload import InvalidJson, Unsupp
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapping
 from nemoguardrails.server.experimental.provider.payload import GuardedMessageTarget, guarded_schema_error
+from nemoguardrails.server.experimental.provider.projection_policy import PolicyModel, policy_json_schema
 from nemoguardrails.server.experimental.provider.transport import ProviderBindingViolation
 from nemoguardrails.server.experimental.provider.types import GuardedMessage, JsonObject
 
@@ -174,12 +175,18 @@ def create_buffered_guarded_http_operation(
         except (InvalidJson, UnsupportedJsonShape) as error:
             raise UnsupportedGuardedPayload(str(error)) from error
 
+    request_model = endpoint.guarded_request_model
+    request_schema = (
+        policy_json_schema(request_model)
+        if issubclass(request_model, PolicyModel)
+        else request_model.model_json_schema()
+    )
     openapi_extra = {
         "requestBody": {
             "required": True,
             "content": {
                 "application/json": {
-                    "schema": endpoint.guarded_request_model.model_json_schema(),
+                    "schema": request_schema,
                 }
             },
         }

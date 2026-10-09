@@ -330,6 +330,60 @@ def payload_contract(
     )
 
 
+def policy_json_schema(model: type[PolicyModel]) -> dict[str, Any]:
+    """Describe default object validation without the contract's union restrictions.
+
+    Add reviewed opaque properties, default closure, and explicit object policy
+    to the root and nested model definitions. Inline references so the schema can
+    be embedded in an OpenAPI document without dangling definition paths; retain
+    union semantics. Recursive models cannot be inlined and are rejected.
+    The result is fresh; arbitrary Python validators are not serialized.
+    """
+    document = model.model_json_schema()
+    models = model_graph(model)
+    for node in (document, *document.get("$defs", {}).values()):
+        if "properties" not in node or node.get("title") not in models:
+            continue
+        policy = models[node["title"]].policy
+        metadata = dict(node.get(EXTENSION, {}))
+        if policy.source:
+            metadata["source"] = "#/components/schemas/" + policy.source
+        node["additionalProperties"] = False
+        metadata["unknown_fields"] = policy.unknown_fields
+        metadata["reject_case_aliases"] = True
+        properties = {
+            **node["properties"],
+            **{name: {EXTENSION: {"classification": "opaque"}} for name in policy.opaque},
+        }
+        node["properties"] = dict(sorted(properties.items()))
+        node[EXTENSION] = metadata
+    definitions = document.pop("$defs", {})
+
+    def inline(node: dict[str, Any], active: tuple[str, ...] = ()) -> dict[str, Any]:
+        """Resolve schema references without rewriting unions or opaque values."""
+        if "$ref" in node:
+            name = node["$ref"].removeprefix("#/$defs/")
+            if name in active:
+                raise ValueError("Recursive models are not supported by the inline policy schema")
+            resolved = {**definitions[name], **{key: value for key, value in node.items() if key != "$ref"}}
+            if EXTENSION in resolved:
+                resolved[EXTENSION] = {**node.get(EXTENSION, {}), **definitions[name].get(EXTENSION, {})}
+            return inline(resolved, (*active, name))
+        result = dict(node)
+        if "properties" in result:
+            result["properties"] = {name: inline(child, active) for name, child in result["properties"].items()}
+        if "items" in result:
+            result["items"] = inline(result["items"], active)
+        if isinstance(result.get("additionalProperties"), dict):
+            result["additionalProperties"] = inline(result["additionalProperties"], active)
+        for keyword in ("anyOf", "oneOf", "allOf", "prefixItems"):
+            if keyword in result:
+                result[keyword] = [inline(child, active) for child in result[keyword]]
+        return result
+
+    return inline(document)
+
+
 def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> dict[str, Any]:
     """Export a fresh, inline schema with object and field guard annotations.
 
@@ -354,37 +408,18 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
     upstream provider schema, or capture arbitrary Python validator behavior.
     The operation exporter is responsible for format validation.
     """
-    document = model.model_json_schema()
-    definitions = document.pop("$defs", {})
-    models = model_graph(model)
+    document = policy_json_schema(model)
 
-    def expand(node: dict[str, Any], active: tuple[str, ...] = ()) -> dict[str, Any]:
-        """Inline references and attach object policy without mutating the input."""
-        if "$ref" in node:
-            name = node["$ref"].removeprefix("#/$defs/")
-            if name in active:
-                raise ValueError("Recursive models are not supported by the contract export")
-            return expand({**definitions[name], **{k: v for k, v in node.items() if k != "$ref"}}, (*active, name))
+    def expand(node: dict[str, Any]) -> dict[str, Any]:
+        """Normalize the inline schema to the narrower contract vocabulary."""
         result = dict(node)
         metadata = dict(result.get(EXTENSION, {}))
         if "properties" in result:
-            policy = models[result["title"]].policy
-            if policy.source:
-                metadata["source"] = "#/components/schemas/" + policy.source
-            result["additionalProperties"] = False
-            metadata["unknown_fields"] = policy.unknown_fields
-            metadata["reject_case_aliases"] = True
-            # Opaque values stay runtime extras, but the export lists them as
-            # properties so additionalProperties describes only unreviewed members.
-            properties = {
-                **result["properties"],
-                **{name: {EXTENSION: {"classification": "opaque"}} for name in policy.opaque},
-            }
-            result["properties"] = {name: expand(child, active) for name, child in sorted(properties.items())}
+            result["properties"] = {name: expand(child) for name, child in result["properties"].items()}
         else:
             result.pop("title", None)
         if "items" in result:
-            result["items"] = expand(result["items"], active)
+            result["items"] = expand(result["items"])
         if "anyOf" in result:
             alternatives = result.pop("anyOf")
             non_null = [branch for branch in alternatives if branch != {"type": "null"}]
@@ -397,7 +432,7 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
             result["oneOf"] = alternatives
         for keyword in ("anyOf", "oneOf", "allOf"):
             if keyword in result:
-                result[keyword] = [expand(child, active) for child in result[keyword]]
+                result[keyword] = [expand(child) for child in result[keyword]]
         if metadata:
             result[EXTENSION] = metadata
         return result
