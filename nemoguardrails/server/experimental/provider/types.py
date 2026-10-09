@@ -16,7 +16,17 @@
 """Define provider-neutral values shared by the guarded proxy pipeline."""
 
 from dataclasses import dataclass
-from typing import Literal
+from enum import Enum
+from typing import Any, Literal
+
+JsonObject = dict[str, Any]
+
+
+class UnknownContentFieldPolicy(str, Enum):
+    """Control whether unreviewed fields may accompany guarded content."""
+
+    ALLOW = "allow"
+    FORBID = "forbid"
 
 
 @dataclass(frozen=True, slots=True)
