@@ -33,16 +33,56 @@ import importlib
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args, get_origin
 
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
-from nemoguardrails.server.experimental.provider.payload import validate_payload_projection_contract
+from nemoguardrails.server.experimental.provider.payload import (
+    GuardedPayloadModel,
+    GuardedRequestModel,
+    PayloadProjectionContract,
+    validate_payload_projection_contract,
+)
 from nemoguardrails.server.experimental.provider.projection_policy import (
     CONTRACT_VERSION,
     EXTENSION,
     PolicyModel,
     export_payload_schema,
+    payload_contract,
+    text_location,
 )
+
+
+def _validate_policy_binding(
+    model: type[GuardedPayloadModel], direction: Literal["request", "response"]
+) -> PayloadProjectionContract:
+    """Reject drift between supported runtime bindings and exported field policy."""
+    if not issubclass(model, PolicyModel):
+        raise TypeError("Contract export requires policy-annotated endpoint models")
+    contract = validate_payload_projection_contract(model, direction)
+    expected = payload_contract(
+        model, projection_id=contract.projection_id, direction=direction, profile=contract.profile
+    )
+    if contract != expected:
+        raise ValueError(f"{model.__name__}: payload coverage differs from field policy")
+    if model.locate_guarded_message is not GuardedPayloadModel.locate_guarded_message:
+        raise ValueError("Custom text extraction cannot be represented by the buffered contract")
+    if model.guarded_text_location != text_location(model):
+        raise ValueError(f"{model.__name__}: text binding differs from field policy")
+    return contract
+
+
+def _validate_stream_selector(model: type[GuardedRequestModel]) -> None:
+    """Require a declared selector to use the standard boolean-field binding."""
+    selector = model.stream_selector_field
+    if selector is None:
+        return
+    field = model.model_fields.get(selector)
+    annotation = field.annotation if field is not None else None
+    literal_boolean = get_origin(annotation) is Literal and all(type(value) is bool for value in get_args(annotation))
+    if annotation is not bool and not literal_boolean:
+        raise ValueError("The stream selector must name a boolean field")
+    if model.streams_response is not GuardedRequestModel.streams_response:
+        raise ValueError("Custom response-mode selection cannot be represented by the declared stream selector")
 
 
 def export_guard_contract(endpoint: GuardedJsonEndpoint) -> dict[str, Any]:
@@ -60,8 +100,8 @@ def export_guard_contract(endpoint: GuardedJsonEndpoint) -> dict[str, Any]:
 
     Raises:
         TypeError: The endpoint or its models do not support policy export.
-        ValueError: Identity or projection metadata is invalid, or a payload
-            schema uses a construct unsupported by the shared schema exporter.
+        ValueError: Bound coverage, extraction, replacement, or stream selection
+            disagrees with the field policy, or a schema construct is unsupported.
 
     No files are read or written. The CLI separately validates the document
     format; neither step proves upstream compatibility or runtime equivalence.
@@ -72,8 +112,11 @@ def export_guard_contract(endpoint: GuardedJsonEndpoint) -> dict[str, Any]:
     response_model = endpoint.guarded_response_model
     if not issubclass(request_model, PolicyModel) or not issubclass(response_model, PolicyModel):
         raise TypeError("Contract export requires policy-annotated endpoint models")
-    request_contract = validate_payload_projection_contract(request_model, "request")
-    response_contract = validate_payload_projection_contract(response_model, "response")
+    request_contract = _validate_policy_binding(request_model, "request")
+    response_contract = _validate_policy_binding(response_model, "response")
+    if request_contract.profile != response_contract.profile:
+        raise ValueError("Guarded request and response capability profiles must match")
+    _validate_stream_selector(request_model)
     request = export_payload_schema(request_model, projection_id=request_contract.projection_id)
     response = export_payload_schema(response_model, projection_id=response_contract.projection_id)
     if request_model.stream_selector_field is not None:

@@ -57,7 +57,11 @@ scope and provider provenance. Neither is loaded by the models or bindings.
 ## Buffered contract export
 
 The shared [contract exporter](../../../provider/contract_export.py) takes the
-runtime endpoint, including its declared document identity. No per-operation exporter is needed:
+runtime endpoint, including its declared document identity. No per-operation exporter is needed.
+
+Before export, it checks coverage, text bindings, replacement restrictions, and any
+declared stream selector against the field policy. Custom extraction and mismatched
+bindings are rejected rather than described as if they were equivalent.
 
 ```python
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract

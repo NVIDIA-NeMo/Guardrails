@@ -28,11 +28,17 @@ from jsonschema import Draft202012Validator
 
 from nemoguardrails.server.experimental.provider.contract_export import _load_endpoint, export_guard_contract
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
-from nemoguardrails.server.experimental.provider.payload import GuardedPayloadModel, GuardedRequestModel
+from nemoguardrails.server.experimental.provider.payload import (
+    GuardedPayloadModel,
+    GuardedRequestModel,
+    GuardedTextLocation,
+)
 from nemoguardrails.server.experimental.provider.projection_policy import (
     EXTENSION,
     PolicyModel,
+    constrained,
     guarded,
+    opaque,
     payload_contract,
     text_location,
 )
@@ -96,6 +102,76 @@ def test_export_supports_another_endpoint_without_a_stream_selector(example_endp
     assert "stream" not in contract
 
 
+@pytest.mark.parametrize("direction", ["request", "response"])
+@pytest.mark.parametrize("mutation", ["replacement", "coverage", "custom_extraction"])
+def test_export_rejects_binding_policy_drift(example_endpoint, direction, mutation, monkeypatch):
+    """Export checks the actual binding, not only whether every field is listed."""
+    model = getattr(example_endpoint, f"guarded_{direction}_model")
+    if mutation == "replacement":
+        location = model.guarded_text_location
+        monkeypatch.setattr(
+            model, "guarded_text_location", replace(location, allows_replacement=not location.allows_replacement)
+        )
+    elif mutation == "coverage":
+        contract = model.projection_contract
+        coverage = replace(contract.root, guarded_fields=frozenset(), constrained_fields=contract.root.guarded_fields)
+        monkeypatch.setattr(model, "projection_contract", replace(contract, root=coverage))
+    else:
+
+        def custom_extraction(self, payload):
+            return self.guarded_text_location.locate(payload)
+
+        monkeypatch.setattr(model, "locate_guarded_message", custom_extraction)
+    with pytest.raises(ValueError, match="differs from field policy|Custom text extraction"):
+        export_guard_contract(example_endpoint)
+
+
+def test_export_rejects_a_binding_that_inspects_an_opaque_field(example_endpoint):
+    """A valid runtime locator cannot silently contradict the annotated subject."""
+
+    class Request(PolicyModel, GuardedRequestModel):
+        prompt: Annotated[str, guarded("user")]
+        audit: Annotated[str, opaque()]
+
+        @property
+        def streams_response(self) -> bool:
+            return False
+
+    Request.projection_contract = payload_contract(Request, projection_id="example.request", direction="request")
+    Request.guarded_text_location = GuardedTextLocation("user", (), "audit", allows_replacement=False)
+    endpoint = replace(example_endpoint, guarded_request_model=Request)
+    payload = {"prompt": "user content", "audit": "opaque label"}
+    assert Request.validate_payload(payload).locate_guarded_message(payload).message.content == "opaque label"
+    with pytest.raises(ValueError, match="text binding differs from field policy"):
+        export_guard_contract(endpoint)
+
+
+@pytest.mark.parametrize("selector", ["missing", "prompt"])
+def test_export_rejects_non_boolean_stream_selectors(example_endpoint, selector, monkeypatch):
+    """A declared stream selector must name a boolean field, not arbitrary metadata."""
+    monkeypatch.setattr(example_endpoint.guarded_request_model, "stream_selector_field", selector)
+    with pytest.raises(ValueError, match="boolean field"):
+        export_guard_contract(example_endpoint)
+
+
+def test_export_rejects_custom_selection_with_a_declared_stream_selector(example_endpoint):
+    """An exported boolean selector must describe the runtime selection rule."""
+
+    class Request(PolicyModel, GuardedRequestModel):
+        prompt: Annotated[str, guarded("user")]
+        stream: Annotated[bool, constrained()] = False
+
+        @property
+        def streams_response(self) -> bool:
+            return not self.stream
+
+    Request.projection_contract = payload_contract(Request, projection_id="example.request", direction="request")
+    Request.guarded_text_location = text_location(Request)
+    Request.stream_selector_field = "stream"
+    with pytest.raises(ValueError, match="Custom response-mode selection"):
+        export_guard_contract(replace(example_endpoint, guarded_request_model=Request))
+
+
 def test_export_follows_changed_endpoint_metadata(example_endpoint):
     """An endpoint variant changes the export without a provider-specific wrapper."""
     endpoint = replace(
@@ -132,7 +208,7 @@ def test_http_schema_does_not_require_exportable_unions(example_endpoint):
     UnionRequest.projection_contract = payload_contract(
         UnionRequest, projection_id="example.request", direction="request"
     )
-    UnionRequest.guarded_text_location = example_endpoint.guarded_request_model.guarded_text_location
+    UnionRequest.guarded_text_location = text_location(UnionRequest)
     endpoint = replace(example_endpoint, guarded_request_model=UnionRequest)
 
     with pytest.raises(ValueError, match="disjoint nullable"):
