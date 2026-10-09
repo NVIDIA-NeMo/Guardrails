@@ -21,10 +21,11 @@ import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import pytest
 from jsonschema import Draft202012Validator
+from pydantic import StrictBool
 
 from nemoguardrails.server.experimental.provider.contract_export import _load_endpoint, export_guard_contract
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
@@ -152,6 +153,48 @@ def test_export_rejects_non_boolean_stream_selectors(example_endpoint, selector,
     monkeypatch.setattr(example_endpoint.guarded_request_model, "stream_selector_field", selector)
     with pytest.raises(ValueError, match="boolean field"):
         export_guard_contract(example_endpoint)
+
+
+@pytest.mark.parametrize(
+    ("annotation", "accepted"),
+    [
+        (bool, True),
+        (StrictBool, True),
+        (bool | None, True),
+        (StrictBool | None, True),
+        (Literal[True, False] | None, True),
+        (str | None, False),
+        (int | None, False),
+        (bool | int | None, False),
+        (Literal[0, 1] | None, False),
+        (type(None), False),
+    ],
+)
+def test_export_accepts_only_boolean_or_nullable_boolean_selectors(example_endpoint, annotation, accepted):
+    """Export recognizes nullable booleans, not arbitrary truthy field types."""
+
+    class Request(PolicyModel, GuardedRequestModel):
+        prompt: Annotated[str, guarded("user")]
+        stream: Annotated[annotation, constrained()] = False
+
+    Request.projection_contract = payload_contract(Request, projection_id="example.request", direction="request")
+    Request.guarded_text_location = text_location(Request)
+    Request.stream_selector_field = "stream"
+    endpoint = replace(example_endpoint, guarded_request_model=Request)
+    if not accepted:
+        with pytest.raises(ValueError, match="boolean field"):
+            export_guard_contract(endpoint)
+        return
+    contract = export_guard_contract(endpoint)
+    assert contract["request"][EXTENSION]["stream_selector_field"] == "stream"
+    validator = Draft202012Validator(contract["request"])
+    for value in (True, False, None):
+        payload = {"prompt": "question", "stream": value}
+        if value is None and annotation in (bool, StrictBool):
+            assert not validator.is_valid(payload)
+        else:
+            validator.validate(payload)
+            assert Request.model_validate(payload).streams_response is (value is True)
 
 
 def test_export_rejects_custom_selection_with_a_declared_stream_selector(example_endpoint):

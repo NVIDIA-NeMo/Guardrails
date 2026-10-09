@@ -33,7 +33,8 @@ import importlib
 import json
 import sys
 from pathlib import Path
-from typing import Any, Literal, get_args, get_origin
+from types import UnionType
+from typing import Annotated, Any, Literal, Union, get_args, get_origin
 
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.provider.payload import (
@@ -150,12 +151,18 @@ def _validate_policy_binding(
 
 
 def _validate_stream_selector(model: type[GuardedRequestModel]) -> None:
-    """Require a declared selector to use the standard boolean-field binding."""
+    """Require a boolean selector; permitted null values select buffered output."""
     selector = model.stream_selector_field
     if selector is None:
         return
     field = model.model_fields.get(selector)
     annotation = field.annotation if field is not None else None
+    if get_origin(annotation) in (Union, UnionType) and type(None) in get_args(annotation):
+        members = [member for member in get_args(annotation) if member is not type(None)]
+        if len(members) == 1:
+            annotation = members[0]
+    while get_origin(annotation) is Annotated:
+        annotation = get_args(annotation)[0]
     literal_boolean = get_origin(annotation) is Literal and all(type(value) is bool for value in get_args(annotation))
     if annotation is not bool and not literal_boolean:
         raise ValueError("The stream selector must name a boolean field")

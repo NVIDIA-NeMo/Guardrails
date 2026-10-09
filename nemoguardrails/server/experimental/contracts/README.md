@@ -88,7 +88,10 @@ Provider-required opaque fields may be left to provider validation; a projection
 
 Object `variant` metadata describes discriminator matching and selected-variant
 cardinality. This is distinct from ordinary array length constraints.
-`stream_selector_field` identifies a request flag, not streaming support.
+`stream_selector_field` names a boolean request field: true selects streaming;
+false or null selects buffered output, with null allowed only when the field's
+schema permits it. Omission follows the declared default. This marker does not
+enable streaming support or make a field nullable.
 
 A stream's `oneOf` branches describe event families: `guarded_delta`, `snapshot`,
 `opaque`, or `provider_error`. Their variants identify source schemas, matching

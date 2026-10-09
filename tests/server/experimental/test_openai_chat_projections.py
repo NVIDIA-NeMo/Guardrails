@@ -185,11 +185,12 @@ def test_request_projection_accepts_openai_reasoning_efforts(effort):
     assert projection.reasoning_effort == effort
 
 
-def test_request_projection_reports_streaming_response_mode():
-    """The request projection preserves the operation's boolean stream selector."""
-    _, projection, _ = _guarded_request(_json_bytes(_request(stream=True)))
+@pytest.mark.parametrize(("selector", "streaming"), [(True, True), (False, False), (None, False)])
+def test_request_projection_reports_streaming_response_mode(selector, streaming):
+    """Only true selects streaming; explicit null selects buffered output."""
+    _, projection, _ = _guarded_request(_json_bytes(_request(stream=selector)))
 
-    assert projection.streams_response is True
+    assert projection.streams_response is streaming
 
 
 def test_response_binding_targets_original_provider_object_without_rewriting_bytes():
@@ -490,7 +491,7 @@ def test_n_rejects_coercible_and_other_values(value):
         ChatCompletionsGuardedRequest.model_validate({"messages": [{"role": "user", "content": "q"}], "n": value})
 
 
-@pytest.mark.parametrize("value", [0, 1, "true", None])
+@pytest.mark.parametrize("value", [0, 1, "true", "false", "", [], {}])
 def test_stream_stays_strict(value):
     with pytest.raises(ValidationError):
         ChatCompletionsGuardedRequest.model_validate({"messages": [{"role": "user", "content": "q"}], "stream": value})
@@ -551,7 +552,7 @@ def test_export_follows_each_object_unknown_field_policy():
         assert node[EXTENSION]["reject_case_aliases"] is True
 
 
-def test_field_validation_matches_original_unannotated_declarations():
+def test_field_validation_matches_equivalent_unannotated_declarations():
     from itertools import product
     from typing import Any
 
@@ -559,7 +560,7 @@ def test_field_validation_matches_original_unannotated_declarations():
 
     class OriginalRequestFields(BaseModel):
         n: Literal[1] = 1
-        stream: StrictBool = False
+        stream: StrictBool | None = False
         audio: None = None
 
     class OriginalResponseFields(BaseModel):

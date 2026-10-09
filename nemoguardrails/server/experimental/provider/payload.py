@@ -388,7 +388,11 @@ class GuardedRequestModel(GuardedPayloadModel):
 
     @property
     def streams_response(self) -> bool:
-        """Return the provider response mode selected by this request."""
+        """Read the validated selector; a permitted null selects buffered output.
+
+        Missing fields use their model default. The field declaration determines
+        whether null is accepted; the binding does not make a field nullable.
+        """
         if self.stream_selector_field is None:
             raise TypeError("The guarded request model does not declare a stream selector field.")
         return bool(getattr(self, self.stream_selector_field))

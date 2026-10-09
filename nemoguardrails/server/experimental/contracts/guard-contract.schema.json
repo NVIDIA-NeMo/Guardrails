@@ -361,6 +361,7 @@
           ]
         },
         "stream_selector_field": {
+          "description": "Names a boolean request field: true selects streaming; false or a schema-permitted null selects buffered output. Omission follows the field default. The marker does not enable streaming support.",
           "type": "string",
           "minLength": 1
         },

@@ -204,7 +204,8 @@ async def test_streaming_chat_uses_one_prepared_request_and_preserves_provider_s
 
 
 @pytest.mark.asyncio
-async def test_non_streaming_request_uses_the_same_operation_and_buffered_dispatch():
+@pytest.mark.parametrize("selector", [False, None, "omitted"])
+async def test_non_streaming_request_uses_the_same_operation_and_buffered_dispatch(selector):
     buffered = []
     streamed = []
 
@@ -221,11 +222,16 @@ async def test_non_streaming_request_uses_the_same_operation_and_buffered_dispat
         raise AssertionError("a buffered request must not use streaming dispatch")
 
     checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+    payload = json.loads(request_body(stream=selector))
+    if selector == "omitted":
+        del payload["stream"]
+    body = json.dumps(payload, indent=2).encode()
     async with make_client(checker, stream_dispatch, buffered_dispatch) as client:
-        response = await post_stream(client, request_body(stream=False))
+        response = await post_stream(client, body)
 
     assert response.status_code == 200
     assert len(buffered) == 1
+    assert buffered[0].body == body
     assert streamed == []
     assert [kind for kind, _ in checker.calls] == ["input", "output"]
     assert checker.policy_reads == 1

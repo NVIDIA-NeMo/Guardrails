@@ -86,7 +86,7 @@ class ChatCompletionsGuardedRequestProjection(PolicyModel, GuardedRequestModel):
     n: Annotated[
         Literal[1], BeforeValidator(_require_int), constrained(reason="core_capability.single_text_target")
     ] = 1
-    stream: Annotated[StrictBool, constrained()] = False
+    stream: Annotated[StrictBool | None, constrained()] = False
     audio: Annotated[None, disabled("core_capability.audio_content")] = None
     function_call: Annotated[None, disabled("core_capability.tool_content")] = None
     functions: Annotated[None, disabled("core_capability.tool_content")] = None

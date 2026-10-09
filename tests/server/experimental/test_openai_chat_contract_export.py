@@ -69,6 +69,21 @@ def test_export_uses_the_runtime_endpoint_metadata():
     )
 
 
+@pytest.mark.parametrize("value", [True, False, None, 0, 1, "true", "false", [], {}])
+def test_stream_selector_export_matches_runtime(value):
+    """The published selector permits null but does not coerce other values."""
+    payload = {"messages": [{"role": "user", "content": "question"}], "stream": value}
+    validator = Draft202012Validator(export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)["request"])
+    model = CHAT_COMPLETIONS_ENDPOINT.guarded_request_model
+    if value is None or type(value) is bool:
+        validator.validate(payload)
+        assert model.validate_payload(payload).streams_response is (value is True)
+    else:
+        assert not validator.is_valid(payload)
+        with pytest.raises(ValidationError):
+            model.validate_payload(payload)
+
+
 def test_export_does_not_read_files(monkeypatch):
     def unexpected_read(*args, **kwargs):
         raise AssertionError("Export must derive from Python, not read YAML")

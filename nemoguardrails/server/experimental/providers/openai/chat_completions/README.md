@@ -6,7 +6,7 @@ guarded/constrained/disabled/opaque policy, and assignments express defaults:
 
 ```python
 n: Annotated[Literal[1], BeforeValidator(_require_int), constrained(reason="core_capability.single_text_target")] = 1
-stream: Annotated[StrictBool, constrained()] = False
+stream: Annotated[StrictBool | None, constrained()] = False
 audio: Annotated[None, disabled("core_capability.audio_content")] = None
 ```
 
@@ -37,9 +37,12 @@ validators.
 Streaming classification, stateful hooks, and endpoint construction are outside
 this buffered projection layer.
 
-Existing buffered validation behavior is preserved: omitted disabled fields
+Buffered validation uses the same field policy: omitted disabled fields
 default to null, explicit non-null disabled values fail, `stream` is a strict
-boolean, and response annotations accept only null or an empty list. `n` accepts only the
+boolean or null, and response annotations accept only null or an empty list. Only
+`stream: true` selects streaming; false, null, or omission selects buffered output.
+The original request bytes are forwarded without normalizing null to false.
+`n` accepts only the
 integer `1`; booleans, strings, and floats are rejected. Generic JSON Schema
 and Python validation are not claimed to be interchangeable. Canonical exports
 are closed by default and explicitly declare configurable unknown-field handling

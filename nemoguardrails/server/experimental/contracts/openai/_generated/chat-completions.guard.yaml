@@ -176,9 +176,11 @@ request:
         classification: opaque
     stream:
       default: false
-      type: boolean
       x-nemo-guardrails:
         classification: constrained
+      oneOf:
+      - type: boolean
+      - type: 'null'
     stream_options:
       x-nemo-guardrails:
         classification: opaque
