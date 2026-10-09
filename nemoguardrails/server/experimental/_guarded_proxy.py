@@ -67,6 +67,18 @@ def _header(headers: tuple[tuple[bytes, bytes], ...], name: bytes) -> str | None
     return values[-1] if values else None
 
 
+def _request_identity_encoding(headers: tuple[tuple[bytes, bytes], ...]) -> tuple[tuple[bytes, bytes], ...]:
+    """Ask the provider for an unencoded response that output checks can read.
+
+    Clients such as the OpenAI SDK accept gzip, and an encoded successful
+    response cannot be inspected.
+    """
+    return (
+        *((key, value) for key, value in headers if key.lower() != b"accept-encoding"),
+        (b"accept-encoding", b"identity"),
+    )
+
+
 def _media_type(value: str | None) -> str | None:
     """Return a normalized media type without parameters."""
     return value.split(";", 1)[0].strip().lower() if value is not None else None
@@ -147,7 +159,11 @@ def create_buffered_guarded_http_operation(
     def forward_request(request: GuardableProviderRequest) -> BufferedHttpRequest:
         """Return the provider request that should be dispatched."""
         prepared = _prepare_provider_request(request)
-        return replace(request.request, body=prepared.body)
+        return replace(
+            request.request,
+            body=prepared.body,
+            headers=_request_identity_encoding(request.request.headers),
+        )
 
     def project_response(
         payload: BufferedHttpResponse,

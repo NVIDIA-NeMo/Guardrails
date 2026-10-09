@@ -236,6 +236,43 @@ async def test_output_block_hides_provider_response_in_openai_error():
     assert "x-provider-secret" not in response.headers
 
 
+@pytest.mark.asyncio
+async def test_guarded_request_asks_the_provider_for_identity_encoding(proxy_harness):
+    """A client that accepts gzip still gets a response the proxy can inspect."""
+    client, checker, dispatched = proxy_harness
+
+    response = await client.post(
+        "/v1/chat/completions",
+        content=_request_body(),
+        headers={"content-type": "application/json", "accept-encoding": "gzip, deflate, br"},
+    )
+
+    assert response.status_code == 200
+    assert [value for key, value in dispatched[0].headers if key.lower() == b"accept-encoding"] == [b"identity"]
+    assert [stage for stage, _check in checker.calls] == ["input", "output"]
+
+
+@pytest.mark.asyncio
+async def test_encoded_successful_response_is_not_inspected_or_relayed():
+    """A provider that encodes anyway is rejected rather than relayed unchecked."""
+    checker = StaticChecker()
+
+    async def dispatch(_request):
+        """Return a gzip-labelled response despite the identity request."""
+        return BufferedHttpResponse(200, _json_headers((b"content-encoding", b"gzip")), b"\x1f\x8b")
+
+    app = FastAPI()
+    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post(
+            "/v1/chat/completions", content=_request_body(), headers={"content-type": "application/json"}
+        )
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "unsupported_chat_completions_response_shape"
+    assert [stage for stage, _check in checker.calls] == ["input"]
+
+
 async def _relay_through_proxy(message, finish_reason="stop"):
     """Send one provider response message through the proxy and record its checks."""
     checker = StaticChecker(output_decision=ContentBlocked("Response blocked."))
