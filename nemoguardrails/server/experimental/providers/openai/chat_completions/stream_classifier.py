@@ -29,9 +29,12 @@ from nemoguardrails.server.experimental.provider.stream import (
 from nemoguardrails.server.experimental.provider.stream_classifier import (
     StreamClassifierDefinition,
     StreamEventRule,
-    build_stream_classifier,
 )
-from nemoguardrails.server.experimental.provider.stream_policy import stream_shape_coverage, stream_text_path
+from nemoguardrails.server.experimental.provider.stream_policy import (
+    build_policy_stream_classifier,
+    stream_shape_coverage,
+    stream_text_path,
+)
 from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_projection import (
     ChatCompletionsStreamErrorProjection,
     ChatCompletionsStreamPayloadProjection,
@@ -83,7 +86,7 @@ STREAM_FIELDS = (
     STREAM_FIELD_COVERAGE.opaque_fields,
 )
 
-STREAM_CLASSIFIER = build_stream_classifier(
+STREAM_CLASSIFIER = build_policy_stream_classifier(
     StreamClassifierDefinition(
         subject=PROJECTION_ID,
         contract=STREAM_CONTRACT,

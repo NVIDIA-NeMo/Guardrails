@@ -15,6 +15,7 @@
 
 """Exercise typed stream metadata derivation without provider services."""
 
+from dataclasses import replace
 from typing import Annotated
 
 import pytest
@@ -24,6 +25,7 @@ from nemoguardrails.server.experimental.provider import projection_policy
 from nemoguardrails.server.experimental.provider.projection_policy import (
     PolicyModel,
     constrained,
+    field_coverage,
     guarded,
     text_location,
 )
@@ -182,3 +184,66 @@ def test_stream_path_rejects_union_containers_and_recursion():
         stream_text_path(Either)
     with pytest.raises(ValueError, match="Recursive"):
         stream_text_path(Node)
+
+
+@pytest.mark.parametrize("mutation", ["path", "role", "coverage", "inventory"])
+def test_typed_classifier_rejects_policy_drift(mutation):
+    """Binding mistakes must not downgrade guarded content to metadata."""
+    from nemoguardrails.server.experimental.provider import stream_policy
+
+    event = StreamEventRule(
+        "text",
+        DeltaEnvelope,
+        StreamEventRole.GUARDED_TEXT,
+        required_fields=frozenset({"deltas"}),
+        text_path=("deltas", 0, "text"),
+        missing_text_role=StreamEventRole.OPAQUE_METADATA,
+        missing_text_shape="metadata",
+    )
+    coverage = stream_shape_coverage((event,))
+    contract = StreamProjectionContract(
+        "example", StreamCapabilityProfile.SINGLE_TEXT_DELTA_V1, coverage, field_coverage(DeltaEnvelope)
+    )
+    if mutation == "path":
+        event = replace(event, text_path=("deltas", 1, "text"))
+    elif mutation == "role":
+        event = replace(
+            event, role=StreamEventRole.OPAQUE_METADATA, text_path=None, missing_text_role=None, missing_text_shape=None
+        )
+        contract = replace(contract, shapes=stream_shape_coverage((event,)))
+    elif mutation == "coverage":
+        contract = replace(
+            contract, fields=replace(contract.fields, guarded_fields=frozenset(), opaque_fields=frozenset({"deltas"}))
+        )
+    else:
+        contract = replace(contract, shapes=replace(coverage, opaque_shapes=frozenset({"metadata", "undeclared"})))
+    definition = StreamClassifierDefinition("example", contract, (event,))
+    with pytest.raises(ValueError, match="field policy|guarded subject|event rules"):
+        stream_policy.build_policy_stream_classifier(definition)
+
+
+def test_typed_classifier_preserves_nullable_missing_text_and_checks_actual_text():
+    """Validated bindings retain explicit missing-text behavior."""
+    from nemoguardrails.server.experimental.provider import stream_policy
+    from nemoguardrails.server.experimental.provider.sse import ServerSentEvent
+
+    event = StreamEventRule(
+        "text",
+        DeltaEnvelope,
+        StreamEventRole.GUARDED_TEXT,
+        required_fields=frozenset({"deltas"}),
+        text_path=stream_text_path(DeltaEnvelope),
+        missing_text_role=StreamEventRole.OPAQUE_METADATA,
+        missing_text_shape="metadata",
+    )
+    contract = StreamProjectionContract(
+        "example", StreamCapabilityProfile.SINGLE_TEXT_DELTA_V1, stream_shape_coverage((event,))
+    )
+    classifier = stream_policy.build_policy_stream_classifier(StreamClassifierDefinition("example", contract, (event,)))
+    assert (
+        classifier.classify_event(ServerSentEvent.from_bytes(b'data: {"deltas": []}\n\n')).role
+        is StreamEventRole.OPAQUE_METADATA
+    )
+    classified = classifier.classify_event(ServerSentEvent.from_bytes(b'data: {"deltas": [{"text": "checked"}]}\n\n'))
+    assert classified.role is StreamEventRole.GUARDED_TEXT
+    assert classified.text == "checked"

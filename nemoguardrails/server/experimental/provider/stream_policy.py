@@ -24,9 +24,20 @@ They operate on trusted framework declarations, not user-supplied schemas.
 from types import UnionType
 from typing import Annotated, Any, Union, get_args, get_origin
 
-from nemoguardrails.server.experimental.provider.projection_policy import PolicyModel, field_policy
+from nemoguardrails.server.experimental.provider.projection_policy import (
+    PolicyModel,
+    field_coverage,
+    field_policy,
+    model_graph,
+)
 from nemoguardrails.server.experimental.provider.stream import StreamEventRole, StreamShapeCoverage
-from nemoguardrails.server.experimental.provider.stream_classifier import StreamEventRule, StreamTextPath
+from nemoguardrails.server.experimental.provider.stream_classifier import (
+    StreamClassifier,
+    StreamClassifierDefinition,
+    StreamEventRule,
+    StreamTextPath,
+    build_stream_classifier,
+)
 
 
 def stream_text_path(model: type[PolicyModel]) -> StreamTextPath:
@@ -126,3 +137,51 @@ def stream_shape_coverage(
         opaque_shapes=frozenset(groups[StreamEventRole.OPAQUE_METADATA]),
         provider_error_shapes=frozenset(groups[StreamEventRole.PROVIDER_ERROR]),
     )
+
+
+def validate_stream_policy(definition: StreamClassifierDefinition | StreamClassifier) -> None:
+    """Require a typed classifier's runtime bindings to agree with field policy.
+
+    Text-bearing rules must follow the unique assistant subject derived from
+    guarded fields. Non-text rules cannot hide a declared subject. Coverage
+    must describe exactly the bound rules and transport shapes. This validates
+    the derivable typed subset; custom selectors and handwritten classifiers
+    can use the lower-level runtime interfaces but are not implicitly exportable.
+    No schemas are generated and no protocol hooks are instantiated.
+    """
+    expected_shapes = stream_shape_coverage(
+        definition.rules, sentinels=definition.sentinels, non_data_shape=definition.non_data_shape
+    )
+    if definition.contract.shapes != expected_shapes:
+        raise ValueError("Stream coverage differs from the bound event rules")
+    text_models: set[type[PolicyModel]] = set()
+    for rule in definition.rules:
+        if not issubclass(rule.model, PolicyModel):
+            raise TypeError("Typed stream bindings require policy-annotated event models")
+        subjects = [
+            field_policy(field)["subject"]
+            for model in model_graph(rule.model).values()
+            for field in model.model_fields.values()
+            if field_policy(field).get("subject")
+        ]
+        if rule.role in {StreamEventRole.GUARDED_TEXT, StreamEventRole.TEXT_SNAPSHOT}:
+            if len(subjects) != 1 or subjects[0].get("role") != "assistant":
+                raise ValueError("A text event requires one guarded subject with the assistant role")
+            if rule.text_path != stream_text_path(rule.model):
+                raise ValueError(f"Stream event {rule.shape!r}: text binding differs from field policy")
+            text_models.add(rule.model)
+        elif subjects:
+            raise ValueError(f"Stream event {rule.shape!r}: a non-text role hides a guarded subject")
+    if definition.contract.fields is not None:
+        if len(text_models) != 1 or definition.contract.fields != field_coverage(next(iter(text_models))):
+            raise ValueError("Stream field coverage differs from field policy")
+    sentinels = [value for value, _ in definition.sentinels]
+    if any(not value or value != value.strip() for value in sentinels) or len(set(sentinels)) != len(sentinels):
+        raise ValueError("Stream sentinels must be unique nonempty canonical byte strings")
+
+
+def build_policy_stream_classifier(definition: StreamClassifierDefinition) -> StreamClassifier:
+    """Build a classifier only after generic and typed-policy checks pass."""
+    classifier = build_stream_classifier(definition)
+    validate_stream_policy(classifier)
+    return classifier
