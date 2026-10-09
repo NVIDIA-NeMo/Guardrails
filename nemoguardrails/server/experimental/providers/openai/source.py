@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Identify the pinned OpenAI OpenAPI document behind the Chat policy.
+"""Pinned OpenAI OpenAPI source metadata.
 
-These values mirror contracts/openai/source.yaml, which is the reviewed pin,
-and a test keeps them equal. Code that needs the pin imports it from here
-instead of loading YAML or repeating the values.
+These constants mirror contracts/openai/source.yaml; a test checks that
+the values match.
 """
 
 PROVIDER_DOCUMENT_URL = (

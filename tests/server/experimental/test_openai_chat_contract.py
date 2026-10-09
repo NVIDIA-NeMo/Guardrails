@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Validate Chat contract exports and pinned provider metadata offline."""
+"""Tests for Chat contract exports and OpenAI source metadata."""
 
 import json
 import re

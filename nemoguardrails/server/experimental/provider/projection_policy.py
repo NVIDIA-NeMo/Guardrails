@@ -13,16 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Declare projection policy and derive buffered runtime metadata and schemas.
+"""Field and object policies for provider payload projections.
 
-Model field types define accepted values; Annotated field helpers attach guard
-policy, and assignments declare defaults. ObjectPolicy records object-level
-source and coverage information. PolicyModel checks local declaration consistency.
-
-Bindings use these declarations to derive coverage and a single guarded text
-location. The exporter produces a read-side schema without loading YAML, checking
-an upstream provider document, or compiling a contract into Python. These helpers
-operate on trusted framework-authored models, not externally supplied Python.
+Model declarations provide field coverage, guarded text locations, and
+exported contract schemas.
 """
 
 from __future__ import annotations

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Declare buffered Chat response policy and text replacement restrictions."""
+"""Field policies for guarded buffered OpenAI Chat Completions responses."""
 
 from typing import Annotated, Any, ClassVar, Literal
 

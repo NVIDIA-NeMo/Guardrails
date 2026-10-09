@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Bind the handwritten Chat Completions request policy to the runtime."""
+"""Guarded text bindings for OpenAI Chat Completions requests."""
 
 from nemoguardrails.server.experimental.provider.projection_policy import payload_contract, text_location
 from nemoguardrails.server.experimental.providers.openai.chat_completions.request_projection import (

@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Private staged OpenAI provider implementation."""
+"""OpenAI payload policies and source metadata."""

@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Staged generated-looking OpenAI Chat Completions modules."""
+"""Buffered OpenAI Chat Completions projections and bindings."""

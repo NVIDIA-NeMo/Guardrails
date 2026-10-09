@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Declare Chat request field policy without duplicating runtime binding metadata."""
+"""Field policies for guarded OpenAI Chat Completions requests."""
 
 from typing import Annotated, ClassVar, Literal
 

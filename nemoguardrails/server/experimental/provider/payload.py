@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Define provider payload projections and exact guarded message targets."""
+"""Payload projection models and guarded text locations."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
