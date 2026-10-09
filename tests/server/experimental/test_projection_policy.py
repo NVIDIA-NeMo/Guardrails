@@ -437,3 +437,16 @@ def test_explicit_export_member_rules_match_runtime(member, policy, export_polic
     if policy == UnknownContentFieldPolicy.ALLOW and member in {"Key", "STRASSE", "Content"}:
         del exported["properties"]["message"][EXTENSION]["reject_case_aliases"]
         assert export_policy_validator(exported, policy).is_valid(document)
+
+
+def test_export_inlines_policy_models_used_as_mapping_values():
+    class Part(PolicyModel):
+        text: Annotated[str, guarded("user")]
+
+    class Root(PolicyModel):
+        parts: Annotated[dict[str, Part], constrained()]
+
+    values = export_payload_schema(Root, projection_id="test")["properties"]["parts"]["additionalProperties"]
+    assert "$ref" not in values
+    assert values["properties"]["text"][EXTENSION]["classification"] == "guarded"
+    assert values[EXTENSION]["unknown_fields"] == "forbid"

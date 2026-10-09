@@ -36,9 +36,17 @@ from nemoguardrails.server.experimental._guarded_proxy import create_buffered_gu
 from nemoguardrails.server.experimental._http_kernel import (
     BufferedHttpRequest,
     BufferedHttpResponse,
+    HttpFailureKind,
+    HttpOperationFailed,
     create_http_proxy_router,
 )
+from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapping, ProviderErrorResponse
 from nemoguardrails.server.experimental.provider.projection_policy import EXTENSION
+from nemoguardrails.server.experimental.provider.transport import (
+    ExactApiRevision,
+    ProviderApiRevisionBinding,
+    TransportLocation,
+)
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 from nemoguardrails.server.experimental.providers.openai.errors import (
     OPENAI_ERROR_MAPPING,
@@ -715,3 +723,57 @@ async def test_success_without_guarded_chat_content_fails_provider_projection(st
     assert response.json()["error"]["code"] == "unsupported_chat_completions_response_shape"
     assert "x-provider-secret" not in response.headers
     assert [stage for stage, _check in checker.calls] == ["input"]
+
+
+def _revision_bound_operation():
+    """Bind the Chat endpoint to a required provider API revision header."""
+    revision = ProviderApiRevisionBinding(
+        accepted=ExactApiRevision("2026-09-25"),
+        location=TransportLocation.HEADER,
+        transport_name="provider-version",
+    )
+    endpoint = replace(CHAT_COMPLETIONS_ENDPOINT, api_revision=revision)
+    return create_buffered_guarded_http_operation(endpoint, OPENAI_ERROR_MAPPING)
+
+
+def _chat_request(*headers):
+    return BufferedHttpRequest(
+        "POST", "/v1/chat/completions", b"/v1/chat/completions", b"", _json_headers(*headers), _request_body()
+    )
+
+
+def test_guarded_operation_requires_and_documents_the_bound_api_revision():
+    """A revision binding is checked before guarded parsing and appears in the OpenAPI parameters."""
+    operation = _revision_bound_operation()
+
+    assert [parameter["name"] for parameter in operation.openapi_extra["parameters"]] == ["provider-version"]
+    assert operation.prepare_request(_chat_request((b"provider-version", b"2026-09-25"))).target.has_text
+    with pytest.raises(UnsupportedGuardedPayload) as rejected:
+        operation.prepare_request(_chat_request((b"provider-version", b"2025-01-01")))
+    assert rejected.value.code == "unsupported_provider_api_revision"
+
+
+def test_provider_error_mapping_requires_unique_status_codes():
+    response = ProviderErrorResponse(400, OpenAIProxyErrorResponse, "Bad request")
+    with pytest.raises(ValueError, match="unique"):
+        ProviderErrorMapping(render_openai_error, (response, response))
+
+
+@pytest.mark.parametrize(
+    ("kind", "status_code", "error_type"),
+    [
+        (HttpFailureKind.INVALID_CONTENT_LENGTH, 400, "invalid_request_error"),
+        (HttpFailureKind.REQUEST_BODY_TOO_LARGE, 413, "request_too_large"),
+        (HttpFailureKind.UPSTREAM_REQUEST_FAILED, 502, "proxy_error"),
+        (HttpFailureKind.RESPONSE_BODY_TOO_LARGE, 502, "proxy_error"),
+    ],
+)
+def test_http_failures_render_as_openai_errors(kind, status_code, error_type):
+    """Transport failures render as OpenAI errors without the underlying exception text."""
+    response = render_openai_error(HttpOperationFailed(kind, RuntimeError("internal detail")))
+
+    body = json.loads(response.body)
+    assert response.status_code == status_code
+    assert body["error"]["type"] == error_type
+    assert body["error"]["code"] == kind.value
+    assert "internal detail" not in response.body.decode()

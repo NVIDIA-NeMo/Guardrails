@@ -345,3 +345,47 @@ assert export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)["operationId"] == "creat
 """
     completed = subprocess.run([sys.executable, "-c", source], capture_output=True, text=True)
     assert completed.returncode == 0, completed.stderr
+
+
+def test_export_requires_an_endpoint():
+    with pytest.raises(TypeError, match="GuardedJsonEndpoint"):
+        export_guard_contract(object())
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"operation_name": "example-text"}, "dotted identifiers"),
+        ({"operation": " "}, "operation label"),
+        ({"unsupported_request_code": " "}, "unsupported-shape error codes"),
+        ({"unsupported_response_code": ""}, "unsupported-shape error codes"),
+        ({"method": "post"}, "uppercase name"),
+        ({"route_path": "/v2/other"}, "belong to one guarded operation path"),
+    ],
+)
+def test_endpoint_rejects_invalid_route_declarations(example_endpoint, changes, message):
+    with pytest.raises(ValueError, match=message):
+        replace(example_endpoint, **changes)
+
+
+def test_endpoint_requires_text_and_response_mode_bindings(example_endpoint):
+    """An endpoint cannot be declared without the bindings the proxy relies on."""
+    request = example_endpoint.guarded_request_model
+    response = example_endpoint.guarded_response_model
+
+    class UnlocatedRequest(GuardedRequestModel):
+        projection_contract = request.projection_contract
+
+    class ModelessRequest(GuardedRequestModel):
+        projection_contract = request.projection_contract
+        guarded_text_location = request.guarded_text_location
+
+    class UnlocatedResponse(GuardedPayloadModel):
+        projection_contract = response.projection_contract
+
+    with pytest.raises(ValueError, match="request projection must declare its guarded text location"):
+        replace(example_endpoint, guarded_request_model=UnlocatedRequest)
+    with pytest.raises(ValueError, match="provider response mode"):
+        replace(example_endpoint, guarded_request_model=ModelessRequest)
+    with pytest.raises(ValueError, match="response projection must declare its guarded text location"):
+        replace(example_endpoint, guarded_response_model=UnlocatedResponse)

@@ -1462,3 +1462,14 @@ def test_guarded_route_matching_agrees_with_starlette(template):
 def test_guarded_route_rejects_duplicate_parameter_names():
     with pytest.raises(ValueError, match="valid route template"):
         GuardedOperationPath("/v1/{name}/{name}")
+
+
+@pytest.mark.parametrize("adapter", ["prepare_request", "forward_request"])
+def test_guarded_operation_requires_both_request_adapters(guarded_operation, adapter):
+    """Preparation and forwarding adapters are declared together or not at all."""
+    with pytest.raises(ValueError, match="declared together"):
+        GuardedHttpOperation(
+            operation_path=guarded_operation.operation_path,
+            operation=guarded_operation.operation,
+            **{adapter: lambda request: request},
+        )

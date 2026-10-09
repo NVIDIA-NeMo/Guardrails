@@ -25,6 +25,7 @@ import yaml
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
+from nemoguardrails.server.experimental.provider import contract_export
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
 from nemoguardrails.server.experimental.provider.projection_policy import CONTRACT_VERSION, EXTENSION
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
@@ -149,4 +150,42 @@ def test_cli_rejects_wrong_endpoint_without_creating_an_artifact(tmp_path):
     )
     assert completed.returncode == 2
     assert "not a GuardedJsonEndpoint" in completed.stderr
+    assert not destination.exists()
+
+
+def _run_cli_in_process(monkeypatch, *arguments):
+    """Run the CLI in this process; the subprocess tests cover the module entry point."""
+    monkeypatch.setattr(sys, "argv", [MODULE, ENDPOINT, *arguments])
+    contract_export.main()
+
+
+def test_cli_modes_in_process(tmp_path, monkeypatch, capsys):
+    """Stdout, output, matching check, and mismatching check behave as in the subprocess."""
+    _run_cli_in_process(monkeypatch)
+    assert capsys.readouterr().out == EXPORTED.read_text(encoding="utf-8")
+
+    output = tmp_path / "nested" / "contract.yaml"
+    _run_cli_in_process(monkeypatch, "--output", str(output))
+    assert output.read_bytes() == EXPORTED.read_bytes()
+    _run_cli_in_process(monkeypatch, "--check", str(output))
+
+    output.write_text("changed\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as mismatch:
+        _run_cli_in_process(monkeypatch, "--check", str(output))
+    assert mismatch.value.code == 1
+    assert "Export differs" in capsys.readouterr().err
+
+
+def test_cli_reports_export_failures_without_writing(tmp_path, monkeypatch, capsys):
+    """An endpoint whose policy cannot be exported is a usage error, and nothing is written."""
+
+    def reject(_endpoint):
+        raise ValueError("binding drift")
+
+    monkeypatch.setattr(contract_export, "export_guard_contract", reject)
+    destination = tmp_path / "contract.yaml"
+    with pytest.raises(SystemExit) as failure:
+        _run_cli_in_process(monkeypatch, "--output", str(destination))
+    assert failure.value.code == 2
+    assert "binding drift" in capsys.readouterr().err
     assert not destination.exists()

@@ -127,3 +127,20 @@ def test_provider_api_revision_binding_rejects_path_location():
             location=TransportLocation.PATH,
             transport_name="api_version",
         )
+
+
+def test_exact_revision_requires_a_value_and_offers_it_as_the_example():
+    with pytest.raises(ValueError, match="must not be empty"):
+        ExactApiRevision(" ")
+    assert ExactApiRevision("2026-09-25").example == "2026-09-25"
+
+
+@pytest.mark.parametrize(("transport_name", "error_code"), [(" ", "unsupported_version"), ("api-version", " ")])
+def test_provider_api_revision_binding_requires_names(transport_name, error_code):
+    with pytest.raises(ValueError, match="must not be empty"):
+        ProviderApiRevisionBinding(
+            accepted=ExactApiRevision("2026-09-25"),
+            location=TransportLocation.HEADER,
+            transport_name=transport_name,
+            error_code=error_code,
+        )
