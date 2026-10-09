@@ -34,13 +34,11 @@ CONTRACTS = ROOT / "nemoguardrails/server/experimental/contracts"
 EXPORTED = CONTRACTS / "openai/_generated/chat-completions.buffered.guard.yaml"
 MODULE = "nemoguardrails.server.experimental.provider.contract_export"
 ENDPOINT = "nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint:CHAT_COMPLETIONS_ENDPOINT"
-CLI = [sys.executable, "-m", MODULE, ENDPOINT, "--operation-id", "createChatCompletion", "--name", "chat_completions"]
+CLI = [sys.executable, "-m", MODULE, ENDPOINT]
 
 
 def test_buffered_export_matches_checked_in_artifact_and_format():
-    contract = export_guard_contract(
-        CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions"
-    )
+    contract = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
     assert contract == yaml.safe_load(EXPORTED.read_text(encoding="utf-8"))
     schema = json.loads((CONTRACTS / "guard-contract.schema.json").read_text(encoding="utf-8"))
     Draft202012Validator(schema).validate(contract)
@@ -50,10 +48,10 @@ def test_buffered_export_matches_checked_in_artifact_and_format():
 
 
 def test_export_uses_the_runtime_endpoint_metadata():
-    exported = export_guard_contract(
-        CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions"
-    )
+    exported = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
     endpoint = CHAT_COMPLETIONS_ENDPOINT
+    assert exported["operationId"] == endpoint.provider_operation_id
+    assert exported["integration"]["name"] == endpoint.contract_name
     assert exported["integration"]["endpoint"] == {
         "route_path": endpoint.route_path,
         "operation_label": endpoint.operation,
@@ -75,36 +73,21 @@ def test_export_does_not_read_files(monkeypatch):
         raise AssertionError("Export must derive from Python, not read YAML")
 
     monkeypatch.setattr(Path, "read_text", unexpected_read)
-    assert (
-        export_guard_contract(CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions")[
-            "operationId"
-        ]
-        == "createChatCompletion"
-    )
+    assert export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)["operationId"] == "createChatCompletion"
 
 
 def test_export_is_fresh_and_deterministic():
-    first = export_guard_contract(
-        CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions"
-    )
+    first = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
     first["request"]["properties"].clear()
-    second = export_guard_contract(
-        CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions"
-    )
+    second = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
     assert "messages" in second["request"]["properties"]
-    assert second == export_guard_contract(
-        CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions"
-    )
+    assert second == export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
 
 
 @pytest.mark.parametrize("annotations", [None, [], [{"type": "url_citation"}]])
 def test_export_and_runtime_accept_only_null_or_empty_annotations(annotations):
     response = {"choices": [{"message": {"role": "assistant", "content": "answer", "annotations": annotations}}]}
-    validator = Draft202012Validator(
-        export_guard_contract(CHAT_COMPLETIONS_ENDPOINT, operation_id="createChatCompletion", name="chat_completions")[
-            "response"
-        ]
-    )
+    validator = Draft202012Validator(export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)["response"])
     if annotations:
         assert not validator.is_valid(response)
         with pytest.raises(ValidationError):
@@ -146,8 +129,8 @@ def test_cli_missing_check_does_not_create_an_artifact(tmp_path):
 
 
 @pytest.mark.parametrize("arguments", [["--operation-id", ""], ["--name", "Bad.Name"]])
-def test_cli_invalid_identity_does_not_overwrite_an_artifact(tmp_path, arguments):
-    """Bad metadata fails before an existing destination can be overwritten."""
+def test_cli_rejects_identity_overrides_without_overwriting_an_artifact(tmp_path, arguments):
+    """Identity belongs to the endpoint and cannot be overridden by CLI flags."""
     destination = tmp_path / "contract.yaml"
     destination.write_text("keep\n", encoding="utf-8")
     completed = subprocess.run([*CLI, *arguments, "--output", str(destination)], capture_output=True, text=True)
@@ -160,7 +143,7 @@ def test_cli_rejects_wrong_endpoint_without_creating_an_artifact(tmp_path):
     """A module attribute must be an endpoint instance, not arbitrary Python data."""
     destination = tmp_path / "contract.yaml"
     completed = subprocess.run(
-        [sys.executable, "-m", MODULE, "pathlib:Path", "--operation-id", "example", "--output", str(destination)],
+        [sys.executable, "-m", MODULE, "pathlib:Path", "--output", str(destination)],
         capture_output=True,
         text=True,
     )

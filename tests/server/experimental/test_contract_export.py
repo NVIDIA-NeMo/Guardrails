@@ -61,6 +61,7 @@ def example_endpoint() -> GuardedJsonEndpoint:
     Response.projection_contract = payload_contract(Response, projection_id="example.response", direction="response")
     Response.guarded_text_location = text_location(Response)
     return GuardedJsonEndpoint(
+        provider_operation_id="createExampleText",
         route_path="/v2/text",
         operation_name="example.text",
         operation="Example text",
@@ -73,7 +74,7 @@ def example_endpoint() -> GuardedJsonEndpoint:
 
 def test_export_supports_another_endpoint_without_a_stream_selector(example_endpoint):
     """The exporter derives both payloads and labels from the supplied endpoint."""
-    contract = export_guard_contract(example_endpoint, operation_id="createExampleText")
+    contract = export_guard_contract(example_endpoint)
     schema = json.loads(
         (ROOT / "nemoguardrails/server/experimental/contracts/guard-contract.schema.json").read_text(encoding="utf-8")
     )
@@ -99,12 +100,15 @@ def test_export_follows_changed_endpoint_metadata(example_endpoint):
     """An endpoint variant changes the export without a provider-specific wrapper."""
     endpoint = replace(
         example_endpoint,
+        provider_operation_id="otherOperation",
+        contract_name="other_text",
         route_path="/v3/text",
         operation_paths=(),
         operation="Different text operation",
         unsupported_response_code="different_response_error",
     )
-    contract = export_guard_contract(endpoint, operation_id="otherOperation", name="other_text")
+    contract = export_guard_contract(endpoint)
+    assert contract["operationId"] == "otherOperation"
     assert contract["integration"]["name"] == "other_text"
     assert contract["integration"]["endpoint"]["route_path"] == "/v3/text"
     assert contract["integration"]["endpoint"]["operation_label"] == "Different text operation"
@@ -136,17 +140,17 @@ def test_export_requires_policy_annotated_models(example_endpoint, direction):
         endpoint = replace(example_endpoint, guarded_response_model=PlainResponse)
 
     with pytest.raises(TypeError, match="policy-annotated"):
-        export_guard_contract(endpoint, operation_id="example")
+        export_guard_contract(endpoint)
 
 
 @pytest.mark.parametrize(
     ("operation_id", "name", "message"),
     [("", None, "must not be blank"), ("  ", None, "must not be blank"), ("example", "Bad.Name", "snake case")],
 )
-def test_export_rejects_invalid_document_identity(example_endpoint, operation_id, name, message):
+def test_endpoint_rejects_invalid_document_identity(example_endpoint, operation_id, name, message):
     """Reject malformed operation metadata independently of serialization."""
     with pytest.raises(ValueError, match=message):
-        export_guard_contract(example_endpoint, operation_id=operation_id, name=name)
+        replace(example_endpoint, provider_operation_id=operation_id, contract_name=name)
 
 
 @pytest.mark.parametrize("reference", ["missing_separator", ":value", "pathlib:Path()", "pathlib:Path:extra"])

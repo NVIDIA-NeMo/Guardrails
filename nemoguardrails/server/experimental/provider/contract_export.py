@@ -31,7 +31,6 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -46,16 +45,12 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
 )
 
 
-def export_guard_contract(
-    endpoint: GuardedJsonEndpoint, *, operation_id: str, name: str | None = None
-) -> dict[str, Any]:
+def export_guard_contract(endpoint: GuardedJsonEndpoint) -> dict[str, Any]:
     """Describe the buffered policy of the models actually bound to an endpoint.
 
     Args:
         endpoint: A trusted endpoint with policy-annotated request and response
             models and their runtime bindings.
-        operation_id: Stable provider operation identity for the document.
-        name: Optional integration identifier, using lowercase snake case.
 
     Returns:
         A fresh document with payload schemas, profile, and endpoint labels.
@@ -73,10 +68,6 @@ def export_guard_contract(
     """
     if not isinstance(endpoint, GuardedJsonEndpoint):
         raise TypeError("Contract export requires a GuardedJsonEndpoint")
-    if not operation_id.strip():
-        raise ValueError("Contract operation_id must not be blank")
-    if name is not None and re.fullmatch(r"[a-z][a-z0-9_]*", name) is None:
-        raise ValueError("Contract name must use lowercase snake case")
     request_model = endpoint.guarded_request_model
     response_model = endpoint.guarded_response_model
     if not issubclass(request_model, PolicyModel) or not issubclass(response_model, PolicyModel):
@@ -88,8 +79,8 @@ def export_guard_contract(
     if request_model.stream_selector_field is not None:
         request[EXTENSION]["stream_selector_field"] = request_model.stream_selector_field
     integration: dict[str, Any] = {}
-    if name is not None:
-        integration["name"] = name
+    if endpoint.contract_name is not None:
+        integration["name"] = endpoint.contract_name
     integration["endpoint"] = {
         "route_path": endpoint.route_path,
         "operation_label": endpoint.operation,
@@ -98,7 +89,7 @@ def export_guard_contract(
     }
     return {
         "version": CONTRACT_VERSION,
-        "operationId": operation_id,
+        "operationId": endpoint.provider_operation_id,
         "profile": request_contract.profile.value,
         "request": request,
         "response": response,
@@ -113,7 +104,7 @@ def _load_endpoint(reference: str) -> GuardedJsonEndpoint:
         raise argparse.ArgumentTypeError("Endpoint must be a Python module:attribute reference")
     try:
         endpoint = getattr(importlib.import_module(module), attribute)
-    except (ImportError, AttributeError) as error:
+    except (ImportError, AttributeError, ValueError) as error:
         raise argparse.ArgumentTypeError(f"Cannot load endpoint {reference}: {error}") from error
     if not isinstance(endpoint, GuardedJsonEndpoint):
         raise argparse.ArgumentTypeError(f"{reference} is not a GuardedJsonEndpoint")
@@ -130,8 +121,6 @@ def main() -> None:
     """
     parser = argparse.ArgumentParser(description="Export a buffered guard contract from a trusted Python endpoint.")
     parser.add_argument("endpoint", type=_load_endpoint, help="trusted Python module:attribute (imports code)")
-    parser.add_argument("--operation-id", required=True, help="provider operation identity")
-    parser.add_argument("--name", help="optional integration identifier")
     destination = parser.add_mutually_exclusive_group()
     destination.add_argument("--output", type=Path)
     destination.add_argument("--check", type=Path)
@@ -143,7 +132,7 @@ def main() -> None:
 
     schema_path = Path(__file__).resolve().parents[1] / "contracts" / "guard-contract.schema.json"
     try:
-        contract = export_guard_contract(args.endpoint, operation_id=args.operation_id, name=args.name)
+        contract = export_guard_contract(args.endpoint)
         Draft202012Validator(json.loads(schema_path.read_text(encoding="utf-8"))).validate(contract)
     except (TypeError, ValueError, ValidationError) as error:
         parser.error(str(error))

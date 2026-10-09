@@ -15,6 +15,7 @@
 
 """Declare provider endpoints handled by the guarded JSON pipeline."""
 
+import re
 from dataclasses import dataclass
 
 from nemoguardrails.server.experimental._http_kernel import GuardedOperationPath
@@ -37,12 +38,18 @@ class GuardedJsonEndpoint:
     unsupported_response_code: str
     guarded_request_model: type[GuardedRequestModel]
     guarded_response_model: type[GuardedPayloadModel]
+    provider_operation_id: str
+    contract_name: str | None = None
     method: str = "POST"
     api_revision: ProviderApiRevisionBinding | None = None
     operation_paths: tuple[GuardedOperationPath, ...] = ()
 
     def __post_init__(self) -> None:
         """Validate the route, projections, and shared capability profile."""
+        if not self.provider_operation_id.strip():
+            raise ValueError("A provider operation ID must not be blank.")
+        if self.contract_name is not None and re.fullmatch(r"[a-z][a-z0-9_]*", self.contract_name) is None:
+            raise ValueError("A contract name must use lowercase snake case.")
         if not self.operation_name or not all(part.isidentifier() for part in self.operation_name.split(".")):
             raise ValueError("A guarded endpoint operation name must contain only dotted identifiers.")
         if not self.operation.strip():

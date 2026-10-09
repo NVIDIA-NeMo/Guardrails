@@ -25,6 +25,8 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.respon
 )
 
 CHAT_COMPLETIONS_ENDPOINT = GuardedJsonEndpoint(
+    provider_operation_id="createChatCompletion",
+    contract_name="chat_completions",
     route_path="/v1/chat/completions",
     operation_name="chat_completions.create",
     operation="OpenAI Chat Completions",

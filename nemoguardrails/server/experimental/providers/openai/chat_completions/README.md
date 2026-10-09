@@ -43,17 +43,13 @@ scope and provider provenance. Neither is loaded by the models or bindings.
 ## Buffered contract export
 
 The shared [contract exporter](../../../provider/contract_export.py) takes the
-runtime endpoint and its document identity. No per-operation exporter is needed:
+runtime endpoint, including its declared document identity. No per-operation exporter is needed:
 
 ```python
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 
-contract = export_guard_contract(
-    CHAT_COMPLETIONS_ENDPOINT,
-    operation_id="createChatCompletion",
-    name="chat_completions",
-)
+contract = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
 ```
 
 Run the shared CLI from the repository root:
@@ -61,14 +57,14 @@ Run the shared CLI from the repository root:
 ```bash
 uv run --locked python -m nemoguardrails.server.experimental.provider.contract_export \
   nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint:CHAT_COMPLETIONS_ENDPOINT \
-  --operation-id createChatCompletion --name chat_completions \
   --output nemoguardrails/server/experimental/contracts/openai/_generated/chat-completions.buffered.guard.yaml
 ```
 
 Use `--check` instead of `--output` with the same path to detect drift. Without
 either option the document is written to stdout. The command validates against
-the existing contract format before writing. The optional `--name` identifies
-the integration; `--operation-id` identifies the provider operation.
+the existing contract format before writing. The endpoint owns `provider_operation_id` and optional
+`contract_name`; callers cannot override that identity. `operation_name` separately
+identifies the runtime operation.
 
 The endpoint argument imports trusted local Python code. Do not obtain it from
 requests or untrusted documents. The CLI does not scan providers or load runtime
