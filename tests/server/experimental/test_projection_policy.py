@@ -189,6 +189,13 @@ def test_helpers_do_not_hide_defaults(helper):
         helper(default=False)
 
 
+@pytest.mark.parametrize("helper", [guarded, constrained])
+@pytest.mark.parametrize("constraint", ["ge", "le", "gt", "lt", "multiple_of", "strict"])
+def test_helpers_reject_constraints_the_contract_cannot_express(helper, constraint):
+    with pytest.raises(ValueError, match="not expressible"):
+        helper(**{constraint: 1})
+
+
 def test_replacement_policy_requires_subject():
     with pytest.raises(ValueError, match="requires a subject"):
         guarded(replaceable=True)
