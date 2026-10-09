@@ -20,12 +20,6 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.reques
     ChatCompletionsGuardedRequestProjection,
 )
 
-PROVIDER_DOCUMENT_URL = (
-    "https://github.com/openai/openai-openapi/blob/df63773f69f542ef875b9f00c3837c25ba5f4f2a/openapi.yaml"
-)
-PROVIDER_REVISION = "df63773f69f542ef875b9f00c3837c25ba5f4f2a"
-PROVIDER_DOCUMENT_VERSION = "2.3.0"
-PROVIDER_DOCUMENT_SHA256 = "f2dae1a9aced09b91310db89edda51bf1e36ecbfb05230c3a50b239c07708469"
 CAPABILITY_PROFILE = "single_text.v1"
 REQUEST_SOURCE_SCHEMA = "CreateChatCompletionRequest"
 PAYLOAD_CONTRACT = payload_contract(

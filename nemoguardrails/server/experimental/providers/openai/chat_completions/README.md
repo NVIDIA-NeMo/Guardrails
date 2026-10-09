@@ -17,8 +17,9 @@ unknown-field policy. It is not a deployment profile selector. The capability
 profile remains `single_text.v1`; the exported document format remains experimental
 `1.0.0-alpha.1`.
 
-The request/response binding modules retain their existing runtime classes and
-provider revision metadata. Their coverage inventories and exact text locations
+The request/response binding modules retain their existing runtime classes.
+The provider revision pin lives once in
+[`providers/openai/source.py`](../source.py), mirroring `source.yaml`. Their coverage inventories and exact text locations
 are derived from the model annotations. Extraction supports one required item
 at each traversed array boundary; unsupported or ambiguous boundaries fail.
 No YAML is loaded to construct these bindings.

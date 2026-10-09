@@ -22,6 +22,8 @@ from urllib.parse import urlparse
 import pytest
 import yaml
 
+from nemoguardrails.server.experimental.providers.openai import source as openai_pin
+
 REPOSITORY_ROOT = Path(__file__).parents[3]
 SOURCE_PATH = REPOSITORY_ROOT / "nemoguardrails/server/experimental/contracts/openai/source.yaml"
 
@@ -66,3 +68,14 @@ def test_openai_source_urls_use_the_declared_revision(
     assert url.path == f"{prefix}/{openai_source['revision']}/openapi.yaml"
     assert not url.query
     assert not url.fragment
+
+
+def test_python_pin_matches_source_metadata(openai_source: dict[str, str]) -> None:
+    """The importable pin repeats source.yaml exactly, so the two cannot drift."""
+    assert {
+        "document_url": openai_pin.PROVIDER_DOCUMENT_URL,
+        "download_url": openai_pin.PROVIDER_DOWNLOAD_URL,
+        "revision": openai_pin.PROVIDER_REVISION,
+        "document_version": openai_pin.PROVIDER_DOCUMENT_VERSION,
+        "sha256": openai_pin.PROVIDER_DOCUMENT_SHA256,
+    } == openai_source
