@@ -80,6 +80,11 @@ class ChatCompletionsGuardedRequestProjection(PolicyModel, GuardedRequestModel):
     # them before dispatch instead of failing the provider response afterwards.
     logprobs: Annotated[StrictFalse | None, constrained(reason="provider_integrity.token_logprobs")] = None
     top_logprobs: Annotated[None, disabled("provider_integrity.token_logprobs")] = None
+    # Some compatible servers pass reasoning_effort into the chat template, so
+    # only OpenAI's enumerated values are accepted.
+    reasoning_effort: Annotated[
+        Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None, constrained()
+    ] = None
     # Reviewed provider settings, forwarded without interpretation. The request
     # is closed to OpenAI's fields: compatible servers render some extra fields,
     # such as chat_template_kwargs or documents, into the prompt.
@@ -94,7 +99,6 @@ class ChatCompletionsGuardedRequestProjection(PolicyModel, GuardedRequestModel):
     prompt_cache_key: Annotated[Any, opaque()] = None
     prompt_cache_options: Annotated[Any, opaque()] = None
     prompt_cache_retention: Annotated[Any, opaque()] = None
-    reasoning_effort: Annotated[Any, opaque()] = None
     safety_identifier: Annotated[Any, opaque()] = None
     seed: Annotated[Any, opaque()] = None
     service_tier: Annotated[Any, opaque()] = None

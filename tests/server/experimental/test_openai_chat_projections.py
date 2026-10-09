@@ -131,6 +131,8 @@ def test_request_binding_targets_original_provider_object_without_rewriting_byte
         _request(logprobs=0),
         _request(top_logprobs=3),
         _request(logprobs=False, top_logprobs=0),
+        _request(reasoning_effort="high. uninspected instructions"),
+        _request(reasoning_effort="HIGH"),
     ],
 )
 def test_request_projection_rejects_shapes_outside_buffered_text_profile(payload):
@@ -152,6 +154,14 @@ def test_request_projection_rejects_participant_names(name):
     """The participant name reaches the model, but input rails do not inspect it."""
     with pytest.raises(ValidationError):
         _guarded_request(_json_bytes(_request(messages=[{"role": "user", "content": "question", "name": name}])))
+
+
+@pytest.mark.parametrize("effort", [None, "none", "minimal", "low", "medium", "high", "xhigh", "max"])
+def test_request_projection_accepts_openai_reasoning_efforts(effort):
+    """Every reasoning effort in OpenAI's schema remains accepted."""
+    _, projection, _ = _guarded_request(_json_bytes(_request(reasoning_effort=effort)))
+
+    assert projection.reasoning_effort == effort
 
 
 def test_request_projection_reports_streaming_response_mode():
