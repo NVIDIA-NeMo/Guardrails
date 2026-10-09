@@ -31,6 +31,7 @@ from nemoguardrails.server.experimental._http_kernel import (
     BufferedHttpResponse,
     GuardedHttpOperation,
     GuardedOperationPath,
+    _has_identity_encoding,
 )
 from nemoguardrails.server.experimental._json_payload import InvalidJson, UnsupportedJsonShape, parse_json_object
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
@@ -67,8 +68,7 @@ def _require_json_representation(request: BufferedHttpRequest) -> None:
             "Content-Type must be application/json.",
             "unsupported_media_type",
         )
-    content_encoding = _header(request.headers, b"content-encoding")
-    if content_encoding is not None and content_encoding.strip().lower() not in {"", "identity"}:
+    if not _has_identity_encoding(request.headers):
         raise UnsupportedGuardedRepresentation(
             "Encoded request bodies are not supported by the guarded path.",
             "unsupported_content_encoding",
@@ -137,8 +137,7 @@ def create_buffered_guarded_http_operation(
             raise UnsupportedGuardedPayload(
                 "The successful provider response must use application/json.", endpoint.unsupported_response_code
             )
-        content_encoding = _header(payload.headers, b"content-encoding")
-        if content_encoding is not None and content_encoding.strip().lower() not in {"", "identity"}:
+        if not _has_identity_encoding(payload.headers):
             raise UnsupportedGuardedPayload(
                 "Encoded successful provider responses are not supported.", endpoint.unsupported_response_code
             )

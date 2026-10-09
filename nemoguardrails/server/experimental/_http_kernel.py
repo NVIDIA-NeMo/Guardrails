@@ -409,6 +409,22 @@ def _render_response(value: BufferedHttpResponse, request_method: str | None = N
     return response
 
 
+def _has_identity_encoding(headers: HttpHeaders) -> bool:
+    """Return whether every Content-Encoding coding is identity.
+
+    Duplicate headers and comma lists combine into one coding list, so a body
+    is unencoded only when no coding other than identity appears anywhere.
+    Empty list elements carry no coding and are ignored.
+    """
+    return all(
+        token.strip().lower() == b"identity"
+        for name, value in headers
+        if name.lower() == b"content-encoding"
+        for token in value.split(b",")
+        if token.strip()
+    )
+
+
 def _request_identity_encoding(headers: HttpHeaders) -> HttpHeaders:
     """Ask the provider for an unencoded response that output checks can read.
 

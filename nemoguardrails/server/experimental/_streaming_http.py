@@ -41,6 +41,7 @@ from nemoguardrails.server.experimental._http_kernel import (
     HttpHeaders,
     ResponseBodyTooLarge,
     _end_to_end_headers,
+    _has_identity_encoding,
     _render_response,
     _request_identity_encoding,
 )
@@ -125,11 +126,6 @@ def _header_values(headers: HttpHeaders, name: bytes) -> tuple[bytes, ...]:
 def _is_event_stream(headers: HttpHeaders) -> bool:
     values = _header_values(headers, b"content-type")
     return len(values) == 1 and values[0].partition(b";")[0].strip().lower() == b"text/event-stream"
-
-
-def _has_identity_encoding(headers: HttpHeaders) -> bool:
-    values = _header_values(headers, b"content-encoding")
-    return not values or all(token.strip().lower() == b"identity" for value in values for token in value.split(b","))
 
 
 async def _close_source(source: AsyncIterator[bytes]) -> None:

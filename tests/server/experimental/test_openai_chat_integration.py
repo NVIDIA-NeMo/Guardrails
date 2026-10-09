@@ -498,6 +498,12 @@ async def test_replacement_remains_explicitly_unsupported(checker, status_code, 
             415,
             "unsupported_content_encoding",
         ),
+        (
+            _request_body(),
+            [("content-type", "application/json"), ("content-encoding", "gzip"), ("content-encoding", "identity")],
+            415,
+            "unsupported_content_encoding",
+        ),
     ],
 )
 async def test_request_representation_failures_are_native_and_stop_before_dispatch(
@@ -554,6 +560,13 @@ def test_openai_error_preserves_provider_binding_failure_code():
             "response",
             b"private-payload",
             _json_headers((b"content-encoding", b"gzip")),
+            502,
+            "example_response_shape",
+        ),
+        (
+            "response",
+            _response_body(),
+            _json_headers((b"content-encoding", b"gzip"), (b"content-encoding", b"identity")),
             502,
             "example_response_shape",
         ),

@@ -183,6 +183,27 @@ async def test_inspected_stream_preserves_events_and_removes_stale_content_lengt
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("encoding", [b"", b"identity", b" Identity , "])
+async def test_inspected_stream_accepts_identity_or_empty_content_encoding(encoding):
+    """Empty Content-Encoding elements carry no coding, as in buffered bodies."""
+    stream = b'data: {"text":"answer"}\n\ndata: [END]\n\n'
+    checker = Checker()
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(
+            200,
+            ((b"content-type", b"text/event-stream"), (b"content-encoding", encoding)),
+            Source([stream]),
+        )
+
+    response = await execute(dispatch, checker=checker)
+
+    assert response.status_code == 200
+    assert await response_body(response) == stream
+    assert checker.calls[0].output_content == "answer"
+
+
+@pytest.mark.asyncio
 async def test_uninspected_stream_preserves_opaque_bytes_and_original_length():
     stream = b"opaque provider bytes"
     source = Source([stream])
@@ -244,6 +265,7 @@ async def test_dispatch_failure_is_rendered_before_streaming_starts():
     [
         ((b"content-type", b"application/json"),),
         ((b"content-type", b"text/event-stream"), (b"content-encoding", b"gzip")),
+        ((b"content-type", b"text/event-stream"), (b"content-encoding", b"gzip"), (b"content-encoding", b"identity")),
         ((b"content-type", b"text/event-stream"), (b"content-type", b"text/event-stream")),
     ],
 )
