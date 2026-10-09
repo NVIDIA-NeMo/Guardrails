@@ -347,6 +347,8 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
         A payload schema, not a complete operation contract.
         Defaults and nullable types are retained. Disjoint nullable anyOf
         branches are rendered as oneOf for the current contract vocabulary.
+        Reviewed opaque names are exported as opaque-classified properties,
+        and additionalProperties follows the object's unknown-field policy.
 
     Raises:
         ValueError: Nested models are not policy-annotated, names collide,
@@ -373,12 +375,16 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
             policy = models[result["title"]].policy
             if policy.source:
                 metadata["source"] = "#/components/schemas/" + policy.source
-            if policy.opaque:
-                metadata["opaque_fields"] = sorted(policy.opaque)
             result["additionalProperties"] = policy.unknown_fields == "configurable"
             if policy.unknown_fields == "configurable":
                 metadata["unknown_fields"] = policy.unknown_fields
-            result["properties"] = {name: expand(child, active) for name, child in sorted(result["properties"].items())}
+            # Opaque values stay runtime extras, but the export lists them as
+            # properties so additionalProperties describes only unreviewed members.
+            properties = {
+                **result["properties"],
+                **{name: {EXTENSION: {"classification": "opaque"}} for name in policy.opaque},
+            }
+            result["properties"] = {name: expand(child, active) for name, child in sorted(properties.items())}
         else:
             result.pop("title", None)
         if "items" in result:
@@ -452,8 +458,7 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
             blocker = child.get(EXTENSION, {}).get("subject", {}).get("replacement_blocked_by")
             # A misspelled blocker would never match and silently allow replacement.
             if blocker is not None and blocker not in node["properties"]:
-                if blocker not in node.get(EXTENSION, {}).get("opaque_fields", ()):
-                    raise ValueError(f"Replacement blocker {blocker!r} is not a field of the subject's object")
+                raise ValueError(f"Replacement blocker {blocker!r} is not a field of the subject's object")
             if child.get(EXTENSION, {}).get("classification") == "guarded":
                 visit(child, (*path, name))
 

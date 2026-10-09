@@ -143,6 +143,16 @@ def test_export_preserves_nullable_annotation_schema():
     assert {"type": "array", "items": {}, "maxItems": 0} in annotations["oneOf"]
 
 
+def test_export_lists_reviewed_opaque_names_as_properties():
+    request = export_payload_schema(ChatCompletionsGuardedRequestProjection, projection_id="test.request")
+    assert request["properties"]["model"] == {EXTENSION: {"classification": "opaque"}}
+    assert "opaque_fields" not in request[EXTENSION]
+    validator = Draft202012Validator(request)
+    message = {"role": "user", "content": "q"}
+    assert validator.is_valid({"messages": [message], "model": "m", "temperature": 0.2})
+    assert not validator.is_valid({"messages": [message], "future": 1})
+
+
 def test_export_follows_each_object_unknown_field_policy():
     request = export_payload_schema(ChatCompletionsGuardedRequestProjection, projection_id="test.request")
     response = export_payload_schema(ChatCompletionsGuardedResponseProjection, projection_id="test.response")
