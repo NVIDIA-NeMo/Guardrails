@@ -31,6 +31,10 @@ class TruncatedServerSentEvent(ValueError):
     """Report an unfinished SSE block containing fields at end of stream."""
 
 
+class AmbiguousServerSentEvent(ValueError):
+    """Report SSE bytes that common clients interpret differently."""
+
+
 @dataclass(frozen=True, slots=True)
 class ServerSentEvent:
     """Represent one complete SSE event.
@@ -103,7 +107,12 @@ class _SSEFramer:
     def _field_line(self, line: bytes) -> bytes:
         if self.stream_start:
             self.stream_start = False
-            return line.removeprefix(b"\xef\xbb\xbf")
+            line = line.removeprefix(b"\xef\xbb\xbf")
+        # The SSE standard ignores only one BOM at stream start. Some clients
+        # also strip a BOM at later line starts and read the line as a field,
+        # so such a line could carry data that this parser treats as unknown.
+        if line.startswith(b"\xef\xbb\xbf"):
+            raise AmbiguousServerSentEvent("A provider stream line starts with a byte order mark after stream start.")
         return line
 
     def _end_line(self, ending_length: int) -> ServerSentEvent | None:
@@ -175,6 +184,7 @@ async def iter_sse_events(
         ValueError: If ``max_event_bytes`` is not positive.
         ServerSentEventTooLarge: If one event exceeds the limit.
         TruncatedServerSentEvent: If the stream ends in an unfinished field block.
+        AmbiguousServerSentEvent: If a line after stream start begins with a BOM.
     """
 
     if type(max_event_bytes) is not int or max_event_bytes <= 0:

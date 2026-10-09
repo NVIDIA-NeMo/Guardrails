@@ -478,3 +478,19 @@ async def test_rejected_arguments_raise_and_close_source(role, limits):
         await anext(stream)
 
     assert source.closed is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("split", [0, 1, 2, 3])
+async def test_line_leading_bom_mid_stream_fails_closed_without_release(split):
+    """An ambiguous line is never forwarded, even when its BOM bytes are fragmented."""
+    approved = stream_event({"text": "approved"})
+    ambiguous = b"\xef\xbb\xbf" + stream_event({"text": "EVIL"})
+    source = Source([approved, ambiguous[:split], ambiguous[split:]])
+
+    result = await collect(source, StaticChecker(), Hooks())
+
+    assert result.startswith(approved)
+    assert b"EVIL" not in result
+    assert b'"code": "unsupported_stream"' in result
+    assert source.closed is True

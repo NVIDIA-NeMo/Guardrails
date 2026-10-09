@@ -13,9 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+
 import pytest
 
 from nemoguardrails.server.experimental.provider.sse import (
+    AmbiguousServerSentEvent,
     ServerSentEvent,
     ServerSentEventTooLarge,
     TruncatedServerSentEvent,
@@ -74,14 +77,35 @@ async def test_all_event_line_endings_at_every_chunk_split(ending):
 
 @pytest.mark.asyncio
 async def test_bom_is_ignored_only_at_stream_start_and_preserved_in_raw():
-    blocks = [b"\xef\xbb\xbfdata: one\n\n", b"\xef\xbb\xbfdata: ignored\n\n", b"data: \xef\xbb\xbfvalue\n\n"]
+    blocks = [b"\xef\xbb\xbfdata: one\n\n", b"data: \xef\xbb\xbfvalue\n\n"]
     raw = b"".join(blocks)
 
     for split in range(len(raw) + 1):
         events = [event async for event in iter_sse_events(_chunks(raw[:split], raw[split:]))]
         assert [event.raw for event in events] == blocks
-        assert [event.data for event in events] == [b"one", None, b"\xef\xbb\xbfvalue"]
-    assert ServerSentEvent.from_bytes(blocks[0]).data is None
+        assert [event.data for event in events] == [b"one", b"\xef\xbb\xbfvalue"]
+    with pytest.raises(AmbiguousServerSentEvent):
+        ServerSentEvent.from_bytes(blocks[0])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"data: one\n\n\xef\xbb\xbfdata: two\n\n",
+        b"data: one\n\xef\xbb\xbf\ndata: two\n\n",
+        b"\xef\xbb\xbf\xef\xbb\xbfdata: one\n\n",
+        b"data: one\n\n\xef\xbb\xbf: comment\n\n",
+        b"data: one\r\r\xef\xbb\xbfdata: two\r\r",
+        b"data: one\r\n\r\n\xef\xbb\xbfdata: two\r\n\r\n",
+        b"data: one\n\n\xef\xbb\xbfdata: two",
+    ],
+)
+async def test_line_leading_bom_after_stream_start_is_rejected_at_every_split(raw):
+    """Clients disagree on such lines, so the parser never interprets them."""
+    for split in range(len(raw) + 1):
+        with pytest.raises(AmbiguousServerSentEvent):
+            _ = [event async for event in iter_sse_events(_chunks(raw[:split], raw[split:]))]
 
 
 @pytest.mark.asyncio
@@ -130,7 +154,7 @@ async def test_unfinished_comment_tails_are_discarded(tail):
 @pytest.mark.asyncio
 async def test_event_limit_counts_terminators_bom_and_unfinished_lines():
     block = b"\xef\xbb\xbfdata: one\r\n\r\n"
-    events = [event async for event in iter_sse_events(_chunks(block * 3), max_event_bytes=len(block))]
+    events = [event async for event in iter_sse_events(_chunks(block + block[3:] * 2), max_event_bytes=len(block))]
     assert len(events) == 3
     for raw in (block, b"x" * len(block)):
         with pytest.raises(ServerSentEventTooLarge):
@@ -168,3 +192,26 @@ async def test_large_event_arriving_one_byte_per_chunk():
 
     assert len(events) == 1
     assert events[0].raw == raw
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"\xef\xbb\xbfdata: one\r\n\r\ndata: two\n\n",
+        b"data: a\ndata: b\r\rdata: c\r\n\r\n",
+        b": comment\n\nid: 1\nevent: delta\ndata: x\n\nretry: 5\n\n",
+        b"data:no-space\n\ndata: \xef\xbb\xbfvalue\n\nunknown: field\ndata\n\n",
+        b"Data: wrong-case\n\ndata: right\n\n",
+    ],
+)
+def test_client_never_sees_data_this_parser_did_not_parse(raw):
+    """The OpenAI Python SDK's events are a subsequence of the events parsed here."""
+    sse_decoder = pytest.importorskip("openai._streaming").SSEDecoder
+
+    async def parse():
+        return [event.data for event in [event async for event in iter_sse_events(_chunks(raw))]]
+
+    parsed = [data for data in asyncio.run(parse()) if data is not None]
+    client = [event.data.encode() for event in sse_decoder().iter_bytes(iter([raw])) if event.data]
+    remaining = iter(parsed)
+    assert all(any(data == candidate for candidate in remaining) for data in client)

@@ -39,6 +39,7 @@ from nemoguardrails.server.experimental._content_checker import (
 from nemoguardrails.server.experimental._guarded_operation import UnsupportedGuardedPayload
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse
 from nemoguardrails.server.experimental.provider.sse import (
+    AmbiguousServerSentEvent,
     ServerSentEvent,
     ServerSentEventTooLarge,
     TruncatedServerSentEvent,
@@ -308,6 +309,7 @@ async def guard_provider_stream(
         for event in pending:
             yield event.event.raw
     except (
+        AmbiguousServerSentEvent,
         PendingStreamBufferTooLarge,
         ServerSentEventTooLarge,
         TruncatedServerSentEvent,
