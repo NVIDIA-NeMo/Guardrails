@@ -59,7 +59,7 @@ contract = export_guard_contract(
 Run the shared CLI from the repository root:
 
 ```bash
-poetry run python -m nemoguardrails.server.experimental.provider.contract_export \
+uv run --locked python -m nemoguardrails.server.experimental.provider.contract_export \
   nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint:CHAT_COMPLETIONS_ENDPOINT \
   --operation-id createChatCompletion --name chat_completions \
   --output nemoguardrails/server/experimental/contracts/openai/_generated/chat-completions.buffered.guard.yaml
@@ -84,10 +84,20 @@ rejects streaming requests before dispatch. Replacement eligibility is declared
 by the models, while applying replacement outcomes remains unsupported by this
 integration. Exporting the policy does not enable either runtime feature.
 
+A successful response whose assistant content is empty or null is relayed
+unchanged without output checks, but only after the full response passes the
+closed projection. Null content alongside refusal, reasoning, tool, or citation
+content is still rejected.
+
+Guarded requests ask the provider for `accept-encoding: identity`, replacing
+any client value, because an encoded response cannot be inspected. A
+successful response that is still encoded is rejected, not relayed.
+
 The shared exporter describes buffered payload policy and endpoint labels, not
 arbitrary transport behavior: header/query API-revision bindings and alternate
 route ownership are not serialized.
 
-Nullable annotations are exported as disjoint array/null `oneOf` branches.
+Nullable annotations are exported as disjoint array/null `oneOf` branches; the
+array branch has `maxItems: 0` because citation content is not inspected.
 No new contract format version, provider download, or runtime YAML loading is
 introduced.
