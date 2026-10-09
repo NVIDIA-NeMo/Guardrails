@@ -409,6 +409,16 @@ def _render_response(value: BufferedHttpResponse, request_method: str | None = N
     return response
 
 
+def _has_media_type(headers: HttpHeaders, expected: bytes) -> bool:
+    """Require one Content-Type with the expected lowercase media type.
+
+    Header names and media types are case-insensitive; parameters are ignored.
+    Reject even identical duplicates so readers cannot select different values.
+    """
+    values = [value for name, value in headers if name.lower() == b"content-type"]
+    return len(values) == 1 and values[0].partition(b";")[0].strip().lower() == expected
+
+
 def _has_identity_encoding(headers: HttpHeaders) -> bool:
     """Return whether every Content-Encoding coding is identity.
 

@@ -50,11 +50,31 @@ from nemoguardrails.server.experimental._http_kernel import (
     HttpRouteRejected,
     HttpRouteRejectionKind,
     _has_identity_encoding,
+    _has_media_type,
     _render_response,
     _request_path,
     create_http_proxy_router,
 )
 from nemoguardrails.server.experimental.provider.types import GuardedMessage
+
+
+@pytest.mark.parametrize(
+    ("values", "accepted"),
+    [
+        ((), False),
+        ((b"",), False),
+        ((b"text/plain",), False),
+        ((b"application/json",), True),
+        ((b"Application/JSON; charset=utf-8",), True),
+        ((b"application/json, application/json",), False),
+        ((b"application/json", b"application/json"), False),
+        ((b"application/json", b"text/plain"), False),
+        ((b"text/plain", b"application/json"), False),
+    ],
+)
+def test_media_type_requires_one_unambiguous_header(values, accepted):
+    headers = tuple((b"Content-Type", value) for value in values)
+    assert _has_media_type(headers, b"application/json") is accepted
 
 
 class StaticChecker:

@@ -42,6 +42,7 @@ from nemoguardrails.server.experimental._http_kernel import (
     ResponseBodyTooLarge,
     _end_to_end_headers,
     _has_identity_encoding,
+    _has_media_type,
     _render_response,
     _request_identity_encoding,
 )
@@ -121,11 +122,6 @@ def _streaming_response(
 
 def _header_values(headers: HttpHeaders, name: bytes) -> tuple[bytes, ...]:
     return tuple(value for header_name, value in headers if header_name.lower() == name)
-
-
-def _is_event_stream(headers: HttpHeaders) -> bool:
-    values = _header_values(headers, b"content-type")
-    return len(values) == 1 and values[0].partition(b";")[0].strip().lower() == b"text/event-stream"
 
 
 async def _close_source(source: AsyncIterator[bytes]) -> None:
@@ -216,7 +212,7 @@ async def execute_streaming_http(
     if (
         request.method == "HEAD"
         or upstream.status_code in {204, 205}
-        or not _is_event_stream(headers)
+        or not _has_media_type(headers, b"text/event-stream")
         or len(content_lengths) > 1
         or any(re.fullmatch(rb"[0-9]+", length) is None for length in content_lengths)
     ):

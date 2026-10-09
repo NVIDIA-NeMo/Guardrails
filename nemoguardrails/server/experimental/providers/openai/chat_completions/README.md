@@ -151,6 +151,12 @@ unchanged without output checks, but only after the full response passes the
 closed projection. Null content alongside refusal, reasoning, tool, or citation
 content is still rejected.
 
+Guarded requests require exactly one `Content-Type: application/json` header.
+Inspected successful buffered responses require the same; inspected streams
+require exactly one `Content-Type: text/event-stream` header. Media types are
+case-insensitive and may have parameters. Duplicate headers are rejected even
+when their values agree, rather than selecting a first or last value.
+
 When output checks run, guarded requests ask the provider for
 `accept-encoding: identity`, replacing any client value, because an encoded
 response cannot be inspected. A successful response that is still encoded is
