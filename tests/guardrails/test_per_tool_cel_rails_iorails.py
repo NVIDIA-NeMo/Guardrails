@@ -23,8 +23,10 @@ helpers.
 import pytest
 import pytest_asyncio
 
-from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_MESSAGE
+from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_MESSAGE, IORails
 from nemoguardrails.imports import check_optional_dependency
+from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_tool_rails_iorails import (
     _inject_forbidden_transport,
@@ -205,3 +207,29 @@ class TestStreamingPerToolResultCel:
         chunks = await _collect(result_iorails.stream_async(_tool_conversation("no keys here")))
         assert _stream_violation_chunks(chunks) == []
         assert "The file has no key." in "".join(chunk for chunk in chunks if isinstance(chunk, str))
+
+
+class TestSynchronousCheck:
+    """The synchronous check() deep-copies the config, so it covers a config holding CEL expressions."""
+
+    def test_sync_check_blocks_a_matching_call(self):
+        iorails = IORails(RailsConfig.from_content(config=TOOL_OUTPUT_CONFIG))
+        messages = [
+            {"role": "user", "content": "clean up"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_0",
+                        "type": "function",
+                        "function": {"name": "run_shell", "arguments": '{"command": "rm -rf /tmp"}'},
+                    }
+                ],
+            },
+        ]
+
+        result = iorails.check(messages, rail_types=[RailType.TOOL_CALL], tools=[RUN_SHELL_TOOL])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.rail == "cel check tool output"

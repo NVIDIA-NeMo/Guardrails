@@ -54,6 +54,7 @@
       "type": "object"
     },
     "CelConfig": {
+      "additionalProperties": false,
       "description": "Configuration for CEL expression checks.",
       "properties": {
         "tool_input": {
@@ -77,6 +78,7 @@
       "type": "object"
     },
     "CelOptions": {
+      "additionalProperties": false,
       "description": "CEL expressions to check for one tool.",
       "properties": {
         "expressions": {
@@ -84,10 +86,14 @@
           "items": {
             "type": "string"
           },
+          "minItems": 1,
           "title": "Expressions",
           "type": "array"
         }
       },
+      "required": [
+        "expressions"
+      ],
       "title": "CelOptions",
       "type": "object"
     },

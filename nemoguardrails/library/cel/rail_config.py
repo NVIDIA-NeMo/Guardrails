@@ -15,9 +15,10 @@
 
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+from pydantic import ConfigDict
+
 from nemoguardrails.manifests.config_schema import (
     Field,
-    PrivateAttr,
     RailConfigBaseModel,
     RailConfigSpec,
     model_validator,
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from cel import Program
 
 
-def _compile(expression: str) -> "Program":
+def compile_expression(expression: str) -> "Program":
     """Compile *expression*, importing the optional CEL library only when a config uses it."""
     try:
         import cel
@@ -43,33 +44,33 @@ def _compile(expression: str) -> "Program":
 class CelOptions(RailConfigBaseModel):
     """CEL expressions to check for one tool."""
 
+    model_config = ConfigDict(extra="forbid")
+
     expressions: List[str] = Field(
-        default_factory=list,
+        ...,
+        min_length=1,
         description="List of CEL expressions to evaluate, where any that evaluates to true is a match.",
     )
 
-    _compiled_expressions: List["Program"] = PrivateAttr(default_factory=list)
-
     @model_validator(mode="after")
     def compile_expressions(self) -> "CelOptions":
-        """Compile the expressions at config load time, so a syntax error fails the load."""
-        compiled = []
+        """Compile the expressions at config load time, so a syntax error fails the load.
+
+        The compiled programs are not kept: a cel.Program cannot be deep-copied or pickled, which the
+        synchronous generate() and check() do to the config.
+        """
         for i, expression in enumerate(self.expressions):
             try:
-                compiled.append(_compile(expression))
+                compile_expression(expression)
             except ValueError as e:
                 raise ValueError(f"Invalid CEL expression at index {i} ({expression!r}): {e}") from e
-        object.__setattr__(self, "_compiled_expressions", compiled)
         return self
-
-    @property
-    def compiled_expressions(self) -> List["Program"]:
-        """Return the compiled CEL programs."""
-        return self._compiled_expressions
 
 
 class CelConfig(RailConfigBaseModel):
     """Configuration for CEL expression checks."""
+
+    model_config = ConfigDict(extra="forbid")
 
     tool_output: Dict[str, CelOptions] = Field(
         default_factory=dict,
