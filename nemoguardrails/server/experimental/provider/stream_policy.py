@@ -29,6 +29,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     field_coverage,
     field_policy,
     model_graph,
+    replacement_blocker,
 )
 from nemoguardrails.server.experimental.provider.stream import StreamEventRole, StreamShapeCoverage
 from nemoguardrails.server.experimental.provider.stream_classifier import (
@@ -53,7 +54,8 @@ def stream_text_path(model: type[PolicyModel]) -> StreamTextPath:
     Raises:
         ValueError: The declaration has no unique text subject, an array that
             may hold more than one item, an unsupported subject type, a union
-            container, or a recursive path. Object-union selectors and
+            container, a recursive path, or a replacement blocker that is
+            not a reviewed sibling field. Object-union selectors and
             multi-item arrays need an explicit StreamEventRule.text_path.
     """
     paths: list[StreamTextPath] = []
@@ -102,6 +104,7 @@ def stream_text_path(model: type[PolicyModel]) -> StreamTextPath:
             annotation, _ = unwrap(field.annotation, list(field.metadata))
             if annotation is not str:
                 raise ValueError("A guarded stream subject must be a named string field")
+            replacement_blocker(current, policy["subject"])
             paths.append((*path, name))
 
     visit_model(model, (), ())

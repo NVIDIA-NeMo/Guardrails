@@ -97,6 +97,24 @@ def test_stream_path_requires_one_subject(fields):
         stream_text_path(model)
 
 
+def test_stream_path_validates_replacement_blocker_like_buffered_paths():
+    """Streams do not replace text, but a misspelled blocker is still a policy error."""
+
+    class Typo(PolicyModel):
+        annotations: Annotated[list[str] | None, constrained()] = None
+        text: Annotated[str | None, guarded("assistant", replaceable=True, blocked_by="annotatons")] = None
+
+    class Sibling(PolicyModel):
+        annotations: Annotated[list[str] | None, constrained()] = None
+        text: Annotated[str | None, guarded("assistant", replaceable=True, blocked_by="annotations")] = None
+
+    with pytest.raises(ValueError, match="Replacement blocker 'annotatons'"):
+        stream_text_path(Typo)
+    with pytest.raises(ValueError, match="Replacement blocker 'annotatons'"):
+        text_location(Typo)
+    assert stream_text_path(Sibling) == ("text",)
+
+
 def rule(shape, role, **kwargs):
     return StreamEventRule(shape=shape, model=TextDelta, role=role, match=(("type", shape),), **kwargs)
 

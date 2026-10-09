@@ -462,6 +462,21 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
     return exported
 
 
+def replacement_blocker(model: type[PolicyModel], subject: dict[str, Any]) -> str | None:
+    """Return a subject's replacement blocker after checking it names a reviewed sibling.
+
+    A misspelled blocker would never match a provider member and would silently
+    allow replacement, so buffered and stream subjects both validate it.
+
+    Raises:
+        ValueError: The blocker is not a declared or reviewed opaque field of the model.
+    """
+    blocker = subject.get("replacement_blocked_by")
+    if blocker is not None and blocker not in set(model.model_fields) | set(model.policy.opaque):
+        raise ValueError(f"Replacement blocker {blocker!r} is not a field of the subject's object")
+    return blocker
+
+
 def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
     """Derive one buffered text target directly from typed field declarations.
 
@@ -508,7 +523,6 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
         """Collect subjects from the model objects that own their policies."""
         if current in active:
             raise ValueError("Recursive guarded text paths are not supported")
-        reviewed = set(current.model_fields) | set(current.policy.opaque)
         for name, field in current.model_fields.items():
             policy = field_policy(field)
             if policy.get("classification") != "guarded":
@@ -528,9 +542,7 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
             )
             if annotation is not str and not literal_text:
                 raise ValueError("A guarded subject must be a named string field")
-            blocker = subject.get("replacement_blocked_by")
-            if blocker is not None and blocker not in reviewed:
-                raise ValueError(f"Replacement blocker {blocker!r} is not a field of the subject's object")
+            blocker = replacement_blocker(current, subject)
             locations.append(
                 GuardedTextLocation(
                     role=subject["role"],
