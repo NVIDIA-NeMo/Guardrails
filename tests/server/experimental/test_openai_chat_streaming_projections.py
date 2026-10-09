@@ -121,7 +121,7 @@ def test_stream_classifier_treats_non_data_events_as_declared_opaque_shape():
     "native",
     [
         chunk({"reasoning_content": "unguarded"}),
-        chunk({"content": "answer", "tool_calls": []}),
+        chunk({"content": "answer", "tool_calls": [{"index": 0, "id": "call", "type": "function"}]}),
         chunk({"content": "answer", "future_content": "unguarded"}),
         {
             "object": "chat.completion.chunk",
@@ -541,3 +541,11 @@ def test_strict_index_is_a_known_export_value_gap():
     assert Draft202012Validator(exported).is_valid(native)
     with pytest.raises(ValidationError):
         ChatCompletionsStreamPayloadProjection.validate_payload(native)
+
+
+@pytest.mark.parametrize("tool_calls", [None, []])
+def test_stream_delta_accepts_absent_tool_calls(tool_calls):
+    """Null and empty tool calls carry no tool content, as in buffered responses."""
+    classified = STREAM_CLASSIFIER.classify_event(event(chunk({"content": "answer", "tool_calls": tool_calls})))
+
+    assert classified.text == "answer"
