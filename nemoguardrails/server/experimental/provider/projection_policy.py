@@ -23,7 +23,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal, cast, get_args
+from types import UnionType
+from typing import Annotated, Any, ClassVar, Literal, Union, cast, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, ValidationInfo, model_validator
 from pydantic.fields import FieldInfo
@@ -462,56 +463,86 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
 
 
 def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
-    """Derive one buffered text target by following guarded object fields.
+    """Derive one buffered text target directly from typed field declarations.
 
-    Traversed arrays must constrain their size to exactly one item. The subject
-    must be a named string field, optionally nullable; its role and replacement
-    restrictions become runtime location metadata. A nullable subject, or one
-    without a minimum length, may hold no text. This helper does not provide union selectors or
-    streaming classification and does not itself attach the result to a model.
+    Follow guarded models and exactly-one-item lists without schema generation
+    or contract-format conversion. A nullable subject, or one without a minimum
+    length, may hold no text. Union selectors need explicit bindings.
 
     Raises:
-        ValueError: No unique text subject can be derived, a traversed array is
-            not constrained to one item, a replacement blocker is not a field of
-            the subject's object, or the schema cannot be exported.
+        ValueError: A subject is missing or ambiguous, a guarded container is
+            unsupported, or a replacement blocker is not a reviewed sibling.
     """
     locations: list[GuardedTextLocation] = []
 
-    def visit(node: dict[str, Any], path: tuple[str | int, ...]) -> None:
-        """Accumulate subject locations along guarded object and array paths."""
-        subject = node.get(EXTENSION, {}).get("subject")
-        if subject:
-            branches = node.get("oneOf", [node])
-            types = [branch.get("type") for branch in branches]
-            if types not in (["string"], ["string", "null"], ["null", "string"]):
+    def unwrap(annotation: Any, metadata: list[Any]) -> tuple[Any, list[Any]]:
+        """Read Annotated container arguments without serializing their types."""
+        if get_origin(annotation) is Annotated:
+            annotation, *inner = get_args(annotation)
+            metadata = [*inner, *metadata]
+        return annotation, metadata
+
+    def bound(metadata: list[Any], name: str, default: int | None = None) -> int | None:
+        """Read the last declared length constraint, matching field precedence."""
+        return next((getattr(item, name) for item in reversed(metadata) if hasattr(item, name)), default)
+
+    def visit_container(
+        annotation: Any, metadata: list[Any], path: tuple[str | int, ...], active: tuple[type[PolicyModel], ...]
+    ) -> None:
+        """Follow only explicitly guarded model and singleton-list containers."""
+        annotation, metadata = unwrap(annotation, metadata)
+        if get_origin(annotation) is list:
+            if bound(metadata, "min_length") != 1 or bound(metadata, "max_length") != 1:
+                raise ValueError("Buffered text extraction requires exactly one array item")
+            visit_container(get_args(annotation)[0], [], (*path, 0), active)
+        elif isinstance(annotation, type) and issubclass(annotation, PolicyModel):
+            visit_model(annotation, path, active)
+        else:
+            raise ValueError(
+                "Guarded containers must lead to a named string field; alternatives need explicit bindings"
+            )
+
+    def visit_model(
+        current: type[PolicyModel], path: tuple[str | int, ...], active: tuple[type[PolicyModel], ...]
+    ) -> None:
+        """Collect subjects from the model objects that own their policies."""
+        if current in active:
+            raise ValueError("Recursive guarded text paths are not supported")
+        reviewed = set(current.model_fields) | set(current.policy.opaque)
+        for name, field in current.model_fields.items():
+            policy = field_policy(field)
+            if policy.get("classification") != "guarded":
+                continue
+            subject = policy.get("subject")
+            if not subject:
+                visit_container(field.annotation, field.metadata, (*path, name), (*active, current))
+                continue
+            annotation, metadata = unwrap(field.annotation, field.metadata)
+            nullable = get_origin(annotation) in (Union, UnionType) and type(None) in get_args(annotation)
+            if nullable:
+                alternatives = [item for item in get_args(annotation) if item is not type(None)]
+                annotation = alternatives[0] if len(alternatives) == 1 else None
+                annotation, metadata = unwrap(annotation, metadata)
+            literal_text = get_origin(annotation) is Literal and all(
+                isinstance(value, str) for value in get_args(annotation)
+            )
+            if annotation is not str and not literal_text:
                 raise ValueError("A guarded subject must be a named string field")
-            if not path or not isinstance(path[-1], str):
-                raise ValueError("A guarded subject must be a named string field")
-            text = branches[types.index("string")]
+            blocker = subject.get("replacement_blocked_by")
+            if blocker is not None and blocker not in reviewed:
+                raise ValueError(f"Replacement blocker {blocker!r} is not a field of the subject's object")
             locations.append(
                 GuardedTextLocation(
                     role=subject["role"],
-                    object_path=path[:-1],
-                    member=path[-1],
+                    object_path=path,
+                    member=name,
                     allows_replacement=subject.get("replaceable", False),
-                    replacement_blocked_by=subject.get("replacement_blocked_by"),
-                    # A nullable subject, or one without a minimum length, may hold no text.
-                    allows_empty="null" in types or text.get("minLength", 0) < 1,
+                    replacement_blocked_by=blocker,
+                    allows_empty=nullable or (bound(metadata, "min_length", 0) or 0) < 1,
                 )
             )
-        if node.get("type") == "array":
-            if node.get("minItems") != 1 or node.get("maxItems") != 1:
-                raise ValueError("Buffered text extraction requires exactly one array item")
-            visit(node["items"], (*path, 0))
-        for name, child in node.get("properties", {}).items():
-            blocker = child.get(EXTENSION, {}).get("subject", {}).get("replacement_blocked_by")
-            # A misspelled blocker would never match and silently allow replacement.
-            if blocker is not None and blocker not in node["properties"]:
-                raise ValueError(f"Replacement blocker {blocker!r} is not a field of the subject's object")
-            if child.get(EXTENSION, {}).get("classification") == "guarded":
-                visit(child, (*path, name))
 
-    visit(export_payload_schema(model, projection_id=model.__name__), ())
+    visit_model(model, (), ())
     if len(locations) != 1:
         raise ValueError("Buffered text extraction requires exactly one guarded subject")
     return locations[0]

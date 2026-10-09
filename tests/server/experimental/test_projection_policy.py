@@ -208,6 +208,28 @@ def test_replacement_policy_requires_subject():
         guarded(replaceable=True)
 
 
+def test_text_binding_derivation_does_not_generate_schemas(monkeypatch):
+    """Unrelated unions and schema-export availability cannot change a text path."""
+    import nemoguardrails.server.experimental.provider.projection_policy as policies
+
+    class Request(PolicyModel):
+        text: Annotated[str, guarded("user", min_length=2)]
+        option: Annotated[str | int, constrained()]
+
+    def unexpected_schema(*args, **kwargs):
+        raise AssertionError("Runtime binding derivation must not generate schemas")
+
+    monkeypatch.setattr(policies, "export_payload_schema", unexpected_schema)
+    monkeypatch.setattr(policies, "policy_json_schema", unexpected_schema)
+    monkeypatch.setattr(Request, "model_json_schema", unexpected_schema)
+
+    location = text_location(Request)
+    assert location.object_path == ()
+    assert location.member == "text"
+    assert location.role == "user"
+    assert location.allows_empty is False
+
+
 def test_extraction_rejects_non_singleton_arrays():
     class Message(PolicyModel):
         text: Annotated[str, guarded("user")]
@@ -217,6 +239,17 @@ def test_extraction_rejects_non_singleton_arrays():
 
     with pytest.raises(ValueError, match="exactly one array item"):
         text_location(Request)
+
+
+def test_extraction_rejects_recursive_guarded_paths():
+    """Recursive guarded containers fail explicitly rather than recursing forever."""
+
+    class Node(PolicyModel):
+        children: Annotated["list[Node]", guarded(min_length=1, max_length=1)]
+
+    Node.model_rebuild()
+    with pytest.raises(ValueError, match="Recursive guarded text paths"):
+        text_location(Node)
 
 
 def test_extraction_rejects_unknown_replacement_blocker():

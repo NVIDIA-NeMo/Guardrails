@@ -17,12 +17,19 @@ unknown-field policy. It is not a deployment profile selector. The capability
 profile remains `single_text.v1`; the exported document format remains experimental
 `1.0.0-alpha.1`.
 
+`ObjectPolicy` controls object closure. `PolicyModel` requires Pydantic
+`extra="allow"` internally so its validator can inspect every unreviewed member;
+overriding it with `ignore` or `forbid` is rejected at class declaration.
+
 The request/response binding modules retain their existing runtime classes.
 The provider revision pin lives once in
 [`providers/openai/source.py`](../source.py), mirroring `source.yaml`. Their coverage inventories and exact text locations
 are derived from the model annotations. Extraction supports one required item
 at each traversed array boundary; unsupported or ambiguous boundaries fail.
 No YAML is loaded to construct these bindings.
+Text locations are derived directly from typed fields, not from exported schemas.
+An unrelated constrained union therefore does not require contract-format support
+just to construct a runtime binding.
 
 `export_payload_schema` exports the declared schema and policy for readers.
 It does not prove upstream provider compatibility or serialize arbitrary Python
