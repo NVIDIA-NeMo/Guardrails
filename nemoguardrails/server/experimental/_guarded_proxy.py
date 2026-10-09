@@ -15,7 +15,7 @@
 
 """Compose provider declarations with the guarded HTTP pipeline."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from pydantic import ValidationError
 
@@ -33,6 +33,7 @@ from nemoguardrails.server.experimental._guarded_operation import (
 )
 from nemoguardrails.server.experimental._guarded_stream import (
     StreamInspectionUnsupported,
+    StreamOutcome,
     UnsupportedStreamInspection,
 )
 from nemoguardrails.server.experimental._http_kernel import (
@@ -182,6 +183,21 @@ def create_guarded_http_operation(
         else request_model.model_json_schema()
     )
 
+    def render_stream_outcome(outcome: StreamOutcome) -> BufferedHttpResponse:
+        """Bind generic stream shape failures to the endpoint's declared codes."""
+        if (
+            isinstance(outcome, OperationProjectionFailed)
+            and type(outcome.failure) is UnsupportedGuardedPayload
+            and outcome.failure.code is None
+        ):
+            code = (
+                endpoint.unsupported_request_code
+                if outcome.stage is InspectionStage.INPUT
+                else endpoint.unsupported_response_code
+            )
+            outcome = replace(outcome, failure=UnsupportedGuardedPayload(str(outcome.failure), code))
+        return errors.renderer(outcome)
+
     async def handle_prepared_request(
         prepared_input: PreparedOperationInput[GuardableProviderRequest],
     ):
@@ -189,7 +205,7 @@ def create_guarded_http_operation(
         if not guardable.streaming:
             return None
         if stream_dispatch is None:
-            return errors.renderer(
+            return render_stream_outcome(
                 OperationProjectionFailed(
                     InspectionStage.INPUT,
                     UnsupportedGuardedPayload("The guarded endpoint does not have streaming dispatch configured."),
@@ -212,7 +228,7 @@ def create_guarded_http_operation(
             streaming_policy=streaming_policy,
             input_message=guardable.target.message,
             adapter=adapter_factory(),
-            render_outcome=errors.renderer,
+            render_outcome=render_stream_outcome,
             max_event_bytes=max_stream_event_bytes,
             max_pending_bytes=max_pending_stream_bytes,
         )
