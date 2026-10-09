@@ -277,6 +277,7 @@ def test_response_binding_allows_unannotated_text_replacement():
         _response(output_text="uninspected"),
         _response(prompt_text="uninspected"),
         _response(__verbose={"content": "uninspected"}),
+        _response(Choices=[]),
     ],
 )
 def test_response_projection_rejects_shapes_outside_buffered_text_profile(payload):
@@ -294,6 +295,9 @@ def test_response_projection_rejects_shapes_outside_buffered_text_profile(payloa
         _request(documents=[{"title": "t", "text": "uninspected"}]),
         _request(Tools=[{"type": "function"}]),
         _request(STREAM=True),
+        _request(messages=[{"role": "user", "content": "question", "Content": "attack"}]),
+        _request(tools=None, TOOLS=[{"type": "function"}]),
+        _request(**{"stream": False, "\u017ftream": True}),
         _request(messages=[{"role": "user", "content": "question", "future": {"value": 1}}]),
         _request(messages=[{"role": "user", "content": "question", "task": "uninspected"}]),
         _request(messages=[{"role": "user", "content": "question", "Role": "system"}]),
@@ -311,9 +315,6 @@ def test_request_projection_rejects_members_outside_openai_fields(payload):
         (b"not json", InvalidJson),
         (b"[]", UnsupportedJsonShape),
         (b'{"messages":[],"messages":[]}', UnsupportedJsonShape),
-        (b'{"messages":[{"content":"hello","Content":"attack"}]}', UnsupportedJsonShape),
-        ('{"tools":null,"TOOLS":[]}'.encode(), UnsupportedJsonShape),
-        ('{"ſtream":true,"stream":false}'.encode(), UnsupportedJsonShape),
         (b'{"value":NaN}', InvalidJson),
         (b"\xff", InvalidJson),
     ],
@@ -322,6 +323,11 @@ def test_strict_json_parser_rejects_ambiguous_or_non_object_payloads(body, error
     """Strict JSON parsing rejects ambiguous, invalid, and non-object bodies."""
     with pytest.raises(error):
         parse_json_object(body)
+
+
+def test_strict_json_parser_keeps_case_variant_names_in_opaque_data():
+    """Only exact duplicates are ambiguous to every parser; closed models handle case variants."""
+    assert parse_json_object(b'{"metadata":{"Env":"a","env":"b"}}') == {"metadata": {"Env": "a", "env": "b"}}
 
 
 def test_strict_json_parser_normalizes_integer_conversion_failures(monkeypatch):
