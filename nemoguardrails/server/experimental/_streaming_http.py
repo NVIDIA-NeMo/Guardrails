@@ -125,11 +125,13 @@ def _has_identity_encoding(headers: HttpHeaders) -> bool:
 
 
 async def _close_source(source: AsyncIterator[bytes]) -> None:
-    close = getattr(source, "aclose", None)
-    if callable(close):
-        result = close()
-        if inspect.isawaitable(result):
-            await result
+    """Finish owned-body cleanup even when a request cancel scope has fired."""
+    with anyio.CancelScope(shield=True):
+        close = getattr(source, "aclose", None)
+        if callable(close):
+            result = close()
+            if inspect.isawaitable(result):
+                await result
 
 
 async def _relay(source: AsyncIterator[bytes], expected_length: bytes | None) -> AsyncIterator[bytes]:

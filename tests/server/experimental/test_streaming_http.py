@@ -245,6 +245,47 @@ async def test_unsupported_inspected_success_closes_source_before_headers(header
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("encoded", [False, True])
+async def test_rejection_cleanup_finishes_under_cancellation(encoded):
+    """Cancellation during pre-response rejection cannot abandon an open body."""
+    started = anyio.Event()
+    release = anyio.Event()
+
+    class DelayedClose(Source):
+        async def aclose(self):
+            started.set()
+            await release.wait()
+            self.closed = True
+
+    source = DelayedClose([b"unread provider bytes"])
+    headers = (
+        ((b"content-type", b"text/event-stream"), (b"content-encoding", b"gzip"))
+        if encoded
+        else ((b"content-type", b"text/plain"),)
+    )
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, headers, source)
+
+    scope = anyio.CancelScope()
+
+    async def request():
+        with scope:
+            await execute(dispatch)
+
+    with anyio.fail_after(2):
+        async with anyio.create_task_group() as group:
+            group.start_soon(request)
+            await started.wait()
+            scope.cancel()
+            await anyio.sleep(0)
+            release.set()
+
+    assert source.closed is True
+    assert source.read_calls == 0
+
+
+@pytest.mark.asyncio
 async def test_unsafe_stream_policy_is_rejected_before_dispatch():
     calls = []
 
