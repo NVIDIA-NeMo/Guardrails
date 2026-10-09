@@ -16,6 +16,7 @@
 """Bind guarded provider streams to an injected HTTP exchange."""
 
 import inspect
+import logging
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, replace
@@ -46,13 +47,21 @@ from nemoguardrails.server.experimental._http_kernel import (
 from nemoguardrails.server.experimental.provider.stream import ProviderStreamAdapter
 from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
+log = logging.getLogger(__name__)
+
+_STREAM_CLOSE_TIMEOUT_SECONDS = 5.0
+
 
 @dataclass(frozen=True, slots=True)
 class StreamingHttpResponse:
     """Carry one successful response without choosing an HTTP client.
 
     The returned HTTP response closes ``body`` when it ends, possibly more than
-    once, so closing ``body`` must be idempotent.
+    once, so closing ``body`` must be idempotent. HTTP cleanup attempts are
+    shielded from enclosing cancellation scopes for up to five seconds each.
+    A timeout is logged without replacing the response or its original failure.
+    Bodies must cooperate with cancellation; cleanup cannot forcibly stop
+    synchronous blocking code or a closer that suppresses cancellation.
     """
 
     status_code: int
@@ -83,11 +92,10 @@ class _ClosingStreamingResponse(StreamingResponse):
         try:
             await super().__call__(scope, receive, send)
         finally:
-            with anyio.CancelScope(shield=True):
-                try:
-                    await _close_source(self.owned_body)
-                finally:
-                    await _close_source(self.source)
+            try:
+                await _close_source(self.owned_body)
+            finally:
+                await _close_source(self.source)
 
 
 _BODY_DEPENDENT_HEADERS = frozenset(
@@ -125,13 +133,20 @@ def _has_identity_encoding(headers: HttpHeaders) -> bool:
 
 
 async def _close_source(source: AsyncIterator[bytes]) -> None:
-    """Finish owned-body cleanup even when a request cancel scope has fired."""
-    with anyio.CancelScope(shield=True):
+    """Bound shielded cleanup, logging its timeout without masking the outcome.
+
+    Only this scope's timeout is suppressed. Other close failures propagate as
+    before. Each call gets its own budget, including a final provider-body close
+    after the response iterator's cleanup, so the limit is not per request.
+    """
+    with anyio.move_on_after(_STREAM_CLOSE_TIMEOUT_SECONDS, shield=True) as scope:
         close = getattr(source, "aclose", None)
         if callable(close):
             result = close()
             if inspect.isawaitable(result):
                 await result
+    if scope.cancelled_caught:
+        log.warning("Stream cleanup timed out; resources may remain open.")
 
 
 async def _relay(source: AsyncIterator[bytes], expected_length: bytes | None) -> AsyncIterator[bytes]:

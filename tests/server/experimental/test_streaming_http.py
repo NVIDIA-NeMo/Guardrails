@@ -19,7 +19,9 @@ from dataclasses import replace
 
 import anyio
 import pytest
+from starlette.requests import ClientDisconnect
 
+from nemoguardrails.server.experimental import _streaming_http
 from nemoguardrails.server.experimental._buffered_kernel import OperationProjectionFailed
 from nemoguardrails.server.experimental._content_checker import ContentAllowed, StreamBufferingPolicy
 from nemoguardrails.server.experimental._guarded_stream import StreamProcessingFailed, StreamUpstreamFailed
@@ -102,6 +104,20 @@ class Source:
     async def aclose(self):
         await anyio.sleep(0)
         self.closed = True
+
+
+class StalledClose(Source):
+    def __init__(self):
+        super().__init__([])
+        self.close_started = anyio.Event()
+        self.close_cancelled = False
+
+    async def aclose(self):
+        self.close_started.set()
+        try:
+            await anyio.sleep_forever()
+        finally:
+            self.close_cancelled = True
 
 
 REQUEST = BufferedHttpRequest("POST", "/v1/generate", b"/v1/generate", b"", (), b"request")
@@ -283,6 +299,94 @@ async def test_rejection_cleanup_finishes_under_cancellation(encoded):
 
     assert source.closed is True
     assert source.read_calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("encoded", [False, True])
+@pytest.mark.parametrize("cancel_request", [False, True])
+async def test_stalled_rejection_cleanup_preserves_rejection(monkeypatch, caplog, encoded, cancel_request):
+    monkeypatch.setattr(_streaming_http, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01, raising=False)
+    source = StalledClose()
+    headers = (
+        ((b"content-type", b"text/event-stream"), (b"content-encoding", b"gzip"))
+        if encoded
+        else ((b"content-type", b"text/plain"),)
+    )
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, headers, source)
+
+    scope = anyio.CancelScope()
+
+    async def request():
+        with scope:
+            return await execute(dispatch)
+
+    task = asyncio.create_task(request())
+    await source.close_started.wait()
+    if cancel_request:
+        scope.cancel()
+    response = await asyncio.wait_for(task, timeout=1)
+
+    assert response.status_code == 502
+    assert await response_body(response) == b"projection_failed"
+    assert source.close_cancelled is True
+    assert source.closed is False
+    assert source.read_calls == 0
+    assert "Stream cleanup timed out; resources may remain open." in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stalled_body", [False, True])
+async def test_stalled_response_cleanup_preserves_send_failure(monkeypatch, caplog, stalled_body):
+    monkeypatch.setattr(_streaming_http, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01, raising=False)
+    body = StalledClose() if stalled_body else Source([])
+    source = Source([]) if stalled_body else StalledClose()
+    response = _ClosingStreamingResponse(body, source, status_code=200)
+
+    async def receive():
+        await anyio.sleep_forever()
+
+    async def send(_message):
+        raise OSError("downstream disconnected")
+
+    with pytest.raises(ClientDisconnect) as failure:
+        await asyncio.wait_for(response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send), timeout=1)
+
+    assert isinstance(failure.value.__context__, OSError)
+    assert str(failure.value.__context__) == "downstream disconnected"
+    stalled, healthy = (body, source) if stalled_body else (source, body)
+    assert stalled.close_cancelled is True
+    assert healthy.closed is True
+    assert "Stream cleanup timed out; resources may remain open." in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stalled_body", [False, True])
+async def test_stalled_response_cleanup_preserves_task_cancellation(monkeypatch, caplog, stalled_body):
+    monkeypatch.setattr(_streaming_http, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01)
+    body = StalledClose() if stalled_body else Source([])
+    source = Source([]) if stalled_body else StalledClose()
+    response = _ClosingStreamingResponse(body, source, status_code=200)
+    started = anyio.Event()
+
+    async def receive():
+        await anyio.sleep_forever()
+
+    async def send(_message):
+        started.set()
+        await anyio.sleep_forever()
+
+    task = asyncio.create_task(response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send))
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, timeout=1)
+
+    stalled, healthy = (body, source) if stalled_body else (source, body)
+    assert stalled.close_cancelled is True
+    assert healthy.closed is True
+    assert "Stream cleanup timed out; resources may remain open." in caplog.text
 
 
 @pytest.mark.asyncio
@@ -591,7 +695,8 @@ async def test_openai_error_encoding_is_complete_sse_blocks():
 
 
 @pytest.mark.asyncio
-async def test_source_is_closed_when_closing_the_body_fails():
+@pytest.mark.parametrize("failure_type", [RuntimeError, TimeoutError])
+async def test_source_is_closed_when_closing_the_body_fails(failure_type):
     class FailingBody:
         def __aiter__(self):
             return self
@@ -600,7 +705,7 @@ async def test_source_is_closed_when_closing_the_body_fails():
             raise StopAsyncIteration
 
         async def aclose(self):
-            raise RuntimeError("body cleanup failed")
+            raise failure_type("body cleanup failed")
 
     source = Source([])
     response = _ClosingStreamingResponse(FailingBody(), source, status_code=200)
@@ -611,7 +716,7 @@ async def test_source_is_closed_when_closing_the_body_fails():
     async def send(_message):
         pass
 
-    with pytest.raises(RuntimeError, match="body cleanup failed"):
+    with pytest.raises(failure_type, match="body cleanup failed"):
         await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
 
     assert source.closed is True
