@@ -92,8 +92,13 @@ cardinality. This is distinct from ordinary array length constraints.
 
 A stream's `oneOf` branches describe event families: `guarded_delta`, `snapshot`,
 `opaque`, or `provider_error`. Their variants identify source schemas, matching
-rules, and classifier shape names. Missing-text policy is distinct from schema
-nullability. Transport metadata describes SSE discriminators and sentinels.
+rules, and classifier shape names. An event variant `match` key is a
+dot-separated member path from the event payload root, such as `error.type`,
+so a provider member whose name contains a dot cannot be matched. An object
+`variant` `match` key names a member of the candidate item directly. Both
+compare the exact parsed type and value, so `1`, `1.0`, and `true` are
+distinct. Missing-text policy is distinct from schema nullability. Transport
+metadata describes SSE discriminators and sentinels.
 Event exclusions and external-source reasons record scope and provenance; they
 do not establish that every provider event has been reviewed.
 

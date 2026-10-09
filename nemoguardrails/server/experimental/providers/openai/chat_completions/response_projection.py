@@ -33,8 +33,9 @@ class ChatCompletionsAssistantMessageProjection(PolicyModel, GuardedContentModel
 
     policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ChatCompletionResponseMessage", unknown_fields="configurable")
     # OpenAI allows empty or null content, for example when generation stops
-    # at a length limit or a content filter. Every other reviewed field is
-    # content-free here, so such a response has nothing to inspect.
+    # at a length limit or a content filter. Other reviewed fields that could
+    # carry generated content must then be null or empty, and opaque metadata
+    # is not inspected, so such a response has no guarded text.
     content: Annotated[
         str | None,
         guarded(

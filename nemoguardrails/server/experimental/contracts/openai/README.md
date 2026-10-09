@@ -10,8 +10,8 @@ behavior. See [Guard contracts](../README.md) for the document vocabulary.
 | Area | Single-text boundary |
 | --- | --- |
 | Request | One user message with non-empty string content at `messages[0].content`. |
-| Buffered response | One assistant choice with string content at `choices[0].message.content`. Empty or null content means the response has nothing to inspect, because every other reviewed field is content-free. The projection reports this through `has_text`, and the buffered integration relays such a response without output checks. |
-| Streamed response | At most one choice, with integer index zero and optional assistant text at `choices[0].delta.content`. Missing or null text is metadata; an empty choices array allows usage chunks. Reviewed root metadata passes through. |
+| Buffered response | One assistant choice with string content at `choices[0].message.content`. Empty or null content means the response has no guarded text: every other reviewed field that could carry generated content is rejected unless null or empty, and opaque metadata is not inspected. The projection reports this through `has_text`, and the buffered integration relays such a response without output checks. |
+| Streamed response | At most one choice, with integer index zero and optional assistant text at `choices[0].delta.content`. Missing or null text is metadata; an empty choices array allows usage chunks. Reviewed root metadata passes through without inspection. |
 | Constrained values | User/assistant roles, single-item arrays, and request `n` constrained to one. |
 | Unsupported content | Tool, audio, multimodal, refusal, participant name, and separate reasoning content where explicitly disabled. |
 | Opaque data | Reviewed provider-owned metadata and controls, not additional guarded subjects. |
@@ -22,7 +22,7 @@ messages alongside the user message, or multimodal content blocks. Disabled
 fields are null-only: a non-null value does not become acceptable merely because
 it requests plain text or no tools. A few unsupported features are constrained
 instead, because OpenAI's schema also allows a value that carries no content:
-response `tool_calls` and `annotations` accept null or an empty list, and
+buffered and stream `tool_calls` and response `annotations` accept null or an empty list, and
 request `logprobs` accepts null or `false`.
 
 Log probabilities are unsupported: they carry token text that rails do not

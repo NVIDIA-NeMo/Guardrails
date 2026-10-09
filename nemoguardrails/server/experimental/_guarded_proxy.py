@@ -153,8 +153,9 @@ def create_guarded_http_operation(
             document = parse_json_object(payload.body)
             projection = endpoint.guarded_response_model.validate_payload(document)
             target = projection.locate_guarded_message(document)
-            # Validation has already rejected content in any other reviewed
-            # field, so a response without text has nothing to inspect.
+            # Validation has already rejected generated content in other
+            # reviewed fields, and opaque metadata is not inspected, so a
+            # response without text has no guarded text to check.
             if not target.has_text:
                 return ContentInspectionNotApplicable()
             return target.message

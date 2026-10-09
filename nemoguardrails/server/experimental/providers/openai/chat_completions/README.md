@@ -60,7 +60,8 @@ scope and provider provenance. Neither is loaded by the models or bindings.
 `ObjectPolicy` for the experimental `single_text_delta.v1` boundary. A chunk
 accepts zero or one choice with a strict integer index of zero, and `logprobs`
 must be null. The root, choice, and delta reject unreviewed members; reviewed
-root metadata such as `id`, `model`, and `usage` passes through unchanged.
+root metadata such as `id`, `model`, and `usage` passes through unchanged and
+is not inspected.
 Missing or null content is metadata, while empty string content is still guarded
 text. Error messages are constrained fields, not guarded assistant output. The
 error envelope rejects unreviewed members, and its error object rejects them
@@ -110,8 +111,8 @@ an injected streaming dispatcher; without one, they fail before dispatch.
 The shared [contract exporter](../../../provider/contract_export.py) takes the
 runtime endpoint, including its declared document identity. No per-operation exporter is needed.
 
-Before export, it checks coverage, text bindings, replacement restrictions, and any
-declared stream selector against the field policy. Stream rules are checked against
+Before export, it checks coverage, text bindings, that replacement blockers name
+reviewed fields, and any declared stream selector against the field policy. Stream rules are checked against
 typed text paths and exact shape coverage. Custom extraction, mismatched bindings,
 and unsupported event selectors or fallbacks are rejected rather than silently
 omitted. A handwritten classifier can still run through `StreamBinding`, but the

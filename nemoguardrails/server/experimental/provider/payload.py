@@ -199,8 +199,8 @@ class GuardedMessageTarget:
         """Return whether the target holds text for content checks.
 
         A validated projection reaches an empty or null target only when its
-        location allows empty text. The projection has then shown that no
-        other reviewed field carries content, so there is nothing to inspect.
+        location allows empty text. The projection has then rejected generated
+        content in other reviewed fields; opaque metadata is not inspected.
         """
         content = self._object.get(self._member)
         return isinstance(content, str) and content != ""
