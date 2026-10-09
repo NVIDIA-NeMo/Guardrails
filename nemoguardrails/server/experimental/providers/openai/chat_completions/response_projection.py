@@ -55,7 +55,8 @@ class ChatCompletionsAssistantMessageProjection(PolicyModel, GuardedContentModel
     function_call: Annotated[None, disabled("core_capability.tool_content")] = None
     reasoning_content: Annotated[None, disabled("core_capability.reasoning_content", extension=True)] = None
     refusal: Annotated[None, disabled("core_capability.refusal_content")] = None
-    tool_calls: Annotated[None, disabled("core_capability.tool_content")] = None
+    # OpenAI's schema allows an empty list here, and it carries no tool content.
+    tool_calls: Annotated[list[Any] | None, constrained(reason="core_capability.tool_content", max_length=0)] = None
 
 
 class ChatCompletionsChoiceProjection(PolicyModel, GuardedContentModel):

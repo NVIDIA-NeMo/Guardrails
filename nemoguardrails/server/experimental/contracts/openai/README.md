@@ -19,7 +19,9 @@ behavior. See [Guard contracts](../README.md) for the document vocabulary.
 This request boundary does not accept conversation histories, system/developer
 messages alongside the user message, or multimodal content blocks. Disabled
 fields are null-only: a non-null value does not become acceptable merely because
-it requests plain text or no tools.
+it requests plain text or no tools. Response `tool_calls` is the one exception:
+it is constrained to null or an empty list, because OpenAI's schema allows an
+empty list and it carries no tool content.
 
 Request `logprobs` and `top_logprobs` settings are provider-owned, while non-null
 buffered response `choices[0].logprobs` is unsupported. That asymmetry is a

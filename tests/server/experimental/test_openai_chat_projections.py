@@ -158,6 +158,17 @@ def test_response_binding_targets_original_provider_object_without_rewriting_byt
     assert body == original
 
 
+@pytest.mark.parametrize("tool_calls", [None, []])
+def test_response_projection_accepts_absent_tool_calls(tool_calls):
+    """Null and empty tool calls both mean that no tool was called."""
+    response = _response()
+    response["choices"][0]["message"]["tool_calls"] = tool_calls
+
+    _, _, target = _guarded_response(_json_bytes(response))
+
+    assert target.message == GuardedMessage("assistant", "answer")
+
+
 def test_response_binding_allows_unannotated_text_replacement():
     """Unannotated assistant text remains eligible for replacement."""
     response = _response()
@@ -175,7 +186,17 @@ def test_response_binding_allows_unannotated_text_replacement():
         _response(choices=[_response()["choices"][0], _response()["choices"][0]]),
         _response(choices=[{"message": {"role": "user", "content": "answer"}}]),
         _response(choices=[{"message": {"role": "assistant", "content": ""}}]),
-        _response(choices=[{"message": {"role": "assistant", "content": "answer", "tool_calls": []}}]),
+        _response(
+            choices=[
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "answer",
+                        "tool_calls": [{"id": "call", "type": "function"}],
+                    }
+                }
+            ]
+        ),
         _response(choices=[{"message": {"role": "assistant", "content": "answer", "reasoning_content": "hidden"}}]),
         _response(choices=[{"logprobs": {"content": []}, "message": {"role": "assistant", "content": "answer"}}]),
         _response(choices=[{"message": {"role": "assistant", "content": "answer", "annotations": "invalid"}}]),
