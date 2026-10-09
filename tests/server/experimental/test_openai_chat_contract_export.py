@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Check that the buffered contract stays derived from the runtime endpoint."""
+"""Check that the operation contract stays derived from the runtime endpoint."""
 
 import json
 import subprocess
@@ -32,19 +32,19 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoi
 
 ROOT = Path(__file__).parents[3]
 CONTRACTS = ROOT / "nemoguardrails/server/experimental/contracts"
-EXPORTED = CONTRACTS / "openai/_generated/chat-completions.buffered.guard.yaml"
+EXPORTED = CONTRACTS / "openai/_generated/chat-completions.guard.yaml"
 MODULE = "nemoguardrails.server.experimental.provider.contract_export"
 ENDPOINT = "nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint:CHAT_COMPLETIONS_ENDPOINT"
 CLI = [sys.executable, "-m", MODULE, ENDPOINT]
 
 
-def test_buffered_export_matches_checked_in_artifact_and_format():
+def test_operation_export_matches_checked_in_artifact_and_format():
     contract = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
     assert contract == yaml.safe_load(EXPORTED.read_text(encoding="utf-8"))
     schema = json.loads((CONTRACTS / "guard-contract.schema.json").read_text(encoding="utf-8"))
     Draft202012Validator(schema).validate(contract)
     assert contract["version"] == CONTRACT_VERSION == "1.0.0-alpha.1"
-    assert "stream" not in contract
+    assert "stream" in contract
     assert "stream_hooks" not in contract["integration"]["endpoint"]
 
 

@@ -90,19 +90,23 @@ errors as terminal outcomes, and frames native errors. These checks require
 history and do not belong in field annotations or a stateless classifier.
 
 The projections and classifier can be used independently of endpoint wiring.
-The endpoint binds the classifier and a fresh hook instance per request through
-the stream adapter factory. The router selects buffered or streaming dispatch
+The endpoint owns one `StreamBinding`: the classifier and a hook factory.
+Runtime creates fresh hooks per request; endpoint construction and contract
+export never invoke the factory. The router selects buffered or streaming dispatch
 after the shared request projection and input check. Streaming requests require
 an injected streaming dispatcher; without one, they fail before dispatch.
 
-## Buffered contract export
+## Contract export
 
 The shared [contract exporter](../../../provider/contract_export.py) takes the
 runtime endpoint, including its declared document identity. No per-operation exporter is needed.
 
 Before export, it checks coverage, text bindings, replacement restrictions, and any
-declared stream selector against the field policy. Custom extraction and mismatched
-bindings are rejected rather than described as if they were equivalent.
+declared stream selector against the field policy. Stream rules are checked against
+typed text paths and exact shape coverage. Custom extraction, mismatched bindings,
+and unsupported event selectors or fallbacks are rejected rather than silently
+omitted. A handwritten classifier can still run through `StreamBinding`, but the
+exporter requires the standard declarative classifier.
 
 ```python
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
@@ -116,7 +120,7 @@ Run the shared CLI from the repository root:
 ```bash
 uv run --locked python -m nemoguardrails.server.experimental.provider.contract_export \
   nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint:CHAT_COMPLETIONS_ENDPOINT \
-  --output nemoguardrails/server/experimental/contracts/openai/_generated/chat-completions.buffered.guard.yaml
+  --output nemoguardrails/server/experimental/contracts/openai/_generated/chat-completions.guard.yaml
 ```
 
 Use `--check` instead of `--output` with the same path to detect drift. Without
@@ -130,15 +134,17 @@ requests or untrusted documents. The CLI does not scan providers or load runtime
 configuration from YAML. Its YAML/JSON Schema dependencies are needed only for
 serialization and format validation, not endpoint construction.
 
-The [exported buffered contract](../../../contracts/openai/_generated/chat-completions.buffered.guard.yaml)
+The [exported contract](../../../contracts/openai/_generated/chat-completions.guard.yaml)
 gets its field policy from the Python models and endpoint labels, route, and
 error codes from `CHAT_COMPLETIONS_ENDPOINT`. Do not edit the artifact by hand.
-This is a buffered-only export: there is no stream section or streaming hook.
-The request model recognizes the `stream` flag, and the router supports both
-response modes when their dispatchers are supplied. The export remains
-buffered-only even when the endpoint binds a stream adapter. Streaming export
-is separate work. Replacement eligibility is declared by the models, while
-applying replacement outcomes remains unsupported by this integration.
+Its stream section describes the same classifier bound at runtime: event payload
+policy, roles, predicates, missing-text handling, sentinel, and non-data behavior.
+An endpoint without a stream binding exports only its buffered boundary.
+Handwritten hooks are not serialized: ordering, completion checks, and native
+error framing remain in Python. The request model recognizes the `stream` flag,
+and the router supports both response modes when their dispatchers are supplied.
+Replacement eligibility is declared by the models, while applying replacement
+outcomes remains unsupported by this integration.
 Exporting the policy does not enable runtime features.
 
 A successful response whose assistant content is empty or null is relayed
@@ -152,9 +158,12 @@ response cannot be inspected. A successful response that is still encoded is
 rejected, not relayed. Without output checks, the client's own preference is
 forwarded and the response is relayed unchanged.
 
-The shared exporter describes buffered payload policy and endpoint labels, not
-arbitrary transport behavior: header/query API-revision bindings and alternate
-route ownership are not serialized.
+The shared exporter describes payload policy, declared stream semantics, and
+endpoint labels, not arbitrary Python validation or transport behavior:
+header/query API-revision bindings and alternate route ownership are not
+serialized. JSON Schema also cannot distinguish the integer `0` from `0.0`;
+the stream's Python validator requires an actual integer choice index. Export is
+an inspection document, not proof of complete runtime value equivalence.
 
 Nullable annotations are exported as disjoint array/null `oneOf` branches; the
 array branch has `maxItems: 0` because citation content is not inspected.

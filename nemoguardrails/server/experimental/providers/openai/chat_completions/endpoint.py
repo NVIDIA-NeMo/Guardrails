@@ -17,7 +17,7 @@
 
 from nemoguardrails.server.experimental._http_paths import GuardedOperationPath
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
-from nemoguardrails.server.experimental.provider.stream import create_classified_stream_adapter_factory
+from nemoguardrails.server.experimental.provider.stream import StreamBinding
 from nemoguardrails.server.experimental.providers.openai.chat_completions.request_binding import (
     ChatCompletionsGuardedRequest,
 )
@@ -48,7 +48,7 @@ CHAT_COMPLETIONS_ENDPOINT = GuardedJsonEndpoint(
             frozenset({"POST"}),
         ),
     ),
-    stream_adapter_factory=create_classified_stream_adapter_factory(
+    stream=StreamBinding(
         STREAM_CLASSIFIER,
         ChatCompletionsStreamHooks,
     ),

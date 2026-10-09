@@ -112,7 +112,7 @@ def _prepare_guardable_request(
             guarded_schema_error(error, "request"), endpoint.unsupported_request_code
         ) from error
     streaming = projection.streams_response
-    if streaming and endpoint.stream_adapter_factory is None:
+    if streaming and endpoint.stream is None:
         raise UnsupportedGuardedPayload(
             "The guarded endpoint does not support streaming responses.", endpoint.unsupported_request_code
         )
@@ -218,8 +218,8 @@ def create_guarded_http_operation(
                     UnsupportedStreamInspection("Guarded output streaming requires a buffering policy.")
                 )
             )
-        adapter_factory = endpoint.stream_adapter_factory
-        if adapter_factory is None:
+        stream_binding = endpoint.stream
+        if stream_binding is None:
             raise AssertionError("A streaming request requires an endpoint stream adapter.")
         return await execute_streaming_http(
             guardable.request,
@@ -227,14 +227,14 @@ def create_guarded_http_operation(
             checker=prepared_input.resolved.checker,
             streaming_policy=streaming_policy,
             input_message=guardable.target.message,
-            adapter=adapter_factory(),
+            adapter=stream_binding.create_adapter(),
             render_outcome=render_stream_outcome,
             max_event_bytes=max_stream_event_bytes,
             max_pending_bytes=max_pending_stream_bytes,
         )
 
     success_content = {"application/json": {"schema": {}}}
-    if endpoint.stream_adapter_factory is not None and stream_dispatch is not None:
+    if endpoint.stream is not None and stream_dispatch is not None:
         success_content["text/event-stream"] = {"schema": {"type": "string"}}
     documented_responses = errors.documented_responses
     documented_responses[200] = {
