@@ -10,7 +10,7 @@ behavior. See [Guard contracts](../README.md) for the document vocabulary.
 | Area | Single-text boundary |
 | --- | --- |
 | Request | One user message with non-empty string content at `messages[0].content`. |
-| Buffered response | One assistant choice with string content at `choices[0].message.content`. Empty or null content means the response has nothing to inspect, because every other reviewed field is content-free; the integration relays it without output checks. |
+| Buffered response | One assistant choice with string content at `choices[0].message.content`. Empty or null content means the response has nothing to inspect, because every other reviewed field is content-free. The projection reports this through `has_text`; relaying such a response without output checks is left to the integration. |
 | Constrained values | User/assistant roles, single-item arrays, and request `n` constrained to one. |
 | Unsupported content | Tool, audio, multimodal, refusal, participant name, and separate reasoning content where explicitly disabled. |
 | Opaque data | Reviewed provider-owned metadata and controls, not additional guarded subjects. |
