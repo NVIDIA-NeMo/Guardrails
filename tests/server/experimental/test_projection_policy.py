@@ -14,12 +14,12 @@
 # limitations under the License.
 
 import json
-import re
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
 import pytest
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, validators
+from jsonschema.exceptions import ValidationError as SchemaValidationError
 from pydantic import Field, ValidationError
 
 from nemoguardrails.server.experimental.provider.payload import GuardedContentModel
@@ -425,10 +425,18 @@ def test_contract_schema_check_catches_unexportable_constraints():
     assert _contract_errors(ChatCompletionsGuardedRequestProjection, Response)
 
 
-def _case_variants(name: str) -> str:
-    """Match a name's case-insensitive variants, including the non-ASCII folds."""
-    folds = {"k": "kKK", "s": "sSſ"}
-    return "".join(f"[{re.escape(folds.get(char.lower(), char.lower() + char.upper()))}]" for char in name)
+def _reject_case_aliases(validator, reviewed, instance, schema):
+    """Check exact Unicode case folding against names derived from the export."""
+    if not isinstance(instance, dict):
+        return
+    names = set(reviewed)
+    folded_names = {name.casefold() for name in names}
+    for name in instance:
+        if name not in names and name.casefold() in folded_names:
+            yield SchemaValidationError(f"Member {name!r} differs from a reviewed name only by case")
+
+
+_ExportPolicyValidator = validators.extend(Draft202012Validator, {"x-test-reviewed-properties": _reject_case_aliases})
 
 
 def _lower_export(node: object, policy: UnknownContentFieldPolicy) -> object:
@@ -446,9 +454,7 @@ def _lower_export(node: object, policy: UnknownContentFieldPolicy) -> object:
     if "properties" in node:
         if node.get(EXTENSION, {}).get("unknown_fields") == "configurable":
             lowered["additionalProperties"] = policy == UnknownContentFieldPolicy.ALLOW
-        lowered["propertyNames"] = {
-            "not": {"anyOf": [{"pattern": f"^(?!{re.escape(n)}$){_case_variants(n)}$"} for n in node["properties"]]}
-        }
+        lowered["x-test-reviewed-properties"] = list(node["properties"])
         lowered["properties"] = {name: _lower_export(child, policy) for name, child in node["properties"].items()}
     return lowered
 
@@ -476,6 +482,8 @@ _RESPONSE = {"id": "r", "choices": [_CHOICE], "usage": {"total_tokens": 1}}
         (ChatCompletionsGuardedResponse, {**_RESPONSE, "Usage": {}}),
         (ChatCompletionsGuardedResponse, {**_RESPONSE, "choices": [{**_CHOICE, "future": 1}]}),
         (ChatCompletionsGuardedResponse, {**_RESPONSE, "choices": [{**_CHOICE, "INDEX": 1}]}),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "choices": [{**_CHOICE, "meßage": {"content": "x"}}]}),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "choices": [{**_CHOICE, "Message\n": {"content": "x"}}]}),
         (
             ChatCompletionsGuardedResponse,
             {**_RESPONSE, "choices": [{**_CHOICE, "message": {**_CHOICE["message"], "future": 1}}]},
@@ -483,6 +491,10 @@ _RESPONSE = {"id": "r", "choices": [_CHOICE], "usage": {"total_tokens": 1}}
         (
             ChatCompletionsGuardedResponse,
             {**_RESPONSE, "choices": [{**_CHOICE, "message": {**_CHOICE["message"], "Refusal": "x"}}]},
+        ),
+        (
+            ChatCompletionsGuardedResponse,
+            {**_RESPONSE, "choices": [{**_CHOICE, "message": {**_CHOICE["message"], "refuſal": "x"}}]},
         ),
     ],
 )
@@ -493,7 +505,7 @@ def test_export_derived_acceptance_matches_handwritten_runtime(model, document, 
     It is not compiler equivalence, which needs tests against generated models.
     """
     exported = export_payload_schema(model, projection_id=model.projection_contract.projection_id)
-    derived = Draft202012Validator(_lower_export(exported, policy)).is_valid(document)
+    derived = _ExportPolicyValidator(_lower_export(exported, policy)).is_valid(document)
     try:
         model.validate_payload(document, unknown_content_fields=policy)
         handwritten = True
@@ -501,3 +513,35 @@ def test_export_derived_acceptance_matches_handwritten_runtime(model, document, 
         handwritten = False
 
     assert derived is handwritten
+
+
+@pytest.mark.parametrize("policy", list(UnknownContentFieldPolicy))
+@pytest.mark.parametrize(
+    ("member", "forbid", "allow"),
+    [
+        ("key", True, True),
+        ("Key", False, False),
+        ("KEY", False, False),
+        ("meßage", False, False),
+        ("meſsage", False, False),
+        ("meſſage", False, False),
+        ("Message\n", False, True),
+        ("key\n", False, True),
+        ("namK", False, True),
+    ],
+)
+def test_export_reference_matches_unicode_casefold_and_exact_names(member, forbid, allow, policy):
+    class Content(PolicyModel, GuardedContentModel):
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("key",), unknown_fields="configurable")
+        message: Annotated[str, guarded("user")]
+
+    document = {"message": "q", member: "x"}
+    exported = export_payload_schema(Content, projection_id="test.casefold")
+    derived = _ExportPolicyValidator(_lower_export(exported, policy)).is_valid(document)
+    expected = allow if policy == UnknownContentFieldPolicy.ALLOW else forbid
+    assert derived is expected
+    if expected:
+        Content.validate_payload(document, unknown_content_fields=policy)
+    else:
+        with pytest.raises(ValidationError):
+            Content.validate_payload(document, unknown_content_fields=policy)

@@ -42,11 +42,13 @@ allowed, but every other key starting with `x-nemo` is reserved and rejected.
 | `classification: constrained` | Restricts a value or shape without making it a rail subject. |
 | `gate: disabled` | Marks a constrained, null-only field for an unsupported feature. |
 | `classification: opaque` | Leaves the value under provider authority, without guardrail inspection. |
-| `opaque_fields` | Lists reviewed opaque names on this object without declaring each property. |
+| `opaque_fields` | Legacy object-level inventory; canonical exports use opaque-classified properties. |
 | `reason` | Explains a restriction: capability, provider integrity, or projection policy. |
 
 Opaque does not mean safe or trusted. Its nested content is not independently
-reviewed. Opaque names should not overlap declared properties or use wildcards.
+reviewed. Canonical exports declare each reviewed opaque name in `properties`.
+A legacy `opaque_fields` inventory must not overlap declared properties or use
+wildcards.
 `extension: true` identifies a local compatibility field outside the pinned
 provider schema, not an exemption from review.
 
@@ -71,11 +73,12 @@ Objects without the marker always reject them. Generic JSON Schema validators
 do not enforce this annotation. Reviewed opaque names appear as properties
 classified `opaque`, so `additionalProperties` describes only unreviewed members.
 
-A member whose name matches a listed property only case-insensitively, such as
-`Tools` beside `tools`, is always rejected, even where unknown members are
-allowed: some providers match names case-insensitively. JSON Schema could state
-this with `propertyNames`, but the contract vocabulary does not include it, so
-runtimes and generators must implement the rule themselves. `additionalProperties` remains the ordinary
+A member whose name matches a listed property only after Unicode case folding
+(`casefold()`), such as `Tools` beside `tools`, is always rejected, even where
+unknown members are allowed: some providers match names case-insensitively.
+Whitespace remains part of the name. JSON Schema could state this with
+`propertyNames`, but the contract vocabulary does not include it, so runtimes
+and generators must implement the rule themselves. `additionalProperties` remains the ordinary
 schema-level object closure rule. Provider-required opaque fields may be left
 to provider validation; a projection is not a full provider request validator.
 
