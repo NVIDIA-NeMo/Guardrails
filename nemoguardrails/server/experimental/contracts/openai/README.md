@@ -12,7 +12,7 @@ behavior. See [Guard contracts](../README.md) for the document vocabulary.
 | Request | One user message with non-empty string content at `messages[0].content`. |
 | Buffered response | One assistant choice with non-empty string content at `choices[0].message.content`. |
 | Constrained values | User/assistant roles, single-item arrays, and request `n` constrained to one. |
-| Unsupported content | Tool, audio, multimodal, refusal, and separate reasoning content where explicitly disabled. |
+| Unsupported content | Tool, audio, multimodal, refusal, participant name, and separate reasoning content where explicitly disabled. |
 | Opaque data | Reviewed provider-owned metadata and controls, not additional guarded subjects. |
 | Closed objects | The request, its user message, the buffered response, and its choice and assistant message reject members outside OpenAI's fields. Fields specific to compatible servers belong to their own reviewed extensions. |
 

@@ -57,7 +57,7 @@ def _json_bytes(payload):
 def _request(**updates):
     """Build a representative OpenAI Chat request with optional changes."""
     payload = {
-        "messages": [{"role": "user", "content": "question", "name": "caller"}],
+        "messages": [{"role": "user", "content": "question", "name": None}],
         "model": "gpt-example",
         "temperature": 0.2,
     }
@@ -145,6 +145,13 @@ def test_request_projection_accepts_requests_without_logprobs(logprobs):
     _, projection, _ = _guarded_request(_json_bytes(_request(logprobs=logprobs, top_logprobs=None)))
 
     assert projection.logprobs is logprobs
+
+
+@pytest.mark.parametrize("name", ["caller", "uninspected instructions", {"value": "uninspected"}])
+def test_request_projection_rejects_participant_names(name):
+    """The participant name reaches the model, but input rails do not inspect it."""
+    with pytest.raises(ValidationError):
+        _guarded_request(_json_bytes(_request(messages=[{"role": "user", "content": "question", "name": name}])))
 
 
 def test_request_projection_reports_streaming_response_mode():

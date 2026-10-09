@@ -47,7 +47,8 @@ class ChatCompletionsUserMessageProjection(PolicyModel, GuardedContentModel):
     model_config = ConfigDict(extra="forbid")
     policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ChatCompletionRequestUserMessage")
     content: Annotated[str, guarded("user", replaceable=True, min_length=1)]
-    name: Annotated[Any, opaque()] = None
+    # The participant name is shown to the model but is not inspected text.
+    name: Annotated[None, disabled("core_capability.participant_name")] = None
     role: Annotated[Literal["user"], constrained()]
 
 
