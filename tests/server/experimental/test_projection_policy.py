@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import json
+import re
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
@@ -422,3 +423,81 @@ def test_contract_schema_check_catches_unexportable_constraints():
         count: Annotated[int, Field(ge=0), constrained()]
 
     assert _contract_errors(ChatCompletionsGuardedRequestProjection, Response)
+
+
+def _case_variants(name: str) -> str:
+    """Match a name's case-insensitive variants, including the non-ASCII folds."""
+    folds = {"k": "kKK", "s": "sSſ"}
+    return "".join(f"[{re.escape(folds.get(char.lower(), char.lower() + char.upper()))}]" for char in name)
+
+
+def _lower_export(node: object, policy: UnknownContentFieldPolicy) -> object:
+    """Derive a JSON Schema validator input from an exported payload schema alone.
+
+    Configurable objects accept unknown members only under trusted ALLOW. Any
+    member that matches a listed property only case-insensitively is rejected,
+    which the contract vocabulary does not express but its semantics require.
+    """
+    if isinstance(node, list):
+        return [_lower_export(child, policy) for child in node]
+    if not isinstance(node, dict):
+        return node
+    lowered = {key: _lower_export(value, policy) for key, value in node.items() if key != EXTENSION}
+    if "properties" in node:
+        if node.get(EXTENSION, {}).get("unknown_fields") == "configurable":
+            lowered["additionalProperties"] = policy == UnknownContentFieldPolicy.ALLOW
+        lowered["propertyNames"] = {
+            "not": {"anyOf": [{"pattern": f"^(?!{re.escape(n)}$){_case_variants(n)}$"} for n in node["properties"]]}
+        }
+        lowered["properties"] = {name: _lower_export(child, policy) for name, child in node["properties"].items()}
+    return lowered
+
+
+_MESSAGE = {"role": "user", "content": "q"}
+_REQUEST = {"messages": [_MESSAGE], "model": "m"}
+_CHOICE = {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "a"}}
+_RESPONSE = {"id": "r", "choices": [_CHOICE], "usage": {"total_tokens": 1}}
+
+
+@pytest.mark.parametrize("policy", list(UnknownContentFieldPolicy))
+@pytest.mark.parametrize(
+    ("model", "document"),
+    [
+        (ChatCompletionsGuardedRequest, _REQUEST),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "temperature": 0.2, "metadata": {"Env": "a", "env": "b"}}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "future": 1}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "Tools": []}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "MODEL": "other"}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "messages": [{**_MESSAGE, "future": 1}]}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "messages": [{**_MESSAGE, "Content": "x"}]}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "messages": [{**_MESSAGE, "namK": "x"}]}),
+        (ChatCompletionsGuardedResponse, _RESPONSE),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "future": 1}),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "Usage": {}}),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "choices": [{**_CHOICE, "future": 1}]}),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "choices": [{**_CHOICE, "INDEX": 1}]}),
+        (
+            ChatCompletionsGuardedResponse,
+            {**_RESPONSE, "choices": [{**_CHOICE, "message": {**_CHOICE["message"], "future": 1}}]},
+        ),
+        (
+            ChatCompletionsGuardedResponse,
+            {**_RESPONSE, "choices": [{**_CHOICE, "message": {**_CHOICE["message"], "Refusal": "x"}}]},
+        ),
+    ],
+)
+def test_export_derived_acceptance_matches_handwritten_runtime(model, document, policy):
+    """Acceptance derived only from the export agrees with the handwritten runtime.
+
+    This shows that the export carries the member policy the runtime enforces.
+    It is not compiler equivalence, which needs tests against generated models.
+    """
+    exported = export_payload_schema(model, projection_id=model.projection_contract.projection_id)
+    derived = Draft202012Validator(_lower_export(exported, policy)).is_valid(document)
+    try:
+        model.validate_payload(document, unknown_content_fields=policy)
+        handwritten = True
+    except ValidationError:
+        handwritten = False
+
+    assert derived is handwritten

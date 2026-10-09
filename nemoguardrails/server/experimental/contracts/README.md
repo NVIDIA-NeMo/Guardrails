@@ -68,7 +68,14 @@ component. `unknown_fields: configurable` marks an object whose unknown-field
 handling depends on runtime validation context. Validation rejects unknown
 members by default; only trusted configuration may allow them on such an object.
 Objects without the marker always reject them. Generic JSON Schema validators
-do not enforce this annotation. `additionalProperties` remains the ordinary
+do not enforce this annotation. Reviewed opaque names appear as properties
+classified `opaque`, so `additionalProperties` describes only unreviewed members.
+
+A member whose name matches a listed property only case-insensitively, such as
+`Tools` beside `tools`, is always rejected, even where unknown members are
+allowed: some providers match names case-insensitively. JSON Schema could state
+this with `propertyNames`, but the contract vocabulary does not include it, so
+runtimes and generators must implement the rule themselves. `additionalProperties` remains the ordinary
 schema-level object closure rule. Provider-required opaque fields may be left
 to provider validation; a projection is not a full provider request validator.
 
