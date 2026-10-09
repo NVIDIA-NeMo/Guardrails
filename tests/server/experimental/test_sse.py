@@ -16,6 +16,7 @@
 import asyncio
 
 import pytest
+from openai._streaming import SSEDecoder
 
 from nemoguardrails.server.experimental.provider.sse import (
     AmbiguousServerSentEvent,
@@ -204,14 +205,13 @@ async def test_large_event_arriving_one_byte_per_chunk():
         b"Data: wrong-case\n\ndata: right\n\n",
     ],
 )
-def test_client_never_sees_data_this_parser_did_not_parse(raw):
-    """The OpenAI Python SDK's events are a subsequence of the events parsed here."""
-    sse_decoder = pytest.importorskip("openai._streaming").SSEDecoder
+def test_python_sdk_never_sees_data_this_parser_did_not_parse(raw):
+    """Compare Python SDK parsing, separately from the Node BOM regression."""
 
     async def parse():
         return [event.data for event in [event async for event in iter_sse_events(_chunks(raw))]]
 
     parsed = [data for data in asyncio.run(parse()) if data is not None]
-    client = [event.data.encode() for event in sse_decoder().iter_bytes(iter([raw])) if event.data]
+    client = [event.data.encode() for event in SSEDecoder().iter_bytes(iter([raw])) if event.data]
     remaining = iter(parsed)
     assert all(any(data == candidate for candidate in remaining) for data in client)
