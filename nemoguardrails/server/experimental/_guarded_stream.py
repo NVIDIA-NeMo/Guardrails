@@ -197,6 +197,17 @@ async def guard_provider_stream(
 ) -> AsyncIterator[bytes]:
     """Release provider SSE events only after required output checks pass.
 
+    The current execution model requires one projected user input subject as
+    context for assistant-output checks. This is a provider-neutral execution
+    invariant, not a restriction on roles in the provider's raw conversation.
+    Bindings supporting other input subjects require corresponding checker and
+    execution support.
+
+    Change this invariant only when the framework implements a capability for
+    other input roles or multiple guarded input subjects, with matching bindings,
+    checker semantics, and buffered and streaming execution tests. Adding a
+    provider or changing a profile declaration alone does not relax it.
+
     Iteration closes ``source`` when it ends, including when arguments are
     rejected. A stream that is never iterated does not run that cleanup, so its
     caller must close ``source``. Validated data-less keepalive prefixes are

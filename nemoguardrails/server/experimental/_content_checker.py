@@ -78,7 +78,14 @@ class InputContentCheck:
 
 @dataclass(frozen=True, slots=True)
 class OutputContentCheck:
-    """Carry generated text and its effective input context to one checker."""
+    """Carry generated text and its effective input context to one checker.
+
+    Buffered and streaming execution currently supply one projected user input
+    subject as context for assistant-output checks. This carrier does not
+    itself enforce the role. Supporting other roles or multiple input subjects
+    requires coordinated changes to bindings, checker semantics, and execution;
+    changing provider metadata alone does not extend that capability.
+    """
 
     input_message: GuardedMessage
     output_content: str
