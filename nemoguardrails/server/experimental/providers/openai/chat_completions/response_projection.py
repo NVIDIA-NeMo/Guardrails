@@ -50,7 +50,12 @@ class ChatCompletionsAssistantMessageProjection(PolicyModel, GuardedContentModel
         ),
     ]
     role: Annotated[Literal["assistant"], constrained()]
-    annotations: Annotated[list[Any] | None, constrained()] = None
+    # Citation annotations carry provider text, such as titles, that output
+    # rails do not inspect. Web search is disabled on the request, so an
+    # OpenAI response without citations has null or empty annotations.
+    annotations: Annotated[list[Any] | None, constrained(reason="core_capability.citation_content", max_length=0)] = (
+        None
+    )
     audio: Annotated[None, disabled("core_capability.audio_content")] = None
     function_call: Annotated[None, disabled("core_capability.tool_content")] = None
     reasoning_content: Annotated[None, disabled("core_capability.reasoning_content", extension=True)] = None

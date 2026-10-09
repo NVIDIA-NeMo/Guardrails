@@ -32,7 +32,7 @@ this buffered projection layer.
 
 Existing validation behavior is preserved: omitted disabled fields default to
 null, explicit non-null disabled values fail, `stream` is a strict boolean,
-and nullable response annotations remain nullable. `n` accepts only the
+and response annotations accept only null or an empty list. `n` accepts only the
 integer `1`; booleans, strings, and floats are rejected. Generic JSON Schema
 and Python validation are not claimed to be interchangeable.
 

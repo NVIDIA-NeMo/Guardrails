@@ -65,10 +65,12 @@ def test_explicit_defaults_are_visible_to_python_and_pydantic():
         assert field.default is expected
 
 
-@pytest.mark.parametrize("value", [None, [], [{"provider": "opaque"}]])
-def test_annotations_preserve_existing_nullable_behavior(value):
+@pytest.mark.parametrize("value", [None, []])
+def test_annotations_accept_only_null_or_empty(value):
     message = ChatCompletionsAssistantMessageProjection(role="assistant", content="answer", annotations=value)
     assert message.annotations == value
+    with pytest.raises(ValidationError):
+        ChatCompletionsAssistantMessageProjection(role="assistant", content="answer", annotations=[{"type": "x"}])
 
 
 def test_n_accepts_the_integer_one():
@@ -133,7 +135,7 @@ def test_export_preserves_nullable_annotation_schema():
     annotations = exported["properties"]["choices"]["items"]["properties"]["message"]["properties"]["annotations"]
     assert annotations["default"] is None
     assert {"type": "null"} in annotations["oneOf"]
-    assert {"type": "array", "items": {}} in annotations["oneOf"]
+    assert {"type": "array", "items": {}, "maxItems": 0} in annotations["oneOf"]
 
 
 def test_export_marks_response_choice_and_message_closed():
@@ -245,7 +247,7 @@ def test_field_validation_matches_original_unannotated_declarations():
         audio: None = None
 
     class OriginalResponseFields(BaseModel):
-        annotations: list[Any] | None = None
+        annotations: Annotated[list[Any] | None, Field(max_length=0)] = None
         content: Annotated[str, Field(min_length=1)]
         logprobs: None = None
 

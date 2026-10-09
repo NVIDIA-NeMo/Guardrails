@@ -77,7 +77,7 @@ def _response(**updates):
                 "message": {
                     "role": "assistant",
                     "content": "answer",
-                    "annotations": [{"provider": "opaque"}],
+                    "annotations": [],
                 },
             }
         ],
@@ -155,7 +155,7 @@ def test_request_projection_reports_streaming_response_mode():
 
 
 def test_response_binding_targets_original_provider_object_without_rewriting_bytes():
-    """Provider annotations block replacement without rewriting response bytes."""
+    """The response binding targets the decoded provider object without rewriting bytes."""
     body = _json_bytes(_response())
     original = bytes(body)
 
@@ -164,8 +164,18 @@ def test_response_binding_targets_original_provider_object_without_rewriting_byt
     assert isinstance(target, GuardedMessageTarget)
     assert target.message == GuardedMessage("assistant", "answer")
     assert target._object is payload["choices"][0]["message"]
-    assert target.allows_replacement is False
+    assert target.allows_replacement is True
     assert body == original
+
+
+def test_declared_annotation_blocking_still_prevents_replacement():
+    """Non-empty annotations are rejected, but the declared blocker still applies."""
+    payload = _response()
+    payload["choices"][0]["message"]["annotations"] = [{"type": "url_citation"}]
+
+    target = ChatCompletionsGuardedResponse.guarded_text_location.locate(payload)
+
+    assert target.allows_replacement is False
 
 
 @pytest.mark.parametrize("tool_calls", [None, []])
@@ -210,6 +220,28 @@ def test_response_binding_allows_unannotated_text_replacement():
         _response(choices=[{"message": {"role": "assistant", "content": "answer", "reasoning_content": "hidden"}}]),
         _response(choices=[{"logprobs": {"content": []}, "message": {"role": "assistant", "content": "answer"}}]),
         _response(choices=[{"message": {"role": "assistant", "content": "answer", "annotations": "invalid"}}]),
+        _response(choices=[{"message": {"role": "assistant", "content": "answer", "annotations": ["uninspected"]}}]),
+        _response(
+            choices=[
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "answer",
+                        "annotations": [
+                            {
+                                "type": "url_citation",
+                                "url_citation": {
+                                    "url": "https://x",
+                                    "title": "uninspected",
+                                    "start_index": 0,
+                                    "end_index": 1,
+                                },
+                            }
+                        ],
+                    }
+                }
+            ]
+        ),
         _response(choices=[{"message": {"role": "assistant", "content": "answer", "future": True}}]),
         _response(choices=[{"message": {"role": "assistant", "content": "answer", "reasoning": "hidden"}}]),
         _response(

@@ -29,8 +29,9 @@ accepts only null, and buffered response `choices[0].logprobs` accepts only null
 The request check applies even when output inspection is off.
 
 Text replacement eligibility is separate from endpoint support for replacement
-outcomes. Non-empty response annotations block text replacement; their mere
-presence does not. Unrelated provider data must remain intact.
+outcomes. Response annotations must be null or empty, because citation text is
+not inspected. The policy still declares that non-empty annotations would block
+text replacement. Unrelated provider data must remain intact.
 
 The Python projections, bindings, and endpoint determine exact acceptance and
 runtime behavior. Their machine-readable contract belongs with the integration,
