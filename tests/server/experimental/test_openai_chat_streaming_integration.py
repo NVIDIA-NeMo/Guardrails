@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import json
+from dataclasses import replace
 
 import httpx
 import pytest
@@ -112,6 +113,37 @@ def make_client(checker, stream_dispatch=None, buffered_dispatch=None, max_respo
         )
     )
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["missing_dispatch", "event", "media_type", "encoding"])
+async def test_stream_errors_honor_endpoint_codes(failure, monkeypatch):
+    """Endpoint codes survive failures before and after streaming headers."""
+    from nemoguardrails.server.experimental.providers.openai import integration
+
+    endpoint = replace(
+        CHAT_COMPLETIONS_ENDPOINT,
+        unsupported_request_code="example_request_shape",
+        unsupported_response_code="example_response_shape",
+    )
+    monkeypatch.setattr(integration, "CHAT_COMPLETIONS_ENDPOINT", endpoint)
+    source = Source([b'data: {"unexpected": "private-stream-content"}\n\n'])
+    headers = [(b"content-type", b"text/plain" if failure == "media_type" else b"text/event-stream")]
+    if failure == "encoding":
+        headers.append((b"content-encoding", b"gzip"))
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, tuple(headers), source)
+
+    checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+    async with make_client(checker, None if failure == "missing_dispatch" else dispatch) as client:
+        response = await post_stream(client)
+    expected = "example_request_shape" if failure == "missing_dispatch" else "example_response_shape"
+    assert ('"code":"' + expected + '"').encode() in response.content
+    assert b"private-stream-content" not in response.content
+    assert response.status_code == (422 if failure == "missing_dispatch" else 200 if failure == "event" else 502)
+    if failure != "missing_dispatch":
+        assert source.closed is True
 
 
 async def post_stream(client, body=None, **kwargs):
