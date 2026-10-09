@@ -194,3 +194,22 @@ def test_export_module_import_does_not_load_provider_integrations():
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_export_imports_endpoint_without_http_execution_dependencies():
+    source = """
+import importlib.abc
+import sys
+
+class BlockHttpExecution(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "fastapi" or fullname.startswith("fastapi.") or fullname == "starlette.routing" or fullname == "nemoguardrails.server.experimental._http_kernel":
+            raise AssertionError(f"Export must not import {fullname}")
+
+sys.meta_path.insert(0, BlockHttpExecution())
+from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
+from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
+assert export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)["operationId"] == "createChatCompletion"
+"""
+    completed = subprocess.run([sys.executable, "-c", source], capture_output=True, text=True)
+    assert completed.returncode == 0, completed.stderr

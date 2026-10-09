@@ -23,7 +23,7 @@ from typing import Any, cast
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
-from starlette.convertors import FloatConvertor, IntegerConvertor, PathConvertor, StringConvertor, UUIDConvertor
+from starlette.convertors import FloatConvertor, IntegerConvertor, StringConvertor, UUIDConvertor
 from starlette.responses import Response
 from starlette.routing import compile_path
 
@@ -42,8 +42,8 @@ from nemoguardrails.server.experimental._content_checker import (
     validate_content_checker,
 )
 from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation, UnsupportedGuardedPayload
+from nemoguardrails.server.experimental._http_paths import HTTP_METHODS, GuardedOperationPath
 
-HTTP_METHODS = ("DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT")
 DEFAULT_MAX_REQUEST_BODY_BYTES = 1024 * 1024
 DEFAULT_MAX_RESPONSE_BODY_BYTES = 10 * 1024 * 1024
 HttpHeaders = tuple[tuple[bytes, bytes], ...]
@@ -144,34 +144,6 @@ class BufferedHttpResponse:
             raise TypeError("An HTTP response body must be bytes.")
         if any(not isinstance(name, bytes) or not isinstance(value, bytes) for name, value in self.headers):
             raise TypeError("HTTP response headers must contain byte pairs.")
-
-
-@dataclass(frozen=True, slots=True)
-class GuardedOperationPath:
-    """Describe a path shape owned by one guarded provider operation."""
-
-    route_path: str
-    methods: frozenset[str] = frozenset({"POST"})
-
-    def __post_init__(self) -> None:
-        """Validate the route template and its allowed methods."""
-
-        if not self.route_path.startswith("/") or self.route_path == "/" or self.route_path.endswith("/"):
-            raise ValueError("A guarded HTTP path must be absolute, non-root, and have no trailing slash.")
-        try:
-            _, _, convertors = compile_path(self.route_path)
-        except (AssertionError, KeyError, ValueError) as error:
-            raise ValueError("A guarded HTTP path must be a valid route template.") from error
-        if any(isinstance(convertor, PathConvertor) for convertor in convertors.values()):
-            raise ValueError("A guarded HTTP path must not contain a path-spanning parameter.")
-        if not self.methods or any(method not in HTTP_METHODS for method in self.methods):
-            raise ValueError("Guarded HTTP methods must be supported uppercase methods.")
-
-    def matches(self, path: str) -> bool:
-        """Return whether a concrete path belongs to this operation."""
-
-        path_regex, _, _ = compile_path(self.route_path)
-        return path_regex.fullmatch(path) is not None
 
 
 @dataclass(frozen=True, slots=True)

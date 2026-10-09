@@ -18,7 +18,7 @@
 import re
 from dataclasses import dataclass
 
-from nemoguardrails.server.experimental._http_kernel import GuardedOperationPath
+from nemoguardrails.server.experimental._http_paths import GuardedOperationPath
 from nemoguardrails.server.experimental.provider.payload import (
     GuardedPayloadModel,
     GuardedRequestModel,

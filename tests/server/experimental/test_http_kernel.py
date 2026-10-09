@@ -1372,3 +1372,47 @@ async def test_head_failures_have_no_response_body(guarded_operation):
 
         assert response.status_code == expected_status
         assert response.content == b""
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "/v1/text",
+        "/{api_version}/chat/completions",
+        "/v1/{model}:generateContent",
+        "/v1/{number:int}",
+        "/v1/{number:float}",
+        "/v1/{identifier:uuid}",
+        "/v1/first-{name}",
+        "/v1/{name:str}/tail",
+        "/v1/literal.{name}",
+    ],
+)
+def test_guarded_route_matching_agrees_with_starlette(template):
+    from starlette.routing import compile_path
+
+    declaration = GuardedOperationPath(template)
+    reference, _, _ = compile_path(template)
+    witnesses = [
+        "/v1/text",
+        "/v1/chat/completions",
+        "/v2/chat/completions",
+        "/v1/m:generateContent",
+        "/v1/12",
+        "/v1/1.25",
+        "/v1/-1",
+        "/v1/+1",
+        "/v1/12345678-1234-1234-1234-123456789abc",
+        "/v1/first-text",
+        "/v1/text/tail",
+        "/v1/literal.text",
+        "/v1/text/tail/extra",
+        "/v1/text\n",
+    ]
+    for witness in witnesses:
+        assert declaration.matches(witness) is (reference.fullmatch(witness) is not None)
+
+
+def test_guarded_route_rejects_duplicate_parameter_names():
+    with pytest.raises(ValueError, match="valid route template"):
+        GuardedOperationPath("/v1/{name}/{name}")

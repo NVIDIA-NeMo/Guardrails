@@ -15,7 +15,7 @@
 
 """Staged guarded endpoint declaration for OpenAI Chat Completions."""
 
-from nemoguardrails.server.experimental._http_kernel import GuardedOperationPath
+from nemoguardrails.server.experimental._http_paths import GuardedOperationPath
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.providers.openai.chat_completions.request_binding import (
     ChatCompletionsGuardedRequest,
