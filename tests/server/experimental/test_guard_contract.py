@@ -196,3 +196,26 @@ def test_contract_documentation_has_no_broken_local_links() -> None:
                 broken_links.append(f"{document.name}: {link}")
 
     assert broken_links == []
+
+
+@pytest.mark.parametrize("unknown_fields", ["forbid", "configurable"])
+def test_contract_accepts_explicit_object_member_policy(guard_contract_schema, minimal_guard_contract, unknown_fields):
+    contract = deepcopy(minimal_guard_contract)
+    contract["request"][EXTENSION].update(unknown_fields=unknown_fields, reject_case_aliases=True)
+    Draft202012Validator(guard_contract_schema).validate(contract)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("unknown_fields", "allow"),
+        ("unknown_fields", True),
+        ("reject_case_aliases", False),
+        ("reject_case_aliases", "true"),
+    ],
+)
+def test_contract_rejects_invalid_object_member_policy(guard_contract_schema, minimal_guard_contract, key, value):
+    contract = deepcopy(minimal_guard_contract)
+    contract["request"][EXTENSION][key] = value
+    with pytest.raises(ValidationError):
+        Draft202012Validator(guard_contract_schema).validate(contract)

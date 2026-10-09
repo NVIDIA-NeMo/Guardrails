@@ -342,7 +342,9 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
         Defaults and nullable types are retained. Disjoint nullable anyOf
         branches are rendered as oneOf for the current contract vocabulary.
         Reviewed opaque names are exported as opaque-classified properties,
-        and additionalProperties follows the object's unknown-field policy.
+        and additionalProperties reflects closed-by-default validation. Object
+        metadata explicitly describes trusted unknown-field overrides and Unicode
+        case-alias rejection.
 
     Raises:
         ValueError: Nested models are not policy-annotated, names collide,
@@ -369,9 +371,9 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
             policy = models[result["title"]].policy
             if policy.source:
                 metadata["source"] = "#/components/schemas/" + policy.source
-            result["additionalProperties"] = policy.unknown_fields == "configurable"
-            if policy.unknown_fields == "configurable":
-                metadata["unknown_fields"] = policy.unknown_fields
+            result["additionalProperties"] = False
+            metadata["unknown_fields"] = policy.unknown_fields
+            metadata["reject_case_aliases"] = True
             # Opaque values stay runtime extras, but the export lists them as
             # properties so additionalProperties describes only unreviewed members.
             properties = {

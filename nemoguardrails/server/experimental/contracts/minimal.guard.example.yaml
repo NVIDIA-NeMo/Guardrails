@@ -3,6 +3,7 @@ operationId: createText
 profile: single_text.v1
 request:
   type: object
+  additionalProperties: false
   required: [prompt]
   properties:
     prompt:
@@ -14,10 +15,15 @@ request:
           kind: text
           role: user
           replaceable: true
+    model:
+      x-nemo-guardrails:
+        classification: opaque
   x-nemo-guardrails:
-    opaque_fields: [model]
+    unknown_fields: forbid
+    reject_case_aliases: true
 response:
   type: object
+  additionalProperties: false
   required: [text]
   properties:
     text:
@@ -34,6 +40,9 @@ response:
       x-nemo-guardrails:
         classification: constrained
         reason: projection_policy.complete_text
+  x-nemo-guardrails:
+    unknown_fields: forbid
+    reject_case_aliases: true
 integration:
   endpoint:
     unsupported_request_code: unsupported_text_request

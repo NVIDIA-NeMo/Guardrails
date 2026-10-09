@@ -34,7 +34,10 @@ Existing validation behavior is preserved: omitted disabled fields default to
 null, explicit non-null disabled values fail, `stream` is a strict boolean,
 and response annotations accept only null or an empty list. `n` accepts only the
 integer `1`; booleans, strings, and floats are rejected. Generic JSON Schema
-and Python validation are not claimed to be interchangeable.
+and Python validation are not claimed to be interchangeable. Canonical exports
+are closed by default and explicitly declare configurable unknown-field handling
+and Unicode case-alias rejection. Contract-aware tools must implement those
+annotations when trusted configuration selects `ALLOW`.
 
 The [contract guide](../../../contracts/README.md) defines the document format;
 the [OpenAI boundary summary](../../../contracts/openai/README.md) records its

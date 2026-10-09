@@ -326,3 +326,31 @@ def test_extraction_requires_a_named_string_subject(annotation):
 
     with pytest.raises(ValueError, match="named string field"):
         text_location(root)
+
+
+@pytest.mark.parametrize("policy", list(UnknownContentFieldPolicy))
+@pytest.mark.parametrize("member", ["key", "Straße", "Key", "STRASSE", "Content", "future", "Content\n"])
+def test_explicit_export_member_rules_match_runtime(member, policy, export_policy_validator):
+    from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedPayloadModel
+
+    class Message(PolicyModel, GuardedContentModel):
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("key", "Straße"), unknown_fields="configurable")
+        content: Annotated[str, guarded("user", min_length=1)]
+
+    class Request(PolicyModel, GuardedPayloadModel):
+        message: Annotated[Message, guarded()]
+
+    document = {"message": {"content": "q", member: "opaque"}}
+    exported = export_payload_schema(Request, projection_id="example.request")
+    expected = member in {"key", "Straße"} or (
+        policy == UnknownContentFieldPolicy.ALLOW and member in {"future", "Content\n"}
+    )
+    assert export_policy_validator(exported, policy).is_valid(document) is expected
+    if expected:
+        Request.validate_payload(document, unknown_content_fields=policy)
+    else:
+        with pytest.raises(ValidationError):
+            Request.validate_payload(document, unknown_content_fields=policy)
+    if policy == UnknownContentFieldPolicy.ALLOW and member in {"Key", "STRASSE", "Content"}:
+        del exported["properties"]["message"][EXTENSION]["reject_case_aliases"]
+        assert export_policy_validator(exported, policy).is_valid(document)

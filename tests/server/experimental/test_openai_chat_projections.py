@@ -542,11 +542,13 @@ def test_export_follows_each_object_unknown_field_policy():
     choice = response["properties"]["choices"]["items"]
     configurable = (request["properties"]["messages"]["items"], choice, choice["properties"]["message"])
     for content in configurable:
-        assert content["additionalProperties"] is True
+        assert content["additionalProperties"] is False
         assert content[EXTENSION]["unknown_fields"] == "configurable"
     for root in (request, response):
         assert root["additionalProperties"] is False
-        assert "unknown_fields" not in root[EXTENSION]
+        assert root[EXTENSION]["unknown_fields"] == "forbid"
+    for node in (*configurable, request, response):
+        assert node[EXTENSION]["reject_case_aliases"] is True
 
 
 def test_field_validation_matches_original_unannotated_declarations():
