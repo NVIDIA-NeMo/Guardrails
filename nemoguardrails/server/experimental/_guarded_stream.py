@@ -134,14 +134,17 @@ def _take_checked_events(
 
 
 async def _text_windows(
-    source: AsyncIterator[str],
+    source: AsyncIterator[str | ServerSentEvent],
     *,
     chunk_size: int,
     context_size: int,
-) -> AsyncIterator[_TextWindow]:
+) -> AsyncIterator[_TextWindow | ServerSentEvent]:
     context: list[str] = []
     pending: list[str] = []
     async for text in source:
+        if isinstance(text, ServerSentEvent):
+            yield text
+            continue
         pending.append(text)
         if len(pending) < chunk_size:
             continue
@@ -196,7 +199,8 @@ async def guard_provider_stream(
 
     Iteration closes ``source`` when it ends, including when arguments are
     rejected. A stream that is never iterated does not run that cleanup, so its
-    caller must close ``source``.
+    caller must close ``source``. Validated data-less keepalive prefixes are
+    released promptly; they never overtake pending payloads or terminal events.
     """
 
     try:
@@ -221,11 +225,14 @@ async def guard_provider_stream(
         observed_text_bytes = 0
         snapshot_history_complete = True
 
-        async def text_deltas() -> AsyncIterator[str]:
+        async def text_deltas() -> AsyncIterator[str | ServerSentEvent]:
             nonlocal observed_text_bytes, pending_bytes, snapshot_history_complete
             async for event in iter_sse_events(_guard_upstream(source), max_event_bytes=max_event_bytes):
                 classified = adapter.classify_event(event)
                 validate_stream_event(adapter.contract, classified)
+                if not pending and event.data is None and classified.role is StreamEventRole.OPAQUE_METADATA:
+                    yield event
+                    continue
                 if classified.role is StreamEventRole.TEXT_SNAPSHOT:
                     if not snapshot_history_complete:
                         raise StreamSnapshotHistoryTooLarge(
@@ -258,6 +265,9 @@ async def guard_provider_stream(
             chunk_size=streaming_policy.chunk_size,
             context_size=streaming_policy.context_size,
         ):
+            if isinstance(window, ServerSentEvent):
+                yield window.raw
+                continue
             checked_events = _take_checked_events(pending, window.release_count)
             pending_bytes -= sum(len(event.raw) for event in checked_events)
             try:

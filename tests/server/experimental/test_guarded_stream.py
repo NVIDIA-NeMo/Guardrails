@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 
 import pytest
@@ -206,6 +207,76 @@ async def test_zero_context_does_not_retain_the_previous_window():
 
     assert result == b"".join(events)
     assert [call.output_content for call in checker.calls] == ["one two ", "three four"]
+
+
+class KeepaliveClassifier(Classifier):
+    """Recognize data-less transport events without inventing text."""
+
+    def classify_event(self, event):
+        if event.data is None:
+            return GuardedStreamEvent("metadata", StreamEventRole.OPAQUE_METADATA)
+        return super().classify_event(event)
+
+
+@pytest.mark.asyncio
+async def test_keepalive_prefix_is_released_before_reading_the_next_event():
+    """A live idle stream must make progress without waiting for text or EOF."""
+    checker = StaticChecker()
+    closed = []
+
+    async def source():
+        try:
+            yield b": keepalive\n\n"
+            await asyncio.Event().wait()
+        finally:
+            closed.append(True)
+
+    stream = guard_provider_stream(
+        source(),
+        checker=checker,
+        streaming_policy=StreamBufferingPolicy(2, 0),
+        input_message=GuardedMessage("user", "question"),
+        adapter=ClassifiedStreamAdapter(KeepaliveClassifier(), Hooks()),
+        render_outcome=render_outcome,
+    )
+    try:
+        assert await asyncio.wait_for(anext(stream), 1) == b": keepalive\n\n"
+        assert checker.calls == []
+    finally:
+        await stream.aclose()
+    assert closed == [True]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", [b"", stream_event({"text": "pending"}), b"data: [END]\n\n"])
+async def test_keepalives_preserve_pending_payload_order_and_bounds(prefix):
+    """Only a transport-only prefix can bypass the pending payload window."""
+    keepalives = b": alive\n\n" * 30
+    source = Source([prefix + keepalives])
+    checker = StaticChecker()
+    result = b"".join(
+        [
+            part
+            async for part in guard_provider_stream(
+                source,
+                checker=checker,
+                streaming_policy=StreamBufferingPolicy(2, 0),
+                input_message=GuardedMessage("user", "question"),
+                adapter=ClassifiedStreamAdapter(KeepaliveClassifier(), Hooks()),
+                render_outcome=render_outcome,
+                max_event_bytes=128,
+                max_pending_bytes=128,
+            )
+        ]
+    )
+    if prefix:
+        assert b"unsupported_stream" in result
+        assert b": alive" not in result
+        assert b"pending" not in result
+    else:
+        assert result == keepalives
+    assert checker.calls == []
+    assert source.closed is True
 
 
 @pytest.mark.asyncio
