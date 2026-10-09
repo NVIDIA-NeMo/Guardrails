@@ -18,6 +18,7 @@ from typing import Annotated, ClassVar, Literal
 import pytest
 from pydantic import ValidationError
 
+from nemoguardrails.server.experimental.provider.payload import GuardedContentModel
 from nemoguardrails.server.experimental.provider.projection_policy import (
     EXTENSION,
     ObjectPolicy,
@@ -194,6 +195,17 @@ def test_helpers_do_not_hide_defaults(helper):
 def test_helpers_reject_constraints_the_contract_cannot_express(helper, constraint):
     with pytest.raises(ValueError, match="not expressible"):
         helper(**{constraint: 1})
+
+
+def test_open_policy_models_reject_case_variants_of_reviewed_fields():
+    class Message(PolicyModel, GuardedContentModel):
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("model",))
+        content: Annotated[str, guarded("user")]
+
+    Message.model_validate({"content": "q", "model": "m", "unreviewed": "kept open"})
+    for variant in ({"Content": "x"}, {"MODEL": "x"}, {"cOnTeNt": "x"}):
+        with pytest.raises(ValidationError, match="only by case"):
+            Message.model_validate({"content": "q", **variant})
 
 
 def test_replacement_policy_requires_subject():

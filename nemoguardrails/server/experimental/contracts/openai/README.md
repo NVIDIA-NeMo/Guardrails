@@ -14,7 +14,7 @@ behavior. See [Guard contracts](../README.md) for the document vocabulary.
 | Constrained values | User/assistant roles, single-item arrays, and request `n` constrained to one. |
 | Unsupported content | Tool, audio, multimodal, refusal, and separate reasoning content where explicitly disabled. |
 | Opaque data | Reviewed provider-owned metadata and controls, not additional guarded subjects. |
-| Closed objects | The buffered response choice and assistant message reject members outside their reviewed fields. |
+| Closed objects | The request, its user message, and the buffered response choice and assistant message reject members outside OpenAI's fields. Fields specific to compatible servers belong to their own reviewed extensions. |
 
 This request boundary does not accept conversation histories, system/developer
 messages alongside the user message, or multimodal content blocks. Disabled

@@ -26,7 +26,7 @@ from nemoguardrails.server.experimental.provider.payload import (
     GuardedMessageTarget,
     validate_payload_projection_contract,
 )
-from nemoguardrails.server.experimental.provider.types import GuardedMessage, UnknownContentFieldPolicy
+from nemoguardrails.server.experimental.provider.types import GuardedMessage
 from nemoguardrails.server.experimental.providers.openai.chat_completions.request_binding import (
     CAPABILITY_PROFILE as REQUEST_PROFILE,
 )
@@ -57,10 +57,9 @@ def _json_bytes(payload):
 def _request(**updates):
     """Build a representative OpenAI Chat request with optional changes."""
     payload = {
-        "messages": [{"role": "user", "content": "question", "name": "caller", "future": {"value": 1}}],
+        "messages": [{"role": "user", "content": "question", "name": "caller"}],
         "model": "gpt-example",
         "temperature": 0.2,
-        "future": [1, 2, 3],
     }
     payload.update(updates)
     return payload
@@ -105,7 +104,7 @@ def _guarded_response(body: bytes):
 
 def test_request_binding_targets_original_provider_object_without_rewriting_bytes():
     """The request binding targets the decoded provider object without rewriting bytes."""
-    body = b'{ "messages" : [ { "role" : "user", "content" : "question", "future" : 7 } ], "model" : "gpt-example", "future" : true }'
+    body = b'{ "messages" : [ { "role" : "user", "content" : "question" } ], "model" : "gpt-example", "temperature" : 0.2 }'
     original = bytes(body)
 
     payload, projection, target = _guarded_request(body)
@@ -235,35 +234,23 @@ def test_response_projection_rejects_shapes_outside_buffered_text_profile(payloa
 
 
 @pytest.mark.parametrize(
-    ("model", "payload"),
+    "payload",
     [
-        (ChatCompletionsGuardedRequest, _request(Tools=[{"type": "function"}])),
-        (ChatCompletionsGuardedRequest, _request(STREAM=True)),
-        (ChatCompletionsGuardedRequest, _request(Model="other-model")),
-        (ChatCompletionsGuardedRequest, _request(messages=[{"role": "user", "content": "question", "Role": "system"}])),
-        (ChatCompletionsGuardedResponse, _response(Choices=[])),
+        _request(future=[1, 2, 3]),
+        _request(chat_template_kwargs={"messages": [{"role": "user", "content": "uninspected"}]}),
+        _request(kv_transfer_params={"prompt_token_ids": [1, 2, 3]}),
+        _request(documents=[{"title": "t", "text": "uninspected"}]),
+        _request(Tools=[{"type": "function"}]),
+        _request(STREAM=True),
+        _request(messages=[{"role": "user", "content": "question", "future": {"value": 1}}]),
+        _request(messages=[{"role": "user", "content": "question", "task": "uninspected"}]),
+        _request(messages=[{"role": "user", "content": "question", "Role": "system"}]),
     ],
 )
-def test_projection_rejects_members_that_differ_from_reviewed_fields_only_by_case(model, payload):
-    """A case variant cannot carry a value past the field the proxy reviewed."""
-    with pytest.raises(ValidationError, match="only by case"):
-        model.validate_payload(payload)
-
-
-def test_closed_content_policy_accepts_reviewed_opaque_fields_and_rejects_unreviewed_fields():
-    """Closed content policy distinguishes reviewed opaque and unknown fields."""
-    request = _request(messages=[{"role": "user", "content": "question", "name": "caller"}])
-    ChatCompletionsGuardedRequest.validate_payload(
-        request,
-        unknown_content_fields=UnknownContentFieldPolicy.FORBID,
-    )
-    request["messages"][0]["unknown"] = "content-bearing"
-
-    with pytest.raises(ValidationError, match="unreviewed content fields"):
-        ChatCompletionsGuardedRequest.validate_payload(
-            request,
-            unknown_content_fields=UnknownContentFieldPolicy.FORBID,
-        )
+def test_request_projection_rejects_members_outside_openai_fields(payload):
+    """Compatible servers can render extra request members into the prompt unseen."""
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        ChatCompletionsGuardedRequest.validate_payload(payload)
 
 
 @pytest.mark.parametrize(
