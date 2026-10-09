@@ -16,8 +16,10 @@
 import json
 import subprocess
 import sys
+from typing import Annotated, Literal
 
 import pytest
+from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 import nemoguardrails.server.experimental._json_payload as json_payload
@@ -31,6 +33,12 @@ from nemoguardrails.server.experimental.provider.payload import (
     GuardedMessageTarget,
     validate_payload_projection_contract,
 )
+from nemoguardrails.server.experimental.provider.projection_policy import (
+    EXTENSION,
+    export_payload_schema,
+    field_coverage,
+    text_location,
+)
 from nemoguardrails.server.experimental.provider.types import GuardedMessage, UnknownContentFieldPolicy
 from nemoguardrails.server.experimental.providers.openai.chat_completions.request_binding import (
     CAPABILITY_PROFILE as REQUEST_PROFILE,
@@ -42,6 +50,10 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.reques
     REQUEST_SOURCE_SCHEMA,
     ChatCompletionsGuardedRequest,
 )
+from nemoguardrails.server.experimental.providers.openai.chat_completions.request_projection import (
+    ChatCompletionsGuardedRequestProjection,
+    ChatCompletionsUserMessageProjection,
+)
 from nemoguardrails.server.experimental.providers.openai.chat_completions.response_binding import (
     CAPABILITY_PROFILE as RESPONSE_PROFILE,
 )
@@ -51,6 +63,10 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.respon
 from nemoguardrails.server.experimental.providers.openai.chat_completions.response_binding import (
     RESPONSE_SOURCE_SCHEMA,
     ChatCompletionsGuardedResponse,
+)
+from nemoguardrails.server.experimental.providers.openai.chat_completions.response_projection import (
+    ChatCompletionsAssistantMessageProjection,
+    ChatCompletionsGuardedResponseProjection,
 )
 
 
@@ -441,3 +457,208 @@ def test_staged_projection_modules_import_in_fresh_interpreter(module):
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_explicit_defaults_are_visible_to_python_and_pydantic():
+    message = ChatCompletionsUserMessageProjection(content="question", role="user")
+    request = ChatCompletionsGuardedRequestProjection(messages=[message])
+    assert request.n == 1
+    assert request.stream is False
+    assert request.audio is None
+    for name, expected in (("n", 1), ("stream", False), ("audio", None)):
+        field = ChatCompletionsGuardedRequestProjection.model_fields[name]
+        assert not field.is_required()
+        assert field.default is expected
+
+
+@pytest.mark.parametrize("value", [None, []])
+def test_annotations_accept_only_null_or_empty(value):
+    message = ChatCompletionsAssistantMessageProjection(role="assistant", content="answer", annotations=value)
+    assert message.annotations == value
+    with pytest.raises(ValidationError):
+        ChatCompletionsAssistantMessageProjection(role="assistant", content="answer", annotations=[{"type": "x"}])
+
+
+def test_n_accepts_the_integer_one():
+    request = ChatCompletionsGuardedRequest.model_validate({"messages": [{"role": "user", "content": "q"}], "n": 1})
+    assert request.n == 1
+
+
+@pytest.mark.parametrize("value", [True, False, "1", 1.0, 0, 2, None])
+def test_n_rejects_coercible_and_other_values(value):
+    with pytest.raises(ValidationError):
+        ChatCompletionsGuardedRequest.model_validate({"messages": [{"role": "user", "content": "q"}], "n": value})
+
+
+@pytest.mark.parametrize("value", [0, 1, "true", None])
+def test_stream_stays_strict(value):
+    with pytest.raises(ValidationError):
+        ChatCompletionsGuardedRequest.model_validate({"messages": [{"role": "user", "content": "q"}], "stream": value})
+
+
+@pytest.mark.parametrize("value", [[], {}, False, "audio"])
+def test_disabled_fields_reject_every_non_null_value(value):
+    with pytest.raises(ValidationError):
+        ChatCompletionsGuardedRequest.model_validate({"messages": [{"role": "user", "content": "q"}], "audio": value})
+
+
+def test_bindings_derive_coverage_and_targets_from_the_typed_models():
+    assert REQUEST_CONTRACT.root == field_coverage(ChatCompletionsGuardedRequestProjection)
+    assert RESPONSE_CONTRACT.root == field_coverage(ChatCompletionsGuardedResponseProjection)
+    assert ChatCompletionsGuardedRequest.guarded_text_location == text_location(ChatCompletionsGuardedRequestProjection)
+    assert ChatCompletionsGuardedResponse.guarded_text_location == text_location(
+        ChatCompletionsGuardedResponseProjection
+    )
+    response_content = RESPONSE_CONTRACT.content_models[-1]
+    assert response_content.model is ChatCompletionsAssistantMessageProjection
+    assert response_content.coverage.local_extension_fields == frozenset({"reasoning_content"})
+    assert ChatCompletionsGuardedResponse.guarded_text_location.allows_empty is True
+    assert ChatCompletionsGuardedRequest.guarded_text_location.allows_empty is False
+
+
+def test_export_preserves_nullable_annotation_schema():
+    exported = export_payload_schema(
+        ChatCompletionsGuardedResponseProjection, projection_id=RESPONSE_CONTRACT.projection_id
+    )
+    annotations = exported["properties"]["choices"]["items"]["properties"]["message"]["properties"]["annotations"]
+    assert annotations["default"] is None
+    assert {"type": "null"} in annotations["oneOf"]
+    assert {"type": "array", "items": {}, "maxItems": 0} in annotations["oneOf"]
+
+
+def test_export_lists_reviewed_opaque_names_as_properties():
+    request = export_payload_schema(ChatCompletionsGuardedRequestProjection, projection_id="test.request")
+    assert request["properties"]["model"] == {EXTENSION: {"classification": "opaque"}}
+    assert "opaque_fields" not in request[EXTENSION]
+    validator = Draft202012Validator(request)
+    message = {"role": "user", "content": "q"}
+    assert validator.is_valid({"messages": [message], "model": "m", "temperature": 0.2})
+    assert not validator.is_valid({"messages": [message], "future": 1})
+
+
+def test_export_follows_each_object_unknown_field_policy():
+    request = export_payload_schema(ChatCompletionsGuardedRequestProjection, projection_id="test.request")
+    response = export_payload_schema(ChatCompletionsGuardedResponseProjection, projection_id="test.response")
+    choice = response["properties"]["choices"]["items"]
+    configurable = (request["properties"]["messages"]["items"], choice, choice["properties"]["message"])
+    for content in configurable:
+        assert content["additionalProperties"] is True
+        assert content[EXTENSION]["unknown_fields"] == "configurable"
+    for root in (request, response):
+        assert root["additionalProperties"] is False
+        assert "unknown_fields" not in root[EXTENSION]
+
+
+def test_field_validation_matches_original_unannotated_declarations():
+    from itertools import product
+    from typing import Any
+
+    from pydantic import BaseModel, Field, StrictBool
+
+    class OriginalRequestFields(BaseModel):
+        n: Literal[1] = 1
+        stream: StrictBool = False
+        audio: None = None
+
+    class OriginalResponseFields(BaseModel):
+        annotations: Annotated[list[Any] | None, Field(max_length=0)] = None
+        content: str | None
+        logprobs: None = None
+
+    def validated(model, payload):
+        try:
+            return model.model_validate(payload).model_dump()
+        except ValidationError:
+            return "rejected"
+
+    values = [None, True, False, 0, 1, 1.0, 2, "1", "true", "", [], {}, ["x"]]
+    # n is intentionally stricter than Literal[1]; test_n_rejects_coercible_and_other_values covers it.
+    for stream, audio in product(values, repeat=2):
+        fields = {"n": 1, "stream": stream, "audio": audio}
+        old = validated(OriginalRequestFields, fields)
+        new = validated(
+            ChatCompletionsGuardedRequestProjection,
+            {
+                "messages": [{"role": "user", "content": "q"}],
+                **fields,
+            },
+        )
+        if isinstance(new, dict):
+            new = {name: new[name] for name in fields}
+        assert old == new, fields
+
+    for annotations, content, logprobs in product(values + ["answer"], repeat=3):
+        fields = {"annotations": annotations, "content": content, "logprobs": logprobs}
+        old = validated(OriginalResponseFields, fields)
+        new = validated(
+            ChatCompletionsGuardedResponseProjection,
+            {
+                "choices": [
+                    {
+                        "message": {"role": "assistant", "content": content, "annotations": annotations},
+                        "logprobs": logprobs,
+                    }
+                ],
+            },
+        )
+        if isinstance(new, dict):
+            choice = new["choices"][0]
+            new = {name: choice["message"][name] for name in ("annotations", "content")}
+            new["logprobs"] = choice["logprobs"]
+        assert old == new, fields
+
+
+_MESSAGE = {"role": "user", "content": "q"}
+_REQUEST = {"messages": [_MESSAGE], "model": "m"}
+_CHOICE = {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "a"}}
+_RESPONSE = {"id": "r", "choices": [_CHOICE], "usage": {"total_tokens": 1}}
+
+
+@pytest.mark.parametrize("policy", list(UnknownContentFieldPolicy))
+@pytest.mark.parametrize(
+    ("model", "document"),
+    [
+        (ChatCompletionsGuardedRequest, _REQUEST),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "temperature": 0.2, "metadata": {"Env": "a", "env": "b"}}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "future": 1}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "Tools": []}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "MODEL": "other"}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "messages": [{**_MESSAGE, "future": 1}]}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "messages": [{**_MESSAGE, "Content": "x"}]}),
+        (ChatCompletionsGuardedRequest, {**_REQUEST, "messages": [{**_MESSAGE, "namK": "x"}]}),
+        (ChatCompletionsGuardedResponse, _RESPONSE),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "future": 1}),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "Usage": {}}),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "choices": [{**_CHOICE, "future": 1}]}),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "choices": [{**_CHOICE, "INDEX": 1}]}),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "choices": [{**_CHOICE, "meßage": {"content": "x"}}]}),
+        (ChatCompletionsGuardedResponse, {**_RESPONSE, "choices": [{**_CHOICE, "Message\n": {"content": "x"}}]}),
+        (
+            ChatCompletionsGuardedResponse,
+            {**_RESPONSE, "choices": [{**_CHOICE, "message": {**_CHOICE["message"], "future": 1}}]},
+        ),
+        (
+            ChatCompletionsGuardedResponse,
+            {**_RESPONSE, "choices": [{**_CHOICE, "message": {**_CHOICE["message"], "Refusal": "x"}}]},
+        ),
+        (
+            ChatCompletionsGuardedResponse,
+            {**_RESPONSE, "choices": [{**_CHOICE, "message": {**_CHOICE["message"], "refuſal": "x"}}]},
+        ),
+    ],
+)
+def test_export_derived_acceptance_matches_handwritten_runtime(model, document, policy, export_policy_validator):
+    """Acceptance derived only from the export agrees with the handwritten runtime.
+
+    This shows that the export carries the member policy the runtime enforces.
+    It is not compiler equivalence, which needs tests against generated models.
+    """
+    exported = export_payload_schema(model, projection_id=model.projection_contract.projection_id)
+    derived = export_policy_validator(exported, policy).is_valid(document)
+    try:
+        model.validate_payload(document, unknown_content_fields=policy)
+        handwritten = True
+    except ValidationError:
+        handwritten = False
+
+    assert derived is handwritten
