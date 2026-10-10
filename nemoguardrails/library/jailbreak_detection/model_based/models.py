@@ -31,13 +31,14 @@ class SnowflakeEmbed:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = device
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            SNOWFLAKE_MODEL_ID,
-            trust_remote_code=True,
-        )
+        # The architecture ships natively in transformers as NomicBert, so the model is
+        # loaded without the repository's remote code. That code looks for
+        # pytorch_model.bin (the repository only has safetensors) and its forward pass
+        # relies on helpers removed in transformers 5, which broke the rail under the
+        # pinned transformers>=5.3 (#2439). The native class loads the same weights.
+        self.tokenizer = AutoTokenizer.from_pretrained(SNOWFLAKE_MODEL_ID)
         self.model = AutoModel.from_pretrained(
             SNOWFLAKE_MODEL_ID,
-            trust_remote_code=True,
             add_pooling_layer=False,
             use_safetensors=True,
         )
