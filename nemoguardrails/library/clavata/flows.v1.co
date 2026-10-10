@@ -7,8 +7,7 @@ define flow clavata check input
 
   if $is_match.is_blocked
     if $config.enable_rails_exceptions
-      $msg = "Interaction blocked by clavata check with policy={$policy} and text={$text}"
-      create event ClavataPolicyMatchException(message=$msg)
+      create event ClavataPolicyMatchException(message="Interaction blocked by clavata check on input.")
     else
       bot refuse to respond
     stop
@@ -21,8 +20,7 @@ define flow clavata check output
 
   if $is_match.is_blocked
     if $config.enable_rails_exceptions
-      $msg = "Interaction blocked by clavata check with policy={$policy} and text={$text}"
-      create event ClavataPolicyMatchException(message=$msg)
+      create event ClavataPolicyMatchException(message="Interaction blocked by clavata check on output.")
     else
       bot refuse to respond
     stop
