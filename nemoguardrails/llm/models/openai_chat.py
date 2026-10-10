@@ -33,6 +33,7 @@ from nemoguardrails.types import (
 _KNOWN_PROVIDER_URLS: Dict[str, str] = {
     "https://api.openai.com/v1": "openai",
     "https://integrate.api.nvidia.com/v1": "nim",
+    "https://api.orcarouter.ai/v1": "orcarouter",
 }
 
 _FINISH_REASON_MAP: Dict[str, FinishReason] = {

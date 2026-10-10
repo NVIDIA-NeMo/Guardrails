@@ -30,12 +30,14 @@ _DEFAULT_BASE_URLS: Dict[str, str] = {
     "nim": "https://integrate.api.nvidia.com/v1",
     "nvidia_ai_endpoints": "https://integrate.api.nvidia.com/v1",
     "ollama": "http://localhost:11434/v1",
+    "orcarouter": "https://api.orcarouter.ai/v1",
 }
 
 _API_KEY_ENV_VARS: Dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "nim": "NVIDIA_API_KEY",
     "nvidia_ai_endpoints": "NVIDIA_API_KEY",
+    "orcarouter": "ORCAROUTER_API_KEY",
     "azure": "AZURE_OPENAI_API_KEY",
     "azure_openai": "AZURE_OPENAI_API_KEY",
 }
