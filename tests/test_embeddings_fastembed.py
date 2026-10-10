@@ -16,10 +16,52 @@
 import os
 
 import pytest
+from onnxruntime.capi.onnxruntime_pybind11_state import NoSuchFile
 
 from nemoguardrails.embeddings.providers.fastembed import FastEmbedEmbeddingModel
 
 LIVE_TEST_MODE = os.environ.get("LIVE_TEST")
+
+
+class _FakeEmbeddingVector:
+    def tolist(self):
+        return [0.1, 0.2]
+
+
+def test_recovers_from_missing_onnxruntime_model_cache(monkeypatch):
+    calls = []
+
+    class FakeTextEmbedding:
+        def __init__(self, model_name, **kwargs):
+            calls.append((model_name, kwargs))
+            if len(calls) == 1:
+                raise NoSuchFile(
+                    "[ONNXRuntimeError] : 3 : NO_SUCHFILE : Load model from /tmp/model.onnx failed. File doesn't exist"
+                )
+
+        def embed(self, documents):
+            return [_FakeEmbeddingVector()]
+
+    monkeypatch.setattr("fastembed.TextEmbedding", FakeTextEmbedding)
+
+    model = FastEmbedEmbeddingModel("all-MiniLM-L6-v2")
+
+    assert model.embedding_size == 2
+    assert calls == [
+        ("sentence-transformers/all-MiniLM-L6-v2", {}),
+        ("sentence-transformers/all-MiniLM-L6-v2", {"cache_dir": ".cache"}),
+    ]
+
+
+def test_reraises_unrelated_fastembed_errors(monkeypatch):
+    class FakeTextEmbedding:
+        def __init__(self, model_name, **kwargs):
+            raise ValueError("unrelated failure")
+
+    monkeypatch.setattr("fastembed.TextEmbedding", FakeTextEmbedding)
+
+    with pytest.raises(ValueError, match="unrelated failure"):
+        FastEmbedEmbeddingModel("all-MiniLM-L6-v2")
 
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
