@@ -53,6 +53,7 @@ OPENAI_INVALID_MODEL_CONFIG = RailsConfigSource.from_content(
 NIM_BASELINE_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nim_baseline")
 NEMOGUARDS_FULL_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nemoguards_full")
 DIALOG_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "dialog")
+DIALOG_GENERATION_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "dialog_generation")
 SINGLE_CALL_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "single_call")
 TASK_MODELS_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "task_models")
 STREAMING_OUTPUT_RAILS_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "streaming_output_rails")
