@@ -162,7 +162,21 @@ as package coverage.
   changing subtle behavior; when the existing suite does not cover the refactored
   code, keep the equivalence check you used to prove behavior is unchanged.
 
-## Documentation And Generated Files
+## Documentation
+
+Before completing a code change, determine whether it affects a user-visible
+surface. This includes public APIs, CLI or configuration behavior, workflows,
+defaults, errors, examples, installation, and other product behavior.
+
+When documentation is required and the host supports subagents, start a
+documentation subagent in parallel. Direct it to read `docs/AGENTS.md`, provide
+the changed sources and identified reader impact, and require it to update the
+owning documentation and run the documented validation. Continue the primary
+implementation while the documentation work proceeds, then reconcile both
+changes before handoff. If subagents are unavailable, the primary task must
+read `docs/AGENTS.md`, complete the same documentation work, and run its
+validation. Do not omit documentation because parallel execution is
+unavailable.
 
 - Update docs when changing user-visible behavior, public APIs, configuration
   syntax, examples, or installation requirements.
