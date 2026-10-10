@@ -1,0 +1,20 @@
+colang_version: "2.x"
+
+models:
+  - type: main
+    engine: ollama
+    model: qwen2.5:14b
+
+rails:
+  config:
+    human_approval:
+      patterns:
+        - "delete|drop|truncate"
+        - "rm\\s+-rf"
+        - "sudo"
+      approval_keywords:
+        - "approve"
+        - "yes"
+        - "approved"
+      approval_message: "This action matched a restricted pattern and requires approval. Reply 'approve' to proceed."
+      rejection_message: "Action rejected by reviewer."
