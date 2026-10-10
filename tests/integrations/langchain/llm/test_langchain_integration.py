@@ -69,7 +69,7 @@ def test_discover_mocked_langchain_community_llm_providers(mock_langchain_llms):
     """Test that the function correctly discovers LangChain LLM providers."""
     providers = _discover_langchain_community_llm_providers()
     assert "mock_provider" in providers
-    # @FIXME:shouldn't it reutrn the class?
+    # @FIXME:shouldn't it return the class?
     assert isinstance(providers["mock_provider"], MockLangChainLLM)
 
 
