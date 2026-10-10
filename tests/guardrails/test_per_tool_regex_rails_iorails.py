@@ -29,6 +29,7 @@ import pytest_asyncio
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_tool_rails_iorails import (
+    StreamedToolCall,
     _inject_forbidden_transport,
     _inject_json_response,
     _inject_sse_stream,
@@ -39,6 +40,7 @@ from tests.guardrails.test_tool_rails_iorails import (
     _tool_call_sse_lines,
     _tool_calls_sse_lines,
 )
+from tests.guardrails.tool_helpers import make_tool_conversation
 
 BASE_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
 
@@ -171,12 +173,13 @@ class TestStreamingPerToolCallRegex:
         assert _stream_violation_chunks(chunks) == []
 
     @pytest.mark.asyncio
-    async def test_matching_second_call_blocks_stream(self, call_pattern_iorails):
-        # Only the second call matches, so this fails if a later streamed call skips the rails.
-        lines = _tool_calls_sse_lines(
-            ("run_sql", '{"query": "SELECT 1"}'), ("run_sql", '{"query": "DROP TABLE users"}')
-        )
-        _inject_sse_stream(call_pattern_iorails, lines)
+    @pytest.mark.parametrize("matching_index", [0, 1, 2])
+    async def test_matching_call_at_any_position_blocks_stream(self, call_pattern_iorails, matching_index):
+        # Only one of three streamed calls matches, so this fails if any position skips the rails.
+        queries = ["SELECT 1", "SELECT 2", "SELECT 3"]
+        queries[matching_index] = "DROP TABLE users"
+        calls = [StreamedToolCall("run_sql", json.dumps({"query": query})) for query in queries]
+        _inject_sse_stream(call_pattern_iorails, _tool_calls_sse_lines(*calls))
         chunks = await _collect(call_pattern_iorails.stream_async(MESSAGES))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
@@ -185,27 +188,19 @@ class TestStreamingPerToolCallRegex:
 
     @pytest.mark.asyncio
     async def test_several_non_matching_calls_stream_through(self, call_pattern_iorails):
-        lines = _tool_calls_sse_lines(("run_sql", '{"query": "SELECT 1"}'), ("run_sql", '{"query": "SELECT 2"}'))
-        _inject_sse_stream(call_pattern_iorails, lines)
+        arguments = [json.dumps({"query": query}) for query in ("SELECT 1", "SELECT 2", "SELECT 3")]
+        _inject_sse_stream(
+            call_pattern_iorails, _tool_calls_sse_lines(*(StreamedToolCall("run_sql", a) for a in arguments))
+        )
         chunks = await _collect(call_pattern_iorails.stream_async(MESSAGES))
         assert _stream_violation_chunks(chunks) == []
         streamed = json.loads(chunks[-1])["tool_calls"]
-        assert [call["function"]["arguments"] for call in streamed] == [
-            '{"query": "SELECT 1"}',
-            '{"query": "SELECT 2"}',
-        ]
+        assert [call["function"]["arguments"] for call in streamed] == arguments
 
 
 def _tool_conversation(content: str) -> list:
-    return [
-        {"role": "user", "content": "run a query"},
-        {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "run_sql", "arguments": "{}"}}],
-        },
-        {"role": "tool", "tool_call_id": "call_1", "name": "run_sql", "content": content},
-    ]
+    """A run_sql call answered by a tool result carrying *content*."""
+    return make_tool_conversation(result_name="run_sql", tool_name="run_sql", arguments="{}", content=content)
 
 
 class TestNonStreamingPerToolResultRegex:

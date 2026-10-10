@@ -23,6 +23,8 @@ RailsManager tool rails run end to end. They are the IORails-level companions to
 """
 
 import json
+from dataclasses import dataclass
+from typing import Optional, Union
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -188,61 +190,24 @@ def _sse(chunk: dict) -> bytes:
     return ("data: " + json.dumps(chunk) + "\n\n").encode("utf-8")
 
 
-def _tool_call_sse_lines(name: str, arg_fragments: list, call_id: str = "call_1") -> list:
-    """SSE lines streaming a single tool call: id/name first, then argument fragments, then finish."""
-    chunks = [
-        {
-            "id": "chatcmpl-1",
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {
-                        "role": "assistant",
-                        "tool_calls": [
-                            {"index": 0, "id": call_id, "type": "function", "function": {"name": name, "arguments": ""}}
-                        ],
-                    },
-                    "finish_reason": None,
-                }
-            ],
-        }
-    ]
-    for fragment in arg_fragments:
-        chunks.append(
-            {
-                "id": "chatcmpl-1",
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {"tool_calls": [{"index": 0, "function": {"arguments": fragment}}]},
-                        "finish_reason": None,
-                    }
-                ],
-            }
-        )
-    chunks.append({"id": "chatcmpl-1", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})
-    lines = [_sse(chunk) for chunk in chunks]
-    lines.append(b"data: [DONE]\n\n")
-    return lines
+@dataclass(frozen=True)
+class StreamedToolCall:
+    """One tool call for a streamed response; ``call_id`` defaults to ``call_<its index>``."""
+
+    name: str
+    # One string streams the arguments in a single chunk; a list streams one chunk per fragment.
+    arguments: Union[str, list]
+    call_id: Optional[str] = None
 
 
-def _tool_calls_sse_lines(*calls: tuple[str, str]) -> list:
-    """SSE lines streaming one tool call per ``(name, arguments)`` pair, at ``tool_calls`` indexes 0, 1, ..."""
+def _tool_calls_sse_lines(*calls: StreamedToolCall) -> list:
+    """SSE lines streaming *calls* at ``tool_calls`` indexes 0, 1, ...: each id and name, then its arguments."""
     deltas = []
-    for index, (name, arguments) in enumerate(calls):
-        deltas.append(
-            {
-                "tool_calls": [
-                    {
-                        "index": index,
-                        "id": f"call_{index}",
-                        "type": "function",
-                        "function": {"name": name, "arguments": ""},
-                    }
-                ]
-            }
-        )
-        deltas.append({"tool_calls": [{"index": index, "function": {"arguments": arguments}}]})
+    for index, call in enumerate(calls):
+        header = {"index": index, "id": call.call_id or f"call_{index}", "type": "function"}
+        deltas.append({"tool_calls": [{**header, "function": {"name": call.name, "arguments": ""}}]})
+        fragments = [call.arguments] if isinstance(call.arguments, str) else call.arguments
+        deltas += [{"tool_calls": [{"index": index, "function": {"arguments": fragment}}]} for fragment in fragments]
     deltas[0] = {"role": "assistant", **deltas[0]}
     lines = [
         _sse({"id": "chatcmpl-1", "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}) for delta in deltas
@@ -250,6 +215,11 @@ def _tool_calls_sse_lines(*calls: tuple[str, str]) -> list:
     lines.append(_sse({"id": "chatcmpl-1", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}))
     lines.append(b"data: [DONE]\n\n")
     return lines
+
+
+def _tool_call_sse_lines(name: str, arg_fragments: list, call_id: str = "call_1") -> list:
+    """SSE lines streaming a single tool call: id/name first, then argument fragments, then finish."""
+    return _tool_calls_sse_lines(StreamedToolCall(name, arg_fragments, call_id))
 
 
 def _text_sse_lines(text: str) -> list:

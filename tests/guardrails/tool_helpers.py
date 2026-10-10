@@ -93,14 +93,23 @@ def violations_in(outcome) -> list[ToolViolation]:
     return [ToolViolation.model_validate(violation) for violation in outcome.metadata.get("tool_violations", [])]
 
 
-def make_tool_conversation(result_call_id: str = "call_1", result_name: Optional[str] = "get_weather") -> list:
-    """A user turn, an assistant ``get_weather`` tool call (id ``call_1``), then a tool result.
+def make_tool_conversation(
+    result_call_id: str = "call_1",
+    result_name: Optional[str] = "get_weather",
+    *,
+    tool_name: str = "get_weather",
+    arguments: str = '{"city": "Paris"}',
+    content: str = "18C",
+) -> list:
+    """A user turn, an assistant tool call (id ``call_1``), then a tool result.
 
     ``result_call_id`` sets the tool result's ``tool_call_id`` so callers can test
     linked (``call_1``) and unlinked (anything else) results. ``result_name`` sets the
     result's ``name``; ``None`` omits the key, as an OpenAI tool message does.
+    ``tool_name``, ``arguments`` and ``content`` set the called tool, its arguments and
+    the result's content, defaulting to a ``get_weather`` call answered with ``18C``.
     """
-    tool_message = {"role": "tool", "tool_call_id": result_call_id, "content": "18C"}
+    tool_message = {"role": "tool", "tool_call_id": result_call_id, "content": content}
     if result_name is not None:
         tool_message["name"] = result_name
     return [
@@ -112,7 +121,7 @@ def make_tool_conversation(result_call_id: str = "call_1", result_name: Optional
                 {
                     "id": "call_1",
                     "type": "function",
-                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                    "function": {"name": tool_name, "arguments": arguments},
                 }
             ],
         },
