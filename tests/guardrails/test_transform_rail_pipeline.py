@@ -15,22 +15,31 @@
 
 """A masking rail among judging rails, driven end to end through IORails.
 
-Covers both directions, both concurrency settings and streaming. Nothing is stubbed at the rail
-boundary -- the shipped actions run against canned model and HTTP replies -- so a rail that
-stopped reading its conversation variable fails here rather than in a config.
+Covers both directions, both concurrency settings, streaming and rails-only checks. Nothing is
+stubbed at the rail boundary -- the shipped actions run against canned model and HTTP replies --
+so a rail that stopped reading its conversation variable fails here rather than in a config.
 """
 
 import copy
 import json
+import os
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 import pytest_asyncio
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import RailType
+from nemoguardrails.tracing.constants import GuardrailsAttributes, OtelContentCapture
 from nemoguardrails.types import LLMResponse, LLMResponseChunk
 from tests.guardrails.async_helpers import JAILBREAK_NIM_URL, started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
@@ -566,3 +575,175 @@ class TestInputMaskingReachesStreamingOutputRails:
 
         assert MASKED_INPUT in call_log.text_seen_by(CONTENT_SAFETY_RAIL)
         assert PERSON not in call_log.text_seen_by(CONTENT_SAFETY_RAIL)
+
+
+CHECKED_CONVERSATION = [
+    {"role": "user", "content": USER_INPUT},
+    {"role": "assistant", "content": MAIN_OUTPUT_WITH_PII},
+]
+# One model answers content safety in both directions, so its verdict carries both keys.
+CHECK_ALL_ALLOW = {
+    CONTENT_SAFETY_RAIL: SAFE_OUTPUT_VERDICT,
+    TOPIC_CONTROL_RAIL: ON_TOPIC_VERDICT,
+    SELF_CHECK_RAIL: SELF_CHECK_ALLOWS,
+}
+
+
+CAPTURE_CONTENT = {"enabled": True, "enable_content_capture": True}
+
+
+def _capturing_config() -> dict:
+    """Both pipelines in one config, traced with content capture on so the request span records content."""
+    config = _output_pipeline_config()
+    config["rails"]["input"] = {"flows": list(INPUT_FLOWS)}
+    config["rails"]["config"]["gliner"]["input"] = {"entities": ["person"]}
+    config["tracing"] = dict(CAPTURE_CONTENT)
+    return config
+
+
+@asynccontextmanager
+async def _capturing(config: dict, exporter: InMemorySpanExporter) -> AsyncIterator[IORails]:
+    """IORails started with its spans exported to *exporter*, capturing content as *config* alone decides."""
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    # IORails takes its tracer and resolves capture when it is built, and the env var would override the config.
+    with patch.dict("os.environ"), patch.object(telemetry, "_tracer", provider.get_tracer("test")):
+        os.environ.pop(OtelContentCapture.CAPTURE_CONTENT_ENV, None)
+        async with started_iorails(config) as engine:
+            yield engine
+
+
+@pytest.fixture
+def span_exporter() -> InMemorySpanExporter:
+    return InMemorySpanExporter()
+
+
+@pytest_asyncio.fixture
+async def capturing_iorails(span_exporter):
+    """IORails masking in both directions, its spans exported to ``span_exporter``."""
+    async with _capturing(_capturing_config(), span_exporter) as engine:
+        yield engine
+
+
+def _request_span(exporter: InMemorySpanExporter) -> ReadableSpan:
+    """The one ``guardrails.request`` span the request produced."""
+    request_spans = [span for span in exporter.get_finished_spans() if span.name == "guardrails.request"]
+    assert len(request_spans) == 1
+    return request_spans[0]
+
+
+def _captured_input(exporter: InMemorySpanExporter) -> list[dict]:
+    """The messages the request span recorded."""
+    return json.loads(_request_span(exporter).attributes[GuardrailsAttributes.REQUEST_INPUT])
+
+
+def _captured_output(exporter: InMemorySpanExporter) -> str:
+    """The text the request span recorded as returned."""
+    return _request_span(exporter).attributes[GuardrailsAttributes.REQUEST_OUTPUT]
+
+
+@pytest.mark.asyncio
+class TestACheckRecordsTheMaskedConversation:
+    """With content capture on, a check's request span records the conversation as the masking rails left it."""
+
+    async def test_the_input_mask_reaches_the_request_span(
+        self, capturing_iorails, call_log, httpx_mock, span_exporter
+    ):
+        """The span records the user's message as the input mask left it."""
+        _wire(capturing_iorails, call_log, httpx_mock, CHECK_ALL_ALLOW)
+
+        await capturing_iorails.check_async([{"role": "user", "content": USER_INPUT}])
+
+        assert _captured_input(span_exporter) == [{"role": "user", "content": MASKED_INPUT}]
+        assert _captured_output(span_exporter) == MASKED_INPUT
+
+    async def test_the_output_mask_reaches_the_request_span(
+        self, capturing_iorails, call_log, httpx_mock, span_exporter
+    ):
+        """A check's conversation carries the response it checked, so the output mask reaches the span too."""
+        _wire(capturing_iorails, call_log, httpx_mock, CHECK_ALL_ALLOW)
+
+        await capturing_iorails.check_async(CHECKED_CONVERSATION, rail_types=[RailType.OUTPUT])
+
+        assert _captured_input(span_exporter) == [
+            {"role": "user", "content": USER_INPUT},
+            {"role": "assistant", "content": MASKED_MAIN_OUTPUT},
+        ]
+        assert _captured_output(span_exporter) == MASKED_MAIN_OUTPUT
+
+    # GLiNER masks once per direction, so its one callback has to answer twice.
+    @pytest.mark.httpx_mock(can_send_already_matched_responses=True)
+    async def test_both_masks_reach_the_request_span(self, capturing_iorails, call_log, httpx_mock, span_exporter):
+        """Masked in both directions, the name reaches the span from neither turn."""
+        _wire(capturing_iorails, call_log, httpx_mock, CHECK_ALL_ALLOW)
+
+        await capturing_iorails.check_async(CHECKED_CONVERSATION)
+
+        assert _captured_input(span_exporter) == [
+            {"role": "user", "content": MASKED_INPUT},
+            {"role": "assistant", "content": MASKED_MAIN_OUTPUT},
+        ]
+        assert _captured_output(span_exporter) == MASKED_MAIN_OUTPUT
+
+
+CONTENT_SAFETY_INPUT_FLOW = "content safety check input $model=content_safety"
+GLINER_INPUT_FLOW = "gliner mask pii on input"
+
+
+def _capturing_streaming_config() -> dict:
+    """An input mask ahead of an input judge on the streaming path, traced with content capture on."""
+    config = _streaming_config([CONTENT_SAFETY_OUTPUT_FLOW])
+    config["rails"]["input"] = {"flows": [CONTENT_SAFETY_INPUT_FLOW, GLINER_INPUT_FLOW]}
+    config["rails"]["config"]["gliner"]["input"] = {"entities": ["person"]}
+    config["tracing"] = dict(CAPTURE_CONTENT)
+    return config
+
+
+@pytest.mark.asyncio
+class TestAMaskSurvivesABlockOnTheRequestSpan:
+    """A rail behind the mask refuses the request, and the request span still records the masked text."""
+
+    async def test_a_check_blocked_on_input_records_the_masked_user_message(
+        self, capturing_iorails, call_log, httpx_mock, span_exporter
+    ):
+        """The block decides the verdict, but the user's message it records is the masked one."""
+        _wire(capturing_iorails, call_log, httpx_mock, CONTENT_SAFETY_BLOCKS)
+
+        await capturing_iorails.check_async([{"role": "user", "content": USER_INPUT}])
+
+        assert _captured_input(span_exporter) == [{"role": "user", "content": MASKED_INPUT}]
+        assert _captured_output(span_exporter) == REFUSAL_MESSAGE
+
+    async def test_a_check_blocked_on_output_records_the_masked_response(
+        self, capturing_iorails, call_log, httpx_mock, span_exporter
+    ):
+        """An output block behind the mask still records the checked response as the mask left it."""
+        _wire(capturing_iorails, call_log, httpx_mock, OUTPUT_CONTENT_SAFETY_BLOCKS)
+
+        await capturing_iorails.check_async(CHECKED_CONVERSATION, rail_types=[RailType.OUTPUT])
+
+        assert _captured_input(span_exporter) == [
+            {"role": "user", "content": USER_INPUT},
+            {"role": "assistant", "content": MASKED_MAIN_OUTPUT},
+        ]
+        assert _captured_output(span_exporter) == REFUSAL_MESSAGE
+
+    async def test_a_blocked_generation_records_the_masked_user_message(
+        self, capturing_iorails, call_log, httpx_mock, span_exporter
+    ):
+        """Generation keeps the mask on the request span when an input rail behind it refuses."""
+        _wire(capturing_iorails, call_log, httpx_mock, CONTENT_SAFETY_BLOCKS)
+
+        await capturing_iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
+
+        assert _captured_input(span_exporter) == [{"role": "user", "content": MASKED_INPUT}]
+        assert _captured_output(span_exporter) == REFUSAL_MESSAGE
+
+    async def test_a_blocked_stream_records_the_masked_user_message(self, call_log, httpx_mock, span_exporter):
+        """Streaming keeps the mask on the request span when an input rail behind it refuses."""
+        async with _capturing(_capturing_streaming_config(), span_exporter) as engine:
+            _wire(engine, call_log, httpx_mock, CONTENT_SAFETY_BLOCKS)
+            streamed = await _streamed(engine)
+
+        assert _captured_input(span_exporter) == [{"role": "user", "content": MASKED_INPUT}]
+        assert "content_blocked" in streamed

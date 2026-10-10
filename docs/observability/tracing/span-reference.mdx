@@ -240,7 +240,7 @@ Every span sets ERROR status and records the exception when one propagates throu
 | --------------------------- | ------ | ------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | `gen_ai.operation.name`     | string | Always             | The value `guardrails`, marking the request boundary.                                                                 |
 | `request.id`                | string | Always             | Request identifier derived from the OpenTelemetry trace ID.                                                           |
-| `guardrails.request.input`  | string | Content capture on | JSON-encoded input messages received from the caller.                                                                 |
+| `guardrails.request.input`  | string | Content capture on | JSON-encoded input messages, after any input-rail rewrite (and, on a check, any output-rail rewrite).                 |
 | `guardrails.request.output` | string | Content capture on | The text actually returned to the caller. On a blocked request this is the refusal message, not the raw model output. |
 
 When speculative generation is active, the request span also carries these attributes:
