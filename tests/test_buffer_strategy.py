@@ -224,6 +224,51 @@ def test_validation():
     assert buffer.buffer_chunk_size == 1
 
 
+@pytest.mark.asyncio
+async def test_zero_context_yields_disjoint_batches():
+    """A zero context window means each batch is judged on its own chunks.
+
+    ``buffer[-0:]`` is the whole list, so the buffer used to keep everything it had
+    ever seen: the processing context slid forward one token at a time instead of
+    advancing a chunk at a time, and the last batch carried the entire stream.
+    """
+
+    async def handler():
+        for i in range(1, 6):
+            yield f"t{i} "
+
+    buffer = RollingBuffer(buffer_context_size=0, buffer_chunk_size=2)
+    batches = [batch async for batch in buffer.process_stream(handler())]
+
+    assert [batch.processing_context for batch in batches] == [
+        ["t1 ", "t2 "],
+        ["t3 ", "t4 "],
+        ["t5 "],
+    ]
+    assert [chunk for batch in batches for chunk in batch.user_output_chunks] == [
+        "t1 ",
+        "t2 ",
+        "t3 ",
+        "t4 ",
+        "t5 ",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_zero_context_does_not_grow_the_processing_window():
+    """The window stays one chunk wide, so the rails run once per chunk."""
+
+    async def handler():
+        for i in range(200):
+            yield f"t{i} "
+
+    buffer = RollingBuffer(buffer_context_size=0, buffer_chunk_size=20)
+    batches = [batch async for batch in buffer.process_stream(handler())]
+
+    assert len(batches) == 10
+    assert max(len(batch.processing_context) for batch in batches) == 20
+
+
 def test_from_config():
     """Test configuration-based instantiation."""
     config = OutputRailsStreamingConfig(context_size=3, chunk_size=6)

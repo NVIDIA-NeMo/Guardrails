@@ -311,7 +311,11 @@ class RollingBuffer(BufferStrategy):
                     processing_context=processing_buffer,
                     user_output_chunks=chunks_to_yield,
                 )
-                buffer = buffer[-self.buffer_context_size :]
+                # ``buffer[-0:]`` is the whole list, so a zero context window has to be
+                # emptied explicitly. That is the window RailsConfig requires for a
+                # rewriting output rail, and leaving the buffer in place makes every
+                # later batch re-judge text the caller has already been given.
+                buffer = buffer[-self.buffer_context_size :] if self.buffer_context_size else []
 
         # yield any remaining buffer if it's not empty
         if buffer:
