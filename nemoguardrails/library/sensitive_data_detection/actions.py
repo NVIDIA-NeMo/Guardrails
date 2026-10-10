@@ -197,13 +197,14 @@ async def detect_sensitive_data(
 
 
 @action(is_system_action=True)
-async def mask_sensitive_data(source: str, text: str, config: RailsConfig) -> RailOutcome:
+async def mask_sensitive_data(source: str, text: str, config: RailsConfig, **kwargs) -> RailOutcome:
     """Checks whether the provided text contains any sensitive data.
 
     Args
         source: The source for the text, i.e. "input", "output", "retrieval".
         text: The text to check.
         config: The rails configuration object.
+        **kwargs: Accepted for dispatcher compatibility (e.g. context=); unused.
 
     Returns
         RailOutcome.transform() with the altered text if it changed, RailOutcome.allow() otherwise.
