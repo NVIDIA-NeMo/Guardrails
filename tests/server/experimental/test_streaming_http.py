@@ -24,7 +24,11 @@ from starlette.requests import ClientDisconnect
 from nemoguardrails.server.experimental import _streaming_http
 from nemoguardrails.server.experimental._buffered_kernel import OperationProjectionFailed
 from nemoguardrails.server.experimental._content_checker import ContentAllowed, StreamBufferingPolicy
-from nemoguardrails.server.experimental._guarded_stream import StreamProcessingFailed, StreamUpstreamFailed
+from nemoguardrails.server.experimental._guarded_stream import (
+    StreamInspectionUnsupported,
+    StreamProcessingFailed,
+    StreamUpstreamFailed,
+)
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpRequest, BufferedHttpResponse
 from nemoguardrails.server.experimental._streaming_http import (
     StreamingHttpResponse,
@@ -130,6 +134,8 @@ def render_outcome(outcome):
         code = "upstream_failed"
     elif isinstance(outcome, StreamProcessingFailed):
         code = "processing_failed"
+    elif isinstance(outcome, StreamInspectionUnsupported):
+        code = "inspection_unsupported"
     else:
         code = "stream_failure"
     return BufferedHttpResponse(502, ((b"content-type", b"text/plain"),), code.encode())
@@ -397,9 +403,10 @@ async def test_unsafe_stream_policy_is_rejected_before_dispatch():
         calls.append(True)
         raise AssertionError("unsafe policy must stop before dispatch")
 
-    with pytest.raises(ValueError, match="cannot release"):
-        await execute(dispatch, policy=StreamBufferingPolicy(1, 0, True))
+    response = await execute(dispatch, policy=StreamBufferingPolicy(1, 0, True))
 
+    assert response.status_code == 502
+    assert await response_body(response) == b"inspection_unsupported"
     assert calls == []
 
 

@@ -17,11 +17,18 @@
 
 from nemoguardrails.server.experimental._http_paths import GuardedOperationPath
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
+from nemoguardrails.server.experimental.provider.stream import StreamBinding
 from nemoguardrails.server.experimental.providers.openai.chat_completions.request_binding import (
     ChatCompletionsGuardedRequest,
 )
 from nemoguardrails.server.experimental.providers.openai.chat_completions.response_binding import (
     ChatCompletionsGuardedResponse,
+)
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_classifier import (
+    STREAM_CLASSIFIER,
+)
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_hooks import (
+    ChatCompletionsStreamHooks,
 )
 
 CHAT_COMPLETIONS_ENDPOINT = GuardedJsonEndpoint(
@@ -40,5 +47,9 @@ CHAT_COMPLETIONS_ENDPOINT = GuardedJsonEndpoint(
             "/{api_version}/chat/completions",
             frozenset({"POST"}),
         ),
+    ),
+    stream=StreamBinding(
+        STREAM_CLASSIFIER,
+        ChatCompletionsStreamHooks,
     ),
 )

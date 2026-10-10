@@ -390,3 +390,218 @@ integration:
     operation_label: OpenAI Chat Completions
     unsupported_request_code: unsupported_chat_completions_shape
     unsupported_response_code: unsupported_chat_completions_response_shape
+stream:
+  title: openai.chat_completions.stream.text.v1
+  oneOf:
+  - additionalProperties: false
+    description: Allow one text choice or an empty usage chunk, preserving root metadata.
+    properties:
+      choices:
+        items:
+          additionalProperties: false
+          description: Require integer choice zero and reject unreviewed choice-level
+            content.
+          properties:
+            delta:
+              additionalProperties: false
+              description: Accept assistant text or metadata-only deltas within a
+                closed boundary.
+              properties:
+                audio:
+                  default: null
+                  type: 'null'
+                  x-nemo-guardrails:
+                    classification: constrained
+                    extension: true
+                    gate: disabled
+                    reason: core_capability.audio_content
+                content:
+                  default: null
+                  x-nemo-guardrails:
+                    classification: guarded
+                    subject:
+                      kind: text
+                      role: assistant
+                  oneOf:
+                  - type: string
+                  - type: 'null'
+                function_call:
+                  default: null
+                  type: 'null'
+                  x-nemo-guardrails:
+                    classification: constrained
+                    gate: disabled
+                    reason: core_capability.tool_content
+                reasoning_content:
+                  default: null
+                  type: 'null'
+                  x-nemo-guardrails:
+                    classification: constrained
+                    extension: true
+                    gate: disabled
+                    reason: core_capability.reasoning_content
+                refusal:
+                  default: null
+                  type: 'null'
+                  x-nemo-guardrails:
+                    classification: constrained
+                    gate: disabled
+                    reason: core_capability.refusal_content
+                role:
+                  default: null
+                  x-nemo-guardrails:
+                    classification: constrained
+                  oneOf:
+                  - const: assistant
+                    type: string
+                  - type: 'null'
+                tool_calls:
+                  default: null
+                  type: 'null'
+                  x-nemo-guardrails:
+                    classification: constrained
+                    gate: disabled
+                    reason: core_capability.tool_content
+              title: ChatCompletionsStreamDeltaProjection
+              type: object
+              x-nemo-guardrails:
+                classification: guarded
+                source: '#/components/schemas/ChatCompletionStreamResponseDelta'
+                unknown_fields: forbid
+                reject_case_aliases: true
+            finish_reason:
+              default: null
+              x-nemo-guardrails:
+                classification: opaque
+            index:
+              const: 0
+              type: integer
+              x-nemo-guardrails:
+                classification: constrained
+            logprobs:
+              default: null
+              type: 'null'
+              x-nemo-guardrails:
+                classification: constrained
+                gate: disabled
+                reason: provider_integrity.token_logprobs
+          required:
+          - delta
+          - index
+          title: ChatCompletionsStreamChoiceProjection
+          type: object
+          x-nemo-guardrails:
+            unknown_fields: forbid
+            reject_case_aliases: true
+        maxItems: 1
+        type: array
+        x-nemo-guardrails:
+          classification: guarded
+      created:
+        x-nemo-guardrails:
+          classification: opaque
+      id:
+        x-nemo-guardrails:
+          classification: opaque
+      model:
+        x-nemo-guardrails:
+          classification: opaque
+      moderation:
+        x-nemo-guardrails:
+          classification: opaque
+      obfuscation:
+        x-nemo-guardrails:
+          classification: opaque
+      object:
+        const: chat.completion.chunk
+        type: string
+        x-nemo-guardrails:
+          classification: constrained
+      service_tier:
+        x-nemo-guardrails:
+          classification: opaque
+      system_fingerprint:
+        x-nemo-guardrails:
+          classification: opaque
+      usage:
+        x-nemo-guardrails:
+          classification: opaque
+    required:
+    - choices
+    - object
+    title: ChatCompletionsStreamPayloadProjection
+    type: object
+    x-nemo-guardrails:
+      source: '#/components/schemas/CreateChatCompletionStreamResponse'
+      unknown_fields: forbid
+      reject_case_aliases: true
+      model: ChatCompletionsStreamPayloadProjection
+      event:
+        classification: guarded_delta
+        variants:
+        - source_schema: CreateChatCompletionStreamResponse
+          shape: chat.completion.chunk:content
+          match:
+            object: chat.completion.chunk
+        missing_text: opaque
+        missing_text_shape: chat.completion.chunk:metadata
+  - additionalProperties: false
+    description: Accept only an error envelope, never an error mixed with generated
+      content.
+    properties:
+      error:
+        additionalProperties: false
+        description: Validate the native error message without treating it as guarded
+          text.
+        properties:
+          code:
+            default: null
+            x-nemo-guardrails:
+              classification: opaque
+          message:
+            type: string
+            x-nemo-guardrails:
+              classification: constrained
+          misalignment:
+            default: null
+            x-nemo-guardrails:
+              classification: opaque
+          param:
+            default: null
+            x-nemo-guardrails:
+              classification: opaque
+          type:
+            default: null
+            x-nemo-guardrails:
+              classification: opaque
+        required:
+        - message
+        title: ChatCompletionsStreamErrorDetailsProjection
+        type: object
+        x-nemo-guardrails:
+          classification: constrained
+          source: '#/components/schemas/Error'
+          unknown_fields: configurable
+          reject_case_aliases: true
+    required:
+    - error
+    title: ChatCompletionsStreamErrorProjection
+    type: object
+    x-nemo-guardrails:
+      source: '#/components/schemas/ErrorResponse'
+      unknown_fields: forbid
+      reject_case_aliases: true
+      model: ChatCompletionsStreamErrorProjection
+      event:
+        classification: provider_error
+        variants:
+        - source_schema: ErrorResponse
+          shape: error
+          required_fields:
+          - error
+  x-nemo-guardrails:
+    transport:
+      require_sse_event: false
+      non_data_shape: '[DONE]'
+      sentinels:
+        '[DONE]': '[DONE]'

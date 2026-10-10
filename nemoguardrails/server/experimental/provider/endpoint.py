@@ -24,6 +24,7 @@ from nemoguardrails.server.experimental.provider.payload import (
     GuardedRequestModel,
     validate_payload_projection_contract,
 )
+from nemoguardrails.server.experimental.provider.stream import StreamBinding
 from nemoguardrails.server.experimental.provider.transport import ProviderApiRevisionBinding
 
 
@@ -42,6 +43,7 @@ class GuardedJsonEndpoint:
     contract_name: str | None = None
     method: str = "POST"
     api_revision: ProviderApiRevisionBinding | None = None
+    stream: StreamBinding | None = None
     operation_paths: tuple[GuardedOperationPath, ...] = ()
 
     def __post_init__(self) -> None:
@@ -75,3 +77,5 @@ class GuardedJsonEndpoint:
         response_contract = validate_payload_projection_contract(self.guarded_response_model, "response")
         if request_contract.profile != response_contract.profile:
             raise ValueError("Guarded request and response capability profiles must match.")
+        if self.stream is not None and not isinstance(self.stream, StreamBinding):
+            raise TypeError("The endpoint stream must be a StreamBinding.")

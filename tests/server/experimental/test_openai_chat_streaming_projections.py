@@ -35,9 +35,9 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
 from nemoguardrails.server.experimental.provider.sse import ServerSentEvent
 from nemoguardrails.server.experimental.provider.stream import (
     ClassifiedStreamAdapter,
+    StreamBinding,
     StreamEventRole,
     UnsupportedProviderStream,
-    create_classified_stream_adapter_factory,
 )
 from nemoguardrails.server.experimental.provider.types import GuardedMessage, UnknownContentFieldPolicy
 from nemoguardrails.server.experimental.providers.openai.chat_completions.request_binding import (
@@ -370,9 +370,9 @@ def test_stream_hooks_reject_payloads_after_provider_error(tail):
         observe(hooks, tail)
 
 
-def test_stream_adapter_factory_creates_independent_completion_state():
-    factory = create_classified_stream_adapter_factory(STREAM_CLASSIFIER, ChatCompletionsStreamHooks)
-    first, second = factory(), factory()
+def test_stream_binding_creates_independent_completion_state():
+    binding = StreamBinding(STREAM_CLASSIFIER, ChatCompletionsStreamHooks)
+    first, second = binding.create_adapter(), binding.create_adapter()
     first.classify_event(event(b"[DONE]"))
     second.classify_event(event(chunk({"content": "safe"})))
 
