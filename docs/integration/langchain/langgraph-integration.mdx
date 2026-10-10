@@ -24,6 +24,20 @@ LangGraph is a library for building stateful, multi-actor applications with LLMs
 - **Graph-Based Control**: Conditional routing with safety considerations.
 - **Conversation Memory**: Maintained context with continuous safety monitoring.
 
+The following diagram shows the basic data flow through a guarded LangGraph agent:
+
+```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'background': 'transparent' }}}%%
+
+flowchart LR
+    A[User input] --> B[Input rails]
+    B --> C[Agent / LLM node]
+    C -->|tool call| D[Tool node]
+    D --> C
+    C -->|final answer| E[Output rails]
+    E --> F[Response]
+```
+
 ---
 
 ## Prerequisites
@@ -162,6 +176,22 @@ result_unsafe = graph.invoke({"messages": [{"role": "user", "content": "You are 
 
 To enhance the functionality of your LangGraph agents, you can combine tool calling with guardrails. This ensures that both the decision to call tools and the tool results are safely validated.
 
+`bind_tools()` is a LangChain method that attaches tool/function definitions to a chat model so the model can request tool calls in its response instead of only returning text. `ToolMessage` is LangChain's message type for returning a tool's result back to the model, keyed to the originating call through `tool_call_id`. See the [LangChain tool calling documentation](https://python.langchain.com/docs/concepts/tool_calling/) for the full concept. The NVIDIA NeMo Guardrails library does not change either of these; `RunnableRails` only adds safety checks around the model calls that use them.
+
+The following diagram shows where guardrails sit relative to the `ToolNode`/`tools_condition` conditional edge:
+
+```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'background': 'transparent' }}}%%
+
+flowchart LR
+    A[chatbot node<br/>prompt | guardrails | llm_with_tools] -->|tools_condition| B{Tool calls<br/>present?}
+    B -->|yes| C[ToolNode<br/>executes tools]
+    C --> A
+    B -->|no, final answer| D[END]
+```
+
+`tools_condition` inspects the `AIMessage` that `chatbot` returns. Because guardrails wrap the model call inside `chatbot`, both the decision to call a tool and the tool's result pass through guardrail checks on every trip through the `chatbot` node, not just on the final answer.
+
 ### Tool Definition
 
 Define the following simplified example tools that demonstrate the integration pattern with the NeMo Guardrails library.
@@ -245,6 +275,32 @@ result = graph.invoke({
     "messages": [{"role": "user", "content": "What is the capital of Peru?"}]
 })
 ```
+
+### Failure Handling in Tool-Calling Graphs
+
+The `chatbot` node above has no exception handling around `runnable_with_guardrails.invoke(state)`, and the graph has three distinct failure modes that behave differently:
+
+- **Failures that `RunnableRails` surfaces in the `chatbot` node** raise a `ValueError`, which crashes `graph.invoke()` if uncaught. See [Error Handling](/integration/langchain/runnable-rails#error-handling); this covers LLM provider failures and other errors alike, so `except ValueError` in the node catches all of them, not just provider failures.
+- **Failures in a tool executed by the `tools` node** are LangGraph's concern, not the guardrail configuration's. In this example the tools run inside `ToolNode`, outside `RunnableRails`, so the guardrail runtime never sees them. LangGraph's default `handle_tool_errors` handler returns a message only for tool-invocation errors, such as malformed arguments, and re-raises everything else out of `graph.invoke()`. Pass `ToolNode(tools=tools, handle_tool_errors=...)` to change that. A `try`/`except` in `chatbot` does not catch these, because they are raised from a different node.
+- **Failures in a tool or action registered with the guardrail configuration** (for example, tools passed as `RunnableRails(config=config, tools=[...])`) are caught by the action dispatcher, which converts them into a normal-looking response with the content `"I'm sorry, an internal error has occurred."` The dispatcher forwards LLM call failures rather than catching them, so those still surface as in the first case.
+
+The following variant catches the first case. Do not extend it by matching on the response content to detect the third case: that response is indistinguishable from a normal answer, and a legitimate model or rail response can contain the same text. Handle those failures inside the tool or action itself if you need a fallback for them. Everything else about `create_tool_calling_agent` stays the same; only `chatbot` changes.
+
+```python
+from langchain_core.messages import AIMessage
+
+FALLBACK_MESSAGE = "Sorry, I couldn't process that request."
+
+def chatbot(state: State):
+    try:
+        result = runnable_with_guardrails.invoke(state)
+    except ValueError:
+        return {"messages": [AIMessage(content=FALLBACK_MESSAGE)]}
+
+    return {"messages": [result]}
+```
+
+A rail that blocks the request, as opposed to an outright error, does not raise either. It returns the normal `AIMessage` shape described in [Rejection Behavior](/integration/langchain/runnable-rails#rejection-behavior), with the rail's configured refusal text.
 
 ---
 
@@ -450,5 +506,18 @@ guardrails = RunnableRails(config=config, passthrough=True, verbose=True)
 
 - LangGraph integration with RunnableRails produces single large chunks after processing delays.
 - Token-level streaming is not preserved when RunnableRails is integrated into LangGraph nodes.
+
+### Why
+
+This is a `RunnableRails`-specific limitation, not a general LangGraph one. LangGraph itself supports token-level streaming from inside a node through `stream_mode="messages"`, which hooks the LLM's own streaming callbacks independently of what the node returns.
+
+The `chatbot` node in the examples above calls `runnable_with_guardrails.invoke(state)`. `RunnableRails.invoke()` calls `LLMRails.generate()`, which makes a single blocking call and returns one fully formatted result; no incremental LLM callback events fire during it for LangGraph's `messages` mode to observe. `RunnableRails.astream()` does stream token-by-token, but it yields chunks directly to whatever calls it; it does not forward those chunks into LangGraph's callback-based streaming machinery. Calling `astream()` from inside a node, instead of `invoke()`, would still not surface as `messages`-mode events without additional wiring.
+
+No tracking issue currently exists in the [`NVIDIA-NeMo/Guardrails`](https://github.com/NVIDIA-NeMo/Guardrails) repository for LangGraph token streaming support.
+
+### Workarounds
+
+- Stream directly from `RunnableRails` or the LLM outside the LangGraph node (`guardrails.astream(...)`, as shown earlier in this guide), and use LangGraph only for the non-streaming orchestration and tool-calling parts of your flow.
+- Consider a hybrid architecture: stream the final synthesis call directly to the client, and keep guardrail-gated intermediate steps inside the graph non-streaming.
 
 RunnableRails supports streaming when used directly, but integration with LangGraph fundamentally conflicts with real-time streaming due to node execution requirements and safety validation needs.
