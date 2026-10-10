@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Classify provider stream events from generated semantic rules."""
+"""Classify provider stream events from declarative semantic rules."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -195,7 +195,7 @@ def _resolve_text(projection: BaseModel, path: StreamTextPath | None) -> str | N
 
 
 def build_stream_classifier(definition: StreamClassifierDefinition) -> StreamClassifier:
-    """Validate generated event rules and return their runtime classifier."""
+    """Validate declared event rules and return their runtime classifier."""
 
     if not definition.subject:
         raise ValueError("A stream classifier definition must identify its provider event subject.")
