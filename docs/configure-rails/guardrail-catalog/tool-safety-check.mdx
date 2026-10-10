@@ -29,7 +29,7 @@ To use the tool safety check, you should:
 
     <Note>
 
-    The `type` is a unique identifier for the model that will be passed to the tool output and tool input rails as a parameter. `tools: [...]` above is a placeholder: replace it with `run_sql`'s actual function declaration and JSON schema, either here (static, applies to every request) or per request in `options.llm_params.tools`. `@tool_output_validation` blocks a call to a tool that isn't declared either way, before the judge ever runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
+    The `type` is a unique identifier for the model that will be passed to the tool output and tool input rails as a parameter. `tools: [...]` above is a placeholder: replace it with `run_sql`'s actual function declaration and JSON schema, either here (static, applies to every request) or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server, which the server currently accepts only for non-streaming requests on a configuration with `passthrough: true`. `@tool_output_validation` blocks a call to a tool that isn't declared either way, before the judge ever runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
 
     </Note>
 

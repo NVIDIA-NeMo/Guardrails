@@ -133,6 +133,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
     expected_exports = {
         "ai_defense": ("AIDefenseRailConfig",),
         "autoalign": ("AutoAlignOptions", "AutoAlignRailConfig"),
+        "cel": ("CelConfig", "CelOptions"),
         "clavata": ("ClavataRailConfig", "ClavataRailOptions"),
         "content_safety": ("ContentSafetyConfig", "MultilingualConfig", "ReasoningConfig"),
         "context_bloat_detection": ("ContextBloatDetectionConfig",),
@@ -183,6 +184,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
     expected_config_keys = {
         "ai_defense",
         "autoalign",
+        "cel",
         "clavata",
         "content_safety",
         "context_bloat_detection",

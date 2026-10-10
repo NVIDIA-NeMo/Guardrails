@@ -363,6 +363,20 @@ TOOL_SAFETY_CHECK_INPUT = RailSpec(
     output_parser="parse_tool_safety_verdict",
 )
 
+CEL_TOOL_OUTPUT = RailSpec(
+    name="cel_tool_output",
+    flow="cel check tool output",
+    direction="tool_output",
+    action="evaluate_tool_output_cel",
+)
+
+CEL_TOOL_INPUT = RailSpec(
+    name="cel_tool_input",
+    flow="cel check tool input",
+    direction="tool_input",
+    action="evaluate_tool_input_cel",
+)
+
 PRIVATEAI_DETECT_INPUT = RailSpec(
     name="privateai_detect_input",
     flow="detect pii on input",
@@ -2955,6 +2969,16 @@ IORAILS_ONLY_FIXTURES = [
     ),
     *_rail_outcome_cases(TOOL_SAFETY_CHECK_OUTPUT),
     *_rail_outcome_cases(TOOL_SAFETY_CHECK_INPUT),
+    *_rail_outcome_cases(
+        CEL_TOOL_OUTPUT,
+        allow_return=RailOutcome.allow(metadata={"source": "tool_output"}),
+        block_return=RailOutcome.block(metadata={"source": "tool_output", "matched_expressions": ["true"]}),
+    ),
+    *_rail_outcome_cases(
+        CEL_TOOL_INPUT,
+        allow_return=RailOutcome.allow(metadata={"source": "tool_input"}),
+        block_return=RailOutcome.block(metadata={"source": "tool_input", "matched_expressions": ["true"]}),
+    ),
 ]
 
 IORAILS_FIXTURES = [case for case in FIXTURES if _is_iorails_enabled(case.spec)] + IORAILS_ONLY_FIXTURES
