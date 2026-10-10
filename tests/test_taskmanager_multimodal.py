@@ -41,7 +41,7 @@ def test_render_preserves_multimodal_list(fake_base64):
     user_input = _make_multimodal_input(fake_base64)
 
     prompt = tm.render_task_prompt(
-        task="content_safety_check_input $model=vision_rails",
+        task="content_safety_check_input $model=content_safety",
         context={"user_input": user_input, "reasoning_enabled": False},
     )
 
@@ -56,7 +56,7 @@ def test_render_text_only_unchanged():
     tm = LLMTaskManager(config)
 
     prompt = tm.render_task_prompt(
-        task="content_safety_check_input $model=vision_rails",
+        task="content_safety_check_input $model=content_safety",
         context={"user_input": "Is this safe?", "reasoning_enabled": False},
     )
 
@@ -72,7 +72,7 @@ def test_render_multimodal_no_base64_in_string_content(fake_base64):
     user_input = _make_multimodal_input(fake_base64)
 
     prompt = tm.render_task_prompt(
-        task="content_safety_check_input $model=vision_rails",
+        task="content_safety_check_input $model=content_safety",
         context={"user_input": user_input, "reasoning_enabled": False},
     )
 
@@ -119,7 +119,7 @@ def test_prompt_context_list_overrides_context(fake_base64):
     tm.register_prompt_context("user_input", list_value)
 
     prompt = tm.render_task_prompt(
-        task="content_safety_check_input $model=vision_rails",
+        task="content_safety_check_input $model=content_safety",
         context={"user_input": "ignored scalar fallback", "reasoning_enabled": False},
     )
 
@@ -162,7 +162,7 @@ def test_render_empty_list_is_dropped():
     tm = LLMTaskManager(config)
 
     prompt = tm.render_task_prompt(
-        task="content_safety_check_input $model=vision_rails",
+        task="content_safety_check_input $model=content_safety",
         context={"user_input": [], "reasoning_enabled": False},
     )
 
@@ -177,7 +177,7 @@ def test_rendered_prompt_length_reasonable():
     user_input = _make_multimodal_input(base64_data=big_base64)
 
     prompt = tm.render_task_prompt(
-        task="content_safety_check_input $model=vision_rails",
+        task="content_safety_check_input $model=content_safety",
         context={"user_input": user_input, "reasoning_enabled": False},
     )
 
