@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -24,7 +25,10 @@ from nemoguardrails.library.gliner.actions import gliner_detect_pii
 from nemoguardrails.library.privateai import actions as privateai_actions
 from nemoguardrails.library.privateai.actions import detect_pii
 from nemoguardrails.library.sensitive_data_detection import actions as sensitive_data_actions
-from nemoguardrails.library.sensitive_data_detection.actions import detect_sensitive_data
+from nemoguardrails.library.sensitive_data_detection.actions import (
+    detect_sensitive_data,
+    mask_sensitive_data,
+)
 from nemoguardrails.testing import RecordingHTTPClient
 
 
@@ -138,6 +142,41 @@ async def test_sensitive_data_detect_returns_rail_outcome(monkeypatch, analyzer_
     outcome = await detect_sensitive_data(source="input", text="hello", config=_sensitive_data_config())
 
     assert outcome == expected
+
+
+@pytest.mark.asyncio
+async def test_sensitive_data_mask_accepts_dispatcher_kwargs(monkeypatch):
+    """The action dispatcher passes extra keyword arguments (e.g. ``context``) to every action.
+
+    ``detect_sensitive_data`` already accepts them; ``mask_sensitive_data`` must too, or the
+    output masking rail fails with a TypeError before the text is ever inspected.
+    """
+
+    class FakeAnalyzer:
+        def analyze(self, **kwargs) -> list[Any]:
+            return ["PERSON"]
+
+    class FakeAnonymizer:
+        def anonymize(self, text, analyzer_results, operators):
+            return SimpleNamespace(text="<PERSON>")
+
+    monkeypatch.setattr(sensitive_data_actions, "_get_analyzer", lambda score_threshold=0.4: FakeAnalyzer())
+    monkeypatch.setattr(sensitive_data_actions, "_get_ad_hoc_recognizers", lambda sdd_config: [])
+    monkeypatch.setattr(sensitive_data_actions, "OperatorConfig", lambda operator: operator)
+    monkeypatch.setattr(sensitive_data_actions, "AnonymizerEngine", FakeAnonymizer)
+
+    outcome = await mask_sensitive_data(
+        source="input",
+        text="hello",
+        config=_sensitive_data_config(),
+        context={},
+        events=[],
+    )
+
+    assert outcome == RailOutcome.transform(
+        [(TransformTarget.USER_MESSAGE, "<PERSON>")],
+        metadata={"source": "input", "text": "hello", "masked_text": "<PERSON>"},
+    )
 
 
 @pytest.mark.parametrize(
