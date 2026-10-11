@@ -23,11 +23,10 @@ through Conduct Guard's runtime policy engine. Returns a
 
 import logging
 import os
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
-
 from nemoguardrails.library.conduct.errors import (
     ConductPluginConfigurationError,
     ConductPluginImportError,

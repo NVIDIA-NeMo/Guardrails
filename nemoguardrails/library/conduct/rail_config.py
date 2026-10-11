@@ -21,7 +21,6 @@ from nemoguardrails.manifests.config_schema import (
     Field,
     RailConfigBaseModel,
     RailConfigSpec,
-    rail_field,
 )
 
 
