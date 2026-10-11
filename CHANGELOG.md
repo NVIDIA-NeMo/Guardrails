@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.1] - 2026-09-16
+
+### 🐛 Bug Fixes
+
+- *(benchmark)* Correct Locust concurrency measurements and sweeps ([#2323](https://github.com/NVIDIA-NeMo/Guardrails/issues/2323))
+- *(content-safety)* Parse Nemotron 3.5 responses ([#2370](https://github.com/NVIDIA-NeMo/Guardrails/issues/2370))
+- *(server)* Return overload response for IORails admission shedding ([#2334](https://github.com/NVIDIA-NeMo/Guardrails/issues/2334))
+- *(rails)* Load config.py for combined configurations ([#2371](https://github.com/NVIDIA-NeMo/Guardrails/issues/2371))
+
+
 ## [0.24.0] - 2026-08-25
 
 ### 🚀 Features

@@ -1,0 +1,20 @@
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+
+  - type: llama_guard
+    engine: nim
+    model: meta/llama-guard-3-8b
+
+rails:
+  tool_output:
+    flows:
+      - tool call validation
+    per_tool:
+      run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
+  tool_input:
+    flows:
+      - tool result validation
+    per_tool:
+      run_sql: ["tool safety check input $model=llama_guard $variant=run_sql_check"]

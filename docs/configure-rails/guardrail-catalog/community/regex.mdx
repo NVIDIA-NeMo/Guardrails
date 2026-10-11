@@ -114,6 +114,36 @@ rails:
       - regex check retrieval
 ```
 
+### Tool Rails
+
+Tool rails check one tool call's arguments, or one tool result's content, against patterns scoped to that specific tool. Configure them under `rails.tool_output.per_tool` (calls) and `rails.tool_input.per_tool` (results), each keyed by tool name, alongside the matching patterns under `rails.config.regex_detection.tool_output`/`tool_input`:
+
+```yaml
+rails:
+  config:
+    regex_detection:
+      tool_output:
+        run_sql:
+          patterns:
+            - "DROP\\s+TABLE"
+      tool_input:
+        run_sql:
+          patterns:
+            - "ssn:\\s*\\d{3}-\\d{2}-\\d{4}"
+  tool_output:
+    per_tool:
+      run_sql:
+        - "regex check tool output $argument=query"
+  tool_input:
+    per_tool:
+      run_sql:
+        - "regex check tool input"
+```
+
+`$argument=query` scopes the output check to the call's `query` field only, so other arguments (for example a request ID) never reach the regex, avoiding a false-positive match on unrelated data. Omit `$argument=` to check the call's full argument set. It applies to tool output (call) surfaces only; tool input (result) surfaces have no argument structure to scope and do not accept it.
+
+For the full per-tool surface reference, refer to [Rail Engine Support](/reference/rail-engine-support#tool-output-surfaces).
+
 ## Complete Example
 
 Here's a comprehensive example configuration:
@@ -211,8 +241,11 @@ When a regex rail has a regex pattern match, the following steps happen (dependi
 | `regex check input` | ✓ | ✓ |
 | `regex check output` | ✓ | ✓ |
 | `regex check retrieval` | ✓ | ✗ |
+| `regex check tool output` | ✗ | ✓ |
+| `regex check tool input` | ✗ | ✓ |
 
 `regex check retrieval` removes matching chunks from the retrieval results, which rewrites `relevant_chunks`.
 `IORails` has no retrieval pipeline and nowhere to apply that rewrite, so the flow runs on `LLMRails` only.
+`regex check tool output`/`regex check tool input` are `IORails`-only capabilities by design, scoped per tool under `rails.tool_output.per_tool`/`rails.tool_input.per_tool`.
 
 For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

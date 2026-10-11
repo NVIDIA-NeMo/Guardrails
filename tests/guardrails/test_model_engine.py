@@ -45,10 +45,11 @@ from nemoguardrails.guardrails.model_engine import (
     _parse_chat_completion,
     _parse_chat_completion_chunk,
 )
-from nemoguardrails.guardrails.tool_schema import Toolset
+from nemoguardrails.guardrails.tool_schema import ToolCallExtractionError, Toolset
 from nemoguardrails.llm.call import llm_call
 from nemoguardrails.llm.clients._errors import client_facing_message
 from nemoguardrails.rails.llm.config import Model
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.types import (
     ChatMessage,
     LLMModel,
@@ -59,7 +60,13 @@ from nemoguardrails.types import (
     ToolCallFunction,
     UsageInfo,
 )
-from tests.guardrails.tool_helpers import make_tool_conversation, multi_turn_reused_call_id_messages
+from tests.guardrails.tool_helpers import (
+    assistant_tool_calls,
+    make_tool_conversation,
+    malformed_prior_tool_call_messages,
+    multi_turn_reused_call_id_messages,
+    wire_tool_call,
+)
 
 
 def _make_model(
@@ -2894,6 +2901,13 @@ class TestExtractToolExchanges:
         engine = ModelEngine(_make_model(engine="openai"))
         assert self._ids(engine.extract_tool_exchanges(["garbage", *_TOOL_MESSAGES])) == [(["call_1"], ["call_1"])]
 
+    def test_records_each_results_message_index(self):
+        """Each result records its message's position in the conversation, counting non-dict and context messages."""
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = ["garbage", {"role": "context", "content": {"user_id": "u1"}}, *multi_turn_reused_call_id_messages()]
+        exchanges = engine.extract_tool_exchanges(messages)
+        assert [result.message_index for _calls, results in exchanges for result in results] == [4, 8]
+
     def test_malformed_arguments_degrade_to_empty_for_linkage(self):
         """A historical call with malformed argument JSON degrades to empty arguments
         (id/name preserved) instead of aborting extraction."""
@@ -2919,6 +2933,169 @@ class TestExtractToolExchanges:
     def test_unknown_engine_falls_back_to_openai_extractor(self):
         engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
         assert self._ids(engine.extract_tool_exchanges(_TOOL_MESSAGES)) == [(["call_1"], ["call_1"])]
+
+
+_SECRET_VALUE = "SECRET-VALUE"
+
+
+def _with_second_call_arguments(arguments: Any) -> dict:
+    """An assistant turn whose second call, ``call_2``, carries *arguments*."""
+    return assistant_tool_calls(wire_tool_call(), wire_tool_call(call_id="call_2", arguments=arguments))
+
+
+_LEGACY_CALL = {"name": "get_weather", "arguments": "{}"}
+_FLAT_CALL = {"id": "call_1", "type": "function", "name": "run_sql", "arguments": '{"q": "SECRET-VALUE"}'}
+
+# Case id -> (a last assistant turn with one call the extractor refuses, (violation type, index, tool_call_id, tool_name)).
+_UNPARSABLE_CALLS = {
+    "invalid_json_arguments": (
+        _with_second_call_arguments('{"city": "SECRET-VALUE"'),
+        ("malformed_arguments", 1, "call_2", "get_weather"),
+    ),
+    "invalid_json_before_a_valid_call": (
+        assistant_tool_calls(wire_tool_call(arguments='{"city": "SECRET-VALUE"'), wire_tool_call(call_id="call_2")),
+        ("malformed_arguments", 0, "call_1", "get_weather"),
+    ),
+    "json_array_arguments": (
+        _with_second_call_arguments('["SECRET-VALUE"]'),
+        ("malformed_arguments", 1, "call_2", "get_weather"),
+    ),
+    "non_dict_arguments": (
+        _with_second_call_arguments([_SECRET_VALUE]),
+        ("malformed_arguments", 1, "call_2", "get_weather"),
+    ),
+    # A completed turn carries "{}" for a call without arguments; "" is not JSON, as in non-streaming generation.
+    "empty_string_arguments": (_with_second_call_arguments(""), ("malformed_arguments", 1, "call_2", "get_weather")),
+    "non_dict_entry": (assistant_tool_calls(wire_tool_call(), _SECRET_VALUE), ("malformed_tool_call", 1, None, None)),
+    "non_dict_function": (
+        assistant_tool_calls({**wire_tool_call(), "function": _SECRET_VALUE}),
+        ("malformed_tool_call", 0, "call_1", None),
+    ),
+    "no_function_object": (assistant_tool_calls(_FLAT_CALL), ("malformed_tool_call", 0, "call_1", None)),
+    "non_string_function_name": (
+        assistant_tool_calls({**wire_tool_call(), "function": {"name": {"x": 1}, "arguments": "{}"}}),
+        ("malformed_tool_call", 0, "call_1", None),
+    ),
+    "empty_function_name": (
+        assistant_tool_calls({**wire_tool_call(), "function": {"name": "", "arguments": "{}"}}),
+        ("malformed_tool_call", 0, "call_1", None),
+    ),
+    "non_string_type": (
+        assistant_tool_calls({**wire_tool_call(), "type": {"x": 1}}),
+        ("malformed_tool_call", 0, "call_1", "get_weather"),
+    ),
+    "non_string_id": (
+        assistant_tool_calls({**wire_tool_call(), "id": {"x": 1}}),
+        ("malformed_tool_call", 0, None, "get_weather"),
+    ),
+}
+
+# Case id -> (a last assistant turn carrying a legacy function_call, the tool name its error reports).
+_LEGACY_FUNCTION_CALL_TURNS = {
+    "legacy_function_call": ({"role": "assistant", "function_call": _LEGACY_CALL}, "get_weather"),
+    "legacy_function_call_beside_tool_calls": (
+        {**assistant_tool_calls(wire_tool_call()), "function_call": {**_LEGACY_CALL, "name": "delete_files"}},
+        "delete_files",
+    ),
+}
+
+
+class TestExtractLatestToolCalls:
+    @pytest.fixture
+    def engine(self) -> ModelEngine:
+        """An OpenAI-engine ModelEngine; extraction needs no started client."""
+        return ModelEngine(_make_model(engine="openai"))
+
+    def test_parses_the_last_assistant_messages_tool_calls(self, engine):
+        """The last assistant message's tool calls are returned with their JSON arguments parsed into a dict."""
+        calls = engine.extract_latest_tool_calls(make_tool_conversation())
+        assert [(c.id, c.type, c.function.name, c.function.arguments) for c in calls] == [
+            ("call_1", "function", "get_weather", {"city": "Paris"})
+        ]
+
+    def test_nim_uses_the_same_shape(self):
+        """NIM reads the OpenAI Chat Completions tool-call shape."""
+        engine = ModelEngine(_make_model(engine="nim"))
+        assert [c.id for c in engine.extract_latest_tool_calls(make_tool_conversation())] == ["call_1"]
+
+    def test_unknown_engine_falls_back_to_openai_extractor(self):
+        """An engine with no registered extractor reads the OpenAI Chat Completions shape."""
+        engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
+        assert [c.id for c in engine.extract_latest_tool_calls(make_tool_conversation())] == ["call_1"]
+
+    def test_only_the_last_assistant_message_is_parsed(self, engine):
+        """Tool calls on an earlier assistant message are neither returned nor parsed, even when malformed."""
+        calls = engine.extract_latest_tool_calls(malformed_prior_tool_call_messages())
+        assert [(c.id, c.function.arguments) for c in calls] == [("call_1", {"city": "London"})]
+
+    def test_context_message_is_ignored(self, engine):
+        """A server ``context`` message, whose role ChatMessage rejects, does not break extraction."""
+        messages = [{"role": "context", "content": {"user_id": "u1"}}, *make_tool_conversation()]
+        assert [c.id for c in engine.extract_latest_tool_calls(messages)] == ["call_1"]
+
+    def test_last_assistant_message_without_tool_calls_returns_empty(self, engine):
+        """A final assistant text turn has no calls to check, even when an earlier turn made some."""
+        messages = [*make_tool_conversation(), {"role": "assistant", "content": "It's 18C in Paris."}]
+        assert engine.extract_latest_tool_calls(messages) == []
+
+    def test_no_assistant_message_returns_empty(self, engine):
+        """A conversation with no assistant message has no tool calls."""
+        assert engine.extract_latest_tool_calls([]) == []
+        assert engine.extract_latest_tool_calls([{"role": "user", "content": "hi"}]) == []
+
+    def test_missing_arguments_become_an_empty_object(self, engine):
+        """A call with no ``arguments`` key parses as ``{}``."""
+        messages = [assistant_tool_calls({"id": "call_1", "type": "function", "function": {"name": "list_files"}})]
+        assert [c.function.arguments for c in engine.extract_latest_tool_calls(messages)] == [{}]
+
+    def test_call_without_an_id_is_named_by_its_position(self, engine):
+        """A malformed call with no id is named in its error by its position in ``tool_calls``."""
+        call = {"type": "function", "function": {"name": "get_weather", "arguments": "not json"}}
+
+        [error] = engine.extract_latest_tool_calls([assistant_tool_calls(call)])
+
+        assert str(error) == "tool call at index 0 has malformed arguments"
+
+    def test_long_call_id_is_capped_in_the_message_but_kept_whole(self, engine):
+        """A call id, which the model chose, is cut to 64 characters in the message but kept whole as identity."""
+        call_id = "i" * 200
+
+        [error] = engine.extract_latest_tool_calls([assistant_tool_calls(wire_tool_call("f", "not json", call_id))])
+
+        assert (str(error), error.tool_call_id) == (f"tool call '{'i' * 64}...' has malformed arguments", call_id)
+
+    @pytest.mark.parametrize(("message", "expected"), list(_UNPARSABLE_CALLS.values()), ids=list(_UNPARSABLE_CALLS))
+    def test_unparsable_call_is_returned_as_its_error_in_place(self, engine, message, expected):
+        """An unparsable call's error takes its place, naming it without quoting its text; every other call parses."""
+        violation_type, index, tool_call_id, tool_name = expected
+
+        extracted = engine.extract_latest_tool_calls([message])
+
+        error = extracted[index]
+        assert isinstance(error, ToolCallExtractionError)
+        assert (error.violation_type, error.index, error.tool_call_id, error.tool_name) == (
+            ToolViolationType(violation_type),
+            index,
+            tool_call_id,
+            tool_name,
+        )
+        assert _SECRET_VALUE not in str(error)
+        assert all(isinstance(entry, ToolCall) for position, entry in enumerate(extracted) if position != index)
+
+    @pytest.mark.parametrize(
+        ("message", "tool_name"), list(_LEGACY_FUNCTION_CALL_TURNS.values()), ids=list(_LEGACY_FUNCTION_CALL_TURNS)
+    )
+    def test_legacy_function_call_raises(self, engine, message, tool_name):
+        """A legacy ``function_call`` makes the whole turn unvalidatable, so extraction raises."""
+        with pytest.raises(ToolCallExtractionError) as excinfo:
+            engine.extract_latest_tool_calls([message])
+
+        error = excinfo.value
+        assert (error.violation_type, error.index, error.tool_name) == (
+            ToolViolationType.LEGACY_FUNCTION_CALL,
+            None,
+            tool_name,
+        )
 
 
 class TestModelEngineLLMModelProtocol:

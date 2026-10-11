@@ -30,13 +30,24 @@ provider-neutral so the per-provider adapters all produce the same shape:
 Completions is the engine implemented today.
 """
 
+import functools
+import json
+import logging
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import Any, Callable, NamedTuple
 
 import jsonschema
+from jsonschema.exceptions import best_match
+from jsonschema.validators import validator_for
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.guardrails.guardrails_types import quoted_identity
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.types import ToolCall
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +74,10 @@ class Tool:
         return self.name or self.type
 
 
+class DuplicateToolError(ValueError):
+    """A toolset declares the same tool key twice; the message names only that key."""
+
+
 class Toolset:
     """The set of tools declared on a request, indexed by tool key.
 
@@ -86,7 +101,7 @@ class Toolset:
             if not tool.key:
                 continue
             if tool.key in self._by_key:
-                raise ValueError(f"duplicate tool '{tool.key}' in toolset")
+                raise DuplicateToolError(f"duplicate tool '{tool.key}' in toolset")
             self._by_key[tool.key] = tool
 
     def get(self, key: str) -> Tool | None:
@@ -115,6 +130,16 @@ class ToolResult:
     name: str | None = None
     content: str | list[dict] | None = None
     is_error: bool = False
+    # Position of the result's message in the conversation, so a violation can point at it.
+    message_index: int | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            "call_id": self.call_id,
+            "name": self.name,
+            "content": self.content,
+            "is_error": self.is_error,
+        }
 
 
 class ToolExchange(NamedTuple):
@@ -122,6 +147,29 @@ class ToolExchange(NamedTuple):
 
     calls: list[ToolCall]
     results: list[ToolResult]
+
+
+class ToolCallExtractionError(ValueError):
+    """A tool call that cannot be validated, described without its argument text."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        violation_type: ToolViolationType,
+        index: int | None = None,
+        tool_call_id: str | None = None,
+        tool_name: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.violation_type = violation_type
+        self.index = index
+        self.tool_call_id = tool_call_id
+        self.tool_name = tool_name
+
+
+# One entry per tool call on a checked turn: the parsed call, or the error that keeps it from being validated.
+LatestToolCall = ToolCall | ToolCallExtractionError
 
 
 def _schema_accepts_no_arguments(schema: dict) -> bool:
@@ -143,8 +191,62 @@ def _schema_accepts_no_arguments(schema: dict) -> bool:
     return not any(keyword in schema for keyword in ("anyOf", "oneOf", "allOf", "$ref"))
 
 
-def _no_arguments_reason(tool: Tool, arguments: dict) -> str | None:
-    """Block reason for a tool that accepts no arguments, or ``None`` when the call is allowed.
+def _schema_rejects_argument(schema: dict, argument_name: str) -> bool:
+    """Whether *schema* has no channel that could accept *argument_name*.
+
+    Matches ``patternProperties`` with ``re.search``, since JSON Schema patterns match
+    anywhere in the string. Composition/reference keywords bail out conservatively, same as
+    ``_schema_accepts_no_arguments``.
+    """
+    if argument_name in schema.get("properties", {}):
+        return False
+    if schema.get("additionalProperties") is not False:
+        return False
+    if any(re.search(pattern, argument_name) for pattern in schema.get("patternProperties", {})):
+        return False
+    return not any(keyword in schema for keyword in ("anyOf", "oneOf", "allOf", "$ref"))
+
+
+@dataclass(frozen=True, slots=True)
+class ArgumentsViolation:
+    """Why a call's arguments fail its tool's declaration, stated without any argument value."""
+
+    violation_type: ToolViolationType
+    reason: str
+    argument_path: str | None = None
+    schema_keyword: str | None = None
+
+
+# Where tool_output_validation records the allowlist or schema violation it blocked on, so a per-tool rail's
+# block is reported with the same type and argument path the global validator gives the same call.
+SCHEMA_GATE_VIOLATION_KEY = "tool_schema_violation"
+
+
+def _schema_gate_block(violation: ArgumentsViolation) -> RailOutcome:
+    """A block stating *violation*'s reason and carrying its type and argument path in the metadata."""
+    recorded = {
+        "violation_type": violation.violation_type.value,
+        "argument_path": violation.argument_path,
+        "schema_keyword": violation.schema_keyword,
+    }
+    return RailOutcome.block(reason=violation.reason, metadata={SCHEMA_GATE_VIOLATION_KEY: recorded})
+
+
+def schema_gate_violation(outcome: RailOutcome) -> ArgumentsViolation | None:
+    """The violation tool_output_validation blocked *outcome* on, or None when the rail itself decided."""
+    recorded = outcome.metadata.get(SCHEMA_GATE_VIOLATION_KEY)
+    if not isinstance(recorded, dict):
+        return None
+    return ArgumentsViolation(
+        violation_type=ToolViolationType(recorded["violation_type"]),
+        reason=outcome.reason or "",
+        argument_path=recorded.get("argument_path"),
+        schema_keyword=recorded.get("schema_keyword"),
+    )
+
+
+def _no_arguments_violation(tool: Tool, arguments: dict) -> ArgumentsViolation | None:
+    """The violation for a tool that accepts no arguments, or ``None`` when the call is allowed.
 
     Hosted/server tools (no ``name``) are allowlist-only -- the provider owns the call
     shape -- so arguments are accepted here. A function tool that declares no parameters
@@ -153,27 +255,210 @@ def _no_arguments_reason(tool: Tool, arguments: dict) -> str | None:
     if tool.name is None:
         return None
     if arguments:
-        return f"tool '{tool.key}' accepts no arguments but the call supplied: {sorted(arguments)}"
+        # A count, not the names: the model chose them, so they can carry data.
+        noun = "argument" if len(arguments) == 1 else "arguments"
+        return ArgumentsViolation(
+            violation_type=ToolViolationType.UNEXPECTED_ARGUMENTS,
+            reason=f"tool '{tool.key}' accepts no arguments but the call supplied {len(arguments)} {noun}",
+        )
     return None
 
 
-def validate_arguments(tool: Tool, arguments: dict) -> str | None:
+# Stands in for a path segment the model chose, such as a key in a map-shaped argument.
+_UNDECLARED_KEY = "*"
+
+
+def _declared_segments(schema: Any, segments: Iterable[object]) -> list[str]:
+    """The path's segments, keeping array indices and property names the schema declares, masking the rest."""
+    # Only the direct `properties` count as declared, so a name reached through allOf or $ref is
+    # masked too: that shows less than it could, never text the model wrote.
+    declared: list[str] = []
+    current = schema
+    for segment in segments:
+        properties = _declared_properties(current)
+        if isinstance(segment, int):
+            declared.append(str(segment))
+            current = _array_items(current)
+        elif isinstance(segment, str) and segment in properties:
+            declared.append(segment)
+            current = properties[segment]
+        else:
+            declared.append(_UNDECLARED_KEY)
+            current = {}
+    return declared
+
+
+def _declared_properties(schema: Any) -> dict[str, Any]:
+    """The ``properties`` mapping *schema* declares, or an empty one."""
+    properties = schema.get("properties") if isinstance(schema, dict) else None
+    return properties if isinstance(properties, dict) else {}
+
+
+def _array_items(schema: Any) -> Any:
+    """The ``items`` subschema *schema* declares for array elements, or an empty one."""
+    return schema.get("items", {}) if isinstance(schema, dict) else {}
+
+
+def _json_pointer(segments: Iterable[str]) -> str:
+    """An RFC 6901 pointer into the arguments; the empty string is the arguments object itself."""
+    return "".join("/" + segment.replace("~", "~0").replace("/", "~1") for segment in segments)
+
+
+def _first_missing_name(names: list[str], instance: dict) -> str | None:
+    """The first of *names* the object lacks; the names come from the schema."""
+    return next((name for name in names if name not in instance), None)
+
+
+def _first_missing_dependency(dependencies: dict[str, list[str]], instance: dict) -> str | None:
+    """The first ``dependentRequired`` name the object lacks; the names come from the schema."""
+    triggered = (names for trigger, names in dependencies.items() if trigger in instance)
+    return next((name for names in triggered for name in names if name not in instance), None)
+
+
+def _missing_property(error: jsonschema.ValidationError) -> str | None:
+    """The schema-named property a ``required`` or ``dependentRequired`` failure is about, else None."""
+    # These keywords are reported at the object missing the property. Draft 3 writes `required: true`
+    # on the property itself, which jsonschema already reports at that property, so the type checks
+    # below leave its path alone.
+    value, instance = error.validator_value, error.instance
+    if not isinstance(instance, dict):
+        return None
+    if error.validator == "required" and isinstance(value, list):
+        return _first_missing_name(value, instance)
+    if error.validator == "dependentRequired" and isinstance(value, dict):
+        return _first_missing_dependency(value, instance)
+    return None
+
+
+def _argument_path(error: jsonschema.ValidationError, schema: dict) -> str:
+    """Where in the arguments *error* failed, in schema-declared names only."""
+    segments = _declared_segments(schema, error.absolute_path)
+    missing = _missing_property(error)
+    if missing is not None:
+        segments.append(missing)
+    return _json_pointer(segments)
+
+
+def _schema_mismatch_violation(tool: Tool, error: jsonschema.ValidationError) -> ArgumentsViolation:
+    """The violation for arguments that fail the schema, stated by keyword and path, never by value."""
+    # jsonschema's own message quotes the failing value, so it is not used.
+    keyword = str(error.validator)
+    path = _argument_path(error, tool.arguments_schema or {})
+    location = f"'{path}'" if path else "the top level"
+    return ArgumentsViolation(
+        violation_type=ToolViolationType.ARGUMENTS_INVALID,
+        reason=f"arguments for tool '{tool.key}' do not match its schema: '{keyword}' failed at {location}",
+        argument_path=path,
+        schema_keyword=keyword,
+    )
+
+
+def validate_arguments(tool: Tool, arguments: dict) -> ArgumentsViolation | None:
     """Validate model-supplied tool-call arguments against the tool's schema.
 
-    Returns ``None`` when the arguments are valid. Returns a human-readable reason when
+    Returns ``None`` when the arguments are valid. Returns an ``ArgumentsViolation`` when
     the arguments violate the schema, when the declared schema itself is not valid JSON
     Schema (e.g. a non-JSON-Schema dialect reaching this validator before its engine
     adapter normalizes it), or when a function tool that declares no parameters is called
     with arguments.
     """
     if tool.arguments_schema is None:
-        return _no_arguments_reason(tool, arguments)
+        return _no_arguments_violation(tool, arguments)
     try:
-        jsonschema.validate(instance=arguments, schema=tool.arguments_schema)
-    except jsonschema.ValidationError as exc:
-        return f"arguments for tool '{tool.key}' do not match its schema: {exc.message}"
+        schema_json = json.dumps(tool.arguments_schema, sort_keys=True)
+    except (TypeError, ValueError) as exc:
+        return _invalid_schema_violation(tool, str(exc))
+    try:
+        validator = _checked_validator(schema_json)
     except jsonschema.SchemaError as exc:
-        return f"declared schema for tool '{tool.key}' is not valid JSON Schema: {exc.message}"
+        return _invalid_schema_violation(tool, exc.message)
+    # best_match picks the error jsonschema.validate would have raised.
+    error = best_match(validator.iter_errors(arguments))
+    if error is not None:
+        return _schema_mismatch_violation(tool, error)
     if _schema_accepts_no_arguments(tool.arguments_schema):
-        return _no_arguments_reason(tool, arguments)
+        return _no_arguments_violation(tool, arguments)
     return None
+
+
+@functools.lru_cache(maxsize=256)
+def _checked_validator(schema_json: str) -> Any:
+    """A validator for one argument schema, checked against its metaschema once rather than on every call."""
+    # Built from the JSON text, not the caller's dict, so a later change to that dict cannot reach the cache.
+    schema = json.loads(schema_json)
+    validator_class = validator_for(schema)
+    validator_class.check_schema(schema)
+    return validator_class(schema)
+
+
+def _invalid_schema_violation(tool: Tool, detail: str) -> ArgumentsViolation:
+    """The violation for a declared schema that is not JSON Schema, with the detail kept to the log."""
+    # The detail can quote the declared schema, which may be operator config, so it stays in the log.
+    log.warning("declared schema for tool '%s' is not valid JSON Schema: %s", tool.key, detail)
+    return ArgumentsViolation(
+        violation_type=ToolViolationType.INVALID_TOOL_SCHEMA,
+        reason=f"declared schema for tool '{tool.key}' is not valid JSON Schema",
+    )
+
+
+def tool_output_validation(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Validate a TOOL_OUTPUT action's arguments against the tool's schema before it runs.
+
+    Every action bound to a ``TOOL_OUTPUT`` surface must carry this decorator (enforced by
+    ``test_every_tool_output_action_validates_arguments``). Blocks before the action body
+    runs if the call's tool isn't declared, or its arguments don't match the schema. Raises
+    if the action was bound a ``$argument=`` name (see ``scope_arguments``) the schema
+    doesn't accept, since that is a config defect rather than a per-call decision.
+    """
+
+    @functools.wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> RailOutcome:
+        tool_call: ToolCall = kwargs["tool_call"]
+        tool_definition: Tool | None = kwargs["tool_definition"]
+        name = tool_call.function.name or tool_call.type
+        if tool_definition is None:
+            return _schema_gate_block(
+                ArgumentsViolation(
+                    violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+                    reason=f"tool call '{quoted_identity(name)}' is not an allowed tool",
+                )
+            )
+        violation = validate_arguments(tool_definition, tool_call.function.arguments)
+        if violation is not None:
+            return _schema_gate_block(violation)
+
+        argument_name = kwargs.get("argument_name")
+        if argument_name is not None:
+            schema = tool_definition.arguments_schema
+            if schema is None:
+                raise ValueError(f"tool '{name}' declares no schema to validate argument '{argument_name}' against")
+            if _schema_rejects_argument(schema, argument_name):
+                raise ValueError(f"argument '{argument_name}' is not declared in tool '{name}' schema")
+
+        return await func(*args, **kwargs)
+
+    setattr(wrapper, "_has_tool_output_validation", True)
+    return wrapper
+
+
+def scope_arguments(arguments: dict, argument_name: str | None) -> dict:
+    """Narrow *arguments* to one named argument, or return it unchanged.
+
+    ``argument_name`` comes from a flow's ``$argument=<name>`` parameter, frozen at
+    compile time. Narrowing lets a check inspect one user-supplied field without seeing
+    unrelated call metadata that could false-positive.
+
+    A call that omits the named argument (schema-valid, e.g. an optional field the model
+    didn't set this time) falls back to the full, unscoped arguments rather than
+    ``{argument_name: None}``, so nothing goes unchecked just because one call happened
+    to leave a field out. This leans toward more scrutiny, not less: a check that scoped
+    to that name specifically to *avoid* an unrelated field's content may see it anyway on
+    a call where the named field is absent. A config typo or a name the schema could never
+    produce is caught earlier, at compile time, by ``tool_output_validation``.
+
+    TODO: only a single argument name is supported today; add delimiter-separated
+    multi-argument support (e.g. `$argument=a,b`) as a follow-up.
+    """
+    if argument_name is None or argument_name not in arguments:
+        return arguments
+    return {argument_name: arguments[argument_name]}

@@ -22,13 +22,13 @@ is_output_safe to control verdicts.
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 
-from nemoguardrails.exceptions import RailTypeNotConfiguredError
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.exceptions import InvalidCheckRequestError, RailTypeNotConfiguredError
+from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.iorails import (
     INTERNAL_ERROR_MESSAGE,
     REFUSAL_MESSAGE,
@@ -36,10 +36,29 @@ from nemoguardrails.guardrails.iorails import (
     _determine_rails_from_messages,
     _get_last_content_by_role,
 )
+from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.options import RailStatus, RailType
+from nemoguardrails.rails.llm.options import RailStatus, RailType, ToolViolationType
+from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.rail_stubs import bot_message_rewrite, rail_failure, user_message_rewrite
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG, TOPIC_SAFETY_CONFIG
+from tests.guardrails.test_tool_rails_iorails import (
+    CONFIG_TOOLS_CONFIG,
+    TOOL_CONFIG,
+    WEATHER_TOOL,
+    _inject_forbidden_transport,
+)
+from tests.guardrails.tool_helpers import (
+    TOOL_CALL_QUESTION,
+    UNREAD_TOOLS_MESSAGE,
+    call_violation,
+    make_tool_conversation,
+    malformed_prior_tool_call_messages,
+    multi_turn_reused_call_id_messages,
+    result_violation,
+    tool_call_turn,
+    wire_tool_call,
+)
 
 SAFE = RailResult.allow()
 
@@ -468,6 +487,90 @@ class TestCheckAsyncBlockedResult:
         assert result.rail is None
 
 
+class TestCheckAsyncBlockReason:
+    """A BLOCKED check says why it blocked; a check that did not block carries no reason."""
+
+    @pytest.mark.asyncio
+    async def test_input_block_carries_the_rail_reason(self, iorails):
+        """An input block reports the blocking rail's own reason."""
+        blocked = RailResult.block(reason="unsafe request", triggered_rail="content safety check input")
+        _mock_rails(iorails, input_result=blocked)
+
+        result = await iorails.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.reason == "unsafe request"
+
+    @pytest.mark.asyncio
+    async def test_output_block_carries_the_rail_reason(self, iorails):
+        """An output block reports the blocking rail's own reason."""
+        blocked = RailResult.block(reason="unsafe answer", triggered_rail="content safety check output")
+        _mock_rails(iorails, output_result=blocked)
+
+        result = await iorails.check_async([{"role": "assistant", "content": "bad answer"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.reason == "unsafe answer"
+
+    @pytest.mark.asyncio
+    async def test_reason_falls_back_to_the_triggered_rail(self, iorails):
+        """A block whose rail gave no reason reports the rail's name as the reason."""
+        _mock_rails(iorails, input_result=RailResult.block(triggered_rail="content safety check input"))
+
+        result = await iorails.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.reason == "content safety check input"
+
+    @pytest.mark.asyncio
+    async def test_reason_falls_back_to_unspecified(self, iorails):
+        """A block naming neither a reason nor a rail reports the reason as unspecified."""
+        _mock_rails(iorails, input_result=RailResult.block())
+
+        result = await iorails.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.reason == "unspecified"
+
+    @pytest.mark.asyncio
+    async def test_failed_rail_reports_its_redacted_failure_reason(self, iorails):
+        """A rail that broke reports the client-facing failure reason the fail-closed envelope wrote."""
+        _mock_rails(iorails, input_result=rail_failure("f5 guardrails scan input"))
+
+        result = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert result.reason == "f5 guardrails scan input error: provider call failed"
+
+    @pytest.mark.asyncio
+    async def test_failed_rail_reason_carries_no_exception_text(self, iorails):
+        """A rail that raised an unclassified error is reported by name only, whatever the exception said."""
+        exc = ValueError("Details: see https://internal.example/debug token nvapi-abc123secret")
+        failure = rail_error_outcome(None, "policyai moderation on input", exc)
+        _mock_rails(iorails, input_result=RailResult(failure, triggered_rail="policyai moderation on input"))
+
+        result = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert result.reason == "policyai moderation on input error"
+
+    @pytest.mark.asyncio
+    async def test_passed_has_no_reason(self, iorails):
+        """A passed check carries no reason."""
+        _mock_rails(iorails)
+
+        result = await iorails.check_async([{"role": "user", "content": "hello"}])
+
+        assert result.status == RailStatus.PASSED
+        assert result.reason is None
+
+    @pytest.mark.asyncio
+    async def test_modified_has_no_reason(self, iorails):
+        """A rewritten check carries no reason, because nothing blocked it."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite("masked"))
+
+        result = await iorails.check_async([{"role": "user", "content": "raw"}])
+
+        assert result.status == RailStatus.MODIFIED
+        assert result.reason is None
+
+
 class TestCheckAsyncFailedRail:
     """A rail that failed is reported as an internal error, not as a content refusal."""
 
@@ -530,6 +633,15 @@ class TestCheckSync:
 
         assert result.status == RailStatus.BLOCKED
         assert result.rail == "content safety check input"
+
+    def test_check_blocked_carries_the_reason(self, iorails_sync):
+        """Sync check() reports why the check blocked, as check_async does."""
+        _mock_rails(iorails_sync, input_result=_unsafe("content safety check input"))
+
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails_sync):
+            result = iorails_sync.check([{"role": "user", "content": "bad"}])
+
+        assert result.reason == "unsafe"
 
     def test_check_renders_the_internal_error_for_a_failed_rail(self, iorails_sync):
         """The sync wrapper carries the failed-rail rendering, not just the async path."""
@@ -757,4 +869,504 @@ class TestUnsatisfiableRailTypes:
         result = await input_only_engine.check_async(
             [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
         )
+        assert result.status == RailStatus.PASSED
+
+
+_SECRET_VALUE = "SECRET-VALUE"
+
+# The Nemoguard input and output rails plus the global tool validators, for checks that mix rail families.
+TOOL_AND_IO_CONFIG = {
+    **NEMOGUARDS_CONFIG,
+    "rails": {
+        **NEMOGUARDS_CONFIG["rails"],
+        "tool_output": {"flows": ["tool call validation"]},
+        "tool_input": {"flows": ["tool result validation"]},
+    },
+}
+
+PER_TOOL_ONLY_CONFIG = {
+    **TOOL_CONFIG,
+    "rails": {
+        "config": {"regex_detection": {"tool_output": {"run_sql": {"patterns": [r"DROP\s+TABLE"]}}}},
+        "tool_output": {"per_tool": {"run_sql": ["regex check tool output"]}},
+    },
+}
+
+_CLOSED_RUN_SQL = {
+    "type": "function",
+    "function": {
+        "name": "run_sql",
+        "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "additionalProperties": False},
+    },
+}
+
+
+@pytest_asyncio.fixture
+async def tool_iorails():
+    """A started IORails with only the global tool validators, whose model must never be called."""
+    async with started_iorails(TOOL_CONFIG) as engine:
+        _inject_forbidden_transport(engine)
+        yield engine
+
+
+@pytest_asyncio.fixture
+async def config_tools_iorails():
+    """Like ``tool_iorails``, with ``get_weather`` declared on the main model's parameters."""
+    async with started_iorails(CONFIG_TOOLS_CONFIG) as engine:
+        _inject_forbidden_transport(engine)
+        yield engine
+
+
+@pytest_asyncio.fixture
+async def configured_tool_iorails(request):
+    """A started IORails for the config a test passes indirectly, whose model must never be called."""
+    async with started_iorails(request.param) as engine:
+        _inject_forbidden_transport(engine)
+        yield engine
+
+
+@pytest_asyncio.fixture
+async def tool_and_io_iorails():
+    """A started IORails with input, output and tool rails; the input and output rails are stubbed per test."""
+    async with started_iorails(TOOL_AND_IO_CONFIG) as engine:
+        _inject_forbidden_transport(engine)
+        yield engine
+
+
+_GET_TIME_TOOL = {"type": "function", "function": {"name": "get_time", "parameters": {"type": "object"}}}
+
+_FINAL_TEXT_TURN = [*make_tool_conversation(), {"role": "assistant", "content": "It's 18C in Paris."}]
+
+# Case id -> (engine config, messages, rail type, tools) for a tool check that finds nothing to block.
+_PASSING_TOOL_CHECKS = {
+    "declared_call_with_valid_arguments": (
+        TOOL_CONFIG,
+        tool_call_turn(wire_tool_call()),
+        RailType.TOOL_CALL,
+        [WEATHER_TOOL],
+    ),
+    "config_declared_tools_when_tools_is_none": (
+        CONFIG_TOOLS_CONFIG,
+        tool_call_turn(wire_tool_call()),
+        RailType.TOOL_CALL,
+        None,
+    ),
+    "earlier_malformed_turn_not_rechecked": (
+        TOOL_CONFIG,
+        malformed_prior_tool_call_messages(),
+        RailType.TOOL_CALL,
+        [WEATHER_TOOL],
+    ),
+    "final_text_turn_has_no_calls": (TOOL_CONFIG, _FINAL_TEXT_TURN, RailType.TOOL_CALL, []),
+    "nameless_result_linked_by_call_id": (
+        TOOL_CONFIG,
+        make_tool_conversation(result_name=None),
+        RailType.TOOL_RESULT,
+        None,
+    ),
+    "call_ids_reused_across_turns": (TOOL_CONFIG, multi_turn_reused_call_id_messages(), RailType.TOOL_RESULT, None),
+}
+
+_PARIS = '{"city": "Paris"}'
+
+# Case id -> (engine config, last call's arguments, tools, (violation type, argument path)).
+_BLOCKING_TOOL_CALL_CHECKS = {
+    "schema_invalid_arguments": (TOOL_CONFIG, "{}", [WEATHER_TOOL], ("arguments_invalid", "/city")),
+    "empty_string_arguments_are_malformed": (TOOL_CONFIG, "", [WEATHER_TOOL], ("malformed_arguments", None)),
+    "empty_tools_block_every_call": (CONFIG_TOOLS_CONFIG, _PARIS, [], ("tool_not_allowed", None)),
+    "request_tools_replace_config_tools": (CONFIG_TOOLS_CONFIG, _PARIS, [_GET_TIME_TOOL], ("tool_not_allowed", None)),
+    "duplicate_tool_definitions": (TOOL_CONFIG, _PARIS, [WEATHER_TOOL, WEATHER_TOOL], ("invalid_toolset", None)),
+}
+
+
+class TestCheckToolRailsPass:
+    """Tool checks that find nothing to block."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("configured_tool_iorails", "messages", "rail_type", "tools"),
+        list(_PASSING_TOOL_CHECKS.values()),
+        ids=list(_PASSING_TOOL_CHECKS),
+        indirect=["configured_tool_iorails"],
+    )
+    async def test_tool_check_passes(self, configured_tool_iorails, messages, rail_type, tools):
+        """A declared, well-formed call or a linked result passes with no tool violations."""
+        result = await configured_tool_iorails.check_async(messages, rail_types=[rail_type], tools=tools)
+
+        assert (result.status, result.tool_violations) == (RailStatus.PASSED, None)
+
+
+class TestCheckToolCalls:
+    """``rail_types=[RailType.TOOL_CALL]`` validates the last assistant message's tool calls."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("configured_tool_iorails", "arguments", "tools", "expected"),
+        list(_BLOCKING_TOOL_CALL_CHECKS.values()),
+        ids=list(_BLOCKING_TOOL_CALL_CHECKS),
+        indirect=["configured_tool_iorails"],
+    )
+    async def test_tool_call_check_blocks_with_one_violation(self, configured_tool_iorails, arguments, tools, expected):
+        """A call the declared tools or its schema reject blocks with one violation of the expected type."""
+        violation_type, argument_path = expected
+
+        result = await configured_tool_iorails.check_async(
+            tool_call_turn(wire_tool_call(arguments=arguments)), rail_types=[RailType.TOOL_CALL], tools=tools
+        )
+
+        assert result.status == RailStatus.BLOCKED
+        assert [(v.violation_type, v.argument_path) for v in result.tool_violations] == [
+            (ToolViolationType(violation_type), argument_path)
+        ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("configured_tool_iorails", "rail"),
+        [(TOOL_CONFIG, "tool call validation"), (PER_TOOL_ONLY_CONFIG, "regex check tool output")],
+        ids=["global_validator", "per_tool_rail_only"],
+        indirect=["configured_tool_iorails"],
+    )
+    @pytest.mark.parametrize(
+        ("arguments", "tools", "expected"),
+        [
+            ('{"query": "SELECT 1"}', [], (ToolViolationType.TOOL_NOT_ALLOWED, None, None)),
+            ('{"query": 5}', [_CLOSED_RUN_SQL], (ToolViolationType.ARGUMENTS_INVALID, "/query", "type")),
+        ],
+        ids=["undeclared_tool", "schema_invalid_arguments"],
+    )
+    async def test_a_bad_call_is_categorized_alike_whichever_rails_check_it(
+        self, configured_tool_iorails, rail, arguments, tools, expected
+    ):
+        """The global validator and a per-tool rail's gate report the same violation; only the rail differs."""
+        result = await configured_tool_iorails.check_async(
+            tool_call_turn(wire_tool_call("run_sql", arguments)), rail_types=[RailType.TOOL_CALL], tools=tools
+        )
+
+        assert [(v.violation_type, v.argument_path, v.schema_keyword) for v in result.tool_violations] == [expected]
+        assert [(v.index, v.tool_call_id) for v in result.tool_violations] == [(0, "call_1")]
+        assert result.rail == rail
+
+    @pytest.mark.asyncio
+    async def test_undeclared_call_blocks(self, tool_iorails):
+        """An undeclared call blocks, naming the rail, the reason, and the call in a ``tool_not_allowed`` violation."""
+        result = await tool_iorails.check_async(
+            tool_call_turn(wire_tool_call("delete_files", "{}")), rail_types=[RailType.TOOL_CALL], tools=[WEATHER_TOOL]
+        )
+
+        assert (result.status, result.content) == (RailStatus.BLOCKED, REFUSAL_MESSAGE)
+        assert result.rail == "tool call validation"
+        assert result.reason == "tool call 'delete_files' is not an allowed tool"
+        assert result.tool_violations == [
+            call_violation(
+                "tool_not_allowed",
+                "tool call 'delete_files' is not an allowed tool",
+                tool_call_id="call_1",
+                tool_name="delete_files",
+                index=0,
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_malformed_arguments_block_without_hiding_later_calls(self, tool_iorails):
+        """Malformed arguments block with ``malformed_arguments``, never quoted, and the later calls are still checked."""
+        messages = tool_call_turn(
+            wire_tool_call(arguments='{"city": "SECRET-VALUE"'), wire_tool_call("delete_files", "{}", "call_2")
+        )
+
+        result = await tool_iorails.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=[WEATHER_TOOL])
+
+        assert (result.status, result.rail) == (RailStatus.BLOCKED, None)
+        assert result.reason == "tool call extraction failed: tool call 'call_1' has malformed arguments"
+        assert [(v.violation_type, v.index, v.tool_call_id) for v in result.tool_violations] == [
+            (ToolViolationType.MALFORMED_ARGUMENTS, 0, "call_1"),
+            (ToolViolationType.TOOL_NOT_ALLOWED, 1, "call_2"),
+        ]
+        assert _SECRET_VALUE not in result.model_dump_json()
+
+
+class TestCheckToolResults:
+    """``rail_types=[RailType.TOOL_RESULT]`` validates every tool result against the calls it links to."""
+
+    @pytest.mark.asyncio
+    async def test_unlinked_result_blocks(self, tool_iorails):
+        """A result for an unknown call id blocks, and its violation points at the tool message's position."""
+        messages = make_tool_conversation(result_call_id="call_999", result_name=None)
+
+        result = await tool_iorails.check_async(messages, rail_types=[RailType.TOOL_RESULT])
+
+        assert (result.status, result.rail) == (RailStatus.BLOCKED, "tool result validation")
+        assert result.reason == "tool result for call_id 'call_999' does not correspond to a prior tool call"
+        assert result.tool_violations == [
+            result_violation(
+                "unknown_call_id",
+                "tool result for call_id 'call_999' does not correspond to a prior tool call",
+                tool_call_id="call_999",
+                index=2,
+            )
+        ]
+
+
+class TestCheckToolRoundTrip:
+    """A harness checks its model's tool calls, runs the tools, then checks the results, all without generation."""
+
+    @pytest.mark.asyncio
+    async def test_harness_round_trip_passes_both_checks(self, tool_iorails):
+        """A declared call passes the tool-call check, and the nameless result the harness appends passes next."""
+        messages = tool_call_turn(wire_tool_call())
+
+        call_check = await tool_iorails.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=[WEATHER_TOOL])
+        messages.append({"role": "tool", "tool_call_id": "call_1", "content": "18C"})
+        result_check = await tool_iorails.check_async(messages, rail_types=[RailType.TOOL_RESULT])
+
+        assert (call_check.status, result_check.status) == (RailStatus.PASSED, RailStatus.PASSED)
+
+    @pytest.mark.asyncio
+    async def test_result_for_an_unknown_call_blocks_the_second_check(self, tool_iorails):
+        """A passing tool-call check does not vouch for a result that answers a different call id."""
+        messages = tool_call_turn(wire_tool_call())
+
+        call_check = await tool_iorails.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=[WEATHER_TOOL])
+        messages.append({"role": "tool", "tool_call_id": "call_2", "content": "18C"})
+        result_check = await tool_iorails.check_async(messages, rail_types=[RailType.TOOL_RESULT])
+
+        assert (call_check.status, result_check.status) == (RailStatus.PASSED, RailStatus.BLOCKED)
+
+
+def _record_calls(engine: IORails, *, input_result: RailResult = SAFE) -> MagicMock:
+    """Spy on each rail family's manager entry point; the returned mock's calls give the order they ran in."""
+    manager = engine.rails_manager
+    order = MagicMock()
+    spies = {
+        "are_tool_results_safe": ("tool_result", AsyncMock(wraps=manager.are_tool_results_safe)),
+        "is_input_safe": ("input", AsyncMock(return_value=input_result)),
+        "are_latest_tool_calls_safe": ("tool_call", AsyncMock(wraps=manager.are_latest_tool_calls_safe)),
+        "is_output_safe": ("output", AsyncMock(return_value=SAFE)),
+    }
+    for method, (family, spy) in spies.items():
+        order.attach_mock(spy, family)
+        setattr(manager, method, spy)
+    return order
+
+
+def _families_run(order: MagicMock) -> list[str]:
+    """The rail families a check ran, in order, from the spy ``_record_calls`` returned."""
+    return [name for name, _args, _kwargs in order.mock_calls]
+
+
+# A user turn, an assistant turn with text and a declared call, and the call's result: every family has work.
+FULL_TURN = [
+    *tool_call_turn(wire_tool_call(), content="Let me check."),
+    {"role": "tool", "tool_call_id": "call_1", "content": "18C"},
+]
+ALL_RAIL_TYPES = [RailType.INPUT, RailType.OUTPUT, RailType.TOOL_CALL, RailType.TOOL_RESULT]
+
+
+class TestCheckToolRailOrchestration:
+    """How a check sequences tool rails with input and output rails, and what it reports."""
+
+    @pytest.mark.asyncio
+    async def test_rail_families_run_as_generation_orders_them(self, tool_and_io_iorails):
+        """Tool results, input, tool calls, then output: the order generation runs them in."""
+        order = _record_calls(tool_and_io_iorails)
+
+        result = await tool_and_io_iorails.check_async(FULL_TURN, rail_types=ALL_RAIL_TYPES, tools=[WEATHER_TOOL])
+
+        assert result.status == RailStatus.PASSED
+        assert _families_run(order) == ["tool_result", "input", "tool_call", "output"]
+
+    @pytest.mark.asyncio
+    async def test_a_tool_call_block_stops_before_output_rails(self, tool_and_io_iorails):
+        """A tool-call block ends the check, so the output rails never run."""
+        order = _record_calls(tool_and_io_iorails)
+
+        result = await tool_and_io_iorails.check_async(FULL_TURN, rail_types=ALL_RAIL_TYPES, tools=[])
+
+        assert result.rail == "tool call validation"
+        assert _families_run(order) == ["tool_result", "input", "tool_call"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("rail_type", "tools", "expected_content"),
+        [(RailType.TOOL_CALL, [WEATHER_TOOL], "Let me check."), (RailType.TOOL_RESULT, None, TOOL_CALL_QUESTION)],
+        ids=["tool_call_reports_assistant_text", "tool_result_reports_user_text"],
+    )
+    async def test_tool_check_reports_the_text_of_its_direction(
+        self, tool_and_io_iorails, rail_type, tools, expected_content
+    ):
+        """A tool-call check reports the assistant text, as an output check does; a tool-result check the user text."""
+        result = await tool_and_io_iorails.check_async(FULL_TURN, rail_types=[rail_type], tools=tools)
+
+        assert (result.status, result.content) == (RailStatus.PASSED, expected_content)
+
+    @pytest.mark.asyncio
+    async def test_input_rewrite_stays_visible_with_a_tool_call_check(self, tool_and_io_iorails):
+        """With ``[INPUT, TOOL_CALL]``, an input rewrite is what the check reports, as MODIFIED."""
+        _record_calls(tool_and_io_iorails, input_result=user_message_rewrite("What's the weather in <CITY>?"))
+
+        result = await tool_and_io_iorails.check_async(
+            FULL_TURN, rail_types=[RailType.INPUT, RailType.TOOL_CALL], tools=[WEATHER_TOOL]
+        )
+
+        assert (result.status, result.content) == (RailStatus.MODIFIED, "What's the weather in <CITY>?")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("rail_types", "tools", "direction"),
+        [([RailType.TOOL_RESULT], None, RailDirection.INPUT), ([RailType.TOOL_CALL], [], RailDirection.OUTPUT)],
+        ids=["tool_result", "tool_call"],
+    )
+    async def test_a_tool_block_records_the_directional_block_metric(self, tool_iorails, rail_types, tools, direction):
+        """A tool-result block counts as an input block and a tool-call block as an output block."""
+        tool_iorails._metrics_enabled = True
+        messages = make_tool_conversation(result_call_id="call_999")
+
+        with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
+            result = await tool_iorails.check_async(messages, rail_types=rail_types, tools=tools)
+
+        assert result.status == RailStatus.BLOCKED
+        record_blocked.assert_called_once_with(direction)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("rail_types", "blocked_rail"),
+        [([RailType.INPUT], "input"), ([RailType.OUTPUT], "output")],
+    )
+    async def test_input_or_output_block_has_no_tool_violations(self, iorails, rail_types, blocked_rail):
+        """Only a tool rail block reports tool violations."""
+        blocking = _unsafe(f"content safety check {blocked_rail}")
+        _mock_rails(iorails, input_result=blocking, output_result=blocking)
+
+        result = await iorails.check_async(CONVERSATION, rail_types=rail_types)
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.tool_violations is None
+
+
+class TestCheckToolRailConfiguration:
+    """Which configs can run a tool check, and what happens when rail types are left to auto-detection."""
+
+    @pytest.mark.asyncio
+    async def test_unconfigured_tool_rail_type_raises(self, iorails):
+        """A tool rail type whose config section has no rails raises ``RailTypeNotConfiguredError``."""
+        with pytest.raises(RailTypeNotConfiguredError, match="rail type 'tool_call' has no configured rails"):
+            await iorails.check_async(tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL])
+
+    @pytest.mark.asyncio
+    async def test_per_tool_rails_alone_count_as_configured(self):
+        """A section with only ``per_tool`` rails runs them, and a per-tool block names the call it blocked."""
+        messages = tool_call_turn(wire_tool_call("run_sql", '{"query": "DROP TABLE users"}'))
+        run_sql = {
+            "type": "function",
+            "function": {"name": "run_sql", "parameters": {"type": "object", "additionalProperties": True}},
+        }
+
+        async with started_iorails(PER_TOOL_ONLY_CONFIG) as engine:
+            result = await engine.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=[run_sql])
+
+        assert result.rail == "regex check tool output"
+        assert [(v.violation_type, v.rail, v.index) for v in result.tool_violations] == [
+            (ToolViolationType.PER_TOOL_RAIL, "regex check tool output", 0)
+        ]
+
+    @pytest.mark.asyncio
+    async def test_per_tool_rails_alone_leave_unlisted_tools_unchecked(self):
+        """Without the global validator only tools with per-tool rails are checked, so an undeclared tool passes."""
+        messages = tool_call_turn(wire_tool_call("delete_files", "{}"))
+
+        async with started_iorails(PER_TOOL_ONLY_CONFIG) as engine:
+            result = await engine.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=[])
+
+        assert result.status == RailStatus.PASSED
+
+    @pytest.mark.asyncio
+    async def test_per_tool_rails_with_no_flows_are_not_configured(self):
+        """A ``per_tool`` map whose lists are all empty runs nothing, so the tool rail type counts as unconfigured."""
+        config = {**TOOL_CONFIG, "rails": {"tool_output": {"per_tool": {"run_sql": []}}}}
+
+        async with started_iorails(config) as engine:
+            with pytest.raises(RailTypeNotConfiguredError, match="rail type 'tool_call' has no configured rails"):
+                await engine.check_async(tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL])
+
+    @pytest.mark.asyncio
+    async def test_tool_rail_type_without_a_main_model_raises(self):
+        """Without a ``main`` model there is no wire format to read, so a tool check refuses to run."""
+        config = {"models": [], "rails": TOOL_CONFIG["rails"]}
+
+        async with started_iorails(config) as engine:
+            with pytest.raises(RailTypeNotConfiguredError, match="needs a `main` model"):
+                await engine.check_async(tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL])
+
+    @pytest.mark.asyncio
+    async def test_auto_detection_runs_input_and_output_only_and_logs_a_hint(self, tool_and_io_iorails, caplog):
+        """With ``rail_types`` omitted, tool traffic runs only input and output rails, with an INFO hint."""
+        order = _record_calls(tool_and_io_iorails)
+
+        with caplog.at_level(logging.INFO, logger="nemoguardrails.guardrails.iorails"):
+            result = await tool_and_io_iorails.check_async(FULL_TURN)
+
+        assert result.status == RailStatus.PASSED
+        assert _families_run(order) == ["input", "output"]
+        assert "tool rails are configured but were not requested" in caplog.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("messages", "hint_count"),
+        [
+            ([{"role": "user", "content": "hi"}, {"role": "tool", "tool_call_id": "call_1", "content": "18C"}], 1),
+            ([{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}], 0),
+        ],
+        ids=["tool_result_only", "no_tool_traffic"],
+    )
+    async def test_auto_detection_hints_only_at_tool_traffic(self, tool_and_io_iorails, caplog, messages, hint_count):
+        """The INFO hint appears when the messages carry a tool result, and not when they carry no tool traffic."""
+        _record_calls(tool_and_io_iorails)
+
+        with caplog.at_level(logging.INFO, logger="nemoguardrails.guardrails.iorails"):
+            await tool_and_io_iorails.check_async(messages)
+
+        assert caplog.text.count("tool rails are configured but were not requested") == hint_count
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "rail_types",
+        [None, [], [RailType.INPUT], [RailType.OUTPUT, RailType.TOOL_RESULT]],
+        ids=["auto_detection", "empty", "input", "output_and_tool_result"],
+    )
+    async def test_tools_without_a_tool_call_check_raise(self, tool_and_io_iorails, rail_types):
+        """Only a tool_call check reads ``tools``, so any other check given them raises before a rail runs."""
+        order = _record_calls(tool_and_io_iorails)
+
+        with pytest.raises(InvalidCheckRequestError, match=f"^{UNREAD_TOOLS_MESSAGE}$"):
+            await tool_and_io_iorails.check_async(FULL_TURN, rail_types=rail_types, tools=[WEATHER_TOOL])
+
+        assert _families_run(order) == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("rail_types", "tools", "error"),
+        [
+            ([RailType.INPUT], [WEATHER_TOOL], InvalidCheckRequestError),
+            ([RailType.TOOL_CALL], None, RailTypeNotConfiguredError),
+        ],
+        ids=["unread_tools", "unconfigured_rail_type"],
+    )
+    async def test_request_error_is_raised_before_queueing(self, iorails, caplog, rail_types, tools, error):
+        """A request the check cannot serve raises before it is queued, so it takes no queue slot and logs no ERROR."""
+        with patch.object(iorails._generate_async_queue, "submit") as submit, caplog.at_level(logging.WARNING):
+            with pytest.raises(error):
+                await iorails.check_async(CONVERSATION, rail_types=rail_types, tools=tools)
+
+        submit.assert_not_called()
+        assert [record.getMessage() for record in caplog.records if record.levelno >= logging.ERROR] == []
+
+    def test_sync_check_forwards_tools(self):
+        """Sync ``check`` hands ``tools`` to the engine it spins up."""
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            engine = IORails(RailsConfig.from_content(config=TOOL_CONFIG))
+
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=engine):
+            result = engine.check(
+                tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL], tools=[WEATHER_TOOL]
+            )
+
         assert result.status == RailStatus.PASSED

@@ -124,6 +124,9 @@ navigation:
           - page: Tool Calling
             path: configure-rails/guardrail-catalog/tool-calling.mdx
             slug: tool-calling
+          - page: Tool Safety Check
+            path: configure-rails/guardrail-catalog/tool-safety-check.mdx
+            slug: tool-safety-check
           - page: Hallucinations & Fact-Checking
             path: configure-rails/guardrail-catalog/fact-checking.mdx
             slug: fact-checking
@@ -528,6 +531,9 @@ navigation:
           - page: OpenTelemetry Metrics Integration
             path: observability/metrics/opentelemetry-integration.mdx
             slug: opentelemetry-integration
+          - page: Prometheus and Grafana for the Guardrails Server
+            path: observability/metrics/server-prometheus-grafana.mdx
+            slug: server-prometheus-grafana
           - page: Metric Reference
             path: observability/metrics/reference.mdx
             slug: reference

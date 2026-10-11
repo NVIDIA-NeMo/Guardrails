@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import re
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from nemoguardrails.manifests.config_schema import (
     Field,
@@ -73,6 +73,14 @@ class RegexDetection(RailConfigBaseModel):
     retrieval: RegexDetectionOptions = Field(
         default_factory=RegexDetectionOptions,
         description="Configuration for regex patterns to detect on retrieved relevant chunks.",
+    )
+    tool_output: Dict[str, RegexDetectionOptions] = Field(
+        default_factory=dict,
+        description="Per-tool regex patterns to detect in a tool call's arguments, keyed by tool name.",
+    )
+    tool_input: Dict[str, RegexDetectionOptions] = Field(
+        default_factory=dict,
+        description="Per-tool regex patterns to detect in a tool result's content, keyed by tool name.",
     )
 
 

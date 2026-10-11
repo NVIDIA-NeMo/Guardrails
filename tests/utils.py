@@ -14,9 +14,13 @@
 # limitations under the License.
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import sys
 from typing import Any, Dict, Iterable, List, Optional
+
+import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.colang import parse_colang_file
@@ -123,3 +127,15 @@ def _init_state(colang_content, yaml_content: Optional[str] = None) -> State:
     json.dump(state.flow_configs, sys.stdout, indent=4, cls=EnhancedJsonEncoder)
 
     return state
+
+
+# Runs a test once through each check entry point; call them with ``run_check``.
+check_entry_points = pytest.mark.parametrize("entry_point", ["check", "check_async"])
+
+
+def run_check(rails: Any, entry_point: str, *args: Any, **kwargs: Any) -> Any:
+    """Call ``check`` or ``check_async`` from sync test code, so one test body covers both entry points."""
+    outcome = getattr(rails, entry_point)(*args, **kwargs)
+    if inspect.iscoroutine(outcome):
+        return asyncio.run(outcome)
+    return outcome

@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Optional, TypeVar
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
-from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult, Toolset
+from nemoguardrails.guardrails.tool_schema import LatestToolCall, ToolExchange, ToolResult, Toolset
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk
 
@@ -243,6 +243,11 @@ class EngineRegistry:
         """
         engine = self._get_engine(model_type, ModelEngine)
         return engine.extract_tool_exchanges(messages)
+
+    def extract_latest_tool_calls(self, model_type: str, messages: list[dict]) -> list[LatestToolCall]:
+        """Strictly parse the last assistant message's tool calls with the named model engine."""
+        engine = self._get_engine(model_type, ModelEngine)
+        return engine.extract_latest_tool_calls(messages)
 
     async def __aenter__(self):
         """Async context manager entry: start all engine clients."""

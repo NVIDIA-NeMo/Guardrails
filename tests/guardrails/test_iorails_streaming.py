@@ -34,6 +34,7 @@ from nemoguardrails.guardrails.iorails import (
     _TurnConversation,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
@@ -1213,6 +1214,25 @@ class TestBlockReasonDisplay:
             message_contains="Blocked by input rails: content safety check input",
         )
         assert not any("S1: Violence" in chunk for chunk in chunks if isinstance(chunk, str))
+
+    @pytest.mark.asyncio
+    async def test_failed_input_rail_payload_carries_no_exception_text(self, iorails_input_only):
+        """A rail that raised an unclassified error reaches the client by name only, with no upstream text."""
+        _wire_mocks(iorails_input_only)
+        exc = ValueError("Details: see https://internal.example/debug token nvapi-abc123secret")
+        failure = rail_error_outcome(None, "content safety check input", exc)
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(
+            return_value=RailResult(failure, triggered_rail="content safety check input")
+        )
+
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        _assert_error_chunk(
+            chunks,
+            code="content_blocked",
+            message_contains="Blocked by input rails: content safety check input error",
+        )
+        assert not any("internal.example" in chunk for chunk in chunks if isinstance(chunk, str))
 
     @pytest.mark.asyncio
     async def test_output_block_payload_falls_back_to_the_rail_name(self, iorails_stream_first):

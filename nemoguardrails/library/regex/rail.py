@@ -33,12 +33,20 @@ DETECT_REGEX_PATTERN = ActionRef(
     name="detect_regex_pattern",
     target="nemoguardrails.library.regex.actions:detect_regex_pattern",
 )
+DETECT_TOOL_OUTPUT_REGEX_PATTERN = ActionRef(
+    name="detect_tool_output_regex_pattern",
+    target="nemoguardrails.library.regex.actions:detect_tool_output_regex_pattern",
+)
+DETECT_TOOL_INPUT_REGEX_PATTERN = ActionRef(
+    name="detect_tool_input_regex_pattern",
+    target="nemoguardrails.library.regex.actions:detect_tool_input_regex_pattern",
+)
 RAIL = RailManifest(
     name="regex",
     metadata=RailMetadata(
         display_name="Regex Detection",
         description="Detects and blocks text matching configured regular expression patterns.",
-        categories=("input", "output", "retrieval"),
+        categories=("input", "output", "retrieval", "tool_output", "tool_input"),
         capabilities=("block", "classify", "moderate", "transform"),
         tags=("built-in", "regex", "pattern-matching"),
         docs_url="docs/configure-rails/guardrail-catalog/community/regex.mdx",
@@ -48,8 +56,18 @@ RAIL = RailManifest(
             key="regex_detection",
             spec=ConfigSpecRef(target="nemoguardrails.library.regex.rail_config:build_config_spec"),
         ),
-        flows=RailFlows(flow_names=("regex check input", "regex check output", "regex check retrieval")),
-        actions=RailActions(refs=(DETECT_REGEX_PATTERN,)),
+        flows=RailFlows(
+            flow_names=(
+                "regex check input",
+                "regex check output",
+                "regex check retrieval",
+                "regex check tool output",
+                "regex check tool input",
+            )
+        ),
+        actions=RailActions(
+            refs=(DETECT_REGEX_PATTERN, DETECT_TOOL_OUTPUT_REGEX_PATTERN, DETECT_TOOL_INPUT_REGEX_PATTERN)
+        ),
         surfaces=(
             RailSurface(
                 name="regex check input",
@@ -69,6 +87,27 @@ RAIL = RailManifest(
                 action=DETECT_REGEX_PATTERN,
                 bindings=(Binding.literal("source", "retrieval"), Binding.context("text", "relevant_chunks")),
                 transform_target=TransformTarget.RELEVANT_CHUNKS,
+            ),
+            RailSurface(
+                name="regex check tool output",
+                direction=RailDirection.TOOL_OUTPUT,
+                action=DETECT_TOOL_OUTPUT_REGEX_PATTERN,
+                bindings=(
+                    Binding.literal("source", "tool_output"),
+                    Binding.surface_param("argument_name", "argument", required=False),
+                    Binding.context("tool_call", "tool_call"),
+                    Binding.context("tool_definition", "tool_definition"),
+                ),
+            ),
+            RailSurface(
+                name="regex check tool input",
+                direction=RailDirection.TOOL_INPUT,
+                action=DETECT_TOOL_INPUT_REGEX_PATTERN,
+                bindings=(
+                    Binding.literal("source", "tool_input"),
+                    Binding.context("tool_call", "tool_call"),
+                    Binding.context("tool_result", "tool_result"),
+                ),
             ),
         ),
         privacy=RailPrivacy(),

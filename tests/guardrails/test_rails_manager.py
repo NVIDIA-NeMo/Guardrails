@@ -19,7 +19,7 @@ import gc
 import json
 import logging
 import warnings
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
@@ -27,11 +27,14 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
+from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
 from nemoguardrails.guardrails.compiled_rail import RailCompilationError
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import (
+    PER_TOOL_RAILS_MAX_CONCURRENCY,
     RailsManager,
     _checked_text,
     _rail_call_record,
@@ -48,6 +51,7 @@ from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.guardrails.async_helpers import (
@@ -56,7 +60,13 @@ from tests.guardrails.async_helpers import (
     mock_rail_http_response,
     mock_rail_model,
 )
-from tests.guardrails.rail_stubs import StubRail, declared_rewriter, rails_compiled_as, rewriting_stub
+from tests.guardrails.rail_stubs import (
+    StubRail,
+    declared_rewriter,
+    rails_compiled_as,
+    rewriting_stub,
+    user_message_rewrite,
+)
 from tests.guardrails.test_data import (
     CONTENT_SAFETY_CONFIG,
     NEMOGUARDS_CONFIG,
@@ -68,9 +78,13 @@ from tests.guardrails.test_data import (
 from tests.guardrails.tool_helpers import (
     WEATHER_SCHEMA,
     assert_result_blocked,
+    call_violation,
     make_tool_conversation,
     malformed_prior_tool_call_messages,
     multi_turn_reused_call_id_messages,
+    result_violation,
+    tool_call_turn,
+    wire_tool_call,
 )
 
 
@@ -768,7 +782,15 @@ class TestRailsManagerToolInit:
             _tool_rails_manager(tool_result_flows=["tool result validation", "tool result validation"])
 
 
-def _tool_rails_manager_with_main(*, tool_call_flows=None, tool_result_flows=None) -> RailsManager:
+def _tool_rails_manager_with_main(
+    *,
+    tool_call_flows=None,
+    tool_result_flows=None,
+    per_tool_call_flows=None,
+    per_tool_result_flows=None,
+    tool_output_parallel: bool = False,
+    tool_input_parallel: bool = False,
+) -> RailsManager:
     """Like ``_tool_rails_manager`` but with a 'main' engine registered.
 
     The request-shaped ``are_tool_*_safe`` methods parse tools / extract results via the
@@ -787,6 +809,10 @@ def _tool_rails_manager_with_main(*, tool_call_flows=None, tool_result_flows=Non
         output_flows=[],
         tool_call_flows=tool_call_flows or [],
         tool_result_flows=tool_result_flows or [],
+        per_tool_call_flows=per_tool_call_flows or {},
+        per_tool_result_flows=per_tool_result_flows or {},
+        tool_output_parallel=tool_output_parallel,
+        tool_input_parallel=tool_input_parallel,
     )
 
 
@@ -810,15 +836,27 @@ class TestRailsManagerToolCalls:
 
     @pytest.mark.asyncio
     async def test_allows_valid_call(self):
+        """A declared call with valid arguments is allowed and carries no tool violations."""
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
         result = await mgr.are_tool_calls_safe([_call("get_weather", {"city": "Paris"})], {"tools": [WEATHER_TOOL]})
         assert result.is_safe is True
+        assert result.tool_violations == ()
 
     @pytest.mark.asyncio
     async def test_blocks_undeclared_call(self):
+        """An undeclared call blocks, and the validator's violation is lifted onto the result."""
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
         result = await mgr.are_tool_calls_safe([_call("rm_rf", {})], {"tools": [WEATHER_TOOL]})
         assert_result_blocked(result, "rm_rf")
+        assert result.tool_violations == (
+            call_violation(
+                "tool_not_allowed",
+                "tool call 'rm_rf' is not an allowed tool",
+                tool_call_id="c1",
+                tool_name="rm_rf",
+                index=0,
+            ),
+        )
 
     @pytest.mark.asyncio
     async def test_no_tool_calls_returns_safe(self):
@@ -844,13 +882,25 @@ class TestRailsManagerToolCalls:
 
     @pytest.mark.asyncio
     async def test_fails_closed_on_duplicate_tool_definitions(self):
-        # parse_tools raises ValueError on a duplicate tool name; the method must
-        # convert that into a block, not propagate.
+        """A toolset that declares a tool twice blocks with an ``invalid_toolset`` violation rather than raising."""
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
         result = await mgr.are_tool_calls_safe(
             [_call("get_weather", {"city": "Paris"})], {"tools": [WEATHER_TOOL, WEATHER_TOOL]}
         )
         assert_result_blocked(result, "tool parsing failed")
+        assert result.tool_violations == (
+            call_violation("invalid_toolset", "tool parsing failed: duplicate tool 'get_weather' in toolset"),
+        )
+
+    @pytest.mark.asyncio
+    async def test_unexpected_parsing_error_blocks_with_a_fixed_reason(self):
+        """A tool-parsing error other than a duplicate tool blocks with a fixed reason carrying none of its text."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        mgr.engine_registry.parse_tools = MagicMock(side_effect=RuntimeError(_SECRET_VALUE))
+        result = await mgr.are_tool_calls_safe([_call("get_weather", {"city": "Paris"})], {"tools": [WEATHER_TOOL]})
+
+        assert result.tool_violations == (call_violation("invalid_toolset", "tool parsing failed"),)
 
     @pytest.mark.asyncio
     async def test_disabled_toggle_skips_validation(self):
@@ -884,15 +934,26 @@ class TestRailsManagerToolResults:
 
     @pytest.mark.asyncio
     async def test_allows_linked_result(self):
+        """A result linked to a prior call is allowed and carries no tool violations."""
         mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
         result = await mgr.are_tool_results_safe(make_tool_conversation(result_call_id="call_1"))
         assert result.is_safe is True
+        assert result.tool_violations == ()
 
     @pytest.mark.asyncio
     async def test_blocks_unlinked_result(self):
+        """An unlinked result blocks, and its violation points at the tool message's position."""
         mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
         result = await mgr.are_tool_results_safe(make_tool_conversation(result_call_id="call_999"))
         assert_result_blocked(result, "call_999")
+        assert result.tool_violations == (
+            result_violation(
+                "unknown_call_id",
+                "tool result for call_id 'call_999' does not correspond to a prior tool call",
+                tool_call_id="call_999",
+                index=2,
+            ),
+        )
 
     @pytest.mark.asyncio
     async def test_recycled_call_ids_across_turns_are_safe(self):
@@ -922,16 +983,238 @@ class TestRailsManagerToolResults:
 
     @pytest.mark.asyncio
     async def test_fails_closed_when_exchange_extraction_raises(self):
-        # If the engine adapter's exchange extraction itself blows up, the method must
-        # fail closed (block) rather than let the error escape.
+        """An exchange extraction error blocks with a fixed reason and an ``extraction_failed`` violation."""
         mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
 
-        def _boom(*args, **kwargs):
-            raise RuntimeError("extract boom")
-
-        mgr.engine_registry.extract_tool_exchanges = _boom
+        mgr.engine_registry.extract_tool_exchanges = MagicMock(side_effect=RuntimeError(_SECRET_VALUE))
         result = await mgr.are_tool_results_safe(make_tool_conversation())
         assert_result_blocked(result, "tool exchange extraction failed")
+        assert result.tool_violations == (result_violation("extraction_failed", "tool exchange extraction failed"),)
+
+
+_SECRET_VALUE = "SECRET-VALUE"
+
+
+class TestRailsManagerLatestToolCalls:
+    """``are_latest_tool_calls_safe``: strictly extract the last assistant message's calls, then validate them."""
+
+    @pytest.mark.asyncio
+    async def test_delegates_the_extracted_calls_to_are_tool_calls_safe(self):
+        """The latest calls, the request's tool parameters and the toggle are handed to ``are_tool_calls_safe``."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        verdict = RailResult.allow()
+        mgr.are_tool_calls_safe = AsyncMock(return_value=verdict)
+        llm_params = {"tools": [WEATHER_TOOL]}
+
+        result = await mgr.are_latest_tool_calls_safe(
+            make_tool_conversation(), llm_params, enabled=["tool call validation"]
+        )
+
+        expected_calls = [
+            ToolCall(id="call_1", function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}))
+        ]
+        mgr.are_tool_calls_safe.assert_awaited_once_with(
+            expected_calls, llm_params, enabled=["tool call validation"], model_type="main"
+        )
+        assert result is verdict
+
+    @pytest.mark.asyncio
+    async def test_blocks_a_call_the_toolset_does_not_declare(self):
+        """A latest call missing from the declared tools is blocked by the global tool-call rail."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        result = await mgr.are_latest_tool_calls_safe(make_tool_conversation(), {"tools": []})
+
+        assert_result_blocked(result, "get_weather", "not an allowed tool")
+        assert result.triggered_rail == "tool call validation"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("messages", "violation"),
+        [
+            (
+                tool_call_turn(wire_tool_call(arguments='{"city": "SECRET-VALUE"')),
+                call_violation(
+                    "malformed_arguments",
+                    "tool call extraction failed: tool call 'call_1' has malformed arguments",
+                    tool_call_id="call_1",
+                    tool_name="get_weather",
+                    index=0,
+                ),
+            ),
+            (
+                [{"role": "assistant", "function_call": {"name": "get_weather", "arguments": "{}"}}],
+                call_violation(
+                    "legacy_function_call",
+                    "tool call extraction failed: legacy function_call is not validated by tool rails",
+                    tool_name="get_weather",
+                ),
+            ),
+        ],
+        ids=["malformed_arguments", "legacy_function_call"],
+    )
+    async def test_extraction_error_blocks_with_its_violation(self, messages, violation):
+        """A latest turn the extractor refuses blocks before any rail runs, with the extractor's content-free reason."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        result = await mgr.are_latest_tool_calls_safe(messages, {"tools": [WEATHER_TOOL]})
+
+        assert (result.is_safe, result.reason, result.triggered_rail) == (False, violation.reason, None)
+        assert result.tool_violations == (violation,)
+
+    @pytest.mark.asyncio
+    async def test_unparsable_calls_do_not_hide_the_other_calls_violations(self):
+        """The calls that parse are still validated, and every violation is reported in call order."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        messages = tool_call_turn(
+            wire_tool_call("delete_files", "{}", "call_1"),
+            wire_tool_call(arguments='{"city": "SECRET-VALUE"', call_id="call_2"),
+            wire_tool_call(call_id="call_3"),
+            wire_tool_call("rm_rf", "{}", "call_4"),
+            {"id": "call_5", "type": "function", "name": "get_weather", "arguments": "{}"},
+        )
+
+        result = await mgr.are_latest_tool_calls_safe(messages, {"tools": [WEATHER_TOOL]})
+
+        not_allowed = "tool call '{}' is not an allowed tool"
+        assert result.tool_violations == (
+            call_violation(
+                "tool_not_allowed",
+                not_allowed.format("delete_files"),
+                tool_call_id="call_1",
+                tool_name="delete_files",
+                index=0,
+            ),
+            call_violation(
+                "malformed_arguments",
+                "tool call extraction failed: tool call 'call_2' has malformed arguments",
+                tool_call_id="call_2",
+                tool_name="get_weather",
+                index=1,
+            ),
+            call_violation(
+                "tool_not_allowed", not_allowed.format("rm_rf"), tool_call_id="call_4", tool_name="rm_rf", index=3
+            ),
+            call_violation(
+                "malformed_tool_call",
+                "tool call extraction failed: tool call 'call_5' does not carry a function object",
+                tool_call_id="call_5",
+                index=4,
+            ),
+        )
+        assert (result.is_safe, result.reason, result.triggered_rail) == (
+            False,
+            not_allowed.format("delete_files"),
+            None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_unparsable_calls_log_one_warning_per_check(self, caplog):
+        """However many calls cannot be parsed, a check logs one WARNING, so a large request cannot flood the log."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        messages = tool_call_turn(*(wire_tool_call(arguments="not json", call_id=f"call_{n}") for n in range(5)))
+
+        with caplog.at_level(logging.WARNING, logger="nemoguardrails.guardrails.rails_manager"):
+            await mgr.are_latest_tool_calls_safe(messages, {"tools": [WEATHER_TOOL]})
+
+        warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
+        assert len(warnings) == 1
+        assert "5 tool calls" in warnings[0]
+
+    @pytest.mark.asyncio
+    async def test_whole_turn_violation_leads_an_unparsable_calls_violation(self):
+        """A toolset violation, which no call position owns, is listed and reported ahead of an unparsable call's."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        messages = tool_call_turn(wire_tool_call(arguments="not json"), wire_tool_call(call_id="call_2"))
+
+        result = await mgr.are_latest_tool_calls_safe(messages, {"tools": [WEATHER_TOOL, WEATHER_TOOL]})
+
+        assert [(v.violation_type, v.index) for v in result.tool_violations] == [
+            (ToolViolationType.INVALID_TOOLSET, None),
+            (ToolViolationType.MALFORMED_ARGUMENTS, 0),
+        ]
+        assert result.reason == "tool parsing failed: duplicate tool 'get_weather' in toolset"
+
+    @pytest.mark.asyncio
+    async def test_unexpected_extraction_error_blocks_with_a_fixed_reason(self):
+        """Any other extraction error blocks with a fixed reason that carries none of the exception's text."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        mgr.engine_registry.extract_latest_tool_calls = MagicMock(side_effect=RuntimeError(_SECRET_VALUE))
+
+        result = await mgr.are_latest_tool_calls_safe(make_tool_conversation(), {"tools": [WEATHER_TOOL]})
+
+        assert result.is_safe is False
+        assert result.reason == "tool call extraction failed"
+        assert result.triggered_rail is None
+        assert result.tool_violations == (call_violation("extraction_failed", "tool call extraction failed"),)
+
+    @pytest.mark.asyncio
+    async def test_no_tool_calls_on_the_last_assistant_message_is_safe(self):
+        """A final assistant text turn has no calls to validate, so even an empty toolset allows it."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        messages = [*make_tool_conversation(), {"role": "assistant", "content": "It's 18C in Paris."}]
+
+        result = await mgr.are_latest_tool_calls_safe(messages, {"tools": []})
+
+        assert result.is_safe is True
+
+    @pytest.mark.asyncio
+    async def test_no_tool_call_rails_returns_safe_without_extracting(self):
+        """With no tool-call rail to run nothing is extracted, so a malformed call and a missing engine both pass."""
+        mgr = _tool_rails_manager()
+
+        result = await mgr.are_latest_tool_calls_safe(
+            tool_call_turn(wire_tool_call(arguments='{"city": "SECRET-VALUE"')), {"tools": [WEATHER_TOOL]}
+        )
+
+        assert result.is_safe is True
+
+
+class TestRailsManagerToolViolations:
+    """Violations the manager attaches for a global tool validator that breaks, or that blocks in several turns."""
+
+    @pytest.mark.asyncio
+    async def test_a_failing_tool_call_validator_reports_rail_failed(self):
+        """A global tool-call validator that raises gives one ``rail_failed`` violation naming the rail."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        with patch.object(ToolCallRailAction, "_validate", side_effect=RuntimeError(_SECRET_VALUE)):
+            result = await mgr.are_tool_calls_safe([_call("get_weather", {"city": "Paris"})], {"tools": [WEATHER_TOOL]})
+
+        assert result.failed is True
+        assert result.tool_violations == (
+            call_violation("rail_failed", "tool call validation error", rail="tool call validation"),
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_failing_tool_result_validator_reports_rail_failed(self):
+        """A global tool-result validator that raises gives one ``rail_failed`` violation naming the rail."""
+        mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
+
+        with patch.object(ToolResultRailAction, "_validate", side_effect=RuntimeError(_SECRET_VALUE)):
+            result = await mgr.are_tool_results_safe(make_tool_conversation())
+
+        assert result.failed is True
+        assert result.tool_violations == (
+            result_violation("rail_failed", "tool result validation error", rail="tool result validation"),
+        )
+
+    @pytest.mark.asyncio
+    async def test_bad_results_in_every_turn_are_reported(self):
+        """The result rail checks every turn, not just up to the first bad one, and the reason is the first's."""
+        mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
+        messages = multi_turn_reused_call_id_messages()
+        messages[2] = {**messages[2], "tool_call_id": "call_x"}
+        messages[6] = {**messages[6], "tool_call_id": "call_y"}
+
+        result = await mgr.are_tool_results_safe(messages)
+
+        assert [(v.violation_type, v.tool_call_id, v.index) for v in result.tool_violations] == [
+            (ToolViolationType.UNKNOWN_CALL_ID, "call_x", 2),
+            (ToolViolationType.UNKNOWN_CALL_ID, "call_y", 6),
+        ]
+        assert result.reason == "tool result for call_id 'call_x' does not correspond to a prior tool call"
 
 
 class TestRailsManagerToolToggleNormalization:
@@ -1122,18 +1405,271 @@ class TestRunRailsParallel:
         assert cancelled.is_set(), "remaining rails should be cancelled on a rail error"
 
 
+class TestParallelPerToolDispatch:
+    """Proves are_tool_calls_safe / are_tool_results_safe actually route to
+    _run_rails_parallel (not _run_tool_rails_sequential) when tool_output_parallel /
+    tool_input_parallel is set, with genuine concurrency, not just a passing decision.
+
+    _run_per_tool_rail is replaced on the manager instance only (an instance attribute
+    shadows the class method for that one object), so this cannot affect any other
+    test's RailsManager.
+    """
+
+    @staticmethod
+    def _mutual_wait_stub(started: dict):
+        """Each call sets its own event, then waits on the other tool's. That can only
+        resolve if both calls are in flight at once; under a sequential regression the
+        second coroutine is never scheduled, so the wait times out and raises."""
+
+        async def stub(direction, flow, tool_call, tool_result=None, tool_definition=None, index=None):
+            name = tool_call.function.name
+            started[name].set()
+            other = "list_tables" if name == "run_sql" else "run_sql"
+            await asyncio.wait_for(started[other].wait(), timeout=2)
+            return RailResult.allow()
+
+        return stub
+
+    @pytest.mark.asyncio
+    async def test_tool_calls_run_concurrently(self):
+        mgr = _tool_rails_manager_with_main(
+            per_tool_call_flows={"run_sql": ["regex check tool output"], "list_tables": ["regex check tool output"]},
+            tool_output_parallel=True,
+        )
+        started = {"run_sql": asyncio.Event(), "list_tables": asyncio.Event()}
+        mgr._run_per_tool_rail = self._mutual_wait_stub(started)
+
+        calls = [
+            ToolCall(id="call_1", function=ToolCallFunction(name="run_sql", arguments={"query": "SELECT 1"})),
+            ToolCall(id="call_2", function=ToolCallFunction(name="list_tables", arguments={})),
+        ]
+        llm_params = {
+            "tools": [
+                {"type": "function", "function": {"name": "run_sql", "parameters": {"type": "object"}}},
+                {"type": "function", "function": {"name": "list_tables", "parameters": {"type": "object"}}},
+            ]
+        }
+        result = await mgr.are_tool_calls_safe(calls, llm_params)
+
+        assert result.is_safe
+
+    @pytest.mark.asyncio
+    async def test_tool_results_run_concurrently(self):
+        mgr = _tool_rails_manager_with_main(
+            per_tool_result_flows={
+                "run_sql": ["regex check tool input"],
+                "list_tables": ["regex check tool input"],
+            },
+            tool_input_parallel=True,
+        )
+        started = {"run_sql": asyncio.Event(), "list_tables": asyncio.Event()}
+        mgr._run_per_tool_rail = self._mutual_wait_stub(started)
+
+        messages = [
+            {"role": "user", "content": "run a query and list tables"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "call_1", "type": "function", "function": {"name": "run_sql", "arguments": "{}"}},
+                    {"id": "call_2", "type": "function", "function": {"name": "list_tables", "arguments": "{}"}},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_1", "name": "run_sql", "content": "no sensitive data"},
+            {"role": "tool", "tool_call_id": "call_2", "name": "list_tables", "content": "no sensitive data"},
+        ]
+        result = await mgr.are_tool_results_safe(messages)
+
+        assert result.is_safe
+
+    _MANY_CALLS = [
+        ToolCall(id=f"call_{i}", function=ToolCallFunction(name="run_sql", arguments={}))
+        for i in range(PER_TOOL_RAILS_MAX_CONCURRENCY * 2 + 4)
+    ]
+    _RUN_SQL_PARAMS = {
+        "tools": [{"type": "function", "function": {"name": "run_sql", "parameters": {"type": "object"}}}]
+    }
+
+    @pytest.mark.asyncio
+    async def test_in_flight_checks_are_capped(self):
+        mgr = _tool_rails_manager_with_main(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, tool_output_parallel=True
+        )
+        in_flight = peak = 0
+        slots_full = asyncio.Event()
+        release = asyncio.Event()
+
+        async def stub(direction, flow, tool_call, tool_result=None, tool_definition=None, index=None):
+            nonlocal in_flight, peak
+            in_flight += 1
+            peak = max(peak, in_flight)
+            if in_flight == PER_TOOL_RAILS_MAX_CONCURRENCY:
+                slots_full.set()
+            await asyncio.wait_for(release.wait(), timeout=2)
+            in_flight -= 1
+            return RailResult.allow()
+
+        mgr._run_per_tool_rail = stub
+
+        checks = asyncio.create_task(mgr.are_tool_calls_safe(self._MANY_CALLS, self._RUN_SQL_PARAMS))
+        # Checks a missing or higher cap would admit start before this wakes, so they're counted.
+        await asyncio.wait_for(slots_full.wait(), timeout=2)
+        assert in_flight == PER_TOOL_RAILS_MAX_CONCURRENCY
+        release.set()
+        result = await checks
+
+        assert result.is_safe
+        assert peak == PER_TOOL_RAILS_MAX_CONCURRENCY
+
+    @pytest.mark.asyncio
+    async def test_checks_still_waiting_for_a_slot_are_closed_on_a_block(self, recwarn):
+        mgr = _tool_rails_manager_with_main(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]}, tool_output_parallel=True
+        )
+
+        in_flight = 0
+        slots_full = asyncio.Event()
+        never_set = asyncio.Event()
+
+        async def stub(direction, flow, tool_call, tool_result=None, tool_definition=None, index=None):
+            # call_0 blocks only once every slot is taken, so the remaining checks are still
+            # waiting for one; the others hold their slots until the block cancels them.
+            nonlocal in_flight
+            in_flight += 1
+            if in_flight == PER_TOOL_RAILS_MAX_CONCURRENCY:
+                slots_full.set()
+            if tool_call.id == "call_0":
+                await asyncio.wait_for(slots_full.wait(), timeout=2)
+                return RailResult.block(reason="unsafe")
+            await asyncio.wait_for(never_set.wait(), timeout=2)
+            return RailResult.allow()
+
+        mgr._run_per_tool_rail = stub
+
+        result = await mgr.are_tool_calls_safe(self._MANY_CALLS, self._RUN_SQL_PARAMS)
+        gc.collect()
+
+        assert not result.is_safe
+        assert [w for w in recwarn if "was never awaited" in str(w.message)] == []
+
+
+class TestToolParallelDisabledByRewrite:
+    """No tool rail rewrites today, but a per-tool surface declaring transform_target should
+    still force tool_output_parallel/tool_input_parallel off, mirroring the input/output
+    rewrite check (TestSchedulingRailsThatRewrite)."""
+
+    # No TOOL_CALL/TOOL_RESULT member exists yet; USER_MESSAGE stands in to prove the check
+    # fires on any non-None transform_target.
+    _STUB_TARGET = TransformTarget.USER_MESSAGE
+
+    def test_a_rewriting_per_tool_call_flow_turns_parallel_off(self):
+        with rails_compiled_as({"regex check tool output": StubRail(transform_target=self._STUB_TARGET)}):
+            with pytest.warns(UserWarning, match="parallel"):
+                mgr = _tool_rails_manager_with_main(
+                    per_tool_call_flows={"run_sql": ["regex check tool output"]},
+                    tool_output_parallel=True,
+                    tool_input_parallel=True,
+                )
+
+        assert mgr.tool_output_parallel is False
+        assert mgr.tool_input_parallel is False
+
+    def test_a_rewriting_per_tool_result_flow_turns_parallel_off(self):
+        with rails_compiled_as({"regex check tool input": StubRail(transform_target=self._STUB_TARGET)}):
+            with pytest.warns(UserWarning, match="parallel"):
+                mgr = _tool_rails_manager_with_main(
+                    per_tool_result_flows={"run_sql": ["regex check tool input"]},
+                    tool_output_parallel=True,
+                    tool_input_parallel=True,
+                )
+
+        assert mgr.tool_output_parallel is False
+        assert mgr.tool_input_parallel is False
+
+    def test_a_config_that_never_asked_for_parallel_is_not_warned_about(self, recwarn):
+        with rails_compiled_as({"regex check tool output": StubRail(transform_target=self._STUB_TARGET)}):
+            mgr = _tool_rails_manager_with_main(per_tool_call_flows={"run_sql": ["regex check tool output"]})
+
+        assert mgr.per_tool_transform_flows[SurfaceDirection.TOOL_OUTPUT] == ("regex check tool output",)
+        assert mgr.tool_output_parallel is False
+        assert [warning for warning in recwarn if "parallel" in str(warning.message)] == []
+
+    def test_parallel_is_left_alone_when_nothing_rewrites(self, recwarn):
+        mgr = _tool_rails_manager_with_main(
+            per_tool_call_flows={"run_sql": ["regex check tool output"]},
+            tool_output_parallel=True,
+            tool_input_parallel=True,
+        )
+
+        assert mgr.tool_output_parallel is True
+        assert mgr.tool_input_parallel is True
+        assert [warning for warning in recwarn if "parallel" in str(warning.message)] == []
+
+
+class TestPerToolRailsSequential:
+    _CALLS = [
+        ToolCall(id="call_1", function=ToolCallFunction(name="run_sql", arguments={"query": "SELECT 1"})),
+        ToolCall(id="call_2", function=ToolCallFunction(name="list_tables", arguments={})),
+    ]
+    _LLM_PARAMS = {
+        "tools": [
+            {"type": "function", "function": {"name": "run_sql", "parameters": {"type": "object"}}},
+            {"type": "function", "function": {"name": "list_tables", "parameters": {"type": "object"}}},
+        ]
+    }
+
+    @staticmethod
+    def _manager_returning(results: dict[str, RailResult], parallel: bool = False) -> tuple[RailsManager, list[str]]:
+        """A manager whose per-tool checks return *results* by tool name, recording each check's
+        coroutine as it is created (the stub is sync, so calling it is creating the coroutine)."""
+        mgr = _tool_rails_manager_with_main(
+            per_tool_call_flows={"run_sql": ["regex check tool output"], "list_tables": ["regex check tool output"]},
+            tool_output_parallel=parallel,
+        )
+        created: list[str] = []
+
+        def stub(direction, flow, tool_call, tool_result=None, tool_definition=None, index=None):
+            created.append(tool_call.function.name)
+            return _coroutine_returning(results[tool_call.function.name])
+
+        mgr._run_per_tool_rail = stub
+        return mgr, created
+
+    @pytest.mark.asyncio
+    async def test_checks_after_a_block_are_never_created(self):
+        mgr, created = self._manager_returning(
+            {"run_sql": RailResult.block(reason="unsafe"), "list_tables": RailResult.allow()}
+        )
+
+        result = await mgr.are_tool_calls_safe(self._CALLS, self._LLM_PARAMS)
+
+        assert not result.is_safe
+        assert created == ["run_sql"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("parallel", [False, True], ids=["sequential", "parallel"])
+    async def test_a_rewrite_raises(self, parallel):
+        mgr, _ = self._manager_returning(
+            {"run_sql": user_message_rewrite("masked"), "list_tables": RailResult.allow()}, parallel=parallel
+        )
+
+        with pytest.raises(NotImplementedError, match="returned a rewrite"):
+            await mgr.are_tool_calls_safe(self._CALLS, self._LLM_PARAMS)
+
+
 class TestTriggeredRail:
     """A blocking rail records its base flow name in RailResult.triggered_rail."""
 
     @pytest.mark.asyncio
     async def test_input_block_sets_triggered_rail(self, content_safety_rails_manager):
-        """An input-rail block records the flow's base name in triggered_rail."""
+        """An input-rail block records the flow's base name in triggered_rail, and carries no tool violations."""
         mock_rail_model(
             content_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_INPUT_JSON))
         )
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
         assert result.triggered_rail == "content safety check input"
+        assert result.tool_violations == ()
 
     @pytest.mark.asyncio
     async def test_output_block_sets_triggered_rail(self, content_safety_rails_manager):
@@ -1154,6 +1690,74 @@ class TestTriggeredRail:
         )
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
+        assert result.triggered_rail is None
+
+
+class TestToolRailTriggeredRail:
+    """A blocking global tool rail records its base flow name; a block the manager raises itself names none."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "configured_flow",
+        ["tool call validation", "tool call validation $model=main", "tool call validation(main)"],
+    )
+    async def test_tool_call_block_sets_triggered_rail(self, configured_flow):
+        """A global tool-call block names its rail by the base flow name, with any suffix stripped."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=[configured_flow])
+
+        result = await mgr.are_tool_calls_safe([_call("rm_rf", {})], {"tools": [WEATHER_TOOL]})
+
+        assert result.is_safe is False
+        assert result.triggered_rail == "tool call validation"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "configured_flow",
+        ["tool result validation", "tool result validation $model=main", "tool result validation(main)"],
+    )
+    async def test_tool_result_block_sets_triggered_rail(self, configured_flow):
+        """A global tool-result block names its rail by the base flow name, with any suffix stripped."""
+        mgr = _tool_rails_manager_with_main(tool_result_flows=[configured_flow])
+
+        result = await mgr.are_tool_results_safe(make_tool_conversation(result_call_id="call_999"))
+
+        assert result.is_safe is False
+        assert result.triggered_rail == "tool result validation"
+
+    @pytest.mark.asyncio
+    async def test_tool_call_block_keeps_the_validator_reason(self):
+        """Naming the rail leaves the validator's own reason as the reason."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        result = await mgr.are_tool_calls_safe([_call("rm_rf", {})], {"tools": [WEATHER_TOOL]})
+
+        assert result.reason == "tool call 'rm_rf' is not an allowed tool"
+
+    @pytest.mark.asyncio
+    async def test_tool_parsing_failure_names_no_rail(self):
+        """A toolset that fails to parse is refused before any rail runs, so the block names no rail."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+
+        result = await mgr.are_tool_calls_safe(
+            [_call("get_weather", {"city": "Paris"})], {"tools": [WEATHER_TOOL, WEATHER_TOOL]}
+        )
+
+        assert result.is_safe is False
+        assert result.triggered_rail is None
+
+    @pytest.mark.asyncio
+    async def test_exchange_extraction_failure_names_no_rail(self):
+        """A conversation that fails exchange extraction is refused before any rail runs, so the block names no rail."""
+        mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("extract boom")
+
+        mgr.engine_registry.extract_tool_exchanges = _boom
+
+        result = await mgr.are_tool_results_safe(make_tool_conversation())
+
+        assert result.is_safe is False
         assert result.triggered_rail is None
 
 

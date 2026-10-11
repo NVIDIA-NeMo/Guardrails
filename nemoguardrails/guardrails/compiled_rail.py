@@ -34,6 +34,8 @@ from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget, re
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, current_user_turn_index, last_user_content
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
+from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.manifests import (
     Binding,
@@ -44,6 +46,7 @@ from nemoguardrails.manifests import (
     parse_configured_surface,
     resolve_import_ref,
 )
+from nemoguardrails.types import ToolCall
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -155,12 +158,24 @@ class _ContextParameter:
 
 
 # The conversation variables IORails can supply to explicit context bindings.
-_CONTEXT_KEYS = ("user_message", "bot_message")
+_CONTEXT_KEYS = ("user_message", "bot_message", "tool_call", "tool_result", "tool_definition")
 
 
-def _request_context(messages: LLMMessages, bot_response: Optional[str]) -> dict[str, str]:
+def _request_context(
+    messages: LLMMessages,
+    bot_response: Optional[str],
+    tool_call: Optional[ToolCall] = None,
+    tool_result: Optional[ToolResult] = None,
+    tool_definition: Optional[Tool] = None,
+) -> dict[str, Any]:
     """Build the conversation variables for one request."""
-    return {"user_message": last_user_content(messages), "bot_message": bot_response or ""}
+    return {
+        "user_message": last_user_content(messages),
+        "bot_message": bot_response or "",
+        "tool_call": tool_call,
+        "tool_result": tool_result,
+        "tool_definition": tool_definition,
+    }
 
 
 class CompiledRail:
@@ -216,19 +231,31 @@ class CompiledRail:
         """Execute the rail and return its engine-neutral verdict."""
         return (await self.execute(messages, bot_response)).outcome
 
-    async def execute(self, messages: LLMMessages, bot_response: Optional[str] = None) -> RailExecution:
+    async def execute(
+        self,
+        messages: LLMMessages,
+        bot_response: Optional[str] = None,
+        tool_call: Optional[ToolCall] = None,
+        tool_result: Optional[ToolResult] = None,
+        tool_definition: Optional[Tool] = None,
+    ) -> RailExecution:
         """Execute the rail, returning its verdict and the model calls it made.
 
         A fresh ``processing_log_var`` sink is installed around the action, so ``llm_calls``
         holds this rail's calls and only this rail's — live calls, cache hits and jailbreak's
         NIM call all append there, and a rail that reaches no model appends nothing.
+
+        ``tool_call``/``tool_result``/``tool_definition`` are set only for per-tool dispatch;
+        every other caller omits them.
         """
         sink: list[dict[str, Any]] = []
         token = processing_log_var.set(sink)
         try:
             with action_span(self._deps.tracer, self.surface_name) as span:
                 try:
-                    outcome = require_rail_outcome(await self._invoke(messages, bot_response))
+                    outcome = require_rail_outcome(
+                        await self._invoke(messages, bot_response, tool_call, tool_result, tool_definition)
+                    )
                 except Exception as exc:
                     outcome = rail_error_outcome(span, self.surface_name, exc)
         finally:
@@ -236,7 +263,14 @@ class CompiledRail:
 
         return RailExecution(outcome=outcome, llm_calls=_llm_calls_from(sink))
 
-    async def _invoke(self, messages: LLMMessages, bot_response: Optional[str]) -> Any:
+    async def _invoke(
+        self,
+        messages: LLMMessages,
+        bot_response: Optional[str],
+        tool_call: Optional[ToolCall] = None,
+        tool_result: Optional[ToolResult] = None,
+        tool_definition: Optional[Tool] = None,
+    ) -> Any:
         """Call the action, awaiting it only if it is asynchronous.
 
         Two shipped library actions are plain ``def`` (the guardrails_ai validators), so an
@@ -244,12 +278,19 @@ class CompiledRail:
         envelope would report a working rail as a block. ``ActionDispatcher`` has always made
         the same allowance for LLMRails.
         """
-        result = self._action(**self._call_kwargs(messages, bot_response))
+        result = self._action(**self._call_kwargs(messages, bot_response, tool_call, tool_result, tool_definition))
         return await result if inspect.isawaitable(result) else result
 
-    def _call_kwargs(self, messages: LLMMessages, bot_response: Optional[str]) -> dict[str, Any]:
+    def _call_kwargs(
+        self,
+        messages: LLMMessages,
+        bot_response: Optional[str],
+        tool_call: Optional[ToolCall] = None,
+        tool_result: Optional[ToolResult] = None,
+        tool_definition: Optional[Tool] = None,
+    ) -> dict[str, Any]:
         """Assemble the action's arguments from its declared parameters and the manifest."""
-        context = _request_context(messages, bot_response)
+        context = _request_context(messages, bot_response, tool_call, tool_result, tool_definition)
         kwargs = {name: value for name, value in self._request_dependencies(messages).items() if name in self._accepted}
         for bound in self._bound:
             kwargs[bound.action_param] = bound.value
@@ -529,6 +570,67 @@ _LOCAL_BACKEND_CHECKS: dict[str, Callable[[Any, Mapping[str, str]], bool]] = {
 }
 
 
+def _reject_unknown_surface_parameter(surface: RailSurface, flow: str, params: Mapping[str, str]) -> None:
+    """Fail compilation when a flow sets a `$param=` this surface has no binding for, e.g.
+    `$argument=` on "tool safety check input" or "regex check tool input", neither of which
+    has an argument binding to scope.
+
+    `_frozen_parameters` does not catch this: it only checks that a surface's declared
+    bindings have their required params present, never that `params` has no extra,
+    undeclared keys.
+
+    TODO: scoped to TOOL_OUTPUT/TOOL_INPUT surfaces for now, to restrict the blast radius;
+    extend to every direction once confirmed safe there too.
+    """
+    if surface.direction not in (RailDirection.TOOL_OUTPUT, RailDirection.TOOL_INPUT):
+        return
+
+    declared_keys = {binding.key for binding in surface.bindings if binding.kind == "surface_param"}
+    unknown_keys = sorted(set(params) - declared_keys)
+    if unknown_keys:
+        raise RailCompilationError(
+            f"{flow!r} sets unsupported parameter(s) {', '.join(f'${k}=' for k in unknown_keys)}"
+        )
+
+
+def _reject_invalid_tool_safety_check_prompt(
+    surface: RailSurface,
+    catalog: "RailCatalog",
+    flow: str,
+    deps: RailDependencies,
+    params: Mapping[str, str],
+) -> None:
+    """tool_safety_check only: fail compilation when its resolved task has no prompt, that
+    prompt has no output_parser declared, or its output_parser is not registered.
+
+    Called after `_frozen_parameters`, which already rejects a flow missing `$model=` or
+    `$variant=`, so `params["model"]` and `params["variant"]` are guaranteed present here.
+    """
+    manifest = _owning_manifest(surface, catalog)
+    # TODO: this name check is a temporary stand-in for a manifest-declared property; other
+    # LLM-judged rails (content_safety, self_check) need the same compile-time prompt
+    # validation and will be folded into this check. Task name derivation below is also
+    # tool_safety_check-specific and will need to be generalized as part of that.
+    if manifest is None or manifest.name != "tool_safety_check":
+        return
+
+    direction_suffix = "output" if surface.direction is RailDirection.TOOL_OUTPUT else "input"
+    task = f"tool_safety_check_{direction_suffix} $model={params['model']} $variant={params['variant']}"
+    try:
+        prompt = get_prompt(deps.config, task)
+    except ValueError as exc:
+        raise RailCompilationError(f"{flow!r} has no prompt for task {task!r}: {exc}") from exc
+
+    if prompt.output_parser is None:
+        raise RailCompilationError(f"{flow!r} has no output_parser declared for task {task!r}, which is required")
+
+    if prompt.output_parser not in deps.llm_task_manager.output_parsers:
+        raise RailCompilationError(
+            f"{flow!r} declares output_parser {prompt.output_parser!r} for task {task!r}, which is "
+            "not a registered output parser"
+        )
+
+
 def _reject_missing_dependencies(
     surface: RailSurface,
     catalog: "RailCatalog",
@@ -610,6 +712,7 @@ def compile_rail(
 
     accepted = _accepted_parameters(action)
     bound = _frozen_parameters(surface, params, flow)
+    _reject_unknown_surface_parameter(surface, flow, params)
     context_bound = _context_parameters(surface, flow)
     _reject_unaccepted_bindings(
         surface,
@@ -620,6 +723,7 @@ def compile_rail(
     )
     _reject_unconfigured_models(bound, deps, flow)
     _reject_missing_dependencies(surface, catalog, flow, deps.config, params)
+    _reject_invalid_tool_safety_check_prompt(surface, catalog, flow, deps, params)
 
     return CompiledRail(
         flow=flow,

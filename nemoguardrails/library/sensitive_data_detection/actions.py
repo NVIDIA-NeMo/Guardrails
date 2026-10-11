@@ -13,9 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
+from collections.abc import Callable
+from concurrent.futures import CancelledError, ThreadPoolExecutor
+from contextvars import copy_context
 from functools import lru_cache
-from typing import Any
+from threading import Event, Lock
+from typing import Any, TypeVar
 
 try:
     from presidio_analyzer import PatternRecognizer  # type: ignore[reportMissingImports]
@@ -37,10 +42,31 @@ from nemoguardrails.rails.llm.config import (
 )
 
 log = logging.getLogger(__name__)
+_analyzer_init_lock = Lock()
+_T = TypeVar("_T")
+
+
+class _DetectionExecutor(ThreadPoolExecutor):
+    """Keep Presidio work out of the event loop's shared thread pool."""
+
+    async def run(self, func: Callable[[], _T]) -> _T:
+        """Offload work with the caller's context and standard future cancellation."""
+        return await asyncio.get_running_loop().run_in_executor(self, copy_context().run, func)
+
+
+# Use the default worker limit so unrelated requests can run concurrently.
+_detection_executor = _DetectionExecutor(thread_name_prefix="presidio-detection")
+
+
+def _get_analyzer(score_threshold: float = 0.4):
+    """Reuse one analyzer per threshold, including concurrent cold starts."""
+    with _analyzer_init_lock:
+        return _create_analyzer(score_threshold)
 
 
 @lru_cache
-def _get_analyzer(score_threshold: float = 0.4):
+def _create_analyzer(score_threshold: float = 0.4):
+    """Create an analyzer with the installed spaCy model."""
     if not 0.0 <= score_threshold <= 1.0:
         raise ValueError("score_threshold must be a float between 0 and 1 (inclusive).")
     try:
@@ -144,13 +170,25 @@ async def detect_sensitive_data(
     if len(options.entities) == 0:
         return _sensitive_data_detection_outcome(False)
 
-    analyzer = _get_analyzer(score_threshold=default_score_threshold)
-    results = analyzer.analyze(
-        text=text,
-        language="en",
-        entities=options.entities,
-        ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
-    )
+    cancelled = Event()
+
+    def analyze():
+        """Initialize and run Presidio entirely on the detection worker."""
+        analyzer = _get_analyzer(score_threshold=default_score_threshold)
+        if cancelled.is_set():
+            raise CancelledError()
+        return analyzer.analyze(
+            text=text,
+            language="en",
+            entities=options.entities,
+            ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
+        )
+
+    try:
+        results = await _detection_executor.run(analyze)
+    except asyncio.CancelledError:
+        cancelled.set()
+        raise
 
     if results:
         return _sensitive_data_detection_outcome(True)
@@ -179,7 +217,6 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig) -> Ra
     if len(options.entities) == 0:
         return _mask_sensitive_data_outcome(source, text, text)
 
-    analyzer = _get_analyzer()
     if OperatorConfig is None or AnonymizerEngine is None:
         raise ImportError(
             "Could not import presidio, please install it with `pip install presidio-analyzer presidio-anonymizer`."
@@ -189,13 +226,18 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig) -> Ra
     for entity in options.entities:
         operators[entity] = OperatorConfig("replace")
 
-    results = analyzer.analyze(
-        text=text,
-        language="en",
-        entities=options.entities,
-        ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
-    )
-    anonymizer = AnonymizerEngine()
-    masked_results = anonymizer.anonymize(text=text, analyzer_results=results, operators=operators)
+    def mask():
+        """Keep initialization, analysis, and anonymization off the event loop."""
+        analyzer = _get_analyzer()
+        results = analyzer.analyze(
+            text=text,
+            language="en",
+            entities=options.entities,
+            ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
+        )
+        anonymizer = AnonymizerEngine()
+        return anonymizer.anonymize(text=text, analyzer_results=results, operators=operators)
+
+    masked_results = await _detection_executor.run(mask)
 
     return _mask_sensitive_data_outcome(source, text, masked_results.text)

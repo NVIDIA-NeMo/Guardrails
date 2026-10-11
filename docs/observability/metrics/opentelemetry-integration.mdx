@@ -117,6 +117,11 @@ metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[read
 
 Use the Prometheus exporter to expose metrics on an HTTP endpoint that Prometheus scrapes directly.
 
+<Note>
+If you run the packaged `nemoguardrails server`, you do not need this code.
+Start the server with `--metrics-exporter prometheus` to get a built-in scrape endpoint for the admission-queue metrics; refer to [Prometheus and Grafana for the Guardrails Server](/observability/metrics/server-prometheus-grafana).
+</Note>
+
 ```python
 from prometheus_client import start_http_server
 

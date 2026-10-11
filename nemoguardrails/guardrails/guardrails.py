@@ -67,7 +67,9 @@ class Guardrails(BaseGuardrails):
         config contains flows IORails does not support), the wrapper falls back to
         LLMRails and logs a warning. Set ``require_iorails=True`` to raise a
         ``ValueError`` instead — use this when IORails-only features such as
-        OpenTelemetry metrics are required.
+        OpenTelemetry metrics are required. A config with per-tool rails
+        (``rails.tool_output.per_tool`` / ``rails.tool_input.per_tool``) always raises
+        instead of falling back, since LLMRails does not run them at all.
 
         ``verbose=True`` also routes this package's logs to stderr through ``configure_logging``;
         without it, handlers, levels and formatting are left to the calling application.
@@ -87,6 +89,12 @@ class Guardrails(BaseGuardrails):
                 self._rails_engine = IORails(config)
                 self.use_iorails_engine = True
             else:
+                if config.rails.tool_output.per_tool or config.rails.tool_input.per_tool:
+                    raise ValueError(
+                        f"IORails cannot be used: {fallback_reason}. Configured per-tool rails "
+                        "(rails.tool_output.per_tool / rails.tool_input.per_tool) are IORails-only; "
+                        "LLMRails does not run them, so falling back would silently disable them."
+                    )
                 message = (
                     f"use_iorails=True was requested but IORails cannot be used: {fallback_reason}. "
                     "Falling back to LLMRails; IORails-only features (such as OpenTelemetry "
@@ -345,22 +353,26 @@ class Guardrails(BaseGuardrails):
         self,
         messages: List[dict],
         rail_types: Optional[List[RailType]] = None,
+        *,
+        tools: Optional[List[dict]] = None,
     ) -> RailsResult:
         """Run rails on messages based on their content (asynchronous).
-        Supported by both LLMRails and IORails.
+        Supported by both LLMRails and IORails; tool rail types and ``tools`` by IORails only.
         """
         await self._ensure_started()
-        return await self.rails_engine.check_async(messages, rail_types=rail_types)
+        return await self.rails_engine.check_async(messages, rail_types=rail_types, tools=tools)
 
     def check(
         self,
         messages: List[dict],
         rail_types: Optional[List[RailType]] = None,
+        *,
+        tools: Optional[List[dict]] = None,
     ) -> RailsResult:
         """Synchronous version of check_async.
-        Supported by both LLMRails and IORails.
+        Supported by both LLMRails and IORails; tool rail types and ``tools`` by IORails only.
         """
-        return self.rails_engine.check(messages, rail_types=rail_types)
+        return self.rails_engine.check(messages, rail_types=rail_types, tools=tools)
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration.

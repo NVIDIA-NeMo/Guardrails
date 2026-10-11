@@ -23,6 +23,7 @@ pytest.importorskip("openai", reason="openai is required for these tests")
 
 from fastapi.testclient import TestClient
 
+from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.exceptions import (
     InvalidStateError,
     LLMAuthenticationError,
@@ -105,6 +106,13 @@ class _FakeLLMModel:
 
 
 class TestRaiseLLMCallException:
+    @pytest.fixture(autouse=True)
+    def _isolate_llm_call_info(self):
+        """Read model context from the fake model, not call info left by another test."""
+        token = llm_call_info_var.set(None)
+        yield
+        llm_call_info_var.reset(token)
+
     def test_propagates_status_from_inner(self):
         with pytest.raises(LLMCallException) as exc_info:
             _raise_llm_call_exception(LLMAuthenticationError(401, "Bad key"), _FakeLLMModel())

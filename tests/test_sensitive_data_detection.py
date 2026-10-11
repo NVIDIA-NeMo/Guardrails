@@ -17,8 +17,6 @@
 # uv sync --locked --extra sdd
 # python -m spacy download en_core_web_lg
 
-import subprocess
-
 import pytest
 
 from nemoguardrails import RailsConfig
@@ -31,38 +29,8 @@ SDD_SETUP_PRESENT = (
     check_optional_dependency("presidio_analyzer")
     and check_optional_dependency("presidio_anonymizer")
     and check_optional_dependency("spacy")
+    and check_optional_dependency("en_core_web_lg")
 )
-
-
-def setup_module(module):
-    if not SDD_SETUP_PRESENT:
-        pytest.skip("Required dependencies not found")
-
-    try:
-        # check if the model is already downloaded
-        if not spacy.util.is_package("en_core_web_lg"):
-            subprocess.run(
-                ["python", "-m", "spacy", "download", "en_core_web_lg"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-
-        # ensure the model is now available
-
-        if not spacy.util.is_package("en_core_web_lg"):
-            pytest.skip("Failed to download or verify spaCy model 'en_core_web_lg'")
-
-    except subprocess.CalledProcessError as e:
-        pytest.skip(f"Error downloading spaCy model: {e.stderr}")
-    except Exception as e:
-        pytest.skip(f"Unexpected error during setup: {str(e)}")
-
-
-def teardown_module(module):
-    """No cleanup needed as the spaCy model is a persistent dependency
-    that should remain available for future test runs."""
-    pass
 
 
 @pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")

@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import (
+    InvalidCheckRequestError,
     NonStreamingWorkQueueFullError,
     RailTypeNotConfiguredError,
     StreamingCapacityExceededError,
@@ -90,6 +91,7 @@ from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
 from nemoguardrails.rails.llm.options import (
+    TOOL_RAIL_TYPES,
     ActivatedRail,
     ExecutedAction,
     GenerationLog,
@@ -547,11 +549,65 @@ def _get_last_content_by_role(messages: list[dict], role: str) -> str:
     return ""
 
 
+# TODO Rename tool_output -> tool_call and tool_input -> tool_result throughout. Use this mapping in the meantime
+_RAIL_TYPE_CONFIG_SECTION = {RailType.TOOL_CALL: "tool_output", RailType.TOOL_RESULT: "tool_input"}
+
+
+def _rail_type_configured(config: RailsConfig, rail_type: RailType) -> bool:
+    """Whether *config* has rails for *rail_type*; for a tool rail type, per-tool rails count too."""
+    section = getattr(config.rails, _RAIL_TYPE_CONFIG_SECTION.get(rail_type, rail_type.value))
+    if rail_type in TOOL_RAIL_TYPES:
+        # A per_tool entry with no flows runs nothing, so it does not count.
+        return bool(section.flows) or any(section.per_tool.values())
+    return bool(section.flows)
+
+
+def _reject_unread_tools(rail_types: Optional[list[RailType]], tools: Optional[list[dict]]) -> None:
+    """Raise when *tools* is passed to a check that runs no tool_call rails, which would leave it unread."""
+    # Refused rather than ignored, so a caller who expected its tool calls validated learns they were not.
+    if tools is None:
+        return
+    if rail_types is not None and RailType.TOOL_CALL in rail_types:
+        return
+    raise InvalidCheckRequestError(
+        "tools is read only by a tool_call check; include tool_call in rail_types or leave tools out"
+    )
+
+
+def _has_tool_traffic(messages: LLMMessages) -> bool:
+    """Whether *messages* carry a tool result or an assistant turn that calls tools."""
+    for message in messages:
+        if message.get("role") == "tool":
+            return True
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            return True
+    return False
+
+
+def _reports_assistant_content(rails_to_run: list[str]) -> bool:
+    """Whether a check reports the assistant turn's text rather than the user's."""
+    if "output" in rails_to_run:
+        return True
+    # A tool-call check reports the turn it checked, unless input rails run, whose rewrite must stay visible.
+    return "tool_call" in rails_to_run and "input" not in rails_to_run
+
+
 def _blocked_message(result: RailResult) -> str:
     """The text a blocked turn returns, which says whether the rail broke or fired."""
     if result.failed:
         return INTERNAL_ERROR_MESSAGE
     return REFUSAL_MESSAGE
+
+
+def _blocked_check_result(result: RailResult) -> RailsResult:
+    """The check result for a block, naming the rail that blocked and why."""
+    return RailsResult(
+        status=RailStatus.BLOCKED,
+        content=_blocked_message(result),
+        rail=result.triggered_rail,
+        reason=client_reason(result),
+        tool_violations=list(result.tool_violations) or None,
+    )
 
 
 def _rewritten_user_message(result: RailResult) -> Optional[str]:
@@ -600,12 +656,16 @@ def _compile_only_deps(config: RailsConfig) -> RailDependencies:
     in-process backend from a remote one, so withholding it would make the gate refuse a rail
     over its NIM that ``RailsManager`` then compiles happily.
 
+    ``llm_task_manager`` is required too: some compile-time checks read
+    ``llm_task_manager.output_parsers`` to reject a prompt naming an output parser the config
+    never registers, catching that mistake at load time instead of the first request.
+
     The key sets match by construction, since ``EngineRegistry`` is built from these same
     models and registers each one.
     """
     return RailDependencies(
         llms={model.type: None for model in config.models},
-        llm_task_manager=None,
+        llm_task_manager=LLMTaskManager(config),
         config=config,
     )
 
@@ -655,6 +715,18 @@ class IORails(BaseGuardrails):
         )
         for label, flows, supported in tool_checks:
             reason = _unsupported_flows_reason(flows, supported, label)
+            if reason is not None:
+                return reason
+
+        # Per-tool flows are manifest surfaces, like input/output, so check them the same
+        # way rather than let a bad one raise in RailsManager at construction.
+        per_tool_checks = (
+            (config.rails.tool_output.per_tool, SurfaceDirection.TOOL_OUTPUT),
+            (config.rails.tool_input.per_tool, SurfaceDirection.TOOL_INPUT),
+        )
+        for per_tool, direction in per_tool_checks:
+            flows = [flow for tool_flows in per_tool.values() for flow in tool_flows]
+            reason = cls._unservable_rails_reason(flows, direction, deps)
             if reason is not None:
                 return reason
 
@@ -724,14 +796,6 @@ class IORails(BaseGuardrails):
             metrics_enabled=self._metrics_enabled,
             content_capture_enabled=self._content_capture_enabled,
         )
-        # Tool rails are CPU-bound, run sequentially since we're not waiting on IO to complete
-        if config.rails.tool_output.parallel or config.rails.tool_input.parallel:
-            warnings.warn(
-                "rails.tool_output.parallel / rails.tool_input.parallel are not honored by IORails; "
-                "tool rails run sequentially.",
-                stacklevel=2,
-            )
-
         self.rails_manager = RailsManager(
             engine_registry=self.engine_registry,
             task_manager=LLMTaskManager(config),
@@ -739,8 +803,12 @@ class IORails(BaseGuardrails):
             output_flows=config.rails.output.flows,
             input_parallel=config.rails.input.parallel or False,
             output_parallel=config.rails.output.parallel or False,
+            tool_output_parallel=config.rails.tool_output.parallel or False,
+            tool_input_parallel=config.rails.tool_input.parallel or False,
             tool_call_flows=config.rails.tool_output.flows,
             tool_result_flows=config.rails.tool_input.flows,
+            per_tool_call_flows=config.rails.tool_output.per_tool,
+            per_tool_result_flows=config.rails.tool_input.per_tool,
             tracer=self._tracer,
             content_capture_enabled=self._content_capture_enabled,
         )
@@ -1309,7 +1377,13 @@ class IORails(BaseGuardrails):
         _record_generation(timed)
         return _GeneratedTurn(response=timed.response, messages=messages)
 
-    def check(self, messages: LLMMessages, rail_types: Optional[list[RailType]] = None) -> RailsResult:
+    def check(
+        self,
+        messages: LLMMessages,
+        rail_types: Optional[list[RailType]] = None,
+        *,
+        tools: Optional[list[dict]] = None,
+    ) -> RailsResult:
         """Synchronous version of ``check_async``.
 
         Mirrors ``generate``: spins up a short-lived IORails engine with tracing
@@ -1318,7 +1392,8 @@ class IORails(BaseGuardrails):
 
         Raises:
             RailTypeNotConfiguredError: If a requested rail type has no
-                configured flows.
+                configured rails, or a tool rail type is requested on a config
+                with no ``main`` model.
         """
         if check_sync_call_from_async_loop():
             raise RuntimeError(
@@ -1334,31 +1409,51 @@ class IORails(BaseGuardrails):
         async def _run_sync_iorails():
             """Spin up a short-lived IORails engine for one synchronous check call."""
             async with IORails(sync_config, _report_usage=False) as iorails_engine:
-                return await iorails_engine.check_async(messages, rail_types=rail_types)
+                return await iorails_engine.check_async(messages, rail_types=rail_types, tools=tools)
 
         return asyncio.run(_run_sync_iorails())
 
-    async def check_async(self, messages: LLMMessages, rail_types: Optional[list[RailType]] = None) -> RailsResult:
-        """Run input and/or output rails on messages without main-LLM generation.
+    async def check_async(
+        self,
+        messages: LLMMessages,
+        rail_types: Optional[list[RailType]] = None,
+        *,
+        tools: Optional[list[dict]] = None,
+    ) -> RailsResult:
+        """Run input, output and tool rails on messages without main-LLM generation.
 
         When ``rail_types`` is None the rails to run are auto-detected from the
         message roles (user-only -> input, assistant-only -> output, both ->
-        input and output). When provided, exactly the named rail types run; an
-        empty list (``[]``) runs no rails and returns PASSED.
+        input and output); tool rails never run unless named. When provided,
+        exactly the named rail types run, in the order generation runs them:
+        tool_result, input, tool_call, output. An empty list (``[]``) runs no
+        rails and returns PASSED.
+
+        ``tools`` declares the tools a ``tool_call`` check validates calls
+        against, in the main model's wire format. It replaces the tools declared
+        on the main model's parameters, rather than adding to them; ``[]``
+        declares none.
 
         Submitted through the same admission queue as ``generate_async`` so the
         check path shares non-streaming concurrency limits, request metrics, and
         the per-request trace span.
 
         Raises:
+            InvalidCheckRequestError: If ``tools`` is given but ``rail_types``
+                does not include ``RailType.TOOL_CALL``.
             RailTypeNotConfiguredError: If a requested rail type has no
-                configured flows.
+                configured rails, or a tool rail type is requested on a config
+                with no ``main`` model.
         """
+        # Before queueing: a request the check cannot serve takes no queue slot and is not logged as a failed check.
+        _reject_unread_tools(rail_types, tools)
+        if rail_types is not None:
+            self._validate_requested_rail_types(rail_types)
         await self.start()
         metrics_ctx = request_metrics() if self._metrics_enabled else nullcontext()
         with metrics_ctx:
             try:
-                return await self._generate_async_queue.submit(self._run_check, messages, rail_types)
+                return await self._generate_async_queue.submit(self._run_check, messages, rail_types, tools)
             except asyncio.QueueFull as e:
                 if self._metrics_enabled:
                     record_nonstream_rejected()
@@ -1366,13 +1461,15 @@ class IORails(BaseGuardrails):
                 # this apart from a full streaming semaphore.
                 raise NonStreamingWorkQueueFullError(*e.args) from e
 
-    async def _run_check(self, messages: LLMMessages, rail_types: Optional[list[RailType]]) -> RailsResult:
+    async def _run_check(
+        self, messages: LLMMessages, rail_types: Optional[list[RailType]], tools: Optional[list[dict]]
+    ) -> RailsResult:
         """Queue-worker entry for ``check_async``: wrap the rails in a request span."""
         tracer = self._tracer if self._tracing_enabled else None
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
-                result = await self._do_check(messages, rail_types, req_id)
+                result = await self._do_check(messages, rail_types, req_id, tools=tools)
             except Exception:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] check failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
@@ -1393,17 +1490,17 @@ class IORails(BaseGuardrails):
         messages: LLMMessages,
         rail_types: Optional[list[RailType]],
         req_id: str,
+        *,
+        tools: Optional[list[dict]] = None,
     ) -> RailsResult:
-        """Core check pipeline: run the requested input/output rails on messages."""
+        """Core check pipeline: run the requested input, output and tool rails on messages."""
         log.info("[%s] check called", req_id)
         log.debug("[%s] check messages=%s", req_id, truncate(messages))
 
         if rail_types is not None:
-            for rt in rail_types:
-                if not getattr(self.config.rails, rt.value).flows:
-                    raise RailTypeNotConfiguredError(f"Requested rail type '{rt.value}' has no configured rails.")
             rails_to_run = [rail_type.value for rail_type in rail_types]
         else:
+            self._log_unrequested_tool_rails(messages, req_id)
             determined = _determine_rails_from_messages(messages)
             if determined is None:
                 last = messages[-1].get("content") if messages else ""
@@ -1413,12 +1510,17 @@ class IORails(BaseGuardrails):
         # Which direction's text the caller gets back, and so which rewrites it can observe: with
         # output rails in play the answer is the response, and an input rewrite is internal to the
         # check. Matches how LLMRails decides what ``check`` reports.
-        reports_output = "output" in rails_to_run
+        reports_output = _reports_assistant_content(rails_to_run)
         if reports_output:
             pass_content = _get_last_content_by_role(messages, "assistant")
         else:
             pass_content = _get_last_content_by_role(messages, "user")
         original_content = pass_content
+
+        if "tool_result" in rails_to_run:
+            blocked = await self._check_tool_results(messages, req_id)
+            if blocked is not None:
+                return blocked
 
         if "input" in rails_to_run:
             user_content = _get_last_content_by_role(messages, "user")
@@ -1431,11 +1533,7 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
-                    return RailsResult(
-                        status=RailStatus.BLOCKED,
-                        content=_blocked_message(input_result),
-                        rail=input_result.triggered_rail,
-                    )
+                    return _blocked_check_result(input_result)
                 rewritten = _rewritten_user_message(input_result)
                 if rewritten is not None:
                     log.info("[%s] Input rails rewrote the user message", req_id)
@@ -1445,7 +1543,12 @@ class IORails(BaseGuardrails):
             else:
                 log.info("[%s] Input rails requested but no user content to check; skipping", req_id)
 
-        if reports_output:
+        if "tool_call" in rails_to_run:
+            blocked = await self._check_latest_tool_calls(messages, tools, req_id)
+            if blocked is not None:
+                return blocked
+
+        if "output" in rails_to_run:
             bot_response = _get_last_content_by_role(messages, "assistant")
             # Skip when there is no assistant content: the content-safety action requires
             # bot_response and would otherwise raise, surfacing a false BLOCK.
@@ -1456,11 +1559,7 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Output blocked: %s", req_id, display_reason(output_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.OUTPUT)
-                    return RailsResult(
-                        status=RailStatus.BLOCKED,
-                        content=_blocked_message(output_result),
-                        rail=output_result.triggered_rail,
-                    )
+                    return _blocked_check_result(output_result)
                 rewritten = _rewritten_bot_message(output_result)
                 if rewritten is not None:
                     log.info("[%s] Output rails rewrote the response", req_id)
@@ -1473,6 +1572,52 @@ class IORails(BaseGuardrails):
         if pass_content != original_content:
             return RailsResult(status=RailStatus.MODIFIED, content=pass_content)
         return RailsResult(status=RailStatus.PASSED, content=pass_content)
+
+    def _validate_requested_rail_types(self, rail_types: list[RailType]) -> None:
+        """Raise when a requested rail type has no rails to run, or a tool rail type has no main model."""
+        for rail_type in rail_types:
+            if not _rail_type_configured(self.config, rail_type):
+                raise RailTypeNotConfiguredError(f"Requested rail type '{rail_type.value}' has no configured rails.")
+            if rail_type in TOOL_RAIL_TYPES and "main" not in self.engine_registry.llms:
+                raise RailTypeNotConfiguredError(
+                    f"Requested rail type '{rail_type.value}' needs a `main` model: its engine selects the "
+                    "tool wire format and supplies config-declared tools."
+                )
+
+    def _log_unrequested_tool_rails(self, messages: LLMMessages, req_id: str) -> None:
+        """Say at INFO when auto-detection skips tool rails that could check this conversation."""
+        tool_rails_configured = any(_rail_type_configured(self.config, rail_type) for rail_type in TOOL_RAIL_TYPES)
+        if tool_rails_configured and _has_tool_traffic(messages):
+            log.info(
+                "[%s] tool rails are configured but were not requested; "
+                "name tool_call or tool_result in rail_types to run them",
+                req_id,
+            )
+
+    async def _check_tool_results(self, messages: LLMMessages, req_id: str) -> Optional[RailsResult]:
+        """Run the tool-result rails, returning the blocked check result or None to continue."""
+        log.info("[%s] Running tool result rails", req_id)
+        result = await self.rails_manager.are_tool_results_safe(messages)
+        if result.is_safe:
+            return None
+        log.info("[%s] Tool results blocked: %s", req_id, display_reason(result))
+        if self._metrics_enabled:
+            record_request_blocked(RailDirection.INPUT)
+        return _blocked_check_result(result)
+
+    async def _check_latest_tool_calls(
+        self, messages: LLMMessages, tools: Optional[list[dict]], req_id: str
+    ) -> Optional[RailsResult]:
+        """Run the tool-call rails on the last assistant turn, returning the blocked check result or None."""
+        log.info("[%s] Running tool call rails", req_id)
+        llm_params = {"tools": tools} if tools is not None else None
+        result = await self.rails_manager.are_latest_tool_calls_safe(messages, llm_params)
+        if result.is_safe:
+            return None
+        log.info("[%s] Tool calls blocked: %s", req_id, display_reason(result))
+        if self._metrics_enabled:
+            record_request_blocked(RailDirection.OUTPUT)
+        return _blocked_check_result(result)
 
     def _validate_streaming_with_output_rails(self) -> None:
         """Raise if output rails exist but streaming is not enabled for them."""

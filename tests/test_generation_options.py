@@ -14,15 +14,21 @@
 # limitations under the License.
 import json
 import os.path
+from typing import Any
 
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.options import (
+    ActivatedRail,
+    ExecutedAction,
     GenerationLog,
     GenerationResponse,
     GenerationStats,
+    ToolViolation,
+    ToolViolationType,
 )
 from tests.utils import TestChat
 
@@ -435,7 +441,7 @@ def test_only_input_output_validation():
 
 
 def test_generation_log_print_summary(capsys):
-    """Test printing rais stats with dummy data"""
+    """Test printing rails stats with dummy data"""
 
     stats = GenerationStats(
         input_rails_duration=1.0,
@@ -467,6 +473,134 @@ def test_generation_log_print_summary(capsys):
         capture_lines[8]
         == "- 4 LLM calls, 8.00s total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
     )
+
+
+def _dummy_activated_rails(durations: list[float | None]) -> list[ActivatedRail]:
+    names = [
+        ("input", "dummy input rail"),
+        ("dialog", "dummy dialog rail"),
+        ("generation", "dummy generation rail"),
+        ("output", "dummy output rail"),
+    ]
+    return [
+        ActivatedRail(type=rail_type, name=name, duration=duration)
+        for (rail_type, name), duration in zip(names, durations, strict=True)
+    ]
+
+
+def test_generation_log_print_summary_no_total_duration(capsys):
+    """Missing total_duration must not crash, and activated rails still print."""
+    generation_log = GenerationLog(
+        activated_rails=[ActivatedRail(type="tool_output", name="tool output check", duration=0.5)],
+        stats=GenerationStats(),
+    )
+
+    generation_log.print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert "No stats available" in lines
+    assert "- Total time: 10.00s" not in lines
+    assert "- [0.50s] TOOL_OUTPUT (tool output check): 0 actions (n/a), 0 llm calls [n/a]" in lines
+
+
+def test_generation_log_print_summary_zero_total_duration(capsys):
+    """A zero total_duration with a nonzero rail duration must not raise ZeroDivisionError."""
+    stats = GenerationStats(
+        total_duration=0.0,
+        input_rails_duration=1.0,
+        llm_calls_count=0,
+    )
+
+    GenerationLog(activated_rails=[], stats=stats).print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert "- Total time: 0.00s" in lines
+    assert not any("INPUT Rails" in line for line in lines)
+
+
+def test_generation_log_print_summary_no_llm_calls_duration(capsys):
+    """Missing llm_calls_duration prints n/a instead of raising."""
+    stats = GenerationStats(
+        input_rails_duration=1.0,
+        dialog_rails_duration=2.0,
+        generation_rails_duration=3.0,
+        output_rails_duration=4.0,
+        total_duration=10.0,
+        llm_calls_duration=None,
+        llm_calls_count=4,
+        llm_calls_total_prompt_tokens=1000,
+        llm_calls_total_completion_tokens=2000,
+        llm_calls_total_tokens=3000,
+    )
+
+    GenerationLog(activated_rails=[], stats=stats).print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert (
+        "- 4 LLM calls, n/a total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
+        in lines
+    )
+
+
+def test_generation_log_print_summary_no_activated_rail_duration(capsys):
+    """Missing activated_rail.duration prints n/a instead of raising."""
+    stats = GenerationStats(
+        input_rails_duration=1.0,
+        dialog_rails_duration=2.0,
+        generation_rails_duration=3.0,
+        output_rails_duration=4.0,
+        total_duration=10.0,
+        llm_calls_duration=8.0,
+        llm_calls_count=4,
+        llm_calls_total_prompt_tokens=1000,
+        llm_calls_total_completion_tokens=2000,
+        llm_calls_total_tokens=3000,
+    )
+
+    GenerationLog(
+        activated_rails=_dummy_activated_rails([None, None, None, None]),
+        stats=stats,
+    ).print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert "- [n/a] INPUT (dummy input rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [n/a] DIALOG (dummy dialog rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [n/a] GENERATION (dummy generation rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [n/a] OUTPUT (dummy output rail): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert (
+        "- 4 LLM calls, 8.00s total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
+        in lines
+    )
+
+
+def test_generation_log_print_summary_no_llm_call_duration(capsys):
+    """An LLM call with no duration must be omitted, not reported as 0.00s."""
+    stats = GenerationStats(
+        input_rails_duration=1.0,
+        total_duration=1.0,
+        llm_calls_duration=None,
+        llm_calls_count=2,
+    )
+
+    executed_action = ExecutedAction(
+        action_name="dummy action",
+        llm_calls=[
+            LLMCallInfo(duration=None),
+            LLMCallInfo(duration=0.5),
+        ],
+    )
+    activated_rail = ActivatedRail(
+        type="input",
+        name="dummy input rail",
+        duration=1.0,
+        executed_actions=[executed_action],
+    )
+
+    GenerationLog(activated_rails=[activated_rail], stats=stats).print_summary()
+    lines = capsys.readouterr().out.splitlines()
+
+    assert "- [1.00s] INPUT (dummy input rail): 1 actions (dummy action), 2 llm calls [0.5s]" in lines
+    assert "0.0s" not in "\n".join(lines)
 
 
 @pytest.mark.parametrize(
@@ -538,3 +672,32 @@ async def test_rails_options_combinations(input_opt, output_opt, dialog_opt, exp
 
     assert input_rails_ran == expect_input, f"Input rails: expected {expect_input}, got {rail_names}"
     assert output_rails_ran == expect_output, f"Output rails: expected {expect_output}, got {rail_names}"
+
+
+def test_tool_violation_stores_non_string_identity_as_none():
+    """A non-string call id or tool name is stored as None rather than failing to build the violation."""
+    non_string_id: Any = 5
+    non_string_name: Any = ["run_sql"]
+
+    violation = ToolViolation(
+        kind="tool_call",
+        violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+        reason="tool call is not an allowed tool",
+        tool_call_id=non_string_id,
+        tool_name=non_string_name,
+    )
+
+    assert (violation.tool_call_id, violation.tool_name) == (None, None)
+
+
+def test_tool_violation_caps_the_tool_name_but_keeps_the_call_id_whole():
+    """A tool name, which the model can make up, is cut to 64 characters; the call id stays whole as identity."""
+    violation = ToolViolation(
+        kind="tool_call",
+        violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+        reason="tool call is not an allowed tool",
+        tool_call_id="i" * 200,
+        tool_name="n" * 200,
+    )
+
+    assert (violation.tool_call_id, violation.tool_name) == ("i" * 200, "n" * 64 + "...")
