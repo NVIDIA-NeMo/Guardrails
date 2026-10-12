@@ -36,9 +36,11 @@ async def close_stream(source: object, *, close: StreamClose | None = None) -> N
     alone cannot recover resources from an interrupted async-generator finally.
     This does not forcibly stop blocking code or cancellation-suppressing code.
     """
-    for closer in (getattr(source, "aclose", None), close):
+
+    async def attempt(closer: Callable[[], object] | None) -> None:
+        """Bound one closer without swallowing cancellation from its caller."""
         if not callable(closer):
-            continue
+            return
         try:
             with anyio.move_on_after(_STREAM_CLOSE_TIMEOUT_SECONDS, shield=True) as scope:
                 result = closer()
@@ -48,3 +50,8 @@ async def close_stream(source: object, *, close: StreamClose | None = None) -> N
                 log.warning("Stream cleanup timed out; resources may remain open.")
         except Exception:
             log.warning("Stream cleanup failed; resources may remain open.")
+
+    try:
+        await attempt(getattr(source, "aclose", None))
+    finally:
+        await attempt(close)

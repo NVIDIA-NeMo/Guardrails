@@ -563,3 +563,20 @@ async def test_explicit_resource_owner_closes_after_iterator_cleanup_fails():
 
     await collect(FailingClose([]), StaticChecker(), Hooks(), close=close_owner)
     assert closed == [True]
+
+
+@pytest.mark.asyncio
+async def test_iterator_close_cancellation_does_not_skip_the_resource_owner():
+    closed = []
+
+    class CancelledClose(Source):
+        async def aclose(self):
+            raise asyncio.CancelledError
+
+    async def close_owner():
+        await anyio.sleep(0)
+        closed.append(True)
+
+    with pytest.raises(asyncio.CancelledError):
+        await collect(CancelledClose([]), StaticChecker(), Hooks(), close=close_owner)
+    assert closed == [True]
