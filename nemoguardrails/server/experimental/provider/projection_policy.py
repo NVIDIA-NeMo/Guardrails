@@ -433,6 +433,36 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
 
     def expand(node: dict[str, Any]) -> dict[str, Any]:
         """Normalize the inline schema to the narrower contract vocabulary."""
+        supported = {
+            "title",
+            "description",
+            "$comment",
+            "examples",
+            "deprecated",
+            "readOnly",
+            "writeOnly",
+            "type",
+            "const",
+            "default",
+            "enum",
+            "minItems",
+            "maxItems",
+            "minLength",
+            "maxLength",
+            "pattern",
+            "minimum",
+            "maximum",
+            "properties",
+            "required",
+            "additionalProperties",
+            "items",
+            "anyOf",
+            "oneOf",
+            EXTENSION,
+        }
+        unsupported = {key for key in node if key not in supported and not key.startswith("x-")}
+        if unsupported:
+            raise ValueError(f"Schema keywords not expressible in the guard contract: {sorted(unsupported)}")
         result = dict(node)
         metadata = dict(result.get(EXTENSION, {}))
         if "properties" in result:

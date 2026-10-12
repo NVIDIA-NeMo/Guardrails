@@ -74,12 +74,12 @@ always validates with the closed default.
 [stream_classifier.py](stream_classifier.py) owns explicit `StreamEventRule`
 declarations for content and provider errors, along with the opaque `[DONE]`
 sentinel. Field coverage comes from the models; shape coverage comes from event
-rules. Data-less SSE events have a distinct `keepalive` shape; they are not
+rules, missing-text fallbacks, and transport declarations.
+Data-less SSE events have a distinct `keepalive` shape; they are not
 terminal `[DONE]` events. Numeric bounds and strictness use ordinary Pydantic
 constraints, independent of the inspection document's supported vocabulary.
 Unsupported document representations fail at export, not runtime construction.
-Shape coverage includes
-rules, missing-text fallbacks, and transport declarations. The shared
+The shared
 [stream policy helpers](../../../provider/stream_policy.py) derive a text path
 from typed fields, without schema generation, only when there is one subject
 and every traversed array has at most one item. A null container or null text
@@ -93,8 +93,7 @@ cannot silently turn guarded text into a metadata-only event. The lower-level
 classifier resolves text from the original JSON before validation and rejects a
 projection that changes that text, including through container transformations.
 Bytes are relayed unchanged only after their original guarded text is checked.
-The lower-level
-classifier API remains available for handwritten bindings; those do not
+The lower-level classifier API remains available for handwritten bindings; those do not
 automatically satisfy typed-policy validation or contract export.
 
 [stream_hooks.py](stream_hooks.py) remains handwritten. It enforces terminal
@@ -120,6 +119,36 @@ typed text paths and exact shape coverage. Custom extraction, mismatched binding
 and unsupported event selectors or fallbacks are rejected rather than silently
 omitted. A handwritten classifier can still run through `StreamBinding`, but the
 exporter requires the standard declarative classifier.
+Custom stream validators and custom response-mode properties are runtime-only,
+not exported. This includes properties with no selector field. An exported
+selector must be strict boolean (optionally nullable), with no default factory
+or custom selector validation. Unsupported schema keywords fail at export.
+
+## Streaming ownership and limits
+
+Streaming dispatch owns the upstream resource until it returns
+`StreamingHttpResponse`. A dispatcher using an async generator must provide
+`close=upstream_response.aclose` (or an equivalent resource-owner callback),
+not just the generator's `aclose`. Cancellation can permanently interrupt a
+generator's awaited `finally`. An ordinary self-owning iterator may implement
+idempotent `aclose` directly. If dispatch or response construction fails before
+handoff, the dispatcher must close the resource itself.
+
+The HTTP response owns cleanup afterward, including disconnect before iteration,
+source or checker failure, and normal EOF. Iterator cleanup and resource closing
+use the same shielded, five-second-per-attempt helper. Closing can be retried;
+callbacks must be idempotent and cooperate with cancellation. Timeouts and
+ordinary close failures are logged without replacing the primary stream outcome.
+This cannot forcibly close uncooperative code or guarantee resources were freed.
+
+With output inspection disabled, bytes are relayed without event classification
+or provider lifecycle checks. Inspected streams check windows of nonempty text
+deltas: `chunk_size` and `context_size` are counts, not tokens or bytes. Previously
+released bytes cannot be retracted. Pending-byte limits do not include retained
+context and are not a complete memory budget. The final pending events wait for
+completion validation; upstream idle/read deadlines belong to transport policy.
+
+## Exporting the bound contract
 
 ```python
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract

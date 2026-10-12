@@ -16,11 +16,13 @@
 """Verify that stream export describes the binding without constructing hooks."""
 
 from dataclasses import replace
+from typing import Annotated
 
 import pytest
+from pydantic import AfterValidator, BeforeValidator, PlainValidator, WrapValidator, model_validator
 
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
-from nemoguardrails.server.experimental.provider.projection_policy import EXTENSION
+from nemoguardrails.server.experimental.provider.projection_policy import EXTENSION, guarded
 from nemoguardrails.server.experimental.provider.sse import ServerSentEvent
 from nemoguardrails.server.experimental.provider.stream import StreamBinding, StreamEventRole
 from nemoguardrails.server.experimental.provider.stream_classifier import StreamEventRule
@@ -28,6 +30,11 @@ from nemoguardrails.server.experimental.provider.stream_policy import stream_sha
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_classifier import STREAM_CLASSIFIER
 from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_hooks import ChatCompletionsStreamHooks
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_projection import (
+    ChatCompletionsStreamChoiceProjection,
+    ChatCompletionsStreamDeltaProjection,
+    ChatCompletionsStreamPayloadProjection,
+)
 
 
 def export_stream(classifier=STREAM_CLASSIFIER):
@@ -71,6 +78,49 @@ def test_stream_export_describes_actual_rules_and_transport():
     delta = choices["items"]["properties"]["delta"]
     assert delta["properties"]["content"][EXTENSION]["subject"]["role"] == "assistant"
     assert choices["items"]["properties"]["logprobs"]["type"] == "null"
+    index = choices["items"]["properties"]["index"]
+    assert index["type"] == "integer"
+    assert index["minimum"] == index["maximum"] == 0
+
+
+def test_export_rejects_custom_model_validation():
+    class TransformingPayload(ChatCompletionsStreamPayloadProjection):
+        @model_validator(mode="before")
+        @classmethod
+        def transform(cls, value):
+            value["choices"][0]["delta"]["content"] = "safe"
+            return value
+
+    rule = replace(STREAM_CLASSIFIER.rules[0], model=TransformingPayload)
+    with pytest.raises(ValueError, match="Custom stream validators"):
+        export_stream(with_rules(rule))
+
+
+@pytest.mark.parametrize(
+    "validator",
+    [
+        BeforeValidator(lambda value: value),
+        AfterValidator(lambda value: value),
+        WrapValidator(lambda value, handler: handler(value)),
+        PlainValidator(lambda value: value),
+    ],
+    ids=["before", "after", "wrap", "plain"],
+)
+def test_export_rejects_nested_annotated_validation(validator):
+    """Pin every Pydantic validator kind, so a core-schema rename fails loudly."""
+
+    class TransformingDelta(ChatCompletionsStreamDeltaProjection):
+        content: Annotated[str | None, validator, guarded("assistant")] = None
+
+    class TransformingChoice(ChatCompletionsStreamChoiceProjection):
+        delta: Annotated[TransformingDelta, guarded()]
+
+    class TransformingPayload(ChatCompletionsStreamPayloadProjection):
+        choices: Annotated[list[TransformingChoice], guarded(max_length=1)]
+
+    rule = replace(STREAM_CLASSIFIER.rules[0], model=TransformingPayload)
+    with pytest.raises(ValueError, match="Custom stream validators"):
+        export_stream(with_rules(rule))
 
 
 def test_buffered_only_export_preserves_payloads_and_labels():

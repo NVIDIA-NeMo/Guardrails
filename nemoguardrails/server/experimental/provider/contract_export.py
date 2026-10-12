@@ -33,8 +33,9 @@ import importlib
 import json
 import sys
 from pathlib import Path
-from types import UnionType
-from typing import Annotated, Any, Literal, Union, get_args, get_origin
+from typing import Any, Literal
+
+from pydantic import TypeAdapter
 
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.provider.payload import (
@@ -48,6 +49,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     EXTENSION,
     PolicyModel,
     export_payload_schema,
+    model_graph,
     payload_contract,
     text_location,
 )
@@ -60,12 +62,41 @@ from nemoguardrails.server.experimental.provider.stream_classifier import (
 from nemoguardrails.server.experimental.provider.stream_policy import build_policy_stream_classifier
 
 
+def _validate_stream_model(model: type[PolicyModel]) -> None:
+    """Reject custom stream validation that cannot be described by field policy."""
+
+    def visit(node: Any) -> None:
+        if isinstance(node, dict):
+            kind = node.get("type")
+            if isinstance(kind, str) and kind in {
+                "function-before",
+                "function-after",
+                "function-wrap",
+                "function-plain",
+            }:
+                if node["function"]["function"] is not PolicyModel.reject_unreviewed_fields:
+                    raise ValueError("Custom stream validators cannot be represented by the contract")
+            for name, child in node.items():
+                if isinstance(kind, str) and name in {"metadata", "default", "config", "function"}:
+                    continue
+                visit(child)
+        elif isinstance(node, (list, tuple)):
+            for child in node:
+                visit(child)
+
+    for nested in model_graph(model).values():
+        if nested.model_validate.__func__ is not PolicyModel.model_validate.__func__:
+            raise ValueError("Custom stream validators cannot be represented by the contract")
+    visit(model.__pydantic_core_schema__)
+
+
 def _export_stream_event(rule: StreamEventRule) -> dict[str, Any]:
     """Describe a typed event rule without dropping unsupported selection or fallback semantics."""
     if type(rule) is not StreamEventRule:
         raise TypeError("Stream contract export requires standard declarative event rules")
     if not issubclass(rule.model, PolicyModel) or not rule.model.policy.source:
         raise ValueError("Stream event export requires an explicit policy source schema")
+    _validate_stream_model(rule.model)
     if len(dict(rule.match)) != len(rule.match) or any(type(value) not in (str, int, bool) for _, value in rule.match):
         raise ValueError("Stream event export requires unique match keys with string, integer, or boolean values")
     roles = {
@@ -151,23 +182,31 @@ def _validate_policy_binding(
 
 
 def _validate_stream_selector(model: type[GuardedRequestModel]) -> None:
-    """Require a boolean selector; permitted null values select buffered output."""
-    selector = model.stream_selector_field
-    if selector is None:
-        return
-    field = model.model_fields.get(selector)
-    annotation = field.annotation if field is not None else None
-    if get_origin(annotation) in (Union, UnionType) and type(None) in get_args(annotation):
-        members = [member for member in get_args(annotation) if member is not type(None)]
-        if len(members) == 1:
-            annotation = members[0]
-    while get_origin(annotation) is Annotated:
-        annotation = get_args(annotation)[0]
-    literal_boolean = get_origin(annotation) is Literal and all(type(value) is bool for value in get_args(annotation))
-    if annotation is not bool and not literal_boolean:
-        raise ValueError("The stream selector must name a boolean field")
+    """Require declarative strict-boolean selection with a representable default."""
     if model.streams_response is not GuardedRequestModel.streams_response:
         raise ValueError("Custom response-mode selection cannot be represented by the declared stream selector")
+    selector = model.stream_selector_field
+    if selector is None:
+        raise ValueError("The stream selector must name a strict boolean field")
+    field = model.model_fields.get(selector)
+    if field is None:
+        raise ValueError("The stream selector must name a strict boolean field")
+    adapter = TypeAdapter(field.rebuild_annotation(), config={"strict": model.model_config.get("strict", False)})
+    schema = adapter.core_schema
+    if schema["type"] == "nullable":
+        schema = schema["schema"]
+    if schema["type"] != "bool" or not schema.get("strict", model.model_config.get("strict", False)):
+        raise ValueError("The stream selector must name a strict boolean field")
+    decorators = model.__pydantic_decorators__
+    if any(selector in item.info.fields or "*" in item.info.fields for item in decorators.field_validators.values()):
+        raise ValueError("Custom stream selector validators cannot be represented by the contract")
+    allowed = {PolicyModel.reject_unreviewed_fields, GuardedPayloadModel.validate_guarded_text_target}
+    if any(item.func not in allowed for item in decorators.model_validators.values()):
+        raise ValueError("Custom response-mode validation cannot be represented by the declared stream selector")
+    if field.default_factory is not None:
+        raise ValueError("A stream selector default factory cannot be represented by the contract")
+    if not field.is_required():
+        adapter.validate_python(field.default)
 
 
 def export_guard_contract(endpoint: GuardedJsonEndpoint) -> dict[str, Any]:
@@ -204,8 +243,7 @@ def export_guard_contract(endpoint: GuardedJsonEndpoint) -> dict[str, Any]:
     _validate_stream_selector(request_model)
     request = export_payload_schema(request_model, projection_id=request_contract.projection_id)
     response = export_payload_schema(response_model, projection_id=response_contract.projection_id)
-    if request_model.stream_selector_field is not None:
-        request[EXTENSION]["stream_selector_field"] = request_model.stream_selector_field
+    request[EXTENSION]["stream_selector_field"] = request_model.stream_selector_field
     integration: dict[str, Any] = {}
     if endpoint.contract_name is not None:
         integration["name"] = endpoint.contract_name

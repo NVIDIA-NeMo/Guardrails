@@ -92,6 +92,15 @@ cardinality. This is distinct from ordinary array length constraints.
 false or null selects buffered output, with null allowed only when the field's
 schema permits it. Omission follows the declared default. This marker does not
 enable streaming support or make a field nullable.
+The exporter requires a strict boolean selector with a literal default (or a
+required field). Custom mode-selection properties, selector validators, and
+default factories are runtime-only, even when no selector is named.
+
+Numeric restrictions use the standard `minimum` and `maximum` assertions.
+Python strictness has no JSON Schema keyword and is a stated limitation, not an
+export failure: JSON Schema cannot distinguish an integer token from an
+integral floating-point token. Runtime constraints do not have to be
+exportable to construct a binding.
 
 A stream's `oneOf` branches describe event families: `guarded_delta`, `snapshot`,
 `opaque`, or `provider_error`. Their variants identify source schemas, matching
@@ -102,6 +111,9 @@ so a provider member whose name contains a dot cannot be matched. An object
 compare the exact parsed type and value, so `1`, `1.0`, and `true` are
 distinct. Missing-text policy is distinct from schema nullability. Transport
 metadata describes SSE discriminators and sentinels.
+The standard stream exporter rejects custom Python validators instead of
+presenting their result as an equivalent declarative policy. Runtime stream
+classification independently rejects validation that changes the original text.
 Event exclusions and external-source reasons record scope and provenance; they
 do not establish that every provider event has been reviewed.
 

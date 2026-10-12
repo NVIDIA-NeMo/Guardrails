@@ -19,6 +19,7 @@ from dataclasses import replace
 import httpx
 import pytest
 from fastapi import FastAPI
+from pydantic import model_validator
 
 from nemoguardrails.server.experimental._content_checker import (
     ContentAllowed,
@@ -28,8 +29,14 @@ from nemoguardrails.server.experimental._content_checker import (
 )
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse
 from nemoguardrails.server.experimental._streaming_http import StreamingHttpResponse
+from nemoguardrails.server.experimental.provider.stream import StreamBinding
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import (
     CHAT_COMPLETIONS_ENDPOINT,
+)
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_classifier import STREAM_CLASSIFIER
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_hooks import ChatCompletionsStreamHooks
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_projection import (
+    ChatCompletionsStreamPayloadProjection,
 )
 from nemoguardrails.server.experimental.providers.openai.errors import OPENAI_ERROR_MAPPING
 from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_router
@@ -149,6 +156,36 @@ async def test_stream_errors_honor_endpoint_codes(failure, monkeypatch):
 async def post_stream(client, body=None, **kwargs):
     headers = {"content-type": "application/json", **kwargs.pop("headers", {})}
     return await client.post("/v1/chat/completions", content=body or request_body(), headers=headers, **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_transforming_projection_never_checks_different_text_then_relays_original(monkeypatch):
+    from nemoguardrails.server.experimental.providers.openai import integration
+
+    class TransformingPayload(ChatCompletionsStreamPayloadProjection):
+        @model_validator(mode="before")
+        @classmethod
+        def transform(cls, value):
+            value["choices"][0]["delta"]["content"] = "safe"
+            return value
+
+    rule = replace(STREAM_CLASSIFIER.rules[0], model=TransformingPayload)
+    classifier = replace(STREAM_CLASSIFIER, rules=(rule, STREAM_CLASSIFIER.rules[1]))
+    endpoint = replace(CHAT_COMPLETIONS_ENDPOINT, stream=StreamBinding(classifier, ChatCompletionsStreamHooks))
+    monkeypatch.setattr(integration, "CHAT_COMPLETIONS_ENDPOINT", endpoint)
+    source = Source([stream_event("unsafe-original") + b"data: [DONE]\n\n"])
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, ((b"content-type", b"text/event-stream"),), source)
+
+    checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+    async with make_client(checker, dispatch) as client:
+        response = await post_stream(client)
+
+    assert b"unsafe-original" not in response.content
+    assert CHAT_COMPLETIONS_ENDPOINT.unsupported_response_code.encode() in response.content
+    assert not any(kind == "output" for kind, _ in checker.calls)
+    assert source.closed
 
 
 @pytest.mark.asyncio

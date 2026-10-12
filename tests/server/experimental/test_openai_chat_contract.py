@@ -132,10 +132,19 @@ def test_chat_exports_conform_to_the_guard_contract_schema():
     assert _contract_errors(ChatCompletionsGuardedRequestProjection, ChatCompletionsGuardedResponseProjection) == []
 
 
-@pytest.mark.parametrize(("bound", "exportable"), [({"ge": 0}, True), ({"le": 0}, True), ({"gt": 0}, False)])
-def test_contract_schema_supports_only_inclusive_numeric_bounds(bound, exportable):
+@pytest.mark.parametrize("bound", [{"ge": 0}, {"le": 0}])
+def test_contract_schema_supports_inclusive_numeric_bounds(bound):
     class Response(PolicyModel):
         text: Annotated[str, guarded("assistant")]
         count: Annotated[int, Field(**bound), constrained()]
 
-    assert (_contract_errors(ChatCompletionsGuardedRequestProjection, Response) == []) is exportable
+    assert _contract_errors(ChatCompletionsGuardedRequestProjection, Response) == []
+
+
+def test_export_rejects_numeric_bounds_the_contract_cannot_carry():
+    class Response(PolicyModel):
+        text: Annotated[str, guarded("assistant")]
+        count: Annotated[int, Field(gt=0), constrained()]
+
+    with pytest.raises(ValueError, match="not expressible in the guard contract: \\['exclusiveMinimum'\\]"):
+        _contract_errors(ChatCompletionsGuardedRequestProjection, Response)

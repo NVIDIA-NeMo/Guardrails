@@ -21,7 +21,7 @@ import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, ClassVar, Literal
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -54,11 +54,8 @@ def example_endpoint() -> GuardedJsonEndpoint:
 
     class Request(PolicyModel, GuardedRequestModel):
         prompt: Annotated[str, guarded("user", replaceable=True, min_length=1)]
-
-        @property
-        def streams_response(self) -> bool:
-            """This example has no request flag and always returns buffered JSON."""
-            return False
+        stream: Annotated[StrictBool, constrained()] = False
+        stream_selector_field: ClassVar[str | None] = "stream"
 
     class Response(PolicyModel, GuardedPayloadModel):
         answer: Annotated[str, guarded("assistant", replaceable=False, min_length=2)]
@@ -79,7 +76,7 @@ def example_endpoint() -> GuardedJsonEndpoint:
     )
 
 
-def test_export_supports_another_endpoint_without_a_stream_selector(example_endpoint):
+def test_export_supports_another_endpoint_with_a_buffered_default(example_endpoint):
     """The exporter derives both payloads and labels from the supplied endpoint."""
     contract = export_guard_contract(example_endpoint)
     schema = json.loads(
@@ -96,10 +93,10 @@ def test_export_supports_another_endpoint_without_a_stream_selector(example_endp
         "unsupported_response_code": "unsupported_example_response",
     }
     assert contract["request"]["title"] == "example.request"
-    assert set(contract["request"]["properties"]) == {"prompt"}
+    assert set(contract["request"]["properties"]) == {"prompt", "stream"}
     assert contract["response"]["title"] == "example.response"
     assert set(contract["response"]["properties"]) == {"answer"}
-    assert "stream_selector_field" not in contract["request"][EXTENSION]
+    assert contract["request"][EXTENSION]["stream_selector_field"] == "stream"
     assert "stream" not in contract
 
 
@@ -115,7 +112,11 @@ def test_export_rejects_binding_policy_drift(example_endpoint, direction, mutati
         )
     elif mutation == "coverage":
         contract = model.projection_contract
-        coverage = replace(contract.root, guarded_fields=frozenset(), constrained_fields=contract.root.guarded_fields)
+        coverage = replace(
+            contract.root,
+            guarded_fields=frozenset(),
+            constrained_fields=contract.root.constrained_fields | contract.root.guarded_fields,
+        )
         monkeypatch.setattr(model, "projection_contract", replace(contract, root=coverage))
     else:
 
@@ -147,7 +148,7 @@ def test_export_rejects_a_binding_that_inspects_an_opaque_field(example_endpoint
         export_guard_contract(endpoint)
 
 
-@pytest.mark.parametrize("selector", ["missing", "prompt"])
+@pytest.mark.parametrize("selector", [None, "missing", "prompt"])
 def test_export_rejects_non_boolean_stream_selectors(example_endpoint, selector, monkeypatch):
     """A declared stream selector must name a boolean field, not arbitrary metadata."""
     monkeypatch.setattr(example_endpoint.guarded_request_model, "stream_selector_field", selector)
@@ -158,11 +159,11 @@ def test_export_rejects_non_boolean_stream_selectors(example_endpoint, selector,
 @pytest.mark.parametrize(
     ("annotation", "accepted"),
     [
-        (bool, True),
+        (bool, False),
         (StrictBool, True),
-        (bool | None, True),
+        (bool | None, False),
         (StrictBool | None, True),
-        (Literal[True, False] | None, True),
+        (Literal[True, False] | None, False),
         (str | None, False),
         (int | None, False),
         (bool | int | None, False),
@@ -197,7 +198,8 @@ def test_export_accepts_only_boolean_or_nullable_boolean_selectors(example_endpo
             assert Request.model_validate(payload).streams_response is (value is True)
 
 
-def test_export_rejects_custom_selection_with_a_declared_stream_selector(example_endpoint):
+@pytest.mark.parametrize("selector", [None, "stream"])
+def test_export_rejects_custom_selection_with_or_without_a_stream_selector(example_endpoint, selector):
     """An exported boolean selector must describe the runtime selection rule."""
 
     class Request(PolicyModel, GuardedRequestModel):
@@ -210,9 +212,54 @@ def test_export_rejects_custom_selection_with_a_declared_stream_selector(example
 
     Request.projection_contract = payload_contract(Request, projection_id="example.request", direction="request")
     Request.guarded_text_location = text_location(Request)
-    Request.stream_selector_field = "stream"
+    Request.stream_selector_field = selector
     with pytest.raises(ValueError, match="Custom response-mode selection"):
         export_guard_contract(replace(example_endpoint, guarded_request_model=Request))
+
+
+@pytest.mark.parametrize("default", [False, True, None])
+def test_export_preserves_nullable_selector_defaults(example_endpoint, default):
+    class Request(PolicyModel, GuardedRequestModel):
+        prompt: Annotated[str, guarded("user")]
+        stream: Annotated[StrictBool | None, constrained()] = default
+        stream_selector_field: ClassVar[str | None] = "stream"
+
+    Request.projection_contract = payload_contract(Request, projection_id="example.request", direction="request")
+    Request.guarded_text_location = text_location(Request)
+    contract = export_guard_contract(replace(example_endpoint, guarded_request_model=Request))
+    assert contract["request"]["properties"]["stream"]["default"] is default
+    assert Request.model_validate({"prompt": "question"}).streams_response is (default is True)
+    for value in ("true", "false", 0, 1):
+        with pytest.raises(ValueError):
+            Request.model_validate({"prompt": "question", "stream": value})
+
+
+def test_runtime_schema_constructs_fail_only_at_contract_export(example_endpoint):
+    from datetime import date
+
+    class Request(example_endpoint.guarded_request_model):
+        date_value: Annotated[date, constrained()]
+
+    Request.projection_contract = payload_contract(Request, projection_id="example.request", direction="request")
+    Request.model_validate({"prompt": "question", "date_value": "2026-10-12"})
+    endpoint = replace(example_endpoint, guarded_request_model=Request)
+    with pytest.raises(ValueError, match="not expressible.*format"):
+        export_guard_contract(endpoint)
+
+
+def test_selector_default_factory_is_not_silently_omitted(example_endpoint, monkeypatch):
+    field = example_endpoint.guarded_request_model.model_fields["stream"]
+    monkeypatch.setattr(field, "default_factory", lambda: True)
+    with pytest.raises(ValueError, match="default factory"):
+        export_guard_contract(example_endpoint)
+
+
+@pytest.mark.parametrize("default", ["true", 1, None])
+def test_selector_defaults_must_match_the_declared_type(example_endpoint, monkeypatch, default):
+    field = example_endpoint.guarded_request_model.model_fields["stream"]
+    monkeypatch.setattr(field, "default", default)
+    with pytest.raises(ValueError):
+        export_guard_contract(example_endpoint)
 
 
 def test_export_follows_changed_endpoint_metadata(example_endpoint):
@@ -243,10 +290,8 @@ def test_http_schema_does_not_require_exportable_unions(example_endpoint):
     class UnionRequest(PolicyModel, GuardedRequestModel):
         prompt: Annotated[str, guarded("user")]
         option: Annotated[str | int, constrained()]
-
-        @property
-        def streams_response(self) -> bool:
-            return False
+        stream: Annotated[StrictBool, constrained()] = False
+        stream_selector_field: ClassVar[str | None] = "stream"
 
     UnionRequest.projection_contract = payload_contract(
         UnionRequest, projection_id="example.request", direction="request"
