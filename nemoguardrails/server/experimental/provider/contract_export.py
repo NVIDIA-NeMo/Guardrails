@@ -87,6 +87,8 @@ def _validate_stream_model(model: type[PolicyModel]) -> None:
     for nested in model_graph(model).values():
         if nested.model_validate.__func__ is not PolicyModel.model_validate.__func__:
             raise ValueError("Custom stream validators cannot be represented by the contract")
+        if any(field.default_factory is not None for field in nested.model_fields.values()):
+            raise ValueError("Stream default factories cannot be represented by the contract")
     visit(model.__pydantic_core_schema__)
 
 

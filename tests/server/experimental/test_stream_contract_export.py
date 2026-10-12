@@ -19,7 +19,7 @@ from dataclasses import replace
 from typing import Annotated
 
 import pytest
-from pydantic import AfterValidator, BeforeValidator, PlainValidator, WrapValidator, model_validator
+from pydantic import AfterValidator, BeforeValidator, Field, PlainValidator, WrapValidator, model_validator
 
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
 from nemoguardrails.server.experimental.provider.projection_policy import EXTENSION, guarded
@@ -120,6 +120,17 @@ def test_export_rejects_nested_annotated_validation(validator):
 
     rule = replace(STREAM_CLASSIFIER.rules[0], model=TransformingPayload)
     with pytest.raises(ValueError, match="Custom stream validators"):
+        export_stream(with_rules(rule))
+
+
+def test_export_rejects_stream_default_factories():
+    class DefaultedPayload(ChatCompletionsStreamPayloadProjection):
+        choices: Annotated[list[ChatCompletionsStreamChoiceProjection], guarded(max_length=1)] = Field(
+            default_factory=list
+        )
+
+    rule = replace(STREAM_CLASSIFIER.rules[0], model=DefaultedPayload)
+    with pytest.raises(ValueError, match="default factories"):
         export_stream(with_rules(rule))
 
 
