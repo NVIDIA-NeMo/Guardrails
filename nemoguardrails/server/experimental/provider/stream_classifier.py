@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Classify provider stream events from generated semantic rules."""
+"""Validate declared event shapes without changing the inspected wire text."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -151,8 +151,10 @@ class StreamClassifier:
                 shapes = ", ".join(repr(rule.shape) for rule in matching_rules)
                 raise UnsupportedProviderStream(f"{self.subject} event ambiguously matches {shapes}.")
             rule = matching_rules[0]
+            text = _resolve_text(payload, rule.text_path)
             projection = rule.model.model_validate(payload)
-            text = _resolve_text(projection, rule.text_path)
+            if _resolve_text(projection, rule.text_path) != text:
+                raise UnsupportedProviderStream(f"{self.subject} validation changed the original guarded text.")
             if text is None and rule.missing_text_role is not None:
                 return GuardedStreamEvent(
                     rule.missing_text_shape or rule.shape,
@@ -170,13 +172,15 @@ class StreamClassifier:
             raise UnsupportedProviderStream(str(error)) from error
 
 
-def _resolve_text(projection: BaseModel, path: StreamTextPath | None) -> str | None:
+def _resolve_text(projection: BaseModel | dict[str, Any], path: StreamTextPath | None) -> str | None:
     if path is None:
         return None
     value: object = projection
     for segment in path:
         if isinstance(segment, str) and isinstance(value, BaseModel):
             value = getattr(value, segment)
+        elif isinstance(segment, str) and isinstance(value, dict):
+            value = value.get(segment)
         elif isinstance(segment, int) and isinstance(value, list):
             if segment < 0:
                 raise ValueError("Stream event text paths cannot use negative indexes.")
@@ -195,7 +199,7 @@ def _resolve_text(projection: BaseModel, path: StreamTextPath | None) -> str | N
 
 
 def build_stream_classifier(definition: StreamClassifierDefinition) -> StreamClassifier:
-    """Validate generated event rules and return their runtime classifier."""
+    """Validate declared event rules and return their runtime classifier."""
 
     if not definition.subject:
         raise ValueError("A stream classifier definition must identify its provider event subject.")

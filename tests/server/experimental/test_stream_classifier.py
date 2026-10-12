@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+from dataclasses import replace
 from typing import Literal
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from nemoguardrails.server.experimental.provider.sse import ServerSentEvent
 from nemoguardrails.server.experimental.provider.stream import (
@@ -208,3 +210,33 @@ def test_stream_discriminators_require_matching_types(expected, other):
     assert selector.select([incorrect, correct]) is correct
     assert rule.matches(correct) is True
     assert rule.matches(incorrect) is False
+
+
+@pytest.mark.parametrize("mutation", ["text", "drop", "reorder"])
+def test_classifier_rejects_validation_that_changes_the_original_subject(mutation):
+    class TransformingChunk(Chunk):
+        @model_validator(mode="before")
+        @classmethod
+        def transform(cls, value):
+            if mutation == "text":
+                value["deltas"][0]["text"] = "safe"
+            elif mutation == "drop":
+                value["deltas"] = []
+            else:
+                value["deltas"].reverse()
+            return value
+
+    original = classifier()
+    modified = replace(original, rules=(replace(original.rules[1], model=TransformingChunk),))
+    event = ServerSentEvent.from_bytes(b'data: {"kind":"chunk","deltas":[{"text":"unsafe"},{"text":"safe"}]}\n\n')
+
+    with pytest.raises(UnsupportedProviderStream, match="original guarded text"):
+        modified.classify_event(event)
+
+
+@pytest.mark.parametrize("value", [None, "", "hello"])
+def test_classifier_preserves_nullable_and_empty_original_text(value):
+    event = ServerSentEvent.from_bytes(
+        b"data: " + json.dumps({"kind": "chunk", "deltas": [{"text": value}]}).encode() + b"\n\n"
+    )
+    assert classifier().classify_event(event).text == value
