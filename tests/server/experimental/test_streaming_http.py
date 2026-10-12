@@ -21,7 +21,7 @@ import anyio
 import pytest
 from starlette.requests import ClientDisconnect
 
-from nemoguardrails.server.experimental import _streaming_http
+from nemoguardrails.server.experimental import _stream_cleanup
 from nemoguardrails.server.experimental._buffered_kernel import OperationProjectionFailed
 from nemoguardrails.server.experimental._content_checker import ContentAllowed, StreamBufferingPolicy
 from nemoguardrails.server.experimental._guarded_stream import StreamProcessingFailed, StreamUpstreamFailed
@@ -327,7 +327,7 @@ async def test_rejection_cleanup_finishes_under_cancellation(encoded):
 @pytest.mark.parametrize("encoded", [False, True])
 @pytest.mark.parametrize("cancel_request", [False, True])
 async def test_stalled_rejection_cleanup_preserves_rejection(monkeypatch, caplog, encoded, cancel_request):
-    monkeypatch.setattr(_streaming_http, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01, raising=False)
+    monkeypatch.setattr(_stream_cleanup, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01)
     source = StalledClose()
     headers = (
         ((b"content-type", b"text/event-stream"), (b"content-encoding", b"gzip"))
@@ -361,7 +361,7 @@ async def test_stalled_rejection_cleanup_preserves_rejection(monkeypatch, caplog
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stalled_body", [False, True])
 async def test_stalled_response_cleanup_preserves_send_failure(monkeypatch, caplog, stalled_body):
-    monkeypatch.setattr(_streaming_http, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01, raising=False)
+    monkeypatch.setattr(_stream_cleanup, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01)
     body = StalledClose() if stalled_body else Source([])
     source = Source([]) if stalled_body else StalledClose()
     response = _ClosingStreamingResponse(body, source, status_code=200)
@@ -386,7 +386,7 @@ async def test_stalled_response_cleanup_preserves_send_failure(monkeypatch, capl
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stalled_body", [False, True])
 async def test_stalled_response_cleanup_preserves_task_cancellation(monkeypatch, caplog, stalled_body):
-    monkeypatch.setattr(_streaming_http, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(_stream_cleanup, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01)
     body = StalledClose() if stalled_body else Source([])
     source = Source([]) if stalled_body else StalledClose()
     response = _ClosingStreamingResponse(body, source, status_code=200)
@@ -718,7 +718,7 @@ async def test_openai_error_encoding_is_complete_sse_blocks():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure_type", [RuntimeError, TimeoutError])
-async def test_source_is_closed_when_closing_the_body_fails(failure_type):
+async def test_source_is_closed_when_closing_the_body_fails(failure_type, caplog):
     class FailingBody:
         def __aiter__(self):
             return self
@@ -738,10 +738,10 @@ async def test_source_is_closed_when_closing_the_body_fails(failure_type):
     async def send(_message):
         pass
 
-    with pytest.raises(failure_type, match="body cleanup failed"):
-        await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+    await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
 
     assert source.closed is True
+    assert "Stream cleanup failed" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -796,3 +796,99 @@ async def test_identity_encoding_is_requested_only_for_inspected_streams(policy,
     await response_body(response)
 
     assert [value for name, value in dispatched[0].headers if name.lower() == b"accept-encoding"] == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy", [None, StreamBufferingPolicy(1, 0)])
+async def test_normal_eof_with_stalled_cleanup_sends_final_asgi_body(monkeypatch, policy):
+    monkeypatch.setattr(_stream_cleanup, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01)
+    source = StalledClose()
+    source.chunks = iter([b'data: {"text":"answer"}\n\n'])
+    messages = []
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, ((b"content-type", b"text/event-stream"),), source)
+
+    async def receive():
+        await anyio.sleep_forever()
+
+    async def send(message):
+        messages.append(message)
+
+    response = await execute(dispatch, policy=policy)
+    with anyio.fail_after(1):
+        await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+    assert messages[-1] == {"type": "http.response.body", "body": b"", "more_body": False}
+    assert source.close_cancelled
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy", [None, StreamBufferingPolicy(1, 0)])
+@pytest.mark.parametrize("cancel_at", ["source_read", "checker", "startup"])
+async def test_disconnect_closes_resource_independently_of_generator_finally(policy, cancel_at):
+    if policy is None and cancel_at == "checker":
+        return
+    started = anyio.Event()
+    finalizer_started = False
+    finalizer_finished = False
+    resource_closed = False
+
+    async def source():
+        nonlocal finalizer_started, finalizer_finished
+        try:
+            yield b'data: {"text":"answer"}\n\n'
+            started.set()
+            await anyio.sleep_forever()
+        finally:
+            finalizer_started = True
+            await anyio.sleep(0)
+            finalizer_finished = True
+
+    async def close_resource():
+        nonlocal resource_closed
+        await anyio.sleep(0)
+        resource_closed = True
+
+    class WaitingChecker(Checker):
+        async def check_output(self, check):
+            if cancel_at == "checker":
+                started.set()
+                await anyio.sleep_forever()
+            return await super().check_output(check)
+
+    body = source()
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, ((b"content-type", b"text/event-stream"),), body, close=close_resource)
+
+    async def receive():
+        await started.wait()
+        return {"type": "http.disconnect"}
+
+    async def send(message):
+        if cancel_at == "startup" and message["type"] == "http.response.start":
+            started.set()
+            await anyio.sleep_forever()
+
+    response = await execute(dispatch, policy=policy, checker=WaitingChecker())
+    with anyio.fail_after(1):
+        await response({"type": "http", "asgi": {"spec_version": "2.3"}}, receive, send)
+
+    assert resource_closed
+    if cancel_at == "source_read":
+        assert finalizer_started and not finalizer_finished
+    await body.aclose()
+    assert resource_closed
+
+
+@pytest.mark.asyncio
+async def test_bare_generator_requires_independent_resource_ownership():
+    async def source():
+        yield b"data: [END]\n\n"
+
+    body = source()
+    try:
+        with pytest.raises(TypeError, match="independent resource close"):
+            StreamingHttpResponse(200, (), body)
+    finally:
+        await body.aclose()
