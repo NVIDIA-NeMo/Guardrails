@@ -240,3 +240,21 @@ def test_classifier_preserves_nullable_and_empty_original_text(value):
         b"data: " + json.dumps({"kind": "chunk", "deltas": [{"text": value}]}).encode() + b"\n\n"
     )
     assert classifier().classify_event(event).text == value
+
+
+def test_classifier_distinguishes_boolean_integer_and_float_selections():
+    rules = tuple(
+        StreamEventRule(
+            shape="chunk:metadata", model=BaseModel, role=StreamEventRole.OPAQUE_METADATA, match=(("kind", value),)
+        )
+        for value in (True, 1, 1.0)
+    )
+    result = build_stream_classifier(StreamClassifierDefinition(subject="test.stream", contract=CONTRACT, rules=rules))
+    for value in (True, 1, 1.0):
+        assert sum(rule.matches({"kind": value}) for rule in result.rules) == 1
+
+
+def test_array_selection_distinguishes_missing_from_null():
+    selector = StreamArraySelection(match=(("kind", None),), cardinality="exactly_one")
+    explicit_null = {"kind": None}
+    assert selector.select([{}, explicit_null]) is explicit_null

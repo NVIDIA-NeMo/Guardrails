@@ -47,7 +47,7 @@ class StreamArraySelection:
             item
             for item in items
             if all(
-                type(value := (item.get(name) if isinstance(item, dict) else getattr(item, name, object())))
+                type(value := (item.get(name, object()) if isinstance(item, dict) else getattr(item, name, object())))
                 is type(expected)
                 and value == expected
                 for name, expected in self.match
@@ -209,7 +209,7 @@ def build_stream_classifier(definition: StreamClassifierDefinition) -> StreamCla
         raise ValueError("A stream classifier subject must match its projection contract identifier.")
     if definition.require_event_type and definition.event_type_field is None:
         raise ValueError("A required SSE event field needs a data discriminator.")
-    signatures: set[tuple[tuple[tuple[str, Any], ...], frozenset[str]]] = set()
+    signatures: set[tuple[frozenset[tuple[str, type, StreamMatchValue]], frozenset[str]]] = set()
 
     def validate_declared_event(shape: str, role: StreamEventRole, text: str | None = None) -> None:
         try:
@@ -226,7 +226,7 @@ def build_stream_classifier(definition: StreamClassifierDefinition) -> StreamCla
             raise ValueError("A stream event rule must identify its provider shape.")
         if not rule.match and not rule.required_fields:
             raise ValueError(f"Stream event rule {rule.shape!r} must declare how it is selected.")
-        signature = (rule.match, rule.required_fields)
+        signature = (frozenset((name, type(value), value) for name, value in rule.match), rule.required_fields)
         if signature in signatures:
             raise ValueError(f"Stream event rule {rule.shape!r} duplicates another selection.")
         signatures.add(signature)
