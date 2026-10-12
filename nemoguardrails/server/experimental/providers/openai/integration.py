@@ -28,6 +28,7 @@ from nemoguardrails.server.experimental._http_kernel import (
     create_http_proxy_router,
 )
 from nemoguardrails.server.experimental._streaming_http import StreamingHttpDispatch
+from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import (
     CHAT_COMPLETIONS_ENDPOINT,
 )
@@ -42,13 +43,20 @@ def create_openai_chat_router(
     reserved_routes: Mapping[str, Collection[str]] | None = None,
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
     max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
+    endpoint: GuardedJsonEndpoint | None = None,
 ) -> APIRouter:
-    """Create the private buffered and streaming OpenAI Chat proxy surface."""
+    """Create the private buffered and streaming OpenAI Chat proxy surface.
+
+    A trusted application may explicitly supply a reviewed OpenAI-wire-compatible
+    endpoint, such as the LiteLLM subset. Omitting it retains the OpenAI policy.
+    This does not detect a backend, load a contract, or select a dialect from
+    request data. The supplied endpoint must use the OpenAI error mapping.
+    """
 
     return create_http_proxy_router(
         operations=(
             create_guarded_http_operation(
-                CHAT_COMPLETIONS_ENDPOINT,
+                CHAT_COMPLETIONS_ENDPOINT if endpoint is None else endpoint,
                 OPENAI_ERROR_MAPPING,
                 stream_dispatch=stream_dispatch,
                 max_stream_event_bytes=max_response_body_bytes,
