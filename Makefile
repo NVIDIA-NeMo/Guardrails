@@ -21,7 +21,7 @@ RECORDED_SNAPSHOT_MODE ?= create
 RECORDED_REQUIRED_KEYS ?= OPENAI_API_KEY NVIDIA_API_KEY
 RECORDED_REPLAY_ENV ?= env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy
 # These targets assume a Unix-like shell for env -u; use bash, Git Bash, or WSL on Windows.
-UNIT_TEST_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY \
+UNIT_TEST_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY -u NVIDIA_INFERENCE_KEY \
 	-u LIVE_TEST -u LIVE_TEST_MODE -u TEST_LIVE_MODE
 
 FASTEMBED_CACHE ?= .cache/fastembed

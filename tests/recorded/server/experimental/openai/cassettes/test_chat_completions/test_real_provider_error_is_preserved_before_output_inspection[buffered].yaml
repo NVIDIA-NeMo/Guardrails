@@ -1,0 +1,45 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      connection:
+      - keep-alive
+      accept:
+      - '*/*'
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+      accept-encoding:
+      - identity
+    parsed_body:
+      model: openai/openai/recorded-invalid-model
+      messages:
+      - role: user
+        content: Hello! Can you help me with a short greeting?
+      temperature: 0.7
+      max_tokens: 1024
+      n: 1
+      stream: false
+  response:
+    status:
+      code: 403
+      message: Forbidden
+    headers:
+      server:
+      - uvicorn
+      content-type:
+      - application/json
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+        error:
+          message: key not allowed to access model. This key can only access models=['default-models']. Tried to access openai/openai/recorded-invalid-model
+          type: key_model_access_denied
+          param: model
+          code: '403'
