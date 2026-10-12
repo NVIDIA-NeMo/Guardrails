@@ -215,3 +215,48 @@ def test_python_sdk_never_sees_data_this_parser_did_not_parse(raw):
     client = [event.data.encode() for event in SSEDecoder().iter_bytes(iter([raw])) if event.data]
     remaining = iter(parsed)
     assert all(any(data == candidate for candidate in remaining) for data in client)
+
+
+def _node_like_events(raw: bytes) -> list[bytes]:
+    """Model openai-node 7.31.0, which strips a BOM at the start of every line.
+
+    The preserved review evidence shows Node reading a later BOM-prefixed data
+    line that a stream-start-only parser ignores. This is a model, not Node.
+    """
+    events, data = [], []
+    for line in raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n").split(b"\n"):
+        line = line.removeprefix(b"\xef\xbb\xbf")
+        if not line:
+            if data:
+                events.append(b"\n".join(data))
+            data = []
+            continue
+        name, _, value = line.partition(b":")
+        if name == b"data":
+            data.append(value.removeprefix(b" "))
+    return events
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"data: safe\n\n\xef\xbb\xbfdata: EVIL\n\n",
+        b"data: safe\r\r\xef\xbb\xbfdata: EVIL\r\r",
+        b"data: safe\n\xef\xbb\xbfdata: EVIL\n\n",
+        b": note\n\xef\xbb\xbfdata: EVIL\n\n",
+        b"\xef\xbb\xbfdata: one\n\ndata: two\n\n",
+    ],
+)
+@pytest.mark.parametrize("split", range(4))
+def test_node_like_client_never_sees_data_this_parser_did_not_parse(raw, split):
+    """Guard the Node BOM differential: accepted streams expose no extra data."""
+
+    async def parse():
+        return [event.data async for event in iter_sse_events(_chunks(raw[:split], raw[split:]))]
+
+    try:
+        parsed = [data for data in asyncio.run(parse()) if data is not None]
+    except AmbiguousServerSentEvent:
+        return
+    remaining = iter(parsed)
+    assert all(any(data == candidate for candidate in remaining) for data in _node_like_events(raw))
