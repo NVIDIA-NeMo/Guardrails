@@ -16,8 +16,10 @@
 import asyncio
 import json
 
+import anyio
 import pytest
 
+from nemoguardrails.server.experimental import _stream_cleanup
 from nemoguardrails.server.experimental._buffered_kernel import (
     OperationBlocked,
     OperationCheckFailed,
@@ -524,3 +526,40 @@ async def test_checker_that_cannot_encode_lone_surrogates_fails_closed():
 
     assert b'"code": "check_failed"' in result
     assert b"ud800" not in result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["stall", "raise"])
+@pytest.mark.parametrize("decision", [ContentAllowed(), ContentBlocked("blocked")])
+async def test_cleanup_is_bounded_without_replacing_the_stream_outcome(monkeypatch, caplog, failure, decision):
+    monkeypatch.setattr(_stream_cleanup, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01)
+
+    class FailingClose(Source):
+        async def aclose(self):
+            if failure == "stall":
+                await anyio.sleep_forever()
+            raise RuntimeError("private upstream detail")
+
+    event = stream_event({"text": "answer"})
+    with anyio.fail_after(1):
+        result = await collect(FailingClose([event]), StaticChecker([decision]), Hooks())
+
+    assert result == event if isinstance(decision, ContentAllowed) else b'"code": "blocked"' in result
+    assert "Stream cleanup" in caplog.text
+    assert "private upstream detail" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_explicit_resource_owner_closes_after_iterator_cleanup_fails():
+    closed = []
+
+    class FailingClose(Source):
+        async def aclose(self):
+            raise RuntimeError("iterator cleanup failed")
+
+    async def close_owner():
+        await anyio.sleep(0)
+        closed.append(True)
+
+    await collect(FailingClose([]), StaticChecker(), Hooks(), close=close_owner)
+    assert closed == [True]

@@ -15,7 +15,6 @@
 
 """Apply buffered output checks to provider-native event streams."""
 
-import inspect
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 
@@ -38,6 +37,7 @@ from nemoguardrails.server.experimental._content_checker import (
 )
 from nemoguardrails.server.experimental._guarded_operation import UnsupportedGuardedPayload
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse
+from nemoguardrails.server.experimental._stream_cleanup import StreamClose, close_stream
 from nemoguardrails.server.experimental.provider.sse import (
     AmbiguousServerSentEvent,
     ServerSentEvent,
@@ -157,14 +157,6 @@ async def _text_windows(
         yield _TextWindow(tuple(context + pending), len(pending))
 
 
-async def _close_source(source: AsyncIterator[bytes]) -> None:
-    close = getattr(source, "aclose", None)
-    if callable(close):
-        result = close()
-        if inspect.isawaitable(result):
-            await result
-
-
 async def _guard_upstream(source: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
     try:
         async for chunk in source:
@@ -195,6 +187,7 @@ async def guard_provider_stream(
     render_outcome: StreamOutcomeRenderer,
     max_event_bytes: int = 1024 * 1024,
     max_pending_bytes: int = 10 * 1024 * 1024,
+    close: StreamClose | None = None,
 ) -> AsyncIterator[bytes]:
     """Release provider SSE events only after required output checks pass.
 
@@ -209,9 +202,12 @@ async def guard_provider_stream(
     checker semantics, and buffered and streaming execution tests. Adding a
     provider or changing a profile declaration alone does not relax it.
 
-    Iteration closes ``source`` when it ends, including when arguments are
-    rejected. A stream that is never iterated does not run that cleanup, so its
-    caller must close ``source``. Validated data-less keepalive prefixes are
+    Iteration attempts bounded, shielded cleanup of ``source`` and the optional
+    resource-owner ``close`` callback, including when arguments are rejected.
+    Iterator termination alone cannot recover interrupted generator cleanup;
+    callers owning external resources must supply their independent closer.
+    A stream never iterated does not run cleanup, so its caller retains ownership.
+    Validated data-less keepalive prefixes are
     released promptly; they never overtake pending payloads or terminal events.
     """
 
@@ -221,7 +217,7 @@ async def guard_provider_stream(
         if any(type(limit) is not int or limit <= 0 for limit in (max_event_bytes, max_pending_bytes)):
             raise ValueError("Stream byte limits must be positive.")
     except ValueError:
-        await _close_source(source)
+        await close_stream(source, close=close)
         raise
 
     try:
@@ -340,4 +336,4 @@ async def guard_provider_stream(
         ):
             yield chunk
     finally:
-        await _close_source(source)
+        await close_stream(source, close=close)
