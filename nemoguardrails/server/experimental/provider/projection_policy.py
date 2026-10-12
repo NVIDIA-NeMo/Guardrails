@@ -182,18 +182,19 @@ def field_policy(field: FieldInfo) -> dict[str, Any]:
     return cast(dict[str, Any], metadata) if isinstance(metadata, dict) else {}
 
 
-# Pydantic constraints whose exported keywords (minLength/minItems,
-# maxLength/maxItems, pattern) exist in the guard contract field vocabulary.
-_EXPORTABLE_CONSTRAINTS = frozenset({"min_length", "max_length", "pattern"})
+# Runtime constraints that declarations may use. Export separately rejects any
+# schema keyword the guard contract cannot carry. JSON Schema has no keyword for
+# Python strictness, so `strict` is enforced at runtime only.
+_FIELD_CONSTRAINTS = frozenset({"min_length", "max_length", "pattern", "ge", "le", "strict"})
 
 
 def _field(metadata: dict[str, Any], constraints: dict[str, Any]) -> Any:
     """Build Annotated field metadata while keeping defaults in assignments."""
     if {"default", "default_factory", "alias"} & constraints.keys():
         raise ValueError("Declare defaults explicitly on the field; aliases are not supported")
-    unsupported = constraints.keys() - _EXPORTABLE_CONSTRAINTS
+    unsupported = constraints.keys() - _FIELD_CONSTRAINTS
     if unsupported:
-        raise ValueError(f"Constraints not expressible in the guard contract: {sorted(unsupported)}")
+        raise ValueError(f"Unsupported Pydantic constraints: {sorted(unsupported)}")
     return Field(json_schema_extra={EXTENSION: metadata}, **constraints)
 
 
@@ -213,8 +214,9 @@ def guarded(
             binding defaults to read-only when this is not declared.
         blocked_by: Sibling field whose non-empty value prevents replacement.
         replacement_reason: Structured reason for the replacement restriction.
-        **constraints: min_length, max_length, or pattern; other Pydantic
-            constraints have no guard contract keyword and are rejected.
+        **constraints: min_length, max_length, pattern, ge, le, or strict.
+            Format support is checked separately when exporting a complete
+            guard contract; strictness has no JSON Schema keyword.
 
     Use inside Annotated and put defaults on the field assignment. Declaring
     replacement eligibility does not enable runtime replacement support.

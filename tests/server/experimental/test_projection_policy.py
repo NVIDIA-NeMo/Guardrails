@@ -148,9 +148,20 @@ def test_helpers_do_not_hide_defaults(helper):
 
 
 @pytest.mark.parametrize("helper", [guarded, constrained])
-@pytest.mark.parametrize("constraint", ["ge", "le", "gt", "lt", "multiple_of", "strict"])
-def test_helpers_reject_constraints_the_contract_cannot_express(helper, constraint):
-    with pytest.raises(ValueError, match="not expressible"):
+def test_helpers_support_runtime_numeric_constraints(helper):
+    class NumericPolicy(PolicyModel):
+        value: Annotated[int, helper(ge=0, le=2, strict=True)]
+
+    assert NumericPolicy.model_validate({"value": 1}).value == 1
+    for invalid in (-1, 3, True, "1", 1.0):
+        with pytest.raises(ValueError):
+            NumericPolicy.model_validate({"value": invalid})
+
+
+@pytest.mark.parametrize("helper", [guarded, constrained])
+@pytest.mark.parametrize("constraint", ["min_lenght", "gt", "lt", "multiple_of", "allow_inf_nan", "max_digits"])
+def test_helpers_reject_unsupported_constraint_names(helper, constraint):
+    with pytest.raises(ValueError, match="Unsupported Pydantic constraints"):
         helper(**{constraint: 1})
 
 

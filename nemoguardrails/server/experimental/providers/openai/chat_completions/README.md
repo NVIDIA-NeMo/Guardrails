@@ -70,6 +70,11 @@ always validates with the closed default.
 [stream_classifier.py](stream_classifier.py) owns explicit `StreamEventRule`
 declarations for content and provider errors, along with the opaque `[DONE]`
 sentinel. Field coverage comes from the models; shape coverage comes from event
+rules. Data-less SSE events have a distinct `keepalive` shape; they are not
+terminal `[DONE]` events. Numeric bounds and strictness use ordinary Pydantic
+constraints, independent of the inspection document's supported vocabulary.
+Unsupported document representations fail at export, not runtime construction.
+Shape coverage includes
 rules, missing-text fallbacks, and transport declarations. The shared
 [stream policy helpers](../../../provider/stream_policy.py) derive a text path
 from typed fields, without schema generation, only when there is one subject
@@ -81,6 +86,10 @@ the streaming helper does not relax it.
 The typed classifier builder checks the text path, assistant subject, event roles,
 and coverage against these declarations before runtime use. A mismatched path
 cannot silently turn guarded text into a metadata-only event. The lower-level
+classifier resolves text from the original JSON before validation and rejects a
+projection that changes that text, including through container transformations.
+Bytes are relayed unchanged only after their original guarded text is checked.
+The lower-level
 classifier API remains available for handwritten bindings; those do not
 automatically satisfy typed-policy validation or contract export.
 

@@ -23,8 +23,6 @@ from __future__ import annotations
 
 from typing import Annotated, Any, ClassVar, Literal
 
-from pydantic import BeforeValidator
-
 from nemoguardrails.server.experimental.provider.payload import GuardedContentModel, GuardedProjectionModel
 from nemoguardrails.server.experimental.provider.projection_policy import (
     ObjectPolicy,
@@ -34,13 +32,6 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     guarded,
     opaque,
 )
-
-
-def _require_int(value: object) -> object:
-    """Reject booleans, strings, and floats before Literal[0] can coerce them."""
-    if type(value) is not int:
-        raise ValueError("index must be the integer 0")
-    return value
 
 
 class ChatCompletionsStreamDeltaProjection(PolicyModel, GuardedContentModel):
@@ -83,7 +74,7 @@ class ChatCompletionsStreamChoiceProjection(PolicyModel, GuardedContentModel):
 
     delta: Annotated[ChatCompletionsStreamDeltaProjection, guarded()]
     finish_reason: Annotated[Any, opaque()] = None
-    index: Annotated[Literal[0], BeforeValidator(_require_int), constrained()]
+    index: Annotated[int, constrained(strict=True, ge=0, le=0)]
     # Log probabilities carry token text that output rails do not inspect, as in
     # buffered responses; requests for them are already rejected.
     logprobs: Annotated[None, disabled("provider_integrity.token_logprobs")] = None

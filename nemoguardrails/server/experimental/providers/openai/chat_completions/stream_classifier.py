@@ -41,10 +41,8 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.stream
 )
 
 PROJECTION_ID = "openai.chat_completions.stream.text.v1"
-STREAM_SOURCE_SCHEMA = ChatCompletionsStreamPayloadProjection.policy.source
-REJECTED_PROVIDER_SCHEMAS = ()
 STREAM_SENTINELS = ((b"[DONE]", "[DONE]"),)
-STREAM_NON_DATA_SHAPE = "[DONE]"
+STREAM_NON_DATA_SHAPE = "keepalive"
 STREAM_RULES = (
     StreamEventRule(
         shape="chat.completion.chunk:content",
@@ -63,7 +61,6 @@ STREAM_RULES = (
     ),
 )
 
-STREAM_FIELD_COVERAGE = field_coverage(ChatCompletionsStreamPayloadProjection)
 STREAM_CONTRACT = StreamProjectionContract(
     projection_id=PROJECTION_ID,
     profile=StreamCapabilityProfile.SINGLE_TEXT_DELTA_V1,
@@ -72,18 +69,7 @@ STREAM_CONTRACT = StreamProjectionContract(
         sentinels=STREAM_SENTINELS,
         non_data_shape=STREAM_NON_DATA_SHAPE,
     ),
-    fields=STREAM_FIELD_COVERAGE,
-)
-
-CAPABILITY_PROFILE = STREAM_CONTRACT.profile.value
-GUARDED_SHAPES = STREAM_CONTRACT.shapes.guarded_shapes
-SNAPSHOT_SHAPES = STREAM_CONTRACT.shapes.snapshot_shapes
-OPAQUE_SHAPES = STREAM_CONTRACT.shapes.opaque_shapes
-PROVIDER_ERROR_SHAPES = STREAM_CONTRACT.shapes.provider_error_shapes
-STREAM_FIELDS = (
-    STREAM_FIELD_COVERAGE.guarded_fields,
-    STREAM_FIELD_COVERAGE.constrained_fields,
-    STREAM_FIELD_COVERAGE.opaque_fields,
+    fields=field_coverage(ChatCompletionsStreamPayloadProjection),
 )
 
 STREAM_CLASSIFIER = build_policy_stream_classifier(

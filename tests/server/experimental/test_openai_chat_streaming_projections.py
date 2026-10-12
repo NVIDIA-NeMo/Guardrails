@@ -48,15 +48,7 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.reques
     STREAM_SELECTOR_FIELD,
 )
 from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_classifier import (
-    CAPABILITY_PROFILE,
-    GUARDED_SHAPES,
-    OPAQUE_SHAPES,
-    PROVIDER_ERROR_SHAPES,
-    SNAPSHOT_SHAPES,
     STREAM_CLASSIFIER,
-    STREAM_CONTRACT,
-    STREAM_FIELDS,
-    STREAM_SOURCE_SCHEMA,
 )
 from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_hooks import (
     ChatCompletionsStreamHooks,
@@ -107,13 +99,14 @@ def test_stream_classifier_covers_the_declared_event_inventory(native, shape, ro
     classified = STREAM_CLASSIFIER.classify_event(event(native))
 
     assert (classified.shape, classified.role, classified.text) == (shape, role, text)
-    assert shape in GUARDED_SHAPES | OPAQUE_SHAPES | PROVIDER_ERROR_SHAPES
+    shapes = STREAM_CLASSIFIER.contract.shapes
+    assert shape in shapes.guarded_shapes | shapes.opaque_shapes | shapes.provider_error_shapes
 
 
 def test_stream_classifier_treats_non_data_events_as_declared_opaque_shape():
     classified = STREAM_CLASSIFIER.classify_event(ServerSentEvent.from_bytes(b": keepalive\n\n"))
 
-    assert classified.shape == "[DONE]"
+    assert classified.shape == "keepalive"
     assert classified.role is StreamEventRole.OPAQUE_METADATA
 
 
@@ -147,15 +140,10 @@ def test_stream_classifier_accepts_reviewed_error_extensions_without_guarding_th
 
 
 def test_stream_contract_preserves_declared_identity_and_field_inventory():
-    assert CAPABILITY_PROFILE == "single_text_delta.v1"
-    assert STREAM_SOURCE_SCHEMA == "CreateChatCompletionStreamResponse"
-    assert STREAM_CONTRACT.projection_id == "openai.chat_completions.stream.text.v1"
-    assert STREAM_CONTRACT.fields is not None
-    assert STREAM_FIELDS == (
-        STREAM_CONTRACT.fields.guarded_fields,
-        STREAM_CONTRACT.fields.constrained_fields,
-        STREAM_CONTRACT.fields.opaque_fields,
-    )
+    assert STREAM_CLASSIFIER.contract.profile.value == "single_text_delta.v1"
+    assert ChatCompletionsStreamPayloadProjection.policy.source == "CreateChatCompletionStreamResponse"
+    assert STREAM_CLASSIFIER.contract.projection_id == "openai.chat_completions.stream.text.v1"
+    assert STREAM_CLASSIFIER.contract.fields == field_coverage(ChatCompletionsStreamPayloadProjection)
 
 
 def test_shared_request_binding_owns_the_stream_selector_and_field_inventory():
@@ -171,7 +159,7 @@ def test_stream_models_classify_every_declared_field_and_derive_root_coverage():
             for field in model.model_fields.values():
                 assert field_policy(field)["classification"] in {"guarded", "constrained", "opaque"}
     coverage = field_coverage(ChatCompletionsStreamPayloadProjection)
-    assert STREAM_CONTRACT.fields == coverage
+    assert STREAM_CLASSIFIER.contract.fields == coverage
     assert coverage.guarded_fields == frozenset({"choices"})
     assert coverage.constrained_fields == frozenset({"object"})
     assert coverage.opaque_fields == frozenset(
@@ -183,7 +171,9 @@ def test_stream_models_classify_every_declared_field_and_derive_root_coverage():
 
 
 def test_stream_schema_preserves_closure_defaults_and_text_policy():
-    schema = export_payload_schema(ChatCompletionsStreamPayloadProjection, projection_id=STREAM_CONTRACT.projection_id)
+    schema = export_payload_schema(
+        ChatCompletionsStreamPayloadProjection, projection_id=STREAM_CLASSIFIER.contract.projection_id
+    )
     choices = schema["properties"]["choices"]
     choice = choices["items"]
     delta = choice["properties"]["delta"]
@@ -191,7 +181,7 @@ def test_stream_schema_preserves_closure_defaults_and_text_policy():
     assert "minItems" not in choices
     assert choice["additionalProperties"] is delta["additionalProperties"] is False
     assert choice["required"] == ["delta", "index"]
-    assert choice["properties"]["index"]["const"] == 0
+    assert choice["properties"]["index"]["minimum"] == choice["properties"]["index"]["maximum"] == 0
     content = delta["properties"]["content"]
     assert content["default"] is None
     assert content["oneOf"] == [{"type": "string"}, {"type": "null"}]
@@ -242,12 +232,13 @@ def test_stream_declarations_preserve_transport_shapes_and_provenance():
     contracts = Path(__file__).parents[3] / "nemoguardrails/server/experimental/contracts/openai"
     source = yaml.safe_load((contracts / "source.yaml").read_text(encoding="utf-8"))
     assert STREAM_CLASSIFIER.require_event_type is False
-    assert STREAM_CLASSIFIER.non_data_shape == "[DONE]"
+    assert STREAM_CLASSIFIER.non_data_shape == "keepalive"
     assert STREAM_CLASSIFIER.sentinels == ((b"[DONE]", "[DONE]"),)
-    assert GUARDED_SHAPES == frozenset({"chat.completion.chunk:content"})
-    assert OPAQUE_SHAPES == frozenset({"[DONE]", "chat.completion.chunk:metadata"})
-    assert PROVIDER_ERROR_SHAPES == frozenset({"error"})
-    assert SNAPSHOT_SHAPES == frozenset()
+    shapes = STREAM_CLASSIFIER.contract.shapes
+    assert shapes.guarded_shapes == frozenset({"chat.completion.chunk:content"})
+    assert shapes.opaque_shapes == frozenset({"[DONE]", "keepalive", "chat.completion.chunk:metadata"})
+    assert shapes.provider_error_shapes == frozenset({"error"})
+    assert shapes.snapshot_shapes == frozenset()
     content, error = STREAM_CLASSIFIER.rules
     assert content.match == (("object", "chat.completion.chunk"),)
     assert content.required_fields == frozenset()
