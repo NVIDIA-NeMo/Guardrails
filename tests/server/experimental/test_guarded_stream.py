@@ -498,13 +498,29 @@ async def test_line_leading_bom_mid_stream_fails_closed_without_release(split):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "event", [stream_event({"text": "a\ud800b"}), b'data: {"text":"a\xed\xa0\x80b"}\n\n'], ids=["escape", "bytes"]
+    ("events", "text"),
+    [
+        ([stream_event({"text": "a\ud800b"})], "a\ud800b"),
+        ([b'data: {"text":"a\xed\xa0\x80b"}\n\n'], "a\ud800b"),
+        ([stream_event({"text": "\ud83d"}), stream_event({"text": "\ude00"})], "\ud83d\ude00"),
+    ],
+    ids=["escape", "bytes", "split-pair"],
 )
-async def test_unpaired_surrogate_text_is_rejected_as_unsupported(event):
-    """Guarded text must be valid Unicode; an unpaired surrogate is a shape error, not a crash."""
+async def test_lone_surrogate_text_is_checked_and_relayed_unchanged(events, text):
+    """Lone surrogates reach clients as sent, so the proxy checks and relays them too."""
     checker = StaticChecker()
+    result = await collect(Source(events), checker, Hooks(), policy=StreamBufferingPolicy(len(events), 0))
+
+    assert result == b"".join(events)
+    assert [call.output_content for call in checker.calls] == [text]
+
+
+@pytest.mark.asyncio
+async def test_checker_that_cannot_encode_lone_surrogates_fails_closed():
+    event = stream_event({"text": "a\ud800b"})
+    checker = StaticChecker([UnicodeEncodeError("utf-8", "a\ud800b", 1, 2, "surrogates not allowed")])
+
     result = await collect(Source([event]), checker, Hooks())
 
-    assert b'"code": "unsupported_stream"' in result
-    assert b"\xed\xa0\x80" not in result
-    assert checker.calls == []
+    assert b'"code": "check_failed"' in result
+    assert b"ud800" not in result

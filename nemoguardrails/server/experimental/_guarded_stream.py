@@ -134,15 +134,6 @@ def _take_checked_events(
     return tuple(event.event for event in checked)
 
 
-def _is_unicode_text(text: str) -> bool:
-    """Return whether text is valid Unicode that can be checked and re-encoded as UTF-8."""
-    try:
-        text.encode("utf-8")
-    except UnicodeEncodeError:
-        return False
-    return True
-
-
 async def _text_windows(
     source: AsyncIterator[str | ServerSentEvent],
     *,
@@ -251,8 +242,6 @@ async def guard_provider_stream(
             async for event in iter_sse_events(_guard_upstream(source), max_event_bytes=max_event_bytes):
                 classified = adapter.classify_event(event)
                 validate_stream_event(adapter.contract, classified)
-                if classified.text is not None and not _is_unicode_text(classified.text):
-                    raise UnsupportedProviderStream("Provider stream text contains an unpaired surrogate.")
                 if not pending and event.data is None and classified.role is StreamEventRole.OPAQUE_METADATA:
                     yield event
                     continue
@@ -274,7 +263,10 @@ async def guard_provider_stream(
                     )
                 if text:
                     if snapshot_history_complete:
-                        observed_text_bytes += len(text.encode())
+                        # JSON escapes can produce lone surrogates, for example half of a
+                        # pair split across deltas. Clients receive them as sent, so the
+                        # proxy relays them too and only needs a byte count here.
+                        observed_text_bytes += len(text.encode("utf-8", "surrogatepass"))
                         if observed_text_bytes > max_event_bytes:
                             observed_text.clear()
                             snapshot_history_complete = False
