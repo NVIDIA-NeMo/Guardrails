@@ -15,6 +15,7 @@
 
 """Compose the buffered OpenAI Chat route and provider-native errors."""
 
+import os
 from collections.abc import Collection, Mapping
 
 from fastapi import APIRouter
@@ -29,10 +30,34 @@ from nemoguardrails.server.experimental._http_kernel import (
 )
 from nemoguardrails.server.experimental._streaming_http import StreamingHttpDispatch
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
+from nemoguardrails.server.experimental.provider.integration import ProviderIntegration, UpstreamSettings
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import (
     CHAT_COMPLETIONS_ENDPOINT,
 )
 from nemoguardrails.server.experimental.providers.openai.errors import OPENAI_ERROR_MAPPING
+
+
+def create_openai_chat_integration(
+    *,
+    instance_id: str = "openai",
+    base_url: str | None = None,
+    mount_path: str = "",
+) -> ProviderIntegration:
+    """Create one built-in OpenAI Chat provider instance."""
+
+    resolved_base_url = (
+        base_url
+        if base_url is not None
+        else os.getenv("NEMO_GUARDRAILS_OPENAI_PROXY_UPSTREAM_BASE_URL", "https://api.openai.com/v1")
+    )
+    return ProviderIntegration(
+        provider_type="openai",
+        instance_id=instance_id,
+        upstream=UpstreamSettings(base_url=resolved_base_url, mount_path=mount_path),
+        display_name="OpenAI",
+        endpoints=(CHAT_COMPLETIONS_ENDPOINT,),
+        errors=OPENAI_ERROR_MAPPING,
+    )
 
 
 def create_openai_chat_router(

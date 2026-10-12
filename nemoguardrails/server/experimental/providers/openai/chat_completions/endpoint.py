@@ -44,6 +44,11 @@ CHAT_COMPLETIONS_ENDPOINT = GuardedJsonEndpoint(
     method="POST",
     operation_paths=(
         GuardedOperationPath(
+            "/v1/chat/completions",
+            frozenset({"POST"}),
+            frozenset({"GET"}),
+        ),
+        GuardedOperationPath(
             "/{api_version}/chat/completions",
             frozenset({"POST"}),
         ),

@@ -556,6 +556,52 @@ async def test_request_outside_mount_stops_before_upstream_dispatch():
     assert requests == []
 
 
+@pytest.mark.asyncio
+async def test_dispatch_does_not_repeat_base_path_already_present_after_mount():
+    requests = []
+
+    async def upstream(request):
+        requests.append(request)
+        return httpx.Response(200, stream=TrackedStream([]))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
+        dispatcher = ProviderTransport(
+            client,
+            base_url="https://provider.test/v1",
+            mount_path="/providers/openai",
+        )
+        await dispatcher.dispatch(
+            buffered_request(
+                path="/providers/openai/v1/models",
+                raw_path=b"/providers/openai/v1/models",
+            )
+        )
+
+    assert str(requests[0].url) == "https://provider.test/v1/models?trace=opaque"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_strips_only_declared_control_headers():
+    requests = []
+
+    async def upstream(request):
+        requests.append(request)
+        return httpx.Response(200, stream=TrackedStream([]))
+
+    headers = buffered_request().headers + ((b"x-proxy-control", b"local"),)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
+        dispatcher = ProviderTransport(
+            client,
+            base_url="https://provider.test",
+            control_headers={"x-proxy-control"},
+        )
+        await dispatcher.dispatch(buffered_request(headers=headers))
+
+    assert requests[0].headers["authorization"] == "Bearer provider-key"
+    assert requests[0].headers["x-provider-option"] == "preserve"
+    assert "x-proxy-control" not in requests[0].headers
+
+
 @pytest.mark.parametrize(
     ("base_url", "mount_path", "limit", "timeout", "error"),
     [
@@ -580,4 +626,16 @@ async def test_transport_rejects_invalid_application_settings(base_url, mount_pa
                 mount_path=mount_path,
                 max_response_body_bytes=limit,
                 timeout=timeout,
+            )
+
+
+@pytest.mark.parametrize("control_header", ["", " X-Control", "X-Control", "x-møunt"])
+@pytest.mark.asyncio
+async def test_dispatcher_rejects_invalid_control_headers(control_header):
+    async with httpx.AsyncClient() as client:
+        with pytest.raises(ValueError, match="lowercase ASCII"):
+            ProviderTransport(
+                client,
+                base_url="https://provider.test",
+                control_headers={control_header},
             )
