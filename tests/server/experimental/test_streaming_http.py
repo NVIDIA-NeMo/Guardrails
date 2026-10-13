@@ -907,3 +907,53 @@ async def test_bare_generator_requires_independent_resource_ownership():
             StreamingHttpResponse(200, (), body)
     finally:
         await body.aclose()
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "error", "message"),
+    [
+        ({"status_code": 404}, ValueError, "successful status code"),
+        ({"body": [b"data: x\n\n"]}, TypeError, "must be an async iterator"),
+        ({"headers": (("content-type", "text/event-stream"),)}, TypeError, "byte pairs"),
+        ({"close": "not callable"}, TypeError, "close callback must be callable"),
+    ],
+)
+def test_streaming_response_rejects_invalid_values(kwargs, error, message):
+    values = {"status_code": 200, "headers": (), "body": Source([]), **kwargs}
+    with pytest.raises(error, match=message):
+        StreamingHttpResponse(**values)
+
+
+@pytest.mark.asyncio
+async def test_uninspected_relay_rejects_non_byte_chunks_and_closes_source():
+    source = Source(["data: text\n\n"])
+
+    async def dispatch(_request):
+        return StreamingHttpResponse(200, ((b"content-type", b"text/event-stream"),), source)
+
+    response = await execute(dispatch, policy=None)
+
+    with pytest.raises(TypeError, match="must yield bytes"):
+        await response_body(response)
+    assert source.closed is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("limits", [{"max_event_bytes": 0}, {"max_pending_bytes": -1}])
+async def test_byte_limits_must_be_positive(limits):
+    async def dispatch(_request):
+        raise AssertionError("dispatch must not run")
+
+    with pytest.raises(ValueError, match="byte limits must be positive"):
+        await execute(dispatch, **limits)
+
+
+@pytest.mark.asyncio
+async def test_unsupported_dispatch_result_is_a_processing_failure():
+    async def dispatch(_request):
+        return "not a response"
+
+    response = await execute(dispatch)
+
+    assert response.status_code == 502
+    assert await response_body(response) == b"processing_failed"
