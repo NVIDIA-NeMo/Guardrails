@@ -25,7 +25,7 @@ from typing import Annotated, ClassVar, Literal
 
 import pytest
 from jsonschema import Draft202012Validator
-from pydantic import StrictBool
+from pydantic import StrictBool, field_validator, model_validator
 
 from nemoguardrails.server.experimental.provider.contract_export import _load_endpoint, export_guard_contract
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
@@ -481,3 +481,32 @@ def test_endpoint_requires_text_and_response_mode_bindings(example_endpoint):
         replace(example_endpoint, guarded_request_model=ModelessRequest)
     with pytest.raises(ValueError, match="response projection must declare its guarded text location"):
         replace(example_endpoint, guarded_response_model=UnlocatedResponse)
+
+
+@pytest.mark.parametrize("kind", ["field", "model"])
+def test_export_rejects_custom_selector_validation(example_endpoint, kind):
+    """Validators can change which mode a request selects, which the selector cannot describe."""
+
+    class Request(PolicyModel, GuardedRequestModel):
+        prompt: Annotated[str, guarded("user")]
+        stream: Annotated[StrictBool | None, constrained()] = False
+        stream_selector_field: ClassVar[str | None] = "stream"
+
+        if kind == "field":
+
+            @field_validator("stream")
+            @classmethod
+            def keep(cls, value):
+                return value
+
+        else:
+
+            @model_validator(mode="after")
+            def keep(self):
+                return self
+
+    Request.projection_contract = payload_contract(Request, projection_id="example.request", direction="request")
+    Request.guarded_text_location = text_location(Request)
+    message = "selector validators" if kind == "field" else "response-mode validation"
+    with pytest.raises(ValueError, match=message):
+        export_guard_contract(replace(example_endpoint, guarded_request_model=Request))

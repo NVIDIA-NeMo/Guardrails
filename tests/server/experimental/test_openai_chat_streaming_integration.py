@@ -27,6 +27,7 @@ from nemoguardrails.server.experimental._content_checker import (
     ContentInspectionPolicy,
     StreamBufferingPolicy,
 )
+from nemoguardrails.server.experimental._guarded_stream import StreamProcessingFailed
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse
 from nemoguardrails.server.experimental._streaming_http import StreamingHttpResponse
 from nemoguardrails.server.experimental.provider.stream import StreamBinding
@@ -581,3 +582,12 @@ async def test_bodyless_stream_success_fails_natively_before_headers(status):
     assert response.json()["error"]["code"] == "unsupported_chat_completions_response_shape"
     assert "x-provider-secret" not in response.headers
     assert source.closed is True
+
+
+def test_stream_processing_failures_render_a_native_proxy_error():
+    response = OPENAI_ERROR_MAPPING.renderer(StreamProcessingFailed(RuntimeError("private detail")))
+
+    assert response.status_code == 502
+    body = json.loads(response.body)
+    assert body["error"]["code"] == "stream_processing_failed"
+    assert "private detail" not in response.body.decode()

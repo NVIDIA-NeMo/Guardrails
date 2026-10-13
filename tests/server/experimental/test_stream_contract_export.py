@@ -304,3 +304,29 @@ def test_stream_exports_do_not_share_mutable_state():
     exported["oneOf"][0]["properties"].clear()
     assert export_stream()[EXTENSION]["transport"]["sentinels"] == {"[DONE]": "[DONE]"}
     assert "choices" in export_stream()["oneOf"][0]["properties"]
+
+
+def test_export_rejects_overridden_model_validation():
+    class OverriddenPayload(ChatCompletionsStreamPayloadProjection):
+        @classmethod
+        def model_validate(cls, obj, **kwargs):
+            return super().model_validate(obj, **kwargs)
+
+    rule = replace(STREAM_CLASSIFIER.rules[0], model=OverriddenPayload)
+    with pytest.raises(ValueError, match="Custom stream validators"):
+        export_stream(with_rules(rule))
+
+
+def test_export_rejects_unknown_capability_profiles():
+    contract = replace(STREAM_CLASSIFIER.contract, profile="single_text_delta.v2")
+    with pytest.raises(ValueError, match="capability profile"):
+        export_stream(replace(STREAM_CLASSIFIER, contract=contract))
+
+
+def test_stream_binding_requires_a_callable_classifier():
+    class NotCallable:
+        contract = STREAM_CLASSIFIER.contract
+        classify_event = None
+
+    with pytest.raises(TypeError, match="callable classifier"):
+        StreamBinding(NotCallable(), ChatCompletionsStreamHooks)
