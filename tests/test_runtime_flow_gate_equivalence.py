@@ -603,6 +603,14 @@ CONTENT_SAFETY_OUTPUT = RailSpec(
     output_parser="nemoguard_parse_prompt_safety",
 )
 
+LANGUAGE_DETECTOR_INPUT = RailSpec(
+    name="language_detector_input",
+    flow="language detector check input",
+    direction="input",
+    action="language_detector_check_input",
+    rails_config={"language_detector": {"allowed_languages": ["en"]}},
+)
+
 TOPIC_SAFETY_INPUT = RailSpec(
     name="topic_safety_input",
     flow="topic safety check input $model=topic_control",
@@ -2589,6 +2597,12 @@ FIXTURES = [
         CONTENT_SAFETY_OUTPUT,
         allow_return=RailOutcome.allow(metadata={"policy_violations": []}),
         block_return=RailOutcome.block(metadata={"policy_violations": ["violence"]}),
+        include_exception_case=True,
+    ),
+    *_rail_outcome_cases(
+        LANGUAGE_DETECTOR_INPUT,
+        allow_return=RailOutcome.allow(metadata={"language": "en"}),
+        block_return=RailOutcome.block(metadata={"language": "es", "refusal_message": REFUSAL}),
         include_exception_case=True,
     ),
     *_rail_outcome_cases(

@@ -13,7 +13,7 @@ flow content safety check input $model
       if $system.config.rails.config.content_safety.multilingual.enabled
         $lang_result = await DetectLanguageAction()
         $refusal_message = $lang_result["refusal_message"]
-        bot $refusal_message
+        bot say $refusal_message
       else
         bot refuse to respond
     abort
@@ -32,7 +32,7 @@ flow content safety check output $model
       if $system.config.rails.config.content_safety.multilingual.enabled
         $lang_result = await DetectLanguageAction()
         $refusal_message = $lang_result["refusal_message"]
-        bot $refusal_message
+        bot say $refusal_message
       else
         bot refuse to respond
     abort

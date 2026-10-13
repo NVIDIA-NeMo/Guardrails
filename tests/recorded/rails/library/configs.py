@@ -22,6 +22,8 @@ from tests.recorded.rails_config import RailsConfigSource
 CONFIGS_DIR = Path(__file__).parent / "configs"
 
 REGEX_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "regex_detection")
+LANGUAGE_DETECTOR_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "language_detector")
+LANGUAGE_DETECTOR_BLOCKLIST_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "language_detector_blocklist")
 INJECTION_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "injection_detection")
 INJECTION_OMIT_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "injection_detection_omit")
 NIM_CONTENT_SAFETY_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nim_content_safety")
