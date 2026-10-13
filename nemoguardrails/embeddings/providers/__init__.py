@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Optional, Type
 
-from . import azureopenai, cohere, fastembed, google, nim, openai, sentence_transformers
+from . import azureopenai, bedrock, cohere, fastembed, google, nim, openai, sentence_transformers
 from .base import EmbeddingModel
 from .registry import EmbeddingProviderRegistry
 
@@ -67,6 +67,7 @@ register_embedding_provider(nim.NIMEmbeddingModel)
 register_embedding_provider(nim.NVIDIAAIEndpointsEmbeddingModel)
 register_embedding_provider(google.GoogleEmbeddingModel)
 register_embedding_provider(cohere.CohereEmbeddingModel)
+register_embedding_provider(bedrock.BedrockEmbeddingModel)
 
 
 def init_embedding_model(embedding_model: str, embedding_engine: str, embedding_params: dict = {}) -> EmbeddingModel:

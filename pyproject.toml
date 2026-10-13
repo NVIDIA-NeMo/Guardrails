@@ -67,6 +67,8 @@ sdd = [
 
 gcp = ["google-cloud-language (>=2.14.0)"]
 
+bedrock = ["boto3 (>=1.34.0)"]
+
 jailbreak = ["yara-python (>=4.5.1,<5.0.0)"]
 
 multilingual = ["fast-langdetect (>=1.0.0)"]
@@ -96,6 +98,7 @@ all = [
   "numpy (>=2.1.0) ; python_version>='3.13'",
   "openai (>=1.0.0,<3.0.0)",
   "google-cloud-language (>=2.14.0)",
+  "boto3 (>=1.34.0)",
   "opentelemetry-api (>=1.27.0,<2.0.0)",
   "aiofiles (>=24.1.0)",
   "yara-python (>=4.5.1,<5.0.0)",
