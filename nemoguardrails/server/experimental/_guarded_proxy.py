@@ -123,6 +123,10 @@ def create_guarded_http_operation(
 ) -> GuardedHttpOperation:
     """Create one buffered-and-streaming operation from an endpoint contract."""
 
+    stream_binding = endpoint.stream
+    if stream_dispatch is not None and stream_binding is None:
+        raise ValueError("A streaming dispatcher requires an endpoint stream binding.")
+
     def prepare_request(request: BufferedHttpRequest) -> GuardableProviderRequest:
         """Prepare one buffered HTTP request for guarded execution."""
         return _prepare_guardable_request(request, endpoint)
@@ -194,7 +198,7 @@ def create_guarded_http_operation(
         guardable = prepared_input.request
         if not guardable.streaming:
             return None
-        if stream_dispatch is None:
+        if stream_dispatch is None or stream_binding is None:
             return render_stream_outcome(
                 OperationProjectionFailed(
                     InspectionStage.INPUT,
@@ -208,9 +212,6 @@ def create_guarded_http_operation(
                     UnsupportedStreamInspection("Guarded output streaming requires a buffering policy.")
                 )
             )
-        stream_binding = endpoint.stream
-        if stream_binding is None:
-            raise AssertionError("A streaming request requires an endpoint stream adapter.")
         return await execute_streaming_http(
             guardable.request,
             dispatch=stream_dispatch,
