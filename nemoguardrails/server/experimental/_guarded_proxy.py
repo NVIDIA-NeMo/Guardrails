@@ -216,7 +216,7 @@ def create_guarded_http_operation(
             dispatch=stream_dispatch,
             checker=prepared_input.resolved.checker,
             streaming_policy=streaming_policy,
-            input_message=guardable.target.message,
+            input_message=prepared_input.input_message,
             adapter=stream_binding.create_adapter(),
             render_outcome=render_stream_outcome,
             max_event_bytes=max_stream_event_bytes,

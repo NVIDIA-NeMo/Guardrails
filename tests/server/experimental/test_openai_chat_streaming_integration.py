@@ -238,6 +238,9 @@ async def test_streaming_chat_uses_one_prepared_request_and_preserves_provider_s
     ]
     assert checker.policy_reads == 1
     assert source.closed is True
+    input_check = checker.calls[0][1]
+    # Output checks get the message the input rail actually checked, not a re-projection.
+    assert all(call.input_message is input_check.message for kind, call in checker.calls if kind == "output")
 
 
 @pytest.mark.asyncio
