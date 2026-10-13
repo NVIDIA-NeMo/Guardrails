@@ -19,7 +19,7 @@ from dataclasses import replace
 from typing import Annotated
 
 import pytest
-from pydantic import create_model
+from pydantic import BaseModel, create_model
 
 from nemoguardrails.server.experimental.provider import projection_policy
 from nemoguardrails.server.experimental.provider.projection_policy import (
@@ -265,3 +265,64 @@ def test_typed_classifier_preserves_nullable_missing_text_and_checks_actual_text
     classified = classifier.classify_event(ServerSentEvent.from_bytes(b'data: {"deltas": [{"text": "checked"}]}\n\n'))
     assert classified.role is StreamEventRole.GUARDED_TEXT
     assert classified.text == "checked"
+
+
+def test_stream_path_reads_annotations_on_array_items():
+    class Envelope(PolicyModel):
+        deltas: Annotated[list[Annotated[TextDelta, guarded()]], guarded(max_length=1)]
+
+    assert stream_text_path(Envelope) == ("deltas", 0, "text")
+
+
+def test_stream_path_rejects_containers_that_do_not_lead_to_a_model():
+    class Envelope(PolicyModel):
+        deltas: Annotated[list[int], guarded(max_length=1)]
+
+    with pytest.raises(ValueError, match="must lead to a named string field"):
+        stream_text_path(Envelope)
+
+
+def policy_definition(event, **changes):
+    contract = StreamProjectionContract(
+        "example", StreamCapabilityProfile.SINGLE_TEXT_DELTA_V1, stream_shape_coverage((event,), **changes)
+    )
+    return StreamClassifierDefinition("example", contract, (event,), **changes)
+
+
+def test_typed_classifier_requires_policy_models():
+    from nemoguardrails.server.experimental.provider import stream_policy
+
+    class Untyped(BaseModel):
+        kind: str
+
+    event = StreamEventRule("meta", Untyped, StreamEventRole.OPAQUE_METADATA, match=(("kind", "meta"),))
+    with pytest.raises(TypeError, match="policy-annotated event models"):
+        stream_policy.build_policy_stream_classifier(policy_definition(event))
+
+
+def test_typed_text_events_require_one_assistant_subject():
+    from nemoguardrails.server.experimental.provider import stream_policy
+
+    class UserText(PolicyModel):
+        text: Annotated[str, guarded("user")]
+
+    event = StreamEventRule(
+        "text", UserText, StreamEventRole.GUARDED_TEXT, required_fields=frozenset({"text"}), text_path=("text",)
+    )
+    with pytest.raises(ValueError, match="one guarded subject with the assistant role"):
+        stream_policy.build_policy_stream_classifier(policy_definition(event))
+
+
+@pytest.mark.parametrize("sentinels", [((b" [DONE]", "done"),), ((b"[DONE]", "done"), (b"[DONE]", "done"))])
+def test_typed_classifier_requires_canonical_unique_sentinels(sentinels):
+    from nemoguardrails.server.experimental.provider import stream_policy
+
+    event = StreamEventRule(
+        "text",
+        DeltaEnvelope,
+        StreamEventRole.GUARDED_TEXT,
+        required_fields=frozenset({"deltas"}),
+        text_path=stream_text_path(DeltaEnvelope),
+    )
+    with pytest.raises(ValueError, match="unique nonempty canonical"):
+        stream_policy.build_policy_stream_classifier(policy_definition(event, sentinels=sentinels))
