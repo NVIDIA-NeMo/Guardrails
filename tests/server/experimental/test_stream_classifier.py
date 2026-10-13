@@ -258,3 +258,154 @@ def test_array_selection_distinguishes_missing_from_null():
     selector = StreamArraySelection(match=(("kind", None),), cardinality="exactly_one")
     explicit_null = {"kind": None}
     assert selector.select([{}, explicit_null]) is explicit_null
+
+
+def chunk_rule(**changes):
+    rule = StreamEventRule(
+        shape="chunk:text",
+        model=Chunk,
+        role=StreamEventRole.GUARDED_TEXT,
+        match=(("kind", "chunk"),),
+        text_path=("deltas", 0, "text"),
+    )
+    return replace(rule, **changes)
+
+
+def definition(**changes):
+    return replace(
+        StreamClassifierDefinition(subject="test.stream", contract=CONTRACT, rules=(chunk_rule(),)), **changes
+    )
+
+
+def event(raw):
+    return ServerSentEvent.from_bytes(raw)
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"subject": ""}, "identify its provider event subject"),
+        ({"rules": ()}, "at least one event rule"),
+        ({"subject": "other.stream"}, "match its projection contract identifier"),
+        ({"require_event_type": True}, "needs a data discriminator"),
+        ({"non_data_shape": "chunk:text"}, "contract declares"),
+        ({"rules": (chunk_rule(shape=""),)}, "identify its provider shape"),
+        ({"rules": (chunk_rule(match=()),)}, "must declare how it is selected"),
+        ({"rules": (chunk_rule(), chunk_rule())}, "duplicates another selection"),
+        ({"rules": (chunk_rule(text_path=None),)}, "inconsistent text role and path"),
+        (
+            {
+                "rules": (
+                    chunk_rule(
+                        shape="chunk:metadata",
+                        role=StreamEventRole.OPAQUE_METADATA,
+                        text_path=None,
+                        missing_text_role=StreamEventRole.OPAQUE_METADATA,
+                    ),
+                )
+            },
+            "without a text path",
+        ),
+        ({"rules": (chunk_rule(missing_text_shape="chunk:metadata"),)}, "rename missing text without classifying"),
+        ({"rules": (chunk_rule(missing_text_value=""),)}, "supply missing text without classifying"),
+        ({"rules": (chunk_rule(missing_text_role=StreamEventRole.GUARDED_TEXT),)}, "classify missing text as content"),
+    ],
+)
+def test_classifier_definition_rejects_inconsistent_declarations(changes, message):
+    with pytest.raises(ValueError, match=message):
+        build_stream_classifier(definition(**changes))
+
+
+def test_data_less_events_need_a_declared_shape():
+    data_less = event(b"event: ping\n\n")
+    with pytest.raises(UnsupportedProviderStream, match="must contain data"):
+        build_stream_classifier(definition()).classify_event(data_less)
+
+    classified = build_stream_classifier(definition(non_data_shape="done")).classify_event(data_less)
+    assert classified == GuardedStreamEvent("done", StreamEventRole.OPAQUE_METADATA)
+
+
+def test_event_type_field_must_agree_with_the_sse_event_name():
+    typed = build_stream_classifier(definition(event_type_field="kind", require_event_type=True))
+    chunk = b'data: {"kind":"chunk","deltas":[{"text":"hi"}]}\n\n'
+
+    assert typed.classify_event(event(b"event: chunk\n" + chunk)).text == "hi"
+    with pytest.raises(UnsupportedProviderStream, match="SSE event field is required"):
+        typed.classify_event(event(chunk))
+    with pytest.raises(UnsupportedProviderStream, match="must match data field 'kind'"):
+        typed.classify_event(event(b"event: other\n" + chunk))
+    with pytest.raises(UnsupportedProviderStream, match="must declare string field 'kind'"):
+        typed.classify_event(event(b'event: chunk\ndata: {"kind":1,"deltas":[]}\n\n'))
+
+
+@pytest.mark.parametrize(
+    ("raw", "message"),
+    [
+        (b'data: {"kind":"chunk","deltas":[{"text":null}]}\n\n', "has no guarded text value"),
+        (b'data: {"kind":"chunk","deltas":[{"text":"hi"},5]}\n\n', "test.stream"),
+        (b"data: {not json}\n\n", "JSON"),
+    ],
+    ids=["missing-text", "schema", "json"],
+)
+def test_classifier_rejects_unusable_event_payloads(raw, message):
+    with pytest.raises(UnsupportedProviderStream, match=message):
+        build_stream_classifier(definition()).classify_event(event(raw))
+
+
+@pytest.mark.parametrize(
+    ("text_path", "message"),
+    [
+        (("deltas", -1, "text"), "negative indexes"),
+        (("deltas", "text"), "does not match its projection"),
+        (("deltas",), "must resolve to a string"),
+    ],
+)
+def test_classifier_rejects_text_paths_that_do_not_reach_a_string(text_path, message):
+    classifier = build_stream_classifier(definition(rules=(chunk_rule(text_path=text_path),)))
+    with pytest.raises(UnsupportedProviderStream, match=message):
+        classifier.classify_event(event(b'data: {"kind":"chunk","deltas":[{"text":"hi"}]}\n\n'))
+
+
+def test_exactly_one_array_selection_rejects_missing_or_repeated_items():
+    selection = StreamArraySelection(match=(("kind", "message"),), cardinality="exactly_one")
+    with pytest.raises(ValueError, match="exactly one matching item"):
+        selection.select([{"kind": "other"}])
+    with pytest.raises(ValueError, match="exactly one matching item"):
+        selection.select([{"kind": "message"}, {"kind": "message"}])
+
+
+def test_dotted_match_keys_do_not_match_through_scalars():
+    rule = chunk_rule(match=(("kind.name", "chunk"),))
+    assert rule.matches({"kind": {"name": "chunk"}}) is True
+    assert rule.matches({"kind": "chunk"}) is False
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"projection_id": " "}, "must have an identifier"),
+        ({"shapes": StreamShapeCoverage()}, "at least one shape"),
+    ],
+)
+def test_stream_projection_contract_requires_identity_and_shapes(kwargs, message):
+    values = {"projection_id": "p", "profile": StreamCapabilityProfile.SINGLE_TEXT_DELTA_V1, "shapes": CONTRACT.shapes}
+    with pytest.raises(ValueError, match=message):
+        StreamProjectionContract(**{**values, **kwargs})
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (("", StreamEventRole.OPAQUE_METADATA), "identify its provider shape"),
+        (("chunk:text", StreamEventRole.GUARDED_TEXT), "must carry text"),
+        (("done", StreamEventRole.OPAQUE_METADATA, "text"), "must carry text"),
+    ],
+)
+def test_guarded_stream_event_requires_shape_and_role_consistent_text(args, message):
+    with pytest.raises(ValueError, match=message):
+        GuardedStreamEvent(*args)
+
+
+def test_stream_contract_rejects_undeclared_shapes():
+    with pytest.raises(UnsupportedProviderStream, match="is not declared"):
+        validate_stream_event(CONTRACT, GuardedStreamEvent("future", StreamEventRole.OPAQUE_METADATA))

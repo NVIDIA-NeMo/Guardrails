@@ -260,3 +260,9 @@ def test_node_like_client_never_sees_data_this_parser_did_not_parse(raw, split):
         return
     remaining = iter(parsed)
     assert all(any(data == candidate for candidate in remaining) for data in _node_like_events(raw))
+
+
+@pytest.mark.parametrize("limit", [0, -1, True, 1.5])
+def test_event_limit_must_be_a_positive_integer(limit):
+    with pytest.raises(ValueError, match="max_event_bytes must be positive"):
+        asyncio.run(anext(iter_sse_events(_chunks(b"data: x\n\n"), max_event_bytes=limit)))

@@ -182,3 +182,8 @@ def test_stream_buffering_policy_rejects_invalid_values(buffering):
 def test_stream_buffering_requires_output_inspection():
     with pytest.raises(ValueError, match="requires output inspection"):
         ContentInspectionPolicy(True, False, StreamBufferingPolicy(1, 0))
+
+
+def test_stream_buffering_must_be_a_buffering_policy():
+    with pytest.raises(TypeError, match="StreamBufferingPolicy"):
+        ContentInspectionPolicy(True, True, {"chunk_size": 1})

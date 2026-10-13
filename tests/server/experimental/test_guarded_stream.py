@@ -641,3 +641,23 @@ async def test_blocked_stream_is_not_logged_as_a_failure(caplog):
     await collect(Source([stream_event({"text": "secret"})]), StaticChecker([ContentBlocked("blocked")]), Hooks())
 
     assert not [record for record in caplog.records if record.name.endswith("_guarded_stream")]
+
+
+@pytest.mark.asyncio
+async def test_non_byte_provider_chunks_are_upstream_failures():
+    result = await collect(Source(["data: text\n\n"]), StaticChecker(), Hooks())
+
+    assert b'"code": "upstream_failed"' in result
+
+
+@pytest.mark.asyncio
+async def test_snapshot_after_unverifiable_history_fails_closed():
+    """Once delta history exceeds the limit, a later snapshot cannot be verified and is rejected."""
+    deltas = [stream_event({"text": "x" * 10}) for _ in range(5)]
+    checker = StaticChecker()
+
+    result = await collect(Source([*deltas, stream_event({"snapshot": "x"})]), checker, Hooks(), max_event_bytes=40)
+
+    assert result.startswith(b"".join(deltas))
+    assert b'"code": "unsupported_stream"' in result
+    assert b'"snapshot"' not in result
