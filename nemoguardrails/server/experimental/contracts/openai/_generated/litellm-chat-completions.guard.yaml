@@ -300,6 +300,16 @@ response:
                   classification: constrained
                   gate: disabled
                   reason: core_capability.tool_content
+              images:
+                default: null
+                x-nemo-guardrails:
+                  classification: constrained
+                  reason: core_capability.multimodal_content
+                oneOf:
+                - items: {}
+                  maxItems: 0
+                  type: array
+                - type: 'null'
               provider_specific_fields:
                 default: null
                 x-nemo-guardrails:
@@ -316,6 +326,16 @@ response:
                         classification: constrained
                         gate: disabled
                         reason: core_capability.refusal_content
+                    thinking_blocks:
+                      default: null
+                      x-nemo-guardrails:
+                        classification: constrained
+                        reason: core_capability.reasoning_content
+                      oneOf:
+                      - items: {}
+                        maxItems: 0
+                        type: array
+                      - type: 'null'
                   title: LiteLLMMessageFields
                   type: object
                   x-nemo-guardrails:
@@ -330,6 +350,16 @@ response:
                   extension: true
                   gate: disabled
                   reason: core_capability.reasoning_content
+              reasoning_items:
+                default: null
+                x-nemo-guardrails:
+                  classification: constrained
+                  reason: core_capability.reasoning_content
+                oneOf:
+                - items: {}
+                  maxItems: 0
+                  type: array
+                - type: 'null'
               refusal:
                 default: null
                 type: 'null'
@@ -342,6 +372,16 @@ response:
                 type: string
                 x-nemo-guardrails:
                   classification: constrained
+              thinking_blocks:
+                default: null
+                x-nemo-guardrails:
+                  classification: constrained
+                  reason: core_capability.reasoning_content
+                oneOf:
+                - items: {}
+                  maxItems: 0
+                  type: array
+                - type: 'null'
               tool_calls:
                 default: null
                 x-nemo-guardrails:
@@ -367,9 +407,12 @@ response:
               classification: constrained
             oneOf:
             - additionalProperties: false
-              description: Accept an empty extension container; no choice extensions
-                are reviewed.
-              properties: {}
+              description: Preserve LiteLLM's original finish reason without inspecting
+                metadata.
+              properties:
+                native_finish_reason:
+                  x-nemo-guardrails:
+                    classification: opaque
               title: LiteLLMChoiceFields
               type: object
               x-nemo-guardrails:
@@ -427,26 +470,35 @@ integration:
   name: litellm_chat_completions
   endpoint:
     route_path: /v1/chat/completions
-    operation_label: LiteLLM Chat Completions (reviewed subset)
+    operation_label: LiteLLM Chat Completions
     unsupported_request_code: unsupported_chat_completions_shape
     unsupported_response_code: unsupported_chat_completions_response_shape
 stream:
-  title: openai.chat_completions.stream.text.v1
+  title: openai.litellm.chat_completions.stream.text.v1
   oneOf:
   - additionalProperties: false
-    description: Allow one text choice or an empty usage chunk, preserving root metadata.
+    description: Recognize LiteLLM's root extension bag, including on usage-only events.
     properties:
       choices:
         items:
           additionalProperties: false
-          description: Require integer choice zero and reject unreviewed choice-level
-            content.
+          description: Keep single-choice constraints and bind the LiteLLM delta model.
           properties:
             delta:
               additionalProperties: false
-              description: Accept assistant text or metadata-only deltas within a
-                closed boundary.
+              description: Accept source-declared empty content fields, preserving
+                the text target.
               properties:
+                annotations:
+                  default: null
+                  x-nemo-guardrails:
+                    classification: constrained
+                    reason: core_capability.citation_content
+                  oneOf:
+                  - items: {}
+                    maxItems: 0
+                    type: array
+                  - type: 'null'
                 audio:
                   default: null
                   type: 'null'
@@ -472,6 +524,31 @@ stream:
                     classification: constrained
                     gate: disabled
                     reason: core_capability.tool_content
+                images:
+                  default: null
+                  x-nemo-guardrails:
+                    classification: constrained
+                    reason: core_capability.multimodal_content
+                  oneOf:
+                  - items: {}
+                    maxItems: 0
+                    type: array
+                  - type: 'null'
+                provider_specific_fields:
+                  default: null
+                  x-nemo-guardrails:
+                    classification: constrained
+                  oneOf:
+                  - additionalProperties: false
+                    description: Recognize an empty extension bag without authorizing
+                      arbitrary contents.
+                    properties: {}
+                    title: LiteLLMStreamFields
+                    type: object
+                    x-nemo-guardrails:
+                      unknown_fields: forbid
+                      reject_case_aliases: true
+                  - type: 'null'
                 reasoning_content:
                   default: null
                   type: 'null'
@@ -480,6 +557,16 @@ stream:
                     extension: true
                     gate: disabled
                     reason: core_capability.reasoning_content
+                reasoning_items:
+                  default: null
+                  x-nemo-guardrails:
+                    classification: constrained
+                    reason: core_capability.reasoning_content
+                  oneOf:
+                  - items: {}
+                    maxItems: 0
+                    type: array
+                  - type: 'null'
                 refusal:
                   default: null
                   type: 'null'
@@ -495,6 +582,16 @@ stream:
                   - const: assistant
                     type: string
                   - type: 'null'
+                thinking_blocks:
+                  default: null
+                  x-nemo-guardrails:
+                    classification: constrained
+                    reason: core_capability.reasoning_content
+                  oneOf:
+                  - items: {}
+                    maxItems: 0
+                    type: array
+                  - type: 'null'
                 tool_calls:
                   default: null
                   x-nemo-guardrails:
@@ -505,11 +602,11 @@ stream:
                     maxItems: 0
                     type: array
                   - type: 'null'
-              title: ChatCompletionsStreamDeltaProjection
+              title: LiteLLMStreamDeltaProjection
               type: object
               x-nemo-guardrails:
                 classification: guarded
-                source: '#/components/schemas/ChatCompletionStreamResponseDelta'
+                source: '#/components/schemas/Delta'
                 unknown_fields: forbid
                 reject_case_aliases: true
             finish_reason:
@@ -532,7 +629,7 @@ stream:
           required:
           - delta
           - index
-          title: ChatCompletionsStreamChoiceProjection
+          title: LiteLLMStreamChoiceProjection
           type: object
           x-nemo-guardrails:
             unknown_fields: forbid
@@ -561,6 +658,21 @@ stream:
         type: string
         x-nemo-guardrails:
           classification: constrained
+      provider_specific_fields:
+        default: null
+        x-nemo-guardrails:
+          classification: constrained
+        oneOf:
+        - additionalProperties: false
+          description: Recognize an empty extension bag without authorizing arbitrary
+            contents.
+          properties: {}
+          title: LiteLLMStreamFields
+          type: object
+          x-nemo-guardrails:
+            unknown_fields: forbid
+            reject_case_aliases: true
+        - type: 'null'
       service_tier:
         x-nemo-guardrails:
           classification: opaque
@@ -573,17 +685,17 @@ stream:
     required:
     - choices
     - object
-    title: ChatCompletionsStreamPayloadProjection
+    title: LiteLLMStreamPayloadProjection
     type: object
     x-nemo-guardrails:
-      source: '#/components/schemas/CreateChatCompletionStreamResponse'
+      source: '#/components/schemas/ModelResponseStream'
       unknown_fields: forbid
       reject_case_aliases: true
-      model: ChatCompletionsStreamPayloadProjection
+      model: LiteLLMStreamPayloadProjection
       event:
         classification: guarded_delta
         variants:
-        - source_schema: CreateChatCompletionStreamResponse
+        - source_schema: ModelResponseStream
           shape: chat.completion.chunk:content
           match:
             object: chat.completion.chunk

@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A narrow LiteLLM Chat subset, not universal LiteLLM backend compatibility."""
+"""Reviewed LiteLLM Chat wire extensions for the single-text guardrail profile."""

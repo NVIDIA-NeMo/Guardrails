@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Offline acceptance and rejection cases for the reviewed LiteLLM subset."""
+"""Source-backed shape cases, not recordings, for the LiteLLM single-text policy."""
 
 import json
 from copy import deepcopy
@@ -34,11 +34,23 @@ from nemoguardrails.server.experimental._content_checker import (
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse
 from nemoguardrails.server.experimental._streaming_http import StreamingHttpResponse
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
-from nemoguardrails.server.experimental.provider.projection_policy import EXTENSION, payload_contract, text_location
+from nemoguardrails.server.experimental.provider.projection_policy import (
+    EXTENSION,
+    export_payload_schema,
+    field_coverage,
+    payload_contract,
+    text_location,
+)
+from nemoguardrails.server.experimental.provider.sse import ServerSentEvent
+from nemoguardrails.server.experimental.provider.stream import StreamEventRole, UnsupportedProviderStream
 from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 from nemoguardrails.server.experimental.providers.openai.dialects.litellm.chat_completions import (
     LITELLM_CHAT_COMPLETIONS_ENDPOINT,
+)
+from nemoguardrails.server.experimental.providers.openai.dialects.litellm.stream import (
+    STREAM_CLASSIFIER,
+    LiteLLMStreamPayloadProjection,
 )
 from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_router
 
@@ -134,7 +146,9 @@ def test_dialect_rebinds_nested_models_without_mutating_openai():
     with pytest.raises(ValidationError):
         CHAT_COMPLETIONS_ENDPOINT.guarded_response_model.validate_payload(payload)
     assert endpoint.guarded_request_model is CHAT_COMPLETIONS_ENDPOINT.guarded_request_model
-    assert endpoint.stream is CHAT_COMPLETIONS_ENDPOINT.stream
+    assert endpoint.stream.hooks_factory is CHAT_COMPLETIONS_ENDPOINT.stream.hooks_factory
+    assert endpoint.stream.classifier is STREAM_CLASSIFIER
+    assert STREAM_CLASSIFIER.contract.shapes == CHAT_COMPLETIONS_ENDPOINT.stream.classifier.contract.shapes
     assert model.guarded_text_location == text_location(model)
     assert model.guarded_text_location == CHAT_COMPLETIONS_ENDPOINT.guarded_response_model.guarded_text_location
     assert model.projection_contract == payload_contract(
@@ -146,7 +160,7 @@ def test_export_resolves_the_complete_policy():
     document = export_guard_contract(LITELLM_CHAT_COMPLETIONS_ENDPOINT)
     base = export_guard_contract(CHAT_COMPLETIONS_ENDPOINT)
     assert document["request"] == base["request"]
-    assert document["stream"] == base["stream"]
+    assert document["stream"] != base["stream"]
     assert document["profile"] == "single_text.v1"
     assert document["integration"]["name"] == "litellm_chat_completions"
     choice = document["response"]["properties"]["choices"]["items"]
@@ -156,6 +170,111 @@ def test_export_resolves_the_complete_policy():
         object_schema = next(branch for branch in extension["oneOf"] if branch["type"] == "object")
         assert object_schema["additionalProperties"] is False
     Draft202012Validator(document["response"]).validate(response_payload())
+
+
+def test_reviewed_choice_metadata_is_opaque_in_runtime_and_export():
+    payload = response_payload()
+    payload["choices"][0]["provider_specific_fields"] = {"native_finish_reason": "end_turn"}
+    response_model().validate_payload(payload)
+    schema = export_guard_contract(LITELLM_CHAT_COMPLETIONS_ENDPOINT)["response"]
+    extension = schema["properties"]["choices"]["items"]["properties"]["provider_specific_fields"]
+    fields = next(branch for branch in extension["oneOf"] if branch["type"] == "object")
+    assert fields["properties"]["native_finish_reason"][EXTENSION]["classification"] == "opaque"
+    Draft202012Validator(schema).validate(payload)
+
+
+@pytest.mark.parametrize("field", ["images", "thinking_blocks", "reasoning_items"])
+@pytest.mark.parametrize("value", [None, [], ["uninspected"], "uninspected", {}])
+def test_buffered_source_content_fields_only_allow_empty_values(field, value):
+    payload = response_payload()
+    payload["choices"][0]["message"][field] = value
+    valid = value is None or value == []
+    if valid:
+        response_model().validate_payload(payload)
+    else:
+        with pytest.raises(ValidationError):
+            response_model().validate_payload(payload)
+    assert (
+        Draft202012Validator(export_guard_contract(LITELLM_CHAT_COMPLETIONS_ENDPOINT)["response"]).is_valid(payload)
+        == valid
+    )
+
+
+@pytest.mark.parametrize("value", [None, [], ["uninspected"]])
+def test_copied_thinking_blocks_are_checked_inside_message_extensions(value):
+    payload = response_payload()
+    payload["choices"][0]["message"]["provider_specific_fields"]["thinking_blocks"] = value
+    if value:
+        with pytest.raises(ValidationError):
+            response_model().validate_payload(payload)
+    else:
+        response_model().validate_payload(payload)
+
+
+def stream_payload():
+    return {
+        "object": "chat.completion.chunk",
+        "choices": [{"index": 0, "delta": {"content": "answer"}, "finish_reason": None}],
+    }
+
+
+def classify(payload):
+    return STREAM_CLASSIFIER.classify_event(
+        ServerSentEvent.from_bytes(b"data: " + json.dumps(payload).encode() + b"\n\n")
+    )
+
+
+@pytest.mark.parametrize("location", ["root", "delta"])
+@pytest.mark.parametrize(
+    "value", [None, {}, {"reasoning": "uninspected"}, {"native_finish_reason": "stop"}, [], "hidden"]
+)
+def test_stream_extension_containers_are_closed(location, value):
+    payload = stream_payload()
+    target = payload if location == "root" else payload["choices"][0]["delta"]
+    target["provider_specific_fields"] = value
+    valid = value is None or value == {}
+    if valid:
+        assert classify(payload).text == "answer"
+    else:
+        with pytest.raises(UnsupportedProviderStream):
+            classify(payload)
+    schema = export_payload_schema(
+        LiteLLMStreamPayloadProjection, projection_id=STREAM_CLASSIFIER.contract.projection_id
+    )
+    assert Draft202012Validator(schema).is_valid(payload) == valid
+
+
+@pytest.mark.parametrize("field", ["images", "thinking_blocks", "reasoning_items", "annotations"])
+@pytest.mark.parametrize("value", [None, [], ["uninspected"], "uninspected"])
+def test_stream_source_content_fields_only_allow_empty_values(field, value):
+    payload = stream_payload()
+    payload["choices"][0]["delta"][field] = value
+    if value is None or value == []:
+        assert classify(payload).text == "answer"
+    else:
+        with pytest.raises(UnsupportedProviderStream):
+            classify(payload)
+
+
+def test_stream_extensions_do_not_change_roles_or_openai_declarations():
+    payload = stream_payload()
+    payload["provider_specific_fields"] = None
+    assert classify(payload).role is StreamEventRole.GUARDED_TEXT
+    event = ServerSentEvent.from_bytes(b"data: " + json.dumps(payload).encode() + b"\n\n")
+    with pytest.raises(UnsupportedProviderStream):
+        CHAT_COMPLETIONS_ENDPOINT.stream.classifier.classify_event(event)
+    payload["choices"] = []
+    payload["usage"] = {"completion_tokens_details": {"reasoning_tokens": 4}, "cost": 0.01}
+    assert classify(payload).role is StreamEventRole.OPAQUE_METADATA
+    assert STREAM_CLASSIFIER.contract.fields == field_coverage(LiteLLMStreamPayloadProjection)
+    assert classify({"error": {"message": "failed"}}).role is StreamEventRole.PROVIDER_ERROR
+
+
+@pytest.mark.parametrize("field", ["guardrails", "caching", "num_retries", "context_window_fallback_dict", "fallbacks"])
+def test_litellm_request_controls_are_not_implicitly_enabled(field):
+    payload = {"messages": [{"role": "user", "content": "question"}], field: None}
+    with pytest.raises(ValidationError):
+        LITELLM_CHAT_COMPLETIONS_ENDPOINT.guarded_request_model.validate_payload(payload)
 
 
 def test_export_matches_format_and_generated_artifact():
@@ -260,15 +379,17 @@ class Source:
 async def test_explicit_dialect_selection_preserves_or_rejects_provider_bytes(stream, inspect, hidden):
     checker = Checker(inspect)
     if stream:
-        delta = {"content": "answer"}
+        delta = {"content": "answer", "provider_specific_fields": None, "thinking_blocks": []}
         if hidden:
             delta["provider_specific_fields"] = {"reasoning": "hidden"}
         event = {"object": "chat.completion.chunk", "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}
+        event["provider_specific_fields"] = {}
         finish = {"object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
         body = b"".join(b"data: " + json.dumps(value).encode() + b"\n\n" for value in (event, finish))
         body += b"data: [DONE]\n\n"
     else:
         payload = response_payload()
+        payload["choices"][0]["provider_specific_fields"]["native_finish_reason"] = "end_turn"
         if hidden:
             payload["choices"][0]["message"]["provider_specific_fields"]["reasoning"] = "hidden"
         body = json.dumps(payload).encode()

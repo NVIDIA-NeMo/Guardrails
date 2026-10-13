@@ -13,20 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Bind the reviewed LiteLLM buffered extensions to the OpenAI Chat pipeline.
+"""Bind LiteLLM Chat extensions to the single-text OpenAI pipeline.
 
-Only absent, null, or closed provider-specific containers are supported. A
-message container may include null refusal; a choice container must be empty.
-Additional backend content is rejected, not treated as opaque metadata. See
-README.md for pinned evidence, defaults, and the limits of this dialect.
+Reviewed finish metadata is opaque; extension containers remain closed to
+unreviewed content. See README.md for source/version evidence and field policy.
 
-The OpenAI request and stream bindings are reused unchanged. Python declarations
+The OpenAI request binding and stream lifecycle hooks are reused. Python declarations
 are authoritative; the exported contract describes these effective bindings and
 is never loaded to construct them. No LiteLLM dependency is needed at runtime.
 """
 
 from dataclasses import replace
-from typing import Annotated, ClassVar
+from typing import Annotated, Any, ClassVar
 
 from nemoguardrails.server.experimental.provider.projection_policy import (
     ObjectPolicy,
@@ -37,22 +35,30 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     payload_contract,
     text_location,
 )
+from nemoguardrails.server.experimental.provider.stream import StreamBinding
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 from nemoguardrails.server.experimental.providers.openai.chat_completions.response_projection import (
     ChatCompletionsAssistantMessageProjection,
     ChatCompletionsChoiceProjection,
     ChatCompletionsGuardedResponseProjection,
 )
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_hooks import ChatCompletionsStreamHooks
+from nemoguardrails.server.experimental.providers.openai.dialects.litellm.stream import STREAM_CLASSIFIER
 
 
 class LiteLLMMessageFields(PolicyModel):
     """Allow the recorded null refusal without accepting uninspected content."""
 
     refusal: Annotated[None, disabled("core_capability.refusal_content")] = None
+    thinking_blocks: Annotated[
+        list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
+    ] = None
 
 
 class LiteLLMChoiceFields(PolicyModel):
-    """Accept an empty extension container; no choice extensions are reviewed."""
+    """Preserve LiteLLM's original finish reason without inspecting metadata."""
+
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("native_finish_reason",))
 
 
 class LiteLLMAssistantMessageProjection(ChatCompletionsAssistantMessageProjection):
@@ -62,6 +68,13 @@ class LiteLLMAssistantMessageProjection(ChatCompletionsAssistantMessageProjectio
         ChatCompletionsAssistantMessageProjection.policy, source=None, unknown_fields="forbid"
     )
     provider_specific_fields: Annotated[LiteLLMMessageFields | None, constrained()] = None
+    images: Annotated[list[Any] | None, constrained(reason="core_capability.multimodal_content", max_length=0)] = None
+    thinking_blocks: Annotated[
+        list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
+    ] = None
+    reasoning_items: Annotated[
+        list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
+    ] = None
 
 
 class LiteLLMChoiceProjection(ChatCompletionsChoiceProjection):
@@ -92,6 +105,7 @@ class LiteLLMGuardedResponse(LiteLLMResponseProjection):
 LITELLM_CHAT_COMPLETIONS_ENDPOINT = replace(
     CHAT_COMPLETIONS_ENDPOINT,
     contract_name="litellm_chat_completions",
-    operation="LiteLLM Chat Completions (reviewed subset)",
+    operation="LiteLLM Chat Completions",
     guarded_response_model=LiteLLMGuardedResponse,
+    stream=StreamBinding(STREAM_CLASSIFIER, ChatCompletionsStreamHooks),
 )
