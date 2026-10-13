@@ -210,6 +210,100 @@ async def test_multiple_instances_share_openai_definitions_and_route_to_distinct
 
 
 @pytest.mark.asyncio
+async def test_buffered_only_endpoint_is_composed_without_a_stream_dispatcher():
+    provider = create_openai_chat_integration(base_url="https://provider.example/v1")
+    provider = replace(provider, endpoints=(replace(provider.endpoints[0], stream=None),))
+    requests = []
+
+    async def respond(request):
+        requests.append(request)
+        return provider_response()
+
+    _, upstream, client = create_composed_app((provider,), respond)
+    try:
+        payload = {"messages": [{"role": "user", "content": "hello"}]}
+        buffered = await client.post("/v1/chat/completions", json=payload)
+        streaming = await client.post("/v1/chat/completions", json={**payload, "stream": True})
+    finally:
+        await client.aclose()
+        await upstream.aclose()
+    assert buffered.status_code == 200
+    assert streaming.status_code == 422
+    assert len(requests) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+async def test_dialects_of_one_protocol_can_coexist_without_widening_each_other(streaming):
+    class Checker:
+        def inspection_policy(self):
+            return ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0))
+
+        async def check_input(self, _check):
+            return ContentAllowed()
+
+        async def check_output(self, _check):
+            return ContentAllowed()
+
+    standard = create_openai_chat_integration(instance_id="standard", base_url="https://standard.example/v1")
+    dialect = create_openai_chat_integration(
+        instance_id="litellm",
+        base_url="https://litellm.example/v1",
+        mount_path="/litellm",
+        endpoint=LITELLM_CHAT_COMPLETIONS_ENDPOINT,
+    )
+    if streaming:
+        body = (
+            b'data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"answer","provider_specific_fields":{}},"finish_reason":null}]}\n\n'
+            b'data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+            b"data: [DONE]\n\n"
+        )
+    else:
+        body = b'{"choices":[{"message":{"role":"assistant","content":"answer","provider_specific_fields":{}}}]}'
+
+    async def respond(_request):
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream" if streaming else "application/json"},
+            stream=StaticResponseStream(body),
+        )
+
+    _, upstream, client = create_composed_app((standard, dialect), respond, checker=Checker())
+    try:
+        payload = {"messages": [{"role": "user", "content": "hello"}], "stream": streaming}
+        strict = await client.post("/v1/chat/completions", json=payload)
+        compatible = await client.post("/litellm/v1/chat/completions", json=payload)
+    finally:
+        await client.aclose()
+        await upstream.aclose()
+    assert standard.provider_type == dialect.provider_type == "openai"
+    assert b'"error"' in strict.content
+    assert b"answer" not in strict.content
+    assert compatible.status_code == 200
+    assert compatible.content == body
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+async def test_composed_guarded_routes_map_connection_failures_to_native_errors(streaming):
+    async def fail(request):
+        raise httpx.ConnectError("private upstream detail", request=request)
+
+    provider = create_openai_chat_integration(base_url="https://provider.example/v1")
+    _, upstream, client = create_composed_app((provider,), fail)
+    try:
+        response = await client.post(
+            "/v1/chat/completions", json={"messages": [{"role": "user", "content": "hello"}], "stream": streaming}
+        )
+    finally:
+        await client.aclose()
+        await upstream.aclose()
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == ("upstream_stream_failed" if streaming else "upstream_request_failed")
+    assert "private upstream detail" not in response.text
+
+
+@pytest.mark.asyncio
 async def test_mounted_instance_streams_through_its_selected_upstream():
     provider = create_openai_chat_integration(
         instance_id="streaming",
@@ -459,16 +553,6 @@ async def test_provider_control_headers_stop_before_outbound_dispatch():
                 create_openai_chat_integration(instance_id="second"),
             ),
             "mount paths must be unique",
-        ),
-        (
-            (
-                create_openai_chat_integration(instance_id="first"),
-                replace(
-                    create_openai_chat_integration(instance_id="second", mount_path="/providers/second"),
-                    display_name="Different OpenAI",
-                ),
-            ),
-            "same type must share one type-level definition",
         ),
     ],
 )

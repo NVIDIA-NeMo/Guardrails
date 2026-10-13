@@ -42,8 +42,14 @@ def create_openai_chat_integration(
     instance_id: str = "openai",
     base_url: str | None = None,
     mount_path: str = "",
+    endpoint: GuardedJsonEndpoint | None = None,
 ) -> ProviderIntegration:
-    """Create one built-in OpenAI Chat provider instance."""
+    """Create an OpenAI-protocol instance with an explicitly reviewed endpoint.
+
+    Omitting ``endpoint`` retains the strict OpenAI Chat boundary. A trusted
+    application may instead supply an OpenAI-wire-compatible dialect endpoint;
+    it must use the OpenAI error mapping. Other instances are unaffected.
+    """
 
     resolved_base_url = (
         base_url
@@ -55,7 +61,7 @@ def create_openai_chat_integration(
         instance_id=instance_id,
         upstream=UpstreamSettings(base_url=resolved_base_url, mount_path=mount_path),
         display_name="OpenAI",
-        endpoints=(CHAT_COMPLETIONS_ENDPOINT,),
+        endpoints=(CHAT_COMPLETIONS_ENDPOINT if endpoint is None else endpoint,),
         errors=OPENAI_ERROR_MAPPING,
     )
 

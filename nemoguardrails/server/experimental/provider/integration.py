@@ -44,7 +44,14 @@ class UpstreamSettings:
 
 @dataclass(frozen=True, slots=True)
 class ProviderIntegration:
-    """Bundle the integration points required for one model provider."""
+    """Declare one mounted provider instance and its reviewed endpoint policy.
+
+    ``provider_type`` identifies the protocol family, not a globally registered
+    definition. Instances of the same family may select different endpoints or
+    dialects, error mappings, and control headers. ``instance_id`` and mount
+    paths are unique within the application; policy is never selected from
+    untrusted request data or inferred from the upstream URL.
+    """
 
     provider_type: str
     instance_id: str

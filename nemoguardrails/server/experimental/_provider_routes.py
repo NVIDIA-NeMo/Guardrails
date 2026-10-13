@@ -19,7 +19,6 @@ from collections.abc import Collection, Mapping, Sequence
 
 import httpx
 from fastapi import APIRouter, FastAPI
-from starlette.routing import compile_path
 
 from nemoguardrails.server.experimental._content_checker import ContentChecker
 from nemoguardrails.server.experimental._guarded_proxy import create_guarded_http_operation
@@ -29,14 +28,7 @@ from nemoguardrails.server.experimental._http_kernel import (
     create_http_proxy_router,
 )
 from nemoguardrails.server.experimental._provider_transport import DEFAULT_OUTBOUND_TIMEOUT, ProviderTransport
-from nemoguardrails.server.experimental.provider.integration import ProviderIntegration
-
-
-def _route_shape(path: str) -> str:
-    _, path_format, convertors = compile_path(path)
-    for name, convertor in convertors.items():
-        path_format = path_format.replace(f"{{{name}}}", f"{{{type(convertor).__name__}}}")
-    return path_format
+from nemoguardrails.server.experimental.provider.integration import ProviderIntegration, _route_path_shape
 
 
 def _validate_providers(providers: Sequence[ProviderIntegration]) -> tuple[ProviderIntegration, ...]:
@@ -50,26 +42,13 @@ def _validate_providers(providers: Sequence[ProviderIntegration]) -> tuple[Provi
     if len(instance_ids) != len(set(instance_ids)):
         raise ValueError("Provider instance ids must be unique.")
 
-    provider_definitions: dict[str, tuple[object, ...]] = {}
-    for provider in resolved:
-        definition = (
-            provider.display_name,
-            provider.endpoints,
-            provider.errors,
-            provider.control_headers,
-            provider.openapi_document,
-        )
-        existing = provider_definitions.setdefault(provider.provider_type, definition)
-        if existing != definition:
-            raise ValueError("Provider instances with the same type must share one type-level definition.")
-
     operation_ids = [
         f"{provider.instance_id}.{endpoint.operation_name}" for provider in resolved for endpoint in provider.endpoints
     ]
     if len(operation_ids) != len(set(operation_ids)):
         raise ValueError("Guarded endpoint operation identifiers must be globally unique.")
     routes = [
-        (method, _route_shape(f"{provider.upstream.mount_path}{operation_path.route_path}"))
+        (method, _route_path_shape(f"{provider.upstream.mount_path}{operation_path.route_path}"))
         for provider in resolved
         for endpoint in provider.endpoints
         for operation_path in endpoint.operation_paths
@@ -106,7 +85,7 @@ def create_provider_router(
         create_guarded_http_operation(
             endpoint,
             provider.errors,
-            stream_dispatch=dispatcher.stream_dispatch,
+            stream_dispatch=dispatcher.stream_dispatch if endpoint.stream is not None else None,
             max_stream_event_bytes=max_response_body_bytes,
             max_pending_stream_bytes=max_response_body_bytes,
         )
