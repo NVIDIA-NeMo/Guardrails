@@ -582,55 +582,56 @@ async def test_iterator_close_cancellation_does_not_skip_the_resource_owner():
     assert closed == [True]
 
 
+class SecretRejectingHooks(Hooks):
+    def observe_event(self, event, classified):
+        raise UnsupportedProviderStream("Duplicate JSON member 'secret' is not supported.")
+
+
 class FailingEndHooks(Hooks):
     def validate_end_of_stream(self):
-        raise RuntimeError("hook bug")
+        raise RuntimeError("secret")
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("source", "checker", "hooks", "level", "expected"),
+    ("source", "checker", "hooks", "expected"),
     [
         (
-            lambda: Source([stream_event({"text": "secret"}) + b"\xef\xbb\xbfdata: x\n\n"]),
+            lambda: Source([stream_event({"text": "hi"})]),
+            lambda: StaticChecker(),
+            SecretRejectingHooks,
+            "OperationProjectionFailed at output stage (UnsupportedGuardedPayload)",
+        ),
+        (
+            lambda: Source([stream_event({"text": "hi"})]),
+            lambda: StaticChecker([RuntimeError("secret")]),
+            Hooks,
+            "OperationCheckFailed at output stage (RuntimeError)",
+        ),
+        (
+            lambda: Source([stream_event({"text": "hi"})], failure=ConnectionError("secret")),
             lambda: StaticChecker(),
             Hooks,
-            "WARNING",
-            "rejected at output stage: A provider stream line starts with a byte order mark",
+            "StreamUpstreamFailed at stream stage (ConnectionError)",
         ),
         (
-            lambda: Source([stream_event({"text": "secret"})]),
-            lambda: StaticChecker([RuntimeError("checker down")]),
-            Hooks,
-            "ERROR",
-            "check failed at output stage: The output content check failed. (RuntimeError)",
-        ),
-        (
-            lambda: Source([stream_event({"text": "secret"})], failure=ConnectionError("reset")),
-            lambda: StaticChecker(),
-            Hooks,
-            "WARNING",
-            "upstream failed: ConnectionError",
-        ),
-        (
-            lambda: Source([stream_event({"text": "secret"})]),
+            lambda: Source([stream_event({"text": "hi"})]),
             lambda: StaticChecker(),
             FailingEndHooks,
-            "ERROR",
-            "processing failed: RuntimeError",
+            "StreamProcessingFailed at stream stage (RuntimeError)",
         ),
     ],
     ids=["projection", "check", "upstream", "processing"],
 )
-async def test_stream_failures_are_logged_without_provider_text(caplog, source, checker, hooks, level, expected):
-    """Operators see why a stream stopped; the logged reason never echoes guarded text."""
-    caplog.set_level("WARNING", logger="nemoguardrails.server.experimental._guarded_stream")
+async def test_stream_failures_are_logged_by_type_only(caplog, source, checker, hooks, expected):
+    """Failure messages and tracebacks can carry private text, so only types reach the log."""
+    caplog.set_level("DEBUG", logger="nemoguardrails.server.experimental._guarded_stream")
 
     await collect(source(), checker(), hooks(), policy=StreamBufferingPolicy(2, 0))
 
     records = [record for record in caplog.records if record.name.endswith("_guarded_stream")]
-    assert [record.levelname for record in records] == [level]
-    assert expected in records[0].getMessage()
+    assert [record.getMessage() for record in records] == [f"Guarded stream stopped: {expected}"]
+    assert records[0].exc_info is None
     assert "secret" not in caplog.text
 
 

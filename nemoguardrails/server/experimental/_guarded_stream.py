@@ -171,33 +171,19 @@ async def _guard_upstream(source: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
 
 
 def _log_outcome(outcome: StreamOutcome) -> None:
-    """Record why a guarded stream stopped, without logging provider text.
+    """Record why a guarded stream stopped, by type and stage only.
 
-    Blocks are normal checker decisions and are not logged here. Failure
-    reasons come from projection and framing checks, which describe shapes
-    rather than echoing provider content.
+    Failure messages and tracebacks can carry provider or checked text, so
+    they are never logged. Blocks are normal checker decisions and are not
+    logged here.
     """
     if isinstance(outcome, OperationBlocked):
         return
-    if isinstance(outcome, OperationProjectionFailed):
-        log.warning("Guarded stream rejected at %s stage: %s", outcome.stage.value, outcome.failure)
-    elif isinstance(outcome, OperationModificationUnsupported):
-        log.warning(
-            "Guarded stream stopped at %s stage: the checker requested unsupported modification.", outcome.stage.value
-        )
-    elif isinstance(outcome, OperationCheckFailed):
-        cause = outcome.failure.cause
-        log.error(
-            "Guarded stream check failed at %s stage: %s (%s)",
-            outcome.stage.value,
-            outcome.failure.message,
-            type(cause).__name__ if cause is not None else "no exception",
-            exc_info=cause,
-        )
-    elif isinstance(outcome, StreamUpstreamFailed):
-        log.warning("Guarded stream upstream failed: %s", type(outcome.failure).__name__)
-    else:
-        log.error("Guarded stream processing failed: %s", type(outcome.failure).__name__, exc_info=outcome.failure)
+    failure = outcome.failure
+    if isinstance(failure, ContentCheckFailed):
+        failure = failure.cause
+    stage = "stream" if isinstance(outcome, StreamUpstreamFailed | StreamProcessingFailed) else outcome.stage.value
+    log.warning("Guarded stream stopped: %s at %s stage (%s)", type(outcome).__name__, stage, type(failure).__name__)
 
 
 def _encoded_outcome(
