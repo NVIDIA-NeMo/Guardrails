@@ -8,7 +8,7 @@ content:
   type: "reference"
 ---
 
-Tool Safety Check judges a tool call's arguments, or a tool result's content, against safety instructions you write per tool, evaluated by a judge LLM. It is scoped per tool through the same `rails.tool_output.per_tool` / `rails.tool_input.per_tool` dispatch mechanism as [Regex Detection](/configure-guardrails/guardrail-catalog/community/regex), so different tools can use different judge models or different instructions.
+Tool Safety Check judges a tool call's arguments, or a tool result's content, against safety instructions you write per tool, evaluated by a judge LLM. It is scoped per tool through the same `rails.tool_call.per_tool` / `rails.tool_result.per_tool` dispatch mechanism as [Regex Detection](/configure-guardrails/guardrail-catalog/community/regex), so different tools can use different judge models or different instructions.
 
 To use the tool safety check, you should:
 
@@ -33,14 +33,14 @@ To use the tool safety check, you should:
 
     </Note>
 
-2. Scope the check to a tool in the `tool_output` and `tool_input` rails sections of the `config.yml` file, naming the judge model with `$model=` and a prompt variant with `$variant=`:
+2. Scope the check to a tool in the `tool_call` and `tool_result` rails sections of the `config.yml` file, naming the judge model with `$model=` and a prompt variant with `$variant=`:
 
     ```yaml
     rails:
-      tool_output:
+      tool_call:
         per_tool:
           run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check"]
-      tool_input:
+      tool_result:
         per_tool:
           run_sql: ["tool safety check input $model=llama_guard $variant=run_sql_check"]
     ```
@@ -97,7 +97,7 @@ To use the tool safety check, you should:
 
     ```yaml
     rails:
-      tool_output:
+      tool_call:
         per_tool:
           run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
     ```
@@ -123,10 +123,10 @@ models:
     model: meta/llama-guard-3-8b
 
 rails:
-  tool_output:
+  tool_call:
     per_tool:
       run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
-  tool_input:
+  tool_result:
     per_tool:
       run_sql: ["tool safety check input $model=llama_guard $variant=run_sql_check"]
 

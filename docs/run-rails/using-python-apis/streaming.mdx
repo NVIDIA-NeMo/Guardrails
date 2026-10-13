@@ -246,7 +246,7 @@ The following table shows what each engine reads from `options` while streaming:
 | Option | LLMRails | IORails |
 |---|---|---|
 | `llm_params` | Applied to the main model call | Applied to the main model call |
-| `rails.input`, `rails.output`, `rails.tool_input`, `rails.tool_output` | Applied | Applied |
+| `rails.input`, `rails.output`, `rails.tool_result`, `rails.tool_call` | Applied | Applied |
 | `output_vars`, `log.*` | Computed, then discarded with the `GenerationResponse` | Not read |
 
 `LLMRails` runs `generate_async()` in a background task and forwards `options` to it.

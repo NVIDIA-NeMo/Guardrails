@@ -152,7 +152,7 @@ With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling
 | Tool rails in `check` / `check_async` | ✗ | ✓ | `RailType.TOOL_CALL` and `RailType.TOOL_RESULT`. LLMRails raises `RailTypeNotSupportedError` |
 
 Both engines support passing model tool calls through to the caller.
-`LLMRails` runs the Colang flows you configure under `rails.tool_output` and `rails.tool_input` through the Colang runtime.
+`LLMRails` runs the Colang flows you configure under `rails.tool_call` and `rails.tool_result` through the Colang runtime.
 The built-in `tool call validation` and `tool result validation` validators run on `IORails` only.
 
 `IORails` validates tool calls and tool results through directional flows: `tool call validation` on the tool-output rail and `tool result validation` on the tool-input rail.

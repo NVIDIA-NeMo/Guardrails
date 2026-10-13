@@ -452,7 +452,7 @@ class RailsManager:
             return
         rewriting = sorted(flow for flows in self.per_tool_transform_flows.values() for flow in flows)
         warnings.warn(
-            f"rails.tool_output.parallel / rails.tool_input.parallel are not honored alongside a tool "
+            f"rails.tool_call.parallel / rails.tool_result.parallel are not honored alongside a tool "
             f"rail that rewrites content ({', '.join(rewriting)}); tool rails run sequentially, since "
             f"concurrent tool rails cannot carry a rewrite.",
             stacklevel=3,

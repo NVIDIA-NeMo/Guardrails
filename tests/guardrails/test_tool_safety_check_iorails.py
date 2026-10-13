@@ -56,7 +56,7 @@ TOOL_OUTPUT_CONFIG = {
         JUDGE_MODEL,
     ],
     "rails": {
-        "tool_output": {"per_tool": {"run_sql": ["tool safety check output $model=llama_guard $variant=run_sql_check"]}}
+        "tool_call": {"per_tool": {"run_sql": ["tool safety check output $model=llama_guard $variant=run_sql_check"]}}
     },
     "prompts": [
         {
@@ -75,7 +75,7 @@ TOOL_OUTPUT_UNDECLARED_CONFIG = {
         JUDGE_MODEL,
     ],
     "rails": {
-        "tool_output": {"per_tool": {"run_sql": ["tool safety check output $model=llama_guard $variant=run_sql_check"]}}
+        "tool_call": {"per_tool": {"run_sql": ["tool safety check output $model=llama_guard $variant=run_sql_check"]}}
     },
     "prompts": [
         {
@@ -92,7 +92,7 @@ TOOL_INPUT_CONFIG = {
         JUDGE_MODEL,
     ],
     "rails": {
-        "tool_input": {"per_tool": {"run_sql": ["tool safety check input $model=llama_guard $variant=run_sql_check"]}}
+        "tool_result": {"per_tool": {"run_sql": ["tool safety check input $model=llama_guard $variant=run_sql_check"]}}
     },
     "prompts": [
         {

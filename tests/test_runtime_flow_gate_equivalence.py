@@ -2584,9 +2584,9 @@ def _build_config(spec: RailSpec, *, enable_rails_exceptions: bool) -> dict[str,
         models.append({"type": spec.model_type, "engine": "openai", "model": "placeholder"})
 
     if spec.direction == "tool_output":
-        rails: dict[str, Any] = {"tool_output": {"per_tool": {PROBE_TOOL_NAME: [spec.flow]}}}
+        rails: dict[str, Any] = {"tool_call": {"per_tool": {PROBE_TOOL_NAME: [spec.flow]}}}
     elif spec.direction == "tool_input":
-        rails = {"tool_input": {"per_tool": {PROBE_TOOL_NAME: [spec.flow]}}}
+        rails = {"tool_result": {"per_tool": {PROBE_TOOL_NAME: [spec.flow]}}}
     else:
         rails = {spec.direction: {"flows": [spec.flow]}}
     if spec.rails_config:

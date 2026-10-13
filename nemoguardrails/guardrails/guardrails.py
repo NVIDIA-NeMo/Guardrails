@@ -68,7 +68,7 @@ class Guardrails(BaseGuardrails):
         LLMRails and logs a warning. Set ``require_iorails=True`` to raise a
         ``ValueError`` instead — use this when IORails-only features such as
         OpenTelemetry metrics are required. A config with per-tool rails
-        (``rails.tool_output.per_tool`` / ``rails.tool_input.per_tool``) always raises
+        (``rails.tool_call.per_tool`` / ``rails.tool_result.per_tool``) always raises
         instead of falling back, since LLMRails does not run them at all.
 
         ``verbose=True`` also routes this package's logs to stderr through ``configure_logging``;
@@ -92,7 +92,7 @@ class Guardrails(BaseGuardrails):
                 if config.rails.tool_call.per_tool or config.rails.tool_result.per_tool:
                     raise ValueError(
                         f"IORails cannot be used: {fallback_reason}. Configured per-tool rails "
-                        "(rails.tool_output.per_tool / rails.tool_input.per_tool) are IORails-only; "
+                        "(rails.tool_call.per_tool / rails.tool_result.per_tool) are IORails-only; "
                         "LLMRails does not run them, so falling back would silently disable them."
                     )
                 message = (

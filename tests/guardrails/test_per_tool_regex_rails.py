@@ -118,8 +118,8 @@ def _build_manager(
 class TestConfigSchema:
     def test_per_tool_field_defaults_to_empty(self):
         config = RailsConfig.from_content(config=STACK_CONFIG)
-        assert config.rails.tool_output.per_tool == {}
-        assert config.rails.tool_input.per_tool == {}
+        assert config.rails.tool_call.per_tool == {}
+        assert config.rails.tool_result.per_tool == {}
 
     def test_per_tool_field_round_trips_from_yaml(self):
         config = RailsConfig.from_content(
@@ -127,11 +127,11 @@ class TestConfigSchema:
                 **STACK_CONFIG,
                 "rails": {
                     "config": {"regex_detection": RUN_SQL_PATTERN_CONFIG},
-                    "tool_output": {"per_tool": {"run_sql": ["regex check tool output"]}},
+                    "tool_call": {"per_tool": {"run_sql": ["regex check tool output"]}},
                 },
             }
         )
-        assert config.rails.tool_output.per_tool == {"run_sql": ["regex check tool output"]}
+        assert config.rails.tool_call.per_tool == {"run_sql": ["regex check tool output"]}
 
 
 class TestAreToolCallsSafe:
@@ -620,7 +620,7 @@ class TestIORailsWiring:
                 **STACK_CONFIG,
                 "rails": {
                     "config": {"regex_detection": RUN_SQL_PATTERN_CONFIG},
-                    "tool_output": {"per_tool": {"run_sql": ["regex check tool output"]}},
+                    "tool_call": {"per_tool": {"run_sql": ["regex check tool output"]}},
                 },
             }
         )
@@ -634,7 +634,7 @@ class TestIORailsWiring:
         config = RailsConfig.from_content(
             config={
                 **STACK_CONFIG,
-                "rails": {"tool_output": {"per_tool": {"run_sql": ["this flow does not exist"]}}},
+                "rails": {"tool_call": {"per_tool": {"run_sql": ["this flow does not exist"]}}},
             }
         )
         assert IORails.unsupported_reason(config) is not None

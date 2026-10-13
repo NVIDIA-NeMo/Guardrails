@@ -116,7 +116,7 @@ rails:
 
 ### Tool Rails
 
-Tool rails check one tool call's arguments, or one tool result's content, against patterns scoped to that specific tool. Configure them under `rails.tool_output.per_tool` (calls) and `rails.tool_input.per_tool` (results), each keyed by tool name, alongside the matching patterns under `rails.config.regex_detection.tool_output`/`tool_input`:
+Tool rails check one tool call's arguments, or one tool result's content, against patterns scoped to that specific tool. Configure them under `rails.tool_call.per_tool` (calls) and `rails.tool_result.per_tool` (results), each keyed by tool name, alongside the matching patterns under `rails.config.regex_detection.tool_output`/`tool_input`:
 
 ```yaml
 rails:
@@ -130,11 +130,11 @@ rails:
         run_sql:
           patterns:
             - "ssn:\\s*\\d{3}-\\d{2}-\\d{4}"
-  tool_output:
+  tool_call:
     per_tool:
       run_sql:
         - "regex check tool output $argument=query"
-  tool_input:
+  tool_result:
     per_tool:
       run_sql:
         - "regex check tool input"
@@ -246,6 +246,6 @@ When a regex rail has a regex pattern match, the following steps happen (dependi
 
 `regex check retrieval` removes matching chunks from the retrieval results, which rewrites `relevant_chunks`.
 `IORails` has no retrieval pipeline and nowhere to apply that rewrite, so the flow runs on `LLMRails` only.
-`regex check tool output`/`regex check tool input` are `IORails`-only capabilities by design, scoped per tool under `rails.tool_output.per_tool`/`rails.tool_input.per_tool`.
+`regex check tool output`/`regex check tool input` are `IORails`-only capabilities by design, scoped per tool under `rails.tool_call.per_tool`/`rails.tool_result.per_tool`.
 
 For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

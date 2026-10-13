@@ -154,7 +154,7 @@ Retrieval surfaces run against the knowledge-base chunks retrieved for a turn.
 
 ### Tool Output Surfaces
 
-Tool output surfaces run against one tool call at a time, configured under `rails.tool_output.per_tool` and keyed by tool name.
+Tool output surfaces run against one tool call at a time, configured under `rails.tool_call.per_tool` and keyed by tool name.
 Unlike the [Tool Surfaces](#tool-surfaces) below, these are manifest surfaces like any input, output, or retrieval rail.
 Per-tool checks are an `IORails`-only capability by design:
 
@@ -166,7 +166,7 @@ Per-tool checks are an `IORails`-only capability by design:
 
 ### Tool Input Surfaces
 
-Tool input surfaces run against one tool result at a time, configured under `rails.tool_input.per_tool` and keyed by tool name.
+Tool input surfaces run against one tool result at a time, configured under `rails.tool_result.per_tool` and keyed by tool name.
 Per-tool checks are an `IORails`-only capability by design:
 
 | Flow | Rail | LLMRails | IORails | Notes |
@@ -184,8 +184,8 @@ Tool rails are not manifest surfaces.
 
 | Flow | Section | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
-| `tool call validation` | `rails.tool_output.flows` | ✗ | ✓ | Validates model-emitted tool calls, in generation and in a `tool_call` check |
-| `tool result validation` | `rails.tool_input.flows` | ✗ | ✓ | Validates application-returned tool results, in generation and in a `tool_result` check |
+| `tool call validation` | `rails.tool_call.flows` | ✗ | ✓ | Validates model-emitted tool calls, in generation and in a `tool_call` check |
+| `tool result validation` | `rails.tool_result.flows` | ✗ | ✓ | Validates application-returned tool results, in generation and in a `tool_result` check |
 
 For configuration and behavior, refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
 

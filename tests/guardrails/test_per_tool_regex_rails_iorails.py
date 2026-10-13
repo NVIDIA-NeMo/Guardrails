@@ -64,7 +64,7 @@ TOOL_OUTPUT_PATTERN_CONFIG = {
     ],
     "rails": {
         "config": {"regex_detection": {"tool_output": {"run_sql": {"patterns": [r"DROP\s+TABLE"]}}}},
-        "tool_output": {"per_tool": {"run_sql": ["regex check tool output"]}},
+        "tool_call": {"per_tool": {"run_sql": ["regex check tool output"]}},
     },
 }
 
@@ -91,7 +91,7 @@ TOOL_OUTPUT_SCHEMA_CONFIG = {
     ],
     "rails": {
         "config": {"regex_detection": {"tool_output": {"run_sql": {"patterns": [r"DROP\s+TABLE"]}}}},
-        "tool_output": {"per_tool": {"run_sql": ["regex check tool output"]}},
+        "tool_call": {"per_tool": {"run_sql": ["regex check tool output"]}},
     },
 }
 
@@ -99,7 +99,7 @@ TOOL_INPUT_PATTERN_CONFIG = {
     **BASE_CONFIG,
     "rails": {
         "config": {"regex_detection": {"tool_input": {"run_sql": {"patterns": [r"ssn:\s*\d{3}-\d{2}-\d{4}"]}}}},
-        "tool_input": {"per_tool": {"run_sql": ["regex check tool input"]}},
+        "tool_result": {"per_tool": {"run_sql": ["regex check tool input"]}},
     },
 }
 
@@ -183,7 +183,7 @@ class TestStreamingPerToolCallRegex:
         chunks = await _collect(call_pattern_iorails.stream_async(MESSAGES))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_output_rails"
+        assert violations[0]["error"]["param"] == "tool_call_rails"
         assert not any('"tool_calls"' in chunk for chunk in chunks)
 
     @pytest.mark.asyncio
@@ -225,7 +225,7 @@ class TestStreamingPerToolResultRegex:
         chunks = await _collect(result_pattern_iorails.stream_async(_tool_conversation("ssn: 123-45-6789")))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_input_rails"
+        assert violations[0]["error"]["param"] == "tool_result_rails"
         forbidden_post.assert_not_called()
 
     @pytest.mark.asyncio

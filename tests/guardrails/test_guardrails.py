@@ -310,10 +310,10 @@ class TestGuardrailsRouting:
             guardrails.rails_engine.update_llm.assert_called_once_with(mock_new_llm)
 
     def test_use_iorails_true_per_tool_config_iorails_cannot_handle_raises(self):
-        """LLMRails never reads tool_output.per_tool / tool_input.per_tool, so a per-tool
+        """LLMRails never reads tool_call.per_tool / tool_result.per_tool, so a per-tool
         config IORails cannot handle must raise instead of silently falling back to
         LLMRails, which would run without the configured per-tool policy at all."""
-        config = _make_iorails_config(rails={"tool_output": {"per_tool": {"run_sql": ["this flow does not exist"]}}})
+        config = _make_iorails_config(rails={"tool_call": {"per_tool": {"run_sql": ["this flow does not exist"]}}})
 
         with pytest.raises(ValueError, match="per-tool rails"):
             Guardrails(config=config, use_iorails=True)
