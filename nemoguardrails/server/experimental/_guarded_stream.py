@@ -15,6 +15,7 @@
 
 """Apply buffered output checks to provider-native event streams."""
 
+import logging
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 
@@ -52,6 +53,8 @@ from nemoguardrails.server.experimental.provider.stream import (
     validate_stream_event,
 )
 from nemoguardrails.server.experimental.provider.types import GuardedMessage
+
+log = logging.getLogger(__name__)
 
 
 class UnsupportedStreamInspection(ValueError):
@@ -167,12 +170,43 @@ async def _guard_upstream(source: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
         raise _UpstreamStreamFailure(failure) from failure
 
 
+def _log_outcome(outcome: StreamOutcome) -> None:
+    """Record why a guarded stream stopped, without logging provider text.
+
+    Blocks are normal checker decisions and are not logged here. Failure
+    reasons come from projection and framing checks, which describe shapes
+    rather than echoing provider content.
+    """
+    if isinstance(outcome, OperationBlocked):
+        return
+    if isinstance(outcome, OperationProjectionFailed):
+        log.warning("Guarded stream rejected at %s stage: %s", outcome.stage.value, outcome.failure)
+    elif isinstance(outcome, OperationModificationUnsupported):
+        log.warning(
+            "Guarded stream stopped at %s stage: the checker requested unsupported modification.", outcome.stage.value
+        )
+    elif isinstance(outcome, OperationCheckFailed):
+        cause = outcome.failure.cause
+        log.error(
+            "Guarded stream check failed at %s stage: %s (%s)",
+            outcome.stage.value,
+            outcome.failure.message,
+            type(cause).__name__ if cause is not None else "no exception",
+            exc_info=cause,
+        )
+    elif isinstance(outcome, StreamUpstreamFailed):
+        log.warning("Guarded stream upstream failed: %s", type(outcome.failure).__name__)
+    else:
+        log.error("Guarded stream processing failed: %s", type(outcome.failure).__name__, exc_info=outcome.failure)
+
+
 def _encoded_outcome(
     outcome: StreamOutcome,
     *,
     adapter: ProviderStreamAdapter,
     render_outcome: StreamOutcomeRenderer,
 ) -> tuple[bytes, ...]:
+    _log_outcome(outcome)
     response = render_outcome(outcome)
     return tuple(adapter.encode_error(response.body))
 

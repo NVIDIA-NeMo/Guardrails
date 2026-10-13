@@ -580,3 +580,64 @@ async def test_iterator_close_cancellation_does_not_skip_the_resource_owner():
     with pytest.raises(asyncio.CancelledError):
         await collect(CancelledClose([]), StaticChecker(), Hooks(), close=close_owner)
     assert closed == [True]
+
+
+class FailingEndHooks(Hooks):
+    def validate_end_of_stream(self):
+        raise RuntimeError("hook bug")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("source", "checker", "hooks", "level", "expected"),
+    [
+        (
+            lambda: Source([stream_event({"text": "secret"}) + b"\xef\xbb\xbfdata: x\n\n"]),
+            lambda: StaticChecker(),
+            Hooks,
+            "WARNING",
+            "rejected at output stage: A provider stream line starts with a byte order mark",
+        ),
+        (
+            lambda: Source([stream_event({"text": "secret"})]),
+            lambda: StaticChecker([RuntimeError("checker down")]),
+            Hooks,
+            "ERROR",
+            "check failed at output stage: The output content check failed. (RuntimeError)",
+        ),
+        (
+            lambda: Source([stream_event({"text": "secret"})], failure=ConnectionError("reset")),
+            lambda: StaticChecker(),
+            Hooks,
+            "WARNING",
+            "upstream failed: ConnectionError",
+        ),
+        (
+            lambda: Source([stream_event({"text": "secret"})]),
+            lambda: StaticChecker(),
+            FailingEndHooks,
+            "ERROR",
+            "processing failed: RuntimeError",
+        ),
+    ],
+    ids=["projection", "check", "upstream", "processing"],
+)
+async def test_stream_failures_are_logged_without_provider_text(caplog, source, checker, hooks, level, expected):
+    """Operators see why a stream stopped; the logged reason never echoes guarded text."""
+    caplog.set_level("WARNING", logger="nemoguardrails.server.experimental._guarded_stream")
+
+    await collect(source(), checker(), hooks(), policy=StreamBufferingPolicy(2, 0))
+
+    records = [record for record in caplog.records if record.name.endswith("_guarded_stream")]
+    assert [record.levelname for record in records] == [level]
+    assert expected in records[0].getMessage()
+    assert "secret" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_blocked_stream_is_not_logged_as_a_failure(caplog):
+    caplog.set_level("DEBUG", logger="nemoguardrails.server.experimental._guarded_stream")
+
+    await collect(Source([stream_event({"text": "secret"})]), StaticChecker([ContentBlocked("blocked")]), Hooks())
+
+    assert not [record for record in caplog.records if record.name.endswith("_guarded_stream")]
