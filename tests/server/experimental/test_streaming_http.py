@@ -25,7 +25,11 @@ from nemoguardrails.server.experimental import _stream_cleanup
 from nemoguardrails.server.experimental._buffered_kernel import OperationProjectionFailed
 from nemoguardrails.server.experimental._content_checker import ContentAllowed, StreamBufferingPolicy
 from nemoguardrails.server.experimental._guarded_stream import StreamProcessingFailed, StreamUpstreamFailed
-from nemoguardrails.server.experimental._http_kernel import BufferedHttpRequest, BufferedHttpResponse
+from nemoguardrails.server.experimental._http_kernel import (
+    BufferedHttpRequest,
+    BufferedHttpResponse,
+    HttpDispatchFailed,
+)
 from nemoguardrails.server.experimental._streaming_http import (
     StreamingHttpResponse,
     _ClosingStreamingResponse,
@@ -251,12 +255,23 @@ async def test_buffered_success_cannot_bypass_stream_inspection():
 @pytest.mark.asyncio
 async def test_dispatch_failure_is_rendered_before_streaming_starts():
     async def dispatch(_request):
-        raise RuntimeError("private upstream detail")
+        raise HttpDispatchFailed("private upstream detail")
 
     response = await execute(dispatch)
 
     assert response.status_code == 502
     assert await response_body(response) == b"upstream_failed"
+
+
+@pytest.mark.asyncio
+async def test_unexpected_dispatch_errors_are_not_reported_as_upstream_failures():
+    """As in the buffered path, a dispatcher bug propagates instead of looking like an outage."""
+
+    async def dispatch(_request):
+        raise TypeError("dispatcher bug")
+
+    with pytest.raises(TypeError, match="dispatcher bug"):
+        await execute(dispatch)
 
 
 @pytest.mark.asyncio

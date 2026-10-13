@@ -36,6 +36,7 @@ from nemoguardrails.server.experimental._guarded_stream import (
 from nemoguardrails.server.experimental._http_kernel import (
     BufferedHttpRequest,
     BufferedHttpResponse,
+    HttpDispatchFailed,
     HttpHeaders,
     ResponseBodyTooLarge,
     _end_to_end_headers,
@@ -185,7 +186,9 @@ async def execute_streaming_http(
 
     try:
         upstream = await dispatch(request)
-    except Exception as failure:
+    except HttpDispatchFailed as failure:
+        # Match the buffered path: only a typed dispatch failure is an upstream
+        # outage. Other exceptions are bugs and propagate.
         return _render_response(render_outcome(StreamUpstreamFailed(failure)), request.method)
 
     if isinstance(upstream, BufferedHttpResponse):
