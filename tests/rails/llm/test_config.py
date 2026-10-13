@@ -17,7 +17,15 @@
 import pytest
 from pydantic import ValidationError
 
-from nemoguardrails.rails.llm.config import Model, Rails, RailsConfig, RailsConfigData, TaskPrompt
+from nemoguardrails.rails.llm.config import (
+    Model,
+    Rails,
+    RailsConfig,
+    RailsConfigData,
+    TaskPrompt,
+    ToolCallRails,
+    ToolResultRails,
+)
 
 
 def test_tool_rail_fields_use_canonical_names():
@@ -75,6 +83,31 @@ def test_tool_rail_fields_reject_canonical_and_deprecated_names(canonical_name, 
         ValidationError, match=f"Cannot configure both rails.{deprecated_name} and rails.{canonical_name}"
     ):
         RailsConfig.from_content(config={"models": [], "rails": {canonical_name: {}, deprecated_name: {}}})
+
+
+def test_assigning_deprecated_tool_rail_fields_sets_canonical_fields():
+    rails = Rails()
+    tool_call = ToolCallRails(flows=["tool call validation"])
+    tool_result = ToolResultRails(flows=["tool result validation"])
+
+    with pytest.warns(DeprecationWarning, match="rails.tool_output is deprecated"):
+        rails.tool_output = tool_call
+    with pytest.warns(DeprecationWarning, match="rails.tool_input is deprecated"):
+        rails.tool_input = tool_result
+
+    assert rails.tool_call is tool_call
+    assert rails.tool_result is tool_result
+
+
+def test_assigning_canonical_tool_rail_fields_updates_deprecated_aliases():
+    rails = Rails()
+    rails.tool_call = ToolCallRails(flows=["tool call validation"])
+    rails.tool_result = ToolResultRails(flows=["tool result validation"])
+
+    with pytest.warns(DeprecationWarning, match="Use 'tool_call' instead"):
+        assert rails.tool_output is rails.tool_call
+    with pytest.warns(DeprecationWarning, match="Use 'tool_result' instead"):
+        assert rails.tool_input is rails.tool_result
 
 
 def test_deprecated_tool_rail_fields_are_marked_in_schema():

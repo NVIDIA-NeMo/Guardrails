@@ -36,6 +36,7 @@ from nemoguardrails.exceptions import (
     InvalidRailsConfigurationError,
 )
 from nemoguardrails.library.self_check.utils import get_self_check_prompt_task
+from nemoguardrails.rails.llm.options import DEPRECATED_TOOL_RAIL_FIELDS
 from nemoguardrails.rails.llm.rails_config_fields import (
     build_rails_config_data,
     config_exported_names,
@@ -591,10 +592,7 @@ class Rails(BaseModel):
             return values
 
         values = dict(values)
-        for deprecated_name, canonical_name in (
-            ("tool_output", "tool_call"),
-            ("tool_input", "tool_result"),
-        ):
+        for deprecated_name, canonical_name in DEPRECATED_TOOL_RAIL_FIELDS.items():
             if deprecated_name not in values:
                 continue
             if canonical_name in values:
@@ -612,9 +610,23 @@ class Rails(BaseModel):
 
     @model_validator(mode="after")
     def sync_deprecated_tool_rail_fields(self) -> "Rails":
-        self.__dict__["tool_output"] = self.tool_call
-        self.__dict__["tool_input"] = self.tool_result
+        self._sync_deprecated_tool_rail_fields()
         return self
+
+    def _sync_deprecated_tool_rail_fields(self) -> None:
+        for deprecated_name, canonical_name in DEPRECATED_TOOL_RAIL_FIELDS.items():
+            self.__dict__[deprecated_name] = self.__dict__[canonical_name]
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # The engine reads only the canonical fields, so a write to a deprecated name must land there.
+        canonical_name = DEPRECATED_TOOL_RAIL_FIELDS.get(name)
+        if canonical_name is not None:
+            warnings.warn(
+                f"rails.{name} is deprecated; use rails.{canonical_name} instead.", DeprecationWarning, stacklevel=2
+            )
+            name = canonical_name
+        super().__setattr__(name, value)
+        self._sync_deprecated_tool_rail_fields()
 
 
 def merge_two_dicts(dict_1: dict, dict_2: dict, ignore_keys: Set[str]) -> None:

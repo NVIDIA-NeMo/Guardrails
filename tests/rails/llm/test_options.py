@@ -88,6 +88,29 @@ def test_generation_tool_rail_options_reject_canonical_and_deprecated_names(cano
         GenerationOptions(rails={canonical_name: True, deprecated_name: False})
 
 
+def test_assigning_deprecated_tool_rail_options_sets_canonical_options():
+    options = GenerationOptions()
+
+    with pytest.warns(DeprecationWarning, match="rails.tool_output is deprecated"):
+        options.rails.tool_output = False
+    with pytest.warns(DeprecationWarning, match="rails.tool_input is deprecated"):
+        options.rails.tool_input = ["tool result validation"]
+
+    assert options.rails.tool_call is False
+    assert options.rails.tool_result == ["tool result validation"]
+
+
+def test_assigning_canonical_tool_rail_options_updates_deprecated_aliases():
+    options = GenerationOptions()
+    options.rails.tool_call = False
+    options.rails.tool_result = ["tool result validation"]
+
+    with pytest.warns(DeprecationWarning, match="Use 'tool_call' instead"):
+        assert options.rails.tool_output is False
+    with pytest.warns(DeprecationWarning, match="Use 'tool_result' instead"):
+        assert options.rails.tool_input == ["tool result validation"]
+
+
 def test_generation_options_validation():
     """Test GenerationOptions validation."""
 
