@@ -15,6 +15,7 @@
 
 import logging
 import os
+import re
 import tempfile
 from pathlib import Path
 from unittest import mock
@@ -786,6 +787,162 @@ class TestTopicSafetyConfig:
                 prompts:
                   - task: content_safety_check_input $model=content_safety
                     content: Check the content is safe
+                    """,
+            )
+
+
+class TestToolRailModelReferences:
+    """Test that tool rails naming a model type with $model= require that model to be defined"""
+
+    @pytest.mark.parametrize(
+        ("rails", "expected_prefix"),
+        [
+            pytest.param(
+                {
+                    "tool_output": {
+                        "per_tool": {"run_sql": ["tool safety check output $model=llama_guard $variant=run_sql_check"]}
+                    }
+                },
+                "Tool output flow 'tool safety check output' for tool 'run_sql'",
+                id="tool_output-per_tool",
+            ),
+            pytest.param(
+                {
+                    "tool_input": {
+                        "per_tool": {"run_sql": ["tool safety check input $model=llama_guard $variant=run_sql_check"]}
+                    }
+                },
+                "Tool input flow 'tool safety check input' for tool 'run_sql'",
+                id="tool_input-per_tool",
+            ),
+            pytest.param(
+                {"tool_output": {"flows": ["tool safety check output $model=llama_guard"]}},
+                "Tool output flow 'tool safety check output'",
+                id="tool_output-flows",
+            ),
+            pytest.param(
+                {"tool_input": {"flows": ["tool safety check input $model=llama_guard"]}},
+                "Tool input flow 'tool safety check input'",
+                id="tool_input-flows",
+            ),
+        ],
+    )
+    def test_undefined_model_raises(self, rails, expected_prefix):
+        """A tool flow naming an undefined model raises, naming its section, its flow and, for a per-tool flow, its tool."""
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                f"{expected_prefix} references model type 'llama_guard' "
+                "that is not defined in the configuration. Detected model types: 'main'."
+            ),
+        ):
+            _ = RailsConfig.from_content(
+                config={
+                    "models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}],
+                    "rails": rails,
+                }
+            )
+
+    def test_tool_rails_with_defined_model_load(self):
+        """Tool rails naming a defined model in all four flow sets load with their flows intact."""
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models:
+              - type: main
+                engine: nim
+                model: meta/llama-3.3-70b-instruct
+              - type: llama_guard
+                engine: nim
+                model: meta/llama-guard-3-8b
+
+            rails:
+              tool_output:
+                flows:
+                  - tool safety check output $model=llama_guard
+                per_tool:
+                  run_sql:
+                    - tool safety check output $model=llama_guard $variant=run_sql_check
+              tool_input:
+                flows:
+                  - tool safety check input $model=llama_guard
+                per_tool:
+                  run_sql:
+                    - tool safety check input $model=llama_guard $variant=run_sql_check
+                """,
+        )
+
+        assert config.rails.tool_output.flows == ["tool safety check output $model=llama_guard"]
+        assert config.rails.tool_output.per_tool == {
+            "run_sql": ["tool safety check output $model=llama_guard $variant=run_sql_check"]
+        }
+        assert config.rails.tool_input.flows == ["tool safety check input $model=llama_guard"]
+        assert config.rails.tool_input.per_tool == {
+            "run_sql": ["tool safety check input $model=llama_guard $variant=run_sql_check"]
+        }
+
+    def test_tool_rails_without_model_are_unaffected(self):
+        """Tool rails that name no model load when only a main model is defined."""
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models:
+              - type: main
+                engine: nim
+                model: meta/llama-3.3-70b-instruct
+
+            rails:
+              tool_output:
+                flows:
+                  - tool call validation
+                per_tool:
+                  Bash:
+                    - regex check tool output $argument=command
+              tool_input:
+                flows:
+                  - tool result validation
+                """,
+        )
+
+        assert config.rails.tool_output.flows == ["tool call validation"]
+        assert config.rails.tool_output.per_tool == {"Bash": ["regex check tool output $argument=command"]}
+        assert config.rails.tool_input.flows == ["tool result validation"]
+
+    def test_malformed_tool_flow_is_left_to_the_engine(self):
+        """A tool flow whose parameters don't parse loads, so the engine reports it rather than the model check."""
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models:
+              - type: main
+                engine: nim
+                model: meta/llama-3.3-70b-instruct
+
+            rails:
+              tool_output:
+                per_tool:
+                  run_sql:
+                    - tool safety check output $model=llama_guard $model=llama_guard
+                """,
+        )
+
+        assert config.rails.tool_output.per_tool == {
+            "run_sql": ["tool safety check output $model=llama_guard $model=llama_guard"]
+        }
+
+    def test_undefined_model_with_no_models_reports_none(self):
+        """A tool rail naming a model in a config with no models reports the detected model types as none."""
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "Tool output flow 'tool safety check output' for tool 'run_sql' references model type 'llama_guard' "
+                "that is not defined in the configuration. Detected model types: none."
+            ),
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                rails:
+                  tool_output:
+                    per_tool:
+                      run_sql:
+                        - tool safety check output $model=llama_guard
                     """,
             )
 

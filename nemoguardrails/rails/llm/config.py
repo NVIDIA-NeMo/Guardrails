@@ -18,8 +18,9 @@
 import logging
 import os
 import warnings
+from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Set, Tuple, Union
 
 import yaml
 from pydantic import (
@@ -1045,6 +1046,30 @@ class RailsConfig(BaseModel):
                 )
         return values
 
+    # An "after" validator, unlike its input/output twins, reads the typed `rails` fields,
+    # so it doesn't depend on how the raw config spells the tool rail sections.
+    @model_validator(mode="after")
+    def check_model_exists_for_tool_rails(self) -> "RailsConfig":
+        """Make sure we have a model for each tool rail where one is provided using $model=<model_type>"""
+        model_types = {model.type for model in self.models}
+
+        for tool_rail_flow in _tool_rail_flows(self.rails):
+            try:
+                flow_model = _get_flow_model(tool_rail_flow.flow)
+            except ValueError:
+                # A malformed flow reference isn't a model check's to report; the engine
+                # rejects it as an invalid flow reference when it compiles the rail.
+                continue
+            if not flow_model or flow_model in model_types:
+                continue
+            flow_id = _normalize_flow_id(tool_rail_flow.flow)
+            tool_clause = f" for tool '{tool_rail_flow.tool_name}'" if tool_rail_flow.tool_name is not None else ""
+            available_types = ", ".join(f"'{str(t)}'" for t in sorted(model_types)) if model_types else "none"
+            raise InvalidRailsConfigurationError(
+                f"{tool_rail_flow.section} flow '{flow_id}'{tool_clause} references model type '{flow_model}' that is not defined in the configuration. Detected model types: {available_types}."
+            )
+        return self
+
     @model_validator(mode="before")
     @classmethod
     def check_prompt_exist_for_self_check_rails(cls, values):
@@ -1515,6 +1540,25 @@ def _get_flow_model(flow_text) -> Optional[str]:
 
     _, parameters = parse_configured_surface(flow_text)
     return parameters.get("model")
+
+
+@dataclass(frozen=True)
+class _ToolRailFlow:
+    """A configured tool rail flow, with the section it is in and, for a per-tool flow, its tool."""
+
+    section: str
+    tool_name: Optional[str]
+    flow: str
+
+
+def _tool_rail_flows(rails: Rails) -> Iterator[_ToolRailFlow]:
+    """Yield each tool rail flow, global flows before per-tool ones."""
+    for section, tool_rails in (("Tool output", rails.tool_output), ("Tool input", rails.tool_input)):
+        for flow in tool_rails.flows:
+            yield _ToolRailFlow(section=section, tool_name=None, flow=flow)
+        for tool_name, flows in tool_rails.per_tool.items():
+            for flow in flows:
+                yield _ToolRailFlow(section=section, tool_name=tool_name, flow=flow)
 
 
 def _validate_self_check_rail_prompts(
