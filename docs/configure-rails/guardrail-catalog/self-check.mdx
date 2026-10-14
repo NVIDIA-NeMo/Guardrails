@@ -44,6 +44,19 @@ If your LLM does not reliably follow this prompt, consider a purpose-built input
 
 </Info>
 
+### Evaluate a Model for Input Self-Check
+
+Evaluate the candidate model with your exact `self_check_input` prompt before choosing it for your application:
+
+1. Prepare labeled inputs that your policy should allow or block. Include normal user requests, policy violations, jailbreak attempts, and ambiguous cases. Include the languages and conversation patterns your application supports.
+2. Run the inputs through a configuration with only `self check input` enabled as an input rail. Keep the prompt, model version, generation parameters, and expected labels fixed so that other input rails do not affect the comparison.
+3. Inspect the [activated rails and LLM call logs](/observability/logging) to confirm that the self-check rail made the decision. The raw verdict must follow the prompt's `yes`/`no` contract: `yes` means block and `no` means allow. Count empty, truncated, or malformed verdicts separately from correct classifications.
+4. Measure the false acceptance rate (inputs that should be blocked but pass) and false rejection rate (inputs that should pass but are blocked). Repeat the cases to identify inconsistent decisions, and compare latency under the same conditions.
+5. Set acceptance criteria for your application before comparing candidate models. Reevaluate after changing the model, prompt, policy, or generation settings.
+
+Use [Evaluate Configuration](/evaluation/evaluate-configuration) to define interactions and expected behavior, then review the results against your labels.
+A general model benchmark does not establish reliability on your application's self-check prompt. If no candidate meets your criteria, evaluate a [purpose-built content safety model](/configure-guardrails/guardrail-catalog/content-safety).
+
 ### Usage
 
 To use the self-check input rail, you should:
