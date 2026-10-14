@@ -16,6 +16,7 @@
 """Send guarded proxy exchanges through an application-owned HTTP client."""
 
 import math
+from collections.abc import Collection
 from urllib.parse import unquote_to_bytes
 
 import httpx
@@ -58,12 +59,13 @@ def _connection_tokens(headers: HttpHeaders) -> set[bytes]:
     return tokens
 
 
-def _request_headers(headers: HttpHeaders) -> list[tuple[bytes, bytes]]:
-    """Remove connection-specific headers and let HTTPX rebuild host and framing."""
+def _request_headers(headers: HttpHeaders, control_headers: frozenset[bytes]) -> list[tuple[bytes, bytes]]:
+    """Remove connection and proxy-control headers; let HTTPX rebuild host and framing."""
 
     excluded = (
         _HOP_BY_HOP_HEADERS
         | _connection_tokens(headers)
+        | control_headers
         | {
             b"host",
             b"content-length",
@@ -124,6 +126,7 @@ class ProviderTransport:
         *,
         base_url: str,
         mount_path: str = "",
+        control_headers: Collection[str] = (),
         max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
         timeout: float = DEFAULT_OUTBOUND_TIMEOUT,
     ):
@@ -141,6 +144,11 @@ class ProviderTransport:
         normalized_mount = mount_path.rstrip("/")
         if normalized_mount and (not normalized_mount.startswith("/") or not normalized_mount.isascii()):
             raise ValueError("The outbound mount path must be an absolute ASCII path.")
+        if any(
+            not isinstance(name, str) or not name or not name.isascii() or name != name.strip().lower()
+            for name in control_headers
+        ):
+            raise ValueError("Outbound control header names must be non-empty, lowercase ASCII strings.")
         if (
             type(max_response_body_bytes) is not int
             or max_response_body_bytes <= 0
@@ -153,6 +161,7 @@ class ProviderTransport:
         self._http_client = http_client
         self._base_url = parsed_base_url
         self._mount_path = normalized_mount
+        self._control_headers = frozenset(name.encode("ascii") for name in control_headers)
         self._max_response_body_bytes = max_response_body_bytes
         self._timeout = float(timeout)
 
@@ -165,8 +174,13 @@ class ProviderTransport:
             raise ValueError("An outbound request must contain an absolute path without a query.")
         if self._mount_path:
             raw_path = _strip_mount_prefix(path, raw_path, self._mount_path)
-        base_path = self._base_url.raw_path.rstrip(b"/")
-        upstream_path = base_path + raw_path
+            path = path[len(self._mount_path) :] or "/"
+        base_path = self._base_url.path.rstrip("/")
+        if base_path and (path == base_path or path.startswith(base_path + "/")):
+            upstream_path = raw_path
+        else:
+            raw_base_path = self._base_url.raw_path.rstrip(b"/")
+            upstream_path = raw_base_path + raw_path
         if request.query:
             upstream_path += b"?" + request.query
         return self._base_url.copy_with(raw_path=upstream_path)
@@ -182,7 +196,7 @@ class ProviderTransport:
         upstream_request = httpx.Request(
             request.method,
             self._upstream_url(request),
-            headers=_request_headers(request.headers),
+            headers=_request_headers(request.headers, self._control_headers),
             content=request.body,
             extensions={"timeout": httpx.Timeout(self._timeout).as_dict()},
         )

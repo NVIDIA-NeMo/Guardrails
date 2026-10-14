@@ -692,6 +692,24 @@ def test_guarded_http_path_rejects_path_spanning_parameters():
         GuardedOperationPath("/v1/{rest:path}")
 
 
+def test_guarded_http_path_rejects_overlapping_guarded_and_passthrough_methods():
+    with pytest.raises(ValueError, match="must not overlap"):
+        GuardedOperationPath(
+            "/v1/generate",
+            frozenset({"POST"}),
+            frozenset({"POST"}),
+        )
+
+
+def test_guarded_http_path_rejects_unsupported_passthrough_methods():
+    with pytest.raises(ValueError, match="Pass-through HTTP methods"):
+        GuardedOperationPath(
+            "/v1/generate",
+            frozenset({"POST"}),
+            frozenset({"get"}),
+        )
+
+
 @pytest.mark.asyncio
 async def test_projection_failure_is_rendered_without_dispatch():
     """Render input projection failures without provider dispatch."""

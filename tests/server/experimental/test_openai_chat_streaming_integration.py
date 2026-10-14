@@ -515,7 +515,7 @@ def test_openapi_documents_chat_success_modes_that_can_be_dispatched(configure_s
 @pytest.mark.parametrize(
     "method,path,status,code",
     [
-        ("GET", "/v1/chat/completions", 405, "method_not_allowed"),
+        ("PUT", "/v1/chat/completions", 405, "method_not_allowed"),
         ("HEAD", "/v1/chat/completions", 405, "method_not_allowed"),
         ("POST", "/v1/chat/%2e/completions", 422, "non_canonical_path"),
         ("POST", "/v1/chat/completions%3F", 422, "non_canonical_path"),
@@ -542,7 +542,7 @@ async def test_stream_requests_retain_native_route_rejections_before_dispatch(pr
         assert response.content == b""
     else:
         assert response.json()["error"]["code"] == code
-    assert response.headers.get("allow") == ("POST" if status == 405 else None)
+    assert response.headers.get("allow") == ("GET, POST" if status == 405 else None)
     assert checker.calls == []
     assert status in {documented.status_code for documented in OPENAI_ERROR_MAPPING.responses}
 

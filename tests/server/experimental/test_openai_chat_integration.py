@@ -716,7 +716,7 @@ def test_openai_error_mapping_is_the_openapi_response_authority():
 @pytest.mark.parametrize(
     ("method", "path", "status_code", "code", "allowed"),
     [
-        ("GET", "/v1/chat/completions", 405, "method_not_allowed", "POST"),
+        ("PUT", "/v1/chat/completions", 405, "method_not_allowed", "GET, POST"),
         ("POST", "/v1//chat/completions", 422, "non_canonical_path", None),
         ("POST", "/v1/%2e/chat/completions", 422, "non_canonical_path", None),
         ("GET", "/v1%5Cmodels", 400, "invalid_request_path", None),

@@ -50,6 +50,7 @@ class GuardedOperationPath:
 
     route_path: str
     methods: frozenset[str] = frozenset({"POST"})
+    passthrough_methods: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         """Validate the route template and its allowed methods."""
@@ -59,6 +60,10 @@ class GuardedOperationPath:
         _compile_guarded_path(self.route_path)
         if not self.methods or any(method not in HTTP_METHODS for method in self.methods):
             raise ValueError("Guarded HTTP methods must be supported uppercase methods.")
+        if any(method not in HTTP_METHODS for method in self.passthrough_methods):
+            raise ValueError("Pass-through HTTP methods must be supported uppercase methods.")
+        if self.methods & self.passthrough_methods:
+            raise ValueError("Guarded and pass-through HTTP methods must not overlap.")
 
     def matches(self, path: str) -> bool:
         """Return whether a concrete path belongs to this operation."""

@@ -582,6 +582,8 @@ def create_http_proxy_router(
     dispatch: HttpDispatch,
     render_outcome: OutcomeRenderer,
     reserved_routes: Mapping[str, Collection[str]] | None = None,
+    operation_ids: Mapping[str, str] | None = None,
+    guarded_path_prefix: str = "",
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
     max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
 ) -> APIRouter:
@@ -594,13 +596,27 @@ def create_http_proxy_router(
     resolved_operations = _validate_operations(operations)
     if any(type(limit) is not int or limit <= 0 for limit in (max_request_body_bytes, max_response_body_bytes)):
         raise ValueError("Buffered HTTP body limits must be positive integers.")
+    resolved_operation_ids = dict(operation_ids or {})
+    operation_names = {operation.operation.name for operation in resolved_operations}
+    if resolved_operation_ids.keys() - operation_names:
+        raise ValueError("HTTP operation ids must refer to declared guarded operations.")
+    normalized_guarded_prefix = guarded_path_prefix.rstrip("/")
+    if normalized_guarded_prefix and not normalized_guarded_prefix.startswith("/"):
+        raise ValueError("A guarded path prefix must be empty or absolute.")
     validated_checker = validate_content_checker(checker)
     guarded_matchers = []
     reserved_matchers = _validate_reserved_routes(reserved_routes or {})
     router = APIRouter()
 
     for declaration in resolved_operations:
-        guarded_matchers.extend(declaration.guarded_operation_paths)
+        guarded_matchers.extend(
+            GuardedOperationPath(
+                f"{normalized_guarded_prefix}{operation_path.route_path}",
+                operation_path.methods,
+                operation_path.passthrough_methods,
+            )
+            for operation_path in declaration.guarded_operation_paths
+        )
         router.add_api_route(
             declaration.operation_path.route_path,
             _guarded_handler(
@@ -613,7 +629,7 @@ def create_http_proxy_router(
             ),
             methods=sorted(declaration.operation_path.methods),
             name=declaration.operation.name,
-            operation_id=declaration.operation.name,
+            operation_id=resolved_operation_ids.get(declaration.operation.name, declaration.operation.name),
             response_class=Response,
             responses=declaration.documented_responses,
             openapi_extra=declaration.openapi_extra,
@@ -629,7 +645,9 @@ def create_http_proxy_router(
             return _render_failure(
                 HttpRouteRejected(HttpRouteRejectionKind.INVALID_REQUEST_PATH), render_outcome, request.method
             )
-        candidates = _route_path_candidates(f"/{path}")
+        ownership_path = request.url.path if normalized_guarded_prefix else f"/{path}"
+        candidates = _route_path_candidates(ownership_path)
+        normalized_path = _normalized_route_path(ownership_path)
         reserved_methods = next(
             (
                 methods
@@ -644,22 +662,37 @@ def create_http_proxy_router(
                 render_outcome,
                 request.method,
             )
-        matched_methods = {
+        matched_guarded_methods = {
             method
             for operation_path in guarded_matchers
             if any(operation_path.matches(candidate) for candidate in candidates)
             for method in operation_path.methods
         }
-        if matched_methods:
-            if request.method not in matched_methods:
+        matched_passthrough_methods = {
+            method
+            for operation_path in guarded_matchers
+            if operation_path.matches(normalized_path)
+            for method in operation_path.passthrough_methods
+        }
+        if matched_guarded_methods:
+            canonical_passthrough = (
+                ownership_path == normalized_path
+                and candidates == frozenset({normalized_path})
+                and request.method in matched_passthrough_methods
+            )
+            if not canonical_passthrough and request.method not in matched_guarded_methods:
                 return _render_failure(
-                    HttpRouteRejected(HttpRouteRejectionKind.METHOD_NOT_ALLOWED, frozenset(matched_methods)),
+                    HttpRouteRejected(
+                        HttpRouteRejectionKind.METHOD_NOT_ALLOWED,
+                        frozenset(matched_guarded_methods | matched_passthrough_methods),
+                    ),
                     render_outcome,
                     request.method,
                 )
-            return _render_failure(
-                HttpRouteRejected(HttpRouteRejectionKind.NON_CANONICAL_PATH), render_outcome, request.method
-            )
+            if not canonical_passthrough:
+                return _render_failure(
+                    HttpRouteRejected(HttpRouteRejectionKind.NON_CANONICAL_PATH), render_outcome, request.method
+                )
         try:
             buffered_request = await _buffer_request(request, max_request_body_bytes)
             response = await dispatch(buffered_request)
