@@ -152,15 +152,20 @@ class TestToolOutput:
         assert outcome.metadata == {"source": "tool_output"}
 
     @pytest.mark.asyncio
-    async def test_tool_without_expressions_allows(self):
-        outcome = await _check_call(_config("tool_output", "true", tool="other_tool"), _shell_call(command="rm"))
-        assert outcome.decision is RailDecision.ALLOW
+    async def test_tool_without_expressions_fails_closed(self):
+        with pytest.raises(RuntimeError, match="No CEL expressions configured for tool 'run_shell'"):
+            await _check_call(_config("tool_output", "true", tool="other_tool"), _shell_call(command="rm"))
 
     @pytest.mark.asyncio
-    async def test_null_cel_section_allows(self):
+    async def test_null_cel_section_fails_closed(self):
         config = RailsConfig.from_content(config={"rails": {"config": {"cel": None}}})
-        outcome = await _check_call(config, _shell_call(command="rm -rf /"))
-        assert outcome.decision is RailDecision.ALLOW
+        with pytest.raises(RuntimeError, match="No CEL expressions configured for tool 'run_shell'"):
+            await _check_call(config, _shell_call(command="rm -rf /"))
+
+    @pytest.mark.asyncio
+    async def test_has_guards_a_missing_argument(self):
+        config = _config("tool_output", 'has(args.mode) && args.mode == "append"')
+        assert (await _check_call(config, _shell_call(command="ls"))).decision is RailDecision.ALLOW
 
     @pytest.mark.asyncio
     async def test_tool_name_is_available(self):
@@ -212,6 +217,11 @@ class TestFailures:
         config = _config("tool_output", 'args.flags.exists(f, f == "--force")', 'args.command == "rm"')
         with pytest.raises(RuntimeError, match="KeyError"):
             await _check_call(config, _shell_call(command="rm"))
+
+    @pytest.mark.asyncio
+    async def test_has_on_a_missing_parent_fails_closed(self):
+        with pytest.raises(RuntimeError, match="KeyError"):
+            await _check_call(_config("tool_output", "has(args.a.b)"), _shell_call(command="ls"))
 
     @pytest.mark.asyncio
     async def test_failures_without_a_match_raise_listing_each(self):
@@ -268,10 +278,10 @@ class TestToolInput:
             assert outcome.decision is RailDecision.ALLOW
 
     @pytest.mark.asyncio
-    async def test_null_cel_section_allows(self):
+    async def test_null_cel_section_fails_closed(self):
         config = RailsConfig.from_content(config={"rails": {"config": {"cel": None}}})
-        outcome = await _check_result(config, "-----BEGIN RSA PRIVATE KEY-----")
-        assert outcome.decision is RailDecision.ALLOW
+        with pytest.raises(RuntimeError, match="No CEL expressions configured for tool 'run_shell'"):
+            await _check_result(config, "-----BEGIN RSA PRIVATE KEY-----")
 
     @pytest.mark.asyncio
     async def test_args_and_tool_come_from_the_answered_call(self):

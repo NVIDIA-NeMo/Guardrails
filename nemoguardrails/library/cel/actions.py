@@ -36,24 +36,26 @@ def _program(expression: str) -> "Program":
     return compile_expression(expression)
 
 
-def _tool_options(config: RailsConfig, source: str, tool_name: str) -> Optional[CelOptions]:
-    """Return the tool's CEL options for *source*, or None when none are configured."""
+def _tool_options(config: RailsConfig, source: str, tool_name: str) -> CelOptions:
+    """Return the tool's CEL options for *source*.
+
+    Raises when none are configured, so the rail fails closed: a tool the CEL rail runs for
+    with no expressions to check cannot be validated.
+    """
     cel_config = config.rails.config.cel
-    if cel_config is None:
-        return None
-    return getattr(cel_config, source).get(tool_name)
+    options = getattr(cel_config, source).get(tool_name) if cel_config is not None else None
+    if options is None:
+        raise RuntimeError(f"No CEL expressions configured for tool {tool_name!r} under rails.config.cel.{source}")
+    return options
 
 
-def _evaluate(source: str, tool_name: str, variables: Dict[str, Any], options: Optional[CelOptions]) -> RailOutcome:
+def _evaluate(source: str, tool_name: str, variables: Dict[str, Any], options: CelOptions) -> RailOutcome:
     """Evaluate all of a tool's CEL expressions, blocking when any is true.
 
     A failing expression (an error or a non-boolean result) raises even if another expression
     matched, so the rail fails closed.
     """
     metadata: Dict[str, Any] = {"source": source}
-    if options is None:
-        log.debug("No CEL expressions configured for tool %r under source: %s", tool_name, source)
-        return RailOutcome.allow(metadata=metadata)
 
     # Already imported when the expressions compiled at config load.
     import cel

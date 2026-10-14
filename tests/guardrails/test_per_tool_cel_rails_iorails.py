@@ -32,12 +32,13 @@ from tests.guardrails.test_tool_rails_iorails import (
     _inject_forbidden_transport,
     _inject_json_response,
     _inject_sse_stream,
-    _sse,
     _stream_violation_chunks,
     _text_payload,
+    _text_sse_lines,
     _tool_call_payload,
     _tool_call_sse_lines,
 )
+from tests.guardrails.tool_helpers import make_tool_conversation
 
 pytestmark = pytest.mark.skipif(not check_optional_dependency("cel"), reason="requires the 'cel' extra (Python 3.11+)")
 
@@ -86,30 +87,11 @@ TOOL_INPUT_CONFIG = {
 MESSAGES = [{"role": "user", "content": "clean up the temp directory"}]
 
 
-def _tool_conversation(result_content: str) -> list:
-    return [
-        {"role": "user", "content": "show me the key"},
-        {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {
-                    "id": "call_1",
-                    "type": "function",
-                    "function": {"name": "run_shell", "arguments": '{"command": "cat key.pem"}'},
-                }
-            ],
-        },
-        {"role": "tool", "tool_call_id": "call_1", "name": "run_shell", "content": result_content},
-    ]
-
-
-def _text_sse_lines(text: str) -> list:
-    chunks = [
-        {"id": "chatcmpl-1", "choices": [{"index": 0, "delta": {"role": "assistant", "content": text}}]},
-        {"id": "chatcmpl-1", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
-    ]
-    return [_sse(chunk) for chunk in chunks] + [b"data: [DONE]\n\n"]
+def _tool_conversation(content: str) -> list:
+    """A run_shell call answered by a tool result carrying *content*."""
+    return make_tool_conversation(
+        result_name="run_shell", tool_name="run_shell", arguments='{"command": "cat key.pem"}', content=content
+    )
 
 
 async def _collect(stream) -> list:
@@ -159,6 +141,17 @@ class TestNonStreamingPerToolCallCel:
         result = await failing_call_iorails.generate_async(messages=MESSAGES)
         assert result == {"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}
 
+    @pytest.mark.asyncio
+    async def test_tool_without_expressions_fails_closed_as_internal_error(self):
+        config = {
+            "models": [MAIN_MODEL],
+            "rails": {"tool_output": {"per_tool": {"run_shell": ["cel check tool output"]}}},
+        }
+        async with started_iorails(config) as engine:
+            _inject_json_response(engine, _tool_call_payload("run_shell", '{"command": "ls"}'))
+            result = await engine.generate_async(messages=MESSAGES)
+        assert result == {"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}
+
 
 class TestStreamingPerToolCallCel:
     @pytest.mark.asyncio
@@ -174,6 +167,14 @@ class TestStreamingPerToolCallCel:
         _inject_sse_stream(call_iorails, _tool_call_sse_lines("run_shell", ['{"command": "ls /tmp"}']))
         chunks = await _collect(call_iorails.stream_async(MESSAGES))
         assert _stream_violation_chunks(chunks) == []
+
+    @pytest.mark.asyncio
+    async def test_failing_expression_streams_a_generic_error(self, failing_call_iorails):
+        _inject_sse_stream(failing_call_iorails, _tool_call_sse_lines("run_shell", ['{"command": "SECRET"}']))
+        chunks = await _collect(failing_call_iorails.stream_async(MESSAGES))
+        assert len(_stream_violation_chunks(chunks)) == 1
+        payload = "".join(str(chunk) for chunk in chunks)
+        assert "args.flags" not in payload and "SECRET" not in payload
 
 
 class TestNonStreamingPerToolResultCel:

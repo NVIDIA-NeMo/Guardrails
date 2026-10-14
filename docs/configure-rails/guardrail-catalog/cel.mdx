@@ -91,6 +91,7 @@ The rail evaluates every expression configured for the tool:
 - If any expression evaluates to `true`, the rail blocks the tool call or result. The block lists the expressions that matched in its `matched_expressions` metadata. The metadata never includes the checked arguments or content.
 - If no expression evaluates to `true`, the rail allows the tool call or result.
 - If any expression fails to evaluate, for example because it reads an argument the call did not include, or it returns a value that is not a boolean, the rail fails closed, even if another expression matched. The tool call or result is blocked and reported as a rail failure rather than a policy decision, and the logged error lists each expression that failed with its error type.
+- If the tool has no expressions configured for the direction its flow runs in, the rail also fails closed, since there is nothing to validate the tool call or result against.
 
 ## Write Expressions
 
