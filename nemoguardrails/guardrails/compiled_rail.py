@@ -572,17 +572,17 @@ _LOCAL_BACKEND_CHECKS: dict[str, Callable[[Any, Mapping[str, str]], bool]] = {
 
 def _reject_unknown_surface_parameter(surface: RailSurface, flow: str, params: Mapping[str, str]) -> None:
     """Fail compilation when a flow sets a `$param=` this surface has no binding for, e.g.
-    `$argument=` on "tool safety check input" or "regex check tool input", neither of which
+    `$argument=` on "tool safety check tool result" or "regex check tool result", neither of which
     has an argument binding to scope.
 
     `_frozen_parameters` does not catch this: it only checks that a surface's declared
     bindings have their required params present, never that `params` has no extra,
     undeclared keys.
 
-    TODO: scoped to TOOL_OUTPUT/TOOL_INPUT surfaces for now, to restrict the blast radius;
+    TODO: scoped to TOOL_CALL/TOOL_RESULT surfaces for now, to restrict the blast radius;
     extend to every direction once confirmed safe there too.
     """
-    if surface.direction not in (RailDirection.TOOL_OUTPUT, RailDirection.TOOL_INPUT):
+    if surface.direction not in (RailDirection.TOOL_CALL, RailDirection.TOOL_RESULT):
         return
 
     declared_keys = {binding.key for binding in surface.bindings if binding.kind == "surface_param"}
@@ -614,7 +614,7 @@ def _reject_invalid_tool_safety_check_prompt(
     if manifest is None or manifest.name != "tool_safety_check":
         return
 
-    direction_suffix = "output" if surface.direction is RailDirection.TOOL_OUTPUT else "input"
+    direction_suffix = "tool_call" if surface.direction is RailDirection.TOOL_CALL else "tool_result"
     task = f"tool_safety_check_{direction_suffix} $model={params['model']} $variant={params['variant']}"
     try:
         prompt = get_prompt(deps.config, task)

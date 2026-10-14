@@ -717,8 +717,8 @@ class IORails(BaseGuardrails):
         # Per-tool flows are manifest surfaces, like input/output, so check them the same
         # way rather than let a bad one raise in RailsManager at construction.
         per_tool_checks = (
-            (config.rails.tool_call.per_tool, SurfaceDirection.TOOL_OUTPUT),
-            (config.rails.tool_result.per_tool, SurfaceDirection.TOOL_INPUT),
+            (config.rails.tool_call.per_tool, SurfaceDirection.TOOL_CALL),
+            (config.rails.tool_result.per_tool, SurfaceDirection.TOOL_RESULT),
         )
         for per_tool, direction in per_tool_checks:
             flows = [flow for tool_flows in per_tool.values() for flow in tool_flows]
@@ -799,8 +799,8 @@ class IORails(BaseGuardrails):
             output_flows=config.rails.output.flows,
             input_parallel=config.rails.input.parallel or False,
             output_parallel=config.rails.output.parallel or False,
-            tool_output_parallel=config.rails.tool_call.parallel or False,
-            tool_input_parallel=config.rails.tool_result.parallel or False,
+            tool_call_parallel=config.rails.tool_call.parallel or False,
+            tool_result_parallel=config.rails.tool_result.parallel or False,
             tool_call_flows=config.rails.tool_call.flows,
             tool_result_flows=config.rails.tool_result.flows,
             per_tool_call_flows=config.rails.tool_call.per_tool,

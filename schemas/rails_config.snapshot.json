@@ -57,20 +57,20 @@
       "additionalProperties": false,
       "description": "Configuration for CEL expression checks.",
       "properties": {
-        "tool_input": {
-          "additionalProperties": {
-            "$ref": "#/$defs/CelOptions"
-          },
-          "description": "Per-tool CEL expressions to check against a tool result, keyed by tool name.",
-          "title": "Tool Input",
-          "type": "object"
-        },
-        "tool_output": {
+        "tool_call": {
           "additionalProperties": {
             "$ref": "#/$defs/CelOptions"
           },
           "description": "Per-tool CEL expressions to check against a tool call, keyed by tool name.",
-          "title": "Tool Output",
+          "title": "Tool Call",
+          "type": "object"
+        },
+        "tool_result": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CelOptions"
+          },
+          "description": "Per-tool CEL expressions to check against a tool result, keyed by tool name.",
+          "title": "Tool Result",
           "type": "object"
         }
       },
@@ -967,20 +967,20 @@
           "$ref": "#/$defs/RegexDetectionOptions",
           "description": "Configuration for regex patterns to detect on retrieved relevant chunks."
         },
-        "tool_input": {
-          "additionalProperties": {
-            "$ref": "#/$defs/RegexDetectionOptions"
-          },
-          "description": "Per-tool regex patterns to detect in a tool result's content, keyed by tool name.",
-          "title": "Tool Input",
-          "type": "object"
-        },
-        "tool_output": {
+        "tool_call": {
           "additionalProperties": {
             "$ref": "#/$defs/RegexDetectionOptions"
           },
           "description": "Per-tool regex patterns to detect in a tool call's arguments, keyed by tool name.",
-          "title": "Tool Output",
+          "title": "Tool Call",
+          "type": "object"
+        },
+        "tool_result": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RegexDetectionOptions"
+          },
+          "description": "Per-tool regex patterns to detect in a tool result's content, keyed by tool name.",
+          "title": "Tool Result",
           "type": "object"
         }
       },

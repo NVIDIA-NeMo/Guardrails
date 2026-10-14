@@ -74,7 +74,7 @@ rails = Guardrails(config, require_iorails=True)
 
 - No custom `llm` is passed to the constructor.
 - The configuration is Colang 1.0.
-- The configuration uses only the `input`, `output`, `config`, `tool_input`, and `tool_output` rail sections.
+- The configuration uses only the `input`, `output`, `config`, `tool_call`, and `tool_result` rail sections.
 - Every configured input and output flow compiles. The rail must be servable on `IORails`, its optional dependencies must be installed, and any model type it names must be declared under `models`.
 - Tool flows are in their own direction and are not duplicated. Refer to [Tool Calling](#tool-calling).
 
@@ -155,7 +155,7 @@ Both engines support passing model tool calls through to the caller.
 `LLMRails` runs the Colang flows you configure under `rails.tool_call` and `rails.tool_result` through the Colang runtime.
 The built-in `tool call validation` and `tool result validation` validators run on `IORails` only.
 
-`IORails` validates tool calls and tool results through directional flows: `tool call validation` on the tool-output rail and `tool result validation` on the tool-input rail.
+`IORails` validates tool calls and tool results through directional flows: `tool call validation` on the tool-call rail and `tool result validation` on the tool-result rail.
 Tool calls are returned in the OpenAI-style `tool_calls` field of the response message.
 
 ### Generation and Validation API

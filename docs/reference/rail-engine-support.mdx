@@ -40,8 +40,8 @@ The following table summarizes surface support by direction:
 | Input | 32 | 32 | 31 |
 | Output | 35 | 35 | 28 |
 | Retrieval | 11 | 11 | 0 |
-| Tool_output | 3 | 0 | 3 |
-| Tool_input | 3 | 0 | 3 |
+| Tool_call | 3 | 0 | 3 |
+| Tool_result | 3 | 0 | 3 |
 | **Total** | **84** | **78** | **65** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
@@ -152,28 +152,28 @@ Retrieval surfaces run against the knowledge-base chunks retrieved for a turn.
 | `detect sensitive data on retrieval` | Sensitive Data Detection | ✓ | ✗ | Reads `relevant_chunks` |
 | `mask sensitive data on retrieval` | Sensitive Data Detection | ✓ | ✗ | Rewrites `relevant_chunks` |
 
-### Tool Output Surfaces
+### Tool Call Surfaces
 
-Tool output surfaces run against one tool call at a time, configured under `rails.tool_call.per_tool` and keyed by tool name.
+Tool call surfaces run against one tool call at a time, configured under `rails.tool_call.per_tool` and keyed by tool name.
 Unlike the [Tool Surfaces](#tool-surfaces) below, these are manifest surfaces like any input, output, or retrieval rail.
 Per-tool checks are an `IORails`-only capability by design:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
-| `cel check tool output` | Common Expression Language (CEL) | ✗ | ✓ | IORails-only capability by design |
-| `regex check tool output` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
-| `tool safety check output` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
+| `cel check tool call` | Common Expression Language (CEL) | ✗ | ✓ | IORails-only capability by design |
+| `regex check tool call` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
+| `tool safety check tool call` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
 
-### Tool Input Surfaces
+### Tool Result Surfaces
 
-Tool input surfaces run against one tool result at a time, configured under `rails.tool_result.per_tool` and keyed by tool name.
+Tool result surfaces run against one tool result at a time, configured under `rails.tool_result.per_tool` and keyed by tool name.
 Per-tool checks are an `IORails`-only capability by design:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
-| `cel check tool input` | Common Expression Language (CEL) | ✗ | ✓ | IORails-only capability by design |
-| `regex check tool input` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
-| `tool safety check input` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
+| `cel check tool result` | Common Expression Language (CEL) | ✗ | ✓ | IORails-only capability by design |
+| `regex check tool result` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
+| `tool safety check tool result` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
 
 For worked per-tool configuration examples, refer to [Regular Expression Detection Integration](/configure-guardrails/guardrail-catalog/community/regex) (includes the `$argument=` scoping option), [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check) (an LLM-judged check with `$model=`/`$variant=`), and [Common Expression Language (CEL)](/configure-guardrails/guardrail-catalog/cel) (deterministic expressions over a tool call's arguments or a tool result's content).
 
@@ -207,7 +207,7 @@ The checks run in the order the table lists them and report the first reason tha
 As a result, a retrieval surface that both rewrites and reads `relevant_chunks` is reported under the rewrite reason.
 
 A third structural constraint applies to the configuration as a whole rather than to any one surface.
-`IORails` accepts only the `input`, `output`, `config`, `tool_input`, and `tool_output` rail sections, so a configuration that declares `rails.retrieval`, `rails.dialog`, or any other section routes to `LLMRails` by default, regardless of which flows it names.
+`IORails` accepts only the `input`, `output`, `config`, `tool_call`, and `tool_result` rail sections, so a configuration that declares `rails.retrieval`, `rails.dialog`, or any other section routes to `LLMRails` by default, regardless of which flows it names.
 
 The engine checks that constraint first, so it does not report a per-surface reason for a retrieval flow.
 `IORails.unsupported_reason()` reports the unsupported rail section and stops, so a configuration with a `rails.retrieval` section reports `config has rails outside the IORails-supported set: ['retrieval']` rather than the rewrite or read reason its surfaces would give.

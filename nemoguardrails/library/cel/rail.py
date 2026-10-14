@@ -29,20 +29,20 @@ from nemoguardrails.manifests import (
     RailSurface,
 )
 
-EVALUATE_TOOL_OUTPUT_CEL = ActionRef(
-    name="evaluate_tool_output_cel",
-    target="nemoguardrails.library.cel.actions:evaluate_tool_output_cel",
+EVALUATE_TOOL_CALL_CEL = ActionRef(
+    name="evaluate_tool_call_cel",
+    target="nemoguardrails.library.cel.actions:evaluate_tool_call_cel",
 )
-EVALUATE_TOOL_INPUT_CEL = ActionRef(
-    name="evaluate_tool_input_cel",
-    target="nemoguardrails.library.cel.actions:evaluate_tool_input_cel",
+EVALUATE_TOOL_RESULT_CEL = ActionRef(
+    name="evaluate_tool_result_cel",
+    target="nemoguardrails.library.cel.actions:evaluate_tool_result_cel",
 )
 RAIL = RailManifest(
     name="cel",
     metadata=RailMetadata(
         display_name="Common Expression Language (CEL)",
         description="Detects and blocks content matching configured Common Expression Language (CEL) expressions.",
-        categories=("tool_output", "tool_input"),
+        categories=("tool_call", "tool_result"),
         capabilities=("allow", "block", "moderate"),
         tags=("built-in", "cel", "tool-calling"),
         docs_url="docs/configure-rails/guardrail-catalog/cel.mdx",
@@ -53,33 +53,33 @@ RAIL = RailManifest(
             spec=ConfigSpecRef(target="nemoguardrails.library.cel.rail_config:build_config_spec"),
         ),
         flows=RailFlows(
-            # Every surface here is TOOL_OUTPUT/TOOL_INPUT (IORails-only), so this rail
+            # Every surface here is TOOL_CALL/TOOL_RESULT (IORails-only), so this rail
             # ships no Colang flow definitions at all.
             files=(),
             v1_files=(),
             flow_names=(
-                "cel check tool output",
-                "cel check tool input",
+                "cel check tool call",
+                "cel check tool result",
             ),
         ),
-        actions=RailActions(refs=(EVALUATE_TOOL_OUTPUT_CEL, EVALUATE_TOOL_INPUT_CEL)),
+        actions=RailActions(refs=(EVALUATE_TOOL_CALL_CEL, EVALUATE_TOOL_RESULT_CEL)),
         surfaces=(
             RailSurface(
-                name="cel check tool output",
-                direction=RailDirection.TOOL_OUTPUT,
-                action=EVALUATE_TOOL_OUTPUT_CEL,
+                name="cel check tool call",
+                direction=RailDirection.TOOL_CALL,
+                action=EVALUATE_TOOL_CALL_CEL,
                 bindings=(
-                    Binding.literal("source", "tool_output"),
+                    Binding.literal("source", "tool_call"),
                     Binding.context("tool_call", "tool_call"),
                     Binding.context("tool_definition", "tool_definition"),
                 ),
             ),
             RailSurface(
-                name="cel check tool input",
-                direction=RailDirection.TOOL_INPUT,
-                action=EVALUATE_TOOL_INPUT_CEL,
+                name="cel check tool result",
+                direction=RailDirection.TOOL_RESULT,
+                action=EVALUATE_TOOL_RESULT_CEL,
                 bindings=(
-                    Binding.literal("source", "tool_input"),
+                    Binding.literal("source", "tool_result"),
                     Binding.context("tool_call", "tool_call"),
                     Binding.context("tool_result", "tool_result"),
                 ),

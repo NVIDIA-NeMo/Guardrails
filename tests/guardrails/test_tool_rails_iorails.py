@@ -321,8 +321,8 @@ class TestRouting:
             }
         )
         iorails = IORails(config)
-        assert iorails.rails_manager.tool_output_parallel is True
-        assert iorails.rails_manager.tool_input_parallel is True
+        assert iorails.rails_manager.tool_call_parallel is True
+        assert iorails.rails_manager.tool_result_parallel is True
 
 
 class TestNonStreamingToolCalls:

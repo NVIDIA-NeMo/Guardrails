@@ -491,7 +491,7 @@ def _dummy_activated_rails(durations: list[float | None]) -> list[ActivatedRail]
 def test_generation_log_print_summary_no_total_duration(capsys):
     """Missing total_duration must not crash, and activated rails still print."""
     generation_log = GenerationLog(
-        activated_rails=[ActivatedRail(type="tool_output", name="tool output check", duration=0.5)],
+        activated_rails=[ActivatedRail(type="tool_call", name="tool output check", duration=0.5)],
         stats=GenerationStats(),
     )
 
@@ -500,7 +500,7 @@ def test_generation_log_print_summary_no_total_duration(capsys):
 
     assert "No stats available" in lines
     assert "- Total time: 10.00s" not in lines
-    assert "- [0.50s] TOOL_OUTPUT (tool output check): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [0.50s] TOOL_CALL (tool output check): 0 actions (n/a), 0 llm calls [n/a]" in lines
 
 
 def test_generation_log_print_summary_zero_total_duration(capsys):

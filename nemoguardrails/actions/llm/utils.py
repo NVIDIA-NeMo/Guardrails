@@ -516,7 +516,7 @@ def get_and_clear_tool_calls_contextvar() -> Optional[list]:
 def extract_tool_calls_from_events(events: list) -> Optional[list]:
     """Extract tool_calls from runtime events.
 
-    ``StartToolCallBotAction`` carries the tool calls that passed tool-output
+    ``StartToolCallBotAction`` carries the tool calls that passed tool-call
     rails and should be returned to the caller. ``BotToolCalls`` is used as a
     fallback for paths that do not emit the post-rail action event.
     """

@@ -217,7 +217,7 @@ class ArgumentsViolation:
     schema_keyword: str | None = None
 
 
-# Where tool_output_validation records the allowlist or schema violation it blocked on, so a per-tool rail's
+# Where tool_call_validation records the allowlist or schema violation it blocked on, so a per-tool rail's
 # block is reported with the same type and argument path the global validator gives the same call.
 SCHEMA_GATE_VIOLATION_KEY = "tool_schema_violation"
 
@@ -233,7 +233,7 @@ def _schema_gate_block(violation: ArgumentsViolation) -> RailOutcome:
 
 
 def schema_gate_violation(outcome: RailOutcome) -> ArgumentsViolation | None:
-    """The violation tool_output_validation blocked *outcome* on, or None when the rail itself decided."""
+    """The violation tool_call_validation blocked *outcome* on, or None when the rail itself decided."""
     recorded = outcome.metadata.get(SCHEMA_GATE_VIOLATION_KEY)
     if not isinstance(recorded, dict):
         return None
@@ -401,11 +401,11 @@ def _invalid_schema_violation(tool: Tool, detail: str) -> ArgumentsViolation:
     )
 
 
-def tool_output_validation(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Validate a TOOL_OUTPUT action's arguments against the tool's schema before it runs.
+def tool_call_validation(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Validate a TOOL_CALL action's arguments against the tool's schema before it runs.
 
-    Every action bound to a ``TOOL_OUTPUT`` surface must carry this decorator (enforced by
-    ``test_every_tool_output_action_validates_arguments``). Blocks before the action body
+    Every action bound to a ``TOOL_CALL`` surface must carry this decorator (enforced by
+    ``test_every_tool_call_action_validates_arguments``). Blocks before the action body
     runs if the call's tool isn't declared, or its arguments don't match the schema. Raises
     if the action was bound a ``$argument=`` name (see ``scope_arguments``) the schema
     doesn't accept, since that is a config defect rather than a per-call decision.
@@ -437,7 +437,7 @@ def tool_output_validation(func: Callable[..., Any]) -> Callable[..., Any]:
 
         return await func(*args, **kwargs)
 
-    setattr(wrapper, "_has_tool_output_validation", True)
+    setattr(wrapper, "_has_tool_call_validation", True)
     return wrapper
 
 
@@ -454,7 +454,7 @@ def scope_arguments(arguments: dict, argument_name: str | None) -> dict:
     to leave a field out. This leans toward more scrutiny, not less: a check that scoped
     to that name specifically to *avoid* an unrelated field's content may see it anyway on
     a call where the named field is absent. A config typo or a name the schema could never
-    produce is caught earlier, at compile time, by ``tool_output_validation``.
+    produce is caught earlier, at compile time, by ``tool_call_validation``.
 
     TODO: only a single argument name is supported today; add delimiter-separated
     multi-argument support (e.g. `$argument=a,b`) as a follow-up.

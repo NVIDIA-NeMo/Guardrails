@@ -72,11 +72,11 @@ class CelConfig(RailConfigBaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    tool_output: Dict[str, CelOptions] = Field(
+    tool_call: Dict[str, CelOptions] = Field(
         default_factory=dict,
         description="Per-tool CEL expressions to check against a tool call, keyed by tool name.",
     )
-    tool_input: Dict[str, CelOptions] = Field(
+    tool_result: Dict[str, CelOptions] = Field(
         default_factory=dict,
         description="Per-tool CEL expressions to check against a tool result, keyed by tool name.",
     )

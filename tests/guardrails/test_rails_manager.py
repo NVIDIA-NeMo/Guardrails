@@ -788,8 +788,8 @@ def _tool_rails_manager_with_main(
     tool_result_flows=None,
     per_tool_call_flows=None,
     per_tool_result_flows=None,
-    tool_output_parallel: bool = False,
-    tool_input_parallel: bool = False,
+    tool_call_parallel: bool = False,
+    tool_result_parallel: bool = False,
 ) -> RailsManager:
     """Like ``_tool_rails_manager`` but with a 'main' engine registered.
 
@@ -811,8 +811,8 @@ def _tool_rails_manager_with_main(
         tool_result_flows=tool_result_flows or [],
         per_tool_call_flows=per_tool_call_flows or {},
         per_tool_result_flows=per_tool_result_flows or {},
-        tool_output_parallel=tool_output_parallel,
-        tool_input_parallel=tool_input_parallel,
+        tool_call_parallel=tool_call_parallel,
+        tool_result_parallel=tool_result_parallel,
     )
 
 
@@ -1407,8 +1407,8 @@ class TestRunRailsParallel:
 
 class TestParallelPerToolDispatch:
     """Proves are_tool_calls_safe / are_tool_results_safe actually route to
-    _run_rails_parallel (not _run_tool_rails_sequential) when tool_output_parallel /
-    tool_input_parallel is set, with genuine concurrency, not just a passing decision.
+    _run_rails_parallel (not _run_tool_rails_sequential) when tool_call_parallel /
+    tool_result_parallel is set, with genuine concurrency, not just a passing decision.
 
     _run_per_tool_rail is replaced on the manager instance only (an instance attribute
     shadows the class method for that one object), so this cannot affect any other
@@ -1433,8 +1433,8 @@ class TestParallelPerToolDispatch:
     @pytest.mark.asyncio
     async def test_tool_calls_run_concurrently(self):
         mgr = _tool_rails_manager_with_main(
-            per_tool_call_flows={"run_sql": ["regex check tool output"], "list_tables": ["regex check tool output"]},
-            tool_output_parallel=True,
+            per_tool_call_flows={"run_sql": ["regex check tool call"], "list_tables": ["regex check tool call"]},
+            tool_call_parallel=True,
         )
         started = {"run_sql": asyncio.Event(), "list_tables": asyncio.Event()}
         mgr._run_per_tool_rail = self._mutual_wait_stub(started)
@@ -1457,10 +1457,10 @@ class TestParallelPerToolDispatch:
     async def test_tool_results_run_concurrently(self):
         mgr = _tool_rails_manager_with_main(
             per_tool_result_flows={
-                "run_sql": ["regex check tool input"],
-                "list_tables": ["regex check tool input"],
+                "run_sql": ["regex check tool result"],
+                "list_tables": ["regex check tool result"],
             },
-            tool_input_parallel=True,
+            tool_result_parallel=True,
         )
         started = {"run_sql": asyncio.Event(), "list_tables": asyncio.Event()}
         mgr._run_per_tool_rail = self._mutual_wait_stub(started)
@@ -1493,7 +1493,7 @@ class TestParallelPerToolDispatch:
     @pytest.mark.asyncio
     async def test_in_flight_checks_are_capped(self):
         mgr = _tool_rails_manager_with_main(
-            per_tool_call_flows={"run_sql": ["regex check tool output"]}, tool_output_parallel=True
+            per_tool_call_flows={"run_sql": ["regex check tool call"]}, tool_call_parallel=True
         )
         in_flight = peak = 0
         slots_full = asyncio.Event()
@@ -1524,7 +1524,7 @@ class TestParallelPerToolDispatch:
     @pytest.mark.asyncio
     async def test_checks_still_waiting_for_a_slot_are_closed_on_a_block(self, recwarn):
         mgr = _tool_rails_manager_with_main(
-            per_tool_call_flows={"run_sql": ["regex check tool output"]}, tool_output_parallel=True
+            per_tool_call_flows={"run_sql": ["regex check tool call"]}, tool_call_parallel=True
         )
 
         in_flight = 0
@@ -1555,7 +1555,7 @@ class TestParallelPerToolDispatch:
 
 class TestToolParallelDisabledByRewrite:
     """No tool rail rewrites today, but a per-tool surface declaring transform_target should
-    still force tool_output_parallel/tool_input_parallel off, mirroring the input/output
+    still force tool_call_parallel/tool_result_parallel off, mirroring the input/output
     rewrite check (TestSchedulingRailsThatRewrite)."""
 
     # No TOOL_CALL/TOOL_RESULT member exists yet; USER_MESSAGE stands in to prove the check
@@ -1563,46 +1563,46 @@ class TestToolParallelDisabledByRewrite:
     _STUB_TARGET = TransformTarget.USER_MESSAGE
 
     def test_a_rewriting_per_tool_call_flow_turns_parallel_off(self):
-        with rails_compiled_as({"regex check tool output": StubRail(transform_target=self._STUB_TARGET)}):
+        with rails_compiled_as({"regex check tool call": StubRail(transform_target=self._STUB_TARGET)}):
             with pytest.warns(UserWarning, match="parallel"):
                 mgr = _tool_rails_manager_with_main(
-                    per_tool_call_flows={"run_sql": ["regex check tool output"]},
-                    tool_output_parallel=True,
-                    tool_input_parallel=True,
+                    per_tool_call_flows={"run_sql": ["regex check tool call"]},
+                    tool_call_parallel=True,
+                    tool_result_parallel=True,
                 )
 
-        assert mgr.tool_output_parallel is False
-        assert mgr.tool_input_parallel is False
+        assert mgr.tool_call_parallel is False
+        assert mgr.tool_result_parallel is False
 
     def test_a_rewriting_per_tool_result_flow_turns_parallel_off(self):
-        with rails_compiled_as({"regex check tool input": StubRail(transform_target=self._STUB_TARGET)}):
+        with rails_compiled_as({"regex check tool result": StubRail(transform_target=self._STUB_TARGET)}):
             with pytest.warns(UserWarning, match="parallel"):
                 mgr = _tool_rails_manager_with_main(
-                    per_tool_result_flows={"run_sql": ["regex check tool input"]},
-                    tool_output_parallel=True,
-                    tool_input_parallel=True,
+                    per_tool_result_flows={"run_sql": ["regex check tool result"]},
+                    tool_call_parallel=True,
+                    tool_result_parallel=True,
                 )
 
-        assert mgr.tool_output_parallel is False
-        assert mgr.tool_input_parallel is False
+        assert mgr.tool_call_parallel is False
+        assert mgr.tool_result_parallel is False
 
     def test_a_config_that_never_asked_for_parallel_is_not_warned_about(self, recwarn):
-        with rails_compiled_as({"regex check tool output": StubRail(transform_target=self._STUB_TARGET)}):
-            mgr = _tool_rails_manager_with_main(per_tool_call_flows={"run_sql": ["regex check tool output"]})
+        with rails_compiled_as({"regex check tool call": StubRail(transform_target=self._STUB_TARGET)}):
+            mgr = _tool_rails_manager_with_main(per_tool_call_flows={"run_sql": ["regex check tool call"]})
 
-        assert mgr.per_tool_transform_flows[SurfaceDirection.TOOL_OUTPUT] == ("regex check tool output",)
-        assert mgr.tool_output_parallel is False
+        assert mgr.per_tool_transform_flows[SurfaceDirection.TOOL_CALL] == ("regex check tool call",)
+        assert mgr.tool_call_parallel is False
         assert [warning for warning in recwarn if "parallel" in str(warning.message)] == []
 
     def test_parallel_is_left_alone_when_nothing_rewrites(self, recwarn):
         mgr = _tool_rails_manager_with_main(
-            per_tool_call_flows={"run_sql": ["regex check tool output"]},
-            tool_output_parallel=True,
-            tool_input_parallel=True,
+            per_tool_call_flows={"run_sql": ["regex check tool call"]},
+            tool_call_parallel=True,
+            tool_result_parallel=True,
         )
 
-        assert mgr.tool_output_parallel is True
-        assert mgr.tool_input_parallel is True
+        assert mgr.tool_call_parallel is True
+        assert mgr.tool_result_parallel is True
         assert [warning for warning in recwarn if "parallel" in str(warning.message)] == []
 
 
@@ -1623,8 +1623,8 @@ class TestPerToolRailsSequential:
         """A manager whose per-tool checks return *results* by tool name, recording each check's
         coroutine as it is created (the stub is sync, so calling it is creating the coroutine)."""
         mgr = _tool_rails_manager_with_main(
-            per_tool_call_flows={"run_sql": ["regex check tool output"], "list_tables": ["regex check tool output"]},
-            tool_output_parallel=parallel,
+            per_tool_call_flows={"run_sql": ["regex check tool call"], "list_tables": ["regex check tool call"]},
+            tool_call_parallel=parallel,
         )
         created: list[str] = []
 

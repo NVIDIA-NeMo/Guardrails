@@ -29,7 +29,7 @@ To use the tool safety check, you should:
 
     <Note>
 
-    The `type` is a unique identifier for the model that will be passed to the tool output and tool input rails as a parameter. `tools: [...]` above is a placeholder: replace it with `run_sql`'s actual function declaration and JSON schema, either here (static, applies to every request) or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server, which the server currently accepts only for non-streaming requests on a configuration with `passthrough: true`. `@tool_output_validation` blocks a call to a tool that isn't declared either way, before the judge ever runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
+    The `type` is a unique identifier for the model that will be passed to the tool call and tool result rails as a parameter. `tools: [...]` above is a placeholder: replace it with `run_sql`'s actual function declaration and JSON schema, either here (static, applies to every request) or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server, which the server currently accepts only for non-streaming requests on a configuration with `passthrough: true`. `@tool_call_validation` blocks a call to a tool that isn't declared either way, before the judge ever runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
 
     </Note>
 
@@ -39,19 +39,19 @@ To use the tool safety check, you should:
     rails:
       tool_call:
         per_tool:
-          run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check"]
+          run_sql: ["tool safety check tool call $model=llama_guard $variant=run_sql_check"]
       tool_result:
         per_tool:
-          run_sql: ["tool safety check input $model=llama_guard $variant=run_sql_check"]
+          run_sql: ["tool safety check tool result $model=llama_guard $variant=run_sql_check"]
     ```
 
-    You must define the models in the `models` section of the `config.yml` file before using them here. The `tool safety check output` and `tool safety check input` flows check the tool call's arguments and the tool result's content, respectively. The `$model` parameter specifies the judge model, matching the content safety check's convention. The `$variant` parameter selects which prompt to render for this invocation, matching self check's `$variant` concept: it lets you reuse one prompt across multiple tools, or give the same tool multiple distinct checks, entirely through config.
+    You must define the models in the `models` section of the `config.yml` file before using them here. The `tool safety check tool call` and `tool safety check tool result` flows check the tool call's arguments and the tool result's content, respectively. The `$model` parameter specifies the judge model, matching the content safety check's convention. The `$variant` parameter selects which prompt to render for this invocation, matching self check's `$variant` concept: it lets you reuse one prompt across multiple tools, or give the same tool multiple distinct checks, entirely through config.
 
 3. Specify the prompt for each `$model=`/`$variant=` task in the `prompts.yml` file:
 
     ```yaml
     prompts:
-      - task: "tool_safety_check_output $model=llama_guard $variant=run_sql_check"
+      - task: "tool_safety_check_tool_call $model=llama_guard $variant=run_sql_check"
         content: |
           You are reviewing a call to the `run_sql` tool.
           Arguments: {{ tool_call_arguments }}
@@ -64,7 +64,7 @@ To use the tool safety check, you should:
           - If it is unsafe, respond with "unsafe: <reason>", separating multiple reasons with semicolons.
         output_parser: parse_tool_safety_verdict
 
-      - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
+      - task: "tool_safety_check_tool_result $model=llama_guard $variant=run_sql_check"
         content: |
           You are reviewing the result of a call to the `run_sql` tool.
           Result: {{ tool_result_content }}
@@ -83,7 +83,7 @@ To use the tool safety check, you should:
 
     </Warning>
 
-    The `tool safety check output` prompt renders `{{ tool_name }}` and `{{ tool_call_arguments }}` (the call's arguments, JSON-encoded). The `tool safety check input` prompt renders `{{ tool_name }}` and `{{ tool_result_content }}` (the result's content, JSON-encoded if it is a list of content blocks).
+    The `tool safety check tool call` prompt renders `{{ tool_name }}` and `{{ tool_call_arguments }}` (the call's arguments, JSON-encoded). The `tool safety check tool result` prompt renders `{{ tool_name }}` and `{{ tool_result_content }}` (the result's content, JSON-encoded if it is a list of content blocks).
 
 4. `output_parser` is required on every tool safety check prompt. The example above uses the built-in `parse_tool_safety_verdict` parser, which expects a response of the form "safe" or "unsafe: `<reason>`":
 
@@ -99,12 +99,12 @@ To use the tool safety check, you should:
     rails:
       tool_call:
         per_tool:
-          run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
+          run_sql: ["tool safety check tool call $model=llama_guard $variant=run_sql_check $argument=query"]
     ```
 
-    Only the named argument is sent to the judge, reducing both the data sent to a (possibly third-party) model and the tokens spent per call. `$argument=` is valid on `tool safety check output` only; `tool safety check input` has no argument structure to scope and does not accept it.
+    Only the named argument is sent to the judge, reducing both the data sent to a (possibly third-party) model and the tokens spent per call. `$argument=` is valid on `tool safety check tool call` only; `tool safety check tool result` has no argument structure to scope and does not accept it.
 
-The `tool safety check output` and `tool safety check input` rails execute the [`tool_safety_check_output`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/tool_safety_check/actions.py) and [`tool_safety_check_input`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/tool_safety_check/actions.py) actions respectively.
+The `tool safety check tool call` and `tool safety check tool result` rails execute the [`tool_safety_check_tool_call`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/tool_safety_check/actions.py) and [`tool_safety_check_tool_result`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/tool_safety_check/actions.py) actions respectively.
 
 ## Complete Example
 
@@ -125,13 +125,13 @@ models:
 rails:
   tool_call:
     per_tool:
-      run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
+      run_sql: ["tool safety check tool call $model=llama_guard $variant=run_sql_check $argument=query"]
   tool_result:
     per_tool:
-      run_sql: ["tool safety check input $model=llama_guard $variant=run_sql_check"]
+      run_sql: ["tool safety check tool result $model=llama_guard $variant=run_sql_check"]
 
 prompts:
-  - task: "tool_safety_check_output $model=llama_guard $variant=run_sql_check"
+  - task: "tool_safety_check_tool_call $model=llama_guard $variant=run_sql_check"
     content: |
       You are reviewing a call to the `run_sql` tool.
       Arguments: {{ tool_call_arguments }}
@@ -144,7 +144,7 @@ prompts:
       - If it is unsafe, respond with "unsafe: <reason>", separating multiple reasons with semicolons.
     output_parser: parse_tool_safety_verdict
 
-  - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
+  - task: "tool_safety_check_tool_result $model=llama_guard $variant=run_sql_check"
     content: |
       You are reviewing the result of a call to the `run_sql` tool.
       Result: {{ tool_result_content }}
@@ -159,13 +159,13 @@ prompts:
 
 ## Schema Validation
 
-`tool safety check output` runs behind `@tool_output_validation`: a call to a tool the model has not declared, or whose arguments violate the tool's declared JSON schema, is blocked before the judge model is ever called. `tool safety check input` has no such gate, matching regex detection's asymmetry between the two directions.
+`tool safety check tool call` runs behind `@tool_call_validation`: a call to a tool the model has not declared, or whose arguments violate the tool's declared JSON schema, is blocked before the judge model is ever called. `tool safety check tool result` has no such gate, matching regex detection's asymmetry between the two directions.
 
 ## Engine Support
 
 | Flow | LLMRails | IORails |
 |---|:---:|:---:|
-| `tool safety check output` | ✗ | ✓ |
-| `tool safety check input` | ✗ | ✓ |
+| `tool safety check tool call` | ✗ | ✓ |
+| `tool safety check tool result` | ✗ | ✓ |
 
 Per-tool checks are an `IORails`-only capability by design. For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

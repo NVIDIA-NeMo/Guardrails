@@ -12,9 +12,9 @@ rails:
     flows:
       - tool call validation
     per_tool:
-      run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
+      run_sql: ["tool safety check tool call $model=llama_guard $variant=run_sql_check $argument=query"]
   tool_result:
     flows:
       - tool result validation
     per_tool:
-      run_sql: ["tool safety check input $model=llama_guard $variant=run_sql_check"]
+      run_sql: ["tool safety check tool result $model=llama_guard $variant=run_sql_check"]

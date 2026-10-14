@@ -378,14 +378,14 @@ Each section also accepts a `per_tool` field, keyed by tool name, scoping a chec
 rails:
     config:
         regex_detection:
-            tool_output:
+            tool_call:
                 run_sql:
                     patterns:
                         - "DROP\\s+TABLE"
     tool_call:
         per_tool:
             run_sql:
-                - regex check tool output
+                - regex check tool call
 ```
 
 Unlike the fixed `flows` above, a request can run per-tool checks for several tool calls, or several flows for one tool, at once. `parallel` is honored here: set it to run those checks concurrently instead of one after another.

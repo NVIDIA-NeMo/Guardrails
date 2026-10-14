@@ -85,6 +85,11 @@ def test_tool_rail_fields_reject_canonical_and_deprecated_names(canonical_name, 
         RailsConfig.from_content(config={"models": [], "rails": {canonical_name: {}, deprecated_name: {}}})
 
 
+def test_non_dict_rails_input_is_left_to_pydantic_validation():
+    with pytest.raises(ValidationError):
+        Rails.model_validate(None)
+
+
 def test_assigning_deprecated_tool_rail_fields_sets_canonical_fields():
     rails = Rails()
     tool_call = ToolCallRails(flows=["tool call validation"])

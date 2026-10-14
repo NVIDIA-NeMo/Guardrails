@@ -10,7 +10,7 @@ content:
 
 The CEL rail checks a tool call's arguments, or a tool result's content, against [Common Expression Language (CEL)](https://cel.dev) expressions that you write per tool. CEL is a small, side-effect-free expression language used for policy rules in systems such as Kubernetes admission policies and Envoy. Each expression evaluates to `true` when the tool is being used in a way you want to block.
 
-Unlike [Regex Detection](/configure-guardrails/guardrail-catalog/community/regex), which matches text patterns, CEL expressions address the structured fields of a tool call directly, so one rule can combine several arguments. Unlike [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check), the check is deterministic and calls no model. It is scoped per tool through the same `rails.tool_output.per_tool` and `rails.tool_input.per_tool` dispatch mechanism as both.
+Unlike [Regex Detection](/configure-guardrails/guardrail-catalog/community/regex), which matches text patterns, CEL expressions address the structured fields of a tool call directly, so one rule can combine several arguments. Unlike [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check), the check is deterministic and calls no model. It is scoped per tool through the same `rails.tool_call.per_tool` and `rails.tool_result.per_tool` dispatch mechanism as both.
 
 ## Installation
 
@@ -26,13 +26,13 @@ If the extra is not installed, a configuration that uses the CEL rail fails to l
 
 To use the CEL rail, you should:
 
-1. Write the expressions for each tool in the `rails.config.cel` section of the `config.yml` file, under `tool_output` to check tool calls and `tool_input` to check tool results:
+1. Write the expressions for each tool in the `rails.config.cel` section of the `config.yml` file, under `tool_call` to check tool calls and `tool_result` to check tool results:
 
     ```yaml
     rails:
       config:
         cel:
-          tool_output:
+          tool_call:
             run_shell:
               expressions:
                 - 'args.command.matches("(?i)\\brm\\s+-[a-z]*(r[a-z]*f|f[a-z]*r)")'
@@ -40,33 +40,33 @@ To use the CEL rail, you should:
               expressions:
                 - 'args.path.startsWith("/etc/") || args.path.startsWith("/root/")'
                 - 'has(args.mode) && args.mode == "append" && args.path.endsWith(".bashrc")'
-          tool_input:
+          tool_result:
             run_shell:
               expressions:
                 - 'type(result) == string && result.contains("BEGIN RSA PRIVATE KEY")'
     ```
 
-2. Scope the check to the tool in the `tool_output` and `tool_input` rails sections of the `config.yml` file:
+2. Scope the check to the tool in the `tool_call` and `tool_result` rails sections of the `config.yml` file:
 
     ```yaml
     rails:
-      tool_output:
+      tool_call:
         per_tool:
           run_shell:
-            - "cel check tool output"
+            - "cel check tool call"
           write_file:
-            - "cel check tool output"
-      tool_input:
+            - "cel check tool call"
+      tool_result:
         per_tool:
           run_shell:
-            - "cel check tool input"
+            - "cel check tool result"
     ```
 
-    The `cel check tool output` flow evaluates the tool's `tool_output` expressions against each call to the tool, and the `cel check tool input` flow evaluates its `tool_input` expressions against each result the tool returns. A tool without a CEL flow under `per_tool` is not checked by the rail, but a tool whose CEL flow has no expressions configured for its direction fails closed.
+    The `cel check tool call` flow evaluates the tool's `tool_call` expressions against each call to the tool, and the `cel check tool result` flow evaluates its `tool_result` expressions against each result the tool returns. A tool without a CEL flow under `per_tool` is not checked by the rail, but a tool whose CEL flow has no expressions configured for its direction fails closed.
 
-3. Declare the tool in the main model's `parameters.tools`, or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server, which the server currently accepts only for non-streaming requests on a configuration with `passthrough: true`. `cel check tool output` blocks a call to an undeclared tool before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
+3. Declare the tool in the main model's `parameters.tools`, or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server, which the server currently accepts only for non-streaming requests on a configuration with `passthrough: true`. `cel check tool call` blocks a call to an undeclared tool before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the full declaration reference.
 
-The `cel check tool output` and `cel check tool input` rails execute the [`evaluate_tool_output_cel`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/cel/actions.py) and [`evaluate_tool_input_cel`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/cel/actions.py) actions respectively.
+The `cel check tool call` and `cel check tool result` rails execute the [`evaluate_tool_call_cel`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/cel/actions.py) and [`evaluate_tool_result_cel`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/cel/actions.py) actions respectively.
 
 ## Expression Variables
 
@@ -74,9 +74,9 @@ Each expression can read the following variables:
 
 | Flow | Variable | Value |
 |---|---|---|
-| `cel check tool output` | `args` | The tool call's arguments, as a map |
+| `cel check tool call` | `args` | The tool call's arguments, as a map |
 | | `tool` | The tool's name |
-| `cel check tool input` | `result` | The tool result's content, exactly as the tool returned it: a string, a list of content blocks, or `null` |
+| `cel check tool result` | `result` | The tool result's content, exactly as the tool returned it: a string, a list of content blocks, or `null` |
 | | `args` | The arguments of the tool call that the result answers |
 | | `tool` | The tool's name |
 
@@ -124,7 +124,7 @@ models:
 rails:
   config:
     cel:
-      tool_output:
+      tool_call:
         run_shell:
           expressions:
             - 'args.command.matches("(?i)\\brm\\s+-[a-z]*(r[a-z]*f|f[a-z]*r)")'
@@ -132,37 +132,37 @@ rails:
           expressions:
             - 'args.path.startsWith("/etc/") || args.path.startsWith("/root/")'
             - 'has(args.mode) && args.mode == "append" && args.path.endsWith(".bashrc")'
-      tool_input:
+      tool_result:
         run_shell:
           expressions:
             - 'type(result) == string && result.contains("BEGIN RSA PRIVATE KEY")'
-  tool_output:
+  tool_call:
     per_tool:
       run_shell:
-        - "cel check tool output"
+        - "cel check tool call"
       write_file:
-        - "cel check tool output"
-  tool_input:
+        - "cel check tool call"
+  tool_result:
     per_tool:
       run_shell:
-        - "cel check tool input"
+        - "cel check tool result"
 ```
 
 <Note>
 
-This configuration doesn't declare `run_shell` or `write_file`. Declare them in the main model's `parameters.tools`, or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server, which the server currently accepts only for non-streaming requests on a configuration with `passthrough: true`. Otherwise `cel check tool output` blocks every call to them before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the declaration format.
+This configuration doesn't declare `run_shell` or `write_file`. Declare them in the main model's `parameters.tools`, or per request: in `options.llm_params.tools` with the Python API, or in the `tools` field of a chat completions request to the server, which the server currently accepts only for non-streaming requests on a configuration with `passthrough: true`. Otherwise `cel check tool call` blocks every call to them before any expression runs. Refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) for the declaration format.
 
 </Note>
 
 ## Schema Validation
 
-`cel check tool output` runs behind `@tool_output_validation`: a call to a tool the model has not declared, or whose arguments violate the tool's declared JSON schema, is blocked before any expression is evaluated. `cel check tool input` has no such gate, matching regex detection's asymmetry between the two directions.
+`cel check tool call` runs behind `@tool_call_validation`: a call to a tool the model has not declared, or whose arguments violate the tool's declared JSON schema, is blocked before any expression is evaluated. `cel check tool result` has no such gate, matching regex detection's asymmetry between the two directions.
 
 ## Engine Support
 
 | Flow | LLMRails | IORails |
 |---|:---:|:---:|
-| `cel check tool output` | ✗ | ✓ |
-| `cel check tool input` | ✗ | ✓ |
+| `cel check tool call` | ✗ | ✓ |
+| `cel check tool result` | ✗ | ✓ |
 
 Per-tool checks are an `IORails`-only capability by design. For the full per-rail matrix, refer to [Rail Engine Support](/reference/rail-engine-support).

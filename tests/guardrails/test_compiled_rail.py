@@ -543,7 +543,7 @@ class TestSurfacesOutsideTheTier:
         """
         servable, refused = [], []
         for (direction, name), surface in default_rail_catalog().surfaces().items():
-            if direction in (RailDirection.RETRIEVAL, RailDirection.TOOL_OUTPUT, RailDirection.TOOL_INPUT):
+            if direction in (RailDirection.RETRIEVAL, RailDirection.TOOL_CALL, RailDirection.TOOL_RESULT):
                 continue
             bucket = refused if unsupported_surface_reason(surface) is not None else servable
             bucket.append((direction, name))
@@ -1337,24 +1337,24 @@ class TestToolSafetyCheckPromptValidation:
     def test_missing_model_param_raises_at_compile_time(self):
         with pytest.raises(RailCompilationError, match="model"):
             compile_rail(
-                "tool safety check output $variant=missing",
-                RailDirection.TOOL_OUTPUT,
+                "tool safety check tool call $variant=missing",
+                RailDirection.TOOL_CALL,
                 self._deps(self._config()),
             )
 
     def test_missing_variant_param_raises_at_compile_time(self):
         with pytest.raises(RailCompilationError, match="variant"):
             compile_rail(
-                "tool safety check output $model=judge",
-                RailDirection.TOOL_OUTPUT,
+                "tool safety check tool call $model=judge",
+                RailDirection.TOOL_CALL,
                 self._deps(self._config()),
             )
 
     def test_missing_prompt_raises_at_compile_time(self):
         with pytest.raises(RailCompilationError, match="has no prompt"):
             compile_rail(
-                "tool safety check output $model=judge $variant=missing",
-                RailDirection.TOOL_OUTPUT,
+                "tool safety check tool call $model=judge $variant=missing",
+                RailDirection.TOOL_CALL,
                 self._deps(self._config()),
             )
 
@@ -1362,7 +1362,7 @@ class TestToolSafetyCheckPromptValidation:
         config = self._config(
             [
                 {
-                    "task": "tool_safety_check_output $model=judge $variant=bad_parser",
+                    "task": "tool_safety_check_tool_call $model=judge $variant=bad_parser",
                     "content": "check {{ tool_call_arguments }}",
                     "output_parser": "not_a_real_parser",
                 }
@@ -1371,8 +1371,8 @@ class TestToolSafetyCheckPromptValidation:
 
         with pytest.raises(RailCompilationError, match="not a registered output parser"):
             compile_rail(
-                "tool safety check output $model=judge $variant=bad_parser",
-                RailDirection.TOOL_OUTPUT,
+                "tool safety check tool call $model=judge $variant=bad_parser",
+                RailDirection.TOOL_CALL,
                 self._deps(config),
             )
 
@@ -1380,7 +1380,7 @@ class TestToolSafetyCheckPromptValidation:
         config = self._config(
             [
                 {
-                    "task": "tool_safety_check_output $model=judge $variant=no_parser",
+                    "task": "tool_safety_check_tool_call $model=judge $variant=no_parser",
                     "content": "check {{ tool_call_arguments }}",
                 }
             ]
@@ -1388,8 +1388,8 @@ class TestToolSafetyCheckPromptValidation:
 
         with pytest.raises(RailCompilationError, match="no output_parser declared"):
             compile_rail(
-                "tool safety check output $model=judge $variant=no_parser",
-                RailDirection.TOOL_OUTPUT,
+                "tool safety check tool call $model=judge $variant=no_parser",
+                RailDirection.TOOL_CALL,
                 self._deps(config),
             )
 
@@ -1397,7 +1397,7 @@ class TestToolSafetyCheckPromptValidation:
         config = self._config(
             [
                 {
-                    "task": "tool_safety_check_output $model=judge $variant=ok",
+                    "task": "tool_safety_check_tool_call $model=judge $variant=ok",
                     "content": "check {{ tool_call_arguments }}",
                     "output_parser": "parse_tool_safety_verdict",
                 }
@@ -1405,8 +1405,8 @@ class TestToolSafetyCheckPromptValidation:
         )
 
         rail = compile_rail(
-            "tool safety check output $model=judge $variant=ok",
-            RailDirection.TOOL_OUTPUT,
+            "tool safety check tool call $model=judge $variant=ok",
+            RailDirection.TOOL_CALL,
             self._deps(config),
         )
 
@@ -1414,9 +1414,9 @@ class TestToolSafetyCheckPromptValidation:
 
 
 class TestUnknownSurfaceParameter:
-    """_reject_unknown_surface_parameter: a TOOL_OUTPUT/TOOL_INPUT flow setting a `$param=`
+    """_reject_unknown_surface_parameter: a TOOL_CALL/TOOL_RESULT flow setting a `$param=`
     its surface has no binding for fails at compile time, e.g. `$argument=` on a surface
-    with no argument binding to scope. Scoped to TOOL_OUTPUT/TOOL_INPUT for now (see the
+    with no argument binding to scope. Scoped to TOOL_CALL/TOOL_RESULT for now (see the
     TODO on the function itself), so an INPUT-direction surface is unaffected."""
 
     @staticmethod
@@ -1439,36 +1439,36 @@ class TestUnknownSurfaceParameter:
             }
         )
 
-    def test_argument_on_regex_tool_input_raises(self):
-        """ "regex check tool input" has no argument binding to scope."""
+    def test_argument_on_regex_tool_result_raises(self):
+        """ "regex check tool result" has no argument binding to scope."""
         with pytest.raises(RailCompilationError, match=r"unsupported parameter.*\$argument="):
             compile_rail(
-                "regex check tool input $argument=query",
-                RailDirection.TOOL_INPUT,
+                "regex check tool result $argument=query",
+                RailDirection.TOOL_RESULT,
                 self._deps(self._config()),
             )
 
-    def test_argument_on_regex_tool_output_compiles(self):
-        """ "regex check tool output" does declare an argument binding."""
+    def test_argument_on_regex_tool_call_compiles(self):
+        """ "regex check tool call" does declare an argument binding."""
         rail = compile_rail(
-            "regex check tool output $argument=query",
-            RailDirection.TOOL_OUTPUT,
+            "regex check tool call $argument=query",
+            RailDirection.TOOL_CALL,
             self._deps(self._config()),
         )
 
         assert isinstance(rail, CompiledRail)
 
-    def test_argument_on_tool_safety_check_input_raises(self):
-        """ "tool safety check input" has no argument binding to scope."""
+    def test_argument_on_tool_safety_check_tool_result_raises(self):
+        """ "tool safety check tool result" has no argument binding to scope."""
         with pytest.raises(RailCompilationError, match=r"unsupported parameter.*\$argument="):
             compile_rail(
-                "tool safety check input $model=judge $variant=ok $argument=query",
-                RailDirection.TOOL_INPUT,
+                "tool safety check tool result $model=judge $variant=ok $argument=query",
+                RailDirection.TOOL_RESULT,
                 self._deps(
                     self._config(
                         [
                             {
-                                "task": "tool_safety_check_input $model=judge $variant=ok",
+                                "task": "tool_safety_check_tool_result $model=judge $variant=ok",
                                 "content": "check {{ tool_result_content }}",
                                 "output_parser": "parse_tool_safety_verdict",
                             }
@@ -1478,7 +1478,7 @@ class TestUnknownSurfaceParameter:
             )
 
     def test_unknown_param_on_input_direction_surface_is_unaffected(self):
-        """The check is scoped to TOOL_OUTPUT/TOOL_INPUT; an INPUT-direction surface still
+        """The check is scoped to TOOL_CALL/TOOL_RESULT; an INPUT-direction surface still
         silently accepts an unrecognized `$param=` (the pre-existing, out-of-scope gap)."""
         rail = compile_rail(
             "content safety check input $model=judge $unrecognized=whatever",

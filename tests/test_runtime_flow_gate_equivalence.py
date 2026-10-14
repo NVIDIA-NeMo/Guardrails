@@ -86,10 +86,10 @@ define bot express greeting
 
 
 # LLMRails has no runtime path for these directions (see nemoguardrails/rails/llm/llm_flows.co):
-# tool-input rails bind $tool_message, not $tool_result; tool-output rails never loop per call.
+# tool-result rails bind $tool_message, not $tool_result; tool-call rails never loop per call.
 # A surface here cannot get a FIXTURES entry, so it is excluded from the equivalence check
 # below; its IORails-only coverage lives in IORAILS_ONLY_FIXTURES instead.
-_LLMRAILS_UNSUPPORTED_DIRECTIONS = (RailDirection.TOOL_OUTPUT, RailDirection.TOOL_INPUT)
+_LLMRAILS_UNSUPPORTED_DIRECTIONS = (RailDirection.TOOL_CALL, RailDirection.TOOL_RESULT)
 
 
 class ObservableOutcome(Enum):
@@ -327,54 +327,54 @@ REGEX_RETRIEVAL = RailSpec(
     interpret=_transform_if_regex_retrieval_match,
 )
 
-REGEX_TOOL_OUTPUT = RailSpec(
-    name="regex_tool_output",
-    flow="regex check tool output",
-    direction="tool_output",
-    action="detect_tool_output_regex_pattern",
+REGEX_TOOL_CALL = RailSpec(
+    name="regex_tool_call",
+    flow="regex check tool call",
+    direction="tool_call",
+    action="detect_tool_call_regex_pattern",
     interpret=_blocked_if_regex_match,
 )
 
-REGEX_TOOL_INPUT = RailSpec(
-    name="regex_tool_input",
-    flow="regex check tool input",
-    direction="tool_input",
-    action="detect_tool_input_regex_pattern",
+REGEX_TOOL_RESULT = RailSpec(
+    name="regex_tool_result",
+    flow="regex check tool result",
+    direction="tool_result",
+    action="detect_tool_result_regex_pattern",
     interpret=_blocked_if_regex_match,
 )
 
 TOOL_SAFETY_CHECK_OUTPUT = RailSpec(
-    name="tool_safety_check_output",
-    flow="tool safety check output $model=llama_guard $variant=probe",
-    direction="tool_output",
-    action="tool_safety_check_output",
+    name="tool_safety_check_tool_call",
+    flow="tool safety check tool call $model=llama_guard $variant=probe",
+    direction="tool_call",
+    action="tool_safety_check_tool_call",
     model_type="llama_guard",
-    task="tool_safety_check_output $model=llama_guard $variant=probe",
+    task="tool_safety_check_tool_call $model=llama_guard $variant=probe",
     output_parser="parse_tool_safety_verdict",
 )
 
 TOOL_SAFETY_CHECK_INPUT = RailSpec(
-    name="tool_safety_check_input",
-    flow="tool safety check input $model=llama_guard $variant=probe",
-    direction="tool_input",
-    action="tool_safety_check_input",
+    name="tool_safety_check_tool_result",
+    flow="tool safety check tool result $model=llama_guard $variant=probe",
+    direction="tool_result",
+    action="tool_safety_check_tool_result",
     model_type="llama_guard",
-    task="tool_safety_check_input $model=llama_guard $variant=probe",
+    task="tool_safety_check_tool_result $model=llama_guard $variant=probe",
     output_parser="parse_tool_safety_verdict",
 )
 
-CEL_TOOL_OUTPUT = RailSpec(
-    name="cel_tool_output",
-    flow="cel check tool output",
-    direction="tool_output",
-    action="evaluate_tool_output_cel",
+CEL_TOOL_CALL = RailSpec(
+    name="cel_tool_call",
+    flow="cel check tool call",
+    direction="tool_call",
+    action="evaluate_tool_call_cel",
 )
 
-CEL_TOOL_INPUT = RailSpec(
-    name="cel_tool_input",
-    flow="cel check tool input",
-    direction="tool_input",
-    action="evaluate_tool_input_cel",
+CEL_TOOL_RESULT = RailSpec(
+    name="cel_tool_result",
+    flow="cel check tool result",
+    direction="tool_result",
+    action="evaluate_tool_result_cel",
 )
 
 PRIVATEAI_DETECT_INPUT = RailSpec(
@@ -2583,9 +2583,9 @@ def _build_config(spec: RailSpec, *, enable_rails_exceptions: bool) -> dict[str,
     if spec.model_type:
         models.append({"type": spec.model_type, "engine": "openai", "model": "placeholder"})
 
-    if spec.direction == "tool_output":
+    if spec.direction == "tool_call":
         rails: dict[str, Any] = {"tool_call": {"per_tool": {PROBE_TOOL_NAME: [spec.flow]}}}
-    elif spec.direction == "tool_input":
+    elif spec.direction == "tool_result":
         rails = {"tool_result": {"per_tool": {PROBE_TOOL_NAME: [spec.flow]}}}
     else:
         rails = {spec.direction: {"flows": [spec.flow]}}
@@ -2876,8 +2876,8 @@ _SURFACE_DIRECTIONS = {
     "input": RailDirection.INPUT,
     "output": RailDirection.OUTPUT,
     "retrieval": RailDirection.RETRIEVAL,
-    "tool_output": RailDirection.TOOL_OUTPUT,
-    "tool_input": RailDirection.TOOL_INPUT,
+    "tool_call": RailDirection.TOOL_CALL,
+    "tool_result": RailDirection.TOOL_RESULT,
 }
 
 # IORails always has a main model, and compiles a rail whose manifest names a model type only
@@ -2936,33 +2936,33 @@ def _iorails_case_param(case: FlowEquivalenceCase):
 
 IORAILS_ONLY_FIXTURES = [
     _case(
-        "regex_tool_output_allows_no_match",
-        REGEX_TOOL_OUTPUT,
-        RailOutcome.allow(metadata={"is_match": False, "text": "{}", "detections": [], "source": "tool_output"}),
+        "regex_tool_call_allows_no_match",
+        REGEX_TOOL_CALL,
+        RailOutcome.allow(metadata={"is_match": False, "text": "{}", "detections": [], "source": "tool_call"}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "regex_tool_output_blocks_match",
-        REGEX_TOOL_OUTPUT,
+        "regex_tool_call_blocks_match",
+        REGEX_TOOL_CALL,
         RailOutcome.block(
-            metadata={"is_match": True, "text": "secret", "detections": ["secret"], "source": "tool_output"}
+            metadata={"is_match": True, "text": "secret", "detections": ["secret"], "source": "tool_call"}
         ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
-        "regex_tool_input_allows_no_match",
-        REGEX_TOOL_INPUT,
-        RailOutcome.allow(metadata={"is_match": False, "text": "hello", "detections": [], "source": "tool_input"}),
+        "regex_tool_result_allows_no_match",
+        REGEX_TOOL_RESULT,
+        RailOutcome.allow(metadata={"is_match": False, "text": "hello", "detections": [], "source": "tool_result"}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "regex_tool_input_blocks_match",
-        REGEX_TOOL_INPUT,
+        "regex_tool_result_blocks_match",
+        REGEX_TOOL_RESULT,
         RailOutcome.block(
-            metadata={"is_match": True, "text": "secret", "detections": ["secret"], "source": "tool_input"}
+            metadata={"is_match": True, "text": "secret", "detections": ["secret"], "source": "tool_result"}
         ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
@@ -2970,14 +2970,14 @@ IORAILS_ONLY_FIXTURES = [
     *_rail_outcome_cases(TOOL_SAFETY_CHECK_OUTPUT),
     *_rail_outcome_cases(TOOL_SAFETY_CHECK_INPUT),
     *_rail_outcome_cases(
-        CEL_TOOL_OUTPUT,
-        allow_return=RailOutcome.allow(metadata={"source": "tool_output"}),
-        block_return=RailOutcome.block(metadata={"source": "tool_output", "matched_expressions": ["true"]}),
+        CEL_TOOL_CALL,
+        allow_return=RailOutcome.allow(metadata={"source": "tool_call"}),
+        block_return=RailOutcome.block(metadata={"source": "tool_call", "matched_expressions": ["true"]}),
     ),
     *_rail_outcome_cases(
-        CEL_TOOL_INPUT,
-        allow_return=RailOutcome.allow(metadata={"source": "tool_input"}),
-        block_return=RailOutcome.block(metadata={"source": "tool_input", "matched_expressions": ["true"]}),
+        CEL_TOOL_RESULT,
+        allow_return=RailOutcome.allow(metadata={"source": "tool_result"}),
+        block_return=RailOutcome.block(metadata={"source": "tool_result", "matched_expressions": ["true"]}),
     ),
 ]
 
@@ -3022,7 +3022,7 @@ async def _run_flow_iorails(case: FlowEquivalenceCase) -> "_IORailsRun":
         async with iorails:
             for engine in iorails.engine_registry._engines.values():
                 if isinstance(engine, ModelEngine):
-                    if case.spec.direction == "tool_output":
+                    if case.spec.direction == "tool_call":
                         engine.chat_completion = AsyncMock(
                             return_value=LLMResponse(
                                 content="",
@@ -3038,7 +3038,7 @@ async def _run_flow_iorails(case: FlowEquivalenceCase) -> "_IORailsRun":
                     else:
                         engine.chat_completion = AsyncMock(return_value=LLMResponse(content=NORMAL_OUTPUT))
             main_engine = iorails.engine_registry._engines["main"]
-            if case.spec.direction == "tool_input":
+            if case.spec.direction == "tool_result":
                 messages = [
                     {"role": "user", "content": USER_INPUT},
                     {

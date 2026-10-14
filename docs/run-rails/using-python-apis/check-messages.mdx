@@ -188,7 +188,6 @@ Keep the following behavior in mind:
   A call whose arguments are not a JSON object blocks, and so does a legacy `function_call` on the last assistant message.
   The other calls on that message are still validated, so `tool_violations` lists every failing call in call order, not only the one that could not be parsed.
 - Legacy `role: "function"` messages are not validated by the tool-result rails, in checks or in generation.
-- The configuration sections, and the `rail_type` recorded for tool rails in a generation's log, keep the names `tool_output` and `tool_input`.
 - `LLMRails` does not run tool rails in a check.
   Requesting a tool rail type, or passing `tools`, raises `RailTypeNotSupportedError` rather than ignoring the request.
 

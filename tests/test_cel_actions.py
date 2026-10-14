@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the CEL rail's config and its tool output / tool input actions.
+"""Tests for the CEL rail's config and its tool call / tool result actions.
 
 The action-level companion to tests/guardrails/test_per_tool_cel_rails_iorails.py, which drives
 the same rail through IORails.
@@ -30,7 +30,7 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailDecision
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
 from nemoguardrails.imports import check_optional_dependency
-from nemoguardrails.library.cel.actions import evaluate_tool_input_cel, evaluate_tool_output_cel
+from nemoguardrails.library.cel.actions import evaluate_tool_call_cel, evaluate_tool_result_cel
 from nemoguardrails.library.cel.rail_config import CelOptions
 from nemoguardrails.types import ToolCall, ToolCallFunction
 
@@ -57,14 +57,14 @@ def _shell_call(**arguments) -> ToolCall:
 
 
 async def _check_call(config: RailsConfig, call: ToolCall, tool_definition=RUN_SHELL_TOOL):
-    return await evaluate_tool_output_cel(
-        source="tool_output", tool_call=call, tool_definition=tool_definition, config=config
+    return await evaluate_tool_call_cel(
+        source="tool_call", tool_call=call, tool_definition=tool_definition, config=config
     )
 
 
 async def _check_result(config: RailsConfig, content, call: ToolCall = None):
-    return await evaluate_tool_input_cel(
-        source="tool_input",
+    return await evaluate_tool_result_cel(
+        source="tool_result",
         tool_call=call or _shell_call(command="cat key.pem"),
         tool_result=ToolResult(call_id="call_1", content=content),
         config=config,
@@ -84,17 +84,17 @@ _EVALUATION_ERRORS = {
 class TestConfig:
     def test_config_can_be_deep_copied_and_pickled(self):
         # The synchronous generate() and check() deep-copy the config, which a compiled cel.Program cannot survive.
-        config = _config("tool_output", 'args.command == "ls"')
+        config = _config("tool_call", 'args.command == "ls"')
         assert copy.deepcopy(config).rails.config.cel == config.rails.config.cel
         assert pickle.loads(pickle.dumps(config)).rails.config.cel == config.rails.config.cel
 
     @pytest.mark.parametrize(
         "cel_config",
         [
-            {"tool_output": {"run_shell": {"expresions": ["true"]}}},
+            {"tool_call": {"run_shell": {"expresions": ["true"]}}},
             {"tool_ouput": {"run_shell": {"expressions": ["true"]}}},
-            {"tool_output": {"run_shell": {"expressions": []}}},
-            {"tool_output": {"run_shell": {}}},
+            {"tool_call": {"run_shell": {"expressions": []}}},
+            {"tool_call": {"run_shell": {}}},
         ],
         ids=["misspelled_key", "misspelled_section", "empty_expressions", "missing_expressions"],
     )
@@ -114,14 +114,14 @@ class TestConfig:
     )
     def test_syntax_error_fails_the_load(self, expressions, index):
         with pytest.raises(ValueError, match=f"Invalid CEL expression at index {index} "):
-            _config("tool_output", *expressions)
+            _config("tool_call", *expressions)
 
     @pytest.mark.parametrize(
         "expression", [expression for expression, _ in _EVALUATION_ERRORS.values()], ids=_EVALUATION_ERRORS.keys()
     )
     def test_only_syntax_is_checked_at_load(self, expression):
         """Typos and type mismatches compile, and are caught only when evaluated (see TestFailures)."""
-        _config("tool_output", expression)
+        _config("tool_call", expression)
 
     def test_missing_extra_names_it(self, monkeypatch):
         monkeypatch.setitem(sys.modules, "cel", None)
@@ -129,11 +129,11 @@ class TestConfig:
             CelOptions(expressions=["true"])
 
 
-class TestToolOutput:
+class TestToolCall:
     @pytest.mark.asyncio
     async def test_match_blocks_with_every_matched_expression(self):
         config = _config(
-            "tool_output",
+            "tool_call",
             'args.command.startsWith("rm")',
             'args.command == "ls"',
             'args.command.contains("-rf")',
@@ -141,20 +141,20 @@ class TestToolOutput:
         outcome = await _check_call(config, _shell_call(command="rm -rf /"))
         assert outcome.decision is RailDecision.BLOCK
         assert outcome.metadata == {
-            "source": "tool_output",
+            "source": "tool_call",
             "matched_expressions": ['args.command.startsWith("rm")', 'args.command.contains("-rf")'],
         }
 
     @pytest.mark.asyncio
     async def test_no_match_allows(self):
-        outcome = await _check_call(_config("tool_output", 'args.command == "rm"'), _shell_call(command="ls"))
+        outcome = await _check_call(_config("tool_call", 'args.command == "rm"'), _shell_call(command="ls"))
         assert outcome.decision is RailDecision.ALLOW
-        assert outcome.metadata == {"source": "tool_output"}
+        assert outcome.metadata == {"source": "tool_call"}
 
     @pytest.mark.asyncio
     async def test_tool_without_expressions_fails_closed(self):
         with pytest.raises(RuntimeError, match="No CEL expressions configured for tool 'run_shell'"):
-            await _check_call(_config("tool_output", "true", tool="other_tool"), _shell_call(command="rm"))
+            await _check_call(_config("tool_call", "true", tool="other_tool"), _shell_call(command="rm"))
 
     @pytest.mark.asyncio
     async def test_null_cel_section_fails_closed(self):
@@ -164,43 +164,43 @@ class TestToolOutput:
 
     @pytest.mark.asyncio
     async def test_has_guards_a_missing_argument(self):
-        config = _config("tool_output", 'has(args.mode) && args.mode == "append"')
+        config = _config("tool_call", 'has(args.mode) && args.mode == "append"')
         assert (await _check_call(config, _shell_call(command="ls"))).decision is RailDecision.ALLOW
 
     @pytest.mark.asyncio
     async def test_tool_name_is_available(self):
-        outcome = await _check_call(_config("tool_output", 'tool == "run_shell"'), _shell_call(command="ls"))
+        outcome = await _check_call(_config("tool_call", 'tool == "run_shell"'), _shell_call(command="ls"))
         assert outcome.decision is RailDecision.BLOCK
 
     @pytest.mark.asyncio
     async def test_stdlib_extensions_are_available(self):
-        config = _config("tool_output", 'args.command.lowerAscii().startsWith("rm")')
+        config = _config("tool_call", 'args.command.lowerAscii().startsWith("rm")')
         outcome = await _check_call(config, _shell_call(command="RM -rf /"))
         assert outcome.decision is RailDecision.BLOCK
 
     @pytest.mark.asyncio
     async def test_undeclared_tool_blocks_before_evaluation(self):
         # The expression raises if evaluated, so a block (not a raise) shows it never ran.
-        config = _config("tool_output", "args.missing == 1")
+        config = _config("tool_call", "args.missing == 1")
         outcome = await _check_call(config, _shell_call(command="ls"), tool_definition=None)
         assert outcome.decision is RailDecision.BLOCK
         assert "not an allowed tool" in outcome.reason
 
     @pytest.mark.asyncio
     async def test_schema_violation_blocks_before_evaluation(self):
-        config = _config("tool_output", "args.missing == 1")
+        config = _config("tool_call", "args.missing == 1")
         outcome = await _check_call(config, _shell_call(command=123))
         assert outcome.decision is RailDecision.BLOCK
         assert "matched_expressions" not in outcome.metadata
 
     @pytest.mark.asyncio
     async def test_wrong_source_raises(self):
-        with pytest.raises(ValueError, match="source must be 'tool_output'"):
-            await evaluate_tool_output_cel(
-                source="tool_input",
+        with pytest.raises(ValueError, match="source must be 'tool_call'"):
+            await evaluate_tool_call_cel(
+                source="tool_result",
                 tool_call=_shell_call(command="ls"),
                 tool_definition=RUN_SHELL_TOOL,
-                config=_config("tool_output", "true"),
+                config=_config("tool_call", "true"),
             )
 
 
@@ -209,23 +209,23 @@ class TestFailures:
     @pytest.mark.parametrize("expression, error_type", _EVALUATION_ERRORS.values(), ids=_EVALUATION_ERRORS.keys())
     async def test_evaluation_error_fails_closed(self, expression, error_type):
         with pytest.raises(RuntimeError) as excinfo:
-            await _check_call(_config("tool_output", expression), _shell_call(command="rm"))
+            await _check_call(_config("tool_call", expression), _shell_call(command="rm"))
         assert str(excinfo.value).endswith(f"{expression!r}: {error_type}")
 
     @pytest.mark.asyncio
     async def test_failing_expression_raises_despite_a_match(self):
-        config = _config("tool_output", 'args.flags.exists(f, f == "--force")', 'args.command == "rm"')
+        config = _config("tool_call", 'args.flags.exists(f, f == "--force")', 'args.command == "rm"')
         with pytest.raises(RuntimeError, match="KeyError"):
             await _check_call(config, _shell_call(command="rm"))
 
     @pytest.mark.asyncio
     async def test_has_on_a_missing_parent_fails_closed(self):
         with pytest.raises(RuntimeError, match="KeyError"):
-            await _check_call(_config("tool_output", "has(args.a.b)"), _shell_call(command="ls"))
+            await _check_call(_config("tool_call", "has(args.a.b)"), _shell_call(command="ls"))
 
     @pytest.mark.asyncio
     async def test_failures_without_a_match_raise_listing_each(self):
-        config = _config("tool_output", 'args.flags.exists(f, f == "--force")', "args.command", 'args.command == "rm"')
+        config = _config("tool_call", 'args.flags.exists(f, f == "--force")', "args.command", 'args.command == "rm"')
         with pytest.raises(RuntimeError) as excinfo:
             await _check_call(config, _shell_call(command="ls"))
         message = str(excinfo.value)
@@ -242,37 +242,37 @@ class TestFailures:
     async def test_failure_message_carries_no_argument_values(self, expression):
         # Both make the CEL error itself quote the argument, which must not reach the message.
         with pytest.raises(RuntimeError) as excinfo:
-            await _check_call(_config("tool_output", expression), _shell_call(command="SECRET_TOKEN["))
+            await _check_call(_config("tool_call", expression), _shell_call(command="SECRET_TOKEN["))
         assert "SECRET_TOKEN" not in str(excinfo.value)
 
 
-class TestToolInput:
+class TestToolResult:
     @pytest.mark.asyncio
     async def test_string_result_match_blocks(self):
-        config = _config("tool_input", 'result.contains("BEGIN RSA PRIVATE KEY")')
+        config = _config("tool_result", 'result.contains("BEGIN RSA PRIVATE KEY")')
         outcome = await _check_result(config, "-----BEGIN RSA PRIVATE KEY-----")
         assert outcome.decision is RailDecision.BLOCK
         assert outcome.metadata == {
-            "source": "tool_input",
+            "source": "tool_result",
             "matched_expressions": ['result.contains("BEGIN RSA PRIVATE KEY")'],
         }
 
     @pytest.mark.asyncio
     async def test_string_result_no_match_allows(self):
-        config = _config("tool_input", 'result.contains("BEGIN RSA PRIVATE KEY")')
+        config = _config("tool_result", 'result.contains("BEGIN RSA PRIVATE KEY")')
         outcome = await _check_result(config, "no keys here")
         assert outcome.decision is RailDecision.ALLOW
-        assert outcome.metadata == {"source": "tool_input"}
+        assert outcome.metadata == {"source": "tool_result"}
 
     @pytest.mark.asyncio
     async def test_content_blocks_are_queryable(self):
-        config = _config("tool_input", 'result.exists(b, b.type == "text" && b.text.contains("password"))')
+        config = _config("tool_result", 'result.exists(b, b.type == "text" && b.text.contains("password"))')
         outcome = await _check_result(config, [{"type": "text", "text": "password=hunter2"}])
         assert outcome.decision is RailDecision.BLOCK
 
     @pytest.mark.asyncio
     async def test_type_guard_skips_other_shapes(self):
-        config = _config("tool_input", 'type(result) == string && result.contains("password")')
+        config = _config("tool_result", 'type(result) == string && result.contains("password")')
         for content in ([{"type": "text", "text": "password"}], None):
             outcome = await _check_result(config, content)
             assert outcome.decision is RailDecision.ALLOW
@@ -285,16 +285,16 @@ class TestToolInput:
 
     @pytest.mark.asyncio
     async def test_args_and_tool_come_from_the_answered_call(self):
-        config = _config("tool_input", 'tool == "run_shell" && args.command.endsWith(".pem")')
+        config = _config("tool_result", 'tool == "run_shell" && args.command.endsWith(".pem")')
         outcome = await _check_result(config, "ok", call=_shell_call(command="cat key.pem"))
         assert outcome.decision is RailDecision.BLOCK
 
     @pytest.mark.asyncio
     async def test_wrong_source_raises(self):
-        with pytest.raises(ValueError, match="source must be 'tool_input'"):
-            await evaluate_tool_input_cel(
-                source="tool_output",
+        with pytest.raises(ValueError, match="source must be 'tool_result'"):
+            await evaluate_tool_result_cel(
+                source="tool_call",
                 tool_call=_shell_call(command="ls"),
                 tool_result=ToolResult(call_id="call_1", content="ok"),
-                config=_config("tool_input", "true"),
+                config=_config("tool_result", "true"),
             )

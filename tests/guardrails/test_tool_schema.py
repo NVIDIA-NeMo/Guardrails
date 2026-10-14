@@ -29,7 +29,7 @@ from nemoguardrails.guardrails.tool_schema import (
     ToolResult,
     Toolset,
     scope_arguments,
-    tool_output_validation,
+    tool_call_validation,
     validate_arguments,
 )
 from nemoguardrails.rails.llm.options import ToolViolationType
@@ -352,11 +352,11 @@ class TestScopeArguments:
         assert scope_arguments(arguments, "units") == arguments
 
 
-class TestToolOutputValidation:
-    """The @tool_output_validation decorator, focused on its $argument= check."""
+class TestToolCallValidation:
+    """The @tool_call_validation decorator, focused on its $argument= check."""
 
     @staticmethod
-    @tool_output_validation
+    @tool_call_validation
     async def _action(tool_call, tool_definition, argument_name=None, **kwargs):
         return RailOutcome.allow()
 

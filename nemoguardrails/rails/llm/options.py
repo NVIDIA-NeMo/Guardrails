@@ -358,8 +358,8 @@ class GenerationOptions(BaseModel):
                 "tool_result": False,
             }
             for rail_type in values["rails"]:
-                if rail_type in {"tool_output", "tool_input"}:
-                    canonical_name = "tool_call" if rail_type == "tool_output" else "tool_result"
+                canonical_name = DEPRECATED_TOOL_RAIL_FIELDS.get(rail_type)
+                if canonical_name is not None:
                     warnings.warn(
                         f"rails.{rail_type} is deprecated; use rails.{canonical_name} instead.",
                         DeprecationWarning,

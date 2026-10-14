@@ -62,25 +62,27 @@ MAIN_MODEL = {
 }
 
 
-def _tool_output_config(*expressions: str) -> dict:
+def _tool_call_config(*expressions: str) -> dict:
     return {
         "models": [MAIN_MODEL],
         "rails": {
-            "config": {"cel": {"tool_output": {"run_shell": {"expressions": list(expressions)}}}},
-            "tool_output": {"per_tool": {"run_shell": ["cel check tool output"]}},
+            "config": {"cel": {"tool_call": {"run_shell": {"expressions": list(expressions)}}}},
+            "tool_call": {"per_tool": {"run_shell": ["cel check tool call"]}},
         },
     }
 
 
-TOOL_OUTPUT_CONFIG = _tool_output_config(r'args.command.matches("\\brm\\s+-rf")')
+TOOL_CALL_CONFIG = _tool_call_config(r'args.command.matches("\\brm\\s+-rf")')
 # Fails on every call: `flags` is never sent, and the expression has no has() guard.
-TOOL_OUTPUT_FAILING_CONFIG = _tool_output_config('args.flags.exists(f, f == "--force")')
+TOOL_CALL_FAILING_CONFIG = _tool_call_config('args.flags.exists(f, f == "--force")')
 
-TOOL_INPUT_CONFIG = {
+TOOL_RESULT_CONFIG = {
     "models": [MAIN_MODEL],
     "rails": {
-        "config": {"cel": {"tool_input": {"run_shell": {"expressions": ['result.contains("BEGIN RSA PRIVATE KEY")']}}}},
-        "tool_input": {"per_tool": {"run_shell": ["cel check tool input"]}},
+        "config": {
+            "cel": {"tool_result": {"run_shell": {"expressions": ['result.contains("BEGIN RSA PRIVATE KEY")']}}}
+        },
+        "tool_result": {"per_tool": {"run_shell": ["cel check tool result"]}},
     },
 }
 
@@ -100,19 +102,19 @@ async def _collect(stream) -> list:
 
 @pytest_asyncio.fixture
 async def call_iorails():
-    async with started_iorails(TOOL_OUTPUT_CONFIG) as engine:
+    async with started_iorails(TOOL_CALL_CONFIG) as engine:
         yield engine
 
 
 @pytest_asyncio.fixture
 async def failing_call_iorails():
-    async with started_iorails(TOOL_OUTPUT_FAILING_CONFIG) as engine:
+    async with started_iorails(TOOL_CALL_FAILING_CONFIG) as engine:
         yield engine
 
 
 @pytest_asyncio.fixture
 async def result_iorails():
-    async with started_iorails(TOOL_INPUT_CONFIG) as engine:
+    async with started_iorails(TOOL_RESULT_CONFIG) as engine:
         yield engine
 
 
@@ -145,7 +147,7 @@ class TestNonStreamingPerToolCallCel:
     async def test_tool_without_expressions_fails_closed_as_internal_error(self):
         config = {
             "models": [MAIN_MODEL],
-            "rails": {"tool_output": {"per_tool": {"run_shell": ["cel check tool output"]}}},
+            "rails": {"tool_call": {"per_tool": {"run_shell": ["cel check tool call"]}}},
         }
         async with started_iorails(config) as engine:
             _inject_json_response(engine, _tool_call_payload("run_shell", '{"command": "ls"}'))
@@ -160,7 +162,7 @@ class TestStreamingPerToolCallCel:
         chunks = await _collect(call_iorails.stream_async(MESSAGES))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_output_rails"
+        assert violations[0]["error"]["param"] == "tool_call_rails"
 
     @pytest.mark.asyncio
     async def test_non_matching_expression_streams_through(self, call_iorails):
@@ -199,7 +201,7 @@ class TestStreamingPerToolResultCel:
         chunks = await _collect(result_iorails.stream_async(_tool_conversation("-----BEGIN RSA PRIVATE KEY-----")))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_input_rails"
+        assert violations[0]["error"]["param"] == "tool_result_rails"
         forbidden_post.assert_not_called()
 
     @pytest.mark.asyncio
@@ -214,7 +216,7 @@ class TestSynchronousCheck:
     """The synchronous check() deep-copies the config, so it covers a config holding CEL expressions."""
 
     def test_sync_check_blocks_a_matching_call(self):
-        iorails = IORails(RailsConfig.from_content(config=TOOL_OUTPUT_CONFIG))
+        iorails = IORails(RailsConfig.from_content(config=TOOL_CALL_CONFIG))
         messages = [
             {"role": "user", "content": "clean up"},
             {
@@ -233,4 +235,4 @@ class TestSynchronousCheck:
         result = iorails.check(messages, rail_types=[RailType.TOOL_CALL], tools=[RUN_SHELL_TOOL])
 
         assert result.status == RailStatus.BLOCKED
-        assert result.rail == "cel check tool output"
+        assert result.rail == "cel check tool call"

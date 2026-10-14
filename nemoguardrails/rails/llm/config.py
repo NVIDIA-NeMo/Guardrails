@@ -460,7 +460,7 @@ class ToolResultRails(BaseModel):
     """Configuration of tool result rails.
 
     Tool result rails are applied to tool results before they are processed.
-    They can validate, filter, or transform tool outputs for security and safety.
+    They can validate, filter, or transform tool results for security and safety.
     """
 
     flows: List[str] = Field(

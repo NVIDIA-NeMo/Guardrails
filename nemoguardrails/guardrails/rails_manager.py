@@ -197,7 +197,7 @@ def _per_tool_violation(
     """The violation for the call or result a per-tool rail blocked or broke on, naming that rail."""
     category = _per_tool_block_category(result)
     return ToolViolation(
-        kind="tool_call" if direction == SurfaceDirection.TOOL_OUTPUT else "tool_result",
+        kind="tool_call" if direction == SurfaceDirection.TOOL_CALL else "tool_result",
         violation_type=category.violation_type,
         reason=client_reason(result),
         tool_call_id=tool_call.id or None,
@@ -332,8 +332,8 @@ class RailsManager:
         output_flows: list[str],
         input_parallel: bool = False,
         output_parallel: bool = False,
-        tool_output_parallel: bool = False,
-        tool_input_parallel: bool = False,
+        tool_call_parallel: bool = False,
+        tool_result_parallel: bool = False,
         tool_call_flows: Optional[list[str]] = None,
         tool_result_flows: Optional[list[str]] = None,
         per_tool_call_flows: Optional[dict[str, list[str]]] = None,
@@ -354,8 +354,8 @@ class RailsManager:
 
         self.input_parallel: bool = input_parallel
         self.output_parallel: bool = output_parallel
-        self.tool_output_parallel: bool = tool_output_parallel
-        self.tool_input_parallel: bool = tool_input_parallel
+        self.tool_call_parallel: bool = tool_call_parallel
+        self.tool_result_parallel: bool = tool_result_parallel
 
         self.tool_call_flows: list[str] = list(tool_call_flows or [])
         self.tool_result_flows: list[str] = list(tool_result_flows or [])
@@ -388,8 +388,8 @@ class RailsManager:
 
         self._per_tool_rails: dict[tuple[SurfaceDirection, str], CompiledRail] = {}
         per_tool_configured = (
-            (SurfaceDirection.TOOL_OUTPUT, self.per_tool_call_flows),
-            (SurfaceDirection.TOOL_INPUT, self.per_tool_result_flows),
+            (SurfaceDirection.TOOL_CALL, self.per_tool_call_flows),
+            (SurfaceDirection.TOOL_RESULT, self.per_tool_result_flows),
         )
         for direction, per_tool in per_tool_configured:
             unique_flows = {flow for flows in per_tool.values() for flow in flows}
@@ -419,7 +419,7 @@ class RailsManager:
         log.info(
             "RailsManager initialized: input_flows=%s, output_flows=%s, tool_call_flows=%s, "
             "tool_result_flows=%s, per_tool_call_flows=%s, per_tool_result_flows=%s, input_parallel=%s, "
-            "output_parallel=%s, tool_output_parallel=%s, tool_input_parallel=%s",
+            "output_parallel=%s, tool_call_parallel=%s, tool_result_parallel=%s",
             self.input_flows,
             self.output_flows,
             self.tool_call_flows,
@@ -428,8 +428,8 @@ class RailsManager:
             self.per_tool_result_flows,
             self.input_parallel,
             self.output_parallel,
-            self.tool_output_parallel,
-            self.tool_input_parallel,
+            self.tool_call_parallel,
+            self.tool_result_parallel,
         )
 
     def _disable_parallel_execution(self) -> None:
@@ -448,7 +448,7 @@ class RailsManager:
 
     def _disable_tool_parallel_execution(self) -> None:
         """Turn both tool directions sequential, because concurrent tool rails cannot carry a rewrite."""
-        if not (self.tool_output_parallel or self.tool_input_parallel):
+        if not (self.tool_call_parallel or self.tool_result_parallel):
             return
         rewriting = sorted(flow for flows in self.per_tool_transform_flows.values() for flow in flows)
         warnings.warn(
@@ -457,8 +457,8 @@ class RailsManager:
             f"concurrent tool rails cannot carry a rewrite.",
             stacklevel=3,
         )
-        self.tool_output_parallel = False
-        self.tool_input_parallel = False
+        self.tool_call_parallel = False
+        self.tool_result_parallel = False
 
     def _rail_dependencies(self) -> RailDependencies:
         """Bundle the collaborators a compiled rail's action may declare as parameters."""
@@ -585,10 +585,10 @@ class RailsManager:
         if not checks:
             return global_result
 
-        if self.tool_output_parallel:
+        if self.tool_call_parallel:
             rails = {
                 check.key: self._run_per_tool_rail(
-                    SurfaceDirection.TOOL_OUTPUT,
+                    SurfaceDirection.TOOL_CALL,
                     check.flow,
                     tool_call=check.tool_call,
                     tool_result=check.tool_result,
@@ -601,7 +601,7 @@ class RailsManager:
                 rails, RailDirection.OUTPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
             )
         else:
-            per_tool_result = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_OUTPUT)
+            per_tool_result = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_CALL)
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
         if not per_tool_result.is_safe:
             return replace(per_tool_result, records=combined_records)
@@ -757,10 +757,10 @@ class RailsManager:
         if not checks:
             return global_result
 
-        if self.tool_input_parallel:
+        if self.tool_result_parallel:
             rails = {
                 check.key: self._run_per_tool_rail(
-                    SurfaceDirection.TOOL_INPUT,
+                    SurfaceDirection.TOOL_RESULT,
                     check.flow,
                     tool_call=check.tool_call,
                     tool_result=check.tool_result,
@@ -773,7 +773,7 @@ class RailsManager:
                 rails, RailDirection.INPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
             )
         else:
-            per_tool_result = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_INPUT)
+            per_tool_result = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_RESULT)
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
         if not per_tool_result.is_safe:
             return replace(per_tool_result, records=combined_records)
@@ -920,8 +920,8 @@ class RailsManager:
     ) -> RailResult:
         """Dispatch one per-tool rail, passing the resolved ToolCall/ToolResult/Tool through."""
         tool_name = tool_call.function.name or tool_call.type
-        rail_direction = RailDirection.OUTPUT if direction == SurfaceDirection.TOOL_OUTPUT else RailDirection.INPUT
-        rail_type = "tool_output" if direction == SurfaceDirection.TOOL_OUTPUT else "tool_input"
+        rail_direction = RailDirection.OUTPUT if direction == SurfaceDirection.TOOL_CALL else RailDirection.INPUT
+        rail_type = "tool_call" if direction == SurfaceDirection.TOOL_CALL else "tool_result"
         with rail_span(self._tracer, flow, rail_direction) as span:
             rail_execution = await self._per_tool_rails[(direction, flow)].execute(
                 [], tool_call=tool_call, tool_result=tool_result, tool_definition=tool_definition

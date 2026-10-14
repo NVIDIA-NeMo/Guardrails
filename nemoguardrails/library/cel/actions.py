@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, tool_output_validation
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, tool_call_validation
 from nemoguardrails.library.cel.rail_config import CelOptions, compile_expression
 from nemoguardrails.types import ToolCall
 
@@ -89,8 +89,8 @@ def _evaluate(source: str, tool_name: str, variables: Dict[str, Any], options: C
 
 
 @action(is_system_action=True)
-@tool_output_validation
-async def evaluate_tool_output_cel(
+@tool_call_validation
+async def evaluate_tool_call_cel(
     source: str,
     tool_call: ToolCall,
     tool_definition: Optional[Tool],
@@ -100,9 +100,9 @@ async def evaluate_tool_output_cel(
     """Checks a tool call's arguments against that tool's CEL expressions.
 
     Args:
-        source: Fixed per surface, always "tool_output".
+        source: Fixed per surface, always "tool_call".
         tool_call: The tool call to check. Its arguments are `args` and its name is `tool`.
-        tool_definition: The declared tool, used only by @tool_output_validation to check
+        tool_definition: The declared tool, used only by @tool_call_validation to check
             the call's arguments against its schema before this function runs.
         config: The rails configuration object.
 
@@ -110,8 +110,8 @@ async def evaluate_tool_output_cel(
         RailOutcome that blocks when any expression is true, with the matched expressions in
         metadata.
     """
-    if source != "tool_output":
-        raise ValueError("source must be 'tool_output'")
+    if source != "tool_call":
+        raise ValueError("source must be 'tool_call'")
 
     tool_name = tool_call.function.name or tool_call.type
     options = _tool_options(config, source, tool_name)
@@ -120,7 +120,7 @@ async def evaluate_tool_output_cel(
 
 
 @action(is_system_action=True)
-async def evaluate_tool_input_cel(
+async def evaluate_tool_result_cel(
     source: str,
     tool_call: ToolCall,
     tool_result: ToolResult,
@@ -130,7 +130,7 @@ async def evaluate_tool_input_cel(
     """Checks a tool result's content against that tool's CEL expressions.
 
     Args:
-        source: Fixed per surface, always "tool_input".
+        source: Fixed per surface, always "tool_result".
         tool_call: The prior call this result answers. Its arguments are `args` and its name
             is `tool`.
         tool_result: The tool result to check. Its content is `result`, as the tool returned it.
@@ -140,8 +140,8 @@ async def evaluate_tool_input_cel(
         RailOutcome that blocks when any expression is true, with the matched expressions in
         metadata.
     """
-    if source != "tool_input":
-        raise ValueError("source must be 'tool_input'")
+    if source != "tool_result":
+        raise ValueError("source must be 'tool_result'")
 
     tool_name = tool_call.function.name or tool_call.type
     options = _tool_options(config, source, tool_name)
