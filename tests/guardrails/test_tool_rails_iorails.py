@@ -302,7 +302,7 @@ class TestRouting:
         # flow (the tool rails ignore the suffix); they must be caught as a duplicate
         # rather than slipping past and running twice.
         reason = IORails.unsupported_reason(
-            _config({"tool_call": {"flows": ["tool call validation", "tool call validation $model=x"]}})
+            _config({"tool_call": {"flows": ["tool call validation", "tool call validation $model=main"]}})
         )
         assert reason is not None
         assert "duplicate" in reason
