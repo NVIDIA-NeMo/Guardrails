@@ -27,7 +27,13 @@ Config constants (``OPENAI_BASELINE_CONFIG`` and friends) live in the suite-loca
 ``configs.py`` next to the tests; ``snapshot`` is the suite-local re-export in
 ``tests/recorded/snapshots.py``, not ``inline_snapshot`` directly.
 
-Request credentials as fixture parameters (`openai_api_key`, `nvidia_api_key`) rather than calling `request.getfixturevalue(...)`. In modules that mix sync/async tests or vcr/non-vcr tests, keep only `recorded` in `pytestmark` and apply `@pytest.mark.vcr` / `@pytest.mark.asyncio` per test. Then use the Makefile refresh workflow to record once with credentials, fill the snapshot offline, and verify the replay:
+Request credentials as fixture parameters (`openai_api_key`, `nvidia_api_key`,
+or `nvidia_inference_key`) rather than calling
+`request.getfixturevalue(...)`. In modules that mix sync/async tests or
+vcr/non-vcr tests, keep only `recorded` in `pytestmark` and apply
+`@pytest.mark.vcr` / `@pytest.mark.asyncio` per test. Then use the Makefile
+refresh workflow to record once with credentials, fill the snapshot offline,
+and verify the replay:
 
 ```bash
 OPENAI_API_KEY=... make record-cassettes \
@@ -97,6 +103,42 @@ OPENAI_API_KEY=... make record-cassettes \
   RECORDED_REQUIRED_KEYS=OPENAI_API_KEY
 ```
 
+The OpenAI Chat proxy recordings use the OpenAI protocol through NVIDIA's
+inference endpoint and explicitly bind the
+[LiteLLM dialect](../../nemoguardrails/server/experimental/providers/openai/dialects/litellm/README.md).
+The default OpenAI endpoint is not silently widened to accept this gateway.
+Refresh them with the dedicated credential and no OpenAI key:
+
+```bash
+NVIDIA_INFERENCE_KEY=... make record-cassettes \
+  RECORDED_TESTS=tests/recorded/server/experimental/openai/test_chat_completions.py \
+  RECORDED_REQUIRED_KEYS=NVIDIA_INFERENCE_KEY
+```
+
+Replay the Chat pipeline and the archived-field inventory together:
+
+```bash
+make replay-cassettes RECORDED_TESTS=tests/recorded/server/experimental/openai
+```
+
+The [proxy integration guide](server/experimental/README.md) describes the
+allow/block scenarios, reusable checker helper, single-use replay assertions,
+and the pattern for another operation. These tests combine recorded provider
+exchanges with synthetic checker decisions, not real Rails configuration.
+Replayed-body equality is not a claim of original provider-wire byte fidelity
+or live streaming delivery. Real-config and socket coverage is separate.
+
+These six cassettes predate the dialect: their provider payloads are unchanged.
+Two buffered successes contain message `provider_specific_fields: {refusal: null}`
+and empty choice extensions. Two streaming successes contain no extension bags;
+the other two responses are provider errors. The inventory tests validate every
+successful payload against runtime declarations and export and pin those evidence
+limits. The recordings do not establish the serving LiteLLM version or support
+for arbitrary backend fields. Native finish metadata and empty stream containers
+are covered by separately identified, source-backed unit fixtures, not invented
+recordings. A refresh must review new fields rather than modifying payloads to
+fit existing expectations.
+
 `RECORDED_TESTS` is passed directly to pytest, so it can be a single test, a
 test class, several files, or a directory:
 
@@ -137,6 +179,12 @@ Rails tests use pytest-recording's default names:
 
 ```text
 tests/recorded/rails/<suite>/cassettes/<test_module>/<test_name>.yaml
+```
+
+Experimental server proxy recordings are grouped by provider:
+
+```text
+tests/recorded/server/experimental/<provider>/cassettes/<test_module>/<test_name>.yaml
 ```
 
 Parameterized tests include the parameter id in the cassette filename. Every test (rails and clients) uses this default naming; do not add `@pytest.mark.default_cassette(...)`.

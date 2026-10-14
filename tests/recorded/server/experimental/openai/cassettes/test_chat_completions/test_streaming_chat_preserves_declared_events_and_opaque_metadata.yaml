@@ -1,0 +1,811 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      connection:
+      - keep-alive
+      accept:
+      - '*/*'
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+      accept-encoding:
+      - identity
+    parsed_body:
+      model: openai/openai/gpt-5-nano
+      messages:
+      - role: user
+        content: Hello! Can you help me with a short greeting?
+      temperature: 0.7
+      max_tokens: 1024
+      n: 1
+      stream: true
+      stream_options:
+        include_usage: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      server:
+      - uvicorn
+      cache-control:
+      - no-cache
+      content-type:
+      - text/event-stream; charset=utf-8
+      content-security-policy:
+      - frame-ancestors 'none'
+      transfer-encoding:
+      - chunked
+    body:
+      parsed_body:
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            role: assistant
+            content: ''
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: Here
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' are'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' a'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' few'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' short'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' greeting'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' options'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' you'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' can'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' use'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: .
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Pick'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' the'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' tone'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' you'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' want'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: |+
+              :
+
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: '-'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Casual'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ':'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Hi'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' there'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: '!'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' /'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Hey'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: |
+              !
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: '-'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Neutral'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ':'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Hello'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: |
+              !
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: '-'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Friendly'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ':'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Hi'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ','
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' nice'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' to'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' meet'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' you'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: |
+              .
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: '-'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Pol'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ite
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: /
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: Professional
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ':'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Hello'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ','
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' nice'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' to'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' meet'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' you'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: .
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' /'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' Hello'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ','
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' how'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' can'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' I'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' help'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' today'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: |+
+              ?
+
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: What
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' context'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' are'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' you'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' using'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' it'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' for'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' ('
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: text
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ','
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' email'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ','
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' in'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' person'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: )
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' and'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' what'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' tone'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' should'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' it'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' have'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: '?'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' I'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' can'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' tailor'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: ' it'
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta:
+            content: .
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-nano
+        choices:
+        - index: 0
+          delta: {}
+          finish_reason: stop
+      - id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: openai/openai/gpt-5-nano
+        object: chat.completion.chunk
+        choices:
+        - index: 0
+          delta: {}
+        usage:
+          completion_tokens: 739
+          prompt_tokens: 17
+          total_tokens: 756
+          completion_tokens_details:
+            accepted_prediction_tokens: 0
+            audio_tokens: 0
+            reasoning_tokens: 640
+            rejected_prediction_tokens: 0
+          prompt_tokens_details:
+            audio_tokens: 0
+            cached_tokens: 0
+          cost: 0.00021759429999999998
+      - '[DONE]'

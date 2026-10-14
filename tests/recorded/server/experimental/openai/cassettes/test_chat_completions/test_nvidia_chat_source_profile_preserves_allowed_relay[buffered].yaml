@@ -1,0 +1,67 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      connection:
+      - keep-alive
+      accept:
+      - '*/*'
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+      accept-encoding:
+      - identity
+    parsed_body:
+      model: openai/openai/gpt-5-nano
+      messages:
+      - role: user
+        content: Give a one-sentence greeting for a coworker.
+      temperature: 0.7
+      max_tokens: 1024
+      n: 1
+      stream: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      server:
+      - uvicorn
+      content-type:
+      - application/json
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: openai/openai/gpt-5-nano
+        object: chat.completion
+        choices:
+        - finish_reason: stop
+          index: 0
+          message:
+            content: Good morning, [Name]—hope you have a productive and enjoyable day at work.
+            role: assistant
+            provider_specific_fields:
+              refusal: null
+            annotations: []
+          provider_specific_fields: {}
+        usage:
+          completion_tokens: 667
+          prompt_tokens: 17
+          total_tokens: 684
+          completion_tokens_details:
+            accepted_prediction_tokens: 0
+            audio_tokens: 0
+            reasoning_tokens: 640
+            rejected_prediction_tokens: 0
+          prompt_tokens_details:
+            audio_tokens: 0
+            cached_tokens: 0
+        service_tier: default
