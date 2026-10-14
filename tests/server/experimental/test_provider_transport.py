@@ -35,7 +35,8 @@ from nemoguardrails.server.experimental._http_kernel import (
 from nemoguardrails.server.experimental._provider_transport import ProviderTransport
 from nemoguardrails.server.experimental._streaming_http import StreamingHttpResponse
 from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_router
-from tests.server.experimental.test_openai_chat_streaming_integration import StaticChecker, request_body, stream_event
+from tests.server.experimental.chat_fixtures import request_body, stream_event
+from tests.server.experimental.checkers import StaticChecker
 
 
 @pytest.mark.asyncio

@@ -22,7 +22,6 @@ from fastapi import FastAPI
 from pydantic import model_validator
 
 from nemoguardrails.server.experimental._content_checker import (
-    ContentAllowed,
     ContentBlocked,
     ContentInspectionPolicy,
     StreamBufferingPolicy,
@@ -41,27 +40,8 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.stream
 )
 from nemoguardrails.server.experimental.providers.openai.errors import OPENAI_ERROR_MAPPING
 from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_router
-
-
-class StaticChecker:
-    def __init__(self, policy, input_decision=ContentAllowed(), output_decisions=()):
-        self.policy = policy
-        self.input_decision = input_decision
-        self.output_decisions = list(output_decisions)
-        self.calls = []
-        self.policy_reads = 0
-
-    def inspection_policy(self):
-        self.policy_reads += 1
-        return self.policy
-
-    async def check_input(self, check):
-        self.calls.append(("input", check))
-        return self.input_decision
-
-    async def check_output(self, check):
-        self.calls.append(("output", check))
-        return self.output_decisions.pop(0) if self.output_decisions else ContentAllowed()
+from tests.server.experimental.chat_fixtures import request_body, stream_event
+from tests.server.experimental.checkers import StaticChecker
 
 
 class Source:
@@ -84,27 +64,6 @@ class Source:
 
     async def aclose(self):
         self.closed = True
-
-
-def request_body(**updates):
-    payload = {
-        "model": "gpt-example",
-        "messages": [{"role": "user", "content": "question"}],
-        "stream": True,
-    }
-    payload.update(updates)
-    return json.dumps(payload, separators=(",", ":")).encode()
-
-
-def stream_event(content=None, **delta_updates):
-    delta = {"content": content} if content is not None else {"role": "assistant"}
-    delta.update(delta_updates)
-    payload = {
-        "id": "chatcmpl-stream",
-        "object": "chat.completion.chunk",
-        "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
-    }
-    return b"data: " + json.dumps(payload, separators=(",", ":")).encode() + b"\n\n"
 
 
 def make_client(checker, stream_dispatch=None, buffered_dispatch=None, max_response_body_bytes=10 * 1024 * 1024):

@@ -121,6 +121,13 @@ Replay the Chat pipeline and the archived-field inventory together:
 make replay-cassettes RECORDED_TESTS=tests/recorded/server/experimental/openai
 ```
 
+The [proxy integration guide](server/experimental/README.md) describes the
+allow/block scenarios, reusable checker helper, single-use replay assertions,
+and the pattern for another operation. These tests combine recorded provider
+exchanges with synthetic checker decisions, not real Rails configuration.
+Replayed-body equality is not a claim of original provider-wire byte fidelity
+or live streaming delivery. Real-config and socket coverage is separate.
+
 These six cassettes predate the dialect: their provider payloads are unchanged.
 Two buffered successes contain message `provider_specific_fields: {refusal: null}`
 and empty choice extensions. Two streaming successes contain no extension bags;
