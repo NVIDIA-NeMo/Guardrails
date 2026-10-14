@@ -827,15 +827,17 @@ def test_http_failures_render_as_openai_errors(kind, status_code, error_type):
     assert "internal detail" not in response.body.decode()
 
 
-def test_stream_dispatch_requires_an_endpoint_stream_binding():
-    async def stream_dispatch(_request):
+@pytest.mark.parametrize("policy_aware", [False, True])
+def test_stream_dispatch_requires_an_endpoint_stream_binding(policy_aware):
+    async def stream_dispatch(_request, _inspect_output=None):
         raise AssertionError("must not dispatch")
 
     with pytest.raises(ValueError, match="requires an endpoint stream binding"):
         create_guarded_http_operation(
             replace(CHAT_COMPLETIONS_ENDPOINT, stream=None),
             OPENAI_ERROR_MAPPING,
-            stream_dispatch=stream_dispatch,
+            stream_dispatch=None if policy_aware else stream_dispatch,
+            policy_stream_dispatch=stream_dispatch if policy_aware else None,
             max_stream_event_bytes=1024,
             max_pending_stream_bytes=1024,
         )

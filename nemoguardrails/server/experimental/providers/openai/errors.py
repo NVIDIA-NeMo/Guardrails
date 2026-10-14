@@ -26,6 +26,10 @@ from nemoguardrails.server.experimental._buffered_kernel import (
     OperationModificationUnsupported,
     OperationProjectionFailed,
 )
+from nemoguardrails.server.experimental._content_checker import (
+    ContentCheckerConfigurationUnsupported,
+    ContentCheckerResolutionFailed,
+)
 from nemoguardrails.server.experimental._guarded_operation import (
     InvalidGuardedPayload,
     UnsupportedGuardedRepresentation,
@@ -84,7 +88,9 @@ def _error_response(
 
 def render_openai_error(
     outcome: (
-        OperationBlocked
+        ContentCheckerConfigurationUnsupported
+        | ContentCheckerResolutionFailed
+        | OperationBlocked
         | OperationCheckFailed
         | OperationModificationUnsupported
         | OperationProjectionFailed
@@ -112,6 +118,21 @@ def render_openai_error(
             HttpRouteRejectionKind.INVALID_REQUEST_PATH: (400, "invalid_request_error", "The request path is invalid."),
         }[outcome.kind]
         return _error_response(status_code, message, error_type, outcome.kind.value)
+    if isinstance(outcome, ContentCheckerResolutionFailed):
+        return _error_response(
+            502,
+            "The Guardrails configuration could not be resolved.",
+            "proxy_error",
+            "config_resolution_failed",
+        )
+    if isinstance(outcome, ContentCheckerConfigurationUnsupported):
+        return _error_response(
+            422,
+            str(outcome.failure),
+            "unsupported_request",
+            "unsupported_rail_types",
+        )
+
     if isinstance(outcome, OperationBlocked):
         return _error_response(
             400,

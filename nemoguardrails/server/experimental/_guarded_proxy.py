@@ -15,6 +15,7 @@
 
 """Compose provider declarations with the guarded HTTP pipeline."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 
 from pydantic import ValidationError
@@ -45,13 +46,22 @@ from nemoguardrails.server.experimental._http_kernel import (
     _has_media_type,
 )
 from nemoguardrails.server.experimental._json_payload import InvalidJson, UnsupportedJsonShape, parse_json_object
-from nemoguardrails.server.experimental._streaming_http import StreamingHttpDispatch, execute_streaming_http
+from nemoguardrails.server.experimental._streaming_http import (
+    StreamingHttpDispatch,
+    StreamingHttpResponse,
+    execute_streaming_http,
+)
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapping
 from nemoguardrails.server.experimental.provider.payload import GuardedMessageTarget, guarded_schema_error
 from nemoguardrails.server.experimental.provider.projection_policy import PolicyModel, policy_json_schema
 from nemoguardrails.server.experimental.provider.transport import ProviderBindingViolation
 from nemoguardrails.server.experimental.provider.types import GuardedMessage
+
+PolicyStreamingHttpDispatch = Callable[
+    [BufferedHttpRequest, bool],
+    Awaitable[StreamingHttpResponse | BufferedHttpResponse],
+]
 
 
 @dataclass(slots=True)
@@ -118,13 +128,14 @@ def create_guarded_http_operation(
     errors: ProviderErrorMapping,
     *,
     stream_dispatch: StreamingHttpDispatch | None = None,
+    policy_stream_dispatch: PolicyStreamingHttpDispatch | None = None,
     max_stream_event_bytes: int,
     max_pending_stream_bytes: int,
 ) -> GuardedHttpOperation:
     """Create one buffered-and-streaming operation from an endpoint contract."""
 
     stream_binding = endpoint.stream
-    if stream_dispatch is not None and stream_binding is None:
+    if (stream_dispatch is not None or policy_stream_dispatch is not None) and stream_binding is None:
         raise ValueError("A streaming dispatcher requires an endpoint stream binding.")
 
     def prepare_request(request: BufferedHttpRequest) -> GuardableProviderRequest:
@@ -198,7 +209,7 @@ def create_guarded_http_operation(
         guardable = prepared_input.request
         if not guardable.streaming:
             return None
-        if stream_dispatch is None or stream_binding is None:
+        if (stream_dispatch is None and policy_stream_dispatch is None) or stream_binding is None:
             return render_stream_outcome(
                 OperationProjectionFailed(
                     InspectionStage.INPUT,
@@ -212,9 +223,17 @@ def create_guarded_http_operation(
                     UnsupportedStreamInspection("Guarded output streaming requires a buffering policy.")
                 )
             )
+
+        async def dispatch(request: BufferedHttpRequest):
+            if policy_stream_dispatch is not None:
+                return await policy_stream_dispatch(request, prepared_input.resolved.policy.inspect_output)
+            if stream_dispatch is None:
+                raise AssertionError("A configured streaming request requires streaming dispatch.")
+            return await stream_dispatch(request)
+
         return await execute_streaming_http(
             guardable.request,
-            dispatch=stream_dispatch,
+            dispatch=dispatch,
             checker=prepared_input.resolved.checker,
             streaming_policy=streaming_policy,
             input_message=prepared_input.input_message,
@@ -225,7 +244,7 @@ def create_guarded_http_operation(
         )
 
     success_content = {"application/json": {"schema": {}}}
-    if endpoint.stream is not None and stream_dispatch is not None:
+    if endpoint.stream is not None and (stream_dispatch is not None or policy_stream_dispatch is not None):
         success_content["text/event-stream"] = {"schema": {"type": "string"}}
     documented_responses = errors.documented_responses
     documented_responses[200] = {

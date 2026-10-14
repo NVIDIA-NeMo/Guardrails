@@ -12,16 +12,17 @@ from nemoguardrails.server.experimental._application import create_proxy_applica
 
 application = create_proxy_application(
     providers=providers,
-    checker=checker,
+    rails_configs=rails_configs,
+    config_resolver=config_resolver,
     http_transport_factory=lambda: httpx.MockTransport(handler),
 )
 ```
 
 The leading underscores are intentional while this stack is staged. This work
 restores the exploratory capability without committing to a public provider
-extension API. Trusted Rails configuration resolution replaces the single
-supplied checker in the next PR; it does not change transport ownership or
-routing semantics.
+extension API. Trusted Rails configuration resolution selects from the catalog
+preloaded before application readiness; it does not change transport ownership
+or routing semantics.
 
 When no factory is supplied, HTTPX uses its normal asynchronous network
 transport. When one is supplied, the application invokes it once per lifespan.
@@ -29,6 +30,9 @@ Every provider instance uses the resulting shared client. The runtime closes
 the client and transport during shutdown. If startup fails after transport
 creation but before runtime ownership succeeds, the lifespan closes the
 transport while propagating the error.
+
+If Rails preloading fails after runtime construction, the runtime closes both
+the already-started checkers and this shared HTTP client before startup fails.
 
 HTTP client shutdown and startup rollback use a shielded five-second
 cooperative cleanup budget. Timeouts and ordinary close failures are logged
@@ -112,7 +116,8 @@ openai = create_openai_chat_integration(
 
 application = create_proxy_application(
     providers=(openai,),
-    checker=checker,
+    rails_configs=rails_configs,
+    config_resolver=config_resolver,
     http_transport_factory=create_model_routing_transport,
 )
 ```
@@ -152,9 +157,9 @@ origins. Destination URLs come only from validated application-owned
 URLs. Route URLs must be absolute HTTP or HTTPS URLs without embedded
 credentials, query, or fragment.
 
-The example exposes `create_model_routed_application(checker)` during this
-stage. The trusted Rails configuration work replaces that supplied static
-checker while retaining the transport boundary and its tests.
+The example exposes `create_model_routed_application(rails_configs,
+config_resolver)` so the embedding application owns both routing and trusted
+Rails policy selection without coupling the two mechanisms.
 
 ## Other uses
 

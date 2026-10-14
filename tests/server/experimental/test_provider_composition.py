@@ -45,6 +45,10 @@ class PassthroughChecker:
         raise AssertionError("output inspection is disabled")
 
 
+async def resolve_passthrough_checker(_request, _provider_type, _provider_instance_id, _operation_name):
+    return PassthroughChecker()
+
+
 class StaticResponseStream(httpx.AsyncByteStream):
     def __init__(self, body):
         self.body = body
@@ -64,10 +68,14 @@ def provider_response():
 def create_composed_app(providers, handler, *, checker=None):
     upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     application = FastAPI()
+
+    async def resolve_checker(_request, _provider_type, _provider_instance_id, _operation_name):
+        return PassthroughChecker() if checker is None else checker
+
     include_provider_routes(
         application,
         providers,
-        checker=PassthroughChecker() if checker is None else checker,
+        resolve_checker=resolve_checker,
         http_client=upstream_client,
     )
     proxy_client = httpx.AsyncClient(
@@ -384,7 +392,7 @@ async def test_shared_application_prefix_does_not_change_upstream_paths():
     include_provider_routes(
         application,
         (provider,),
-        checker=PassthroughChecker(),
+        resolve_checker=resolve_passthrough_checker,
         http_client=upstream_client,
         path_prefix="/guardrails",
     )
@@ -418,7 +426,7 @@ async def test_existing_application_routes_are_reserved_from_root_provider_catch
     include_provider_routes(
         application,
         (provider,),
-        checker=PassthroughChecker(),
+        resolve_checker=resolve_passthrough_checker,
         http_client=upstream_client,
     )
     async with httpx.AsyncClient(
@@ -598,7 +606,7 @@ async def test_provider_composition_rejects_ambiguous_instance_identity(provider
             include_provider_routes(
                 FastAPI(),
                 providers,
-                checker=PassthroughChecker(),
+                resolve_checker=resolve_passthrough_checker,
                 http_client=upstream_client,
             )
 
@@ -630,7 +638,7 @@ async def test_provider_composition_rejects_guarded_routes_that_collide_after_mo
             include_provider_routes(
                 FastAPI(),
                 (root_provider, second_provider),
-                checker=PassthroughChecker(),
+                resolve_checker=resolve_passthrough_checker,
                 http_client=upstream_client,
             )
 

@@ -21,10 +21,23 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from nemoguardrails.server.experimental._content_checker import (
+    ContentCheckerConfigurationUnsupported,
+    ContentCheckerResolutionFailed,
+)
 from nemoguardrails.server.experimental._guarded_stream import StreamOutcome
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpResponse, HttpOperationFailed, HttpRouteRejected
 
-ProviderOutcomeRenderer = Callable[[StreamOutcome | HttpOperationFailed | HttpRouteRejected], BufferedHttpResponse]
+ProviderOutcomeRenderer = Callable[
+    [
+        StreamOutcome
+        | HttpOperationFailed
+        | HttpRouteRejected
+        | ContentCheckerResolutionFailed
+        | ContentCheckerConfigurationUnsupported
+    ],
+    BufferedHttpResponse,
+]
 
 
 @dataclass(frozen=True, slots=True)

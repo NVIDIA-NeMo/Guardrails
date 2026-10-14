@@ -24,8 +24,8 @@ from typing import Any
 import httpx
 
 from nemoguardrails.server.experimental._application import create_proxy_application
-from nemoguardrails.server.experimental._content_checker import ContentChecker
 from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_integration
+from nemoguardrails.server.experimental.rails import ConfigEntry, ConfigResolver
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,12 +212,16 @@ def create_model_routing_transport() -> ModelRoutingTransport:
     )
 
 
-def create_model_routed_application(checker: ContentChecker):
+def create_model_routed_application(
+    rails_configs: tuple[ConfigEntry, ...],
+    config_resolver: ConfigResolver | None = None,
+):
     """Bind the routing transport to the current private proxy composition."""
 
     openai = create_openai_chat_integration(base_url="http://model-router.internal/v1")
     return create_proxy_application(
         providers=(openai,),
-        checker=checker,
+        rails_configs=rails_configs,
+        config_resolver=config_resolver,
         http_transport_factory=create_model_routing_transport,
     )

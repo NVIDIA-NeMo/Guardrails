@@ -20,7 +20,7 @@ from dataclasses import replace
 
 from fastapi import APIRouter, FastAPI
 
-from nemoguardrails.server.experimental._content_checker import ContentChecker, validate_content_checker
+from nemoguardrails.server.experimental._content_checker import ContentCheckerResolver
 from nemoguardrails.server.experimental._guarded_proxy import create_guarded_http_operation
 from nemoguardrails.server.experimental._http_kernel import (
     DEFAULT_MAX_REQUEST_BODY_BYTES,
@@ -78,32 +78,30 @@ def _registered_http_routes(router: APIRouter | FastAPI, path_prefix: str = "") 
 def create_provider_router(
     provider: ProviderIntegration,
     *,
-    checker: ContentChecker,
+    resolve_checker: ContentCheckerResolver,
     transport: ProviderTransport,
     max_request_body_bytes: int,
     max_response_body_bytes: int,
 ) -> APIRouter:
     """Construct the guarded routes declared by one provider."""
 
-    checker_policy = validate_content_checker(checker).policy
-
-    async def dispatch(request):
+    async def policy_dispatch(request, inspect_output):
         return await transport.dispatch(
             request,
-            require_identity_response=checker_policy.inspect_output,
+            require_identity_response=inspect_output,
         )
 
-    async def stream_dispatch(request):
+    async def policy_stream_dispatch(request, inspect_output):
         return await transport.stream_dispatch(
             request,
-            require_identity_response=checker_policy.inspect_output,
+            require_identity_response=inspect_output,
         )
 
     operations = tuple(
         create_guarded_http_operation(
             endpoint,
             provider.errors,
-            stream_dispatch=stream_dispatch if endpoint.stream is not None else None,
+            policy_stream_dispatch=policy_stream_dispatch if endpoint.stream is not None else None,
             max_stream_event_bytes=max_response_body_bytes,
             max_pending_stream_bytes=max_response_body_bytes,
         )
@@ -114,8 +112,11 @@ def create_provider_router(
     }
     return create_http_proxy_router(
         operations=operations,
-        checker=checker,
-        dispatch=dispatch,
+        resolve_checker=resolve_checker,
+        provider_type=provider.provider_type,
+        provider_instance_id=provider.instance_id,
+        dispatch=transport.dispatch,
+        policy_dispatch=policy_dispatch,
         render_outcome=provider.errors.renderer,
         operation_ids=operation_ids,
         include_passthrough=False,
@@ -128,7 +129,7 @@ def include_provider_routes(
     application: FastAPI,
     providers: Sequence[ProviderIntegration],
     *,
-    checker: ContentChecker,
+    resolve_checker: ContentCheckerResolver,
     http_client: HTTPClientResolver,
     path_prefix: str = "",
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
@@ -156,7 +157,7 @@ def include_provider_routes(
         )
         guarded_router = create_provider_router(
             provider,
-            checker=checker,
+            resolve_checker=resolve_checker,
             transport=transport,
             max_request_body_bytes=max_request_body_bytes,
             max_response_body_bytes=max_response_body_bytes,

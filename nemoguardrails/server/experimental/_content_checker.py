@@ -15,8 +15,11 @@
 
 """Define private content-checking declarations for guarded operations."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Protocol, TypeAlias, cast
+
+from fastapi import Request
 
 from nemoguardrails.server.experimental.provider.types import GuardedMessage
 
@@ -31,6 +34,20 @@ class UnsupportedContentCheckerConfiguration(ValueError):
 
 class UnsupportedContentModification(RuntimeError):
     """Report a checker modification that the proxy cannot safely apply."""
+
+
+@dataclass(frozen=True, slots=True)
+class ContentCheckerResolutionFailed:
+    """Stop an operation when its trusted checker cannot be resolved."""
+
+    failure: BaseException = field(compare=False, repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class ContentCheckerConfigurationUnsupported:
+    """Stop an operation when its resolved checker uses unsupported capabilities."""
+
+    failure: UnsupportedContentCheckerConfiguration
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,6 +173,12 @@ class ContentChecker(Protocol):
         """Inspect output text with its input context."""
 
         ...
+
+
+ContentCheckerResolver: TypeAlias = Callable[
+    [Request, str, str, str],
+    ContentChecker | Awaitable[ContentChecker],
+]
 
 
 @dataclass(frozen=True, slots=True)
