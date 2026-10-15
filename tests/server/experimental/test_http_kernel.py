@@ -355,6 +355,7 @@ async def test_prefixed_guarded_path_variants_cannot_bypass_into_catchall(
             checker=checker,
             dispatch=dispatch,
             render_outcome=render_test_outcome,
+            guarded_path_prefix="/proxy",
         ),
         prefix="/proxy",
     )
@@ -389,7 +390,7 @@ async def test_reserved_application_route_cannot_fall_through_to_provider(guarde
             checker=StaticChecker(),
             dispatch=dispatch,
             render_outcome=render_test_outcome,
-            reserved_routes={"/health": {"GET"}},
+            reserved_routes={f"{prefix}/health": {"GET"}},
         ),
         prefix=prefix,
     )

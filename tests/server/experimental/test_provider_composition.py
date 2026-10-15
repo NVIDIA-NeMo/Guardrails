@@ -507,6 +507,42 @@ async def test_declared_passthrough_method_requires_the_canonical_guarded_path(p
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,path,status,code",
+    [
+        ("PUT", "/v1/chat/completions", 405, "method_not_allowed"),
+        ("HEAD", "/v1/chat/completions", 405, "method_not_allowed"),
+        ("POST", "/v1/%2e/chat/completions", 422, "non_canonical_path"),
+        ("POST", "/v1/chat/completions%3F", 422, "non_canonical_path"),
+        ("POST", "/v1/chat/completions%23", 422, "non_canonical_path"),
+        ("GET", "/v1%5Cmodels", 400, "invalid_request_path"),
+        ("POST", "/openapi.json%3F", 405, "method_not_allowed"),
+    ],
+)
+async def test_composed_catchall_preserves_native_route_rejections(method, path, status, code):
+    provider = create_openai_chat_integration(base_url="https://provider.example/v1")
+    requests = []
+
+    async def respond(request):
+        requests.append(request)
+        return provider_response()
+
+    _, upstream_client, proxy_client = create_composed_app((provider,), respond)
+    try:
+        response = await proxy_client.request(method, path)
+    finally:
+        await proxy_client.aclose()
+        await upstream_client.aclose()
+
+    assert response.status_code == status
+    assert requests == []
+    if method == "HEAD":
+        assert response.content == b""
+    else:
+        assert response.json()["error"]["code"] == code
+
+
+@pytest.mark.asyncio
 async def test_provider_control_headers_stop_before_outbound_dispatch():
     provider = replace(
         create_openai_chat_integration(base_url="https://provider.example/v1"),

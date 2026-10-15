@@ -18,6 +18,7 @@ import asyncio
 import httpx
 import pytest
 from fastapi import FastAPI
+from starlette.requests import Request
 
 from nemoguardrails.server.experimental._content_checker import (
     ContentAllowed,
@@ -33,7 +34,9 @@ from nemoguardrails.server.experimental._http_kernel import (
 )
 from nemoguardrails.server.experimental._provider_transport import ProviderTransport
 from nemoguardrails.server.experimental._streaming_http import StreamingHttpResponse
+from nemoguardrails.server.experimental.provider.integration import UpstreamSettings
 from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_router
+from nemoguardrails.server.experimental.routers.passthrough import _passthrough_response
 from tests.server.experimental.test_openai_chat_streaming_integration import StaticChecker, request_body, stream_event
 
 
@@ -44,7 +47,7 @@ async def test_network_failure_is_translated_without_exposing_details(httpx_mock
     failure = failure_type("private upstream detail")
     httpx_mock.add_exception(failure)
     async with httpx.AsyncClient() as client:
-        dispatcher = ProviderTransport(client, base_url="https://provider.test")
+        dispatcher = ProviderTransport(UpstreamSettings("https://provider.test"), client)
         dispatch = dispatcher.stream_dispatch if streaming else dispatcher.dispatch
         with pytest.raises(HttpDispatchFailed) as caught:
             await dispatch(buffered_request())
@@ -59,7 +62,7 @@ async def test_buffered_read_failure_is_translated_and_closed(httpx_mock, stream
     stream = TrackedStream([b"partial"], failure)
     httpx_mock.add_response(status_code=503 if streaming else 200, stream=stream)
     async with httpx.AsyncClient() as client:
-        dispatcher = ProviderTransport(client, base_url="https://provider.test")
+        dispatcher = ProviderTransport(UpstreamSettings("https://provider.test"), client)
         dispatch = dispatcher.stream_dispatch if streaming else dispatcher.dispatch
         with pytest.raises(HttpDispatchFailed) as caught:
             await dispatch(buffered_request())
@@ -75,7 +78,7 @@ async def test_dispatch_preserves_cancellation_and_programming_errors(httpx_mock
 
     httpx_mock.add_callback(fail)
     async with httpx.AsyncClient() as client:
-        dispatcher = ProviderTransport(client, base_url="https://provider.test")
+        dispatcher = ProviderTransport(UpstreamSettings("https://provider.test"), client)
         with pytest.raises(type(failure)) as caught:
             await dispatcher.dispatch(buffered_request())
     assert caught.value is failure
@@ -89,7 +92,7 @@ async def test_requests_do_not_inherit_another_callers_cookies_or_client_credent
         )
     async with httpx.AsyncClient(auth=("default-user", "default-password"), headers={"x-default": "private"}) as client:
         client.cookies.set("session", "preexisting", domain="provider.test", path="/")
-        dispatcher = ProviderTransport(client, base_url="https://provider.test")
+        dispatcher = ProviderTransport(UpstreamSettings("https://provider.test"), client)
         for headers in [(), ((b"cookie", b"session=explicit-caller"),), ()]:
             await dispatcher.dispatch(buffered_request(headers=headers))
     requests = httpx_mock.get_requests()
@@ -168,7 +171,7 @@ async def test_transport_connects_chat_router_to_upstream_between_inspections(st
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as upstream_client:
-        transport = ProviderTransport(upstream_client, base_url="https://provider.test/v1", mount_path="/v1")
+        transport = ProviderTransport(UpstreamSettings("https://provider.test/v1", "/v1"), upstream_client)
         app = FastAPI()
         app.include_router(
             create_openai_chat_router(
@@ -224,7 +227,7 @@ async def test_dispatch_maps_encoded_mount_without_reencoding_suffix(
     query = b"trace=%2Fopaque&trace=%252Fopaque"
     httpx_mock.add_response(stream=source)
     async with httpx.AsyncClient() as client:
-        transport = ProviderTransport(client, base_url="https://provider.test/provider", mount_path=mount_path)
+        transport = ProviderTransport(UpstreamSettings("https://provider.test/provider", mount_path), client)
         response = await transport.dispatch(buffered_request(path=path, raw_path=raw_path, query=query))
 
     assert httpx_mock.get_request().url.raw_path == upstream_path + b"?" + query
@@ -245,7 +248,7 @@ async def test_dispatch_maps_encoded_mount_without_reencoding_suffix(
 )
 async def test_dispatch_rejects_raw_mount_mismatch_before_sending(httpx_mock, raw_path):
     async with httpx.AsyncClient() as client:
-        transport = ProviderTransport(client, base_url="https://provider.test", mount_path="/v1")
+        transport = ProviderTransport(UpstreamSettings("https://provider.test", "/v1"), client)
         with pytest.raises(ValueError, match="encoded outbound path"):
             await transport.dispatch(buffered_request(raw_path=raw_path))
     assert httpx_mock.get_requests() == []
@@ -270,12 +273,11 @@ async def test_buffered_dispatch_maps_mount_and_preserves_end_to_end_values():
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
-        dispatcher = ProviderTransport(
+        transport = ProviderTransport(
+            UpstreamSettings("https://provider.test/provider/v1", "/v1"),
             client,
-            base_url="https://provider.test/provider/v1",
-            mount_path="/v1",
         )
-        response = await dispatcher.dispatch(buffered_request())
+        response = await transport.dispatch(buffered_request())
 
         assert client.is_closed is False
 
@@ -292,7 +294,7 @@ async def test_buffered_dispatch_maps_mount_and_preserves_end_to_end_values():
     assert str(request.url) == "https://provider.test/provider/v1/chat/completions?trace=opaque"
     assert request.content == b'{"model":"provider/model"}'
     assert request.headers["authorization"] == "Bearer provider-key"
-    assert request.headers["accept-encoding"] == "gzip"
+    assert request.headers["accept-encoding"] == "identity"
     assert request.headers["x-provider-option"] == "preserve"
     assert request.headers["content-length"] == str(len(request.content))
     assert "x-remove" not in request.headers
@@ -306,10 +308,14 @@ async def test_buffered_dispatch_bounds_and_closes_response():
         return httpx.Response(200, stream=stream)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
-        dispatcher = ProviderTransport(client, base_url="https://provider.test", max_response_body_bytes=5)
+        transport = ProviderTransport(
+            UpstreamSettings("https://provider.test"),
+            client,
+            max_response_body_bytes=5,
+        )
 
         with pytest.raises(ResponseBodyTooLarge):
-            await dispatcher.dispatch(buffered_request())
+            await transport.dispatch(buffered_request())
 
     assert stream.closed is True
 
@@ -326,8 +332,8 @@ async def test_stream_dispatch_returns_open_success_and_closes_after_consumption
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
-        dispatcher = ProviderTransport(client, base_url="https://provider.test")
-        response = await dispatcher.stream_dispatch(buffered_request())
+        transport = ProviderTransport(UpstreamSettings("https://provider.test"), client)
+        response = await transport.stream_dispatch(buffered_request())
 
         assert isinstance(response, StreamingHttpResponse)
         assert stream.closed is False
@@ -345,8 +351,8 @@ async def test_stream_dispatch_source_closes_before_iteration():
         return httpx.Response(200, headers=((b"content-type", b"application/json"),), stream=stream)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
-        dispatcher = ProviderTransport(client, base_url="https://provider.test")
-        response = await dispatcher.stream_dispatch(buffered_request())
+        transport = ProviderTransport(UpstreamSettings("https://provider.test"), client)
+        response = await transport.stream_dispatch(buffered_request())
         assert isinstance(response, StreamingHttpResponse)
 
         await response.body.aclose()
@@ -366,8 +372,8 @@ async def test_stream_dispatch_buffers_and_closes_provider_error():
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
-        dispatcher = ProviderTransport(client, base_url="https://provider.test")
-        response = await dispatcher.stream_dispatch(buffered_request())
+        transport = ProviderTransport(UpstreamSettings("https://provider.test"), client)
+        response = await transport.stream_dispatch(buffered_request())
 
     assert response == BufferedHttpResponse(
         429,
@@ -385,8 +391,8 @@ async def test_stream_source_failure_closes_response():
         return httpx.Response(200, headers=((b"content-type", b"text/event-stream"),), stream=stream)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
-        dispatcher = ProviderTransport(client, base_url="https://provider.test")
-        response = await dispatcher.stream_dispatch(buffered_request())
+        transport = ProviderTransport(UpstreamSettings("https://provider.test"), client)
+        response = await transport.stream_dispatch(buffered_request())
         assert isinstance(response, StreamingHttpResponse)
 
         with pytest.raises(RuntimeError, match="upstream disconnected"):
@@ -404,10 +410,10 @@ async def test_request_outside_mount_stops_before_upstream_dispatch():
         return httpx.Response(200)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
-        dispatcher = ProviderTransport(client, base_url="https://provider.test/v1", mount_path="/v1")
+        transport = ProviderTransport(UpstreamSettings("https://provider.test/v1", "/v1"), client)
 
         with pytest.raises(ValueError, match="outside the configured mount"):
-            await dispatcher.dispatch(buffered_request(path="/other", raw_path=b"/other"))
+            await transport.dispatch(buffered_request(path="/other", raw_path=b"/other"))
 
     assert requests == []
 
@@ -421,12 +427,11 @@ async def test_dispatch_does_not_repeat_base_path_already_present_after_mount():
         return httpx.Response(200, stream=TrackedStream([]))
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
-        dispatcher = ProviderTransport(
+        transport = ProviderTransport(
+            UpstreamSettings("https://provider.test/v1", "/providers/openai"),
             client,
-            base_url="https://provider.test/v1",
-            mount_path="/providers/openai",
         )
-        await dispatcher.dispatch(
+        await transport.dispatch(
             buffered_request(
                 path="/providers/openai/v1/models",
                 raw_path=b"/providers/openai/v1/models",
@@ -446,12 +451,12 @@ async def test_dispatch_strips_only_declared_control_headers():
 
     headers = buffered_request().headers + ((b"x-proxy-control", b"local"),)
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
-        dispatcher = ProviderTransport(
+        transport = ProviderTransport(
+            UpstreamSettings("https://provider.test"),
             client,
-            base_url="https://provider.test",
             control_headers={"x-proxy-control"},
         )
-        await dispatcher.dispatch(buffered_request(headers=headers))
+        await transport.dispatch(buffered_request(headers=headers))
 
     assert requests[0].headers["authorization"] == "Bearer provider-key"
     assert requests[0].headers["x-provider-option"] == "preserve"
@@ -473,13 +478,12 @@ async def test_dispatch_strips_only_declared_control_headers():
     ],
 )
 @pytest.mark.asyncio
-async def test_transport_rejects_invalid_application_settings(base_url, mount_path, limit, timeout, error):
+async def test_provider_transport_rejects_invalid_application_settings(base_url, mount_path, limit, timeout, error):
     async with httpx.AsyncClient() as client:
         with pytest.raises(ValueError, match=error):
             ProviderTransport(
+                UpstreamSettings(base_url, mount_path),
                 client,
-                base_url=base_url,
-                mount_path=mount_path,
                 max_response_body_bytes=limit,
                 timeout=timeout,
             )
@@ -487,11 +491,47 @@ async def test_transport_rejects_invalid_application_settings(base_url, mount_pa
 
 @pytest.mark.parametrize("control_header", ["", " X-Control", "X-Control", "x-møunt"])
 @pytest.mark.asyncio
-async def test_dispatcher_rejects_invalid_control_headers(control_header):
+async def test_provider_transport_rejects_invalid_control_headers(control_header):
     async with httpx.AsyncClient() as client:
         with pytest.raises(ValueError, match="lowercase ASCII"):
             ProviderTransport(
+                UpstreamSettings("https://provider.test"),
                 client,
-                base_url="https://provider.test",
                 control_headers={control_header},
             )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,status,length", [("HEAD", 200, "13"), ("GET", 204, None), ("GET", 205, "0"), ("GET", 304, "13")]
+)
+async def test_bodyless_passthrough_closes_upstream_before_returning(method, status, length):
+    stream = TrackedStream([b"hidden content"])
+
+    async def respond(_request):
+        return httpx.Response(status, headers={"content-length": "13"}, stream=stream)
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    request = Request(
+        {
+            "type": "http",
+            "method": method,
+            "scheme": "https",
+            "path": "/v1/models",
+            "raw_path": b"/v1/models",
+            "query_string": b"",
+            "headers": [],
+            "server": ("proxy.test", 443),
+        },
+        receive,
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        transport = ProviderTransport(UpstreamSettings("https://provider.test"), client)
+        response = await _passthrough_response(request, transport)
+
+    assert response.body == b""
+    assert response.status_code == status
+    assert response.headers.get("content-length") == length
+    assert stream.closed

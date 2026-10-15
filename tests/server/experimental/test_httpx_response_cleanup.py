@@ -23,8 +23,10 @@ import pytest
 from nemoguardrails.server.experimental import _provider_transport, _stream_cleanup
 from nemoguardrails.server.experimental._content_checker import ContentAllowed, StreamBufferingPolicy
 from nemoguardrails.server.experimental._http_kernel import BufferedHttpRequest, BufferedHttpResponse
-from nemoguardrails.server.experimental._provider_transport import ProviderTransport, _HttpxResponseBody
+from nemoguardrails.server.experimental._httpx_response import _HttpxResponseBody
+from nemoguardrails.server.experimental._provider_transport import ProviderTransport
 from nemoguardrails.server.experimental._streaming_http import execute_streaming_http
+from nemoguardrails.server.experimental.provider.integration import UpstreamSettings
 from nemoguardrails.server.experimental.provider.types import GuardedMessage
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 
@@ -155,7 +157,7 @@ async def test_httpx_cleanup_failure_preserves_the_read_failure():
 async def test_buffered_httpx_cleanup_finishes_under_cancellation():
     stream = CheckpointStream(wait=True)
     async with opened(stream) as (response, client):
-        dispatcher = ProviderTransport(client, base_url="https://offline.test")
+        dispatcher = ProviderTransport(UpstreamSettings("https://offline.test"), client)
         with anyio.CancelScope() as scope:
             scope.cancel()
             await dispatcher._buffer(response)
@@ -174,7 +176,7 @@ async def test_dispatch_closes_acquired_response_when_construction_fails(monkeyp
 
     monkeypatch.setattr(_provider_transport, "_response_headers", reject_headers)
     async with httpx.AsyncClient(transport=httpx.MockTransport(upstream), trust_env=False) as client:
-        dispatcher = ProviderTransport(client, base_url="https://offline.test")
+        dispatcher = ProviderTransport(UpstreamSettings("https://offline.test"), client)
         request = BufferedHttpRequest("GET", "/models", b"/models", b"", (), b"")
         with pytest.raises(ValueError, match="response construction failed"):
             await dispatcher.stream_dispatch(request)

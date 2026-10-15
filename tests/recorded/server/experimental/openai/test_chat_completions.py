@@ -30,6 +30,7 @@ from nemoguardrails.server.experimental._content_checker import (
     StreamBufferingPolicy,
 )
 from nemoguardrails.server.experimental._provider_transport import ProviderTransport
+from nemoguardrails.server.experimental.provider.integration import UpstreamSettings
 from nemoguardrails.server.experimental.providers.openai.dialects.litellm.chat_completions import (
     LITELLM_CHAT_COMPLETIONS_ENDPOINT,
 )
@@ -89,20 +90,26 @@ def chat_request(*, model=OPENAI_MODEL, stream=False):
 async def recorded_proxy(api_key, checker, dispatched=None) -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient() as upstream_client:
         dispatcher = ProviderTransport(
+            UpstreamSettings(
+                base_url=NVIDIA_INFERENCE_BASE_URL,
+                mount_path="/v1",
+            ),
             upstream_client,
-            base_url=NVIDIA_INFERENCE_BASE_URL,
-            mount_path="/v1",
         )
 
         async def buffered_dispatch(request):
             if dispatched is not None:
                 dispatched.append(request)
-            return await dispatcher.dispatch(request)
+            return await dispatcher.dispatch(
+                request, require_identity_response=checker.inspection_policy().inspect_output
+            )
 
         async def streaming_dispatch(request):
             if dispatched is not None:
                 dispatched.append(request)
-            return await dispatcher.stream_dispatch(request)
+            return await dispatcher.stream_dispatch(
+                request, require_identity_response=checker.inspection_policy().inspect_output
+            )
 
         app = FastAPI()
         app.include_router(

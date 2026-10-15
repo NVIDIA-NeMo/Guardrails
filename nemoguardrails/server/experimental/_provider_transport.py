@@ -13,10 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Send guarded proxy exchanges through an application-owned HTTP client."""
+"""Forward provider exchanges through an application-owned HTTP client."""
 
 import math
-from collections.abc import Collection
+from collections.abc import AsyncIterator, Callable, Collection
+from typing import cast
 from urllib.parse import unquote_to_bytes
 
 import httpx
@@ -28,9 +29,11 @@ from nemoguardrails.server.experimental._http_kernel import (
     HttpDispatchFailed,
     HttpHeaders,
     ResponseBodyTooLarge,
+    _end_to_end_headers,
 )
 from nemoguardrails.server.experimental._httpx_response import _HttpxResponseBody
 from nemoguardrails.server.experimental._streaming_http import StreamingHttpResponse
+from nemoguardrails.server.experimental.provider.integration import UpstreamSettings
 
 DEFAULT_OUTBOUND_TIMEOUT = 30.0
 
@@ -59,7 +62,12 @@ def _connection_tokens(headers: HttpHeaders) -> set[bytes]:
     return tokens
 
 
-def _request_headers(headers: HttpHeaders, control_headers: frozenset[bytes]) -> list[tuple[bytes, bytes]]:
+def _request_headers(
+    headers: HttpHeaders,
+    control_headers: frozenset[bytes],
+    *,
+    require_identity_response: bool,
+) -> list[tuple[bytes, bytes]]:
     """Remove connection and proxy-control headers; let HTTPX rebuild host and framing."""
 
     excluded = (
@@ -71,15 +79,21 @@ def _request_headers(headers: HttpHeaders, control_headers: frozenset[bytes]) ->
             b"content-length",
         }
     )
-    return [(name, value) for name, value in headers if name.lower() not in excluded]
+    if require_identity_response:
+        excluded = excluded | {b"accept-encoding"}
+    forwarded = [(name, value) for name, value in headers if name.lower() not in excluded]
+    if require_identity_response:
+        forwarded.append((b"accept-encoding", b"identity"))
+    return forwarded
 
 
 def _response_headers(headers: httpx.Headers) -> HttpHeaders:
     """Preserve raw end-to-end response headers, including duplicates and order."""
 
-    raw = tuple(headers.raw)
-    excluded = _HOP_BY_HOP_HEADERS | _connection_tokens(raw)
-    return tuple((name, value) for name, value in raw if name.lower() not in excluded)
+    return tuple(_end_to_end_headers(tuple(headers.raw)))
+
+
+HTTPClientResolver = httpx.AsyncClient | Callable[[], httpx.AsyncClient]
 
 
 def _strip_mount_prefix(path: str, raw_path: bytes, mount_path: str) -> bytes:
@@ -112,36 +126,37 @@ def _strip_mount_prefix(path: str, raw_path: bytes, mount_path: str) -> bytes:
 
 
 class ProviderTransport:
-    """Dispatch one resolved target through a caller-owned HTTPX client.
+    """Dispatch one provider instance through a caller-owned HTTPX client.
 
-    Provider-instance selection happens before this private boundary. This
-    object owns responses, not the injected client. Request headers and cookies
-    come only from the current caller; client defaults and authentication are
-    not inherited. Expected HTTPX network failures become HttpDispatchFailed.
+    The transport maps paths beneath a provider mount to its upstream, strips
+    connection-specific and proxy control headers, and supports bounded
+    guarded exchanges plus unbounded streaming pass-through exchanges. It
+    never owns or closes the injected client. Request headers and cookies come
+    only from the current caller, not client defaults or authentication.
+    Expected HTTPX network failures become HttpDispatchFailed.
     """
 
     def __init__(
         self,
-        http_client: httpx.AsyncClient,
+        upstream: UpstreamSettings,
+        http_client: HTTPClientResolver,
         *,
-        base_url: str,
-        mount_path: str = "",
         control_headers: Collection[str] = (),
         max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
         timeout: float = DEFAULT_OUTBOUND_TIMEOUT,
     ):
         """Validate the fixed upstream mapping, response bound, and timeout."""
 
-        if not isinstance(http_client, httpx.AsyncClient):
-            raise TypeError("The outbound HTTP client must be an httpx.AsyncClient.")
-        parsed_base_url = httpx.URL(base_url)
+        if not isinstance(http_client, httpx.AsyncClient) and not callable(http_client):
+            raise TypeError("The outbound HTTP client must be an httpx.AsyncClient or a callable resolver.")
+        parsed_base_url = httpx.URL(upstream.base_url)
         if not parsed_base_url.is_absolute_url or parsed_base_url.scheme not in {"http", "https"}:
             raise ValueError("The outbound base URL must be an absolute HTTP or HTTPS URL.")
         if parsed_base_url.userinfo:
             raise ValueError("The outbound base URL must not contain credentials.")
         if parsed_base_url.query or parsed_base_url.fragment:
             raise ValueError("The outbound base URL must not contain a query or fragment.")
-        normalized_mount = mount_path.rstrip("/")
+        normalized_mount = upstream.mount_path.rstrip("/")
         if normalized_mount and (not normalized_mount.startswith("/") or not normalized_mount.isascii()):
             raise ValueError("The outbound mount path must be an absolute ASCII path.")
         if any(
@@ -165,11 +180,18 @@ class ProviderTransport:
         self._max_response_body_bytes = max_response_body_bytes
         self._timeout = float(timeout)
 
-    def _upstream_url(self, request: BufferedHttpRequest) -> httpx.URL:
+    def _client(self) -> httpx.AsyncClient:
+        if isinstance(self._http_client, httpx.AsyncClient):
+            client = self._http_client
+        else:
+            client = cast(Callable[[], httpx.AsyncClient], self._http_client)()
+        if not isinstance(client, httpx.AsyncClient):
+            raise TypeError("The outbound HTTP client resolver must return an httpx.AsyncClient.")
+        return client
+
+    def _upstream_url(self, path: str, raw_path: bytes, query: bytes) -> httpx.URL:
         """Apply the base and mount mapping without reencoding suffix or query bytes."""
 
-        path = request.path
-        raw_path = request.raw_path
         if not path.startswith("/") or not raw_path.startswith(b"/") or b"?" in raw_path:
             raise ValueError("An outbound request must contain an absolute path without a query.")
         if self._mount_path:
@@ -181,29 +203,62 @@ class ProviderTransport:
         else:
             raw_base_path = self._base_url.raw_path.rstrip(b"/")
             upstream_path = raw_base_path + raw_path
-        if request.query:
-            upstream_path += b"?" + request.query
+        if query:
+            upstream_path += b"?" + query
         return self._base_url.copy_with(raw_path=upstream_path)
 
-    async def _open(self, request: BufferedHttpRequest) -> httpx.Response:
-        """Send caller bytes and headers without inherited headers, cookies, or auth.
+    async def open(
+        self,
+        *,
+        method: str,
+        path: str,
+        raw_path: bytes,
+        query: bytes,
+        headers: HttpHeaders,
+        body: bytes | AsyncIterator[bytes],
+        require_identity_response: bool,
+    ) -> httpx.Response:
+        """Open an unbuffered HTTPX response and transfer ownership to the caller.
 
-        Redirects are disabled. Expected HTTPX request failures become
-        HttpDispatchFailed. The returned response remains open and its cleanup
-        belongs to the receiving caller.
+        The caller must close the response even when it never consumes the
+        body. Guarded dispatch and the pass-through router attach the shared
+        response-body owner immediately, before their next suspension point.
+        Requests inherit no client headers, cookies, or authentication;
+        redirects are disabled. Expected HTTPX failures become HttpDispatchFailed.
         """
 
+        client = self._client()
         upstream_request = httpx.Request(
-            request.method,
-            self._upstream_url(request),
-            headers=_request_headers(request.headers, self._control_headers),
-            content=request.body,
+            method,
+            self._upstream_url(path, raw_path, query),
+            headers=_request_headers(
+                headers,
+                self._control_headers,
+                require_identity_response=require_identity_response,
+            ),
+            content=body,
             extensions={"timeout": httpx.Timeout(self._timeout).as_dict()},
         )
         try:
-            return await self._http_client.send(upstream_request, stream=True, follow_redirects=False, auth=None)
+            return await client.send(upstream_request, stream=True, follow_redirects=False, auth=None)
         except httpx.RequestError as failure:
             raise HttpDispatchFailed("The upstream request failed.") from failure
+
+    async def _open_buffered(
+        self,
+        request: BufferedHttpRequest,
+        *,
+        require_identity_response: bool,
+    ) -> httpx.Response:
+        return await self.open(
+            method=request.method,
+            path=request.path,
+            raw_path=request.raw_path,
+            query=request.query,
+            headers=request.headers,
+            body=request.body,
+            require_identity_response=require_identity_response,
+        )
 
     async def _buffer(self, response: httpx.Response) -> BufferedHttpResponse:
         """Bound raw response reads and attempt closure on every exit path.
@@ -227,19 +282,34 @@ class ProviderTransport:
             await body.aclose()
         return BufferedHttpResponse(response.status_code, _response_headers(response.headers), b"".join(chunks))
 
-    async def dispatch(self, request: BufferedHttpRequest) -> BufferedHttpResponse:
+    async def dispatch(
+        self,
+        request: BufferedHttpRequest,
+        *,
+        require_identity_response: bool = True,
+    ) -> BufferedHttpResponse:
         """Send and buffer one response within the limit, attempting closure before return."""
 
-        return await self._buffer(await self._open(request))
+        return await self._buffer(
+            await self._open_buffered(request, require_identity_response=require_identity_response)
+        )
 
-    async def stream_dispatch(self, request: BufferedHttpRequest) -> StreamingHttpResponse | BufferedHttpResponse:
+    async def stream_dispatch(
+        self,
+        request: BufferedHttpRequest,
+        *,
+        require_identity_response: bool = True,
+    ) -> StreamingHttpResponse | BufferedHttpResponse:
         """Transfer a successful response's byte source or buffer a non-success reply.
 
         The caller must close a returned streaming body even if never iterated.
         Non-success responses use the configured buffering limit and cleanup.
         """
 
-        response = await self._open(request)
+        response = await self._open_buffered(
+            request,
+            require_identity_response=require_identity_response,
+        )
         if 200 <= response.status_code <= 299:
             body = _HttpxResponseBody(response)
             try:
