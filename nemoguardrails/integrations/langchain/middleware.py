@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import json
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -37,6 +38,7 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from langgraph.types import Command, Send
 
 if TYPE_CHECKING:
+    from langchain_core.messages import ToolCall
     from langgraph.prebuilt.tool_node import ToolCallRequest
     from langgraph.runtime import Runtime as LangGraphRuntime
 from nemoguardrails.guardrails.guardrails import Guardrails
@@ -177,6 +179,61 @@ class _ToolResultReview:
     terminator: Optional[ToolMessage] = None
     terminator_entry: Any = field(default=None, repr=False)
     message_keys: Tuple[str, ...] = ("messages",)
+
+
+class _UnusableRewrite(Exception):
+    """A tool rail rewrite the middleware cannot apply to the payload it checked."""
+
+
+def _rewritten_messages(outcome: RailsResult, sent: List[dict]) -> List[dict]:
+    messages = outcome.messages
+    if messages is None:
+        raise _UnusableRewrite("the check returned no rewritten messages")
+    if len(messages) != len(sent):
+        raise _UnusableRewrite(f"the check returned {len(messages)} messages for the {len(sent)} it was sent")
+    return messages
+
+
+def _rewritten_tool_args(outcome: RailsResult, sent: List[dict], tool_call: ToolCall) -> Dict[str, Any]:
+    """The rewritten arguments of *tool_call*, read from the latest assistant message the check returned.
+
+    Raises:
+        _UnusableRewrite: If that message does not hold this one call, or its arguments are not a JSON object.
+    """
+    messages = _rewritten_messages(outcome, sent)
+    assistant = next((m for m in reversed(messages) if isinstance(m, dict) and m.get("role") == "assistant"), {})
+    calls = assistant.get("tool_calls") or []
+    if len(calls) != 1 or not isinstance(calls[0], dict):
+        raise _UnusableRewrite("the rewritten conversation does not hold exactly one tool call")
+    function = calls[0].get("function") or {}
+    if calls[0].get("id") != tool_call["id"] or function.get("name") != tool_call["name"]:
+        raise _UnusableRewrite("the rewritten tool call names another call or tool")
+    try:
+        args = json.loads(function.get("arguments"))
+    except (TypeError, ValueError) as e:
+        raise _UnusableRewrite("the rewritten arguments are not JSON") from e
+    if not isinstance(args, dict):
+        raise _UnusableRewrite(f"the rewritten arguments are a JSON {type(args).__name__}, not an object")
+    return args
+
+
+def _rewritten_tool_content(outcome: RailsResult, sent: List[dict]) -> str:
+    """The rewritten content of the checked tool message, the last of the messages sent.
+
+    Raises:
+        _UnusableRewrite: If the message at that index is not the same tool message with text content.
+    """
+    message = _rewritten_messages(outcome, sent)[-1]
+    if (
+        not isinstance(message, dict)
+        or message.get("role") != "tool"
+        or message.get("tool_call_id") != sent[-1].get("tool_call_id")
+    ):
+        raise _UnusableRewrite("the rewritten conversation does not end with the checked tool message")
+    content = message.get("content")
+    if not isinstance(content, str):
+        raise _UnusableRewrite(f"the rewritten content is a {type(content).__name__}, not text")
+    return content
 
 
 def _as_message(entry: Any) -> BaseMessage:
@@ -355,6 +412,20 @@ def _review_tool_result(request: ToolCallRequest, result: Any) -> _ToolResultRev
 
     review.result = _map_tool_result(result, vet, review.message_keys)
     return review
+
+
+def _replace_terminator(review: _ToolResultReview, **fields: Any) -> Any:
+    """Rebuild the reviewed return with *fields* set on the checked tool message and its artifact dropped.
+
+    The artifact holds the tool's raw output, which a withheld or rewritten result must not carry on.
+    A tool message the tool returned as a dict comes back as a ``ToolMessage``, so no dict form,
+    such as a serialized message's ``kwargs``, carries the original content on.
+    """
+    replacement = review.terminator.model_copy(update={**fields, "artifact": None})
+    entry = review.terminator_entry
+    return _map_tool_result(
+        review.result, lambda message: replacement if message is entry else message, review.message_keys
+    )
 
 
 class GuardrailsMiddleware(AgentMiddleware):
@@ -581,7 +652,10 @@ class GuardrailsMiddleware(AgentMiddleware):
         return convert_to_openai_messages([AIMessage(content="", tool_calls=[request.tool_call]), tool_message])
 
     def _tool_check_passed(self, outcome: Union[RailsResult, Exception], rail_type: str) -> bool:
-        """Whether a tool check lets the call or result through; raises instead when ``raise_on_violation``."""
+        """Whether a tool check lets the call or result through, rewritten or not.
+
+        Raises ``GuardrailViolation`` instead of returning False when ``raise_on_violation``.
+        """
         label = rail_type.replace("_", " ").capitalize()
         if isinstance(outcome, Exception):
             log.error("Error checking %s rails: %s", rail_type.replace("_", " "), outcome, exc_info=outcome)
@@ -592,11 +666,8 @@ class GuardrailsMiddleware(AgentMiddleware):
                 ) from outcome
             return False
 
-        if outcome.status == RailStatus.PASSED:
+        if outcome.status in (RailStatus.PASSED, RailStatus.MODIFIED):
             return True
-        if outcome.status == RailStatus.MODIFIED:
-            # Tool rewrites are not applied here; passing the original would skip the rewrite.
-            log.warning("%s modified by %s; rewrites are not applied, so it is blocked", label, outcome.rail)
 
         failure_message = f"{label} blocked by {outcome.rail or 'unknown rail'}"
         # The reason goes to the log only: the model reads the blocked message, and an injected
@@ -605,6 +676,47 @@ class GuardrailsMiddleware(AgentMiddleware):
         if self.raise_on_violation:
             raise GuardrailViolation(message=failure_message, result=outcome, rail_type=rail_type)
         return False
+
+    def _reject_rewrite(self, outcome: RailsResult, rail_type: str, problem: _UnusableRewrite) -> None:
+        """Log a rewrite that cannot be applied, or raise ``GuardrailViolation`` when ``raise_on_violation``."""
+        failure_message = (
+            f"{rail_type.replace('_', ' ').capitalize()} blocked: its rewrite cannot be applied, {problem}"
+        )
+        if self.raise_on_violation:
+            raise GuardrailViolation(message=failure_message, result=outcome, rail_type=rail_type) from problem
+        log.warning(failure_message)
+
+    def _checked_tool_call(
+        self, request: ToolCallRequest, sent: List[dict], outcome: Union[RailsResult, Exception]
+    ) -> Optional[ToolCallRequest]:
+        """The request to run after the tool call check, with any rewritten arguments, or None to block it."""
+        if not self._tool_check_passed(outcome, "tool_call"):
+            return None
+        if outcome.status != RailStatus.MODIFIED:
+            return request
+        try:
+            args = _rewritten_tool_args(outcome, sent, request.tool_call)
+        except _UnusableRewrite as e:
+            self._reject_rewrite(outcome, "tool_call", e)
+            return None
+        log.info("Tool call arguments of '%s' rewritten by the tool call rails", request.tool_call["name"])
+        return request.override(tool_call={**request.tool_call, "args": args})
+
+    def _checked_tool_result(
+        self, review: _ToolResultReview, sent: List[dict], outcome: Union[RailsResult, Exception]
+    ) -> Any:
+        """The tool's return after the tool result check: unchanged, with the rewritten content, or withheld."""
+        if not self._tool_check_passed(outcome, "tool_result"):
+            return self._withhold_tool_result(review)
+        if outcome.status != RailStatus.MODIFIED:
+            return review.result
+        try:
+            content = _rewritten_tool_content(outcome, sent)
+        except _UnusableRewrite as e:
+            self._reject_rewrite(outcome, "tool_result", e)
+            return self._withhold_tool_result(review)
+        log.info("Tool result of '%s' rewritten by the tool result rails", review.terminator.name)
+        return _replace_terminator(review, content=content)
 
     def _blocked_tool_call(self, request: ToolCallRequest) -> ToolMessage:
         return ToolMessage(
@@ -615,18 +727,7 @@ class GuardrailsMiddleware(AgentMiddleware):
         )
 
     def _withhold_tool_result(self, review: _ToolResultReview) -> Any:
-        """Rebuild the reviewed return with only the checked tool message's content withheld.
-
-        A tool message the tool returned as a dict comes back as a ``ToolMessage``, so no dict
-        form, such as a serialized message's ``kwargs``, carries the original content on.
-        """
-        blocked = review.terminator.model_copy(
-            update={"content": self.blocked_tool_result_message, "status": "error", "artifact": None}
-        )
-        entry = review.terminator_entry
-        return _map_tool_result(
-            review.result, lambda message: blocked if message is entry else message, review.message_keys
-        )
+        return _replace_terminator(review, content=self.blocked_tool_result_message, status="error")
 
     def _review_tool_result(self, request: ToolCallRequest, result: Any) -> _ToolResultReview:
         """Review a tool's return; one that adds unvetted messages is replaced by one blocked tool message."""
@@ -652,13 +753,16 @@ class GuardrailsMiddleware(AgentMiddleware):
         handler: Callable[[ToolCallRequest], Awaitable[Union[ToolMessage, Command]]],
     ) -> Union[ToolMessage, Command]:
         if self._tool_call_rails_on:
+            sent: List[dict] = []
             try:
-                messages, tools = self._tool_call_payload(request)
-                outcome = await self._tool_rails.check_async(messages, RailType.TOOL_CALL, tools)
+                sent, tools = self._tool_call_payload(request)
+                outcome = await self._tool_rails.check_async(sent, RailType.TOOL_CALL, tools)
             except Exception as e:
                 outcome = e
-            if not self._tool_check_passed(outcome, "tool_call"):
+            checked = self._checked_tool_call(request, sent, outcome)
+            if checked is None:
                 return self._blocked_tool_call(request)
+            request = checked
 
         result = await handler(request)
         if not self._tool_result_rails_on:
@@ -667,15 +771,13 @@ class GuardrailsMiddleware(AgentMiddleware):
         review = self._review_tool_result(request, result)
         if review.terminator is None:
             return review.result
+        sent = []
         try:
-            outcome = await self._tool_rails.check_async(
-                self._tool_result_payload(request, review.terminator), RailType.TOOL_RESULT
-            )
+            sent = self._tool_result_payload(request, review.terminator)
+            outcome = await self._tool_rails.check_async(sent, RailType.TOOL_RESULT)
         except Exception as e:
             outcome = e
-        if not self._tool_check_passed(outcome, "tool_result"):
-            return self._withhold_tool_result(review)
-        return review.result
+        return self._checked_tool_result(review, sent, outcome)
 
     def wrap_tool_call(
         self,
@@ -683,13 +785,16 @@ class GuardrailsMiddleware(AgentMiddleware):
         handler: Callable[[ToolCallRequest], Union[ToolMessage, Command]],
     ) -> Union[ToolMessage, Command]:
         if self._tool_call_rails_on:
+            sent: List[dict] = []
             try:
-                messages, tools = self._tool_call_payload(request)
-                outcome = self._tool_rails.check(messages, RailType.TOOL_CALL, tools)
+                sent, tools = self._tool_call_payload(request)
+                outcome = self._tool_rails.check(sent, RailType.TOOL_CALL, tools)
             except Exception as e:
                 outcome = e
-            if not self._tool_check_passed(outcome, "tool_call"):
+            checked = self._checked_tool_call(request, sent, outcome)
+            if checked is None:
                 return self._blocked_tool_call(request)
+            request = checked
 
         result = handler(request)
         if not self._tool_result_rails_on:
@@ -698,15 +803,13 @@ class GuardrailsMiddleware(AgentMiddleware):
         review = self._review_tool_result(request, result)
         if review.terminator is None:
             return review.result
+        sent = []
         try:
-            outcome = self._tool_rails.check(
-                self._tool_result_payload(request, review.terminator), RailType.TOOL_RESULT
-            )
+            sent = self._tool_result_payload(request, review.terminator)
+            outcome = self._tool_rails.check(sent, RailType.TOOL_RESULT)
         except Exception as e:
             outcome = e
-        if not self._tool_check_passed(outcome, "tool_result"):
-            return self._withhold_tool_result(review)
-        return review.result
+        return self._checked_tool_result(review, sent, outcome)
 
     async def aclose(self) -> None:
         """Shut down the tool-rails engine bound to the running event loop.

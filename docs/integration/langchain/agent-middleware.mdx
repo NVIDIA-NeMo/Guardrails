@@ -218,15 +218,23 @@ rails:
 - The model never sees the rail's reason, which the middleware logs at `WARNING`.
 - With `raise_on_violation=True`, the middleware raises `GuardrailViolation` with `rail_type` set to `"tool_call"` or `"tool_result"` instead.
 - If a check fails with an error, the middleware blocks the call or result in the same way.
-- Only a passing check lets a call or result through. A rail that rewrites a tool call or result (a `MODIFIED` result) blocks it, because the middleware does not apply rewrites to tool payloads.
 - Each tool call in a parallel batch is checked independently, so a blocked call does not block the others.
+
+### Rewritten Tool Calls and Results
+
+A tool rail can rewrite a payload instead of blocking it, for example to mask personal data.
+The check then returns `MODIFIED` with the rewritten conversation in `RailsResult.messages`, and the middleware applies the rewrite:
+
+- A rewritten tool call runs with the rewritten arguments. The tool receives them, and the tool result check sees them. The model's own tool call in the agent state keeps its original arguments.
+- A rewritten tool result replaces the tool message's content, and its `artifact` is dropped. The tool message keeps its `tool_call_id`, `name`, `id` and shape, as described in [Tools That Return Commands](#tools-that-return-commands).
+- A rewrite the middleware cannot apply blocks the call or result as described above: rewritten arguments that are not a JSON object, a rewritten conversation of a different length than the one checked, or a rewritten result whose content is not text. With `raise_on_violation=True`, `GuardrailViolation.result` holds the `MODIFIED` result.
 
 ### Tools That Return Commands
 
 A tool can return a `ToolMessage`, a `Command` that carries messages, or a list of `Command` and `ToolMessage` objects.
 The middleware checks every message the tool adds to the conversation:
 
-- The tool message that answers the call is checked by the tool result rails. When it is blocked, only its content changes and the return keeps its shape. A tool message the tool returned as a dict comes back as a `ToolMessage`.
+- The tool message that answers the call is checked by the tool result rails. When it is blocked or rewritten, only its content changes and the return keeps its shape. A tool message the tool returned as a dict comes back as a `ToolMessage`.
 - A message the tool re-emits from the conversation history passes only if it is unchanged, and the middleware emits the original message from the agent state in its place. Handoff tools that copy the conversation forward keep working.
 - A `RemoveMessage` passes.
 - Any other message, such as a new `AIMessage` or a new tool message for another call, cannot be checked. The middleware then replaces the whole return with one blocked tool message, which drops the `Command`'s state update and `goto`.
@@ -396,7 +404,7 @@ Input and output rails evaluate the `content` field of messages only. Without to
 
 **Tool results bypass input rails.** When a tool returns its result as a `ToolMessage`, that message is not subject to input rail validation. Malicious or unexpected tool outputs can influence subsequent model responses without being checked.
 
-Configure [tool rails](#tool-rails) to check tool call arguments and tool results. Tool rails do not cover provider-executed tools, which the model provider runs without a tool call reaching the agent, and they block rather than apply tool rewrites.
+Configure [tool rails](#tool-rails) to check tool call arguments and tool results. Tool rails do not cover provider-executed tools, which the model provider runs without a tool call reaching the agent.
 
 Also enable output rails to validate the final LLM response before it reaches the user. This ensures that even if unsafe content enters through tool calls or tool results, the model's response is still checked. However, note that intermediate tool-calling responses often have **empty content** (the instructions are in the `tool_calls` field), and some LLM-based output rails (such as `self_check_output`) may flag empty content as a false positive. If you encounter this, you can disable output rails as a workaround — but be aware this also removes the safety net for tool result content:
 
@@ -411,7 +419,7 @@ For more details, see [Security Considerations](/integration-with-third-party-li
 
 ### MODIFIED Status Replaces Message Content
 
-When a rail modifies content (returns `RailStatus.MODIFIED`), the middleware replaces the relevant message with the modified content. For input rails, the last user message is replaced. For output rails, the last AI message is replaced. This enables use cases like PII redaction and content sanitization.
+When a rail modifies content (returns `RailStatus.MODIFIED`), the middleware replaces the relevant message with the modified content. For input rails, the last user message is replaced. For output rails, the last AI message is replaced. For tool rails, the tool runs with the rewritten arguments or the tool message gets the rewritten content, as described in [Rewritten Tool Calls and Results](#rewritten-tool-calls-and-results). This enables use cases like PII redaction and content sanitization.
 
 ---
 

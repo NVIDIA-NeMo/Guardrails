@@ -22,8 +22,9 @@ class GuardrailViolation(Exception):
     """Raised by ``GuardrailsMiddleware`` with ``raise_on_violation=True`` when a rail blocks or fails.
 
     ``rail_type`` is ``"input"``, ``"output"``, ``"tool_call"`` or ``"tool_result"``. ``result``
-    holds the blocking ``RailsResult``; it is None when the rail failed to run or, for
-    ``"tool_result"``, when the tool returned messages the rail cannot check.
+    holds the blocking ``RailsResult``, or the ``MODIFIED`` one when a tool rail's rewrite cannot
+    be applied; it is None when the rail failed to run or, for ``"tool_result"``, when the tool
+    returned messages the rail cannot check.
     """
 
     def __init__(

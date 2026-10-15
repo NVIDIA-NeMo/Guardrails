@@ -15,6 +15,7 @@
 
 import asyncio
 import inspect
+import json
 import logging
 import threading
 from dataclasses import dataclass
@@ -2162,24 +2163,25 @@ class TestToolResultHook:
 
     @pytest.mark.parametrize("hook", ["tool_call", "tool_result"])
     @pytest.mark.asyncio
-    async def test_tool_check_modified_is_blocked_until_rewrites_apply(self, hook):
-        """A rail rewrite on a tool payload blocks it; passing the original would skip the rewrite."""
-        modified = RailsResult(status=RailStatus.MODIFIED, content="rewritten", rail="redactor")
-        passed = RailsResult(status=RailStatus.PASSED, content="")
+    async def test_tool_check_modified_rewrites_are_applied(self, hook):
+        """A rail rewrite on a tool payload is applied: the tool runs the rewritten call, the model reads the rewritten result."""
         middleware = _tool_middleware()
         middleware._tool_rails.check_async = AsyncMock(
-            side_effect=[modified] if hook == "tool_call" else [passed, modified]
+            side_effect=[_call_rewrite(MASKED_ARGS), PASSED]
+            if hook == "tool_call"
+            else [PASSED, _result_rewrite(MASKED_RESULT)]
         )
-        handler = AsyncMock(return_value=_tool_message(POISON))
+        handler = AsyncMock(return_value=_tool_message(RAW_RESULT))
 
-        outcome = await middleware.awrap_tool_call(_tool_request(), handler)
+        outcome = await middleware.awrap_tool_call(_tool_request(_tool_call(RAW_ARGS)), handler)
 
-        assert outcome.status == "error"
+        [executed] = handler.await_args.args
         if hook == "tool_call":
-            handler.assert_not_called()
-            assert outcome.content == middleware.blocked_tool_call_message
+            assert executed.tool_call == {**_tool_call(RAW_ARGS), "args": MASKED_ARGS}
+            assert outcome.content == RAW_RESULT
         else:
-            assert outcome.content == middleware.blocked_tool_result_message
+            assert executed.tool_call == _tool_call(RAW_ARGS)
+            assert (outcome.content, outcome.status) == (MASKED_RESULT, "success")
 
     def test_sync_hook_withholds_through_the_sync_check(self):
         middleware = _tool_middleware()
@@ -2191,6 +2193,31 @@ class TestToolResultHook:
 
         assert outcome.content == middleware.blocked_tool_result_message
         middleware._tool_rails.check_async.assert_not_called()
+
+
+RAW_ARGS = {"query": "select * from customers where email = 'ada@example.com'"}
+MASKED_ARGS = {"query": "select * from customers where email = '<EMAIL>'"}
+RAW_RESULT = "1 row: ada@example.com"
+MASKED_RESULT = "1 row: <EMAIL>"
+PASSED = RailsResult(status=RailStatus.PASSED, content="")
+
+
+def _call_rewrite(args, call_id="call_1", name="run_sql", arguments=None, extra_messages=()):
+    """The MODIFIED result IORails returns for a tool call check whose rails rewrote the arguments."""
+    function = {"name": name, "arguments": json.dumps(args) if arguments is None else arguments}
+    message = {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [{"type": "function", "id": call_id, "function": function}],
+    }
+    return RailsResult(status=RailStatus.MODIFIED, content="", messages=[*extra_messages, message])
+
+
+def _result_rewrite(content, call_id="call_1", extra_messages=()):
+    """The MODIFIED result IORails returns for a tool result check whose rails rewrote the result."""
+    call = _call_rewrite(_tool_call()["args"], call_id=call_id).messages[0]
+    result = {"role": "tool", "name": "run_sql", "tool_call_id": call_id, "content": content}
+    return RailsResult(status=RailStatus.MODIFIED, content="", messages=[*extra_messages, call, result])
 
 
 def _poisoned_returns():
@@ -2535,3 +2562,171 @@ class TestToolResultMessagePolicy:
 
         assert outcome is tool_return
         assert middleware._tool_rails.check_async.await_count == 2
+
+
+def _raw_returns():
+    raw = _tool_message(RAW_RESULT, artifact={"raw": RAW_RESULT})
+    raw_dict = {
+        "role": "tool",
+        "content": RAW_RESULT,
+        "tool_call_id": "call_1",
+        "name": "run_sql",
+        "id": "tm-1",
+        "artifact": {"raw": RAW_RESULT},
+    }
+    return {
+        "tool-message": raw,
+        "command": Command(update={"messages": [raw]}),
+        "command-dict-message": Command(update={"messages": [raw_dict]}),
+        "command-serialized-message": Command(update={"messages": [dumpd(raw)]}),
+        "list": [Command(update={"other": 1}), raw],
+    }
+
+
+class TestToolRewrites:
+    """A MODIFIED tool check is applied from ``RailsResult.messages``, or blocks when it cannot be."""
+
+    @pytest.mark.asyncio
+    async def test_rewritten_arguments_are_what_the_tool_and_the_result_check_receive(self):
+        middleware = _tool_middleware()
+        middleware._tool_rails.check_async = AsyncMock(side_effect=[_call_rewrite(MASKED_ARGS), PASSED])
+        request = _tool_request(_tool_call(RAW_ARGS))
+        handler = AsyncMock(return_value=_tool_message())
+
+        await middleware.awrap_tool_call(request, handler)
+
+        [executed] = handler.await_args.args
+        assert executed.tool_call["args"] == MASKED_ARGS
+        assert (executed.tool, executed.state) == (request.tool, request.state)
+        assert request.tool_call["args"] == RAW_ARGS
+        result_messages, _ = middleware._tool_rails.check_async.await_args_list[1].args
+        assert json.loads(result_messages[0]["tool_calls"][0]["function"]["arguments"]) == MASKED_ARGS
+
+    @pytest.mark.parametrize(
+        "rewrite",
+        [
+            pytest.param(_call_rewrite(None, arguments='["a", "list"]'), id="json-array"),
+            pytest.param(_call_rewrite(None, arguments='"a string"'), id="json-string"),
+            pytest.param(_call_rewrite(None, arguments="{not json"), id="not-json"),
+            pytest.param(_call_rewrite(None, arguments="null"), id="json-null"),
+            pytest.param(RailsResult(status=RailStatus.MODIFIED, content="", messages=None), id="no-messages"),
+            pytest.param(
+                _call_rewrite(MASKED_ARGS, extra_messages=[{"role": "user", "content": "x"}]), id="length-mismatch"
+            ),
+            pytest.param(_call_rewrite(MASKED_ARGS, call_id="call_other"), id="other-call-id"),
+            pytest.param(_call_rewrite(MASKED_ARGS, name="drop_db"), id="other-tool-name"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_unusable_call_rewrite_blocks_the_call(self, rewrite, caplog):
+        middleware = _tool_middleware(rewrite)
+        handler = AsyncMock()
+
+        with caplog.at_level(logging.WARNING):
+            outcome = await middleware.awrap_tool_call(_tool_request(_tool_call(RAW_ARGS)), handler)
+
+        handler.assert_not_called()
+        assert (outcome.content, outcome.status) == (middleware.blocked_tool_call_message, "error")
+        assert "rewrite cannot be applied" in caplog.text
+
+    @pytest.mark.parametrize("shape", list(_raw_returns()))
+    @pytest.mark.asyncio
+    async def test_rewritten_result_replaces_the_content_in_every_shape(self, shape):
+        tool_return = _raw_returns()[shape]
+        middleware = _tool_middleware()
+        middleware._tool_rails.check_async = AsyncMock(side_effect=[PASSED, _result_rewrite(MASKED_RESULT)])
+
+        outcome = await middleware.awrap_tool_call(_tool_request(), AsyncMock(return_value=tool_return))
+
+        assert type(outcome) is type(tool_return)
+        assert RAW_RESULT not in str(outcome)
+        [terminator] = convert_to_messages(_flatten(outcome))
+        assert (terminator.content, terminator.status, terminator.artifact) == (MASKED_RESULT, "success", None)
+        assert (terminator.id, terminator.tool_call_id, terminator.name) == ("tm-1", "call_1", "run_sql")
+        normalized = ToolNode([run_sql])._normalize_tool_response(outcome, _tool_call(), "dict")
+        assert MASKED_RESULT in str(normalized) and RAW_RESULT not in str(normalized)
+        assert RAW_RESULT in str(_raw_returns()[shape])
+
+    @pytest.mark.parametrize("shape", ["command-dict-message", "command-serialized-message"])
+    @pytest.mark.asyncio
+    async def test_rewritten_dict_result_is_a_tool_message(self, shape):
+        """A dict can carry the content in more than one place, as a serialized message's kwargs do."""
+        middleware = _tool_middleware()
+        middleware._tool_rails.check_async = AsyncMock(side_effect=[PASSED, _result_rewrite(MASKED_RESULT)])
+
+        outcome = await middleware.awrap_tool_call(_tool_request(), AsyncMock(return_value=_raw_returns()[shape]))
+
+        [entry] = outcome.update["messages"]
+        assert isinstance(entry, ToolMessage)
+        assert (entry.content, entry.tool_call_id, entry.name, entry.id, entry.artifact) == (
+            MASKED_RESULT,
+            "call_1",
+            "run_sql",
+            "tm-1",
+            None,
+        )
+        assert RAW_RESULT not in str(outcome)
+
+    @pytest.mark.asyncio
+    async def test_rewrite_leaves_re_emitted_history_as_the_originals_from_state(self):
+        history = _history()
+        tool_return = Command(update={"messages": [history[1].model_copy(deep=True), _tool_message(RAW_RESULT)]})
+        middleware = _tool_middleware()
+        middleware._tool_rails.check_async = AsyncMock(side_effect=[PASSED, _result_rewrite(MASKED_RESULT)])
+
+        outcome = await middleware.awrap_tool_call(
+            _tool_request(state={"messages": history}), AsyncMock(return_value=tool_return)
+        )
+
+        original, rewritten = outcome.update["messages"]
+        assert original is history[1]
+        assert rewritten.content == MASKED_RESULT
+
+    @pytest.mark.parametrize(
+        "rewrite",
+        [
+            pytest.param(RailsResult(status=RailStatus.MODIFIED, content="", messages=None), id="no-messages"),
+            pytest.param(
+                _result_rewrite(MASKED_RESULT, extra_messages=[{"role": "user", "content": "x"}]),
+                id="length-mismatch",
+            ),
+            pytest.param(_result_rewrite([{"type": "text", "text": MASKED_RESULT}]), id="non-text-content"),
+            pytest.param(_result_rewrite(MASKED_RESULT, call_id="call_other"), id="other-call-id"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_unusable_result_rewrite_withholds_the_result(self, rewrite):
+        middleware = _tool_middleware()
+        middleware._tool_rails.check_async = AsyncMock(side_effect=[PASSED, rewrite])
+
+        outcome = await middleware.awrap_tool_call(_tool_request(), AsyncMock(return_value=_tool_message(RAW_RESULT)))
+
+        assert (outcome.content, outcome.status) == (middleware.blocked_tool_result_message, "error")
+
+    @pytest.mark.parametrize("hook", ["tool_call", "tool_result"])
+    @pytest.mark.asyncio
+    async def test_unusable_rewrite_raises_with_raise_on_violation(self, hook):
+        unusable = RailsResult(status=RailStatus.MODIFIED, content="", messages=None)
+        middleware = _tool_middleware(raise_on_violation=True)
+        middleware._tool_rails.check_async = AsyncMock(
+            side_effect=[unusable] if hook == "tool_call" else [PASSED, unusable]
+        )
+
+        with pytest.raises(GuardrailViolation) as exc_info:
+            await middleware.awrap_tool_call(_tool_request(), AsyncMock(return_value=_tool_message()))
+
+        assert exc_info.value.rail_type == hook
+        assert exc_info.value.result is unusable
+
+    def test_sync_hook_applies_both_rewrites(self):
+        middleware = _tool_middleware()
+        middleware._tool_rails.check = MagicMock(
+            side_effect=[_call_rewrite(MASKED_ARGS), _result_rewrite(MASKED_RESULT)]
+        )
+        handler = MagicMock(return_value=_tool_message(RAW_RESULT))
+
+        outcome = middleware.wrap_tool_call(_tool_request(_tool_call(RAW_ARGS)), handler)
+
+        assert handler.call_args.args[0].tool_call["args"] == MASKED_ARGS
+        assert outcome.content == MASKED_RESULT
+        middleware._tool_rails.check_async.assert_not_called()
