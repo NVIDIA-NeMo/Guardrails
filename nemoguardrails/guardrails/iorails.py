@@ -639,6 +639,13 @@ def _apply_output_rewrite_before_block(messages: LLMMessages, blocked: RailResul
     return _rewrite_last_assistant_message(messages, blocked.rewrite_before_block)
 
 
+def _apply_tool_rewrites_before_block(messages: LLMMessages, blocked: RailResult) -> LLMMessages:
+    """Return *messages* with the tool results as the tool-result rails rewrote them before one of them blocked."""
+    if blocked.messages_before_block is None:
+        return messages
+    return blocked.messages_before_block
+
+
 def _blocked_message(result: RailResult) -> str:
     """The text a blocked turn returns, which says whether the rail broke or fired."""
     if result.failed:
@@ -1268,7 +1275,13 @@ class IORails(BaseGuardrails):
             log.info("[%s] Tool result blocked: %s", req_id, display_reason(tool_result))
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.INPUT)
+            if conversation is not None:
+                conversation.messages = _apply_tool_rewrites_before_block(messages, tool_result)
             return _blocked_return(tool_result)
+        # Ahead of both generation paths, so the input rails, the model and the record all read the rewrite.
+        if tool_result.messages is not None:
+            log.info("[%s] Tool result rails rewrote the tool results", req_id)
+            messages = tool_result.messages
 
         if self._speculative_generation:
             turn = await self._do_generate_speculative(
@@ -1916,6 +1929,10 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Tool result blocked: %s", req_id, display_reason(tool_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
+                    # The request span records ``conversation`` once the stream ends, so a mask applied
+                    # ahead of the block has to reach it before the caller can see the stream close.
+                    messages = _apply_tool_rewrites_before_block(messages, tool_result)
+                    conversation.messages = messages
                     await streaming_handler.push_chunk(
                         self._guardrails_violation_payload(
                             f"Blocked by tool result rails: {client_reason(tool_result)}", "tool_result_rails"
@@ -1923,6 +1940,10 @@ class IORails(BaseGuardrails):
                     )
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
                     return
+
+                if tool_result.messages is not None:
+                    log.info("[%s] Tool result rails rewrote the tool results", req_id)
+                    messages = tool_result.messages
 
                 # Step 1: Input rails (non-streaming)
                 log.info("[%s] Running input rails", req_id)
