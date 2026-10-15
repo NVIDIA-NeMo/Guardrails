@@ -18,6 +18,28 @@ from typing import Any, Dict, List, Tuple, Union
 from nemoguardrails.utils import _normalize_flow_id
 
 
+def get_content_text(content: Any) -> str:
+    """Normalize an OpenAI message ``content`` field to a plain string.
+
+    The OpenAI API allows ``content`` to be a plain string **or** a list of
+    content parts (the multi-part format used for multimodal messages)::
+
+        [{"type": "text", "text": "..."}, {"type": "image_url", ...}]
+
+    All ``type: text`` parts are extracted and joined with a single space so
+    the rest of the pipeline always receives a ``str``.  ``None`` is
+    normalised to an empty string; any other non-list value is converted via
+    ``str()``.
+    """
+    if isinstance(content, list):
+        return " ".join(
+            str(part.get("text", "") or "") for part in content if isinstance(part, dict) and part.get("type") == "text"
+        )
+    if content is None:
+        return ""
+    return str(content)
+
+
 def get_history_cache_key(messages: List[dict]) -> str:
     """Compute the cache key for a sequence of messages.
 
@@ -34,17 +56,7 @@ def get_history_cache_key(messages: List[dict]) -> str:
 
     for msg in messages:
         if msg["role"] == "user":
-            # Check if content is a string or a list (multimodal content)
-            if isinstance(msg["content"], list):
-                # For multimodal content, join all text parts
-                text_parts = []
-                for item in msg["content"]:
-                    if item.get("type") == "text":
-                        text_parts.append(item.get("text", ""))
-                key_items.append(" ".join(text_parts))
-            else:
-                # Use the content directly without json.dumps
-                key_items.append(msg["content"])
+            key_items.append(get_content_text(msg["content"]))
         elif msg["role"] == "assistant":
             key_items.append(msg["content"])
         elif msg["role"] == "context":

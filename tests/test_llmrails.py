@@ -24,6 +24,7 @@ from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.rails.llm.utils import get_content_text
 from tests.conftest import REASONING_TRACE_MOCK_PATH
 from tests.utils import FakeLLMModel, clean_events, event_sequence_conforms
 
@@ -1613,3 +1614,172 @@ def test_load_library_sorts_files_for_deterministic_overrides(tmp_path, monkeypa
     rails = LLMRails(config, llm=FakeLLMModel(responses=["unused"]))
 
     assert rails.config.bot_messages["test det msg"] == ["from_a"]
+
+
+class TestGetContentText:
+    """Unit tests for the get_content_text() normalisation helper."""
+
+    def test_plain_string_passthrough(self):
+        assert get_content_text("Hello") == "Hello"
+
+    def test_none_returns_empty_string(self):
+        assert get_content_text(None) == ""
+
+    def test_non_string_non_list_converted_via_str(self):
+        assert get_content_text(42) == "42"
+
+    def test_single_text_part(self):
+        content = [{"type": "text", "text": "Hello"}]
+        assert get_content_text(content) == "Hello"
+
+    def test_multiple_text_parts_joined(self):
+        content = [{"type": "text", "text": "Hello"}, {"type": "text", "text": "World"}]
+        assert get_content_text(content) == "Hello World"
+
+    def test_non_text_parts_skipped(self):
+        content = [
+            {"type": "image_url", "image_url": {"url": "http://example.com/img.png"}},
+            {"type": "text", "text": "Describe this image"},
+        ]
+        assert get_content_text(content) == "Describe this image"
+
+    def test_empty_list_returns_empty_string(self):
+        assert get_content_text([]) == ""
+
+    def test_list_with_only_non_text_parts(self):
+        content = [{"type": "image_url", "image_url": {"url": "http://example.com/img.png"}}]
+        assert get_content_text(content) == ""
+
+    def test_missing_text_key_in_part(self):
+        content = [{"type": "text"}]
+        assert get_content_text(content) == ""
+
+
+@pytest.fixture
+def simple_rails_config():
+    return RailsConfig.from_content(
+        colang_content="""
+define user express greeting
+  "Hello!"
+
+define bot express greeting
+  "Hi there!"
+
+define flow
+  user express greeting
+  bot express greeting
+""",
+        yaml_content="""
+models:
+  - type: main
+    engine: fake
+    model: fake
+""",
+    )
+
+
+@pytest.mark.asyncio
+async def test_multipart_content_single_turn(simple_rails_config):
+    """Multi-part content on a single user turn is normalised before rail evaluation."""
+    llm = FakeLLMModel(responses=["  express greeting"])
+    rails = LLMRails(config=simple_rails_config, llm=llm)
+
+    messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+    result = await rails.generate_async(messages=messages)
+
+    assert result["role"] == "assistant"
+    assert isinstance(result["content"], str)
+    assert result["content"] == "Hi there!"
+
+
+@pytest.mark.asyncio
+async def test_multipart_content_multi_turn_does_not_crash(simple_rails_config):
+    """Multi-part content in a non-final turn must not raise TypeError in get_colang_history."""
+    llm = FakeLLMModel(responses=["  express greeting", "  express greeting"])
+    rails = LLMRails(config=simple_rails_config, llm=llm)
+
+    messages = [
+        {"role": "user", "content": [{"type": "text", "text": "Hello!"}]},
+        {"role": "assistant", "content": "Hi there!"},
+        {"role": "user", "content": [{"type": "text", "text": "Hello again!"}]},
+    ]
+    result = await rails.generate_async(messages=messages)
+
+    assert result["role"] == "assistant"
+    assert isinstance(result["content"], str)
+
+
+@pytest.mark.asyncio
+async def test_multipart_content_mixed_parts(simple_rails_config):
+    """Only text parts are extracted; image_url parts are silently dropped."""
+    llm = FakeLLMModel(responses=["  express greeting"])
+    rails = LLMRails(config=simple_rails_config, llm=llm)
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": "http://example.com/img.png"}},
+                {"type": "text", "text": "Hello!"},
+            ],
+        }
+    ]
+    result = await rails.generate_async(messages=messages)
+
+    assert result["role"] == "assistant"
+    assert result["content"] == "Hi there!"
+
+
+def test_tool_message_with_multipart_user_content(simple_rails_config):
+    """Colang 1.0 tool-message branch: previous user multipart content is normalised
+    before being stored in the UserMessage event (line 817)."""
+    rails = LLMRails(config=simple_rails_config, llm=FakeLLMModel(responses=[]))
+    messages = [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "What is the weather?"}],
+        },
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{"id": "call_abc", "function": {"name": "get_weather", "arguments": "{}"}}],
+        },
+        {
+            "role": "tool",
+            "content": "Sunny, 72F",
+            "tool_call_id": "call_abc",
+        },
+    ]
+    events = rails._get_events_for_messages(messages, state=None)
+
+    user_message_events = [e for e in events if e.get("type") == "UserMessage"]
+    assert len(user_message_events) >= 1
+    # All UserMessage events must carry the normalised string, not the list repr
+    for event in user_message_events:
+        assert event["text"] == "What is the weather?"
+
+
+def test_colang2_multipart_content_normalization():
+    """Colang 2.0 user-message branch: multipart content is normalised in
+    UtteranceUserActionFinished (line 852)."""
+    config = RailsConfig.from_content(
+        colang_content="""
+flow greeting
+  user said "Hello!"
+  bot say "Hi there!"
+
+flow main
+  activate greeting
+""",
+        yaml_content="""
+colang_version: "2.x"
+models: []
+""",
+    )
+    rails = LLMRails(config=config)
+    messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+    events = rails._get_events_for_messages(messages, state=None)
+
+    utterance_events = [e for e in events if e.get("type") == "UtteranceUserActionFinished"]
+    assert len(utterance_events) == 1
+    assert utterance_events[0]["final_transcript"] == "Hello!"
