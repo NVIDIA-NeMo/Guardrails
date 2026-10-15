@@ -256,8 +256,19 @@ The exact instructions and format depend on your configuration and enabled rails
 When an input or output rail blocks a request, `RunnableRails` does not raise an exception. It returns the rail's configured refusal message in the same output shape you would otherwise get back.
 
 This behavior applies when `enable_rails_exceptions` is off, which is the default.
-If you set `enable_rails_exceptions: true`, a blocked chain-wrapping (dict) call returns the rail exception dictionary under the output key instead of refusal text.
-A blocked LLM-wrapping call raises a pydantic `ValidationError`, a `ValueError` subclass, because the exception dictionary is not valid `AIMessage` content.
+If you set `enable_rails_exceptions: true`, the result depends on what you wrap and which rail blocks:
+
+- A blocked LLM-wrapping call raises a pydantic `ValidationError`, a `ValueError` subclass, because the exception dictionary is not valid `AIMessage` content.
+- A chain-wrapping call blocked by an input rail returns the rail exception dictionary under the output key instead of refusal text.
+- A chain-wrapping call blocked by an output rail returns the chain's original output unchanged, with no exception dictionary and no refusal text.
+
+<Warning>
+
+Do not set `enable_rails_exceptions: true` when you use `RunnableRails` to wrap a chain with output rails.
+A response that an output rail blocks reaches your caller as if it had passed, and nothing in the result marks it as blocked.
+
+</Warning>
+
 See [Exceptions](/configure-guardrails/exceptions) for the exception format.
 
 For chain-wrapping (dict) inputs, only a dictionary with the output key is returned:
