@@ -68,3 +68,24 @@ def test_export_marks_reasoning_as_unselected_and_assistant_as_exactly_one():
     variants = export_guard_contract(RESPONSES_ENDPOINT)["response"]["properties"]["output"]["items"]["oneOf"]
     assert [branch[EXTENSION]["variant"]["cardinality"] for branch in variants] == ["any", "exactly_one"]
     assert variants[1][EXTENSION]["variant"]["match"] == {"type": "message", "role": "assistant"}
+
+
+def test_stream_export_preserves_all_bound_event_selections_and_missing_text_rules():
+    classifier = RESPONSES_ENDPOINT.stream.classifier
+    exported = export_guard_contract(RESPONSES_ENDPOINT)
+    events = exported["stream"]["oneOf"]
+    assert len(events) == len(classifier.rules)
+    for node, rule in zip(events, classifier.rules):
+        declaration = node[EXTENSION]["event"]
+        assert declaration["variants"] == [
+            {"source_schema": rule.model.policy.source, "shape": rule.shape, "match": dict(rule.match)}
+        ]
+        if rule.missing_text_value == "":
+            assert declaration["missing_text"] == "empty"
+    assert exported["stream"][EXTENSION]["transport"] == {
+        "require_sse_event": False,
+        "data_discriminator": "type",
+        "non_data_shape": "keepalive",
+        "sentinels": {"[DONE]": "done"},
+    }
+    assert "hooks" not in exported["integration"]

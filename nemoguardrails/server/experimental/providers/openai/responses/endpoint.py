@@ -17,8 +17,11 @@
 
 from nemoguardrails.server.experimental._http_paths import GuardedOperationPath
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
+from nemoguardrails.server.experimental.provider.stream import StreamBinding
 from nemoguardrails.server.experimental.providers.openai.responses.request_binding import ResponsesGuardedRequest
 from nemoguardrails.server.experimental.providers.openai.responses.response_binding import ResponsesGuardedResponse
+from nemoguardrails.server.experimental.providers.openai.responses.stream_classifier import STREAM_CLASSIFIER
+from nemoguardrails.server.experimental.providers.openai.responses.stream_hooks import ResponsesStreamHooks
 
 RESPONSES_ENDPOINT = GuardedJsonEndpoint(
     provider_operation_id="createResponse",
@@ -35,4 +38,5 @@ RESPONSES_ENDPOINT = GuardedJsonEndpoint(
         GuardedOperationPath("/v1/responses", frozenset({"POST"})),
         GuardedOperationPath("/{api_version}/responses", frozenset({"POST"})),
     ),
+    stream=StreamBinding(STREAM_CLASSIFIER, ResponsesStreamHooks),
 )
