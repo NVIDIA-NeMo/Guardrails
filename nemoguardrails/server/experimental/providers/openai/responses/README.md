@@ -76,10 +76,16 @@ assistant text has been checked.
 
 ## Application composition
 
-Use `create_openai_integration` to opt into guarding both Chat Completions and
-Responses. `create_openai_chat_integration` remains Chat-only, including its
-existing explicit dialect selection. The broader factory does not infer a
-Responses dialect from a compatible upstream URL.
+Use `create_openai_integration` to select which built-in operations to guard.
+Its `operations` argument accepts a nonempty sequence of unique typed names:
+`"chat_completions"`, `"responses"`, or both. The fixed default is
+`("chat_completions", "responses")`, not all operations supported by future
+versions. Unknown names, duplicate names, empty selections, and bare strings
+are rejected during construction.
+
+`create_openai_chat_integration` remains a Chat-only wrapper, including its
+existing explicit dialect endpoint customization. The broader factory selects
+strict OpenAI boundaries; it does not infer a dialect from an upstream URL.
 
 ```python
 from pathlib import Path
@@ -89,7 +95,12 @@ from nemoguardrails.server.experimental.providers.openai.integration import crea
 from nemoguardrails.server.experimental.rails import ConfigEntry
 
 app = create_proxy_application(
-    providers=(create_openai_integration(base_url="https://api.openai.com/v1"),),
+    providers=(
+        create_openai_integration(
+            base_url="https://api.openai.com/v1",
+            operations=("chat_completions", "responses"),
+        ),
+    ),
     rails_configs=(ConfigEntry("policy", Path("/trusted/path/to/rails")),),
 )
 ```
@@ -99,8 +110,14 @@ directory, not a new launcher or configuration format. Server dependencies use
 the project's `server` extra. Provider generation is forwarded directly over
 HTTP, not delegated to a LangChain model. The caller supplies upstream
 authorization; any configured detectors have their own configuration and
-credential requirements. Other operations retain passthrough behavior and are
-not thereby guarded. Deployment authentication and socket-level acceptance
+credential requirements.
+
+For Responses-only guarding, pass `operations=("responses",)`. This selects
+guard bindings, not a route allowlist: Chat Completions and other unselected
+routes retain the application's passthrough behavior without inspection.
+Disabling those routes is a separate deployment policy.
+
+Deployment authentication and socket-level acceptance
 belong to the application/example work, not these declarations.
 
 ## Contract export and verification

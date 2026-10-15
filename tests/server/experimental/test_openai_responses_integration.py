@@ -23,6 +23,9 @@ from fastapi.testclient import TestClient
 
 from nemoguardrails.server.experimental._application import create_proxy_application
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
+from nemoguardrails.server.experimental.providers.openai.dialects.litellm.chat_completions import (
+    LITELLM_CHAT_COMPLETIONS_ENDPOINT,
+)
 from nemoguardrails.server.experimental.providers.openai.integration import (
     create_openai_chat_integration,
     create_openai_integration,
@@ -49,7 +52,7 @@ class ResponseBody(httpx.AsyncByteStream):
 
 
 @pytest.fixture
-def proxy(tmp_path):
+def proxy(tmp_path, request):
     config = tmp_path / "rails"
     config.mkdir()
     (config / "config.yml").write_text("""models: []
@@ -129,7 +132,12 @@ rails:
             stream=body,
         )
 
-    provider = create_openai_integration(instance_id="test", base_url="https://provider.test/v1", mount_path="/openai")
+    provider = create_openai_integration(
+        instance_id="test",
+        base_url="https://provider.test/v1",
+        mount_path="/openai",
+        operations=getattr(request, "param", ("chat_completions", "responses")),
+    )
     app = create_proxy_application(
         providers=(provider,),
         rails_configs=(ConfigEntry("regex", config),),
@@ -147,6 +155,93 @@ def test_factories_keep_chat_only_and_multi_operation_policies_distinct():
     assert both.endpoints == (CHAT_COMPLETIONS_ENDPOINT, RESPONSES_ENDPOINT)
     assert chat.upstream == both.upstream
     assert chat.errors is both.errors
+
+
+@pytest.mark.parametrize(
+    ("operations", "endpoints"),
+    [
+        (("chat_completions",), (CHAT_COMPLETIONS_ENDPOINT,)),
+        (("responses",), (RESPONSES_ENDPOINT,)),
+        (("chat_completions", "responses"), (CHAT_COMPLETIONS_ENDPOINT, RESPONSES_ENDPOINT)),
+        (["responses", "chat_completions"], (RESPONSES_ENDPOINT, CHAT_COMPLETIONS_ENDPOINT)),
+    ],
+)
+def test_factory_selects_exact_bindings_in_declared_order(operations, endpoints):
+    integration = create_openai_integration(
+        operations=operations, instance_id="selected", base_url="https://provider.test/v1", mount_path="/selected"
+    )
+    assert integration.endpoints == endpoints
+    assert integration.instance_id == "selected"
+    assert integration.upstream.base_url == "https://provider.test/v1"
+    assert integration.upstream.mount_path == "/selected"
+
+
+@pytest.mark.parametrize(
+    "operations",
+    [(), [], ("unknown",), ("responses", "unknown"), ("responses", "responses"), (None,), (["responses"],)],
+)
+def test_factory_rejects_invalid_operation_names_and_selections(operations):
+    with pytest.raises(ValueError):
+        create_openai_integration(operations=operations)
+
+
+@pytest.mark.parametrize("operations", ["responses", b"responses", None, {"responses"}, {"responses": True}])
+def test_factory_requires_a_sequence_not_a_bare_name_or_mapping(operations):
+    with pytest.raises(TypeError, match="operations must be a sequence"):
+        create_openai_integration(operations=operations)
+
+
+def test_factory_snapshots_the_operation_selection():
+    operations = ["responses"]
+    integration = create_openai_integration(operations=operations)
+    operations.append("chat_completions")
+    assert integration.endpoints == (RESPONSES_ENDPOINT,)
+
+
+def test_chat_wrapper_preserves_settings_and_explicit_dialect(monkeypatch):
+    monkeypatch.setenv("NEMO_GUARDRAILS_OPENAI_PROXY_UPSTREAM_BASE_URL", "https://gateway.test/v1")
+    chat = create_openai_chat_integration(instance_id="chat", mount_path="/chat")
+    selected = create_openai_integration(instance_id="chat", mount_path="/chat", operations=("chat_completions",))
+    dialect = create_openai_chat_integration(
+        instance_id="chat", mount_path="/chat", endpoint=LITELLM_CHAT_COMPLETIONS_ENDPOINT
+    )
+    assert chat == selected
+    assert chat.upstream.base_url == "https://gateway.test/v1"
+    assert dialect.endpoints == (LITELLM_CHAT_COMPLETIONS_ENDPOINT,)
+    assert dialect.upstream == chat.upstream
+    assert dialect.errors is chat.errors
+    assert create_openai_integration().endpoints == (CHAT_COMPLETIONS_ENDPOINT, RESPONSES_ENDPOINT)
+
+
+@pytest.mark.parametrize(
+    ("proxy", "selected"),
+    [(("responses",), "responses"), (("chat_completions",), "chat/completions")],
+    indirect=["proxy"],
+)
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("operation", ["responses", "chat/completions"])
+@pytest.mark.parametrize("blocked_stage", ["input", "output"])
+def test_operation_selection_guards_selected_routes_and_preserves_other_passthrough(
+    proxy, selected, streaming, operation, blocked_stage
+):
+    client, requests, bodies, settings = proxy
+    guarded = operation == selected
+    text = "BLOCK_INPUT" if blocked_stage == "input" else "question"
+    if blocked_stage == "output":
+        settings["output"] = "BLOCK_OUTPUT"
+    subject = {"input": text} if operation == "responses" else {"messages": [{"role": "user", "content": text}]}
+    response = client.post("/openai/v1/" + operation, json={"stream": streaming, **subject})
+    if guarded:
+        assert response.status_code == (200 if streaming and blocked_stage == "output" else 400)
+        assert b"content_blocked" in response.content
+        assert b"BLOCK_OUTPUT" not in response.content
+        assert len(requests) == (0 if blocked_stage == "input" else 1)
+    else:
+        assert response.status_code == 200
+        assert len(requests) == 1
+        assert response.content == bodies[0].body
+        if blocked_stage == "output":
+            assert b"BLOCK_OUTPUT" in response.content
 
 
 @pytest.mark.parametrize("streaming", [False, True])

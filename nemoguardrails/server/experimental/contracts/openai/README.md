@@ -61,7 +61,10 @@ event rules, and handwritten protocol hooks are authoritative. Its
 the bound stream classifier, including heterogeneous-array selection; hooks
 remain runtime code rather than serialized policy.
 
-Use `create_openai_integration` to guard both operations. The existing
+Use `create_openai_integration(operations=("chat_completions", "responses"))`
+to guard both operations, or select either name alone. The default remains
+both; selection installs guard bindings rather than disabling other routes.
+Unselected routes retain the application's passthrough behavior. The existing
 `create_openai_chat_integration` factory remains Chat-only. Neither factory
 establishes compatibility with every server exposing an OpenAI-shaped API.
 
