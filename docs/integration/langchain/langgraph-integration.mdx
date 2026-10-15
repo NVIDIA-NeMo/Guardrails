@@ -306,7 +306,8 @@ def chatbot(state: State):
     return {"messages": [result]}
 ```
 
-A rail that blocks the request, as opposed to an outright error, does not raise either. It returns the normal `AIMessage` shape described in [Rejection Behavior](/integration-with-third-party-libraries/langchain/runnable-rails#rejection-behavior), with the rail's configured refusal text.
+With the default configuration, a rail that blocks the request, as opposed to an outright error, does not raise. It returns the normal `AIMessage` shape described in [Rejection Behavior](/integration-with-third-party-libraries/langchain/runnable-rails#rejection-behavior), with the rail's configured refusal text.
+If you set `enable_rails_exceptions: true`, a blocked request raises a `ValueError` instead, and the `except ValueError` branch above returns the fallback message.
 
 ---
 
