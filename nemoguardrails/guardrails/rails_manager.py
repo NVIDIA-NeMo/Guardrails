@@ -256,11 +256,17 @@ def _result_after_rewrites(
     original_text: str,
     final_text: str,
     records: tuple[RailCallRecord, ...],
+    *,
+    rewrite_pending: bool,
 ) -> RailResult:
     """Report the text that survived every rail, so a rewrite undone by a later rail is no rewrite."""
     if final_text == original_text:
-        return RailResult.allow(records=records)
-    return RailResult(RailOutcome.transform([(_REWRITABLE_TARGET[direction], final_text)]), records=records)
+        return RailResult(RailOutcome.allow(), records=records, rewrite_pending=rewrite_pending)
+    return RailResult(
+        RailOutcome.transform([(_REWRITABLE_TARGET[direction], final_text)]),
+        records=records,
+        rewrite_pending=rewrite_pending,
+    )
 
 
 def _blocked_after_rewrites(
@@ -268,11 +274,13 @@ def _blocked_after_rewrites(
     original_text: str,
     final_text: str,
     records: tuple[RailCallRecord, ...],
+    *,
+    rewrite_pending: bool,
 ) -> RailResult:
     """Keep the block as the verdict, and what the rails ahead of it rewrote, so a record of the request keeps a mask."""
     if final_text == original_text:
-        return replace(blocked, records=records)
-    return replace(blocked, records=records, rewrite_before_block=final_text)
+        return replace(blocked, records=records, rewrite_pending=rewrite_pending)
+    return replace(blocked, records=records, rewrite_before_block=final_text, rewrite_pending=rewrite_pending)
 
 
 def _model_free_record(
@@ -519,7 +527,7 @@ class RailsManager:
         """
         active = self._flows_to_run(RailDirection.INPUT, self.input_flows, enabled)
         if not active:
-            return RailResult.allow()
+            return self._nothing_ran(RailDirection.INPUT)
 
         if self.input_parallel:
             rails = {flow: self._run_rail(flow, RailDirection.INPUT, messages) for flow in active}
@@ -538,7 +546,7 @@ class RailsManager:
         """
         active = self._flows_to_run(RailDirection.OUTPUT, self.output_flows, enabled)
         if not active:
-            return RailResult.allow()
+            return self._nothing_ran(RailDirection.OUTPUT)
 
         if self.output_parallel:
             rails = {flow: self._run_rail(flow, RailDirection.OUTPUT, messages, response) for flow in active}
@@ -798,6 +806,15 @@ class RailsManager:
         active = self._enabled_flows(configured, enabled)
         return _transforms_first(_rewriting_flows(self._rails, direction, active), active)
 
+    def _configured_masks(self, direction: RailDirection) -> set[str]:
+        """Every configured flow of *direction* free to rewrite its text, whether or not this request runs it."""
+        configured = self.input_flows if direction is RailDirection.INPUT else self.output_flows
+        return set(_rewriting_flows(self._rails, direction, configured))
+
+    def _nothing_ran(self, direction: RailDirection) -> RailResult:
+        """The verdict when a request runs none of *direction*'s rails: allowed, with any configured mask unrun."""
+        return RailResult(RailOutcome.allow(), rewrite_pending=bool(self._configured_masks(direction)))
+
     def _any_tool_call_rail_enabled(self, enabled: Union[bool, list[str]]) -> bool:
         """Whether the toggle leaves any global or per-tool tool-call rail to run."""
         if self._enabled_flows(list(self._tool_call_actions), enabled):
@@ -968,13 +985,19 @@ class RailsManager:
         collected: list[RailCallRecord] = []
         original_text = _checked_text(direction, messages, bot_response)
         final_text = original_text
+        # A mask that has not decided on the text by the time this returns left it as sent,
+        # whether it failed, blocked, sat behind a block, or was not among *flows* at all.
+        masks = self._configured_masks(direction)
+        decided: set[str] = set()
         for flow in flows:
             result = await self._run_rail(flow, direction, messages, bot_response)
             collected.extend(result.records)
             log.debug("[%s] %s flow %s result %s", req_id, direction.value, flow, result)
             if not result.is_safe:
                 log.info("[%s] %s flow %s blocked", req_id, direction.value, flow)
-                return _blocked_after_rewrites(result, original_text, final_text, tuple(collected))
+                return _blocked_after_rewrites(
+                    result, original_text, final_text, tuple(collected), rewrite_pending=bool(masks - decided)
+                )
             if result.outcome.is_transform:
                 rewritten_text = _rewritten_text(result.outcome, direction, flow)
                 log.info("[%s] %s flow %s rewrote the text it checked", req_id, direction.value, flow)
@@ -991,11 +1014,16 @@ class RailsManager:
                             reason="a rail rewrote a message this request does not have",
                             triggered_rail=_get_flow_name(flow) or flow,
                         )
-                        return _blocked_after_rewrites(blocked, original_text, final_text, tuple(collected))
+                        return _blocked_after_rewrites(
+                            blocked, original_text, final_text, tuple(collected), rewrite_pending=bool(masks - decided)
+                        )
                 else:
                     bot_response = rewritten_text
                 final_text = rewritten_text
-        return _result_after_rewrites(direction, original_text, final_text, tuple(collected))
+            decided.add(flow)
+        return _result_after_rewrites(
+            direction, original_text, final_text, tuple(collected), rewrite_pending=bool(masks - decided)
+        )
 
     async def _run_tool_rails_sequential(
         self,

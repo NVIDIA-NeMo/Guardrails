@@ -31,8 +31,8 @@ When content capture is enabled, IORails records content on three types of spans
 
 | Span (Kind) | Attribute or Event | When Recorded |
 |-------------|--------------------|---------------|
-| `guardrails.request` (SERVER) | `guardrails.request.input`: JSON-encoded list of the input messages, after any input-rail rewrite (and, on a check, any output-rail rewrite) | Always, while capturing |
-| `guardrails.request` (SERVER) | `guardrails.request.output`: the text actually returned to the caller | When output is produced (a blocked request records the refusal message; an empty stream records nothing) |
+| `guardrails.request` (SERVER) | `guardrails.request.input`: JSON-encoded list of the input messages, after any input-rail rewrite (and, on a check, any output-rail rewrite) | While capturing, unless a configured masking rail has not decided on the text; see [Privacy Considerations](#privacy-considerations) |
+| `guardrails.request` (SERVER) | `guardrails.request.output`: the text actually returned to the caller | When output is produced (a blocked request records the refusal message; an empty stream records nothing), unless it carries text a configured masking rail has not decided on |
 | `chat <model>` (CLIENT) | LLM input and output, in the [selected format](#output-format) | Once per LLM call: the main generation call and every rail-action LLM call. On the streaming path, recorded when the stream ends; see [Streaming](#streaming) |
 | `guardrails.rail` (INTERNAL) | `guardrails.rail.input`: JSON-encoded `{"messages": ..., "bot_response": ...}` snapshot | Every rail execution, while capturing |
 | `guardrails.rail` (INTERNAL) | `guardrails.rail.reason`: the human-readable block reason | Only when the rail blocks the request |
@@ -45,6 +45,7 @@ Sampling parameters (`gen_ai.request.temperature`, `max_tokens`, and so on) and 
 A rails-only [`check_async()`](/run-guardrailed-inference/using-python-apis/check-messages) uses the same capture behavior.
 The checked messages are recorded in `guardrails.request.input`, and the returned content is recorded in `guardrails.request.output`.
 When an input or output rail rewrites the text it checked, `guardrails.request.input` carries the rewritten messages, even when a later rail blocks the check.
+Until every configured masking rail has decided on the text it guards, the span leaves that text out; see [Privacy Considerations](#privacy-considerations).
 Every rail that runs records its own `guardrails.rail` attributes.
 A check makes no main-model call, so it produces no CLIENT span for the protected model.
 `IORails` captures LLM calls from rail actions as usual.
@@ -233,8 +234,9 @@ In both cases, if no content was produced, IORails omits the output rather than 
 - Masking rails limit what the request span records, not what the whole trace records.
   `guardrails.request.input` records the turn a masking rail checked as the rail rewrote it, even when a later rail blocks the request.
   It records earlier turns of the conversation, which no rail checks, as the caller sent them.
-  When no mask reaches the request, it records the turn as the caller sent it: the masking rail fails, a tool-result rail blocks before the input rails run, or a stream closes or fails before its input rails finish.
-  On a `check_async()` call, it records the checked response as the caller sent it when no output rail runs to mask it: another rail blocks before the output rails run, or `rail_types` leaves out `RailType.OUTPUT`.
+  Until every configured masking rail has decided on the text it guards, the request span leaves that text out rather than record it unmasked.
+  That happens when a masking rail fails or blocks, a rail that runs before it blocks, the request's generation options turn it off, a check's `rail_types` leaves out its direction, or a stream closes before its input rails finish.
+  `guardrails.request.input` is then absent, and so is `guardrails.request.output` when it would carry the unmasked text; a blocked request still records its refusal message.
   Each `guardrails.rail` span records the input its rail received, so the masking rail's own span carries the text before the mask.
   A rail that calls an LLM also records the prompt it built from that input on the call's own `chat <model>` CLIENT span.
   On a `check_async()` call, whose conversation includes the checked response, every rail that runs records that response as the caller sent it.

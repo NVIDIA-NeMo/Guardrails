@@ -2289,7 +2289,7 @@ class TestResultAfterRewrites:
 
     def test_unchanged_text_is_a_plain_allow(self):
         """Rails that rewrote nothing, or rewrote and restored, leave the request as it arrived."""
-        result = _result_after_rewrites(RailDirection.INPUT, "hello", "hello", self.RECORDS)
+        result = _result_after_rewrites(RailDirection.INPUT, "hello", "hello", self.RECORDS, rewrite_pending=False)
 
         assert result.outcome.is_transform is False
         assert result.is_safe is True
@@ -2297,7 +2297,9 @@ class TestResultAfterRewrites:
 
     def test_an_input_rewrite_names_the_user_message(self):
         """The caller learns which variable to replace, not just that something changed."""
-        result = _result_after_rewrites(RailDirection.INPUT, "my ssn is 123-45-6789", MASKED, self.RECORDS)
+        result = _result_after_rewrites(
+            RailDirection.INPUT, "my ssn is 123-45-6789", MASKED, self.RECORDS, rewrite_pending=False
+        )
 
         assert result.outcome.transform_text == {"user_message": MASKED}
         assert result.is_safe is True
@@ -2305,19 +2307,21 @@ class TestResultAfterRewrites:
 
     def test_an_output_rewrite_names_the_bot_message(self):
         """The output direction reports against the variable its rails checked."""
-        result = _result_after_rewrites(RailDirection.OUTPUT, "call me on 555-0100", "call me on <PHONE>", ())
+        result = _result_after_rewrites(
+            RailDirection.OUTPUT, "call me on 555-0100", "call me on <PHONE>", (), rewrite_pending=False
+        )
 
         assert result.outcome.transform_text == {"bot_message": "call me on <PHONE>"}
 
     def test_a_rewrite_to_empty_text_is_still_a_rewrite(self):
         """Redacting a response to nothing is a change, and must not read as leaving it alone."""
-        result = _result_after_rewrites(RailDirection.OUTPUT, "my ssn is 123-45-6789", "", ())
+        result = _result_after_rewrites(RailDirection.OUTPUT, "my ssn is 123-45-6789", "", (), rewrite_pending=False)
 
         assert result.outcome.transform_text == {"bot_message": ""}
 
     def test_a_rewrite_keeps_every_rail_that_ran(self):
         """The log covers the whole direction, not only the rail that rewrote."""
-        result = _result_after_rewrites(RailDirection.INPUT, "before", "after", self.RECORDS)
+        result = _result_after_rewrites(RailDirection.INPUT, "before", "after", self.RECORDS, rewrite_pending=False)
 
         assert result.records == self.RECORDS
 
