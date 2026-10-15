@@ -33,6 +33,7 @@ from pydantic_core import CoreSchema
 from typing_extensions import Self
 
 from nemoguardrails.server.experimental.provider.payload import (
+    GuardedArraySelection,
     GuardedTextLocation,
     PayloadCapabilityProfile,
     PayloadProjectionContract,
@@ -57,6 +58,29 @@ def _check_reason(reason: str) -> None:
 
 
 @dataclass(frozen=True)
+class ArrayVariant:
+    """Identify one reviewed object branch in a heterogeneous array.
+
+    Match keys must be required singleton Literal fields of the owning model.
+    Cardinality applies when a text binding selects this branch from an array,
+    not when the object is validated in isolation. Non-text branches use 'any'.
+    The same declaration describes selection in exported guard contracts.
+    """
+
+    match: tuple[tuple[str, str | int | bool], ...]
+    cardinality: Literal["any", "at_most_one", "exactly_one"]
+
+    def __post_init__(self) -> None:
+        """Reject ambiguous or unrepresentable selector declarations."""
+        if not self.match or len(dict(self.match)) != len(self.match):
+            raise ValueError("Array variant match must have unique named discriminators")
+        if any(not isinstance(key, str) or not key or type(value) not in (str, int, bool) for key, value in self.match):
+            raise ValueError("Array variant match requires names and string, integer, or boolean values")
+        if self.cardinality not in {"any", "at_most_one", "exactly_one"}:
+            raise ValueError("Unsupported array variant cardinality")
+
+
+@dataclass(frozen=True)
 class ObjectPolicy:
     """Describe the reviewed boundary of one JSON object.
 
@@ -69,6 +93,8 @@ class ObjectPolicy:
             rejects them. "configurable" rejects them unless validation
             explicitly allows unknown content fields, which is reserved for
             trusted configuration. Members listed in opaque are reviewed.
+        variant: Optional discriminator and selection cardinality when this
+            model is a branch of a guarded heterogeneous array.
 
     This metadata does not select guardrails, a deployment configuration, or a
     capability profile. Field-specific policy belongs on the field annotations.
@@ -77,6 +103,7 @@ class ObjectPolicy:
     source: str | None = None
     opaque: tuple[str, ...] = ()
     unknown_fields: Literal["forbid", "configurable"] = "forbid"
+    variant: ArrayVariant | None = None
 
     def __post_init__(self) -> None:
         """Reject values the exported contract format cannot represent."""
@@ -121,6 +148,21 @@ class PolicyModel(BaseModel):
                 field.annotation is not type(None) or field.is_required() or field.default is not None
             ):
                 raise ValueError(f"{cls.__name__}.{name}: disabled fields must be optional and null-only")
+        if cls.policy.variant is not None:
+            for name, expected in cls.policy.variant.match:
+                field = cls.model_fields.get(name)
+                if (
+                    field is None
+                    or not field.is_required()
+                    or get_origin(field.annotation) is not Literal
+                    or len(get_args(field.annotation)) != 1
+                    or type(get_args(field.annotation)[0]) is not type(expected)
+                    or get_args(field.annotation)[0] != expected
+                    or field_policy(field).get("classification") != "constrained"
+                ):
+                    raise ValueError(
+                        f"{cls.__name__}.{name}: variant match requires a required matching constrained Literal"
+                    )
 
     @classmethod
     def __get_pydantic_json_schema__(cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler) -> JsonSchemaValue:
@@ -139,6 +181,11 @@ class PolicyModel(BaseModel):
         node["additionalProperties"] = False
         metadata["unknown_fields"] = cls.policy.unknown_fields
         metadata["reject_case_aliases"] = True
+        if cls.policy.variant is not None:
+            metadata["variant"] = {
+                "match": dict(cls.policy.variant.match),
+                "cardinality": cls.policy.variant.cardinality,
+            }
         properties = {
             **node["properties"],
             **{name: {EXTENSION: {"classification": "opaque"}} for name in cls.policy.opaque},
@@ -330,6 +377,39 @@ def field_coverage(model: type[PolicyModel]) -> ProjectionFieldCoverage:
     )
 
 
+def guarded_array_variant(annotation: Any) -> tuple[type[PolicyModel], ArrayVariant] | None:
+    """Resolve the one text-bearing branch of a reviewed object union.
+
+    Every branch must declare a mutually exclusive discriminator. The selected
+    branch has bounded cardinality; other branches must not hide guarded text.
+    Return None for a non-union item, whose ordinary array bounds apply instead.
+    No JSON Schema generation or provider lookup participates in binding.
+    """
+    if get_origin(annotation) not in (Union, UnionType):
+        return None
+    branches: list[tuple[type[PolicyModel], ArrayVariant]] = []
+    for model in get_args(annotation):
+        if not isinstance(model, type) or not issubclass(model, PolicyModel) or model.policy.variant is None:
+            raise ValueError("Guarded object-union branches require explicit array variant policy")
+        branches.append((model, model.policy.variant))
+    for index, (_, left) in enumerate(branches):
+        for _, right in branches[index + 1 :]:
+            right_match = dict(right.match)
+            if not any(key in right_match and value != right_match[key] for key, value in left.match):
+                raise ValueError("Array variant discriminators must be disjoint")
+    selected = [(model, variant) for model, variant in branches if variant.cardinality != "any"]
+    if len(selected) != 1:
+        raise ValueError("Guarded arrays require exactly one bounded text variant")
+    for model, variant in branches:
+        if variant.cardinality == "any" and any(
+            field_policy(field).get("subject")
+            for nested in model_graph(model).values()
+            for field in nested.model_fields.values()
+        ):
+            raise ValueError("Unselected array variants must not hide guarded subjects")
+    return selected[0]
+
+
 def payload_contract(
     model: type[PolicyModel],
     *,
@@ -474,12 +554,25 @@ def export_payload_schema(model: type[PolicyModel], *, projection_id: str) -> di
         if "anyOf" in result:
             alternatives = result.pop("anyOf")
             non_null = [branch for branch in alternatives if branch != {"type": "null"}]
-            if (
-                len(alternatives) != 2
-                or len(non_null) != 1
-                or non_null[0].get("type") not in {"array", "object", "string", "boolean", "integer", "number"}
-            ):
-                raise ValueError("Contract export supports only disjoint nullable anyOf unions")
+            nullable = (
+                len(alternatives) == 2
+                and len(non_null) == 1
+                and non_null[0].get("type") in {"array", "object", "string", "boolean", "integer", "number"}
+            )
+            objects = all(branch.get("type") == "object" for branch in alternatives)
+            disjoint = objects and all(
+                any(
+                    key in right.get("required", [])
+                    and "const" in left.get("properties", {}).get(key, {})
+                    and "const" in right.get("properties", {}).get(key, {})
+                    and left["properties"][key]["const"] != right["properties"][key]["const"]
+                    for key in left.get("required", [])
+                )
+                for index, left in enumerate(alternatives)
+                for right in alternatives[index + 1 :]
+            )
+            if not nullable and not disjoint:
+                raise ValueError("Contract export supports only disjoint nullable or required-literal object unions")
             result["oneOf"] = alternatives
         for keyword in ("anyOf", "oneOf", "allOf"):
             if keyword in result:
@@ -513,8 +606,9 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
     """Derive one buffered text target directly from typed field declarations.
 
     Follow guarded models and exactly-one-item lists without schema generation
-    or contract-format conversion. A nullable subject, or one without a minimum
-    length, may hold no text. Union selectors need explicit bindings.
+    or contract-format conversion. Heterogeneous arrays use ObjectPolicy.variant
+    to select exactly one text-bearing member. A nullable subject, or one without
+    a minimum length, may hold no text.
 
     Raises:
         ValueError: A subject is missing or ambiguous, a guarded container is
@@ -534,11 +628,21 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
         return next((getattr(item, name) for item in reversed(metadata) if hasattr(item, name)), default)
 
     def visit_container(
-        annotation: Any, metadata: list[Any], path: tuple[str | int, ...], active: tuple[type[PolicyModel], ...]
+        annotation: Any,
+        metadata: list[Any],
+        path: tuple[str | int | GuardedArraySelection, ...],
+        active: tuple[type[PolicyModel], ...],
     ) -> None:
         """Follow only explicitly guarded model and singleton-list containers."""
         annotation, metadata = unwrap(annotation, metadata)
         if get_origin(annotation) is list:
+            selected = guarded_array_variant(get_args(annotation)[0])
+            if selected is not None:
+                item, variant = selected
+                if variant.cardinality != "exactly_one":
+                    raise ValueError("Buffered array variants require exactly_one cardinality")
+                visit_model(item, (*path, GuardedArraySelection(variant.match, "exactly_one")), active)
+                return
             if bound(metadata, "min_length") != 1 or bound(metadata, "max_length") != 1:
                 raise ValueError("Buffered text extraction requires exactly one array item")
             visit_container(get_args(annotation)[0], [], (*path, 0), active)
@@ -550,7 +654,9 @@ def text_location(model: type[PolicyModel]) -> GuardedTextLocation:
             )
 
     def visit_model(
-        current: type[PolicyModel], path: tuple[str | int, ...], active: tuple[type[PolicyModel], ...]
+        current: type[PolicyModel],
+        path: tuple[str | int | GuardedArraySelection, ...],
+        active: tuple[type[PolicyModel], ...],
     ) -> None:
         """Collect subjects from the model objects that own their policies."""
         if current in active:
