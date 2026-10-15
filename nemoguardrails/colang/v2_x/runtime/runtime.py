@@ -46,6 +46,17 @@ from nemoguardrails.utils import new_event_dict, new_readable_uuid
 log = logging.getLogger(__name__)
 
 
+def _generated_flow_name(flow_content: str) -> str:
+    """Best-effort flow name for the placeholder flow used when generated Colang is malformed.
+
+    The malformed content may not start with a `flow <name>` declaration (it can be empty,
+    start with a markdown fence, or contain a bare `flow`), so use a placeholder name
+    instead of raising IndexError from inside the error handler.
+    """
+    first_line_parts = flow_content.split("\n")[0].split(" ", maxsplit=1)
+    return first_line_parts[1].strip() if len(first_line_parts) > 1 else "unknown_flow"
+
+
 class RuntimeV2_x(Runtime):
     """Runtime for executing the guardrails."""
 
@@ -83,7 +94,7 @@ class RuntimeV2_x(Runtime):
                 format_colang_parsing_error_message(e, flow_content),
             )
 
-            flow_name = flow_content.split("\n")[0].split(" ", maxsplit=1)[1]
+            flow_name = _generated_flow_name(flow_content)
             fixed_body = f"flow {flow_name}\n" + f'  bot say "Internal error on flow `{flow_name}`."'
             log.warning("Using the following flow instead:\n%s", fixed_body)
 
