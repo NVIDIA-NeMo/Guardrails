@@ -41,6 +41,7 @@ from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.rail_stubs import (
+    allow_with_mask_pending,
     bot_message_rewrite,
     declare_masking_rails,
     failed_mask,
@@ -1367,3 +1368,42 @@ class TestStreamingContentCapture:
                 await first_chunk
 
         assert capture.call_args.args[1] is None
+
+    @pytest.mark.asyncio
+    async def test_a_response_to_an_unmasked_turn_is_withheld(self, iorails_input_only):
+        """The model read the turn the input mask never decided on, so the streamed response may repeat it."""
+        iorails_input_only._content_capture_enabled = True
+        declare_masking_rails(iorails_input_only, RailDirection.INPUT)
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=allow_with_mask_pending())
+        iorails_input_only.engine_registry.stream_model_call = _mock_stream
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await _collect(
+                iorails_input_only.stream_async(messages=[{"role": "user", "content": "my ssn is 123-45-6789"}])
+            )
+
+        assert capture.call_args.args[2] is None
+
+    @pytest.mark.asyncio
+    async def test_a_batch_sent_with_an_output_mask_off_withholds_the_output(self, iorails_stream_check_first):
+        """A batch the output mask never decided on has already reached the caller, so the span records no output."""
+        iorails_stream_check_first._content_capture_enabled = True
+        declare_masking_rails(iorails_stream_check_first, RailDirection.OUTPUT)
+        iorails_stream_check_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails_stream_check_first.rails_manager.is_output_safe = AsyncMock(return_value=allow_with_mask_pending())
+        iorails_stream_check_first.engine_registry.stream_model_call = _mock_stream
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert capture.call_args.args[2] is None
+
+    @pytest.mark.asyncio
+    async def test_a_malformed_message_does_not_fail_the_call(self, iorails_input_only):
+        """Looking for text to mask waits for the stream to run, so the call itself still only builds the stream."""
+        iorails_input_only._content_capture_enabled = True
+        declare_masking_rails(iorails_input_only, RailDirection.INPUT)
+
+        stream = iorails_input_only.stream_async(messages=[None])
+
+        await stream.aclose()

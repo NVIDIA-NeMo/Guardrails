@@ -34,7 +34,13 @@ from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMResponse, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
-from tests.guardrails.rail_stubs import declared_rewriter, rail_failure, rails_compiled_as
+from tests.guardrails.rail_stubs import (
+    allow_with_mask_pending,
+    declared_rewriter,
+    failed_mask,
+    rail_failure,
+    rails_compiled_as,
+)
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG, NEMOGUARDS_SPECULATIVE_CONFIG
 
 MESSAGES = [{"role": "user", "content": "hi"}]
@@ -622,3 +628,27 @@ class TestSpeculativeGenerationAndRewritingRails:
         engine = self._engine(NEMOGUARDS_CONFIG, {})
 
         assert engine._speculative_generation is False
+
+
+@pytest.mark.asyncio
+class TestASpeculativeTurnCarriesAnUndecidedMask:
+    """Whichever task finishes first, the turn says when an input mask never decided, so capture can withhold the turn."""
+
+    async def test_an_allowed_turn_carries_the_pending_mask(self, iorails):
+        """Rails that let the turn through with a mask unrun leave the turn marked."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=allow_with_mask_pending())
+        iorails.engine_registry.model_call = _hi_model()
+
+        turn = await iorails._do_generate_speculative(MESSAGES, "req-1", {})
+
+        assert turn.input_rewrite_pending is True
+
+    async def test_a_blocked_turn_carries_the_pending_mask(self, iorails):
+        """A mask that failed blocks the turn and leaves it marked, on either path through the race."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=failed_mask("gliner mask pii on input"))
+        iorails.engine_registry.model_call = _hi_model()
+
+        turn = await iorails._do_generate_speculative(MESSAGES, "req-1", {})
+
+        assert turn.blocked_by is not None
+        assert turn.input_rewrite_pending is True

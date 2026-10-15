@@ -1457,3 +1457,56 @@ class TestContentCaptureWithholdsWhatNoMaskReached:
             await iorails.generate_async(messages=REWRITE_MESSAGES)
 
         assert capture.call_args.args[1] == REWRITE_MESSAGES
+
+    async def test_a_response_to_an_unmasked_turn_is_withheld(self, iorails):
+        """The model read the turn the input mask never decided on, so its response may repeat it."""
+        iorails._content_capture_enabled = True
+        declare_masking_rails(iorails, RailDirection.INPUT)
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=allow_with_mask_pending())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="noted, 123-45-6789"))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert capture.call_args.args[2] is None
+
+    async def test_reasoning_returned_ahead_of_a_masked_answer_is_withheld(self, iorails):
+        """Reasoning rejoins the answer after the output masks ran, so the text returned holds what no mask saw."""
+        iorails._content_capture_enabled = True
+        declare_masking_rails(iorails, RailDirection.OUTPUT)
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite("call me on <PHONE>"))
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content="call me on 555-0100", reasoning="their number is 555-0100")
+        )
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert capture.call_args.args[2] is None
+
+    async def test_a_structured_response_keeps_its_masked_answer(self, iorails):
+        """The structured return keeps reasoning out of the answer, so the masked answer is still recorded."""
+        iorails._content_capture_enabled = True
+        declare_masking_rails(iorails, RailDirection.OUTPUT)
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite("call me on <PHONE>"))
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content="call me on 555-0100", reasoning="their number is 555-0100")
+        )
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES, options={"log": {"activated_rails": True}})
+
+        assert capture.call_args.args[2] == "call me on <PHONE>"
+
+    async def test_a_malformed_message_fails_inside_the_request(self, iorails):
+        """Looking for text to mask must not break a request earlier than the request itself would."""
+        iorails._content_capture_enabled = True
+        declare_masking_rails(iorails, RailDirection.INPUT)
+
+        with patch("nemoguardrails.guardrails.iorails.log") as iorails_log, pytest.raises(AttributeError):
+            await iorails.generate_async(messages=[None])
+
+        assert "generate_async failed" in iorails_log.error.call_args.args[0]
