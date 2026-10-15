@@ -81,11 +81,13 @@ constraints, independent of the inspection document's supported vocabulary.
 Unsupported document representations fail at export, not runtime construction.
 The shared
 [stream policy helpers](../../../provider/stream_policy.py) derive a text path
-from typed fields, without schema generation, only when there is one subject
-and every traversed array has at most one item. A null container or null text
-on that path is missing text. Union containers and multi-item selectors remain
-explicit event-rule paths. Buffered extraction still requires exactly one item;
-the streaming helper does not relax it.
+from typed fields, without schema generation, when there is one subject and
+arrays are bounded to at most one item or declare a reviewed, bounded
+`ObjectPolicy.variant` selection. Chat uses the simple bounded-array path;
+Responses uses heterogeneous variants. A null container or null text on that
+path is missing text. Unannotated unions remain unsupported by typed derivation.
+Buffered extraction still requires exactly one selected item; the streaming
+helper does not relax it.
 
 The typed classifier builder checks the text path, assistant subject, event roles,
 and coverage against these declarations before runtime use. A mismatched path

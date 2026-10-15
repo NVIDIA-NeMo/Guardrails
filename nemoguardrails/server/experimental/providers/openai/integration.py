@@ -13,10 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Compose the buffered OpenAI Chat route and provider-native errors."""
+"""Compose explicit OpenAI operation sets and provider-native errors."""
 
 import os
 from collections.abc import Collection, Mapping
+from dataclasses import replace
 
 from fastapi import APIRouter
 
@@ -35,6 +36,7 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoi
     CHAT_COMPLETIONS_ENDPOINT,
 )
 from nemoguardrails.server.experimental.providers.openai.errors import OPENAI_ERROR_MAPPING
+from nemoguardrails.server.experimental.providers.openai.responses.endpoint import RESPONSES_ENDPOINT
 
 
 def create_openai_chat_integration(
@@ -64,6 +66,23 @@ def create_openai_chat_integration(
         endpoints=(CHAT_COMPLETIONS_ENDPOINT if endpoint is None else endpoint,),
         errors=OPENAI_ERROR_MAPPING,
     )
+
+
+def create_openai_integration(
+    *,
+    instance_id: str = "openai",
+    base_url: str | None = None,
+    mount_path: str = "",
+) -> ProviderIntegration:
+    """Guard both Chat Completions and Responses on one OpenAI instance.
+
+    This is an explicit opt-in to a second guarded operation, not an alias of
+    the Chat-only factory. Other routes retain the application's passthrough
+    behavior. A compatible upstream URL does not establish dialect support for
+    either operation; this factory selects the strict OpenAI boundaries.
+    """
+    chat = create_openai_chat_integration(instance_id=instance_id, base_url=base_url, mount_path=mount_path)
+    return replace(chat, endpoints=(*chat.endpoints, RESPONSES_ENDPOINT))
 
 
 def create_openai_chat_router(

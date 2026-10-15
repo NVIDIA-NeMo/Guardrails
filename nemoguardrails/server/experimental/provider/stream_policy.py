@@ -28,11 +28,13 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     PolicyModel,
     field_coverage,
     field_policy,
+    guarded_array_variant,
     model_graph,
     replacement_blocker,
 )
 from nemoguardrails.server.experimental.provider.stream import StreamEventRole, StreamShapeCoverage
 from nemoguardrails.server.experimental.provider.stream_classifier import (
+    StreamArraySelection,
     StreamClassifier,
     StreamClassifierDefinition,
     StreamEventRule,
@@ -45,7 +47,8 @@ def stream_text_path(model: type[PolicyModel]) -> StreamTextPath:
     """Derive one named string or nullable-string subject from typed guarded fields.
 
     Follow guarded models, nullable model containers, and lists that allow at
-    most one item, without schema generation, so unrelated field types cannot
+    most one item, or heterogeneous arrays with an explicit ObjectPolicy.variant,
+    without schema generation, so unrelated field types cannot
     affect the binding. Unlike buffered extraction, empty arrays, null
     containers, and null text are valid: the event rule decides whether absent
     text is rejected or classified as metadata. This function only derives the
@@ -55,8 +58,8 @@ def stream_text_path(model: type[PolicyModel]) -> StreamTextPath:
         ValueError: The declaration has no unique text subject, an array that
             may hold more than one item, an unsupported subject type, a union
             container, a recursive path, or a replacement blocker that is
-            not a reviewed sibling field. Object-union selectors and
-            multi-item arrays need an explicit StreamEventRule.text_path.
+            not a reviewed sibling field. Object-union selectors require
+            disjoint declared variants with one bounded text-bearing branch.
     """
     paths: list[StreamTextPath] = []
 
@@ -82,6 +85,14 @@ def stream_text_path(model: type[PolicyModel]) -> StreamTextPath:
         """Follow guarded models and lists bounded to at most one item."""
         annotation, metadata = unwrap(annotation, metadata)
         if get_origin(annotation) is list:
+            selected = guarded_array_variant(get_args(annotation)[0])
+            if selected is not None:
+                item, variant = selected
+                cardinality = variant.cardinality
+                if cardinality == "any":
+                    raise ValueError("Stream array variants require bounded cardinality")
+                visit_model(item, (*path, StreamArraySelection(variant.match, cardinality)), active)
+                return
             if max_length(metadata) != 1:
                 raise ValueError("Stream text extraction requires at most one array item")
             visit_container(get_args(annotation)[0], [], (*path, 0), active)

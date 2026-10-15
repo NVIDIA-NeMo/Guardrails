@@ -172,14 +172,14 @@ def render_openai_error(
     if isinstance(outcome, StreamUpstreamFailed):
         return _error_response(
             502,
-            "The upstream OpenAI Chat Completions stream failed.",
+            "The upstream OpenAI stream failed.",
             "proxy_error",
             "upstream_stream_failed",
         )
     if isinstance(outcome, StreamProcessingFailed):
         return _error_response(
             502,
-            "The OpenAI Chat Completions stream could not be processed safely.",
+            "The OpenAI stream could not be processed safely.",
             "proxy_error",
             "stream_processing_failed",
         )

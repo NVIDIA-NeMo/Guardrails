@@ -53,6 +53,26 @@ def _lower_export(node: object, policy: UnknownContentFieldPolicy) -> object:
         if node.get(EXTENSION, {}).get("reject_case_aliases") is True:
             lowered["x-test-reviewed-properties"] = list(node["properties"])
         lowered["properties"] = {name: _lower_export(child, policy) for name, child in node["properties"].items()}
+    if node.get("type") == "array":
+        bounds = []
+        for branch in node.get("items", {}).get("oneOf", []):
+            variant = branch.get(EXTENSION, {}).get("variant", {})
+            cardinality = variant.get("cardinality")
+            if cardinality in {"exactly_one", "at_most_one"}:
+                match = variant["match"]
+                bounds.append(
+                    {
+                        "contains": {
+                            "type": "object",
+                            "properties": {key: {"const": value} for key, value in match.items()},
+                            "required": list(match),
+                        },
+                        "minContains": 1 if cardinality == "exactly_one" else 0,
+                        "maxContains": 1,
+                    }
+                )
+        if bounds:
+            lowered["allOf"] = [*lowered.get("allOf", []), *bounds]
     return lowered
 
 
