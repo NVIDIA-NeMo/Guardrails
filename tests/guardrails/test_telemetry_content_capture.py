@@ -441,6 +441,13 @@ class TestSetRequestContent:
         assert GuardrailsAttributes.REQUEST_INPUT in attrs
         assert GuardrailsAttributes.REQUEST_OUTPUT not in attrs
 
+    def test_omits_input_when_input_messages_none(self, finished_span):
+        """input_messages=None -> only request.output is set, so a withheld input never appears as null."""
+        span = finished_span(lambda s: set_request_content(s, None, "out"))
+        attrs = span.attributes
+        assert GuardrailsAttributes.REQUEST_INPUT not in attrs
+        assert attrs[GuardrailsAttributes.REQUEST_OUTPUT] == "out"
+
     def test_uses_guardrails_attrs_not_genai(self, finished_span):
         """Request capture uses guardrails.* attrs, never the gen_ai.* names or events."""
         messages = [{"role": "user", "content": "hi"}]

@@ -19,13 +19,14 @@ import asyncio
 import json
 import logging
 import warnings
+from contextlib import suppress
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 
 from nemoguardrails.exceptions import StreamingCapacityExceededError, StreamingNotSupportedError
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
     STREAM_MAX_CONCURRENCY,
@@ -39,7 +40,12 @@ from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
-from tests.guardrails.rail_stubs import bot_message_rewrite, user_message_rewrite
+from tests.guardrails.rail_stubs import (
+    bot_message_rewrite,
+    declare_masking_rails,
+    failed_mask,
+    user_message_rewrite,
+)
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -1323,3 +1329,41 @@ class TestStreamingContentCapture:
             )
 
         assert capture.call_args.args[1][-1]["content"] == "my ssn is <SSN>"
+
+    @pytest.mark.asyncio
+    async def test_a_failed_input_mask_withholds_the_input(self, iorails_input_only):
+        """The mask raised, so the streamed request's span records no input rather than the message as sent."""
+        iorails_input_only._content_capture_enabled = True
+        declare_masking_rails(iorails_input_only, RailDirection.INPUT)
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=failed_mask("gliner mask pii on input"))
+        iorails_input_only.engine_registry.stream_model_call = _mock_stream
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await _collect(
+                iorails_input_only.stream_async(messages=[{"role": "user", "content": "my ssn is 123-45-6789"}])
+            )
+
+        assert capture.call_args.args[1] is None
+
+    @pytest.mark.asyncio
+    async def test_a_stream_closed_before_its_input_rails_finish_withholds_the_input(self, iorails_input_only):
+        """The caller left before any mask decided, so the span records no input rather than the message as sent."""
+        iorails_input_only._content_capture_enabled = True
+        declare_masking_rails(iorails_input_only, RailDirection.INPUT)
+        input_rails_reached = asyncio.Event()
+
+        async def input_rails_that_never_finish(messages, **kwargs):
+            input_rails_reached.set()
+            await asyncio.Event().wait()
+
+        iorails_input_only.rails_manager.is_input_safe = input_rails_that_never_finish
+        stream = iorails_input_only.stream_async(messages=[{"role": "user", "content": "my ssn is 123-45-6789"}])
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            first_chunk = asyncio.create_task(anext(stream))
+            await input_rails_reached.wait()
+            first_chunk.cancel()
+            with suppress(asyncio.CancelledError):
+                await first_chunk
+
+        assert capture.call_args.args[1] is None

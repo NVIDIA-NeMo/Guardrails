@@ -174,15 +174,21 @@ def _wire_answering(engine: IORails, log: RailCallLog, httpx_mock, verdicts: dic
     return main
 
 
-def _wire(engine: IORails, log: RailCallLog, httpx_mock, verdicts: dict[str, str]) -> AsyncMock:
-    """Attach a double per model-backed rail plus the HTTP ones, and return the main-model double."""
+def _answer_model_rails(engine: IORails, log: RailCallLog, verdicts: dict[str, str]) -> AsyncMock:
+    """Attach a double per model-backed rail, and return the main-model double."""
     for model_type, rail_engine in engine.engine_registry.llms.items():
         if model_type in verdicts:
             rail_engine.chat_completion = _model_double(log, model_type, verdicts[model_type])
-    _register_http_doubles(httpx_mock, log)
 
     main = AsyncMock(return_value=LLMResponse(content=MAIN_OUTPUT))
     engine.engine_registry._engines["main"].chat_completion = main
+    return main
+
+
+def _wire(engine: IORails, log: RailCallLog, httpx_mock, verdicts: dict[str, str]) -> AsyncMock:
+    """Attach a double per model-backed rail plus the HTTP ones, and return the main-model double."""
+    main = _answer_model_rails(engine, log, verdicts)
+    _register_http_doubles(httpx_mock, log)
     return main
 
 
@@ -618,6 +624,13 @@ def span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
 
 
+def _capturing_output_masking_config() -> dict:
+    """The output pipeline alone, traced with content capture on, so the user's message has no mask to wait on."""
+    config = _output_pipeline_config()
+    config["tracing"] = dict(CAPTURE_CONTENT)
+    return config
+
+
 @pytest_asyncio.fixture
 async def capturing_iorails(span_exporter):
     """IORails masking in both directions, its spans exported to ``span_exporter``."""
@@ -657,13 +670,11 @@ class TestACheckRecordsTheMaskedConversation:
         assert _captured_input(span_exporter) == [{"role": "user", "content": MASKED_INPUT}]
         assert _captured_output(span_exporter) == MASKED_INPUT
 
-    async def test_the_output_mask_reaches_the_request_span(
-        self, capturing_iorails, call_log, httpx_mock, span_exporter
-    ):
+    async def test_the_output_mask_reaches_the_request_span(self, call_log, httpx_mock, span_exporter):
         """A check's conversation carries the response it checked, so the output mask reaches the span too."""
-        _wire(capturing_iorails, call_log, httpx_mock, CHECK_ALL_ALLOW)
-
-        await capturing_iorails.check_async(CHECKED_CONVERSATION, rail_types=[RailType.OUTPUT])
+        async with _capturing(_capturing_output_masking_config(), span_exporter) as engine:
+            _wire(engine, call_log, httpx_mock, CHECK_ALL_ALLOW)
+            await engine.check_async(CHECKED_CONVERSATION, rail_types=[RailType.OUTPUT])
 
         assert _captured_input(span_exporter) == [
             {"role": "user", "content": USER_INPUT},
@@ -714,13 +725,11 @@ class TestAMaskSurvivesABlockOnTheRequestSpan:
         assert _captured_input(span_exporter) == [{"role": "user", "content": MASKED_INPUT}]
         assert _captured_output(span_exporter) == REFUSAL_MESSAGE
 
-    async def test_a_check_blocked_on_output_records_the_masked_response(
-        self, capturing_iorails, call_log, httpx_mock, span_exporter
-    ):
+    async def test_a_check_blocked_on_output_records_the_masked_response(self, call_log, httpx_mock, span_exporter):
         """An output block behind the mask still records the checked response as the mask left it."""
-        _wire(capturing_iorails, call_log, httpx_mock, OUTPUT_CONTENT_SAFETY_BLOCKS)
-
-        await capturing_iorails.check_async(CHECKED_CONVERSATION, rail_types=[RailType.OUTPUT])
+        async with _capturing(_capturing_output_masking_config(), span_exporter) as engine:
+            _wire(engine, call_log, httpx_mock, OUTPUT_CONTENT_SAFETY_BLOCKS)
+            await engine.check_async(CHECKED_CONVERSATION, rail_types=[RailType.OUTPUT])
 
         assert _captured_input(span_exporter) == [
             {"role": "user", "content": USER_INPUT},
@@ -747,3 +756,43 @@ class TestAMaskSurvivesABlockOnTheRequestSpan:
 
         assert _captured_input(span_exporter) == [{"role": "user", "content": MASKED_INPUT}]
         assert "content_blocked" in streamed
+
+
+def _wire_with_the_mask_failing(engine: IORails, log: RailCallLog, httpx_mock) -> None:
+    """Wire the model-backed rails, with the masking rail's endpoint answering an error so the mask never lands."""
+    _answer_model_rails(engine, log, CHECK_ALL_ALLOW)
+    httpx_mock.add_response(url=GLINER_URL, status_code=500)
+
+
+def _has_captured_input(exporter: InMemorySpanExporter) -> bool:
+    """Whether the request span recorded any input at all."""
+    return GuardrailsAttributes.REQUEST_INPUT in _request_span(exporter).attributes
+
+
+@pytest.mark.asyncio
+class TestAFailedMaskKeepsTheInputOffTheRequestSpan:
+    """The masking rail's endpoint fails, and the request span records no input rather than the unmasked message."""
+
+    async def test_a_check_records_no_input(self, capturing_iorails, call_log, httpx_mock, span_exporter):
+        """A check refused because the mask failed leaves the user's message off the span."""
+        _wire_with_the_mask_failing(capturing_iorails, call_log, httpx_mock)
+
+        await capturing_iorails.check_async([{"role": "user", "content": USER_INPUT}])
+
+        assert _has_captured_input(span_exporter) is False
+
+    async def test_a_generation_records_no_input(self, capturing_iorails, call_log, httpx_mock, span_exporter):
+        """A generation refused because the mask failed leaves the user's message off the span."""
+        _wire_with_the_mask_failing(capturing_iorails, call_log, httpx_mock)
+
+        await capturing_iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
+
+        assert _has_captured_input(span_exporter) is False
+
+    async def test_a_stream_records_no_input(self, call_log, httpx_mock, span_exporter):
+        """A stream refused because the mask failed leaves the user's message off the span."""
+        async with _capturing(_capturing_streaming_config(), span_exporter) as engine:
+            _wire_with_the_mask_failing(engine, call_log, httpx_mock)
+            await _streamed(engine)
+
+        assert _has_captured_input(span_exporter) is False

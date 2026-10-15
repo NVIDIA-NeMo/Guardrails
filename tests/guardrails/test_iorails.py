@@ -37,7 +37,14 @@ from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction
-from tests.guardrails.rail_stubs import bot_message_rewrite, rail_failure, user_message_rewrite
+from tests.guardrails.rail_stubs import (
+    allow_with_mask_pending,
+    bot_message_rewrite,
+    declare_masking_rails,
+    failed_mask,
+    rail_failure,
+    user_message_rewrite,
+)
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 
@@ -1390,6 +1397,61 @@ class TestContentCaptureRecordsWhatTheModelRead:
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert capture.call_args.args[1] == REWRITE_MESSAGES
+
+
+@pytest.mark.asyncio
+class TestContentCaptureWithholdsWhatNoMaskReached:
+    """With masking rails configured, generation records the text only once every mask guarding it has decided."""
+
+    async def test_a_failed_input_mask_withholds_the_input(self, iorails):
+        """The mask raised, so the user's message is still as sent and the span records no input."""
+        iorails._content_capture_enabled = True
+        declare_masking_rails(iorails, RailDirection.INPUT)
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=failed_mask("gliner mask pii on input"))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert capture.call_args.args[1] is None
+
+    async def test_a_tool_result_block_withholds_an_input_no_mask_reached(self, iorails):
+        """Tool-result rails run first, so their block leaves the input mask unrun on the user's message."""
+        iorails._content_capture_enabled = True
+        declare_masking_rails(iorails, RailDirection.INPUT)
+        iorails.rails_manager.are_tool_results_safe = AsyncMock(
+            return_value=RailResult.block(reason="unsafe", triggered_rail="tool result check")
+        )
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert capture.call_args.args[1] is None
+
+    async def test_an_output_mask_turned_off_withholds_the_response(self, iorails):
+        """With the output mask off for the request, the response goes out unmasked and the span records none of it."""
+        iorails._content_capture_enabled = True
+        declare_masking_rails(iorails, RailDirection.OUTPUT)
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=allow_with_mask_pending())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="call me on 555-0100"))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert capture.call_args.args[2] is None
+
+    async def test_an_output_mask_turned_off_still_records_the_input(self, iorails):
+        """The user's message has no mask to wait on, so a pending output mask leaves the input recorded."""
+        iorails._content_capture_enabled = True
+        declare_masking_rails(iorails, RailDirection.OUTPUT)
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=allow_with_mask_pending())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="call me on 555-0100"))
 
         with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
             await iorails.generate_async(messages=REWRITE_MESSAGES)

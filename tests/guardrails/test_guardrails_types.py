@@ -149,6 +149,12 @@ class TestRailResult:
 
         assert kept == RailResult.block(reason="blocked")
 
+    def test_a_pending_rewrite_stays_out_of_equality(self):
+        """Whether a rewrite never landed is capture data, so the verdict alone is compared."""
+        pending = RailResult(RailOutcome.allow(), rewrite_pending=True)
+
+        assert pending == RailResult.allow()
+
     def test_is_unhashable_and_says_so(self):
         """The wrapped outcome is unhashable, and the error names this type rather than leaking from inside."""
         with pytest.raises(TypeError, match="unhashable type: 'RailResult'"):
