@@ -1,0 +1,127 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/responses
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-5-nano
+      input: 'Reply with exactly: Hello.'
+      stream: false
+      store: false
+      max_output_tokens: 256
+      reasoning:
+        effort: minimal
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      content-security-policy:
+      - frame-ancestors 'none'
+      vary:
+      - Accept-Encoding
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created_at: 1792052980
+        error: null
+        incomplete_details: null
+        instructions: null
+        metadata: {}
+        model: openai/openai/gpt-5-nano
+        object: response
+        output:
+        - id: encitem_bGl0ZWxsbTptb2RlbF9pZDpvcGVuYWkvb3BlbmFpL2dwdC01LW5hbm87aXRlbV9pZDpyc18wMGI5Nzk5MWYzYzY4N2U1MDE2YWQwOGVmNGUwYTg4N2QxYWJiYmYxYzM2Yjc3ZjExNA==
+          summary: []
+          type: reasoning
+          content: []
+          encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1uYW5v;gAAAAABq0I71yg-QEK67UCTTRSxv5rUFezcpi9Hc2o1rrbfdk5ui5HtuFV8NqyuPLiHR_3lP_WxBrSFTr5GYQTCHdf4uRic8mxcdl5GgNiPNMpZSgEoMQlTKXS8Fh-nseqGECfBc6fN-AtCzptqlCwWaiSRPG7W1StVBkbuyvBztPVc6o3caW6ZtV2JH5Gy1IbsB1KQwRelL9r8R7qzzaDAn9MmbiXEJD0TeTlrxtCkYoYbTXNYsfUHxdOOeGFNDmoshW4q0MzZczZmH4SjV6cFHWpTNAsb7gOZx1tHVgYUgZvDu6CT_PzEY_ZNlhnfrmSJYO8KhlX1FdnEJvRKMbhu1t5fkr0c1MGhhWm5LaakHHGoIVlU5gUIxg5--bcgXk6QZzpr2sKl0oJ0S0yV1io4ztIl64kqSzjyASeQ5EB584dOGP7jKJD1Bcru26CrriX8c7WlFCEBfP5Q5OQUv0YPap5vEZzyF37xjPijA8lj36NsEsOpXM1oeZUsbd3IpdU6R2jh_YvrU2Rzp79DaDRXEiuitNoJxWYG5qvzDt2hqcsbAzV2JWxPp7rO-vX-0RWMHe8bc2mXs4cjTfbVFOGpUyvVeOFGetu4TDK5k8c2ANyA8WQBjSYunu7DNrv4z9aZcdB3cVTqc5Y3GrAV3-gTxNblTZrbJmkdj9RB17jDnLadA6l2uVHjbLfFSsOJdtU3j3pYyhJA-78N91vjBQdygNNoGzRhJcELEItq08-zaKlLq1Rizen1J7FfX8KFLH7rD8DOZz7wkoE4VdxSGkcRdAOs_AX_drY6gi0WFKJAQCf1PFOcaQQS1M7lGwaG0aGsEQ1OrY2BjIT5MdWPIAv_RnEgRvwmZ6A3Agc_e_uB7_Lv0uNAyInAavNeAJhdTxzQRCKFEjqp-sN-o24fu7ZJynyiPQtyL8HrsCcCu-2jbIKqTRmt8nf06upmV79U2ZHltYG0tunvYOtLzkT_yZD0tazFHPEW7t9EgN2XURg8ppEPf1U-9x0RtklhKa7bOZ98XyI1HGteGNPvNzb_SZXA0F4jFixRtJaJ4K6XMy0AqqwvOXE4jJ4BxIAmqcPokBtKfVSt3NBtu4q4EX8R-e1sukYrXdbAiUcd-gLtOxu8rZDxEuzy6jDP8YUkMPV8ojum2mQo9ZJPyIiruh2Lxuq_JH2ByA_iHgimeFNpaz7Y6xX-TH09sNH5asK5VT_Bh00HAuuJO3F8OpFaq5kdPGoTcUBhF6Yxyiw79OUM39KCM_rAW7gGEMj7QzXXWlSWnPTC09ubdz4S6-3fUkYGLIkyzNZ0odoW1SBiMZM_1MrOw2BgpjwdE_H6iI_xuq1Kg1O1cD4fAUFIKxq7_vK0zPfLiTWKNEzSksxtW5tYKcQF7YcHMo5ZLSWOAEWEbWnxB8QX8tC-SoBgex-9hydJ4zh7gWSsrWuRogbHGTYSj2j4E9HakP6FGLAA4D6OzmT7iDEMu0vC51uXY5EHvjMVvNJejbnNWONdobQBA58b2IUVCpgCEctycR3ahYXXM4WpnxIY2z4DotWgKx3H16NIy7tB0D7GVEXyODQhMm1DRvmfaUPHgeU3e40anij5fDAmcyx36EqGK0ahBVMdyqI5OiqwgEZOrCoN-h2e3hU-lSnzDBducMUsljkU=
+        - id: msg_00b97991f3c687e5016ad08ef4fcbc87d1802a5fb912d3f67d
+          content:
+          - annotations: []
+            text: Hello.
+            type: output_text
+            logprobs: []
+          role: assistant
+          status: completed
+          type: message
+          phase: null
+        parallel_tool_calls: true
+        temperature: 1.0
+        tool_choice: auto
+        tools: []
+        top_p: 1.0
+        max_output_tokens: 256
+        previous_response_id: null
+        reasoning:
+          context: current_turn
+          effort: minimal
+          mode: standard
+          summary: null
+        status: completed
+        text:
+          format:
+            type: text
+          verbosity: medium
+        truncation: disabled
+        usage:
+          input_tokens: 12
+          input_tokens_details:
+            audio_tokens: null
+            cached_tokens: 0
+            cached_tokens_details: null
+            image_tokens: null
+            text_tokens: null
+            video_tokens: null
+            cache_write_tokens: 0
+          output_tokens: 20
+          output_tokens_details:
+            audio_tokens: null
+            reasoning_tokens: 0
+            text_tokens: null
+          total_tokens: 32
+          cost: null
+        user: null
+        store: false
+        access_programs: null
+        background: false
+        billing:
+          payer: developer
+        completed_at: 1792052981
+        frequency_penalty: 0.0
+        max_tool_calls: null
+        moderation: null
+        presence_penalty: 0.0
+        prompt_cache_key: null
+        prompt_cache_retention: in_memory
+        safety_identifier: null
+        service_tier: default
+        tool_usage:
+          image_gen:
+            input_tokens: 0
+            input_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            output_tokens: 0
+            output_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            total_tokens: 0
+          web_search:
+            num_requests: 0
+        top_logprobs: 0

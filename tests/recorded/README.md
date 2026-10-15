@@ -121,6 +121,15 @@ Replay the Chat pipeline and the archived-field inventory together:
 make replay-cassettes RECORDED_TESTS=tests/recorded/server/experimental/openai
 ```
 
+The separately reviewed Responses recordings explicitly select the
+[LiteLLM Responses dialect](../../nemoguardrails/server/experimental/providers/openai/dialects/litellm/responses.md).
+Refresh only `tests/recorded/server/experimental/openai/test_litellm_responses.py`
+with `RECORDED_REQUIRED_KEYS=NVIDIA_INFERENCE_KEY`. Capture stores the complete
+sanitized response before checking policy; the subsequent offline replay is the
+acceptance gate. Responses uses the same shared sanitizer as Chat, with no extra
+content redaction; encrypted content and nested item-ID relationships are retained.
+These two cassettes establish neither Chat bridge nor arbitrary-backend compatibility.
+
 These six cassettes predate the dialect: their provider payloads are unchanged.
 Two buffered successes contain message `provider_specific_fields: {refusal: null}`
 and empty choice extensions. Two streaming successes contain no extension bags;
