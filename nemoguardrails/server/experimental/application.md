@@ -22,12 +22,12 @@ From this checkout, install dependencies with `uv sync --locked --extra server`,
 then use:
 
 ```bash
-uv run --locked python -m nemoguardrails.server.experimental validate examples/configs/transparent_proxy/proxy.yaml
-uv run --locked python -m nemoguardrails.server.experimental inspect examples/configs/transparent_proxy/proxy.yaml
-uv run --locked python -m nemoguardrails.server.experimental serve examples/configs/transparent_proxy/proxy.yaml
+uv run --locked python -m nemoguardrails.server.experimental validate nemoguardrails/server/experimental/examples/basic/proxy.yaml
+uv run --locked python -m nemoguardrails.server.experimental inspect nemoguardrails/server/experimental/examples/basic/proxy.yaml
+uv run --locked python -m nemoguardrails.server.experimental serve nemoguardrails/server/experimental/examples/basic/proxy.yaml
 ```
 
-The [example manifest](../../../examples/configs/transparent_proxy/proxy.yaml)
+The [example manifest](examples/basic/proxy.yaml)
 selects native OpenAI Chat Completions and Responses bindings against a local
 upstream at `http://127.0.0.1:9000/v1`; it does not start an upstream. Both
 operations support the reviewed single-text buffered and streaming modes.

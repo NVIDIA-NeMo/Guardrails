@@ -40,7 +40,7 @@ from tests.server.experimental.test_openai_responses_projections import response
 from tests.server.experimental.test_openai_responses_streaming_projections import event_bytes
 
 ROOT = Path(__file__).resolve().parents[3]
-EXAMPLE = ROOT / "examples/configs/transparent_proxy"
+EXAMPLE = ROOT / "nemoguardrails/server/experimental/examples/basic"
 
 
 def chat_response(text="safe"):
