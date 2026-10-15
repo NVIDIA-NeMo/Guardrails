@@ -1,0 +1,21 @@
+models: []
+rails:
+  config:
+    regex_detection:
+      input:
+        patterns:
+          - BLOCK_INPUT
+      output:
+        patterns:
+          - BLOCK_OUTPUT
+  input:
+    flows:
+      - regex check input
+  output:
+    flows:
+      - regex check output
+    streaming:
+      enabled: true
+      chunk_size: 2
+      context_size: 2
+      stream_first: false

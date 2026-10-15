@@ -1,16 +1,145 @@
-# Python proxy application
+# Proxy application
 
 Declare provider instances and select their reviewed operation bindings through
 one application factory. Typed Python projections, classifiers, and handwritten
 hooks remain the source of policy. Application configuration selects those
 bindings; it does not compile or load guard contracts.
 
-This Python interface requires the `server` extra. It does
-not add YAML loading, a CLI launcher, or a stable configuration-file format.
+The Python interface and server-owned YAML launcher require the `server` extra.
+The manifest's numeric revision identifies its format, not a stability promise.
 The application owns outbound HTTP and preloads its Rails catalogue during
 lifespan startup. Configuration directories are trusted: their actions may
 execute Python. Application construction validates paths but does not start
 engines or contact providers.
+
+## Run from YAML
+
+The server owns its launcher; it is not a subcommand of the library CLI.
+Its current module location is temporary. A later independent server package
+will register its own executable against the same CLI implementation.
+
+From this checkout, install dependencies with `uv sync --locked --extra server`,
+then use:
+
+```bash
+uv run --locked python -m nemoguardrails.server.experimental validate examples/configs/transparent_proxy/proxy.yaml
+uv run --locked python -m nemoguardrails.server.experimental inspect examples/configs/transparent_proxy/proxy.yaml
+uv run --locked python -m nemoguardrails.server.experimental serve examples/configs/transparent_proxy/proxy.yaml
+```
+
+The [example manifest](../../../examples/configs/transparent_proxy/proxy.yaml)
+selects native OpenAI Chat Completions and Responses bindings against a local
+upstream at `http://127.0.0.1:9000/v1`; it does not start an upstream. Both
+operations support the reviewed single-text buffered and streaming modes.
+Set `base_url` to your deployed provider endpoint and select `dialect: litellm`
+only if that provider needs the reviewed dialect. A URL does not imply a dialect.
+
+```yaml
+version: 1
+rails_configs:
+  - id: standard
+    config_path: ./rails/standard
+providers:
+  - provider: openai
+    instance_id: gateway
+    base_url: https://gateway.example/v1
+    operations: [chat_completions, responses]
+    rails_config_id: standard
+```
+
+Keep the proxy manifest outside the Rails directory: Rails loads YAML files
+recursively from its own directory, and the two formats must not be mixed.
+The example uses `proxy.yaml` beside `rails/config.yml`.
+
+The YAML fields are the Python configuration fields below, plus required integer
+`version: 1`. Every provider must specify a fixed `rails_config_id` in YAML;
+there is no implicit selection, callback import or dynamic resolver syntax.
+Multiple providers and dozens of shared catalogue entries do not require
+repeating the catalogue. Use Python for trusted dynamic resolution.
+
+Relative Rails paths resolve against the manifest's directory, not the shell's
+working directory. If the manifest is a symlink, its target directory is used.
+No environment or tilde expansion is performed. Unknown fields, duplicate keys,
+explicit YAML tags, anchors, aliases, merges, non-string mapping keys and multiple
+documents are rejected. Input is UTF-8 and bounded to 1 MiB, depth 32 and 10,000
+nodes (including keys). The manifest is deployment-owned; never accept uploads
+from callers as configuration.
+
+`validate` checks the declaration, directory/config-file availability, upstream
+URL rules and route composition. It does not read Rails contents, import their
+actions, start engines, contact providers or prove checker compatibility.
+`inspect` returns JSON describing actual bindings and directional profiles,
+including passthrough behavior; it does not claim that particular rails are
+enabled. Upstream credentials, queries and fragments are rejected, and manifest
+diagnostics omit source values/excerpts. Inspection still contains deployment metadata,
+including upstream addresses; treat it accordingly.
+
+For editor guidance, emit JSON Schema directly from the manifest model:
+
+```bash
+uv run --locked python -m nemoguardrails.server.experimental schema > proxy.schema.json
+```
+
+This is the configuration schema, not an exported guard contract. Semantic
+checks such as fixed-ID references and routing still require `validate`.
+There is no separately maintained schema artifact.
+
+`serve` defaults to `127.0.0.1:8000`; `--host` and `--port` override it.
+Access logging and forwarded-proxy-header trust are disabled. Provide your own
+inbound access controls before listening beyond loopback. Caller authorization
+headers still follow the existing upstream forwarding rules; this launcher
+does not store provider keys or introduce service authentication.
+
+### Requests and blocking
+
+The example Rails directory uses only regex input/output checks, with no rail
+model, external service or API key. It blocks the literal markers `BLOCK_INPUT`
+and `BLOCK_OUTPUT`; this is a wiring example, not a content-safety policy.
+Output streaming uses two-chunk windows, two chunks of context and
+`stream_first: false` so unchecked chunks are not intentionally forwarded first.
+
+With a compatible upstream running, replace `YOUR_DEPLOYED_MODEL` with its model
+ID. Add an `Authorization` header from a locally managed environment variable if
+the upstream requires one; never put credentials in the manifest.
+
+```bash
+curl -sS http://127.0.0.1:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"YOUR_DEPLOYED_MODEL","messages":[{"role":"user","content":"hello"}]}'
+
+curl -N http://127.0.0.1:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"YOUR_DEPLOYED_MODEL","messages":[{"role":"user","content":"hello"}],"stream":true}'
+
+curl -sS http://127.0.0.1:8000/v1/responses \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"YOUR_DEPLOYED_MODEL","input":"hello"}'
+
+curl -sS http://127.0.0.1:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"YOUR_DEPLOYED_MODEL","messages":[{"role":"user","content":"BLOCK_INPUT"}]}'
+```
+
+The last request returns `content_blocked` before upstream dispatch. To check
+output blocking deterministically, use a synthetic upstream that returns
+`BLOCK_OUTPUT`: buffered output is rejected; streamed blocked text is withheld
+and an error event is returned after streaming headers have been sent. An LLM
+prompt asking it to emit a marker is not a deterministic regression test.
+
+Invalid guarded content does not fall back to a weaker binding. Unselected
+operations may still pass through, and a disabled input/output check does not
+become enabled merely by selecting an operation.
+
+Profile/variant selection is not exposed. Inspection reads current profiles
+from the bindings. Future variants would select shipped, tested combinations
+per operation at startup; Rails configuration alone cannot enable multimodal
+extraction or inspection.
+
+The launcher reuses the existing lifespan, including catalogue preloading.
+Known incomplete-cleanup/retry prerequisites in the core and shared HTTP owners
+remain separate. Successful launch or disconnect smoke tests do not establish
+that interrupted cleanup is complete; run those real-owner regressions before
+claiming lifecycle readiness.
 
 ## Declare a built-in provider
 
