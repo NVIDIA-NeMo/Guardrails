@@ -18,6 +18,28 @@ This guide demonstrates how to integrate the NeMo Guardrails library into LangCh
 
 ---
 
+## Prerequisites
+
+The examples on this page use OpenAI chat models through LangChain.
+Set up your environment before you run them.
+
+1. Install the NVIDIA NeMo Guardrails library and the LangChain OpenAI integration:
+
+    ```bash
+    pip install nemoguardrails langchain-openai
+    ```
+
+    `RunnableRails` requires `langchain-core`, which the NVIDIA NeMo Guardrails library does not install by default.
+    The `langchain-openai` package installs it.
+
+1. Set your OpenAI API key:
+
+    ```bash
+    export OPENAI_API_KEY="your_openai_api_key"
+    ```
+
+---
+
 ## Getting Started
 
 To get started, load a guardrail configuration and create a `RunnableRails` instance.
@@ -109,6 +131,11 @@ async def stream_example():
 
 **Metadata in Streaming**: `RunnableRails` preserves all metadata during streaming, including `response_metadata`, `usage_metadata`, and `additional_kwargs` in `AIMessageChunk` objects.
 
+**Latency and Cost**: Guardrails add latency and token usage to streamed responses.
+Input rails finish before the first token streams, so every input rail that calls a model adds to the time to first token.
+If you enable output rail streaming, output rails check the response in chunks while it streams.
+See [Output Rail Streaming](/configure-guardrails/yaml-schema/streaming/output-rail-streaming) for the settings that control the chunk size.
+
 ---
 
 ## Batch Processing
@@ -133,6 +160,8 @@ from langchain_core.runnables import RunnableConfig
 config = RunnableConfig(max_concurrency=3)
 results = await guardrails.abatch(inputs, config=config)
 ```
+
+Each input in a batch runs through the full set of rails, so the rail model calls, latency, and token usage scale with the number of inputs, the same as calling `invoke()` once per input.
 
 ---
 
@@ -220,7 +249,7 @@ User: Hello!
 Assistant:
 ```
 
-The exact instructions and format depend on your configuration and enabled rails. To inspect the transformed prompt for debugging, set `verbose=True` when creating `RunnableRails`. See [Verbose Logging](/integration/langchain/langgraph-integration#2-verbose-logging), which logs every `Prompt ::` and `Completion ::` pair sent to the LLM.
+The exact instructions and format depend on your configuration and enabled rails. To inspect the transformed prompt for debugging, set `verbose=True` when creating `RunnableRails`. See [Verbose Logging](/integration-with-third-party-libraries/langchain/langgraph-integration#2-verbose-logging), which logs every `Prompt ::` and `Completion ::` pair sent to the LLM.
 
 ### Rejection Behavior
 
@@ -245,16 +274,20 @@ print(result.tool_calls)            # []
 print(result.response_metadata)     # {}
 ```
 
+`RunnableRails` does not report which rail blocked a request.
+If your application must tell a rejection apart from a normal answer, for example to return a structured error to a client, call `LLMRails.generate()` with the `log.activated_rails` generation option instead.
+See [Detailed Logging Information](/run-guardrailed-inference/using-python-apis/generation-options#detailed-logging-information).
+
 ### Error Handling
 
 `RunnableRails.invoke()`/`ainvoke()` wrap the underlying rails call in a `try`/`except`, but whether a failure reaches that `except` block depends on where the failure happens:
 
-- **Failures that `RunnableRails` itself surfaces** raise a `ValueError`, with the original exception chained through `from e`. This covers LLM provider failures (the main model or a safety-check model call fails, for example a timeout or an API error), unsupported input types, and any other error that escapes the underlying rails call. A few recognized cases raise a more specific message, such as binding tools directly on the LLM.
+- **Failures that `RunnableRails` itself surfaces** raise a `ValueError`, with the original exception chained through `from e`. This covers LLM provider failures (the main model or a safety-check model call fails, for example a timeout or an API error), unsupported input types, and any other error that escapes the underlying rails call. Some recognized errors are re-raised with a more specific message.
 - **A tool or guardrail action registered with the guardrail configuration that raises** (a bug in your tool function, a non-LLM network call failing, and so on) does not propagate. The action dispatcher catches it, and the runtime returns an ordinary-looking response with the content `"I'm sorry, an internal error has occurred."` This response has the same shape as a normal, non-blocked answer. LLM call failures are the exception: the dispatcher forwards those, so they surface as in the first case.
 
 Because this second response is indistinguishable from a normal answer, do not use its content as an error sentinel; a legitimate model or rail response can contain the same text. If you need a distinguishable outcome, handle the failure inside the tool or action itself. Your calling code still needs to catch the exceptions that do propagate; `RunnableRails` does not return a structured error payload for those.
 
-In a LangGraph node, an uncaught exception from `runnable_with_guardrails.invoke(state)` propagates as a normal Python exception through `graph.invoke()`. LangGraph does not catch node exceptions for you. Wrap the node body in a `try`/`except ValueError` if you want the graph to continue with a fallback message instead of raising. See [Failure Handling in Tool-Calling Graphs](/integration/langchain/langgraph-integration#failure-handling-in-tool-calling-graphs) for an example, including how tools executed by a LangGraph `ToolNode` differ from tools registered with the guardrail configuration.
+In a LangGraph node, an uncaught exception from `runnable_with_guardrails.invoke(state)` propagates as a normal Python exception through `graph.invoke()`. LangGraph does not catch node exceptions for you. Wrap the node body in a `try`/`except ValueError` if you want the graph to continue with a fallback message instead of raising. See [Failure Handling in Tool-Calling Graphs](/integration-with-third-party-libraries/langchain/langgraph-integration#failure-handling-in-tool-calling-graphs) for an example, including how tools executed by a LangGraph `ToolNode` differ from tools registered with the guardrail configuration.
 
 ### Custom Input/Output Keys
 

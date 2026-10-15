@@ -14,6 +14,8 @@ This guide provides comprehensive instructions for integrating and using tools w
 
 The NeMo Guardrails library supports the integration of tools to enhance the capabilities of language models while maintaining safety controls. Tools can be used to extend the functionality of your AI applications by enabling interaction with external services, APIs, databases, and custom functions.
 
+For a diagram of the request and tool-call loop and the points where tool rails validate it, see [How Function Calling Works](/configure-guardrails/guardrail-catalog/tool-calling#how-function-calling-works).
+
 ## Supported Version
 
 Tool calling is available starting from the NeMo Guardrails library version 0.17.0.
@@ -77,7 +79,8 @@ Calling `rails.generate()` directly does not go through this conversion. `respon
 
 If your code reads `tool_call["name"]` or `tool_call["args"]` against a direct `rails.generate()` response, it is reading the wrong keys; use `tool_call["function"]["name"]` and `tool_call["function"]["arguments"]` instead, or wrap the model with `RunnableRails` to get the normalized LangChain shape.
 
-The NVIDIA NeMo Guardrails library only reads `tool_calls` off the model response to decide whether output rails apply. It does not otherwise transform the tool-call arguments or names.
+When the model response contains tool calls, the library runs any tool call rails configured under `rails.tool_call`, which can block the calls, instead of the output rails.
+Apart from parsing a JSON `arguments` string into a dictionary, the library passes tool-call names and arguments through unchanged.
 
 ## Configuration Settings
 
