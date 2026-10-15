@@ -104,8 +104,10 @@ class RailResult:
     ``RailOutcome`` has no concept of, because it belongs to running *many* rails:
     which one blocked (``triggered_rail``), which tool calls or results it blocked
     (``tool_violations``), what every rail did (``records``), what the rails ahead
-    of a block rewrote the checked text to (``rewrite_before_block``), and whether a rail
-    free to rewrite that text never decided on it (``rewrite_pending``).
+    of a block rewrote the checked text to (``rewrite_before_block``), whether a rail
+    free to rewrite that text never decided on it (``rewrite_pending``), and the
+    conversation with the tool results the rails rewrote (``messages``, or
+    ``messages_before_block`` when a later rail blocked).
 
     ``records`` carries the per-rail execution records for every rail that ran in this
     check (not just the blocking one), so IORails can synthesize a ``GenerationLog``.
@@ -127,6 +129,10 @@ class RailResult:
     # Capture data too: a configured mask that failed, blocked, never ran or was switched off
     # left the text as sent, so a record of the request must withhold it rather than trust a mask.
     rewrite_pending: bool = field(default=False, compare=False)
+    # Set only when a tool rail rewrote something; index-aligned with the messages checked.
+    messages: LLMMessages | None = None
+    # The tool-rail counterpart of ``rewrite_before_block``.
+    messages_before_block: LLMMessages | None = field(default=None, compare=False)
     __hash__ = None
 
     @property
@@ -170,9 +176,10 @@ class RailResult:
         reason: str | None = None,
         metadata: Mapping[str, Any] | None = None,
         records: tuple[RailCallRecord, ...] = (),
+        messages: LLMMessages | None = None,
     ) -> "RailResult":
         """A result that lets the content through."""
-        return cls(RailOutcome.allow(reason=reason, metadata=metadata), records=records)
+        return cls(RailOutcome.allow(reason=reason, metadata=metadata), records=records, messages=messages)
 
     @classmethod
     def block(
