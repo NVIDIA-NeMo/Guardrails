@@ -1428,6 +1428,17 @@ class TestEngineRegistryToolDelegation:
         with pytest.raises(KeyError):
             manager.rewrite_tool_results("nonexistent", [], {})
 
+    def test_rewrite_latest_tool_calls_delegates_to_model_engine(self, manager):
+        """The registry writes rewritten tool-call arguments back through the named model engine."""
+        call = {"id": "c1", "type": "function", "function": {"name": "get_weather", "arguments": '{"city": "X"}'}}
+        messages = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": None, "tool_calls": [call]}]
+        rewritten = manager.rewrite_latest_tool_calls("main", messages, {0: {"city": "<CITY>"}})
+        assert rewritten[1]["tool_calls"][0]["function"]["arguments"] == '{"city": "<CITY>"}'
+
+    def test_rewrite_latest_tool_calls_unknown_engine_raises_keyerror(self, manager):
+        with pytest.raises(KeyError):
+            manager.rewrite_latest_tool_calls("nonexistent", [], {})
+
     def test_extract_latest_tool_calls_unknown_engine_raises_keyerror(self, manager):
         """An unconfigured model type raises KeyError rather than guessing a wire format."""
         with pytest.raises(KeyError):

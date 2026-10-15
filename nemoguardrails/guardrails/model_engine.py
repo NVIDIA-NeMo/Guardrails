@@ -564,12 +564,19 @@ _TOOL_EXCHANGE_EXTRACTORS = {
 }
 
 
+def _latest_assistant_index(messages: LLMMessages) -> int | None:
+    """The position of the last assistant message in *messages*, or None when there is none."""
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        if isinstance(message, dict) and message.get("role") == "assistant":
+            return index
+    return None
+
+
 def _latest_assistant_message(messages: LLMMessages) -> dict | None:
     """The last assistant message in *messages*, or None when there is none."""
-    for message in reversed(messages):
-        if isinstance(message, dict) and message.get("role") == "assistant":
-            return message
-    return None
+    index = _latest_assistant_index(messages)
+    return None if index is None else messages[index]
 
 
 def _string_or_none(value: object) -> str | None:
@@ -682,6 +689,43 @@ def _latest_tool_calls_nim(messages: LLMMessages) -> list[LatestToolCall]:
 _LATEST_TOOL_CALL_EXTRACTORS = {
     "openai": _latest_tool_calls_openai,
     "nim": _latest_tool_calls_nim,
+}
+
+
+def _rewrite_latest_tool_calls_openai(messages: LLMMessages, rewrites: Mapping[int, dict]) -> LLMMessages:
+    """Return a copy of *messages* whose last assistant message carries each call at a key of *rewrites* with those arguments.
+
+    The positions are the ones ``extract_latest_tool_calls`` assigned. Arguments are written as the JSON
+    string the wire carries. Only the list, that message, its ``tool_calls`` and each rewritten call are
+    copied, so the caller's conversation is never edited.
+    """
+    message_index = _latest_assistant_index(messages)
+    if message_index is None:
+        raise ValueError("no assistant message carries the tool calls to rewrite")
+    message = messages[message_index]
+    raw_calls = message.get("tool_calls")
+    if not isinstance(raw_calls, list):
+        raise ValueError("the last assistant message carries no tool calls to rewrite")
+    calls = list(raw_calls)
+    for position, arguments in rewrites.items():
+        entry = calls[position] if 0 <= position < len(calls) else None
+        function = entry.get("function") if isinstance(entry, dict) else None
+        if not isinstance(entry, dict) or not isinstance(function, dict):
+            raise ValueError(f"no tool call at position {position} to rewrite")
+        calls[position] = {**entry, "function": {**function, "arguments": json.dumps(arguments)}}
+    rewritten = list(messages)
+    rewritten[message_index] = {**message, "tool_calls": calls}
+    return rewritten
+
+
+def _rewrite_latest_tool_calls_nim(messages: LLMMessages, rewrites: Mapping[int, dict]) -> LLMMessages:
+    """Rewrite NIM's latest tool calls. NIM uses the OpenAI Chat Completions shape."""
+    return _rewrite_latest_tool_calls_openai(messages, rewrites)
+
+
+_LATEST_TOOL_CALL_REWRITERS = {
+    "openai": _rewrite_latest_tool_calls_openai,
+    "nim": _rewrite_latest_tool_calls_nim,
 }
 
 
@@ -1505,4 +1549,15 @@ class ModelEngine(BaseEngine):
             ValueError: If a key is not the position of a tool result in *messages*.
         """
         rewriter = _TOOL_RESULT_REWRITERS.get(self.model_config.engine, _rewrite_tool_results_openai)
+        return rewriter(messages, rewrites)
+
+    def rewrite_latest_tool_calls(self, messages: LLMMessages, rewrites: Mapping[int, dict]) -> LLMMessages:
+        """Return *messages* with the latest tool calls at the keys of *rewrites* given those arguments.
+
+        The inverse of ``extract_latest_tool_calls``: keys are the positions it assigned.
+
+        Raises:
+            ValueError: If a key is not the position of a tool call on the last assistant message.
+        """
+        rewriter = _LATEST_TOOL_CALL_REWRITERS.get(self.model_config.engine, _rewrite_latest_tool_calls_openai)
         return rewriter(messages, rewrites)
