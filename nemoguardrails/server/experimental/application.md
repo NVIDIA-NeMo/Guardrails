@@ -92,11 +92,29 @@ does not store provider keys or introduce service authentication.
 
 ### Requests and blocking
 
-The example Rails directory uses only regex input/output checks, with no rail
-model, external service or API key. It blocks the literal markers `BLOCK_INPUT`
-and `BLOCK_OUTPUT`; this is a wiring example, not a content-safety policy.
-Output streaming uses two-chunk windows, two chunks of context and
-`stream_first: false` so unchecked chunks are not intentionally forwarded first.
+The [example Rails configuration](examples/basic/rails/config.yml) blocks common
+ASCII email-address patterns in guarded input and output text using local regex
+checks. It needs no rail model, additional package or rail-service API key;
+generation still uses the configured upstream. This is a small, editable policy,
+not comprehensive PII detection or semantic content moderation. It can miss
+obfuscated or internationalized addresses and can block harmless example addresses.
+Only text selected by the operation binding is checked, not every field in the
+provider payload.
+
+Output streaming explicitly uses `chunk_size: 200`, `context_size: 50` and
+`stream_first: false`. The sizes match the Rails configuration defaults, but in
+this proxy they count **nonempty provider text deltas**, not tokenizer tokens or
+SSE events. Each window is checked before its new text is released; the last
+partial window is checked at completion. Short responses may therefore be held
+until completion. Smaller windows reduce buffering delay but increase check
+frequency; these example values are not a deployment-specific tuning recommendation.
+The proxy requires `stream_first: false` when output checking is enabled.
+
+Context lets a later check detect patterns spanning windows, but cannot retract
+an already-released prefix. Finite context can also miss sufficiently long or
+fragmented patterns. Do not treat streaming regex checks as a guarantee against
+partial disclosure. Use buffered responses when the entire answer must be
+checked before any of its text is returned; the regex's detection limits still apply.
 
 With a compatible upstream running, replace `YOUR_DEPLOYED_MODEL` with its model
 ID. Add an `Authorization` header from a locally managed environment variable if
@@ -117,14 +135,15 @@ curl -sS http://127.0.0.1:8000/v1/responses \
 
 curl -sS http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"YOUR_DEPLOYED_MODEL","messages":[{"role":"user","content":"BLOCK_INPUT"}]}'
+  -d '{"model":"YOUR_DEPLOYED_MODEL","messages":[{"role":"user","content":"Contact person@example.com"}]}'
 ```
 
 The last request returns `content_blocked` before upstream dispatch. To check
 output blocking deterministically, use a synthetic upstream that returns
-`BLOCK_OUTPUT`: buffered output is rejected; streamed blocked text is withheld
-and an error event is returned after streaming headers have been sent. An LLM
-prompt asking it to emit a marker is not a deterministic regression test.
+`person@example.com`: buffered output is rejected; a streamed window containing
+the address is withheld and an error event is returned after streaming headers
+have been sent. Earlier allowed windows may already have been released. An LLM
+prompt asking it to emit an address is not a deterministic regression test.
 
 Invalid guarded content does not fall back to a weaker binding. Unselected
 operations may still pass through, and a disabled input/output check does not

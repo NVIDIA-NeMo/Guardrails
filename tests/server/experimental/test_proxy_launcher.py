@@ -91,22 +91,29 @@ async def synthetic_upstream():
         requests.append(payload)
         operation = "responses" if request.path.endswith("/responses") else "chat_completions"
         text = payload["input"] if operation == "responses" else payload["messages"][0]["content"]
-        answer = "BLOCK_OUTPUT" if text == "emit-blocked-output" else "safe"
+        answer = "person@example.com" if text == "emit-blocked-output" else "safe"
         if not payload.get("stream"):
             return web.json_response(response_payload(answer) if operation == "responses" else chat_response(answer))
         response = web.StreamResponse(headers={"content-type": "text/event-stream"})
         await response.prepare(request)
         try:
             if text == "disconnect":
-                await response.write(stream_bytes(operation, ["sa", "fe"], complete=False))
+                await response.write(stream_bytes(operation, ["sa", "fe"] * 100, complete=False))
                 while True:
                     await asyncio.sleep(0.01)
                     await response.write(b": keepalive\n\n")
-            parts = ["BLOCK_", "OUTPUT"] if answer == "BLOCK_OUTPUT" else ["sa", "fe"]
-            for event in stream_bytes(operation, parts).split(b"\n\n"):
+            parts = ["person@", "example.com"] if answer == "person@example.com" else ["sa", "fe"]
+            if text == "emit-blocked-window":
+                parts = ["safe "] * 198 + ["person@", "example.com"]
+            complete = text != "emit-blocked-window"
+            for event in stream_bytes(operation, parts, complete=complete).split(b"\n\n"):
                 if event:
                     await response.write(event + b"\n\n")
                     await asyncio.sleep(0.005)
+            if not complete:
+                while True:
+                    await asyncio.sleep(0.01)
+                    await response.write(b": keepalive\n\n")
         except (ConnectionResetError, asyncio.CancelledError):
             disconnected.set()
         return response
@@ -227,7 +234,9 @@ async def test_localhost_launcher_buffered_streaming_and_blocking(tmp_path, dial
                                 response_payload("safe") if operation == "responses" else chat_response()
                             )
                         count = len(requests)
-                        blocked_input = await client.post(route, json=request_payload(operation, "BLOCK_INPUT", stream))
+                        blocked_input = await client.post(
+                            route, json=request_payload(operation, "Contact person@example.com", stream)
+                        )
                         assert blocked_input.status_code == 400
                         assert blocked_input.json()["error"]["code"] == "content_blocked"
                         assert len(requests) == count
@@ -236,9 +245,17 @@ async def test_localhost_launcher_buffered_streaming_and_blocking(tmp_path, dial
                         )
                         assert blocked_output.status_code == (200 if stream else 400)
                         assert "content_blocked" in blocked_output.text
-                        assert b"BLOCK_" not in blocked_output.content
-                        assert b"OUTPUT" not in blocked_output.content
-                assert len(requests) == 8
+                        assert b"person@" not in blocked_output.content
+                        assert b"example.com" not in blocked_output.content
+                    blocked_window = await client.post(
+                        route, json=request_payload(operation, "emit-blocked-window", True)
+                    )
+                    assert blocked_window.status_code == 200
+                    assert "content_blocked" in blocked_window.text
+                    assert b"safe " not in blocked_window.content
+                    assert b"person@" not in blocked_window.content
+                    assert b"example.com" not in blocked_window.content
+                assert len(requests) == 10
 
 
 @pytest.mark.asyncio
