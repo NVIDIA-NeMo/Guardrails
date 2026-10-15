@@ -68,6 +68,7 @@ from tests.guardrails.rail_stubs import (
     declared_rewriter,
     rails_compiled_as,
     rewriting_stub,
+    tool_call_rewrite,
     tool_result_rewrite,
     user_message_rewrite,
 )
@@ -1563,12 +1564,8 @@ class TestToolParallelDisabledByRewrite:
     """A per-tool surface declaring transform_target forces tool_call_parallel/tool_result_parallel
     off, mirroring the input/output rewrite check (TestSchedulingRailsThatRewrite)."""
 
-    # No TOOL_CALL member exists yet; USER_MESSAGE stands in to prove the check fires on any
-    # non-None transform_target on a tool-call surface.
-    _CALL_STUB_TARGET = TransformTarget.USER_MESSAGE
-
     def test_a_rewriting_per_tool_call_flow_turns_parallel_off(self):
-        with rails_compiled_as({"regex check tool call": StubRail(transform_target=self._CALL_STUB_TARGET)}):
+        with rails_compiled_as({"regex check tool call": declared_rewriter(SurfaceDirection.TOOL_CALL)}):
             with pytest.warns(UserWarning, match="parallel"):
                 mgr = _tool_rails_manager_with_main(
                     per_tool_call_flows={"run_sql": ["regex check tool call"]},
@@ -1592,7 +1589,7 @@ class TestToolParallelDisabledByRewrite:
         assert mgr.tool_result_parallel is False
 
     def test_a_config_that_never_asked_for_parallel_is_not_warned_about(self, recwarn):
-        with rails_compiled_as({"regex check tool call": StubRail(transform_target=self._CALL_STUB_TARGET)}):
+        with rails_compiled_as({"regex check tool call": declared_rewriter(SurfaceDirection.TOOL_CALL)}):
             mgr = _tool_rails_manager_with_main(per_tool_call_flows={"run_sql": ["regex check tool call"]})
 
         assert mgr.per_tool_transform_flows[SurfaceDirection.TOOL_CALL] == ("regex check tool call",)
@@ -1653,10 +1650,10 @@ class TestPerToolRailsSequential:
 
     @pytest.mark.asyncio
     async def test_a_rewrite_of_a_variable_tool_calls_do_not_have_raises(self):
-        """A tool-call rail has no variable to rewrite yet, so a rewrite fails loudly instead of being dropped."""
+        """An action naming none of its call's arguments contradicts its manifest, and fails loudly."""
         mgr, _ = self._manager_returning({"run_sql": user_message_rewrite("masked"), "list_tables": RailResult.allow()})
 
-        with pytest.raises(NotImplementedError, match="cannot apply"):
+        with pytest.raises(NotImplementedError, match="may rewrite 'tool_call'"):
             await mgr.are_tool_calls_safe(self._CALLS, self._LLM_PARAMS)
 
     @pytest.mark.asyncio
@@ -1886,6 +1883,369 @@ class TestPerToolRailsThatRewrite:
             _tool_rail_result(tool_result_rewrite("x").outcome, "tool result validation")
 
 
+class _ArgumentMaskingRail(StubRail):
+    """A rewriting tool-call rail whose rewrite depends on the call it is handed, as a real masker's does."""
+
+    def __init__(self):
+        super().__init__(transform_target=TransformTarget.TOOL_CALL)
+
+    async def execute(self, messages, bot_response=None, **tool_inputs):
+        arguments = tool_inputs["tool_call"].function.arguments
+        masked = {key: f"{value} [masked]" for key, value in arguments.items()}
+        self.outcome = RailOutcome.transform([(TransformTarget.TOOL_CALL, json.dumps(masked))])
+        return await super().execute(messages, bot_response, **tool_inputs)
+
+
+CALL_MASK_FLOW = "mask tool call"
+CALL_JUDGE_FLOW = "regex check tool call"
+CALL_UNDO_FLOW = "unmask tool call"
+RAW_QUERY = "SELECT name FROM users WHERE ssn = '536-90-4399'"
+MASKED_QUERY = "SELECT name FROM users WHERE ssn = '[REDACTED]'"
+RUN_SQL_SCHEMA = {
+    "type": "object",
+    "properties": {"query": {"type": "string", "pattern": "^SELECT"}},
+    "required": ["query"],
+    "additionalProperties": False,
+}
+RUN_SQL_PARAMS = {
+    "tools": [
+        {"type": "function", "function": {"name": "run_sql", "parameters": RUN_SQL_SCHEMA}},
+        {"type": "function", "function": {"name": "list_tables"}},
+    ]
+}
+
+
+def _run_sql_call(query: str = RAW_QUERY, call_id: str = "call_1") -> ToolCall:
+    return ToolCall(id=call_id, function=ToolCallFunction(name="run_sql", arguments={"query": query}))
+
+
+def _masking_query(query: str = MASKED_QUERY) -> StubRail:
+    return rewriting_stub(json.dumps({"query": query}), SurfaceDirection.TOOL_CALL)
+
+
+@pytest.mark.asyncio
+class TestPerToolRailsThatRewriteCalls:
+    """A per-tool rail's tool-call rewrite reaches the rails behind it and the calls the caller gets back."""
+
+    @staticmethod
+    def _manager(rails: dict, flows: list[str], **kwargs) -> RailsManager:
+        with rails_compiled_as(rails):
+            return _tool_rails_manager_with_main(per_tool_call_flows={"run_sql": flows, "list_tables": flows}, **kwargs)
+
+    async def test_a_rewrite_reaches_the_next_rail(self):
+        """The rail behind a masking rail checks the masked arguments, parsed back into an object."""
+        judge = StubRail()
+        mgr = self._manager(
+            {CALL_MASK_FLOW: _masking_query(), CALL_JUDGE_FLOW: judge}, [CALL_MASK_FLOW, CALL_JUDGE_FLOW]
+        )
+
+        await mgr.are_tool_calls_safe([_run_sql_call()], RUN_SQL_PARAMS)
+
+        assert [c.function.arguments for c in judge.seen_tool_calls] == [{"query": MASKED_QUERY}]
+
+    async def test_the_verdict_carries_the_rewritten_calls_with_only_the_arguments_replaced(self):
+        """id, type and name are not part of the rewrite's text, so they come back as they went in."""
+        calls = [_run_sql_call(), ToolCall(id="call_2", function=ToolCallFunction(name="list_tables", arguments={}))]
+        mgr = self._manager({CALL_MASK_FLOW: _masking_query()}, [CALL_MASK_FLOW])
+        mgr._per_tool_rails[(SurfaceDirection.TOOL_CALL, CALL_MASK_FLOW)] = _ArgumentMaskingRail()
+
+        result = await mgr.are_tool_calls_safe(calls, RUN_SQL_PARAMS)
+
+        assert result.is_safe is True
+        assert result.outcome.is_transform is False
+        assert result.tool_calls is not None
+        rewritten = result.tool_calls[0]
+        assert (rewritten.id, rewritten.type, rewritten.function.name) == ("call_1", "function", "run_sql")
+        assert rewritten.function.arguments == {"query": f"{RAW_QUERY} [masked]"}
+        assert result.tool_calls[1] is calls[1]
+
+    async def test_rewriting_rails_run_ahead_of_judging_ones(self):
+        judge = StubRail()
+        mgr = self._manager(
+            {CALL_MASK_FLOW: _masking_query(), CALL_JUDGE_FLOW: judge}, [CALL_JUDGE_FLOW, CALL_MASK_FLOW]
+        )
+
+        result = await mgr.are_tool_calls_safe([_run_sql_call()], RUN_SQL_PARAMS)
+
+        assert [c.function.arguments for c in judge.seen_tool_calls] == [{"query": MASKED_QUERY}]
+        assert [record.flow for record in result.records] == [CALL_MASK_FLOW, CALL_JUDGE_FLOW]
+
+    @pytest.mark.parametrize(
+        "undo_text",
+        [json.dumps({"query": RAW_QUERY}), json.dumps({"query": RAW_QUERY}, indent=2)],
+        ids=["same-text", "same-object-other-spacing"],
+    )
+    async def test_a_rewrite_back_to_the_original_reports_nothing_happened(self, undo_text):
+        """Only a net change to the arguments object counts, however its text is spaced."""
+        mgr = self._manager(
+            {
+                CALL_MASK_FLOW: _masking_query(),
+                CALL_UNDO_FLOW: rewriting_stub(undo_text, SurfaceDirection.TOOL_CALL),
+            },
+            [CALL_MASK_FLOW, CALL_UNDO_FLOW],
+        )
+
+        result = await mgr.are_tool_calls_safe([_run_sql_call()], RUN_SQL_PARAMS)
+
+        assert result == RailResult.allow()
+        assert result.tool_calls is None
+
+    async def test_a_value_changed_to_an_equal_comparing_one_is_a_rewrite(self):
+        """``1 == True`` in Python, but a rail that turned one into the other changed what the tool receives."""
+        call = ToolCall(id="call_1", function=ToolCallFunction(name="flag", arguments={"on": 1}))
+        with rails_compiled_as({CALL_MASK_FLOW: rewriting_stub('{"on": true}', SurfaceDirection.TOOL_CALL)}):
+            mgr = _tool_rails_manager_with_main(per_tool_call_flows={"flag": [CALL_MASK_FLOW]})
+        params = {
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {"name": "flag", "parameters": {"type": "object", "properties": {"on": {}}}},
+                }
+            ]
+        }
+
+        result = await mgr.are_tool_calls_safe([call], params)
+
+        assert result.tool_calls is not None
+        assert result.tool_calls[0].function.arguments == {"on": True}
+
+    async def test_each_call_is_rewritten_from_its_own_arguments(self):
+        masker = _ArgumentMaskingRail()
+        mgr = self._manager({CALL_MASK_FLOW: masker}, [CALL_MASK_FLOW])
+        calls = [_run_sql_call("SELECT 1", "call_1"), _run_sql_call("SELECT 2", "call_2")]
+
+        result = await mgr.are_tool_calls_safe(calls, RUN_SQL_PARAMS)
+
+        assert [c.function.arguments for c in masker.seen_tool_calls] == [{"query": "SELECT 1"}, {"query": "SELECT 2"}]
+        assert [c.function.arguments for c in result.tool_calls] == [
+            {"query": "SELECT 1 [masked]"},
+            {"query": "SELECT 2 [masked]"},
+        ]
+        assert [c.id for c in result.tool_calls] == ["call_1", "call_2"]
+
+    @pytest.mark.parametrize("text", ["not json", "[1, 2]", '"SELECT 1"', "null", "42"])
+    async def test_a_rewrite_that_is_not_a_json_object_blocks(self, text):
+        """Arguments are an object on the wire, so anything else is malformed and fails closed."""
+        judge = StubRail()
+        mgr = self._manager(
+            {CALL_MASK_FLOW: rewriting_stub(text, SurfaceDirection.TOOL_CALL), CALL_JUDGE_FLOW: judge},
+            [CALL_MASK_FLOW, CALL_JUDGE_FLOW],
+        )
+
+        result = await mgr.are_tool_calls_safe([_run_sql_call()], RUN_SQL_PARAMS)
+
+        assert result.is_safe is False
+        assert result.failed is False
+        assert result.triggered_rail == CALL_MASK_FLOW
+        assert result.tool_calls is None
+        (violation,) = result.tool_violations
+        assert violation.violation_type is ToolViolationType.MALFORMED_ARGUMENTS
+        assert (violation.kind, violation.index, violation.tool_call_id, violation.rail) == (
+            "tool_call",
+            0,
+            "call_1",
+            CALL_MASK_FLOW,
+        )
+        assert text not in violation.reason
+        assert judge.call_count == 0
+
+    async def test_a_block_behind_a_rewrite_keeps_the_rewrite_for_the_record(self):
+        mgr = self._manager(
+            {CALL_MASK_FLOW: _masking_query(), CALL_JUDGE_FLOW: StubRail(RailOutcome.block(reason="unsafe"))},
+            [CALL_MASK_FLOW, CALL_JUDGE_FLOW],
+        )
+
+        result = await mgr.are_tool_calls_safe([_run_sql_call()], RUN_SQL_PARAMS)
+
+        assert result.is_safe is False
+        assert result.triggered_rail == CALL_JUDGE_FLOW
+        assert result.tool_calls is None
+        assert [c.function.arguments for c in result.tool_calls_before_block] == [{"query": MASKED_QUERY}]
+        assert [v.violation_type for v in result.tool_violations] == [ToolViolationType.PER_TOOL_RAIL]
+
+    async def test_the_callers_calls_are_untouched(self):
+        """Tool calls are shared with the response the caller holds, so masking must copy them."""
+        call = _run_sql_call()
+        arguments = call.function.arguments
+        snapshot = copy.deepcopy(call)
+        mgr = self._manager({CALL_MASK_FLOW: _masking_query()}, [CALL_MASK_FLOW])
+
+        result = await mgr.are_tool_calls_safe([call], RUN_SQL_PARAMS)
+
+        assert call == snapshot
+        assert call.function.arguments is arguments
+        assert result.tool_calls[0] is not call
+        assert result.tool_calls[0].function is not call.function
+
+    async def test_a_config_that_never_rewrites_is_unchanged(self):
+        mgr = self._manager({CALL_JUDGE_FLOW: StubRail()}, [CALL_JUDGE_FLOW])
+
+        result = await mgr.are_tool_calls_safe([_run_sql_call()], RUN_SQL_PARAMS)
+
+        assert result == RailResult.allow()
+        assert result.tool_calls is None
+
+    async def test_a_rewrite_that_breaks_the_schema_blocks_with_its_violation(self):
+        """Rails ahead of the rewrite judged the original, so the final arguments are checked against the tool."""
+        mgr = self._manager({CALL_MASK_FLOW: _masking_query("[REDACTED]")}, [CALL_MASK_FLOW])
+
+        result = await mgr.are_tool_calls_safe([_run_sql_call()], RUN_SQL_PARAMS)
+
+        assert result.is_safe is False
+        assert result.triggered_rail == CALL_MASK_FLOW
+        assert result.tool_calls is None
+        assert [c.function.arguments for c in result.tool_calls_before_block] == [{"query": "[REDACTED]"}]
+        (violation,) = result.tool_violations
+        assert violation.violation_type is ToolViolationType.ARGUMENTS_INVALID
+        assert (violation.argument_path, violation.schema_keyword) == ("/query", "pattern")
+        assert (violation.index, violation.rail) == (0, CALL_MASK_FLOW)
+        assert "[REDACTED]" not in violation.reason
+
+    async def test_a_rewrite_adding_arguments_to_a_tool_that_takes_none_blocks(self):
+        call = ToolCall(id="call_2", function=ToolCallFunction(name="list_tables", arguments={}))
+        mgr = self._manager(
+            {CALL_MASK_FLOW: rewriting_stub('{"schema": "public"}', SurfaceDirection.TOOL_CALL)}, [CALL_MASK_FLOW]
+        )
+
+        result = await mgr.are_tool_calls_safe([call], RUN_SQL_PARAMS)
+
+        assert [v.violation_type for v in result.tool_violations] == [ToolViolationType.UNEXPECTED_ARGUMENTS]
+
+    async def test_a_rewritten_call_to_an_undeclared_tool_blocks(self):
+        """A rail that skips the tool allowlist still cannot hand back a call no declared tool can take."""
+        mgr = self._manager({CALL_MASK_FLOW: _masking_query()}, [CALL_MASK_FLOW])
+
+        result = await mgr.are_tool_calls_safe([_run_sql_call()], {"tools": []})
+
+        assert result.is_safe is False
+        assert [v.violation_type for v in result.tool_violations] == [ToolViolationType.TOOL_NOT_ALLOWED]
+        assert result.triggered_rail == CALL_MASK_FLOW
+
+    async def test_a_rewrite_from_a_rail_running_in_parallel_raises(self):
+        mgr = self._manager(
+            {CALL_MASK_FLOW: StubRail(tool_call_rewrite("{}").outcome)}, [CALL_MASK_FLOW], tool_call_parallel=True
+        )
+
+        with pytest.raises(NotImplementedError, match="in parallel"):
+            await mgr.are_tool_calls_safe([_run_sql_call()], RUN_SQL_PARAMS)
+
+    async def test_the_global_validator_still_refuses_a_rewrite(self):
+        with pytest.raises(NotImplementedError, match="tool call validation"):
+            _tool_rail_result(tool_call_rewrite("{}").outcome, "tool call validation")
+
+
+def _run_sql_turn(*queries: str, ends_with_result: bool = False) -> list[dict]:
+    calls = [
+        wire_tool_call("run_sql", json.dumps({"query": query}), f"call_{index}")
+        for index, query in enumerate(queries, start=1)
+    ]
+    messages = tool_call_turn(*calls)
+    if ends_with_result:
+        messages.append({"role": "tool", "tool_call_id": "call_1", "content": "Ada"})
+    return messages
+
+
+@pytest.mark.asyncio
+class TestLatestToolCallsThatRewrite:
+    """A check's tool-call rewrite is written back onto the last assistant message of the conversation."""
+
+    @staticmethod
+    def _manager(rails: dict, flows: list[str]) -> RailsManager:
+        with rails_compiled_as(rails):
+            return _tool_rails_manager_with_main(per_tool_call_flows={"run_sql": flows})
+
+    async def test_the_verdict_carries_the_conversation_with_the_rewritten_wire_arguments(self):
+        messages = _run_sql_turn("SELECT 1", RAW_QUERY)
+        mgr = self._manager({CALL_MASK_FLOW: _ArgumentMaskingRail()}, [CALL_MASK_FLOW])
+        mgr._per_tool_rails[(SurfaceDirection.TOOL_CALL, CALL_MASK_FLOW)] = _ArgumentMaskingRail()
+
+        result = await mgr.are_latest_tool_calls_safe(messages, RUN_SQL_PARAMS)
+
+        assert result.is_safe is True
+        assert len(result.messages) == len(messages)
+        assert result.messages[0] is messages[0]
+        wire = result.messages[-1]["tool_calls"]
+        assert [json.loads(c["function"]["arguments"]) for c in wire] == [
+            {"query": "SELECT 1 [masked]"},
+            {"query": f"{RAW_QUERY} [masked]"},
+        ]
+        assert [(c["id"], c["type"], c["function"]["name"]) for c in wire] == [
+            ("call_1", "function", "run_sql"),
+            ("call_2", "function", "run_sql"),
+        ]
+
+    async def test_a_full_turn_check_rewrites_the_assistant_message_not_the_last_one(self):
+        messages = _run_sql_turn(RAW_QUERY, ends_with_result=True)
+        mgr = self._manager({CALL_MASK_FLOW: _masking_query()}, [CALL_MASK_FLOW])
+
+        result = await mgr.are_latest_tool_calls_safe(messages, RUN_SQL_PARAMS)
+
+        assert result.messages[-1] is messages[-1]
+        assert json.loads(result.messages[1]["tool_calls"][0]["function"]["arguments"]) == {"query": MASKED_QUERY}
+
+    async def test_the_callers_conversation_is_untouched(self):
+        messages = _run_sql_turn(RAW_QUERY)
+        snapshot = copy.deepcopy(messages)
+        mgr = self._manager({CALL_MASK_FLOW: _masking_query()}, [CALL_MASK_FLOW])
+
+        await mgr.are_latest_tool_calls_safe(messages, RUN_SQL_PARAMS)
+
+        assert messages == snapshot
+
+    async def test_a_block_behind_a_rewrite_keeps_the_masked_conversation_for_the_record(self):
+        messages = _run_sql_turn(RAW_QUERY)
+        mgr = self._manager(
+            {CALL_MASK_FLOW: _masking_query(), CALL_JUDGE_FLOW: StubRail(RailOutcome.block(reason="unsafe"))},
+            [CALL_MASK_FLOW, CALL_JUDGE_FLOW],
+        )
+
+        result = await mgr.are_latest_tool_calls_safe(messages, RUN_SQL_PARAMS)
+
+        assert result.is_safe is False
+        assert result.messages is None
+        arguments = result.messages_before_block[-1]["tool_calls"][0]["function"]["arguments"]
+        assert json.loads(arguments) == {"query": MASKED_QUERY}
+
+    async def test_a_config_that_never_rewrites_carries_no_messages(self):
+        mgr = self._manager({CALL_JUDGE_FLOW: StubRail()}, [CALL_JUDGE_FLOW])
+
+        result = await mgr.are_latest_tool_calls_safe(_run_sql_turn(RAW_QUERY), RUN_SQL_PARAMS)
+
+        assert result == RailResult.allow()
+        assert result.messages is None
+
+    async def test_a_rewrite_that_cannot_be_written_back_blocks(self):
+        # A check reads the turn as Chat Completions with no model, so the write-back is the module-level
+        # rewriter rather than an engine from the registry.
+        mgr = self._manager({CALL_MASK_FLOW: _masking_query()}, [CALL_MASK_FLOW])
+
+        with patch(
+            "nemoguardrails.guardrails.rails_manager._rewrite_latest_tool_calls_openai",
+            side_effect=ValueError("no tool call at position 0"),
+        ):
+            result = await mgr.are_latest_tool_calls_safe(_run_sql_turn(RAW_QUERY), RUN_SQL_PARAMS)
+
+        assert result.is_safe is False
+        assert result.reason == "a rail rewrote a tool call this request does not have"
+        assert result.messages is None
+
+    async def test_an_unparsable_call_beside_a_rewritten_one_keeps_the_mask_at_its_position(self):
+        """The block names the unparsable call, and the record still carries the other call masked where it sits."""
+        messages = tool_call_turn(
+            wire_tool_call("run_sql", "not json", "call_1"),
+            wire_tool_call("run_sql", json.dumps({"query": RAW_QUERY}), "call_2"),
+        )
+        mgr = self._manager({CALL_MASK_FLOW: _masking_query()}, [CALL_MASK_FLOW])
+
+        result = await mgr.are_latest_tool_calls_safe(messages, RUN_SQL_PARAMS)
+
+        assert result.is_safe is False
+        assert [v.violation_type for v in result.tool_violations] == [ToolViolationType.MALFORMED_ARGUMENTS]
+        wire = result.messages_before_block[-1]["tool_calls"]
+        assert wire[0] == messages[-1]["tool_calls"][0]
+        assert json.loads(wire[1]["function"]["arguments"]) == {"query": MASKED_QUERY}
+
+
 class TestRewrittenToolText:
     """`_rewritten_tool_text` picks a per-tool direction's payload out of a rail's rewrite."""
 
@@ -1900,11 +2260,16 @@ class TestRewrittenToolText:
         with pytest.raises(NotImplementedError, match="may rewrite 'tool_result'"):
             _rewritten_tool_text(outcome, SurfaceDirection.TOOL_RESULT, "mask")
 
-    def test_a_tool_call_rail_has_nothing_to_rewrite(self):
+    def test_a_tool_call_rail_takes_the_tool_call_text(self):
+        outcome = RailOutcome.transform([(TransformTarget.TOOL_CALL, "{}"), (TransformTarget.TOOL_RESULT, "x")])
+
+        assert _rewritten_tool_text(outcome, SurfaceDirection.TOOL_CALL, "mask") == "{}"
+
+    def test_a_tool_call_rail_naming_the_tool_result_raises(self):
         """Raised as NotImplementedError, never a KeyError, so the refusal reads as one."""
         outcome = RailOutcome.transform([(TransformTarget.TOOL_RESULT, "masked")])
 
-        with pytest.raises(NotImplementedError, match="tool_call rail cannot apply"):
+        with pytest.raises(NotImplementedError, match="may rewrite 'tool_call'"):
             _rewritten_tool_text(outcome, SurfaceDirection.TOOL_CALL, "mask")
 
 

@@ -23,7 +23,7 @@ from typing import Any, Optional, TypeAlias
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.rails.llm.options import MAX_QUOTED_IDENTITY_LENGTH, ToolViolation
-from nemoguardrails.types import LLMResponse, UsageInfo
+from nemoguardrails.types import LLMResponse, ToolCall, UsageInfo
 
 # LLMMessage can contain role/content, plus optional tool_calls / tool_call_id / name; content may be None
 LLMMessage: TypeAlias = dict[str, Any]
@@ -105,9 +105,10 @@ class RailResult:
     which one blocked (``triggered_rail``), which tool calls or results it blocked
     (``tool_violations``), what every rail did (``records``), what the rails ahead
     of a block rewrote the checked text to (``rewrite_before_block``), whether a rail
-    free to rewrite that text never decided on it (``rewrite_pending``), and the
-    conversation with the tool results the rails rewrote (``messages``, or
-    ``messages_before_block`` when a later rail blocked).
+    free to rewrite that text never decided on it (``rewrite_pending``), the
+    conversation with the tool calls or results the rails rewrote (``messages``, or
+    ``messages_before_block`` when a later rail blocked), and the tool calls the rails
+    rewrote (``tool_calls``, or ``tool_calls_before_block``).
 
     ``records`` carries the per-rail execution records for every rail that ran in this
     check (not just the blocking one), so IORails can synthesize a ``GenerationLog``.
@@ -133,6 +134,9 @@ class RailResult:
     messages: LLMMessages | None = None
     # The tool-rail counterpart of ``rewrite_before_block``.
     messages_before_block: LLMMessages | None = field(default=None, compare=False)
+    # Set only when a tool rail rewrote a call; position-aligned with the calls checked.
+    tool_calls: tuple[ToolCall, ...] | None = None
+    tool_calls_before_block: tuple[ToolCall, ...] | None = field(default=None, compare=False)
     __hash__ = None
 
     @property

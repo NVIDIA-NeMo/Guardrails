@@ -16,11 +16,12 @@
 """Rails manager for IORails: runs input/output checks through compiled, manifest-driven rails."""
 
 import asyncio
+import json
 import logging
 import warnings
 from collections.abc import Coroutine, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, Literal, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, TypeVar, Union, cast
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
@@ -35,12 +36,14 @@ from nemoguardrails.guardrails.guardrails_types import (
     display_reason,
     get_request_id,
     last_user_content,
+    quoted_identity,
     rewrite_user_message,
 )
 from nemoguardrails.guardrails.model_engine import (
     _extract_tool_exchanges_openai,
     _latest_tool_calls_openai,
     _parse_tools_openai,
+    _rewrite_latest_tool_calls_openai,
     _rewrite_tool_results_openai,
 )
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
@@ -54,7 +57,9 @@ from nemoguardrails.guardrails.tool_schema import (
     ToolExchange,
     ToolResult,
     Toolset,
+    _schema_gate_block,
     schema_gate_violation,
+    validate_arguments,
 )
 from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -103,9 +108,13 @@ _REWRITABLE_TARGET = {
 # whose logging directions have no tool members.
 _TOOL_REWRITABLE_TARGET = {
     SurfaceDirection.TOOL_RESULT: TransformTarget.TOOL_RESULT,
+    SurfaceDirection.TOOL_CALL: TransformTarget.TOOL_CALL,
 }
 
-_UNPLACEABLE_TOOL_REWRITE_REASON = "a rail rewrote a tool result this request does not have"
+_UNPLACEABLE_TOOL_REWRITE_REASON = {
+    SurfaceDirection.TOOL_RESULT: "a rail rewrote a tool result this request does not have",
+    SurfaceDirection.TOOL_CALL: "a rail rewrote a tool call this request does not have",
+}
 
 
 def _rewriting_flows(
@@ -128,6 +137,15 @@ class _PerToolCheck:
     tool_definition: Optional[Tool] = None
     # Where a violation points: the call's position in tool_calls, or the result's message index.
     index: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class _ToolRewrite:
+    """A tool call and its result as the per-tool rails last rewrote them, and the rail that did."""
+
+    flow: str
+    tool_call: ToolCall
+    tool_result: Optional[ToolResult] = None
 
 
 def _transforms_first(rewriting: Sequence[str], flows: Sequence[str]) -> list[str]:
@@ -276,6 +294,51 @@ def _rewritten_tool_text(outcome: RailOutcome, direction: SurfaceDirection, flow
     return rewrites[target.value]
 
 
+def _rewritten_arguments(text: str) -> Optional[dict]:
+    """The arguments object a tool-call rewrite's text holds, or None when it holds no JSON object."""
+    try:
+        arguments = json.loads(text)
+    except ValueError:
+        return None
+    return arguments if isinstance(arguments, dict) else None
+
+
+def _same_arguments(a: dict, b: dict) -> bool:
+    """Whether two arguments objects serialize alike, so ``1`` and ``true`` count as different values."""
+    return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+
+
+def _with_arguments(tool_call: ToolCall, arguments: dict) -> ToolCall:
+    """A copy of *tool_call* with only its arguments replaced; id, type and name cannot change."""
+    return replace(tool_call, function=replace(tool_call.function, arguments=arguments))
+
+
+def _rewritten_call_block(
+    violation: ArgumentsViolation,
+    flow: str,
+    tool_call: ToolCall,
+    index: Optional[int],
+    records: tuple[RailCallRecord, ...],
+) -> RailResult:
+    """A block on a tool call that *flow* rewrote into something the call cannot carry, reported against it."""
+    blocked = RailResult(_schema_gate_block(violation), triggered_rail=_get_flow_name(flow) or flow, records=records)
+    return replace(
+        blocked, tool_violations=(_per_tool_violation(blocked, SurfaceDirection.TOOL_CALL, tool_call, index),)
+    )
+
+
+def _rewritten_call_violation(tool_call: ToolCall, tool_definition: Optional[Tool]) -> Optional[ArgumentsViolation]:
+    """Why a rewritten call's arguments fail its tool's declaration, or None when they pass."""
+    # Rails ahead of the rewrite judged the original arguments, so the final ones are checked again.
+    if tool_definition is None:
+        name = tool_call.function.name or tool_call.type
+        return ArgumentsViolation(
+            violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+            reason=f"tool call '{quoted_identity(name)}' is not an allowed tool",
+        )
+    return validate_arguments(tool_definition, tool_call.function.arguments)
+
+
 def _refuse_concurrent_rewrite(result: RailResult, flow: str) -> None:
     """Refuse a rewrite from a concurrent rail: peers read the arriving text, so it cannot compose."""
     if result.outcome.is_transform:
@@ -376,6 +439,52 @@ def _rail_call_record(
         # RailCallRecord holds one call. No in-scope rail makes two, so say so rather than drop silently.
         log.warning("[%s] rail %s made %d model calls; recording only the last", get_request_id(), flow, len(calls))
     return _merge_llm_call_info(record, calls[-1])
+
+
+def _with_rewritten_calls(
+    verdict: RailResult, tool_calls: Sequence[ToolCall], rewritten: Mapping[int, _ToolRewrite], toolset: Toolset
+) -> RailResult:
+    """Attach the calls as the per-tool rails rewrote them, after checking them against their tools again.
+
+    An allow carries them as ``tool_calls``; a block keeps them for the record as ``tool_calls_before_block``.
+    """
+    # A rewrite a later rail undid is no rewrite, as for input and output.
+    changed = {
+        index: rewrite
+        for index, rewrite in rewritten.items()
+        if not _same_arguments(rewrite.tool_call.function.arguments, tool_calls[index].function.arguments)
+    }
+    if not changed:
+        return verdict
+    final = tuple(changed[index].tool_call if index in changed else call for index, call in enumerate(tool_calls))
+    if verdict.is_safe:
+        for index, rewrite in sorted(changed.items()):
+            name = rewrite.tool_call.function.name or rewrite.tool_call.type
+            violation = _rewritten_call_violation(rewrite.tool_call, toolset.get(name))
+            if violation is not None:
+                log.info(
+                    "[%s] the rewritten arguments of tool call %d fail its tool: %s",
+                    get_request_id(),
+                    index,
+                    violation.reason,
+                )
+                verdict = _rewritten_call_block(violation, rewrite.flow, rewrite.tool_call, index, verdict.records)
+                break
+        else:
+            return replace(verdict, tool_calls=final)
+    return replace(verdict, tool_calls_before_block=final)
+
+
+def _rewritten_call_arguments(
+    result: RailResult, tool_calls: Sequence[ToolCall], positions: Sequence[int]
+) -> dict[int, dict]:
+    """The rewritten arguments of each call *result* rewrote, keyed by the call's position on the message."""
+    final = result.tool_calls if result.is_safe else result.tool_calls_before_block
+    if final is None:
+        return {}
+    return {
+        positions[index]: call.function.arguments for index, call in enumerate(final) if call is not tool_calls[index]
+    }
 
 
 class RailsManager:
@@ -635,7 +744,9 @@ class RailsManager:
         for index, tool_call in enumerate(tool_calls):
             tool_name = tool_call.function.name or tool_call.type
             tool_definition = toolset.get(tool_name)
-            for flow in self._enabled_flows(self.per_tool_call_flows.get(tool_name, []), enabled):
+            flows = self._enabled_flows(self.per_tool_call_flows.get(tool_name, []), enabled)
+            rewriting = tuple(f for f in flows if f in self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL])
+            for flow in _transforms_first(rewriting, flows):
                 checks.append(
                     _PerToolCheck(
                         f"{index}:{flow}", flow, tool_call=tool_call, tool_definition=tool_definition, index=index
@@ -659,12 +770,17 @@ class RailsManager:
             per_tool_result = await self._run_rails_parallel(
                 rails, RailDirection.OUTPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
             )
+            rewritten: dict[int, _ToolRewrite] = {}
         else:
-            per_tool_result, _, _ = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_CALL)
+            per_tool_result, rewritten, _ = await self._run_per_tool_rails_sequential(
+                checks, SurfaceDirection.TOOL_CALL
+            )
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
-        if not per_tool_result.is_safe:
-            return replace(per_tool_result, records=combined_records)
-        return RailResult.allow(records=combined_records)
+        if per_tool_result.is_safe:
+            verdict = RailResult.allow(records=combined_records)
+        else:
+            verdict = replace(per_tool_result, records=combined_records)
+        return _with_rewritten_calls(verdict, tool_calls, rewritten, toolset)
 
     def _offered_tools(self, model_type: Optional[str], llm_params: Optional[dict]) -> Toolset:
         """The tools *llm_params* offers, in *model_type*'s wire format, or as Chat Completions when it's None."""
@@ -703,15 +819,42 @@ class RailsManager:
                 )
             )
         if any(isinstance(entry, ToolCallExtractionError) for entry in extracted):
-            return await self._blocked_with_every_call_violation(extracted, llm_params, enabled=enabled)
+            return await self._blocked_with_every_call_violation(extracted, messages, llm_params, enabled=enabled)
         tool_calls = [entry for entry in extracted if isinstance(entry, ToolCall)]
         if not tool_calls:
             log.debug("[%s] the latest assistant message carries no tool calls", get_request_id())
-        return await self.are_tool_calls_safe(tool_calls, llm_params, enabled=enabled, model_type=None)
+        result = await self.are_tool_calls_safe(tool_calls, llm_params, enabled=enabled, model_type=None)
+        # Extraction is one entry per wire call, so a call's position here is its position on the message.
+        return self._with_rewritten_latest_calls(
+            result, _rewritten_call_arguments(result, tool_calls, range(len(tool_calls))), messages, None
+        )
+
+    def _with_rewritten_latest_calls(
+        self, verdict: RailResult, rewrites: Mapping[int, dict], messages: list[dict], model_type: Optional[str]
+    ) -> RailResult:
+        """Attach the conversation with the rewritten calls written back: the allow's messages, or a block's record."""
+        if not rewrites:
+            return verdict
+        try:
+            rewritten_messages = (
+                _rewrite_latest_tool_calls_openai(messages, rewrites)
+                if model_type is None
+                else self.engine_registry.rewrite_latest_tool_calls(model_type, messages, rewrites)
+            )
+        except ValueError as e:
+            reason = _UNPLACEABLE_TOOL_REWRITE_REASON[SurfaceDirection.TOOL_CALL]
+            log.error("[%s] %s: %s", get_request_id(), reason, e)
+            if not verdict.is_safe:
+                return verdict
+            return RailResult.block(reason=reason, records=verdict.records)
+        if verdict.is_safe:
+            return replace(verdict, messages=rewritten_messages)
+        return replace(verdict, messages_before_block=rewritten_messages)
 
     async def _blocked_with_every_call_violation(
         self,
         extracted: list[LatestToolCall],
+        messages: list[dict],
         llm_params: Optional[dict],
         *,
         enabled: Union[bool, list[str]],
@@ -741,7 +884,9 @@ class RailsManager:
         else:
             outcome = RailOutcome.block(reason=violations[0].reason)
         # No triggered_rail: the block is the manager's, as for any call it cannot parse.
-        return RailResult(outcome, tool_violations=tuple(violations), records=rails_result.records)
+        blocked = RailResult(outcome, tool_violations=tuple(violations), records=rails_result.records)
+        rewrites = _rewritten_call_arguments(rails_result, [call for _, call in parsed], positions)
+        return self._with_rewritten_latest_calls(blocked, rewrites, messages, None)
 
     async def are_tool_results_safe(
         self,
@@ -859,7 +1004,7 @@ class RailsManager:
                 rails, RailDirection.INPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
             )
             # A configured mask turns the tool directions sequential, so there is none to wait on here.
-            rewritten: dict[int, str] = {}
+            rewritten: dict[int, _ToolRewrite] = {}
             decided: set[str] = set()
         else:
             per_tool_result, rewritten, decided = await self._run_per_tool_rails_sequential(
@@ -877,14 +1022,19 @@ class RailsManager:
         self,
         verdict: RailResult,
         checks: Sequence[_PerToolCheck],
-        rewritten: Mapping[int, str],
+        rewritten: Mapping[int, _ToolRewrite],
         messages: list[dict],
         model_type: Optional[str],
     ) -> RailResult:
         """Attach the conversation as the per-tool rails rewrote it: the allow's messages, or a block's record."""
         originals = {check.index: check.tool_result.content for check in checks if check.tool_result is not None}
+        texts = {
+            index: cast(str, rewrite.tool_result.content)
+            for index, rewrite in rewritten.items()
+            if rewrite.tool_result is not None
+        }
         # A rewrite a later rail undid is no rewrite, as for input and output.
-        rewrites = {index: text for index, text in rewritten.items() if text != originals.get(index)}
+        rewrites = {index: text for index, text in texts.items() if text != originals.get(index)}
         if not rewrites:
             return verdict
         try:
@@ -894,14 +1044,13 @@ class RailsManager:
                 else self.engine_registry.rewrite_tool_results(model_type, messages, rewrites)
             )
         except ValueError as e:
-            log.error("[%s] %s: %s", get_request_id(), _UNPLACEABLE_TOOL_REWRITE_REASON, e)
+            reason = _UNPLACEABLE_TOOL_REWRITE_REASON[SurfaceDirection.TOOL_RESULT]
+            log.error("[%s] %s: %s", get_request_id(), reason, e)
             # The mask decided, but its text never reached the conversation, which still holds the result as sent.
             if not verdict.is_safe:
                 return replace(verdict, rewrite_pending=True)
             # Blocking keeps a misbehaving rail inside the fail-closed envelope, as an input rewrite does.
-            return RailResult.block(
-                reason=_UNPLACEABLE_TOOL_REWRITE_REASON, records=verdict.records, rewrite_pending=True
-            )
+            return RailResult.block(reason=reason, records=verdict.records, rewrite_pending=True)
         if verdict.is_safe:
             return replace(verdict, messages=rewritten_messages)
         return replace(verdict, messages_before_block=rewritten_messages)
@@ -1160,26 +1309,26 @@ class RailsManager:
 
     async def _run_per_tool_rails_sequential(
         self, checks: Sequence[_PerToolCheck], direction: SurfaceDirection
-    ) -> tuple[RailResult, dict[int, str], set[str]]:
+    ) -> tuple[RailResult, dict[int, _ToolRewrite], set[str]]:
         """Run per-tool checks in turn, short-circuiting on the first unsafe result.
 
         Each check's coroutine is built only when it runs, like ``_run_rails_sequential``, so it
-        is handed the tool result as the checks ahead of it rewrote it. Returns the verdict, the
-        rewritten result contents by message index, which a block keeps for the record, and the
-        keys of the checks that decided, which the caller reads to tell whether a mask was left unrun.
+        is handed the tool call or result as the checks ahead of it rewrote it. Returns the
+        verdict, the rewritten calls or results by index, which a block keeps for the record, and
+        the keys of the checks that decided, which the caller reads to tell whether a mask was left unrun.
         """
         req_id = get_request_id()
         collected: list[RailCallRecord] = []
-        rewritten: dict[int, str] = {}
+        rewritten: dict[int, _ToolRewrite] = {}
         decided: set[str] = set()
         for check in checks:
-            tool_result = check.tool_result
-            if tool_result is not None and check.index in rewritten:
-                tool_result = replace(tool_result, content=rewritten[check.index])
+            earlier = rewritten.get(check.index) if check.index is not None else None
+            tool_call = earlier.tool_call if earlier is not None else check.tool_call
+            tool_result = earlier.tool_result if earlier is not None else check.tool_result
             result = await self._run_per_tool_rail(
                 direction,
                 check.flow,
-                tool_call=check.tool_call,
+                tool_call=tool_call,
                 tool_result=tool_result,
                 tool_definition=check.tool_definition,
                 index=check.index,
@@ -1189,20 +1338,39 @@ class RailsManager:
             if not result.is_safe:
                 log.info("[%s] %s flow %s blocked", req_id, direction.value, check.flow)
                 return replace(result, records=tuple(collected)), rewritten, decided
-            if result.outcome.is_transform:
-                text = _rewritten_tool_text(result.outcome, direction, check.flow)
-                if tool_result is None or check.index is None:
-                    log.error(
-                        "[%s] %s flow %s: %s", req_id, direction.value, check.flow, _UNPLACEABLE_TOOL_REWRITE_REASON
+            if not result.outcome.is_transform:
+                decided.add(check.key)
+                continue
+            text = _rewritten_tool_text(result.outcome, direction, check.flow)
+            if check.index is None or (direction is SurfaceDirection.TOOL_RESULT and tool_result is None):
+                reason = _UNPLACEABLE_TOOL_REWRITE_REASON[direction]
+                log.error("[%s] %s flow %s: %s", req_id, direction.value, check.flow, reason)
+                blocked = RailResult.block(
+                    reason=reason, triggered_rail=_get_flow_name(check.flow) or check.flow, records=tuple(collected)
+                )
+                return blocked, rewritten, decided
+            if direction is SurfaceDirection.TOOL_CALL:
+                arguments = _rewritten_arguments(text)
+                if arguments is None:
+                    log.info(
+                        "[%s] %s flow %s rewrote arguments that are not a JSON object",
+                        req_id,
+                        direction.value,
+                        check.flow,
                     )
-                    blocked = RailResult.block(
-                        reason=_UNPLACEABLE_TOOL_REWRITE_REASON,
-                        triggered_rail=_get_flow_name(check.flow) or check.flow,
-                        records=tuple(collected),
+                    violation = ArgumentsViolation(
+                        violation_type=ToolViolationType.MALFORMED_ARGUMENTS,
+                        reason="a rail rewrote tool call arguments to text that is not a JSON object",
                     )
+                    blocked = _rewritten_call_block(violation, check.flow, tool_call, check.index, tuple(collected))
                     return blocked, rewritten, decided
+                log.info("[%s] %s flow %s rewrote the tool call it checked", req_id, direction.value, check.flow)
+                rewritten[check.index] = _ToolRewrite(check.flow, _with_arguments(tool_call, arguments))
+            else:
                 log.info("[%s] %s flow %s rewrote the tool result it checked", req_id, direction.value, check.flow)
-                rewritten[check.index] = text
+                rewritten[check.index] = _ToolRewrite(
+                    check.flow, tool_call, replace(cast(ToolResult, tool_result), content=text)
+                )
             decided.add(check.key)
         return RailResult.allow(records=tuple(collected)), rewritten, decided
 

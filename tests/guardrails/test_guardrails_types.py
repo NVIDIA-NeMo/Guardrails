@@ -32,6 +32,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     rewrite_user_message,
     truncate,
 )
+from nemoguardrails.types import ToolCall, ToolCallFunction
 
 
 class TestRailResult:
@@ -173,6 +174,20 @@ class TestRailResult:
             RailOutcome.block(reason="blocked"),
             messages_before_block=[{"role": "tool", "tool_call_id": "call_1", "content": "<SSN>"}],
         )
+
+        assert kept == RailResult.block(reason="blocked")
+
+    def test_rewritten_tool_calls_are_part_of_the_verdict(self):
+        """An allow that rewrote a tool call differs from one that did not, so a lost rewrite fails equality."""
+        call = ToolCall(id="call_1", function=ToolCallFunction(name="run_sql", arguments={"query": "<REDACTED>"}))
+
+        assert RailResult(RailOutcome.allow(), tool_calls=(call,)) != RailResult.allow()
+        assert RailResult.allow().tool_calls is None
+
+    def test_tool_calls_rewritten_before_a_block_stay_out_of_equality(self):
+        call = ToolCall(id="call_1", function=ToolCallFunction(name="run_sql", arguments={"query": "<REDACTED>"}))
+
+        kept = RailResult(RailOutcome.block(reason="blocked"), tool_calls_before_block=(call,))
 
         assert kept == RailResult.block(reason="blocked")
 
