@@ -90,6 +90,7 @@ class HttpxHTTPClient:
             cert=cert,
         )
         self._closed = False
+        self._close_task: asyncio.Task[None] | None = None
 
     async def request(
         self,
@@ -150,13 +151,20 @@ class HttpxHTTPClient:
         )
 
     async def close(self) -> None:
-        """Close the owned HTTPX client at most once."""
+        """Close owned resources, retaining unfinished cleanup for another call.
+
+        Caller cancellation leaves the transport close running; later calls
+        await the same attempt. A failed close remains failed because HTTPX may
+        already have discarded partially closed connection state.
+        """
 
         if self._closed:
             return
-        self._closed = True
         if self._owns_client:
-            await self._client.aclose()
+            if self._close_task is None:
+                self._close_task = asyncio.create_task(self._client.aclose(), name="guardrails-httpx-close")
+            await asyncio.shield(self._close_task)
+        self._closed = True
 
     async def __aenter__(self) -> "HttpxHTTPClient":
         """Return this client from an asynchronous context manager."""

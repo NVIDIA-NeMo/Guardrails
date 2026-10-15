@@ -62,6 +62,9 @@ class BaseEngine:
         async with self._lock:
             if self._running:
                 return
+            if self._client is not None:
+                await self._client.close()
+                self._client = None
 
             self._client = RetryClient(
                 retry_options=self._retry_options,
@@ -70,17 +73,12 @@ class BaseEngine:
             self._running = True
 
     async def stop(self) -> None:
-        """Close this engine's RetryClient. Call during service shutdown."""
+        """Close the client, retaining it for retry if cleanup is interrupted."""
         async with self._lock:
-            if not self._running:
-                return
-
-            try:
-                if self._client:
-                    await self._client.close()
-                    self._client = None
-            finally:
-                self._running = False
+            self._running = False
+            if self._client is not None:
+                await self._client.close()
+                self._client = None
 
     async def __aenter__(self):
         await self.start()

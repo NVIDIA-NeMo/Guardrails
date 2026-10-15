@@ -39,6 +39,7 @@ from nemoguardrails.exceptions import (
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
 )
+from nemoguardrails.guardrails._lifecycle import rollback_startup
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.compiled_rail import (
     RailCompilationError,
@@ -774,6 +775,8 @@ class IORails(BaseGuardrails):
     def __init__(self, config: RailsConfig, *, _report_usage: bool = True) -> None:
         """Build the engine registry and rails manager from the given config."""
         self._running = False
+        self._owned_components: set[str] = set()
+        self._lifecycle_lock = asyncio.Lock()
         self.config = config
 
         # Create the OTEL tracer (if enabled in config).
@@ -857,65 +860,76 @@ class IORails(BaseGuardrails):
         streaming = self.config.rails.output.streaming
         return streaming is not None and streaming.enabled and len(self.config.rails.output.flows) > 0
 
+    @property
+    def is_running(self) -> bool:
+        """Report readiness independently of resources still owned for cleanup."""
+        return self._running
+
     async def start(self) -> None:
-        """Start the IORails engine. Call this during service startup."""
+        """Start components, rolling back failures and cancellation.
+
+        Incomplete cleanup is retained and must finish before restarting.
+        Rollback is best effort under a cooperative, shielded timeout; stop()
+        remains available to retry resources it could not release.
+        """
+        async with self._lifecycle_lock:
+            await self._start()
+
+    async def _start(self) -> None:
         if self._running:
             return
+        if self._owned_components:
+            await self._stop()
 
-        #  The EngineRegistry cleans up all its Engines if there's an exception on startup
-        #  so no need to catch exceptions and clean up here
-        await self.engine_registry.start()
+        self._owned_components.add("registry")
         try:
+            await self.engine_registry.start()
+            self._owned_components.add("queue")
             await self._generate_async_queue.start()
-            try:
-                # Queue is now live; register the state-observing ObservableGauges.
-                # ``lambda: self._running`` is checked at collect time so the gauges
-                # report empty lists once the engine has been stopped.
-                if self._metrics_enabled and not self._gauges_registered:
-                    register_nonstream_saturation_gauges(
-                        self._generate_async_queue,
-                        is_running=lambda: self._running,
-                    )
-                    self._gauges_registered = True
-            except BaseException:
-                # Gauge registration failed after the queue was started — roll
-                # the queue back so a retry of start() comes from a clean state
-                # rather than leaving the queue running with ``_running=False``
-                # (which would make stop() a no-op and leak worker tasks).
-                try:
-                    await self._generate_async_queue.stop()
-                except BaseException:
-                    log.exception("queue rollback failed during IORails.start()")
-                raise
+            # Queue is now live; register the state-observing ObservableGauges.
+            # ``lambda: self._running`` is checked at collect time so the gauges
+            # report empty lists once the engine has been stopped.
+            if self._metrics_enabled and not self._gauges_registered:
+                register_nonstream_saturation_gauges(
+                    self._generate_async_queue,
+                    is_running=lambda: self._running,
+                )
+                self._gauges_registered = True
         except BaseException:
-            # Log but suppress rollback failures so we propagate the original
-            # queue-start (or gauge-registration) error as the actionable root cause.
-            try:
-                await self.engine_registry.stop()
-            except BaseException:
-                log.exception("engine_registry rollback failed during IORails.start()")
+            await rollback_startup(self._stop)
             raise
 
+        self._owned_components.add("rails")
         self._running = True
 
     async def stop(self) -> None:
-        """Stop the IORails engine. Call this during service shutdown."""
-        if not self._running:
-            return
+        """Stop owned components, retaining failed or interrupted ones for retry.
 
-        # Each shutdown step runs independently so a failure in one does not
-        # leak the other. _running is cleared regardless so a retry of stop()
-        # is a no-op and we don't leak worker tasks.
-        try:
+        Readiness is cleared immediately. Successful components are not closed
+        again on retry; cancellation takes precedence over ordinary failures.
+        """
+        async with self._lifecycle_lock:
+            await self._stop()
+
+    async def _stop(self) -> None:
+        self._running = False
+        failure: BaseException | None = None
+        for name, stop in (
+            ("queue", self._generate_async_queue.stop),
+            ("rails", self.rails_manager.stop),
+            ("registry", self.engine_registry.stop),
+        ):
+            if name not in self._owned_components:
+                continue
             try:
-                await self._generate_async_queue.stop()
-            finally:
-                try:
-                    await self.rails_manager.stop()
-                finally:
-                    await self.engine_registry.stop()
-        finally:
-            self._running = False
+                await stop()
+            except BaseException as error:
+                if failure is None or not isinstance(error, Exception):
+                    failure = error
+            else:
+                self._owned_components.discard(name)
+        if failure is not None:
+            raise failure
 
     async def __aenter__(self):
         """Context manager (used for testing rather than long-lived instance)"""

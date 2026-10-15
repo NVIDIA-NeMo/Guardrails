@@ -46,6 +46,22 @@ from tests.guardrails.async_helpers import JAILBREAK_NIM_URL, mock_jailbreak_nim
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG, TOPIC_SAFETY_CONFIG
 from tests.utils import check_entry_points, run_check
 
+
+def _initialize_iorails_lifecycle(instance: IORails, *args, **kwargs):
+    """Initialize readiness for an engine whose construction is stubbed."""
+    instance._running = False
+
+
+async def _start_iorails_lifecycle(instance: IORails):
+    """Publish readiness when the lifecycle double starts."""
+    instance._running = True
+
+
+async def _stop_iorails_lifecycle(instance: IORails):
+    """Clear readiness when the lifecycle double stops."""
+    instance._running = False
+
+
 _TOOLS = [{"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object"}}}]
 
 # Valid IORails input/output rails for has_only_iorails_flows tests
@@ -174,9 +190,9 @@ class TestGuardrailsRouting:
             guardrails.rails_engine.update_llm.assert_called_once_with(mock_new_llm)
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_use_iorails_true_iorails_config(
         self, mock_iorails_init, mock_start, mock_stop, _content_safety_rails_config
     ):
@@ -187,8 +203,7 @@ class TestGuardrailsRouting:
         We patch __init__ (rather than the class itself) so that IORails and LLMRails remain real
         classes. This lets the isinstance() checks in guardrails.py work correctly, while still
         giving us uninitialized instances whose methods we can replace with mocks.
-        start/stop are also patched because the __init__ patch leaves the instance without
-        _running, so the real methods would raise AttributeError during startup/shutdown.
+        Lifecycle doubles publish readiness without constructing real engine resources.
         """
 
         async with Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True) as guardrails:
@@ -231,9 +246,9 @@ class TestGuardrailsRouting:
             )
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_check_delegates_to_iorails(
         self, mock_iorails_init, mock_start, mock_stop, _content_safety_rails_config
     ):
@@ -1170,13 +1185,12 @@ class TestGuardrailsLifecycle:
     """Test that startup/shutdown delegate to the rails engine."""
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_startup_calls_start_on_iorails(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
         """startup() delegates to IORails.start().
-        start/stop are patched because the __init__ patch leaves the instance without
-        _running, so the real methods would raise AttributeError.
+        Lifecycle doubles publish readiness without constructing real engine resources.
         """
         guardrails = Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True)
         assert isinstance(guardrails.rails_engine, IORails)
@@ -1199,9 +1213,9 @@ class TestGuardrailsLifecycle:
         await guardrails.shutdown()
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_startup_is_idempotent(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
         """Calling startup() twice only starts engines once."""
         guardrails = Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True)
@@ -1210,21 +1224,21 @@ class TestGuardrailsLifecycle:
         mock_start.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
-    async def test_shutdown_without_startup_is_noop(
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
+    async def test_shutdown_without_startup_delegates_cleanup(
         self, mock_init, mock_start, mock_stop, _content_safety_rails_config
     ):
-        """Calling shutdown() without startup() does not call stop."""
+        """The core owns cleanup state, including an incomplete startup."""
         guardrails = Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True)
         await guardrails.shutdown()
-        mock_stop.assert_not_called()
+        mock_stop.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_generate_async_lazy_starts(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
         """generate_async() calls startup() automatically if not already started."""
         guardrails = Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True)
@@ -1235,9 +1249,9 @@ class TestGuardrailsLifecycle:
         mock_start.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_stream_async_lazy_starts(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
         """stream_async() calls startup() automatically if not already started."""
 
@@ -1255,9 +1269,9 @@ class TestGuardrailsLifecycle:
         assert chunks == ["hello"]
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock, side_effect=RuntimeError("engine down"))
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=RuntimeError("engine down"))
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_startup_failure_leaves_not_started(
         self, mock_init, mock_start, mock_stop, _content_safety_rails_config
     ):
@@ -1361,9 +1375,9 @@ class TestStreamAsyncIORails:
     """Tests for stream_async when routed through IORails."""
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_delegates_to_iorails(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
         """stream_async delegates to IORails.stream_async with correct args."""
 
@@ -1387,9 +1401,9 @@ class TestStreamAsyncIORails:
             )
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_forwards_supported_kwargs(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
         """options and include_metadata are forwarded to IORails.stream_async."""
 
@@ -1417,9 +1431,9 @@ class TestStreamAsyncIORails:
             )
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_filters_unsupported_kwargs(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
         """LLMRails-only kwargs (state, generator, etc.) are not passed to IORails and a warning is logged."""
 
@@ -1451,9 +1465,9 @@ class TestStreamAsyncIORails:
             )
 
     @pytest.mark.asyncio
-    @patch.object(IORails, "stop", new_callable=AsyncMock)
-    @patch.object(IORails, "start", new_callable=AsyncMock)
-    @patch.object(IORails, "__init__", return_value=None)
+    @patch.object(IORails, "stop", autospec=True, side_effect=_stop_iorails_lifecycle)
+    @patch.object(IORails, "start", autospec=True, side_effect=_start_iorails_lifecycle)
+    @patch.object(IORails, "__init__", autospec=True, side_effect=_initialize_iorails_lifecycle)
     async def test_prompt_converted_to_messages(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
         """A string prompt is converted to messages before reaching IORails."""
 

@@ -109,8 +109,7 @@ class Guardrails(BaseGuardrails):
             self._rails_engine = LLMRails(config, llm, verbose)
             self.use_iorails_engine = False
 
-        # Track whether startup() has been called (supports lazy initialization)
-        self._started = False
+        self._legacy_started = False
 
     @property
     def rails_engine(self) -> IORails | LLMRails:
@@ -191,6 +190,13 @@ class Guardrails(BaseGuardrails):
 
         llmrails = cast(LLMRails, self.rails_engine)
         llmrails.passthrough_fn = fn
+
+    @property
+    def _started(self) -> bool:
+        """Read IORails readiness from its owner; retain legacy startup state."""
+        if isinstance(self.rails_engine, IORails):
+            return self.rails_engine.is_running
+        return self._legacy_started
 
     async def _ensure_started(self) -> None:
         """Lazy initialization: call startup() on first use if not already started."""
@@ -486,18 +492,19 @@ class Guardrails(BaseGuardrails):
             return
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.start()
-        self._started = True
+        else:
+            self._legacy_started = True
 
     async def shutdown(self) -> None:
         """Lifecycle method to stop the rails engine.
 
-        Idempotent: safe to call multiple times.
+        Idempotent after successful cleanup. Failed or cancelled IORails startup
+        and shutdown may retain resources; call again to retry their cleanup.
         """
-        if not self._started:
-            return
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.stop()
-        self._started = False
+        else:
+            self._legacy_started = False
 
     async def __aenter__(self):
         """Async context manager entry."""

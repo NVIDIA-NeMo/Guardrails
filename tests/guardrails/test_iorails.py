@@ -737,6 +737,10 @@ class TestIORailsStartErrors:
         iorails.engine_registry.stop.assert_called_once()
         assert not iorails._running
 
+        iorails.engine_registry.stop.side_effect = None
+        await iorails.stop()
+        assert iorails.engine_registry.stop.await_count == 2
+
     @pytest.mark.asyncio
     async def test_start_rolls_back_queue_and_registry_when_gauge_registration_raises(self, iorails):
         """If register_nonstream_saturation_gauges raises after the queue is up, BOTH the queue
@@ -827,6 +831,11 @@ class TestIORailsStartErrors:
         iorails.engine_registry.stop.assert_called_once()
         assert not iorails._running
 
+        iorails._generate_async_queue.stop.side_effect = None
+        await iorails.stop()
+        assert iorails._generate_async_queue.stop.await_count == 2
+        iorails.engine_registry.stop.assert_awaited_once()
+
     @pytest.mark.asyncio
     async def test_start_skips_gauge_registration_when_metrics_disabled(self, iorails):
         """With metrics disabled, register_nonstream_saturation_gauges is never called —
@@ -886,8 +895,10 @@ class TestIORailsStopErrors:
         with pytest.raises(RuntimeError, match="stop failed"):
             await iorails.stop()
 
-        # _running should be False due to the finally clause
         assert not iorails._running
+        iorails.engine_registry.stop.side_effect = None
+        await iorails.stop()
+        assert iorails.engine_registry.stop.await_count == 2
 
     @pytest.mark.asyncio
     async def test_stop_runs_engine_registry_when_queue_stop_raises(self, iorails):
@@ -904,6 +915,11 @@ class TestIORailsStopErrors:
 
         iorails.engine_registry.stop.assert_called_once()
         assert not iorails._running
+
+        iorails._generate_async_queue.stop.side_effect = None
+        await iorails.stop()
+        assert iorails._generate_async_queue.stop.await_count == 2
+        iorails.engine_registry.stop.assert_awaited_once()
 
 
 class TestIORailsContextManager:

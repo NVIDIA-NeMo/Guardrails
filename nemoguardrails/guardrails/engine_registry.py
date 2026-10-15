@@ -15,10 +15,12 @@
 
 """Engine registry for IORails: one ModelEngine per configured model type."""
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
+from nemoguardrails.guardrails._lifecycle import rollback_startup
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
@@ -50,6 +52,8 @@ class EngineRegistry:
         self._engines: dict[str, BaseEngine] = {}
         self._llms: dict[str, LLMModel] = {}
         self._running = False
+        self._owned_engines: dict[str, BaseEngine] = {}
+        self._lifecycle_lock = asyncio.Lock()
         self._tracer = tracer
 
         for model_config in models:
@@ -81,52 +85,60 @@ class EngineRegistry:
     async def start(self) -> None:
         """Start all engine clients.
 
-        Call this during service startup.  A failure part-way through rolls
-        everything already started back, so a failed start leaks nothing.
+        Failure or cancellation attempts bounded rollback, including the engine
+        whose start was interrupted. Unfinished cleanup must complete before
+        starting again; it can also be retried explicitly with stop().
         """
+        async with self._lifecycle_lock:
+            await self._start()
+
+    async def _start(self) -> None:
         if self._running:
             return
 
-        started: list[tuple[str, BaseEngine]] = []
+        if self._owned_engines:
+            await self._stop()
         for name, engine in self._engines.items():
+            self._owned_engines[name] = engine
             try:
                 await engine.start()
-                started.append((name, engine))
-            except Exception as e:
-                log.error("Error starting engine %s: %s", name, e)
-                await self._rollback_start(started)
-                raise RuntimeError(f"Failed to start engine: Engine {name}: exception {e}") from e
+            except BaseException as e:
+                await rollback_startup(self._stop)
+                if isinstance(e, Exception):
+                    log.error("Error starting engine %s: %s", name, e)
+                    raise RuntimeError(f"Failed to start engine: Engine {name}: exception {e}") from e
+                raise
 
         self._running = True
-
-    async def _rollback_start(self, started: list[tuple[str, BaseEngine]]) -> None:
-        """Release everything a partial ``start`` brought up."""
-        for name, engine in started:
-            try:
-                await engine.stop()
-            except Exception as stop_error:
-                log.warning("Error stopping engine %s during start rollback: %s", name, stop_error)
 
     async def stop(self) -> None:
         """Stop all engine clients.
 
-        Call this during service shutdown.  Every component is stopped even if
-        an earlier one fails; the failures are reported together afterwards.
+        Successful closes are forgotten; failed or interrupted closes remain
+        owned for retry. Ordinary failures do not prevent other engines from
+        closing. Cancellation propagates without claiming cleanup completed.
         """
-        if not self._running:
-            return
+        async with self._lifecycle_lock:
+            await self._stop()
 
+    async def _stop(self) -> None:
+        self._running = False
         errors: dict[str, Exception] = {}
-        try:
-            for name, engine in self._engines.items():
-                try:
-                    await engine.stop()
-                except Exception as e:
+        interruption: BaseException | None = None
+        for name, engine in tuple(self._owned_engines.items()):
+            try:
+                await engine.stop()
+            except BaseException as e:
+                if isinstance(e, Exception):
                     errors[f"Engine {name}"] = e
                     log.error("Error stopping engine %s: %s", name, e)
-        finally:
-            self._running = False
+                elif interruption is None:
+                    interruption = e
+            else:
+                self._owned_engines.pop(name, None)
 
+        if interruption is not None:
+            raise interruption
         if errors:
             error_string = ", ".join(f"{component}: exception {exception}" for component, exception in errors.items())
             raise RuntimeError(f"Failed to stop engines: {error_string}")

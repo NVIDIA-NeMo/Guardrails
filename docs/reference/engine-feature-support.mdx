@@ -51,6 +51,13 @@ The operation is idempotent, so a bare `IORails` does not need a manual `start()
 Call `start()` at service startup to warm the clients and `stop()` at shutdown to release them.
 When you use the `Guardrails` facade described below, that lifecycle is managed for you through `startup()` and `shutdown()` (or by using `Guardrails` as an async context manager).
 
+If startup fails or is cancelled, the core attempts to roll back the model clients and work queue without replacing the original error or cancellation.
+Each rollback attempt has a cooperative five-second timeout and is shielded from enclosing AnyIO cancellation scopes.
+Blocking cleanup, cleanup that suppresses cancellation, and repeated direct task cancellation can prevent rollback from completing.
+The core retains unfinished cleanup so you can call `shutdown()` again, even when `startup()` did not succeed.
+Failed or interrupted shutdown does not mark outstanding model-client or worker cleanup as complete; another shutdown call retries those resources without closing successfully released resources again.
+Stop admitting application requests before shutdown, and do not treat a timeout or a rollback warning as confirmation that all resources were released.
+
 ### Choosing an Engine
 
 The recommended entry point is the `Guardrails` facade, which routes a configuration to the appropriate engine automatically.
