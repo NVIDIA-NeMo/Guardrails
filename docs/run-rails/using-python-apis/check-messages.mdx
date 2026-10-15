@@ -4,7 +4,7 @@
 title: "Checking Messages Against Rails"
 sidebar-title: "Check Messages"
 description: "Validate messages against input, output, and tool rails using check_async and check methods on the LLMRails and IORails engines."
-keywords: ["check_async", "check", "RailsResult", "RailStatus", "RailType", "input rails", "output rails", "tool rails", "ToolViolation", "validation", "IORails", "LLMRails"]
+keywords: ["check_async", "check", "RailsResult", "RailStatus", "RailType", "input rails", "output rails", "tool rails", "ToolViolation", "validation", "IORails", "LLMRails", "conversation_id"]
 content:
   type: "reference"
 ---
@@ -334,6 +334,27 @@ result = await rails.check_async([
 ```
 
 For more information about context variables, refer to [Core Classes: Passing Context](/run-guardrailed-inference/using-python-apis/core-classes#passing-context).
+
+### Setting a Conversation ID
+
+To tell rails which conversation a call belongs to, wrap the call in `conversation_id()` from `nemoguardrails.context`.
+Every rail and action that runs for a call made inside the block sees the ID.
+This works on both engines and for `check_async()`, `check()`, `generate_async()`, and `stream_async()`.
+The ID is not added to the messages and is not sent to the main model.
+
+```python
+from nemoguardrails.context import conversation_id
+
+with conversation_id("thread-42"):
+    result = await rails.check_async([
+        {"role": "user", "content": "I need help with my account"}
+    ])
+```
+
+The previous ID is restored when the block exits, and concurrent requests each see only the ID they were made with.
+Use an ID that identifies one conversation, such as a chat thread ID.
+A rail that reports checks to an external service can send the ID so that the service groups the checks of one conversation; the rail's catalog page describes whether it does.
+For how a custom action reads the ID, refer to [Action Parameters: Reading the Conversation ID](/configure-guardrails/actions/action-parameters#reading-the-conversation-id).
 
 ### Checking on the IORails Engine
 
