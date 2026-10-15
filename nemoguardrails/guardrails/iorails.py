@@ -27,7 +27,7 @@ import time
 import warnings
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import nullcontext, suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Optional, Union
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
@@ -640,7 +640,7 @@ def _apply_output_rewrite_before_block(messages: LLMMessages, blocked: RailResul
 
 
 def _apply_tool_rewrites_before_block(messages: LLMMessages, blocked: RailResult) -> LLMMessages:
-    """Return *messages* with the tool results as the tool-result rails rewrote them before one of them blocked."""
+    """Return *messages* with the tool calls or results as the tool rails rewrote them before one of them blocked."""
     if blocked.messages_before_block is None:
         return messages
     return blocked.messages_before_block
@@ -1347,6 +1347,10 @@ class IORails(BaseGuardrails):
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
                 return _blocked_return(tool_call)
+            # Both return shapes read the calls from the response, so the rewrite reaches either.
+            if tool_call.tool_calls is not None:
+                log.info("[%s] Tool call rails rewrote the tool calls", req_id)
+                response = replace(response, tool_calls=list(tool_call.tool_calls))
 
         # Output rails check the final answer, not reasoning traces.
         # Reasoning is re-attached as <think> tags only below so reasoning intentionally bypasses output
@@ -1781,9 +1785,15 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Input rails requested but no user content to check; skipping", req_id)
 
         if "tool_call" in rails_to_run:
-            blocked = await self._check_latest_tool_calls(messages, tools, req_id)
-            if blocked is not None:
-                return blocked
+            tool_call = await self._check_latest_tool_calls(messages, tools, req_id)
+            if not tool_call.is_safe:
+                conversation.messages = _apply_tool_rewrites_before_block(messages, tool_call)
+                return _blocked_check_result(tool_call)
+            if tool_call.messages is not None:
+                log.info("[%s] Tool call rails rewrote the tool calls", req_id)
+                messages = tool_call.messages
+                conversation.messages = messages
+                tool_rewritten = True
 
         if "output" in rails_to_run:
             bot_response = _get_last_content_by_role(messages, "assistant")
@@ -1846,17 +1856,16 @@ class IORails(BaseGuardrails):
 
     async def _check_latest_tool_calls(
         self, messages: LLMMessages, tools: Optional[list[dict]], req_id: str
-    ) -> Optional[RailsResult]:
-        """Run the tool-call rails on the last assistant turn, returning the blocked check result or None."""
+    ) -> RailResult:
+        """Run the tool-call rails on the last assistant turn, returning their verdict and any conversation they rewrote."""
         log.info("[%s] Running tool call rails", req_id)
         llm_params = {"tools": tools if tools is not None else _main_model_tools(self.config)}
         result = await self.rails_manager.are_latest_tool_calls_safe(messages, llm_params)
-        if result.is_safe:
-            return None
-        log.info("[%s] Tool calls blocked: %s", req_id, display_reason(result))
-        if self._metrics_enabled:
-            record_request_blocked(RailDirection.OUTPUT)
-        return _blocked_check_result(result)
+        if not result.is_safe:
+            log.info("[%s] Tool calls blocked: %s", req_id, display_reason(result))
+            if self._metrics_enabled:
+                record_request_blocked(RailDirection.OUTPUT)
+        return result
 
     def _validate_streaming_with_output_rails(self) -> None:
         """Raise if output rails exist but streaming is not enabled for them."""
@@ -2189,8 +2198,14 @@ class IORails(BaseGuardrails):
                                                 delivered.append(violation)
                                             yield _frame_for_stream(violation, include_metadata)
                                         else:
+                                            # A new name: assigning accumulated_tool_calls here would make it local.
+                                            final_tool_calls = (
+                                                list(tool_call.tool_calls)
+                                                if tool_call.tool_calls is not None
+                                                else accumulated_tool_calls
+                                            )
                                             payload, framed = _terminal_tool_call_chunk(
-                                                accumulated_tool_calls, include_metadata
+                                                final_tool_calls, include_metadata
                                             )
                                             if self._content_capture_enabled:
                                                 delivered.append(payload)

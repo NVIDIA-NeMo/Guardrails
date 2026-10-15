@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A per-tool rail rewriting a tool result, driven end to end through IORails.
+"""A per-tool rail rewriting a tool result or a tool call, driven end to end through IORails.
 
 The rails are stubs compiled in place of the configured flows, and only the main model's
 transport is mocked, so what is asserted is what the model was sent, what the other rails were
@@ -22,6 +22,7 @@ handed and what the request span recorded.
 
 import asyncio
 import copy
+import json
 from contextlib import asynccontextmanager, suppress
 from typing import AsyncIterator, Optional
 
@@ -37,15 +38,19 @@ from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.rail_stubs import StubRail, rails_compiled_as, rewriting_stub
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
 from tests.guardrails.test_tool_rails_iorails import (
+    WEATHER_TOOL,
     _inject_json_response,
     _inject_sse_stream,
     _stream_violation_chunks,
     _text_payload,
     _text_sse_lines,
+    _tool_call_payload,
+    _tool_call_sse_lines,
 )
 from tests.guardrails.test_transform_rail_pipeline import (
     CAPTURE_CONTENT,
     _captured_input,
+    _captured_output,
     _capturing,
     _has_captured_input,
     _has_captured_output,
@@ -57,8 +62,13 @@ OUTPUT_FLOW = "content safety check output $model=content_safety"
 MASK_FLOW = "cel check tool result"
 JUDGE_FLOW = "regex check tool result"
 
+CALL_MASK_FLOW = "cel check tool call"
+CALL_JUDGE_FLOW = "regex check tool call"
+
 RAW_RESULT = "18C, reported by ada@example.com"
 MASKED_RESULT = "18C, reported by <EMAIL>"
+RAW_ARGUMENTS = {"city": "Paris, for ada@example.com"}
+MASKED_ARGUMENTS = {"city": "Paris, for <EMAIL>"}
 
 
 def tool_transform_config(*, output: bool = True, capture: bool = False) -> dict:
@@ -72,6 +82,16 @@ def tool_transform_config(*, output: bool = True, capture: bool = False) -> dict
     return config
 
 
+def tool_call_transform_config(*, output: bool = True, results: bool = False, capture: bool = False) -> dict:
+    """get_weather declared on the main model, and a masking rail ahead of a judge on its calls."""
+    config = tool_transform_config(output=output, capture=capture)
+    if not results:
+        del config["rails"]["tool_result"]
+    config["models"][0] = {**config["models"][0], "parameters": {"tools": [WEATHER_TOOL]}}
+    config["rails"]["tool_call"] = {"per_tool": {"get_weather": [CALL_JUDGE_FLOW, CALL_MASK_FLOW]}}
+    return config
+
+
 class ToolTransformRails:
     """The stubs one IORails instance was compiled with, so a test can say which one decides."""
 
@@ -82,15 +102,28 @@ class ToolTransformRails:
         judge: Optional[StubRail] = None,
         input_rail: Optional[StubRail] = None,
         output_rail: Optional[StubRail] = None,
+        call_mask: Optional[StubRail] = None,
+        call_judge: Optional[StubRail] = None,
     ) -> None:
         self.mask = mask if mask is not None else rewriting_stub(MASKED_RESULT, SurfaceDirection.TOOL_RESULT)
         self.judge = judge if judge is not None else StubRail()
         self.input = input_rail if input_rail is not None else StubRail()
         self.output = output_rail if output_rail is not None else StubRail()
+        if call_mask is None:
+            call_mask = rewriting_stub(json.dumps(MASKED_ARGUMENTS), SurfaceDirection.TOOL_CALL)
+        self.call_mask = call_mask
+        self.call_judge = call_judge if call_judge is not None else StubRail()
 
     def compiled(self):
         return rails_compiled_as(
-            {MASK_FLOW: self.mask, JUDGE_FLOW: self.judge, INPUT_FLOW: self.input, OUTPUT_FLOW: self.output}
+            {
+                MASK_FLOW: self.mask,
+                JUDGE_FLOW: self.judge,
+                INPUT_FLOW: self.input,
+                OUTPUT_FLOW: self.output,
+                CALL_MASK_FLOW: self.call_mask,
+                CALL_JUDGE_FLOW: self.call_judge,
+            }
         )
 
 
@@ -370,3 +403,97 @@ class TestTheRequestSpanWithholdsAResultTheMaskNeverReached:
                 await first_chunk
 
         assert _captured_input(span_exporter)[-1]["content"] == MASKED_RESULT
+
+
+WEATHER_QUESTION = [{"role": "user", "content": "What's the weather in Paris?"}]
+
+
+def wire_weather_call(arguments: dict) -> dict:
+    return {"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": json.dumps(arguments)}}
+
+
+def _terminal_tool_calls(chunks: list) -> list[dict]:
+    """The calls on a stream's terminal tool-call chunk, or none when it sent none."""
+    for chunk in chunks:
+        if isinstance(chunk, str) and chunk.startswith('{"tool_calls"'):
+            return json.loads(chunk)["tool_calls"]
+    return []
+
+
+@pytest.mark.asyncio
+class TestGenerateReturnsTheRewrittenCall:
+    """In generate, the rewritten arguments are what the later rails read and what the caller gets back."""
+
+    async def test_the_bare_message_carries_the_rewritten_arguments_as_a_json_string(self):
+        rails = ToolTransformRails()
+        async with tool_transform_iorails(rails, tool_call_transform_config()) as engine:
+            _inject_json_response(engine, _tool_call_payload("get_weather", json.dumps(RAW_ARGUMENTS)))
+
+            result = await engine.generate_async(messages=WEATHER_QUESTION)
+
+        assert result == {"role": "assistant", "content": None, "tool_calls": [wire_weather_call(MASKED_ARGUMENTS)]}
+        assert [c.function.arguments for c in rails.call_judge.seen_tool_calls] == [MASKED_ARGUMENTS]
+
+    async def test_the_generation_response_carries_the_rewritten_arguments(self):
+        async with tool_transform_iorails(ToolTransformRails(), tool_call_transform_config()) as engine:
+            _inject_json_response(engine, _tool_call_payload("get_weather", json.dumps(RAW_ARGUMENTS)))
+
+            result = await engine.generate_async(messages=WEATHER_QUESTION, options={"llm_params": {"temperature": 0}})
+
+        assert result.tool_calls == [
+            {"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": MASKED_ARGUMENTS}}
+        ]
+
+    async def test_a_rewrite_that_breaks_the_tool_schema_is_refused(self):
+        rails = ToolTransformRails(call_mask=rewriting_stub('{"city": 5}', SurfaceDirection.TOOL_CALL))
+        async with tool_transform_iorails(rails, tool_call_transform_config()) as engine:
+            _inject_json_response(engine, _tool_call_payload("get_weather", json.dumps(RAW_ARGUMENTS)))
+
+            result = await engine.generate_async(messages=WEATHER_QUESTION)
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+
+    async def test_a_config_that_never_rewrites_returns_the_call_as_the_model_made_it(self):
+        async with tool_transform_iorails(
+            ToolTransformRails(call_mask=StubRail()), tool_call_transform_config()
+        ) as engine:
+            _inject_json_response(engine, _tool_call_payload("get_weather", json.dumps(RAW_ARGUMENTS)))
+
+            result = await engine.generate_async(messages=WEATHER_QUESTION)
+
+        assert result["tool_calls"] == [wire_weather_call(RAW_ARGUMENTS)]
+
+
+@pytest.mark.asyncio
+class TestStreamReturnsTheRewrittenCall:
+    """In stream, the terminal tool-call chunk carries the rewritten arguments."""
+
+    async def test_the_terminal_chunk_carries_the_rewritten_arguments(self):
+        async with tool_transform_iorails(ToolTransformRails(), tool_call_transform_config(output=False)) as engine:
+            _inject_sse_stream(engine, _tool_call_sse_lines("get_weather", [json.dumps(RAW_ARGUMENTS)]))
+
+            chunks = await _drain(engine.stream_async(messages=WEATHER_QUESTION))
+
+        assert _terminal_tool_calls(chunks) == [wire_weather_call(MASKED_ARGUMENTS)]
+
+    async def test_the_request_span_records_the_rewritten_terminal_chunk(self, span_exporter):
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_call_transform_config(output=False, capture=True), span_exporter
+        ) as engine:
+            _inject_sse_stream(engine, _tool_call_sse_lines("get_weather", [json.dumps(RAW_ARGUMENTS)]))
+
+            await _drain(engine.stream_async(messages=WEATHER_QUESTION))
+
+        captured = _captured_output(span_exporter)
+        assert "<EMAIL>" in captured
+        assert "ada@example.com" not in captured
+
+    async def test_a_rewrite_that_breaks_the_tool_schema_sends_a_violation_and_no_call(self):
+        rails = ToolTransformRails(call_mask=rewriting_stub('{"city": 5}', SurfaceDirection.TOOL_CALL))
+        async with tool_transform_iorails(rails, tool_call_transform_config(output=False)) as engine:
+            _inject_sse_stream(engine, _tool_call_sse_lines("get_weather", [json.dumps(RAW_ARGUMENTS)]))
+
+            chunks = await _drain(engine.stream_async(messages=WEATHER_QUESTION))
+
+        assert [v["error"]["param"] for v in _stream_violation_chunks(chunks)] == ["tool_call_rails"]
+        assert _terminal_tool_calls(chunks) == []

@@ -421,5 +421,5 @@ class GuardrailCheckResponse(BaseModel):
     messages: Optional[List[dict]] = Field(
         default=None,
         description="The messages sent, as the rails left them, in the same order. "
-        "Present only when a tool rail rewrote a tool result (IORails).",
+        "Present only when a tool rail rewrote a tool call or result (IORails).",
     )

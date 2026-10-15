@@ -118,7 +118,7 @@ class RailsResult(BaseModel):
     messages: Optional[List[dict]] = Field(
         default=None,
         description="The checked conversation as the rails left it, index-aligned with the messages passed in "
-        "(IORails). None unless a tool rail rewrote a tool result.",
+        "(IORails). None unless a tool rail rewrote a tool call or result.",
     )
 
 

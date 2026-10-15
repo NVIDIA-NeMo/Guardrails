@@ -22,8 +22,10 @@ is_output_safe to control verdicts.
 
 import asyncio
 import copy
+import json
 import logging
 from dataclasses import replace
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -42,6 +44,7 @@ from nemoguardrails.guardrails.iorails import (
     _rewrite_last_assistant_message,
 )
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome
+from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType, ToolViolationType
 from tests.guardrails.async_helpers import started_iorails
@@ -51,6 +54,7 @@ from tests.guardrails.rail_stubs import (
     declare_masking_rails,
     failed_mask,
     rail_failure,
+    rewriting_stub,
     user_message_rewrite,
 )
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG, TOPIC_SAFETY_CONFIG
@@ -61,12 +65,16 @@ from tests.guardrails.test_tool_rails_iorails import (
     _inject_forbidden_transport,
 )
 from tests.guardrails.test_tool_transform_rails_iorails import (
+    MASKED_ARGUMENTS,
     MASKED_RESULT,
+    RAW_ARGUMENTS,
     RAW_RESULT,
     ToolTransformRails,
     capturing_tool_transform_iorails,
+    tool_call_transform_config,
     tool_transform_config,
     tool_transform_iorails,
+    wire_weather_call,
     with_tool_content,
 )
 from tests.guardrails.test_transform_rail_pipeline import _captured_input
@@ -1816,3 +1824,107 @@ class TestACheckRecordsTheMaskedToolResult:
 
         assert result.status == RailStatus.BLOCKED
         assert _captured_input(span_exporter)[2]["content"] == MASKED_RESULT
+
+
+def _weather_call_turn(arguments: dict, *, content: Optional[str] = None) -> list[dict]:
+    return [
+        {"role": "user", "content": "What's the weather in Paris?"},
+        {"role": "assistant", "content": content, "tool_calls": [wire_weather_call(arguments)]},
+    ]
+
+
+def _with_call_arguments(messages: list[dict], index: int, arguments: dict) -> list[dict]:
+    rewritten = copy.deepcopy(messages)
+    rewritten[index]["tool_calls"] = [wire_weather_call(arguments)]
+    return rewritten
+
+
+@pytest.mark.asyncio
+class TestToolCallRewritesInACheck:
+    """A tool-call rewrite in a check is reported as MODIFIED with the conversation carrying the new arguments."""
+
+    async def test_a_tool_call_rewrite_is_reported_as_modified_with_messages(self):
+        messages = _weather_call_turn(RAW_ARGUMENTS)
+        async with tool_transform_iorails(ToolTransformRails(), tool_call_transform_config()) as engine:
+            result = await engine.check_async(messages, rail_types=[RailType.TOOL_CALL])
+
+        assert result.status == RailStatus.MODIFIED
+        assert result.messages == _with_call_arguments(messages, 1, MASKED_ARGUMENTS)
+        assert result.rail is None
+
+    async def test_a_full_turn_check_finds_the_calls_on_the_assistant_message(self):
+        """With the tool result last, the rewritten calls stay on the assistant message, at its index."""
+        messages = make_tool_conversation(arguments=json.dumps(RAW_ARGUMENTS), content=RAW_RESULT)
+        async with tool_transform_iorails(ToolTransformRails(), tool_call_transform_config(results=True)) as engine:
+            result = await engine.check_async(messages, rail_types=[RailType.TOOL_RESULT, RailType.TOOL_CALL])
+
+        assert result.status == RailStatus.MODIFIED
+        expected = _with_call_arguments(with_tool_content(messages, MASKED_RESULT), 1, MASKED_ARGUMENTS)
+        assert result.messages == expected
+
+    async def test_the_rewrite_reaches_the_later_output_rails(self):
+        rails = ToolTransformRails()
+        async with tool_transform_iorails(rails, tool_call_transform_config()) as engine:
+            await engine.check_async(
+                _weather_call_turn(RAW_ARGUMENTS, content="Checking."), rail_types=[RailType.TOOL_CALL, RailType.OUTPUT]
+            )
+
+        arguments = rails.output.seen_messages[1]["tool_calls"][0]["function"]["arguments"]
+        assert json.loads(arguments) == MASKED_ARGUMENTS
+
+    async def test_a_rewrite_that_breaks_the_tool_schema_blocks(self):
+        rails = ToolTransformRails(call_mask=rewriting_stub('{"city": 5}', SurfaceDirection.TOOL_CALL))
+        async with tool_transform_iorails(rails, tool_call_transform_config()) as engine:
+            result = await engine.check_async(_weather_call_turn(RAW_ARGUMENTS), rail_types=[RailType.TOOL_CALL])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.messages is None
+        (violation,) = result.tool_violations
+        assert (violation.violation_type, violation.schema_keyword) == (ToolViolationType.ARGUMENTS_INVALID, "type")
+
+    async def test_a_check_that_rewrites_nothing_has_no_messages(self):
+        async with tool_transform_iorails(
+            ToolTransformRails(call_mask=StubRail()), tool_call_transform_config()
+        ) as engine:
+            result = await engine.check_async(_weather_call_turn(RAW_ARGUMENTS), rail_types=[RailType.TOOL_CALL])
+
+        assert result.status == RailStatus.PASSED
+        assert result.messages is None
+
+    async def test_the_callers_messages_are_untouched(self):
+        messages = _weather_call_turn(RAW_ARGUMENTS)
+        snapshot = copy.deepcopy(messages)
+        async with tool_transform_iorails(ToolTransformRails(), tool_call_transform_config()) as engine:
+            await engine.check_async(messages, rail_types=[RailType.TOOL_CALL])
+
+        assert messages == snapshot
+
+
+@pytest.mark.asyncio
+class TestACheckRecordsTheMaskedToolCall:
+    """With content capture on, a check's request span records the tool call as the mask left it."""
+
+    @pytest.fixture
+    def span_exporter(self) -> InMemorySpanExporter:
+        return InMemorySpanExporter()
+
+    async def test_an_allowed_check_records_the_masked_call(self, span_exporter):
+        config = tool_call_transform_config(capture=True)
+        async with capturing_tool_transform_iorails(ToolTransformRails(), config, span_exporter) as engine:
+            await engine.check_async(_weather_call_turn(RAW_ARGUMENTS), rail_types=[RailType.TOOL_CALL])
+
+        assert _captured_input(span_exporter)[1]["tool_calls"] == [wire_weather_call(MASKED_ARGUMENTS)]
+
+    @pytest.mark.parametrize(
+        "blocking", ["call_judge", "output_rail"], ids=["tool-rail-behind-the-mask", "output-rail"]
+    )
+    async def test_a_blocked_check_records_the_masked_call(self, span_exporter, blocking):
+        rails = ToolTransformRails(**{blocking: StubRail(RailOutcome.block(reason="unsafe"))})
+        config = tool_call_transform_config(capture=True)
+        async with capturing_tool_transform_iorails(rails, config, span_exporter) as engine:
+            result = await engine.check_async(
+                _weather_call_turn(RAW_ARGUMENTS, content="Checking."), rail_types=[RailType.TOOL_CALL, RailType.OUTPUT]
+            )
+
+        assert result.status == RailStatus.BLOCKED
+        assert _captured_input(span_exporter)[1]["tool_calls"] == [wire_weather_call(MASKED_ARGUMENTS)]
