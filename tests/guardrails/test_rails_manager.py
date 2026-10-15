@@ -37,15 +37,18 @@ from nemoguardrails.guardrails.rails_manager import (
     PER_TOOL_RAILS_MAX_CONCURRENCY,
     RailsManager,
     _checked_text,
+    _PerToolCheck,
     _rail_call_record,
     _rail_result,
     _refuse_concurrent_rewrite,
     _result_after_rewrites,
     _rewriting_flows,
     _rewritten_text,
+    _rewritten_tool_text,
     _tool_rail_result,
     _transforms_first,
 )
+from nemoguardrails.guardrails.tool_schema import ToolResult
 from nemoguardrails.http.retry import RetryingHTTPClient
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -65,6 +68,7 @@ from tests.guardrails.rail_stubs import (
     declared_rewriter,
     rails_compiled_as,
     rewriting_stub,
+    tool_result_rewrite,
     user_message_rewrite,
 )
 from tests.guardrails.test_data import (
@@ -1556,16 +1560,15 @@ class TestParallelPerToolDispatch:
 
 
 class TestToolParallelDisabledByRewrite:
-    """No tool rail rewrites today, but a per-tool surface declaring transform_target should
-    still force tool_call_parallel/tool_result_parallel off, mirroring the input/output
-    rewrite check (TestSchedulingRailsThatRewrite)."""
+    """A per-tool surface declaring transform_target forces tool_call_parallel/tool_result_parallel
+    off, mirroring the input/output rewrite check (TestSchedulingRailsThatRewrite)."""
 
-    # No TOOL_CALL/TOOL_RESULT member exists yet; USER_MESSAGE stands in to prove the check
-    # fires on any non-None transform_target.
-    _STUB_TARGET = TransformTarget.USER_MESSAGE
+    # No TOOL_CALL member exists yet; USER_MESSAGE stands in to prove the check fires on any
+    # non-None transform_target on a tool-call surface.
+    _CALL_STUB_TARGET = TransformTarget.USER_MESSAGE
 
     def test_a_rewriting_per_tool_call_flow_turns_parallel_off(self):
-        with rails_compiled_as({"regex check tool call": StubRail(transform_target=self._STUB_TARGET)}):
+        with rails_compiled_as({"regex check tool call": StubRail(transform_target=self._CALL_STUB_TARGET)}):
             with pytest.warns(UserWarning, match="parallel"):
                 mgr = _tool_rails_manager_with_main(
                     per_tool_call_flows={"run_sql": ["regex check tool call"]},
@@ -1577,7 +1580,7 @@ class TestToolParallelDisabledByRewrite:
         assert mgr.tool_result_parallel is False
 
     def test_a_rewriting_per_tool_result_flow_turns_parallel_off(self):
-        with rails_compiled_as({"regex check tool result": StubRail(transform_target=self._STUB_TARGET)}):
+        with rails_compiled_as({"regex check tool result": declared_rewriter(SurfaceDirection.TOOL_RESULT)}):
             with pytest.warns(UserWarning, match="parallel"):
                 mgr = _tool_rails_manager_with_main(
                     per_tool_result_flows={"run_sql": ["regex check tool result"]},
@@ -1589,7 +1592,7 @@ class TestToolParallelDisabledByRewrite:
         assert mgr.tool_result_parallel is False
 
     def test_a_config_that_never_asked_for_parallel_is_not_warned_about(self, recwarn):
-        with rails_compiled_as({"regex check tool call": StubRail(transform_target=self._STUB_TARGET)}):
+        with rails_compiled_as({"regex check tool call": StubRail(transform_target=self._CALL_STUB_TARGET)}):
             mgr = _tool_rails_manager_with_main(per_tool_call_flows={"run_sql": ["regex check tool call"]})
 
         assert mgr.per_tool_transform_flows[SurfaceDirection.TOOL_CALL] == ("regex check tool call",)
@@ -1649,14 +1652,260 @@ class TestPerToolRailsSequential:
         assert created == ["run_sql"]
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("parallel", [False, True], ids=["sequential", "parallel"])
-    async def test_a_rewrite_raises(self, parallel):
+    async def test_a_rewrite_of_a_variable_tool_calls_do_not_have_raises(self):
+        """A tool-call rail has no variable to rewrite yet, so a rewrite fails loudly instead of being dropped."""
+        mgr, _ = self._manager_returning({"run_sql": user_message_rewrite("masked"), "list_tables": RailResult.allow()})
+
+        with pytest.raises(NotImplementedError, match="cannot apply"):
+            await mgr.are_tool_calls_safe(self._CALLS, self._LLM_PARAMS)
+
+    @pytest.mark.asyncio
+    async def test_a_tool_result_rewrite_from_a_tool_call_rail_raises(self):
+        """The tool-result target belongs to the other tool direction, and is refused here as a mismatch."""
+        mgr, _ = self._manager_returning({"run_sql": tool_result_rewrite("masked"), "list_tables": RailResult.allow()})
+
+        with pytest.raises(NotImplementedError, match="tool_call rail cannot apply"):
+            await mgr.are_tool_calls_safe(self._CALLS, self._LLM_PARAMS)
+
+    @pytest.mark.asyncio
+    async def test_a_rewrite_from_a_rail_running_in_parallel_raises(self):
+        """Concurrent rails all read the arriving call, so a rewrite there has nothing to apply to."""
         mgr, _ = self._manager_returning(
-            {"run_sql": user_message_rewrite("masked"), "list_tables": RailResult.allow()}, parallel=parallel
+            {"run_sql": user_message_rewrite("masked"), "list_tables": RailResult.allow()}, parallel=True
         )
 
-        with pytest.raises(NotImplementedError, match="returned a rewrite"):
+        with pytest.raises(NotImplementedError, match="in parallel"):
             await mgr.are_tool_calls_safe(self._CALLS, self._LLM_PARAMS)
+
+
+class _ContentMaskingRail(StubRail):
+    """A rewriting per-tool rail whose rewrite depends on the result it is handed, as a real masker's does."""
+
+    def __init__(self):
+        super().__init__(transform_target=TransformTarget.TOOL_RESULT)
+
+    async def execute(self, messages, bot_response=None, **tool_inputs):
+        masked = f"masked {tool_inputs['tool_result'].content}"
+        self.outcome = RailOutcome.transform([(TransformTarget.TOOL_RESULT, masked)])
+        return await super().execute(messages, bot_response, **tool_inputs)
+
+
+MASK_FLOW = "mask tool result"
+JUDGE_FLOW = "regex check tool result"
+UNDO_FLOW = "unmask tool result"
+
+
+@pytest.mark.asyncio
+class TestPerToolRailsThatRewrite:
+    """A per-tool rail's tool-result rewrite reaches the rails behind it and the conversation the caller gets back."""
+
+    @staticmethod
+    def _manager(rails: dict, flows: list[str], **kwargs) -> RailsManager:
+        with rails_compiled_as(rails):
+            return _tool_rails_manager_with_main(per_tool_result_flows={"get_weather": flows}, **kwargs)
+
+    async def test_a_rewrite_reaches_the_next_rail(self):
+        """The rail behind a masking rail checks the masked result, which is the point of rewriting."""
+        judge = StubRail()
+        mgr = self._manager(
+            {MASK_FLOW: rewriting_stub("<REDACTED>", SurfaceDirection.TOOL_RESULT), JUDGE_FLOW: judge},
+            [MASK_FLOW, JUDGE_FLOW],
+        )
+
+        await mgr.are_tool_results_safe(make_tool_conversation())
+
+        assert [r.content for r in judge.seen_tool_results] == ["<REDACTED>"]
+
+    async def test_the_verdict_carries_the_rewritten_conversation(self):
+        """The allow carries the whole conversation, index-aligned, with only the tool message's content replaced."""
+        messages = make_tool_conversation()
+        mgr = self._manager({MASK_FLOW: rewriting_stub("<REDACTED>", SurfaceDirection.TOOL_RESULT)}, [MASK_FLOW])
+
+        result = await mgr.are_tool_results_safe(messages)
+
+        assert result.is_safe is True
+        assert result.outcome.is_transform is False
+        assert result.messages == [messages[0], messages[1], {**messages[2], "content": "<REDACTED>"}]
+
+    async def test_rewriting_rails_run_ahead_of_judging_ones(self):
+        """A rail configured after a judge still runs first, so the judge sees the mask."""
+        judge = StubRail()
+        mgr = self._manager(
+            {MASK_FLOW: rewriting_stub("<REDACTED>", SurfaceDirection.TOOL_RESULT), JUDGE_FLOW: judge},
+            [JUDGE_FLOW, MASK_FLOW],
+        )
+
+        result = await mgr.are_tool_results_safe(make_tool_conversation())
+
+        assert [r.content for r in judge.seen_tool_results] == ["<REDACTED>"]
+        assert [record.flow for record in result.records] == [MASK_FLOW, JUDGE_FLOW]
+
+    async def test_a_rewrite_back_to_the_original_reports_nothing_happened(self):
+        """Only a net change counts, so a config whose rails undo each other leaves the conversation alone."""
+        mgr = self._manager(
+            {
+                MASK_FLOW: rewriting_stub("<REDACTED>", SurfaceDirection.TOOL_RESULT),
+                UNDO_FLOW: rewriting_stub("18C", SurfaceDirection.TOOL_RESULT),
+            },
+            [MASK_FLOW, UNDO_FLOW],
+        )
+
+        result = await mgr.are_tool_results_safe(make_tool_conversation())
+
+        assert result == RailResult.allow()
+        assert result.messages is None
+
+    async def test_each_result_is_rewritten_from_its_own_content(self):
+        """Results in one conversation, including an earlier turn's, are rewritten independently."""
+        messages = [
+            {"role": "user", "content": "weather twice"},
+            tool_call_turn(wire_tool_call(arguments='{"city": "Paris"}', call_id="call_1"))[-1],
+            {"role": "tool", "tool_call_id": "call_1", "content": "18C"},
+            {"role": "assistant", "content": "18C in Paris"},
+            {"role": "user", "content": "and Rome?"},
+            tool_call_turn(wire_tool_call(arguments='{"city": "Rome"}', call_id="call_2"))[-1],
+            {"role": "tool", "tool_call_id": "call_2", "content": "24C"},
+        ]
+        masker = _ContentMaskingRail()
+        mgr = self._manager({MASK_FLOW: masker}, [MASK_FLOW])
+
+        result = await mgr.are_tool_results_safe(messages)
+
+        assert [r.content for r in masker.seen_tool_results] == ["18C", "24C"]
+        assert [m.get("content") for m in result.messages] == [
+            "weather twice",
+            None,
+            "masked 18C",
+            "18C in Paris",
+            "and Rome?",
+            None,
+            "masked 24C",
+        ]
+
+    async def test_a_block_behind_a_rewrite_keeps_the_rewrite_for_the_record(self):
+        """The block is the verdict, but the masked conversation still reaches whoever records the request."""
+        messages = make_tool_conversation()
+        mgr = self._manager(
+            {
+                MASK_FLOW: rewriting_stub("<REDACTED>", SurfaceDirection.TOOL_RESULT),
+                JUDGE_FLOW: StubRail(RailOutcome.block(reason="unsafe")),
+            },
+            [MASK_FLOW, JUDGE_FLOW],
+        )
+
+        result = await mgr.are_tool_results_safe(messages)
+
+        assert result.is_safe is False
+        assert result.triggered_rail == JUDGE_FLOW
+        assert result.messages is None
+        assert result.messages_before_block == [messages[0], messages[1], {**messages[2], "content": "<REDACTED>"}]
+        assert [v.violation_type for v in result.tool_violations] == [ToolViolationType.PER_TOOL_RAIL]
+
+    async def test_a_block_with_no_rewrite_ahead_keeps_nothing(self):
+        mgr = self._manager({JUDGE_FLOW: StubRail(RailOutcome.block(reason="unsafe"))}, [JUDGE_FLOW])
+
+        result = await mgr.are_tool_results_safe(make_tool_conversation())
+
+        assert result.is_safe is False
+        assert result.messages_before_block is None
+
+    async def test_the_callers_messages_and_results_are_untouched(self):
+        """The caller's list arrives by identity, so masking must not edit the conversation it owns."""
+        messages = make_tool_conversation()
+        snapshot = copy.deepcopy(messages)
+        tool_message = messages[2]
+        judge = StubRail()
+        mgr = self._manager(
+            {MASK_FLOW: rewriting_stub("<REDACTED>", SurfaceDirection.TOOL_RESULT), JUDGE_FLOW: judge},
+            [MASK_FLOW, JUDGE_FLOW],
+        )
+
+        result = await mgr.are_tool_results_safe(messages)
+
+        assert messages == snapshot
+        assert messages[2] is tool_message
+        assert result.messages is not messages
+        assert result.messages[2] is not tool_message
+
+    async def test_a_config_that_never_rewrites_is_unchanged(self):
+        """No messages and a plain allow, so nothing downstream rebinds or reports MODIFIED."""
+        mgr = self._manager({JUDGE_FLOW: StubRail()}, [JUDGE_FLOW])
+
+        result = await mgr.are_tool_results_safe(make_tool_conversation())
+
+        assert result == RailResult.allow()
+        assert result.messages is None
+
+    async def test_a_rewrite_that_cannot_be_written_back_blocks(self):
+        """A rewrite with no tool message to land on blocks, inside the fail-closed envelope, rather than raising."""
+        mgr = self._manager({MASK_FLOW: rewriting_stub("<REDACTED>", SurfaceDirection.TOOL_RESULT)}, [MASK_FLOW])
+        mgr.engine_registry.rewrite_tool_results = MagicMock(side_effect=ValueError("no message at index 2"))
+
+        result = await mgr.are_tool_results_safe(make_tool_conversation())
+
+        assert result.is_safe is False
+        assert result.reason == "a rail rewrote a tool result this request does not have"
+        assert result.messages is None
+
+    async def test_a_rewrite_of_a_variable_tool_results_do_not_have_raises(self):
+        """An action naming none of its direction's payload contradicts its manifest, and fails loudly."""
+        mgr = self._manager(
+            {MASK_FLOW: StubRail(RailOutcome.transform([(TransformTarget.USER_MESSAGE, "x")]))}, [MASK_FLOW]
+        )
+
+        with pytest.raises(NotImplementedError, match="may rewrite 'tool_result'"):
+            await mgr.are_tool_results_safe(make_tool_conversation())
+
+    async def test_a_rewrite_from_a_rail_running_in_parallel_raises(self):
+        """A rail that rewrites without declaring it stays parallel, and its rewrite is refused there."""
+        mgr = self._manager(
+            {MASK_FLOW: StubRail(tool_result_rewrite("x").outcome)}, [MASK_FLOW], tool_result_parallel=True
+        )
+
+        with pytest.raises(NotImplementedError, match="in parallel"):
+            await mgr.are_tool_results_safe(make_tool_conversation())
+
+    async def test_a_rewrite_of_a_result_with_no_position_blocks(self):
+        """A result extraction left without a message index has nowhere to take a rewrite, so it blocks."""
+        mgr = self._manager({MASK_FLOW: rewriting_stub("<REDACTED>", SurfaceDirection.TOOL_RESULT)}, [MASK_FLOW])
+        call = ToolCall(id="call_1", function=ToolCallFunction(name="get_weather", arguments={}))
+        check = _PerToolCheck(
+            "0:mask", MASK_FLOW, tool_call=call, tool_result=ToolResult(call_id="call_1", content="18C")
+        )
+
+        result, rewritten = await mgr._run_per_tool_rails_sequential([check], SurfaceDirection.TOOL_RESULT)
+
+        assert result.is_safe is False
+        assert result.reason == "a rail rewrote a tool result this request does not have"
+        assert result.triggered_rail == MASK_FLOW
+        assert rewritten == {}
+
+    async def test_the_global_validator_still_refuses_a_rewrite(self):
+        """The global tool result validator has nowhere to apply a rewrite, so it still raises."""
+        with pytest.raises(NotImplementedError, match="tool result validation"):
+            _tool_rail_result(tool_result_rewrite("x").outcome, "tool result validation")
+
+
+class TestRewrittenToolText:
+    """`_rewritten_tool_text` picks a per-tool direction's payload out of a rail's rewrite."""
+
+    def test_a_tool_result_rail_takes_the_tool_result_text(self):
+        outcome = RailOutcome.transform([(TransformTarget.TOOL_RESULT, "masked"), (TransformTarget.USER_MESSAGE, "x")])
+
+        assert _rewritten_tool_text(outcome, SurfaceDirection.TOOL_RESULT, "mask") == "masked"
+
+    def test_a_tool_result_rail_naming_another_variable_raises(self):
+        outcome = RailOutcome.transform([(TransformTarget.USER_MESSAGE, "masked")])
+
+        with pytest.raises(NotImplementedError, match="may rewrite 'tool_result'"):
+            _rewritten_tool_text(outcome, SurfaceDirection.TOOL_RESULT, "mask")
+
+    def test_a_tool_call_rail_has_nothing_to_rewrite(self):
+        """Raised as NotImplementedError, never a KeyError, so the refusal reads as one."""
+        outcome = RailOutcome.transform([(TransformTarget.TOOL_RESULT, "masked")])
+
+        with pytest.raises(NotImplementedError, match="tool_call rail cannot apply"):
+            _rewritten_tool_text(outcome, SurfaceDirection.TOOL_CALL, "mask")
 
 
 class TestTriggeredRail:

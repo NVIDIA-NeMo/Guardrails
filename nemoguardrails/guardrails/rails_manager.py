@@ -41,6 +41,7 @@ from nemoguardrails.guardrails.model_engine import (
     _extract_tool_exchanges_openai,
     _latest_tool_calls_openai,
     _parse_tools_openai,
+    _rewrite_tool_results_openai,
 )
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, reported_violations, violations_outcome
@@ -97,6 +98,14 @@ _REWRITABLE_TARGET = {
     RailDirection.INPUT: TransformTarget.USER_MESSAGE,
     RailDirection.OUTPUT: TransformTarget.BOT_MESSAGE,
 }
+
+# The tool payload each per-tool direction's rails may rewrite. Keyed apart from the map above,
+# whose logging directions have no tool members.
+_TOOL_REWRITABLE_TARGET = {
+    SurfaceDirection.TOOL_RESULT: TransformTarget.TOOL_RESULT,
+}
+
+_UNPLACEABLE_TOOL_REWRITE_REASON = "a rail rewrote a tool result this request does not have"
 
 
 def _rewriting_flows(
@@ -239,6 +248,18 @@ def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -
         raise NotImplementedError(
             f"{flow!r} rewrote {sorted(rewrites)}, which a {direction.value.lower()} rail cannot apply; "
             f"it may rewrite {target.value!r}"
+        )
+    return rewrites[target.value]
+
+
+def _rewritten_tool_text(outcome: RailOutcome, direction: SurfaceDirection, flow: str) -> str:
+    """Return what a per-tool rail rewrote its direction's tool payload to, ignoring any other variable it named."""
+    target = _TOOL_REWRITABLE_TARGET.get(direction)
+    rewrites = outcome.transform_text
+    if target is None or target.value not in rewrites:
+        allowed = f"; it may rewrite {target.value!r}" if target is not None else ""
+        raise NotImplementedError(
+            f"{flow!r} rewrote {sorted(rewrites)}, which a {direction.value} rail cannot apply{allowed}"
         )
     return rewrites[target.value]
 
@@ -421,8 +442,8 @@ class RailsManager:
             for flow in unique_flows:
                 self._per_tool_rails[(direction, flow)] = compile_rail(flow, direction, deps)
 
-        # No tool rail rewrites today; this mirrors the input/output rewrite check above so a
-        # future rewriting tool rail is caught the same way instead of corrupted by concurrency.
+        # Mirrors the input/output rewrite check above, for the same reason: concurrent rails
+        # cannot carry a rewrite.
         self.per_tool_transform_flows: dict[SurfaceDirection, tuple[str, ...]] = {
             direction: tuple(
                 flow
@@ -627,7 +648,7 @@ class RailsManager:
                 rails, RailDirection.OUTPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
             )
         else:
-            per_tool_result = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_CALL)
+            per_tool_result, _ = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_CALL)
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
         if not per_tool_result.is_safe:
             return replace(per_tool_result, records=combined_records)
@@ -783,7 +804,9 @@ class RailsManager:
                     records=global_result.records,
                 )
             tool_name = matched_call.function.name or matched_call.type
-            for flow in self._enabled_flows(self.per_tool_result_flows.get(tool_name, []), enabled):
+            flows = self._enabled_flows(self.per_tool_result_flows.get(tool_name, []), enabled)
+            rewriting = tuple(f for f in flows if f in self.per_tool_transform_flows[SurfaceDirection.TOOL_RESULT])
+            for flow in _transforms_first(rewriting, flows):
                 checks.append(
                     _PerToolCheck(
                         f"{index}:{flow}",
@@ -811,12 +834,45 @@ class RailsManager:
             per_tool_result = await self._run_rails_parallel(
                 rails, RailDirection.INPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
             )
+            rewritten: dict[int, str] = {}
         else:
-            per_tool_result = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_RESULT)
+            per_tool_result, rewritten = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_RESULT)
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
-        if not per_tool_result.is_safe:
-            return replace(per_tool_result, records=combined_records)
-        return RailResult.allow(records=combined_records)
+        if per_tool_result.is_safe:
+            verdict = RailResult.allow(records=combined_records)
+        else:
+            verdict = replace(per_tool_result, records=combined_records)
+        return self._with_rewritten_results(verdict, checks, rewritten, messages, model_type)
+
+    def _with_rewritten_results(
+        self,
+        verdict: RailResult,
+        checks: Sequence[_PerToolCheck],
+        rewritten: Mapping[int, str],
+        messages: list[dict],
+        model_type: Optional[str],
+    ) -> RailResult:
+        """Attach the conversation as the per-tool rails rewrote it: the allow's messages, or a block's record."""
+        originals = {check.index: check.tool_result.content for check in checks if check.tool_result is not None}
+        # A rewrite a later rail undid is no rewrite, as for input and output.
+        rewrites = {index: text for index, text in rewritten.items() if text != originals.get(index)}
+        if not rewrites:
+            return verdict
+        try:
+            rewritten_messages = (
+                _rewrite_tool_results_openai(messages, rewrites)
+                if model_type is None
+                else self.engine_registry.rewrite_tool_results(model_type, messages, rewrites)
+            )
+        except ValueError as e:
+            log.error("[%s] %s: %s", get_request_id(), _UNPLACEABLE_TOOL_REWRITE_REASON, e)
+            if not verdict.is_safe:
+                return verdict
+            # Blocking keeps a misbehaving rail inside the fail-closed envelope, as an input rewrite does.
+            return RailResult.block(reason=_UNPLACEABLE_TOOL_REWRITE_REASON, records=verdict.records)
+        if verdict.is_safe:
+            return replace(verdict, messages=rewritten_messages)
+        return replace(verdict, messages_before_block=rewritten_messages)
 
     def _flows_to_run(
         self, direction: RailDirection, configured: list[str], enabled: Union[bool, list[str]]
@@ -1072,20 +1128,25 @@ class RailsManager:
 
     async def _run_per_tool_rails_sequential(
         self, checks: Sequence[_PerToolCheck], direction: SurfaceDirection
-    ) -> RailResult:
+    ) -> tuple[RailResult, dict[int, str]]:
         """Run per-tool checks in turn, short-circuiting on the first unsafe result.
 
-        Each check's coroutine is built only when it runs, like ``_run_rails_sequential``, so a
-        rewrite can reach the checks behind it once tool rails support one.
+        Each check's coroutine is built only when it runs, like ``_run_rails_sequential``, so it
+        is handed the tool result as the checks ahead of it rewrote it. Returns the verdict and
+        the rewritten result contents by message index, which a block keeps for the record.
         """
         req_id = get_request_id()
         collected: list[RailCallRecord] = []
+        rewritten: dict[int, str] = {}
         for check in checks:
+            tool_result = check.tool_result
+            if tool_result is not None and check.index in rewritten:
+                tool_result = replace(tool_result, content=rewritten[check.index])
             result = await self._run_per_tool_rail(
                 direction,
                 check.flow,
                 tool_call=check.tool_call,
-                tool_result=check.tool_result,
+                tool_result=tool_result,
                 tool_definition=check.tool_definition,
                 index=check.index,
             )
@@ -1093,12 +1154,22 @@ class RailsManager:
             log.debug("[%s] %s flow %s result %s", req_id, direction.value, check.flow, result)
             if not result.is_safe:
                 log.info("[%s] %s flow %s blocked", req_id, direction.value, check.flow)
-                return replace(result, records=tuple(collected))
+                return replace(result, records=tuple(collected)), rewritten
             if result.outcome.is_transform:
-                # No TransformTarget exists for tool calls/results yet. Apply the rewrite here, and
-                # pass the rewritten call/result to the checks behind it, once one does.
-                raise NotImplementedError(f"{check.flow!r} returned a rewrite, which tool rails cannot apply yet")
-        return RailResult.allow(records=tuple(collected))
+                text = _rewritten_tool_text(result.outcome, direction, check.flow)
+                if tool_result is None or check.index is None:
+                    log.error(
+                        "[%s] %s flow %s: %s", req_id, direction.value, check.flow, _UNPLACEABLE_TOOL_REWRITE_REASON
+                    )
+                    blocked = RailResult.block(
+                        reason=_UNPLACEABLE_TOOL_REWRITE_REASON,
+                        triggered_rail=_get_flow_name(check.flow) or check.flow,
+                        records=tuple(collected),
+                    )
+                    return blocked, rewritten
+                log.info("[%s] %s flow %s rewrote the tool result it checked", req_id, direction.value, check.flow)
+                rewritten[check.index] = text
+        return RailResult.allow(records=tuple(collected)), rewritten
 
     async def _run_rails_parallel(
         self,
