@@ -429,8 +429,18 @@ class TestUnrunnableSurfaces:
             (RailDirection.INPUT, TransformTarget.BOT_MESSAGE),
             (RailDirection.OUTPUT, TransformTarget.USER_MESSAGE),
             (RailDirection.INPUT, TransformTarget.RELEVANT_CHUNKS),
+            (RailDirection.TOOL_RESULT, TransformTarget.USER_MESSAGE),
+            (RailDirection.INPUT, TransformTarget.TOOL_RESULT),
+            (RailDirection.TOOL_CALL, TransformTarget.TOOL_RESULT),
         ],
-        ids=["input-rewrites-bot", "output-rewrites-user", "input-rewrites-chunks"],
+        ids=[
+            "input-rewrites-bot",
+            "output-rewrites-user",
+            "input-rewrites-chunks",
+            "tool-result-rewrites-user",
+            "input-rewrites-tool-result",
+            "tool-call-rewrites-tool-result",
+        ],
     )
     def test_a_surface_rewriting_the_wrong_variable_does_not_compile(self, deps, direction, target):
         """A rewrite this engine has no variable for is refused rather than applied to the wrong one.
@@ -443,6 +453,45 @@ class TestUnrunnableSurfaces:
 
         with pytest.raises(RailCompilationError, match="cannot apply"):
             compile_rail(SYNTHETIC_FLOW, direction, deps, catalog=StubCatalog(surface, direction))
+
+    def test_a_tool_result_surface_rewriting_the_result_compiles(self, deps):
+        """The tool-result direction has a variable to rewrite: the content of the result it checks."""
+        surface = synthetic_surface(
+            ActionRef(name="takes_text", target=TAKES_TEXT_TARGET),
+            direction=RailDirection.TOOL_RESULT,
+            transform_target=TransformTarget.TOOL_RESULT,
+        )
+
+        rail = compile_rail(
+            SYNTHETIC_FLOW, RailDirection.TOOL_RESULT, deps, catalog=StubCatalog(surface, RailDirection.TOOL_RESULT)
+        )
+
+        assert rail.transform_target is TransformTarget.TOOL_RESULT
+
+    @pytest.mark.parametrize(
+        "direction, target, servable",
+        [
+            (RailDirection.TOOL_RESULT, TransformTarget.TOOL_RESULT, True),
+            (RailDirection.TOOL_RESULT, TransformTarget.USER_MESSAGE, False),
+            (RailDirection.TOOL_CALL, TransformTarget.TOOL_RESULT, False),
+            (RailDirection.OUTPUT, TransformTarget.TOOL_RESULT, False),
+        ],
+        ids=[
+            "tool-result",
+            "tool-result-rewrites-user",
+            "tool-call-rewrites-tool-result",
+            "output-rewrites-tool-result",
+        ],
+    )
+    def test_unservable_reason_agrees_with_compilation(self, direction, target, servable):
+        """The routing gate asks the same question compilation does, so neither admits what the other refuses."""
+        surface = synthetic_surface(
+            ActionRef(name="takes_text", target=TAKES_TEXT_TARGET), direction=direction, transform_target=target
+        )
+
+        reason = unservable_reason(SYNTHETIC_FLOW, direction, catalog=StubCatalog(surface, direction))
+
+        assert (reason is None) is servable
 
 
 class TestUnapplicableTransformReason:
@@ -462,8 +511,9 @@ class TestUnapplicableTransformReason:
         [
             (RailDirection.INPUT, TransformTarget.USER_MESSAGE),
             (RailDirection.OUTPUT, TransformTarget.BOT_MESSAGE),
+            (RailDirection.TOOL_RESULT, TransformTarget.TOOL_RESULT),
         ],
-        ids=["input-user", "output-bot"],
+        ids=["input-user", "output-bot", "tool-result-result"],
     )
     def test_a_direction_rewriting_its_own_variable_is_servable(self, direction, target):
         """The agreement every shipped surface has, and the reason this check refuses nothing today."""
@@ -476,8 +526,10 @@ class TestUnapplicableTransformReason:
             (RailDirection.OUTPUT, TransformTarget.USER_MESSAGE),
             (RailDirection.INPUT, TransformTarget.RELEVANT_CHUNKS),
             (RailDirection.RETRIEVAL, TransformTarget.RELEVANT_CHUNKS),
+            (RailDirection.TOOL_RESULT, TransformTarget.BOT_MESSAGE),
+            (RailDirection.TOOL_CALL, TransformTarget.TOOL_RESULT),
         ],
-        ids=["input-bot", "output-user", "input-chunks", "retrieval"],
+        ids=["input-bot", "output-user", "input-chunks", "retrieval", "tool-result-bot", "tool-call-result"],
     )
     def test_a_rewrite_with_nowhere_to_land_reports_why(self, direction, target):
         """Nothing in the manifest schema forbids the mismatch, so the refusal is what keeps it out."""

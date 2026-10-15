@@ -122,6 +122,14 @@ def test_transform_targets_variables():
     }
 
 
+def test_tool_result_target_carries_the_replacement_content():
+    outcome = RailOutcome.transform([(TransformTarget.TOOL_RESULT, "masked result")])
+
+    assert outcome.transforms == (TransformSpec(target=TransformTarget.TOOL_RESULT, text="masked result"),)
+    assert outcome.transform_text == {"tool_result": "masked result"}
+    assert RailOutcome.transform([(cast(Any, "tool_result"), "masked result")]) == outcome
+
+
 def test_metadata_reason_key_does_not_replace_canonical_reason():
     outcome = RailOutcome.block(metadata={"reason": "provider reason"})
 

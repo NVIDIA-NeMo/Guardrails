@@ -397,10 +397,11 @@ def _context_parameters(surface: RailSurface, flow: str) -> tuple[_ContextParame
     return tuple(bound)
 
 
-# The conversation variable a rail may rewrite in each direction; retrieval has no home here.
+# The conversation variable a rail may rewrite in each direction; retrieval and tool calls have no home here.
 _REWRITABLE_TARGET: dict[RailDirection, TransformTarget] = {
     RailDirection.INPUT: TransformTarget.USER_MESSAGE,
     RailDirection.OUTPUT: TransformTarget.BOT_MESSAGE,
+    RailDirection.TOOL_RESULT: TransformTarget.TOOL_RESULT,
 }
 
 
