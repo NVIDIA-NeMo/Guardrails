@@ -1,0 +1,522 @@
+version: 1.0.0-alpha.1
+operationId: createResponse
+profile: single_text.v1
+request:
+  additionalProperties: false
+  description: Bind the declared input subject and strict response-mode selector.
+  properties:
+    background:
+      const: false
+      default: false
+      type: boolean
+      x-nemo-guardrails:
+        classification: constrained
+        reason: core_capability.background_execution
+    context_management:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.conversation_state
+    conversation:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.conversation_state
+    include:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.additional_content
+    input:
+      minLength: 1
+      type: string
+      x-nemo-guardrails:
+        classification: guarded
+        subject:
+          kind: text
+          replaceable: false
+          role: user
+    instructions:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.additional_input
+    max_output_tokens:
+      x-nemo-guardrails:
+        classification: opaque
+    max_tool_calls:
+      x-nemo-guardrails:
+        classification: opaque
+    metadata:
+      x-nemo-guardrails:
+        classification: opaque
+    model:
+      x-nemo-guardrails:
+        classification: opaque
+    moderation:
+      x-nemo-guardrails:
+        classification: opaque
+    parallel_tool_calls:
+      x-nemo-guardrails:
+        classification: opaque
+    previous_response_id:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.conversation_state
+    prompt:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.additional_input
+    prompt_cache_key:
+      x-nemo-guardrails:
+        classification: opaque
+    prompt_cache_options:
+      x-nemo-guardrails:
+        classification: opaque
+    prompt_cache_retention:
+      x-nemo-guardrails:
+        classification: opaque
+    reasoning:
+      default: null
+      x-nemo-guardrails:
+        classification: constrained
+      oneOf:
+      - additionalProperties: false
+        description: Allow reviewed reasoning controls, but no separate reasoning
+          text input.
+        properties:
+          context:
+            default: null
+            type: 'null'
+            x-nemo-guardrails:
+              classification: constrained
+              gate: disabled
+              reason: core_capability.reasoning_content
+          effort:
+            x-nemo-guardrails:
+              classification: opaque
+          generate_summary:
+            default: null
+            type: 'null'
+            x-nemo-guardrails:
+              classification: constrained
+              gate: disabled
+              reason: core_capability.reasoning_content
+          mode:
+            default: null
+            type: 'null'
+            x-nemo-guardrails:
+              classification: constrained
+              gate: disabled
+              reason: core_capability.reasoning_content
+          summary:
+            default: null
+            type: 'null'
+            x-nemo-guardrails:
+              classification: constrained
+              gate: disabled
+              reason: core_capability.reasoning_content
+        title: ResponsesReasoningConfigProjection
+        type: object
+        x-nemo-guardrails:
+          source: '#/components/schemas/Reasoning'
+          unknown_fields: configurable
+          reject_case_aliases: true
+      - type: 'null'
+    safety_identifier:
+      x-nemo-guardrails:
+        classification: opaque
+    service_tier:
+      x-nemo-guardrails:
+        classification: opaque
+    store:
+      x-nemo-guardrails:
+        classification: opaque
+    stream:
+      default: false
+      type: boolean
+      x-nemo-guardrails:
+        classification: constrained
+    stream_options:
+      x-nemo-guardrails:
+        classification: opaque
+    temperature:
+      x-nemo-guardrails:
+        classification: opaque
+    text:
+      default: null
+      x-nemo-guardrails:
+        classification: constrained
+      oneOf:
+      - additionalProperties: false
+        description: Retain verbosity while restricting any supplied format to plain
+          text.
+        properties:
+          format:
+            default: null
+            x-nemo-guardrails:
+              classification: constrained
+            oneOf:
+            - additionalProperties: false
+              description: Disallow structured-output instructions outside the guarded
+                input.
+              properties:
+                type:
+                  const: text
+                  type: string
+                  x-nemo-guardrails:
+                    classification: constrained
+                    reason: projection_policy.plain_text_output
+              required:
+              - type
+              title: ResponsesTextFormatProjection
+              type: object
+              x-nemo-guardrails:
+                source: '#/components/schemas/ResponseFormatText'
+                unknown_fields: configurable
+                reject_case_aliases: true
+            - type: 'null'
+          verbosity:
+            x-nemo-guardrails:
+              classification: opaque
+        title: ResponsesTextConfigProjection
+        type: object
+        x-nemo-guardrails:
+          source: '#/components/schemas/ResponseTextParam'
+          unknown_fields: configurable
+          reject_case_aliases: true
+      - type: 'null'
+    tool_choice:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.tool_content
+    tools:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: core_capability.tool_content
+    top_logprobs:
+      default: null
+      x-nemo-guardrails:
+        classification: constrained
+        reason: provider_integrity.token_logprobs
+      oneOf:
+      - maximum: 0
+        minimum: 0
+        type: integer
+      - type: 'null'
+    top_p:
+      x-nemo-guardrails:
+        classification: opaque
+    truncation:
+      x-nemo-guardrails:
+        classification: opaque
+    user:
+      x-nemo-guardrails:
+        classification: opaque
+  required:
+  - input
+  title: openai.responses.request.text.v1
+  type: object
+  x-nemo-guardrails:
+    source: '#/components/schemas/CreateResponse'
+    unknown_fields: forbid
+    reject_case_aliases: true
+    model: ResponsesGuardedRequest
+    stream_selector_field: stream
+response:
+  additionalProperties: false
+  description: Bind one assistant text target; replacement is deliberately unsupported.
+  properties:
+    background:
+      x-nemo-guardrails:
+        classification: opaque
+    completed_at:
+      x-nemo-guardrails:
+        classification: opaque
+    conversation:
+      x-nemo-guardrails:
+        classification: opaque
+    created_at:
+      x-nemo-guardrails:
+        classification: opaque
+    error:
+      x-nemo-guardrails:
+        classification: opaque
+    id:
+      x-nemo-guardrails:
+        classification: opaque
+    incomplete_details:
+      x-nemo-guardrails:
+        classification: opaque
+    instructions:
+      x-nemo-guardrails:
+        classification: opaque
+    max_output_tokens:
+      x-nemo-guardrails:
+        classification: opaque
+    max_tool_calls:
+      x-nemo-guardrails:
+        classification: opaque
+    metadata:
+      x-nemo-guardrails:
+        classification: opaque
+    model:
+      x-nemo-guardrails:
+        classification: opaque
+    moderation:
+      x-nemo-guardrails:
+        classification: opaque
+    object:
+      x-nemo-guardrails:
+        classification: opaque
+    output:
+      items:
+        oneOf:
+        - additionalProperties: false
+          description: Preserve opaque reasoning metadata, not separate plaintext
+            reasoning.
+          properties:
+            content:
+              default: null
+              x-nemo-guardrails:
+                classification: constrained
+                reason: core_capability.reasoning_content
+              oneOf:
+              - items: {}
+                maxItems: 0
+                type: array
+              - type: 'null'
+            encrypted_content:
+              x-nemo-guardrails:
+                classification: opaque
+            id:
+              x-nemo-guardrails:
+                classification: opaque
+            status:
+              x-nemo-guardrails:
+                classification: opaque
+            summary:
+              default: null
+              x-nemo-guardrails:
+                classification: constrained
+                reason: core_capability.reasoning_content
+              oneOf:
+              - items: {}
+                maxItems: 0
+                type: array
+              - type: 'null'
+            type:
+              const: reasoning
+              type: string
+              x-nemo-guardrails:
+                classification: constrained
+          required:
+          - type
+          title: ResponsesReasoningItemProjection
+          type: object
+          x-nemo-guardrails:
+            variant:
+              cardinality: any
+              match:
+                type: reasoning
+            source: '#/components/schemas/ReasoningItem'
+            unknown_fields: configurable
+            reject_case_aliases: true
+        - additionalProperties: false
+          description: Select exactly one assistant message without assuming its output
+            index.
+          properties:
+            content:
+              items:
+                additionalProperties: false
+                description: Guard output text and reject uninspected citation and
+                  token text.
+                properties:
+                  annotations:
+                    default: null
+                    x-nemo-guardrails:
+                      classification: constrained
+                      reason: core_capability.citation_content
+                    oneOf:
+                    - items: {}
+                      maxItems: 0
+                      type: array
+                    - type: 'null'
+                  logprobs:
+                    default: null
+                    x-nemo-guardrails:
+                      classification: constrained
+                      reason: provider_integrity.token_logprobs
+                    oneOf:
+                    - items: {}
+                      maxItems: 0
+                      type: array
+                    - type: 'null'
+                  text:
+                    minLength: 1
+                    type: string
+                    x-nemo-guardrails:
+                      classification: guarded
+                      subject:
+                        kind: text
+                        replaceable: false
+                        role: assistant
+                  type:
+                    const: output_text
+                    type: string
+                    x-nemo-guardrails:
+                      classification: constrained
+                required:
+                - type
+                - text
+                title: ResponsesOutputTextProjection
+                type: object
+                x-nemo-guardrails:
+                  source: '#/components/schemas/OutputTextContent'
+                  unknown_fields: configurable
+                  reject_case_aliases: true
+              maxItems: 1
+              minItems: 1
+              type: array
+              x-nemo-guardrails:
+                classification: guarded
+            id:
+              x-nemo-guardrails:
+                classification: opaque
+            phase:
+              x-nemo-guardrails:
+                classification: opaque
+            role:
+              const: assistant
+              type: string
+              x-nemo-guardrails:
+                classification: constrained
+            status:
+              x-nemo-guardrails:
+                classification: opaque
+            type:
+              const: message
+              type: string
+              x-nemo-guardrails:
+                classification: constrained
+          required:
+          - type
+          - role
+          - content
+          title: ResponsesAssistantMessageProjection
+          type: object
+          x-nemo-guardrails:
+            variant:
+              cardinality: exactly_one
+              match:
+                role: assistant
+                type: message
+            source: '#/components/schemas/OutputMessage'
+            unknown_fields: configurable
+            reject_case_aliases: true
+      type: array
+      x-nemo-guardrails:
+        classification: guarded
+    output_text:
+      default: null
+      type: 'null'
+      x-nemo-guardrails:
+        classification: constrained
+        gate: disabled
+        reason: provider_integrity.duplicate_text
+    parallel_tool_calls:
+      x-nemo-guardrails:
+        classification: opaque
+    previous_response_id:
+      x-nemo-guardrails:
+        classification: opaque
+    prompt:
+      x-nemo-guardrails:
+        classification: opaque
+    prompt_cache_diagnostics:
+      x-nemo-guardrails:
+        classification: opaque
+    prompt_cache_key:
+      x-nemo-guardrails:
+        classification: opaque
+    prompt_cache_options:
+      x-nemo-guardrails:
+        classification: opaque
+    prompt_cache_retention:
+      x-nemo-guardrails:
+        classification: opaque
+    reasoning:
+      x-nemo-guardrails:
+        classification: opaque
+    safety_identifier:
+      x-nemo-guardrails:
+        classification: opaque
+    service_tier:
+      x-nemo-guardrails:
+        classification: opaque
+    status:
+      x-nemo-guardrails:
+        classification: opaque
+    temperature:
+      x-nemo-guardrails:
+        classification: opaque
+    text:
+      x-nemo-guardrails:
+        classification: opaque
+    tool_choice:
+      x-nemo-guardrails:
+        classification: opaque
+    tools:
+      x-nemo-guardrails:
+        classification: opaque
+    top_logprobs:
+      x-nemo-guardrails:
+        classification: opaque
+    top_p:
+      x-nemo-guardrails:
+        classification: opaque
+    truncation:
+      x-nemo-guardrails:
+        classification: opaque
+    usage:
+      x-nemo-guardrails:
+        classification: opaque
+    user:
+      x-nemo-guardrails:
+        classification: opaque
+  required:
+  - output
+  title: openai.responses.response.text.v1
+  type: object
+  x-nemo-guardrails:
+    source: '#/components/schemas/Response'
+    unknown_fields: forbid
+    reject_case_aliases: true
+    model: ResponsesGuardedResponse
+integration:
+  name: responses
+  endpoint:
+    route_path: /v1/responses
+    operation_label: OpenAI Responses
+    unsupported_request_code: unsupported_responses_shape
+    unsupported_response_code: unsupported_responses_response_shape
