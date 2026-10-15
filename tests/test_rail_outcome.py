@@ -130,6 +130,16 @@ def test_tool_result_target_carries_the_replacement_content():
     assert RailOutcome.transform([(cast(Any, "tool_result"), "masked result")]) == outcome
 
 
+def test_tool_call_target_carries_the_replacement_arguments():
+    outcome = RailOutcome.transform([(TransformTarget.TOOL_CALL, '{"query": "SELECT [REDACTED]"}')])
+
+    assert outcome.transforms == (
+        TransformSpec(target=TransformTarget.TOOL_CALL, text='{"query": "SELECT [REDACTED]"}'),
+    )
+    assert outcome.transform_text == {"tool_call": '{"query": "SELECT [REDACTED]"}'}
+    assert RailOutcome.transform([(cast(Any, "tool_call"), '{"query": "SELECT [REDACTED]"}')]) == outcome
+
+
 def test_metadata_reason_key_does_not_replace_canonical_reason():
     outcome = RailOutcome.block(metadata={"reason": "provider reason"})
 

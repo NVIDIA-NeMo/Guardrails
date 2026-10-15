@@ -78,6 +78,7 @@ _DIRECTION_TARGET = {
     SurfaceDirection.INPUT: TransformTarget.USER_MESSAGE,
     SurfaceDirection.OUTPUT: TransformTarget.BOT_MESSAGE,
     SurfaceDirection.TOOL_RESULT: TransformTarget.TOOL_RESULT,
+    SurfaceDirection.TOOL_CALL: TransformTarget.TOOL_CALL,
 }
 
 
@@ -105,6 +106,11 @@ def bot_message_rewrite(text: str) -> RailResult:
 def tool_result_rewrite(text: str) -> RailResult:
     """The verdict a per-tool rail returns when it rewrote the tool result it checked to *text*."""
     return RailResult(RailOutcome.transform([(TransformTarget.TOOL_RESULT, text)]))
+
+
+def tool_call_rewrite(arguments: str) -> RailResult:
+    """The verdict a per-tool rail returns when it rewrote the arguments of the tool call it checked to *arguments*."""
+    return RailResult(RailOutcome.transform([(TransformTarget.TOOL_CALL, arguments)]))
 
 
 def rail_failure(rail: str) -> RailResult:
