@@ -17,6 +17,7 @@ from nemoguardrails.manifests import (
     ActionRef,
     Binding,
     ConfigSpecRef,
+    ModelRequirement,
     RailActions,
     RailConfigSchema,
     RailDirection,
@@ -24,6 +25,7 @@ from nemoguardrails.manifests import (
     RailManifest,
     RailMetadata,
     RailPrivacy,
+    RailRequirements,
     RailSpec,
     RailSurface,
 )
@@ -85,6 +87,10 @@ RAIL = RailManifest(
                     Binding.context("bot_message", "bot_message"),
                 ),
             ),
+        ),
+        requirements=RailRequirements(
+            models=(ModelRequirement(type="content_safety", required=True),),
+            extras=("multilingual",),
         ),
         privacy=RailPrivacy(sends_user_text=True, sends_bot_text=True),
     ),
