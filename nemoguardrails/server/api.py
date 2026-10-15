@@ -45,6 +45,7 @@ from nemoguardrails.exceptions import (
     RailTypeNotSupportedError,
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
+    UnreadableContentPartError,
 )
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.model_engine import ModelEngineError
@@ -909,7 +910,13 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
     if context_prepended:
         messages.insert(0, {"role": "context", "content": body.guardrails.context})
 
-    result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types, tools=body.tools)
+    try:
+        result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types, tools=body.tools)
+    except UnreadableContentPartError as error:
+        if not context_prepended:
+            raise
+        # The prepended context message moved every position by one; report the caller's own.
+        raise error.at_message_index(error.message_index - 1) from error
 
     return GuardrailCheckResponse(
         status=_map_rail_status(result.status),

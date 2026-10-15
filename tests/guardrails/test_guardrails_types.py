@@ -15,11 +15,13 @@
 
 """Unit tests for guardrails_types module."""
 
+import copy
 from typing import Any, ClassVar
 
 import pytest
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.exceptions import InvalidCheckRequestError, UnreadableContentPartError
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
@@ -28,6 +30,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     client_reason,
     current_user_turn_index,
     display_reason,
+    flatten_text_parts,
     last_user_content,
     rewrite_user_message,
     truncate,
@@ -393,6 +396,198 @@ class TestMessageRewriting:
         """A rewrite with nowhere to land fails loudly rather than being dropped."""
         with pytest.raises(ValueError, match="nothing to rewrite"):
             rewrite_user_message([{"role": "assistant", "content": "hello"}], "masked")
+
+
+PART_SECRET = "SECRET-CONTENT"
+
+
+def _text_part(text: str) -> dict:
+    """A text content part."""
+    return {"type": "text", "text": text}
+
+
+class TestFlattenTextParts:
+    """Tests for flatten_text_parts, which turns text content parts into the string a rail reads."""
+
+    @pytest.mark.parametrize("role", ["user", "assistant"])
+    def test_text_parts_are_joined_with_newlines(self, role):
+        """A list of text parts on a flattened role becomes one string joined with newlines."""
+        messages = [{"role": role, "content": [_text_part("Hello"), _text_part("world")]}]
+
+        assert flatten_text_parts(messages) == [{"role": role, "content": "Hello\nworld"}]
+
+    def test_a_single_text_part_becomes_its_text_part(self):
+        """A one-part list becomes that part's text, with no separator added."""
+        messages = [{"role": "user", "content": [_text_part("Hello")]}]
+
+        assert flatten_text_parts(messages) == [{"role": "user", "content": "Hello"}]
+
+    def test_an_assistant_refusal_part_contributes_its_text_part(self):
+        """An assistant refusal part is model text the user sees, so it is joined in alongside the text parts."""
+        messages = [
+            {"role": "assistant", "content": [_text_part("Sorry."), {"type": "refusal", "refusal": "I can't."}]}
+        ]
+
+        assert flatten_text_parts(messages) == [{"role": "assistant", "content": "Sorry.\nI can't."}]
+
+    def test_other_message_fields_are_kept(self):
+        """Flattening replaces only content, keeping the message's other fields."""
+        messages = [{"role": "user", "content": [_text_part("Hello")], "name": "alice"}]
+
+        assert flatten_text_parts(messages) == [{"role": "user", "content": "Hello", "name": "alice"}]
+
+    def test_an_empty_list_becomes_an_empty_string(self):
+        """An empty part list reads as empty content, like an empty string."""
+        messages = [{"role": "user", "content": []}]
+
+        assert flatten_text_parts(messages) == [{"role": "user", "content": ""}]
+
+    @pytest.mark.parametrize(
+        ("role", "part"),
+        [
+            ("user", {"type": "image_url", "image_url": {"url": f"https://example.com/{PART_SECRET}.png"}}),
+            ("user", {"type": "file", "file": {"file_data": PART_SECRET, "filename": "doc.pdf"}}),
+            ("user", {"type": "input_audio", "input_audio": {"data": PART_SECRET, "format": "wav"}}),
+            ("user", {"type": "refusal", "refusal": PART_SECRET}),
+            ("user", {"type": "video", "video": PART_SECRET}),
+            ("user", {"type": [PART_SECRET], "text": "hi"}),
+            ("user", PART_SECRET),
+            ("user", {"type": "text", "text": [PART_SECRET]}),
+            ("assistant", {"type": "image_url", "image_url": {"url": f"https://example.com/{PART_SECRET}.png"}}),
+        ],
+        ids=[
+            "image_url",
+            "file",
+            "input_audio",
+            "refusal_on_user",
+            "unknown_type",
+            "non_string_type",
+            "not_a_dict",
+            "non_string_text",
+            "image_url_on_assistant",
+        ],
+    )
+    def test_a_non_text_part_raises_without_echoing_content(self, role, part):
+        """A part that is not text raises InvalidCheckRequestError, whose message echoes none of the content."""
+        messages = [{"role": role, "content": [_text_part(PART_SECRET), part]}]
+
+        with pytest.raises(InvalidCheckRequestError) as exc_info:
+            flatten_text_parts(messages)
+
+        assert PART_SECRET not in str(exc_info.value)
+
+    def test_the_error_names_the_role_index_and_part_type(self):
+        """The error locates the offending part by role, message index and part type."""
+        messages = [
+            {"role": "system", "content": "Be helpful."},
+            {"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.png"}}]},
+        ]
+
+        with pytest.raises(InvalidCheckRequestError) as exc_info:
+            flatten_text_parts(messages)
+
+        error = str(exc_info.value)
+        assert "user" in error
+        assert "messages[1]" in error
+        assert "image_url" in error
+
+    def test_a_non_text_part_raises_a_structured_error(self):
+        """The error is an UnreadableContentPartError carrying the part's location and problem as fields."""
+        messages = [
+            {"role": "system", "content": "Be helpful."},
+            {"role": "user", "content": [_text_part("Hi"), {"type": "image_url", "image_url": {"url": "x"}}]},
+        ]
+
+        with pytest.raises(UnreadableContentPartError) as exc_info:
+            flatten_text_parts(messages)
+
+        error = exc_info.value
+        assert isinstance(error, InvalidCheckRequestError)
+        assert (error.message_index, error.role, error.part_index, error.problem) == (
+            1,
+            "user",
+            1,
+            "has type 'image_url'",
+        )
+        assert str(error) == (
+            "cannot check messages[1] (user): content part 1 has type 'image_url'; "
+            "a check reads only text parts, and refusal parts on assistant messages"
+        )
+
+
+class TestUnreadableContentPartError:
+    """Tests for the structured error flatten_text_parts raises."""
+
+    def test_at_message_index_moves_only_the_position(self):
+        """at_message_index returns the same error at a new message position, with the message text to match."""
+        error = UnreadableContentPartError(message_index=1, role="user", part_index=0, problem="has type 'file'")
+
+        moved = error.at_message_index(0)
+
+        assert (moved.message_index, moved.role, moved.part_index, moved.problem) == (0, "user", 0, "has type 'file'")
+        assert str(moved).startswith("cannot check messages[0] (user): content part 0 has type 'file';")
+        assert error.message_index == 1
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            {"role": "system", "content": [_text_part("Be helpful.")]},
+            {"role": "developer", "content": [_text_part("Be helpful.")]},
+            {"role": "tool", "tool_call_id": "call_1", "content": [_text_part("18C")]},
+            {"role": "tool", "tool_call_id": "call_1", "content": [{"type": "image_url"}]},
+        ],
+        ids=["system", "developer", "tool", "tool_with_non_text_part"],
+    )
+    def test_roles_outside_roles_pass_through_unchanged(self, message):
+        """A message whose role is not flattened is passed through as the same object, list content and all."""
+        messages = [message]
+
+        flattened = flatten_text_parts(messages)
+
+        assert flattened[0] is message
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            {"role": "user", "content": "hello"},
+            {"role": "user", "content": None},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "call_1"}]},
+            {"role": "context", "content": {"user_id": "u1"}},
+        ],
+        ids=["string", "user_none", "assistant_tool_call_none", "context_dict"],
+    )
+    def test_non_list_content_passes_through_unchanged(self, message):
+        """String, None and dict content is passed through as the same object."""
+        messages = [message]
+
+        flattened = flatten_text_parts(messages)
+
+        assert flattened[0] is message
+
+    def test_roles_selects_which_messages_are_flattened(self):
+        """Only the roles passed in are flattened; the defaults no longer apply."""
+        messages = [
+            {"role": "user", "content": [_text_part("Hi")]},
+            {"role": "tool", "tool_call_id": "call_1", "content": [_text_part("18C")]},
+        ]
+
+        flattened = flatten_text_parts(messages, roles=("tool",))
+
+        assert flattened[0] is messages[0]
+        assert flattened[1] == {"role": "tool", "tool_call_id": "call_1", "content": "18C"}
+
+    def test_the_input_is_not_mutated(self):
+        """Flattening returns a new list and leaves the caller's list and message dicts untouched."""
+        messages = [
+            {"role": "user", "content": [_text_part("Hello"), _text_part("world")]},
+            {"role": "assistant", "content": [_text_part("Hi")]},
+        ]
+        original = copy.deepcopy(messages)
+
+        flattened = flatten_text_parts(messages)
+
+        assert flattened is not messages
+        assert messages == original
 
 
 class TestTypeAliases:

@@ -482,6 +482,59 @@ def test_check_with_unread_tools_returns_422_under_iorails_alias(tool_rails_alia
     stubbed_main_model.assert_not_awaited()
 
 
+IMAGE_CONTENT = [
+    {"type": "text", "text": "What is in this picture?"},
+    {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+]
+
+
+def _post_image_check(monkeypatch, *, context: "dict | None" = None):
+    """POST a one-message /v1/checks request whose user content carries an image part, on IORails."""
+
+    async def _fake_start(self):
+        self._running = True
+
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    monkeypatch.setattr(IORails, "start", _fake_start)
+    guardrails = {"config_id": "content_safety"}
+    if context is not None:
+        guardrails["context"] = context
+    client = TestClient(api.app, raise_server_exceptions=False)
+    return client.post(
+        "/v1/checks",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": IMAGE_CONTENT}],
+            "guardrails": guardrails,
+        },
+    )
+
+
+def test_check_with_an_image_part_returns_422_under_iorails_alias(iorails_alias, monkeypatch, stubbed_main_model):
+    """/v1/checks on IORails refuses an image part with a 422 naming it, instead of skipping the input rails."""
+    response = _post_image_check(monkeypatch)
+
+    assert response.status_code == 422
+    assert "image_url" in response.json()["error"]["message"]
+    stubbed_main_model.assert_not_awaited()
+
+
+def test_image_part_error_names_the_callers_message_under_iorails_alias(iorails_alias, monkeypatch):
+    """Without guardrails.context, the 422 locates the image part at the caller's own message position."""
+    response = _post_image_check(monkeypatch)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"].startswith("cannot check messages[0] (user):")
+
+
+def test_image_part_error_counts_past_prepended_context_under_iorails_alias(iorails_alias, monkeypatch):
+    """With guardrails.context set, the 422 still names the caller's position, not the server-shifted one."""
+    response = _post_image_check(monkeypatch, context={"user_id": "u1"})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"].startswith("cannot check messages[0] (user):")
+
+
 # A Colang input rail, which LLMRails runs through its own runtime: the config the server holds when
 # NEMO_GUARDRAILS_IORAILS_ENGINE is unset.
 INPUT_RAIL_COLANG = """

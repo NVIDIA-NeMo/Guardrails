@@ -56,6 +56,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     TimedLLMResponse,
     client_reason,
     display_reason,
+    flatten_text_parts,
     get_request_id,
     rewrite_user_message,
     serialize_prompt,
@@ -1387,6 +1388,7 @@ class IORails(BaseGuardrails):
         the asynchronous ``check_async``.
 
         Raises:
+            InvalidCheckRequestError: As ``check_async`` raises it.
             RailTypeNotConfiguredError: If a requested rail type has no
                 configured rails, or a tool rail type is requested on a config
                 with no ``main`` model.
@@ -1430,18 +1432,24 @@ class IORails(BaseGuardrails):
         on the main model's parameters, rather than adding to them; ``[]``
         declares none.
 
+        List content on a user or assistant message is checked as its text
+        parts joined with newlines; an assistant refusal part counts as text.
+
         Submitted through the same admission queue as ``generate_async`` so the
         check path shares non-streaming concurrency limits, request metrics, and
         the per-request trace span.
 
         Raises:
             InvalidCheckRequestError: If ``tools`` is given but ``rail_types``
-                does not include ``RailType.TOOL_CALL``.
+                does not include ``RailType.TOOL_CALL``, or a user or assistant
+                message carries a content part that is not text, such as an image.
             RailTypeNotConfiguredError: If a requested rail type has no
                 configured rails, or a tool rail type is requested on a config
                 with no ``main`` model.
         """
         # Before queueing: a request the check cannot serve takes no queue slot and is not logged as a failed check.
+        # Flattened before rails are chosen, since list content would otherwise read as empty and skip its rails.
+        messages = flatten_text_parts(messages)
         _reject_unread_tools(rail_types, tools)
         if rail_types is not None:
             self._validate_requested_rail_types(rail_types)

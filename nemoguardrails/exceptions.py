@@ -37,6 +37,7 @@ __all__ = [
     "StreamingNotSupportedError",
     "RailTypeNotConfiguredError",
     "RailTypeNotSupportedError",
+    "UnreadableContentPartError",
 ]
 
 
@@ -86,9 +87,30 @@ class RailTypeNotSupportedError(InvalidRailsConfigurationError):
 
 
 class InvalidCheckRequestError(ValueError):
-    """Raised when a check's arguments contradict each other, such as `tools` without a `tool_call` check."""
+    """Raised when a check cannot serve its arguments, such as `tools` without a `tool_call` check or an image part."""
 
     pass
+
+
+class UnreadableContentPartError(InvalidCheckRequestError):
+    """Raised when a checked message carries a content part a check cannot read as text."""
+
+    def __init__(self, *, message_index: int, role: str, part_index: int, problem: str):
+        # Kept as fields so a caller that shifted the message list can report the original position.
+        self.message_index = message_index
+        self.role = role
+        self.part_index = part_index
+        self.problem = problem
+        super().__init__(
+            f"cannot check messages[{message_index}] ({role}): content part {part_index} {problem}; "
+            "a check reads only text parts, and refusal parts on assistant messages"
+        )
+
+    def at_message_index(self, message_index: int) -> "UnreadableContentPartError":
+        """The same error for the message at *message_index*."""
+        return UnreadableContentPartError(
+            message_index=message_index, role=self.role, part_index=self.part_index, problem=self.problem
+        )
 
 
 class InvalidStateError(ValueError):
