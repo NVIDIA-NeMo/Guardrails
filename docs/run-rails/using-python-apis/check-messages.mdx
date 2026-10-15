@@ -204,7 +204,7 @@ The `RailsResult` object contains the outcome of the rails check.
 | `rail` | `Optional[str]` | Name of the rail that blocked the content (only when `BLOCKED`) |
 | `reason` | `Optional[str]` | Why the rail blocked the content (IORails only; `None` on `LLMRails` and when not `BLOCKED`) |
 | `tool_violations` | `Optional[List[ToolViolation]]` | The tool calls or tool results a tool rail blocked (IORails only; `None` unless a tool rail blocked). Refer to [Tool Violations](#tool-violations) |
-| `messages` | `Optional[List[dict]]` | The checked conversation as the rails left it, with the same length and order as the `messages` passed in (IORails only; `None` unless a tool rail rewrote a tool result). Refer to [Which Content Is Reported](#which-content-is-reported) |
+| `messages` | `Optional[List[dict]]` | The checked conversation as the rails left it, with the same length and order as the `messages` passed in (IORails only; `None` unless a tool rail rewrote a tool call or result). Refer to [Which Content Is Reported](#which-content-is-reported) |
 
 ### RailStatus Enum
 
@@ -276,10 +276,11 @@ A `tool_result` check reports the user text.
 Both engines compare the reported text against its original value to decide between `PASSED` and `MODIFIED`.
 When a check runs both directions and only the user message is rewritten, the status is `PASSED`, because the reported assistant text is unchanged.
 `MODIFIED` names no rail: a rewrite is not a rail blocking the request, and several rails can contribute to the final text.
-A `per_tool` tool-result rail can rewrite a tool result (IORails only).
-The input, tool-call, and output rails in the same check read the rewritten result.
+A `per_tool` tool-result rail can rewrite a tool result, and a `per_tool` tool-call rail can rewrite a tool call's arguments (IORails only).
+The input, tool-call, and output rails in the same check read a rewritten result, and the output rails read rewritten calls.
 The rewrite changes no reported text, so the check reports it as `MODIFIED` and sets `messages` to the whole conversation as the rails left it.
 Each rewritten `tool` message keeps its position, and its `content` is the rewritten string.
+Rewritten calls stay on the last assistant message, at its position, with `function.arguments` the rewritten JSON string; that message is the last one in `messages` only when the conversation ends with it.
 An input or output rewrite in the same check is in `messages` too.
 `messages` is `None` when no tool rail rewrote anything and when the check is `BLOCKED`.
 The `/v1/checks` endpoint returns the same `messages`, without the prepended `context` message.

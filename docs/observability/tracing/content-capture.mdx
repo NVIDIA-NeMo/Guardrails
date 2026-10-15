@@ -31,7 +31,7 @@ When content capture is enabled, IORails records content on three types of spans
 
 | Span (Kind) | Attribute or Event | When Recorded |
 |-------------|--------------------|---------------|
-| `guardrails.request` (SERVER) | `guardrails.request.input`: JSON-encoded list of the input messages, after any tool-result or input-rail rewrite (and, on a check, any output-rail rewrite) | While capturing, unless a configured masking rail has not decided on the text; see [Privacy Considerations](#privacy-considerations) |
+| `guardrails.request` (SERVER) | `guardrails.request.input`: JSON-encoded list of the input messages, after any tool-result or input-rail rewrite (and, on a check, any tool-call or output-rail rewrite) | While capturing, unless a configured masking rail has not decided on the text; see [Privacy Considerations](#privacy-considerations) |
 | `guardrails.request` (SERVER) | `guardrails.request.output`: the text actually returned to the caller | When output is produced (a blocked request records the refusal message; an empty stream records nothing), unless it could carry text a configured masking rail has not decided on; see [Privacy Considerations](#privacy-considerations) |
 | `chat <model>` (CLIENT) | LLM input and output, in the [selected format](#output-format) | Once per LLM call: the main generation call and every rail-action LLM call. On the streaming path, recorded when the stream ends; see [Streaming](#streaming) |
 | `guardrails.rail` (INTERNAL) | `guardrails.rail.input`: JSON-encoded `{"messages": ..., "bot_response": ...}` snapshot | Every rail execution, while capturing |
