@@ -53,7 +53,7 @@ RAW_RESULT = "18C, reported by ada@example.com"
 MASKED_RESULT = "18C, reported by <EMAIL>"
 
 
-def _config(*, output: bool = True, capture: bool = False) -> dict:
+def tool_transform_config(*, output: bool = True, capture: bool = False) -> dict:
     """Content safety on input (and output), and a masking rail ahead of a judge on get_weather's results."""
     config = copy.deepcopy(CONTENT_SAFETY_CONFIG)
     if not output:
@@ -64,7 +64,7 @@ def _config(*, output: bool = True, capture: bool = False) -> dict:
     return config
 
 
-class Rails:
+class ToolTransformRails:
     """The stubs one IORails instance was compiled with, so a test can say which one decides."""
 
     def __init__(
@@ -87,14 +87,16 @@ class Rails:
 
 
 @asynccontextmanager
-async def _iorails(rails: Rails, config: dict) -> AsyncIterator[IORails]:
+async def tool_transform_iorails(rails: ToolTransformRails, config: dict) -> AsyncIterator[IORails]:
     with rails.compiled():
         async with started_iorails(config) as engine:
             yield engine
 
 
 @asynccontextmanager
-async def _capturing_iorails(rails: Rails, config: dict, exporter: InMemorySpanExporter) -> AsyncIterator[IORails]:
+async def capturing_tool_transform_iorails(
+    rails: ToolTransformRails, config: dict, exporter: InMemorySpanExporter
+) -> AsyncIterator[IORails]:
     with rails.compiled():
         async with _capturing(config, exporter) as engine:
             yield engine
@@ -106,7 +108,7 @@ def _sent_messages(engine: IORails) -> list[dict]:
     return client.post.call_args.kwargs["json"]["messages"]
 
 
-def _with_tool_content(messages: list[dict], content: str) -> list[dict]:
+def with_tool_content(messages: list[dict], content: str) -> list[dict]:
     return [{**message, "content": content} if message.get("role") == "tool" else message for message in messages]
 
 
@@ -127,20 +129,20 @@ class TestGenerateSendsTheRewrittenResult:
         """The rewrite reaches the wire, and the caller's conversation is left as it sent it."""
         messages = make_tool_conversation(content=RAW_RESULT)
         snapshot = copy.deepcopy(messages)
-        async with _iorails(Rails(), _config()) as engine:
+        async with tool_transform_iorails(ToolTransformRails(), tool_transform_config()) as engine:
             _inject_json_response(engine, _text_payload("It is 18C."))
 
             result = await engine.generate_async(messages=messages)
             sent = _sent_messages(engine)
 
         assert result == {"role": "assistant", "content": "It is 18C."}
-        assert sent == _with_tool_content(snapshot, MASKED_RESULT)
+        assert sent == with_tool_content(snapshot, MASKED_RESULT)
         assert messages == snapshot
 
     async def test_the_judge_and_the_input_and_output_rails_read_the_rewrite(self):
         """Rewriting runs first per tool, and the input and output rails are handed the rewritten history."""
-        rails = Rails()
-        async with _iorails(rails, _config()) as engine:
+        rails = ToolTransformRails()
+        async with tool_transform_iorails(rails, tool_transform_config()) as engine:
             _inject_json_response(engine, _text_payload("It is 18C."))
 
             await engine.generate_async(messages=make_tool_conversation(content=RAW_RESULT))
@@ -155,18 +157,18 @@ class TestGenerateSendsTheRewrittenResult:
             {"role": "assistant", "content": "It is 18C."},
             {"role": "user", "content": "Thanks. And tomorrow?"},
         ]
-        async with _iorails(Rails(), _config()) as engine:
+        async with tool_transform_iorails(ToolTransformRails(), tool_transform_config()) as engine:
             _inject_json_response(engine, _text_payload("Probably the same."))
 
             await engine.generate_async(messages=messages)
             sent = _sent_messages(engine)
 
-        assert sent == _with_tool_content(messages, MASKED_RESULT)
+        assert sent == with_tool_content(messages, MASKED_RESULT)
 
     async def test_a_config_that_never_rewrites_sends_the_conversation_as_it_came(self):
         """A judging rail alone changes nothing on the wire."""
         messages = make_tool_conversation(content=RAW_RESULT)
-        async with _iorails(Rails(mask=StubRail()), _config()) as engine:
+        async with tool_transform_iorails(ToolTransformRails(mask=StubRail()), tool_transform_config()) as engine:
             _inject_json_response(engine, _text_payload("It is 18C."))
 
             await engine.generate_async(messages=messages)
@@ -181,15 +183,15 @@ class TestStreamSendsTheRewrittenResult:
 
     async def test_the_model_receives_the_rewritten_result(self):
         messages = make_tool_conversation(content=RAW_RESULT)
-        rails = Rails()
-        async with _iorails(rails, _config(output=False)) as engine:
+        rails = ToolTransformRails()
+        async with tool_transform_iorails(rails, tool_transform_config(output=False)) as engine:
             _inject_sse_stream(engine, _text_sse_lines("It is 18C."))
 
             chunks = await _drain(engine.stream_async(messages=messages))
             sent = _sent_messages(engine)
 
         assert "".join(chunk for chunk in chunks if isinstance(chunk, str)) == "It is 18C."
-        assert sent == _with_tool_content(messages, MASKED_RESULT)
+        assert sent == with_tool_content(messages, MASKED_RESULT)
         assert rails.input.seen_messages[-1]["content"] == MASKED_RESULT
 
 
@@ -198,7 +200,9 @@ class TestTheRequestSpanRecordsTheMask:
     """With content capture on, the request span records the tool result as the mask left it, block or not."""
 
     async def test_an_allowed_generation_records_the_masked_result(self, span_exporter):
-        async with _capturing_iorails(Rails(), _config(capture=True), span_exporter) as engine:
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_transform_config(capture=True), span_exporter
+        ) as engine:
             _inject_json_response(engine, _text_payload("It is 18C."))
 
             await engine.generate_async(messages=make_tool_conversation(content=RAW_RESULT))
@@ -207,24 +211,30 @@ class TestTheRequestSpanRecordsTheMask:
 
     async def test_a_generation_blocked_by_a_tool_rail_behind_the_mask_records_the_masked_result(self, span_exporter):
         """The judge refuses after the mask ran, and the span still never carries the raw result."""
-        rails = Rails(judge=StubRail(RailOutcome.block(reason="unsafe")))
-        async with _capturing_iorails(rails, _config(capture=True), span_exporter) as engine:
+        rails = ToolTransformRails(judge=StubRail(RailOutcome.block(reason="unsafe")))
+        async with capturing_tool_transform_iorails(
+            rails, tool_transform_config(capture=True), span_exporter
+        ) as engine:
             result = await engine.generate_async(messages=make_tool_conversation(content=RAW_RESULT))
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         assert _captured_input(span_exporter)[-1]["content"] == MASKED_RESULT
 
     async def test_a_generation_blocked_by_an_input_rail_records_the_masked_result(self, span_exporter):
-        rails = Rails(input_rail=StubRail(RailOutcome.block(reason="unsafe")))
-        async with _capturing_iorails(rails, _config(capture=True), span_exporter) as engine:
+        rails = ToolTransformRails(input_rail=StubRail(RailOutcome.block(reason="unsafe")))
+        async with capturing_tool_transform_iorails(
+            rails, tool_transform_config(capture=True), span_exporter
+        ) as engine:
             result = await engine.generate_async(messages=make_tool_conversation(content=RAW_RESULT))
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         assert _captured_input(span_exporter)[-1]["content"] == MASKED_RESULT
 
     async def test_a_generation_blocked_by_an_output_rail_records_the_masked_result(self, span_exporter):
-        rails = Rails(output_rail=StubRail(RailOutcome.block(reason="unsafe")))
-        async with _capturing_iorails(rails, _config(capture=True), span_exporter) as engine:
+        rails = ToolTransformRails(output_rail=StubRail(RailOutcome.block(reason="unsafe")))
+        async with capturing_tool_transform_iorails(
+            rails, tool_transform_config(capture=True), span_exporter
+        ) as engine:
             _inject_json_response(engine, _text_payload("It is 18C."))
 
             result = await engine.generate_async(messages=make_tool_conversation(content=RAW_RESULT))
@@ -233,23 +243,29 @@ class TestTheRequestSpanRecordsTheMask:
         assert _captured_input(span_exporter)[-1]["content"] == MASKED_RESULT
 
     async def test_a_stream_blocked_by_a_tool_rail_behind_the_mask_records_the_masked_result(self, span_exporter):
-        rails = Rails(judge=StubRail(RailOutcome.block(reason="unsafe")))
-        async with _capturing_iorails(rails, _config(output=False, capture=True), span_exporter) as engine:
+        rails = ToolTransformRails(judge=StubRail(RailOutcome.block(reason="unsafe")))
+        async with capturing_tool_transform_iorails(
+            rails, tool_transform_config(output=False, capture=True), span_exporter
+        ) as engine:
             chunks = await _drain(engine.stream_async(messages=make_tool_conversation(content=RAW_RESULT)))
 
         assert [v["error"]["param"] for v in _stream_violation_chunks(chunks)] == ["tool_result_rails"]
         assert _captured_input(span_exporter)[-1]["content"] == MASKED_RESULT
 
     async def test_a_stream_blocked_by_an_input_rail_records_the_masked_result(self, span_exporter):
-        rails = Rails(input_rail=StubRail(RailOutcome.block(reason="unsafe")))
-        async with _capturing_iorails(rails, _config(output=False, capture=True), span_exporter) as engine:
+        rails = ToolTransformRails(input_rail=StubRail(RailOutcome.block(reason="unsafe")))
+        async with capturing_tool_transform_iorails(
+            rails, tool_transform_config(output=False, capture=True), span_exporter
+        ) as engine:
             chunks = await _drain(engine.stream_async(messages=make_tool_conversation(content=RAW_RESULT)))
 
         assert [v["error"]["param"] for v in _stream_violation_chunks(chunks)] == ["input_rails"]
         assert _captured_input(span_exporter)[-1]["content"] == MASKED_RESULT
 
     async def test_an_allowed_stream_records_the_masked_result(self, span_exporter):
-        async with _capturing_iorails(Rails(), _config(output=False, capture=True), span_exporter) as engine:
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_transform_config(output=False, capture=True), span_exporter
+        ) as engine:
             _inject_sse_stream(engine, _text_sse_lines("It is 18C."))
 
             await _drain(engine.stream_async(messages=make_tool_conversation(content=RAW_RESULT)))

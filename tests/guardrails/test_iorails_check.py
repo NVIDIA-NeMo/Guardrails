@@ -21,13 +21,16 @@ is_output_safe to control verdicts.
 """
 
 import asyncio
+import copy
 import logging
 from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import InvalidCheckRequestError, RailTypeNotConfiguredError
 from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.iorails import (
@@ -43,6 +46,7 @@ from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType, ToolViolationType
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.rail_stubs import (
+    StubRail,
     bot_message_rewrite,
     declare_masking_rails,
     failed_mask,
@@ -56,6 +60,16 @@ from tests.guardrails.test_tool_rails_iorails import (
     WEATHER_TOOL,
     _inject_forbidden_transport,
 )
+from tests.guardrails.test_tool_transform_rails_iorails import (
+    MASKED_RESULT,
+    RAW_RESULT,
+    ToolTransformRails,
+    capturing_tool_transform_iorails,
+    tool_transform_config,
+    tool_transform_iorails,
+    with_tool_content,
+)
+from tests.guardrails.test_transform_rail_pipeline import _captured_input
 from tests.guardrails.tool_helpers import (
     TOOL_CALL_QUESTION,
     UNREAD_TOOLS_MESSAGE,
@@ -1697,3 +1711,108 @@ class TestCheckToolRailConfiguration:
             )
 
         assert result.status == RailStatus.PASSED
+
+
+TOOL_AND_CONTENT_RAILS = [RailType.TOOL_RESULT, RailType.INPUT, RailType.OUTPUT]
+
+
+def _answered_tool_conversation() -> list[dict]:
+    """A tool exchange followed by the assistant's answer, so input and output rails both have text to check."""
+    return make_tool_conversation(content=RAW_RESULT) + [{"role": "assistant", "content": "It is 18C."}]
+
+
+@pytest.mark.asyncio
+class TestToolResultRewritesInACheck:
+    """A tool-result rewrite in a check is visible to the later rails and reported as MODIFIED with messages."""
+
+    async def test_a_tool_only_rewrite_is_reported_as_modified_with_messages(self):
+        """The content is unchanged, so the rewrite is reported through the conversation it changed."""
+        messages = make_tool_conversation(content=RAW_RESULT)
+        async with tool_transform_iorails(ToolTransformRails(), tool_transform_config()) as engine:
+            result = await engine.check_async(messages, rail_types=[RailType.TOOL_RESULT])
+
+        assert result.status == RailStatus.MODIFIED
+        assert result.content == messages[0]["content"]
+        assert result.messages == with_tool_content(messages, MASKED_RESULT)
+        assert result.rail is None
+
+    async def test_the_rewrite_reaches_the_later_input_and_output_rails(self):
+        rails = ToolTransformRails()
+        async with tool_transform_iorails(rails, tool_transform_config()) as engine:
+            result = await engine.check_async(_answered_tool_conversation(), rail_types=TOOL_AND_CONTENT_RAILS)
+
+        assert result.status == RailStatus.MODIFIED
+        assert rails.input.seen_messages[2]["content"] == MASKED_RESULT
+        assert rails.output.seen_messages[2]["content"] == MASKED_RESULT
+
+    async def test_the_messages_carry_every_rewrite_the_rails_made(self):
+        """With an input and an output rewrite too, the messages are the whole conversation as the rails left it."""
+        rails = ToolTransformRails(
+            input_rail=StubRail(user_message_rewrite("where?").outcome),
+            output_rail=StubRail(bot_message_rewrite("It is warm.").outcome),
+        )
+        async with tool_transform_iorails(rails, tool_transform_config()) as engine:
+            result = await engine.check_async(_answered_tool_conversation(), rail_types=TOOL_AND_CONTENT_RAILS)
+
+        assert result.status == RailStatus.MODIFIED
+        assert result.content == "It is warm."
+        assert [message.get("content") for message in result.messages] == ["where?", None, MASKED_RESULT, "It is warm."]
+
+    async def test_a_check_that_rewrites_nothing_has_no_messages(self):
+        async with tool_transform_iorails(ToolTransformRails(mask=StubRail()), tool_transform_config()) as engine:
+            result = await engine.check_async(
+                make_tool_conversation(content=RAW_RESULT), rail_types=[RailType.TOOL_RESULT]
+            )
+
+        assert result.status == RailStatus.PASSED
+        assert result.messages is None
+
+    async def test_a_block_behind_the_rewrite_reports_the_block_without_messages(self):
+        rails = ToolTransformRails(judge=StubRail(RailOutcome.block(reason="unsafe")))
+        async with tool_transform_iorails(rails, tool_transform_config()) as engine:
+            result = await engine.check_async(
+                make_tool_conversation(content=RAW_RESULT), rail_types=[RailType.TOOL_RESULT]
+            )
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.messages is None
+        assert [v.violation_type for v in result.tool_violations] == [ToolViolationType.PER_TOOL_RAIL]
+
+    async def test_the_callers_messages_are_untouched(self):
+        messages = _answered_tool_conversation()
+        snapshot = copy.deepcopy(messages)
+        async with tool_transform_iorails(ToolTransformRails(), tool_transform_config()) as engine:
+            result = await engine.check_async(messages, rail_types=TOOL_AND_CONTENT_RAILS)
+
+        assert messages == snapshot
+        assert result.messages is not messages
+
+
+@pytest.mark.asyncio
+class TestACheckRecordsTheMaskedToolResult:
+    """With content capture on, a check's request span records the tool result as the mask left it."""
+
+    @pytest.fixture
+    def span_exporter(self) -> InMemorySpanExporter:
+        return InMemorySpanExporter()
+
+    async def test_an_allowed_check_records_the_masked_result(self, span_exporter):
+        config = tool_transform_config(capture=True)
+        async with capturing_tool_transform_iorails(ToolTransformRails(), config, span_exporter) as engine:
+            await engine.check_async(_answered_tool_conversation(), rail_types=TOOL_AND_CONTENT_RAILS)
+
+        assert _captured_input(span_exporter)[2]["content"] == MASKED_RESULT
+
+    @pytest.mark.parametrize(
+        "blocking",
+        ["judge", "input_rail", "output_rail"],
+        ids=["tool-rail-behind-the-mask", "input-rail", "output-rail"],
+    )
+    async def test_a_blocked_check_records_the_masked_result(self, span_exporter, blocking):
+        rails = ToolTransformRails(**{blocking: StubRail(RailOutcome.block(reason="unsafe"))})
+        config = tool_transform_config(capture=True)
+        async with capturing_tool_transform_iorails(rails, config, span_exporter) as engine:
+            result = await engine.check_async(_answered_tool_conversation(), rail_types=TOOL_AND_CONTENT_RAILS)
+
+        assert result.status == RailStatus.BLOCKED
+        assert _captured_input(span_exporter)[2]["content"] == MASKED_RESULT

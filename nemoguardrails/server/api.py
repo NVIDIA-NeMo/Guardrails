@@ -952,6 +952,7 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
         rail=result.rail,
         reason=result.reason,
         tool_violations=_violations_in_request_positions(result.tool_violations, context_prepended),
+        messages=result.messages[1:] if result.messages is not None and context_prepended else result.messages,
     )
 
 

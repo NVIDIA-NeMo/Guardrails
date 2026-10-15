@@ -1721,11 +1721,18 @@ class IORails(BaseGuardrails):
             pass_content = _get_last_content_by_role(messages, "user")
             conversation.reported_direction = RailDirection.INPUT
         original_content = pass_content
+        tool_rewritten = False
 
         if "tool_result" in rails_to_run:
-            blocked = await self._check_tool_results(messages, req_id)
-            if blocked is not None:
-                return blocked
+            tool_result = await self._check_tool_results(messages, req_id)
+            if not tool_result.is_safe:
+                conversation.messages = _apply_tool_rewrites_before_block(messages, tool_result)
+                return _blocked_check_result(tool_result)
+            if tool_result.messages is not None:
+                log.info("[%s] Tool result rails rewrote the tool results", req_id)
+                messages = tool_result.messages
+                conversation.messages = messages
+                tool_rewritten = True
 
         if "input" in rails_to_run:
             user_content = _get_last_content_by_role(messages, "user")
@@ -1781,6 +1788,9 @@ class IORails(BaseGuardrails):
 
         # MODIFIED is decided by comparing content, as LLMRails does, and names no rail: a rewrite
         # is not a rail "triggering", and several rails may have contributed to the final text.
+        # A tool rewrite changes no content, so it is reported through the messages it changed.
+        if tool_rewritten:
+            return RailsResult(status=RailStatus.MODIFIED, content=pass_content, messages=messages)
         if pass_content != original_content:
             return RailsResult(status=RailStatus.MODIFIED, content=pass_content)
         return RailsResult(status=RailStatus.PASSED, content=pass_content)
@@ -1802,16 +1812,15 @@ class IORails(BaseGuardrails):
                 req_id,
             )
 
-    async def _check_tool_results(self, messages: LLMMessages, req_id: str) -> Optional[RailsResult]:
-        """Run the tool-result rails, returning the blocked check result or None to continue."""
+    async def _check_tool_results(self, messages: LLMMessages, req_id: str) -> RailResult:
+        """Run the tool-result rails, returning their verdict and any conversation they rewrote."""
         log.info("[%s] Running tool result rails", req_id)
         result = await self.rails_manager.are_tool_results_safe(messages, model_type=None)
-        if result.is_safe:
-            return None
-        log.info("[%s] Tool results blocked: %s", req_id, display_reason(result))
-        if self._metrics_enabled:
-            record_request_blocked(RailDirection.INPUT)
-        return _blocked_check_result(result)
+        if not result.is_safe:
+            log.info("[%s] Tool results blocked: %s", req_id, display_reason(result))
+            if self._metrics_enabled:
+                record_request_blocked(RailDirection.INPUT)
+        return result
 
     async def _check_latest_tool_calls(
         self, messages: LLMMessages, tools: Optional[list[dict]], req_id: str
