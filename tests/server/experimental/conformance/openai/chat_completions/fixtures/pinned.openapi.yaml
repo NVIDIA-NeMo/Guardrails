@@ -1,0 +1,1869 @@
+openapi: 3.1.0
+info:
+  title: OpenAI API
+  version: 2.3.0
+  license:
+    name: MIT
+    identifier: MIT
+x-nemo-source:
+  revision: df63773f69f542ef875b9f00c3837c25ba5f4f2a
+  sha256: f2dae1a9aced09b91310db89edda51bf1e36ecbfb05230c3a50b239c07708469
+paths:
+  /chat/completions:
+    get:
+      operationId: listChatCompletions
+      parameters:
+      - name: model
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: metadata
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/Metadata'
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+      - name: order
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - asc
+          - desc
+          default: asc
+      responses:
+        '200':
+          description: A list of Chat Completions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionList'
+    post:
+      operationId: createChatCompletion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChatCompletionRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateChatCompletionResponse'
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/CreateChatCompletionStreamResponse'
+        '429':
+          $ref: '#/components/responses/InferenceRateLimited'
+        '503':
+          $ref: '#/components/responses/InferenceServiceUnavailable'
+  /chat/completions/{completion_id}:
+    get:
+      operationId: getChatCompletion
+      parameters:
+      - in: path
+        name: completion_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: A chat completion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateChatCompletionResponse'
+    post:
+      operationId: updateChatCompletion
+      parameters:
+      - in: path
+        name: completion_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - metadata
+              properties:
+                metadata:
+                  $ref: '#/components/schemas/Metadata'
+      responses:
+        '200':
+          description: A chat completion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateChatCompletionResponse'
+    delete:
+      operationId: deleteChatCompletion
+      parameters:
+      - in: path
+        name: completion_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The chat completion was deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionDeleted'
+  /chat/completions/{completion_id}/messages:
+    get:
+      operationId: getChatCompletionMessages
+      parameters:
+      - in: path
+        name: completion_id
+        required: true
+        schema:
+          type: string
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+      - name: order
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - asc
+          - desc
+          default: asc
+      responses:
+        '200':
+          description: A list of messages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionMessageList'
+components:
+  schemas:
+    ChatCompletionAllowedTools:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum:
+          - auto
+          - required
+        tools:
+          type: array
+          items:
+            type: object
+            x-oaiExpandable: false
+            additionalProperties: true
+      required:
+      - mode
+      - tools
+    ChatCompletionAllowedToolsChoice:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - allowed_tools
+          x-stainless-const: true
+        allowed_tools:
+          $ref: '#/components/schemas/ChatCompletionAllowedTools'
+      required:
+      - type
+      - allowed_tools
+    ChatCompletionDeleted:
+      type: object
+      properties:
+        object:
+          type: string
+          enum:
+          - chat.completion.deleted
+          x-stainless-const: true
+        id:
+          type: string
+        deleted:
+          type: boolean
+      required:
+      - object
+      - id
+      - deleted
+    ChatCompletionFunctionCallOption:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+      - name
+    ChatCompletionFunctions:
+      type: object
+      deprecated: true
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        parameters:
+          $ref: '#/components/schemas/FunctionParameters'
+      required:
+      - name
+    ChatCompletionList:
+      type: object
+      properties:
+        object:
+          type: string
+          enum:
+          - list
+          default: list
+          x-stainless-const: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateChatCompletionResponse'
+        first_id:
+          type: string
+        last_id:
+          type: string
+        has_more:
+          type: boolean
+      required:
+      - object
+      - data
+      - first_id
+      - last_id
+      - has_more
+    ChatCompletionMessageCustomToolCall:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+          - custom
+          x-stainless-const: true
+        custom:
+          type: object
+          properties:
+            name:
+              type: string
+            input:
+              type: string
+          required:
+          - name
+          - input
+      required:
+      - id
+      - type
+      - custom
+    ChatCompletionMessageList:
+      type: object
+      properties:
+        object:
+          type: string
+          enum:
+          - list
+          default: list
+          x-stainless-const: true
+        data:
+          type: array
+          items:
+            allOf:
+            - $ref: '#/components/schemas/ChatCompletionResponseMessage'
+            - type: object
+              required:
+              - id
+              properties:
+                id:
+                  type: string
+                content_parts:
+                  anyOf:
+                  - type: array
+                    items:
+                      oneOf:
+                      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartText'
+                      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartImage'
+                  - type: 'null'
+        first_id:
+          type: string
+        last_id:
+          type: string
+        has_more:
+          type: boolean
+      required:
+      - object
+      - data
+      - first_id
+      - last_id
+      - has_more
+    ChatCompletionMessageToolCall:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+          - function
+          x-stainless-const: true
+        function:
+          type: object
+          properties:
+            name:
+              type: string
+            arguments:
+              type: string
+          required:
+          - name
+          - arguments
+      required:
+      - id
+      - type
+      - function
+    ChatCompletionMessageToolCallChunk:
+      type: object
+      properties:
+        index:
+          type: integer
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+          - function
+          x-stainless-const: true
+        function:
+          type: object
+          properties:
+            name:
+              type: string
+            arguments:
+              type: string
+      required:
+      - index
+    ChatCompletionMessageToolCalls:
+      type: array
+      items:
+        oneOf:
+        - $ref: '#/components/schemas/ChatCompletionMessageToolCall'
+        - $ref: '#/components/schemas/ChatCompletionMessageCustomToolCall'
+        discriminator:
+          propertyName: type
+    ChatCompletionModeration:
+      type: object
+      properties:
+        input:
+          oneOf:
+          - $ref: '#/components/schemas/ChatCompletionModerationResults'
+          - $ref: '#/components/schemas/ChatCompletionModerationError'
+          discriminator:
+            propertyName: type
+        output:
+          oneOf:
+          - $ref: '#/components/schemas/ChatCompletionModerationResults'
+          - $ref: '#/components/schemas/ChatCompletionModerationError'
+          discriminator:
+            propertyName: type
+      required:
+      - input
+      - output
+    ChatCompletionModerationError:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - error
+          x-stainless-const: true
+        code:
+          type: string
+        message:
+          type: string
+      required:
+      - type
+      - code
+      - message
+    ChatCompletionModerationResults:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - moderation_results
+          x-stainless-const: true
+        model:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModerationResultBody'
+      required:
+      - type
+      - model
+      - results
+    ChatCompletionNamedToolChoice:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - function
+          x-stainless-const: true
+        function:
+          type: object
+          properties:
+            name:
+              type: string
+          required:
+          - name
+      required:
+      - type
+      - function
+    ChatCompletionNamedToolChoiceCustom:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - custom
+          x-stainless-const: true
+        custom:
+          type: object
+          properties:
+            name:
+              type: string
+          required:
+          - name
+      required:
+      - type
+      - custom
+    ChatCompletionRequestAssistantMessage:
+      type: object
+      properties:
+        content:
+          anyOf:
+          - oneOf:
+            - type: string
+            - type: array
+              items:
+                $ref: '#/components/schemas/ChatCompletionRequestAssistantMessageContentPart'
+              minItems: 1
+          - type: 'null'
+        refusal:
+          anyOf:
+          - type: string
+          - type: 'null'
+        role:
+          type: string
+          enum:
+          - assistant
+          x-stainless-const: true
+        name:
+          type: string
+        audio:
+          anyOf:
+          - type: object
+            required:
+            - id
+            properties:
+              id:
+                type: string
+          - type: 'null'
+        tool_calls:
+          $ref: '#/components/schemas/ChatCompletionMessageToolCalls'
+        function_call:
+          anyOf:
+          - type: object
+            deprecated: true
+            properties:
+              arguments:
+                type: string
+              name:
+                type: string
+            required:
+            - arguments
+            - name
+          - type: 'null'
+      required:
+      - role
+    ChatCompletionRequestAssistantMessageContentPart:
+      oneOf:
+      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartText'
+      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartRefusal'
+      discriminator:
+        propertyName: type
+    ChatCompletionRequestDeveloperMessage:
+      type: object
+      properties:
+        content:
+          oneOf:
+          - type: string
+          - type: array
+            items:
+              $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartText'
+            minItems: 1
+        role:
+          type: string
+          enum:
+          - developer
+          x-stainless-const: true
+        name:
+          type: string
+      required:
+      - content
+      - role
+    ChatCompletionRequestFunctionMessage:
+      type: object
+      deprecated: true
+      properties:
+        role:
+          type: string
+          enum:
+          - function
+          x-stainless-const: true
+        content:
+          anyOf:
+          - type: string
+          - type: 'null'
+        name:
+          type: string
+      required:
+      - role
+      - content
+      - name
+    ChatCompletionRequestMessage:
+      oneOf:
+      - $ref: '#/components/schemas/ChatCompletionRequestDeveloperMessage'
+      - $ref: '#/components/schemas/ChatCompletionRequestSystemMessage'
+      - $ref: '#/components/schemas/ChatCompletionRequestUserMessage'
+      - $ref: '#/components/schemas/ChatCompletionRequestAssistantMessage'
+      - $ref: '#/components/schemas/ChatCompletionRequestToolMessage'
+      - $ref: '#/components/schemas/ChatCompletionRequestFunctionMessage'
+      discriminator:
+        propertyName: role
+    ChatCompletionRequestMessageContentPartAudio:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - input_audio
+          x-stainless-const: true
+        input_audio:
+          type: object
+          properties:
+            data:
+              type: string
+            format:
+              type: string
+              enum:
+              - wav
+              - mp3
+          required:
+          - data
+          - format
+        prompt_cache_breakpoint:
+          $ref: '#/components/schemas/PromptCacheBreakpointParam'
+      required:
+      - type
+      - input_audio
+    ChatCompletionRequestMessageContentPartFile:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - file
+          x-stainless-const: true
+        file:
+          type: object
+          properties:
+            filename:
+              type: string
+            file_data:
+              type: string
+            file_id:
+              type: string
+        prompt_cache_breakpoint:
+          $ref: '#/components/schemas/PromptCacheBreakpointParam'
+      required:
+      - type
+      - file
+    ChatCompletionRequestMessageContentPartImage:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - image_url
+          x-stainless-const: true
+        image_url:
+          type: object
+          properties:
+            url:
+              type: string
+              format: uri
+            detail:
+              type: string
+              enum:
+              - auto
+              - low
+              - high
+              default: auto
+          required:
+          - url
+        prompt_cache_breakpoint:
+          $ref: '#/components/schemas/PromptCacheBreakpointParam'
+      required:
+      - type
+      - image_url
+    ChatCompletionRequestMessageContentPartRefusal:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - refusal
+          x-stainless-const: true
+        refusal:
+          type: string
+      required:
+      - type
+      - refusal
+    ChatCompletionRequestMessageContentPartText:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - text
+          x-stainless-const: true
+        text:
+          type: string
+        prompt_cache_breakpoint:
+          $ref: '#/components/schemas/PromptCacheBreakpointParam'
+      required:
+      - type
+      - text
+    ChatCompletionRequestSystemMessage:
+      type: object
+      properties:
+        content:
+          oneOf:
+          - type: string
+          - type: array
+            items:
+              $ref: '#/components/schemas/ChatCompletionRequestSystemMessageContentPart'
+            minItems: 1
+        role:
+          type: string
+          enum:
+          - system
+          x-stainless-const: true
+        name:
+          type: string
+      required:
+      - content
+      - role
+    ChatCompletionRequestSystemMessageContentPart:
+      oneOf:
+      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartText'
+    ChatCompletionRequestToolMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+          - tool
+          x-stainless-const: true
+        content:
+          oneOf:
+          - type: string
+          - type: array
+            items:
+              $ref: '#/components/schemas/ChatCompletionRequestToolMessageContentPart'
+            minItems: 1
+        tool_call_id:
+          type: string
+      required:
+      - role
+      - content
+      - tool_call_id
+    ChatCompletionRequestToolMessageContentPart:
+      oneOf:
+      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartText'
+    ChatCompletionRequestUserMessage:
+      type: object
+      properties:
+        content:
+          oneOf:
+          - type: string
+          - type: array
+            items:
+              $ref: '#/components/schemas/ChatCompletionRequestUserMessageContentPart'
+            minItems: 1
+        role:
+          type: string
+          enum:
+          - user
+          x-stainless-const: true
+        name:
+          type: string
+      required:
+      - content
+      - role
+    ChatCompletionRequestUserMessageContentPart:
+      oneOf:
+      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartText'
+      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartImage'
+      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartAudio'
+      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartFile'
+    ChatCompletionResponseMessage:
+      type: object
+      properties:
+        content:
+          anyOf:
+          - type: string
+          - type: 'null'
+        refusal:
+          anyOf:
+          - type: string
+          - type: 'null'
+        tool_calls:
+          $ref: '#/components/schemas/ChatCompletionMessageToolCalls'
+        annotations:
+          type: array
+          items:
+            type: object
+            required:
+            - type
+            - url_citation
+            properties:
+              type:
+                type: string
+                enum:
+                - url_citation
+                x-stainless-const: true
+              url_citation:
+                type: object
+                required:
+                - end_index
+                - start_index
+                - url
+                - title
+                properties:
+                  end_index:
+                    type: integer
+                  start_index:
+                    type: integer
+                  url:
+                    type: string
+                    format: uri
+                  title:
+                    type: string
+        role:
+          type: string
+          enum:
+          - assistant
+          x-stainless-const: true
+        function_call:
+          type: object
+          deprecated: true
+          properties:
+            arguments:
+              type: string
+            name:
+              type: string
+          required:
+          - name
+          - arguments
+        audio:
+          anyOf:
+          - type: object
+            required:
+            - id
+            - expires_at
+            - data
+            - transcript
+            properties:
+              id:
+                type: string
+              expires_at:
+                type: integer
+                format: unixtime
+              data:
+                type: string
+              transcript:
+                type: string
+          - type: 'null'
+      required:
+      - role
+      - content
+      - refusal
+    ChatCompletionStreamOptions:
+      anyOf:
+      - type: object
+        default: null
+        properties:
+          include_usage:
+            type: boolean
+          include_obfuscation:
+            type: boolean
+      - type: 'null'
+    ChatCompletionStreamResponseDelta:
+      type: object
+      properties:
+        content:
+          anyOf:
+          - type: string
+          - type: 'null'
+        function_call:
+          deprecated: true
+          type: object
+          properties:
+            arguments:
+              type: string
+            name:
+              type: string
+        tool_calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatCompletionMessageToolCallChunk'
+        role:
+          type: string
+          enum:
+          - developer
+          - system
+          - user
+          - assistant
+          - tool
+        refusal:
+          anyOf:
+          - type: string
+          - type: 'null'
+    ChatCompletionTokenLogprob:
+      type: object
+      properties:
+        token:
+          type: string
+        logprob:
+          type: number
+        bytes:
+          anyOf:
+          - type: array
+            items:
+              type: integer
+          - type: 'null'
+        top_logprobs:
+          type: array
+          items:
+            type: object
+            properties:
+              token:
+                type: string
+              logprob:
+                type: number
+              bytes:
+                anyOf:
+                - type: array
+                  items:
+                    type: integer
+                - type: 'null'
+            required:
+            - token
+            - logprob
+            - bytes
+      required:
+      - token
+      - logprob
+      - bytes
+      - top_logprobs
+    ChatCompletionTool:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - function
+          x-stainless-const: true
+        function:
+          $ref: '#/components/schemas/FunctionObject'
+      required:
+      - type
+      - function
+    ChatCompletionToolChoiceOption:
+      oneOf:
+      - type: string
+        enum:
+        - none
+        - auto
+        - required
+      - $ref: '#/components/schemas/ChatCompletionAllowedToolsChoice'
+      - $ref: '#/components/schemas/ChatCompletionNamedToolChoice'
+      - $ref: '#/components/schemas/ChatCompletionNamedToolChoiceCustom'
+    CompletionUsage:
+      type: object
+      properties:
+        completion_tokens:
+          type: integer
+          default: 0
+        prompt_tokens:
+          type: integer
+          default: 0
+        total_tokens:
+          type: integer
+          default: 0
+        completion_tokens_details:
+          type: object
+          properties:
+            accepted_prediction_tokens:
+              type: integer
+              default: 0
+            audio_tokens:
+              type: integer
+              default: 0
+            reasoning_tokens:
+              type: integer
+              default: 0
+            text_tokens:
+              type: integer
+            rejected_prediction_tokens:
+              type: integer
+              default: 0
+        prompt_tokens_details:
+          type: object
+          properties:
+            audio_tokens:
+              type: integer
+              default: 0
+            cached_tokens:
+              type: integer
+              default: 0
+            text_tokens:
+              type: integer
+            image_tokens:
+              type: integer
+            cache_write_tokens:
+              type: integer
+              default: 0
+      required:
+      - prompt_tokens
+      - completion_tokens
+      - total_tokens
+    CreateChatCompletionRequest:
+      allOf:
+      - $ref: '#/components/schemas/CreateModelResponseProperties'
+      - type: object
+        properties:
+          messages:
+            type: array
+            minItems: 1
+            items:
+              $ref: '#/components/schemas/ChatCompletionRequestMessage'
+          model:
+            $ref: '#/components/schemas/ModelIdsShared'
+          service_tier:
+            $ref: '#/components/schemas/ServiceTier'
+          modalities:
+            $ref: '#/components/schemas/ResponseModalities'
+          verbosity:
+            $ref: '#/components/schemas/Verbosity'
+          reasoning_effort:
+            $ref: '#/components/schemas/ReasoningEffort'
+          max_completion_tokens:
+            type: integer
+            nullable: true
+          frequency_penalty:
+            type: number
+            default: 0
+            minimum: -2
+            maximum: 2
+            nullable: true
+          presence_penalty:
+            type: number
+            default: 0
+            minimum: -2
+            maximum: 2
+            nullable: true
+          web_search_options:
+            type: object
+            properties:
+              user_location:
+                type: object
+                nullable: true
+                required:
+                - type
+                - approximate
+                properties:
+                  type:
+                    type: string
+                    enum:
+                    - approximate
+                    x-stainless-const: true
+                  approximate:
+                    $ref: '#/components/schemas/WebSearchLocation'
+              search_context_size:
+                $ref: '#/components/schemas/WebSearchContextSize'
+          top_logprobs:
+            type: integer
+            minimum: 0
+            maximum: 20
+            nullable: true
+          response_format:
+            oneOf:
+            - $ref: '#/components/schemas/ResponseFormatText'
+            - $ref: '#/components/schemas/ResponseFormatJsonSchema'
+            - $ref: '#/components/schemas/ResponseFormatJsonObject'
+            discriminator:
+              propertyName: type
+          audio:
+            type: object
+            nullable: true
+            required:
+            - voice
+            - format
+            properties:
+              voice:
+                $ref: '#/components/schemas/VoiceIdsOrCustomVoice'
+              format:
+                type: string
+                enum:
+                - wav
+                - aac
+                - mp3
+                - flac
+                - opus
+                - pcm16
+          store:
+            type: boolean
+            default: false
+            nullable: true
+          moderation:
+            anyOf:
+            - $ref: '#/components/schemas/ModerationParam'
+            - type: 'null'
+          stream:
+            type: boolean
+            nullable: true
+            default: false
+          stop:
+            $ref: '#/components/schemas/StopConfiguration'
+          logit_bias:
+            type: object
+            x-oaiTypeLabel: map
+            default: null
+            nullable: true
+            additionalProperties:
+              type: integer
+          logprobs:
+            type: boolean
+            default: false
+            nullable: true
+          max_tokens:
+            type: integer
+            nullable: true
+            deprecated: true
+          n:
+            type: integer
+            minimum: 1
+            maximum: 128
+            default: 1
+            nullable: true
+          prediction:
+            nullable: true
+            oneOf:
+            - $ref: '#/components/schemas/PredictionContent'
+          seed:
+            type: integer
+            minimum: -9223372036854776000
+            maximum: 9223372036854776000
+            nullable: true
+            deprecated: true
+          stream_options:
+            $ref: '#/components/schemas/ChatCompletionStreamOptions'
+          tools:
+            type: array
+            items:
+              oneOf:
+              - $ref: '#/components/schemas/ChatCompletionTool'
+              - $ref: '#/components/schemas/CustomToolChatCompletions'
+          tool_choice:
+            $ref: '#/components/schemas/ChatCompletionToolChoiceOption'
+          parallel_tool_calls:
+            $ref: '#/components/schemas/ParallelToolCalls'
+          function_call:
+            deprecated: true
+            oneOf:
+            - type: string
+              enum:
+              - none
+              - auto
+            - $ref: '#/components/schemas/ChatCompletionFunctionCallOption'
+          functions:
+            deprecated: true
+            type: array
+            minItems: 1
+            maxItems: 128
+            items:
+              $ref: '#/components/schemas/ChatCompletionFunctions'
+        required:
+        - model
+        - messages
+    CreateChatCompletionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            required:
+            - finish_reason
+            - index
+            - message
+            - logprobs
+            properties:
+              finish_reason:
+                type: string
+                enum:
+                - stop
+                - length
+                - tool_calls
+                - content_filter
+                - function_call
+              index:
+                type: integer
+              message:
+                $ref: '#/components/schemas/ChatCompletionResponseMessage'
+              logprobs:
+                anyOf:
+                - type: object
+                  properties:
+                    content:
+                      anyOf:
+                      - type: array
+                        items:
+                          $ref: '#/components/schemas/ChatCompletionTokenLogprob'
+                      - type: 'null'
+                    refusal:
+                      anyOf:
+                      - type: array
+                        items:
+                          $ref: '#/components/schemas/ChatCompletionTokenLogprob'
+                      - type: 'null'
+                  required:
+                  - content
+                  - refusal
+                - type: 'null'
+        created:
+          type: integer
+          format: unixtime
+        model:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        service_tier:
+          $ref: '#/components/schemas/ServiceTier'
+        system_fingerprint:
+          type: string
+          deprecated: true
+        object:
+          type: string
+          enum:
+          - chat.completion
+          x-stainless-const: true
+        usage:
+          $ref: '#/components/schemas/CompletionUsage'
+        moderation:
+          anyOf:
+          - $ref: '#/components/schemas/ChatCompletionModeration'
+          - type: 'null'
+      required:
+      - choices
+      - created
+      - id
+      - model
+      - object
+    CreateChatCompletionStreamResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            required:
+            - delta
+            - finish_reason
+            - index
+            properties:
+              delta:
+                $ref: '#/components/schemas/ChatCompletionStreamResponseDelta'
+              logprobs:
+                type: object
+                nullable: true
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatCompletionTokenLogprob'
+                    nullable: true
+                  refusal:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatCompletionTokenLogprob'
+                    nullable: true
+                required:
+                - content
+                - refusal
+              finish_reason:
+                type: string
+                enum:
+                - stop
+                - length
+                - tool_calls
+                - content_filter
+                - function_call
+                nullable: true
+              index:
+                type: integer
+        created:
+          type: integer
+          format: unixtime
+        model:
+          type: string
+        obfuscation:
+          type: string
+        service_tier:
+          $ref: '#/components/schemas/ServiceTier'
+        system_fingerprint:
+          type: string
+          deprecated: true
+        object:
+          type: string
+          enum:
+          - chat.completion.chunk
+          x-stainless-const: true
+        usage:
+          $ref: '#/components/schemas/CompletionUsage'
+          nullable: true
+        moderation:
+          anyOf:
+          - $ref: '#/components/schemas/ChatCompletionModeration'
+          - type: 'null'
+      required:
+      - choices
+      - created
+      - id
+      - model
+      - object
+    CreateModelResponseProperties:
+      allOf:
+      - $ref: '#/components/schemas/ModelResponseProperties'
+      - type: object
+        properties:
+          prompt_cache_options:
+            $ref: '#/components/schemas/PromptCacheOptionsParam'
+          top_logprobs:
+            type: integer
+            minimum: 0
+            maximum: 20
+    CustomToolChatCompletions:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - custom
+          x-stainless-const: true
+        custom:
+          type: object
+          properties:
+            name:
+              type: string
+            description:
+              type: string
+            format:
+              oneOf:
+              - type: object
+                properties:
+                  type:
+                    type: string
+                    enum:
+                    - text
+                    x-stainless-const: true
+                required:
+                - type
+                additionalProperties: false
+              - type: object
+                properties:
+                  type:
+                    type: string
+                    enum:
+                    - grammar
+                    x-stainless-const: true
+                  grammar:
+                    type: object
+                    properties:
+                      definition:
+                        type: string
+                      syntax:
+                        type: string
+                        enum:
+                        - lark
+                        - regex
+                    required:
+                    - definition
+                    - syntax
+                required:
+                - type
+                - grammar
+                additionalProperties: false
+          required:
+          - name
+      required:
+      - type
+      - custom
+    Error:
+      type: object
+      properties:
+        code:
+          anyOf:
+          - type: string
+          - type: 'null'
+        message:
+          type: string
+        param:
+          anyOf:
+          - type: string
+          - type: 'null'
+        type:
+          type: string
+        misalignment:
+          $ref: '#/components/schemas/MisalignmentErrorDetailsResource'
+      required:
+      - type
+      - message
+      - param
+      - code
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/Error'
+      required:
+      - error
+    FunctionObject:
+      type: object
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        parameters:
+          $ref: '#/components/schemas/FunctionParameters'
+        strict:
+          anyOf:
+          - type: boolean
+            default: false
+          - type: 'null'
+      required:
+      - name
+    FunctionParameters:
+      type: object
+      additionalProperties: true
+    Metadata:
+      anyOf:
+      - type: object
+        additionalProperties:
+          type: string
+        x-oaiTypeLabel: map
+      - type: 'null'
+    MisalignmentErrorDetailsResource:
+      properties:
+        error_type:
+          $ref: '#/components/schemas/_MisalignmentErrorType'
+        detailed_explanation:
+          type: string
+        steer:
+          $ref: '#/components/schemas/_MisalignmentSteer'
+      type: object
+      required: []
+    ModelIdsShared:
+      anyOf:
+      - type: string
+      - type: string
+        enum:
+        - gpt-6-astra
+        - gpt-5.6-sol
+        - gpt-5.6-terra
+        - gpt-5.6-luna
+        - gpt-5.5
+        - gpt-5.5-2026-04-23
+        - gpt-5.4
+        - gpt-5.4-mini
+        - gpt-5.4-nano
+        - gpt-5.4-mini-2026-03-17
+        - gpt-5.4-nano-2026-03-17
+        - gpt-5.3-chat-latest
+        - gpt-5.2
+        - gpt-5.2-2025-12-11
+        - gpt-5.2-chat-latest
+        - gpt-5.2-pro
+        - gpt-5.2-pro-2025-12-11
+        - gpt-5.1
+        - gpt-5.1-2025-11-13
+        - gpt-5.1-codex
+        - gpt-5.1-mini
+        - gpt-5.1-chat-latest
+        - gpt-5
+        - gpt-5-mini
+        - gpt-5-nano
+        - gpt-5-2025-08-07
+        - gpt-5-mini-2025-08-07
+        - gpt-5-nano-2025-08-07
+        - gpt-5-chat-latest
+        - gpt-4.1
+        - gpt-4.1-mini
+        - gpt-4.1-nano
+        - gpt-4.1-2025-04-14
+        - gpt-4.1-mini-2025-04-14
+        - gpt-4.1-nano-2025-04-14
+        - o4-mini
+        - o4-mini-2025-04-16
+        - o3
+        - o3-2025-04-16
+        - o3-mini
+        - o3-mini-2025-01-31
+        - o1
+        - o1-2024-12-17
+        - o1-preview
+        - o1-preview-2024-09-12
+        - o1-mini
+        - o1-mini-2024-09-12
+        - gpt-4o
+        - gpt-4o-2024-11-20
+        - gpt-4o-2024-08-06
+        - gpt-4o-2024-05-13
+        - gpt-4o-audio-preview
+        - gpt-4o-audio-preview-2024-10-01
+        - gpt-4o-audio-preview-2024-12-17
+        - gpt-4o-audio-preview-2025-06-03
+        - gpt-4o-mini-audio-preview
+        - gpt-4o-mini-audio-preview-2024-12-17
+        - gpt-4o-search-preview
+        - gpt-4o-mini-search-preview
+        - gpt-4o-search-preview-2025-03-11
+        - gpt-4o-mini-search-preview-2025-03-11
+        - chatgpt-4o-latest
+        - codex-mini-latest
+        - gpt-4o-mini
+        - gpt-4o-mini-2024-07-18
+        - gpt-4-turbo
+        - gpt-4-turbo-2024-04-09
+        - gpt-4-0125-preview
+        - gpt-4-turbo-preview
+        - gpt-4-1106-preview
+        - gpt-4-vision-preview
+        - gpt-4
+        - gpt-4-0314
+        - gpt-4-0613
+        - gpt-4-32k
+        - gpt-4-32k-0314
+        - gpt-4-32k-0613
+        - gpt-3.5-turbo
+        - gpt-3.5-turbo-16k
+        - gpt-3.5-turbo-0301
+        - gpt-3.5-turbo-0613
+        - gpt-3.5-turbo-1106
+        - gpt-3.5-turbo-0125
+        - gpt-3.5-turbo-16k-0613
+    ModelResponseProperties:
+      type: object
+      properties:
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        top_logprobs:
+          anyOf:
+          - type: integer
+            minimum: 0
+            maximum: 20
+          - type: 'null'
+        temperature:
+          anyOf:
+          - type: number
+            minimum: 0
+            maximum: 2
+            default: 1
+          - type: 'null'
+        top_p:
+          anyOf:
+          - type: number
+            minimum: 0
+            maximum: 1
+            default: 1
+          - type: 'null'
+        user:
+          type: string
+          deprecated: true
+        safety_identifier:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+        prompt_cache_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+        prompt_cache_retention:
+          deprecated: true
+          anyOf:
+          - type: string
+            enum:
+            - in_memory
+            - 24h
+          - type: 'null'
+    ModerationConfigParam:
+      properties:
+        mode:
+          $ref: '#/components/schemas/ModerationMode'
+      type: object
+      required:
+      - mode
+    ModerationInputType:
+      type: string
+      enum:
+      - text
+      - image
+    ModerationMode:
+      type: string
+      enum:
+      - score
+      - block
+    ModerationParam:
+      properties:
+        model:
+          type: string
+        policy:
+          anyOf:
+          - $ref: '#/components/schemas/ModerationPolicyParam'
+          - type: 'null'
+      type: object
+      required:
+      - model
+    ModerationPolicyParam:
+      properties:
+        input:
+          anyOf:
+          - $ref: '#/components/schemas/ModerationConfigParam'
+          - type: 'null'
+        output:
+          anyOf:
+          - $ref: '#/components/schemas/ModerationConfigParam'
+          - type: 'null'
+      type: object
+      required: []
+    ModerationResultBody:
+      properties:
+        type:
+          type: string
+          enum:
+          - moderation_result
+          default: moderation_result
+          x-stainless-const: true
+        model:
+          type: string
+        flagged:
+          type: boolean
+        categories:
+          additionalProperties:
+            type: boolean
+          type: object
+          x-oaiTypeLabel: map
+        category_scores:
+          additionalProperties:
+            type: number
+          type: object
+          x-oaiTypeLabel: map
+        category_applied_input_types:
+          additionalProperties:
+            items:
+              $ref: '#/components/schemas/ModerationInputType'
+            type: array
+          type: object
+          x-oaiTypeLabel: map
+      type: object
+      required:
+      - type
+      - model
+      - flagged
+      - categories
+      - category_scores
+      - category_applied_input_types
+    ParallelToolCalls:
+      type: boolean
+      default: true
+    PredictionContent:
+      type: object
+      required:
+      - type
+      - content
+      properties:
+        type:
+          type: string
+          enum:
+          - content
+          x-stainless-const: true
+        content:
+          oneOf:
+          - type: string
+          - type: array
+            items:
+              $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartText'
+            minItems: 1
+    PromptCacheBreakpointParam:
+      properties:
+        mode:
+          type: string
+          enum:
+          - explicit
+          default: explicit
+          x-stainless-const: true
+      type: object
+      required:
+      - mode
+    PromptCacheModeEnum:
+      type: string
+      enum:
+      - implicit
+      - explicit
+    PromptCacheOptionsParam:
+      properties:
+        ttl:
+          $ref: '#/components/schemas/PromptCacheTTLEnum'
+        mode:
+          $ref: '#/components/schemas/PromptCacheModeEnum'
+      type: object
+      required: []
+    PromptCacheTTLEnum:
+      type: string
+      enum:
+      - 30m
+    ReasoningEffort:
+      anyOf:
+      - type: string
+        enum:
+        - none
+        - minimal
+        - low
+        - medium
+        - high
+        - xhigh
+        - max
+        default: medium
+      - type: 'null'
+    ResponseFormatJsonObject:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - json_object
+          x-stainless-const: true
+      required:
+      - type
+    ResponseFormatJsonSchema:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - json_schema
+          x-stainless-const: true
+        json_schema:
+          type: object
+          properties:
+            description:
+              type: string
+            name:
+              type: string
+            schema:
+              $ref: '#/components/schemas/ResponseFormatJsonSchemaSchema'
+            strict:
+              anyOf:
+              - type: boolean
+                default: false
+              - type: 'null'
+          required:
+          - name
+      required:
+      - type
+      - json_schema
+    ResponseFormatJsonSchemaSchema:
+      type: object
+      additionalProperties: true
+    ResponseFormatText:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - text
+          x-stainless-const: true
+      required:
+      - type
+    ResponseModalities:
+      anyOf:
+      - type: array
+        items:
+          type: string
+          enum:
+          - text
+          - audio
+      - type: 'null'
+    ServiceTier:
+      anyOf:
+      - type: string
+        enum:
+        - auto
+        - default
+        - flex
+        - scale
+        - priority
+        - fast
+        default: auto
+      - type: 'null'
+    StopConfiguration:
+      default: null
+      nullable: true
+      oneOf:
+      - type: string
+        default: <|endoftext|>
+        nullable: true
+      - type: array
+        minItems: 1
+        maxItems: 4
+        items:
+          type: string
+    Verbosity:
+      anyOf:
+      - type: string
+        enum:
+        - low
+        - medium
+        - high
+        default: medium
+      - type: 'null'
+    VoiceIdsOrCustomVoice:
+      anyOf:
+      - $ref: '#/components/schemas/VoiceIdsShared'
+      - type: object
+        additionalProperties: false
+        required:
+        - id
+        properties:
+          id:
+            type: string
+    VoiceIdsShared:
+      anyOf:
+      - type: string
+      - type: string
+        enum:
+        - alloy
+        - ash
+        - ballad
+        - coral
+        - echo
+        - sage
+        - shimmer
+        - verse
+        - marin
+        - cedar
+    WebSearchContextSize:
+      type: string
+      enum:
+      - low
+      - medium
+      - high
+      default: medium
+    WebSearchLocation:
+      type: object
+      properties:
+        country:
+          type: string
+        region:
+          type: string
+        city:
+          type: string
+        timezone:
+          type: string
+    _MisalignmentErrorType:
+      anyOf:
+      - type: string
+      - type: string
+        enum:
+        - potentially_unintended_data_transfer
+        - potentially_unintended_data_access
+        - potentially_unintended_destructive_activity
+        - other
+    _MisalignmentSteer:
+      properties:
+        message:
+          type: string
+      type: object
+      required:
+      - message
+  responses:
+    InferenceRateLimited:
+      description: The request was rejected because a rate limit was exceeded. A slow_down
+        error means traffic increased too quickly; reduce your request rate, then
+        increase it gradually.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InferenceServiceUnavailable:
+      description: The service is temporarily unavailable. A server_is_overloaded
+        error means the requested model is temporarily overloaded; retry after a brief
+        delay.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
