@@ -16,6 +16,7 @@
 """Unit tests for model_engine module."""
 
 import asyncio
+import copy
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -2998,6 +2999,89 @@ _LEGACY_FUNCTION_CALL_TURNS = {
         "delete_files",
     ),
 }
+
+
+class TestRewriteToolResults:
+    """``rewrite_tool_results`` writes a rail's rewritten content back into the caller's conversation shape."""
+
+    @pytest.fixture
+    def engine(self) -> ModelEngine:
+        """An OpenAI-engine ModelEngine; rewriting needs no started client."""
+        return ModelEngine(_make_model(engine="openai"))
+
+    def test_the_tool_message_takes_the_text_and_keeps_its_place(self, engine):
+        """Only the content changes, at the index extraction assigned, so violations still point at it."""
+        messages = make_tool_conversation()
+
+        rewritten = engine.rewrite_tool_results(messages, {2: "<REDACTED>"})
+
+        assert len(rewritten) == len(messages)
+        assert rewritten[:2] == messages[:2]
+        assert rewritten[2] == {**messages[2], "content": "<REDACTED>"}
+
+    def test_the_callers_list_and_messages_are_untouched(self, engine):
+        """The caller's list reaches the engine by identity, so the rewrite works on a copy at both levels."""
+        messages = make_tool_conversation()
+        snapshot = copy.deepcopy(messages)
+        tool_message = messages[2]
+
+        rewritten = engine.rewrite_tool_results(messages, {2: "<REDACTED>"})
+
+        assert messages == snapshot
+        assert messages[2] is tool_message
+        assert rewritten is not messages
+        assert rewritten[2] is not tool_message
+        assert rewritten[0] is messages[0]
+
+    def test_multimodal_content_collapses_to_the_text(self, engine):
+        """A list of text parts becomes the rail's string, which OpenAI accepts on a tool message."""
+        messages = make_tool_conversation()
+        messages[2] = {**messages[2], "content": [{"type": "text", "text": "ssn 123-45-6789"}]}
+
+        rewritten = engine.rewrite_tool_results(messages, {2: "ssn <SSN>"})
+
+        assert rewritten[2]["content"] == "ssn <SSN>"
+
+    def test_several_results_are_rewritten_independently(self, engine):
+        """Each key rewrites its own message and no other."""
+        messages = [
+            {"role": "user", "content": "two lookups"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "a", "arguments": "{}"}},
+                    {"id": "c2", "type": "function", "function": {"name": "b", "arguments": "{}"}},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "c1", "content": "r1"},
+            {"role": "tool", "tool_call_id": "c2", "content": "r2"},
+        ]
+
+        rewritten = engine.rewrite_tool_results(messages, {3: "masked r2"})
+
+        assert [m.get("content") for m in rewritten] == ["two lookups", None, "r1", "masked r2"]
+
+    @pytest.mark.parametrize("index", [0, 1, 3, -1], ids=["user", "assistant", "past-the-end", "negative"])
+    def test_an_index_that_is_not_a_tool_result_raises(self, engine, index):
+        """A rewrite with no tool message to land on is refused, never written onto another message."""
+        with pytest.raises(ValueError):
+            engine.rewrite_tool_results(make_tool_conversation(), {index: "masked"})
+
+    def test_no_rewrites_returns_an_equal_copy(self, engine):
+        messages = make_tool_conversation()
+
+        rewritten = engine.rewrite_tool_results(messages, {})
+
+        assert rewritten == messages
+        assert rewritten is not messages
+
+    def test_nim_uses_the_same_shape(self):
+        engine = ModelEngine(_make_model(engine="nim"))
+
+        rewritten = engine.rewrite_tool_results(make_tool_conversation(), {2: "masked"})
+
+        assert rewritten[2]["content"] == "masked"
 
 
 class TestExtractLatestToolCalls:

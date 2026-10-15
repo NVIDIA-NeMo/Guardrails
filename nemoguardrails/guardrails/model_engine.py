@@ -523,6 +523,34 @@ def _extract_tool_exchanges_nim(messages: LLMMessages) -> list[ToolExchange]:
     return _extract_tool_exchanges_openai(messages)
 
 
+def _rewrite_tool_results_openai(messages: LLMMessages, rewrites: Mapping[int, str]) -> LLMMessages:
+    """Return a copy of *messages* with each ``role:"tool"`` message at a key of *rewrites* given that content.
+
+    The positions are the ``message_index`` extraction assigned, so every other message keeps its place.
+    Copied at both levels, because the caller's own list reaches the engine by identity.
+    """
+    rewritten = list(messages)
+    for index, content in rewrites.items():
+        if not 0 <= index < len(messages):
+            raise ValueError(f"no message at index {index} to rewrite")
+        message = messages[index]
+        if not isinstance(message, dict) or message.get("role") != "tool":
+            raise ValueError(f"the message at index {index} is not a tool result")
+        rewritten[index] = {**message, "content": content}
+    return rewritten
+
+
+def _rewrite_tool_results_nim(messages: LLMMessages, rewrites: Mapping[int, str]) -> LLMMessages:
+    """Rewrite NIM tool results. NIM uses the OpenAI Chat Completions shape."""
+    return _rewrite_tool_results_openai(messages, rewrites)
+
+
+_TOOL_RESULT_REWRITERS = {
+    "openai": _rewrite_tool_results_openai,
+    "nim": _rewrite_tool_results_nim,
+}
+
+
 # How much of a failed response to read for error classification. Large enough that any
 # realistic provider error body parses as JSON and yields its message/code/param, bounded
 # because an unparseable body (an HTML proxy error page) becomes the client-facing message
@@ -1467,3 +1495,14 @@ class ModelEngine(BaseEngine):
         """Strictly parse the last assistant message's tool calls in the wire shape of the model's engine."""
         extractor = _LATEST_TOOL_CALL_EXTRACTORS.get(self.model_config.engine, _latest_tool_calls_openai)
         return extractor(messages)
+
+    def rewrite_tool_results(self, messages: LLMMessages, rewrites: Mapping[int, str]) -> LLMMessages:
+        """Return *messages* with the tool results at the keys of *rewrites* replaced by their text.
+
+        The inverse of ``extract_tool_exchanges``: keys are the ``message_index`` it assigned.
+
+        Raises:
+            ValueError: If a key is not the position of a tool result in *messages*.
+        """
+        rewriter = _TOOL_RESULT_REWRITERS.get(self.model_config.engine, _rewrite_tool_results_openai)
+        return rewriter(messages, rewrites)
