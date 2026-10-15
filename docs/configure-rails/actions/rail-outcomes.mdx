@@ -74,8 +74,10 @@ The supported transform targets are:
 - `TransformTarget.USER_MESSAGE`
 - `TransformTarget.BOT_MESSAGE`
 - `TransformTarget.RELEVANT_CHUNKS`
+- `TransformTarget.TOOL_RESULT`: the text replaces the whole content of the tool result the rail checked, as a string. IORails applies it from a `per_tool` rail under `rails.tool_result`. Refer to [Rewrite Tool Results](/configure-guardrails/guardrail-catalog/tool-calling#rewrite-tool-results).
 
 Transform outcomes apply to non-streaming processing. Streaming output paths do not apply the rewrite.
+A tool-result rewrite happens before the model call, so it also applies to streaming requests.
 
 ## Evidence Fields
 

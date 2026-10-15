@@ -340,6 +340,34 @@ The OpenAI tool message has none, so the rail identifies the tool from the resul
     the request, since which policy applies can no longer be verified.
 </Warning>
 
+## Rewrite Tool Results
+
+A `per_tool` rail under `rails.tool_result` can rewrite the tool result it checks, for example to mask personal data or strip an indirect prompt injection before the model reads it.
+The rail's action returns a transform outcome with `TransformTarget.TOOL_RESULT`, and its manifest surface declares `transform_target=TransformTarget.TOOL_RESULT` so IORails schedules it as a rewriting rail.
+For the outcome API, refer to [Rail Outcomes](/configure-guardrails/actions/rail-outcomes).
+
+IORails applies the rewrite as follows:
+
+- The rewritten text replaces the whole `content` of the `tool` message the rail checked, and every other field and message is kept as sent.
+  Your application's own message list is not modified.
+- Rewriting rails run first for each tool, and each later rail for that result reads the latest content.
+  A rewrite that a later rail undoes, by returning the original content, counts as no rewrite.
+- Tool-result rails run before the input rails, so the input rails, the main model, the output rails, and the generation log all read the rewritten result, on `generate_async()` and `stream_async()` alike.
+- Tool-result content that is a list of text parts becomes the single rewritten string.
+  The OpenAI Chat Completions tool message carries only text parts, so this loses the part boundaries, not any other modality.
+- IORails keeps no state between requests, so each request rewrites every tool result in the conversation it carries, including results from earlier turns.
+  The number of rail runs grows with the length of the conversation, and a rewriter that does not return the same text every time changes earlier turns, which defeats provider prompt caching.
+  Your application keeps the original results.
+- A rail behind the rewrite can still block the request.
+  With content capture on, the request span records the rewritten result in either case.
+  The rewriting rail's own span records the result it received, before the rewrite.
+
+A rewriting `per_tool` rail turns `parallel` off for both `tool_call` and `tool_result` in the whole configuration, with a warning if `parallel` was set, because concurrent rails cannot pass a rewrite to each other.
+A rail that returns a rewrite while running in parallel raises an error, and so does a tool-result rail that rewrites anything other than `tool_result`.
+Tool calls cannot be rewritten: IORails refuses a `tool_call` surface that declares a `transform_target`.
+
+A check reports a tool-result rewrite as `MODIFIED` and returns the rewritten conversation in `messages`; refer to [Checking Messages Against Rails](/run-guardrailed-inference/using-python-apis/check-messages#which-content-is-reported).
+
 ## Control Rails per Request
 
 Use `options.rails` to enable or disable each tool rail for a single request.
