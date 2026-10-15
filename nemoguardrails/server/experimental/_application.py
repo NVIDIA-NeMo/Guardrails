@@ -17,10 +17,12 @@
 
 from collections.abc import Callable, Sequence
 from contextlib import asynccontextmanager
+from typing import overload
 
 import httpx
 from fastapi import APIRouter, FastAPI
 
+from nemoguardrails.server.experimental._configuration import ProxyConfig, resolve_config_selection, resolve_provider
 from nemoguardrails.server.experimental._http_kernel import (
     DEFAULT_MAX_REQUEST_BODY_BYTES,
     DEFAULT_MAX_RESPONSE_BODY_BYTES,
@@ -38,6 +40,7 @@ from nemoguardrails.server.experimental.rails import ConfigEntry, ConfigResolver
 from nemoguardrails.server.experimental.rails.config import validate_config_entries
 
 HttpTransportFactory = Callable[[], httpx.AsyncBaseTransport]
+_UNSET_CONFIG_RESOLUTION_TIMEOUT = object()
 
 
 @asynccontextmanager
@@ -80,6 +83,17 @@ async def _lifespan(application: FastAPI):
                 del application.state.proxy_runtime
 
 
+@overload
+def create_proxy_application(
+    config: ProxyConfig,
+    *,
+    config_resolver: ConfigResolver | None = None,
+    local_routers: Sequence[APIRouter] = (),
+    http_transport_factory: HttpTransportFactory | None = None,
+) -> FastAPI: ...
+
+
+@overload
 def create_proxy_application(
     *,
     providers: Sequence[ProviderIntegration],
@@ -92,8 +106,77 @@ def create_proxy_application(
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
     max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
     timeout: float = 30.0,
+) -> FastAPI: ...
+
+
+def create_proxy_application(
+    config: ProxyConfig | None = None,
+    *,
+    providers: Sequence[ProviderIntegration] | None = None,
+    rails_configs: Sequence[ConfigEntry] | None = None,
+    config_resolver: ConfigResolver | None = None,
+    config_resolution_timeout: object = _UNSET_CONFIG_RESOLUTION_TIMEOUT,
+    local_routers: Sequence[APIRouter] = (),
+    path_prefix: str | None = None,
+    http_transport_factory: HttpTransportFactory | None = None,
+    max_request_body_bytes: int | None = None,
+    max_response_body_bytes: int | None = None,
+    timeout: float | None = None,
 ) -> FastAPI:
-    """Create one private proxy application with lifespan-owned HTTP dispatch."""
+    """Create one proxy from a declaration or explicit Python integrations.
+
+    A ProxyConfig cannot be combined with direct assembly settings; callbacks
+    and local routers remain separate Python arguments. Declarative fixed Rails
+    IDs bypass the user resolver, while dynamic providers require it. Direct
+    calls retain their existing single-entry inference and explicit-resolver
+    behavior.
+
+    Configuration and route validation run before lifespan-owned HTTP and Rails
+    resources are created. No upstream calls are made during construction.
+    """
+
+    if config is not None:
+        if not isinstance(config, ProxyConfig):
+            raise TypeError("config must be a ProxyConfig.")
+        if config_resolution_timeout is not _UNSET_CONFIG_RESOLUTION_TIMEOUT:
+            raise TypeError("ProxyConfig cannot be combined with direct assembly settings.")
+        if any(
+            value is not None
+            for value in (
+                providers,
+                rails_configs,
+                path_prefix,
+                max_request_body_bytes,
+                max_response_body_bytes,
+                timeout,
+            )
+        ):
+            raise TypeError("ProxyConfig cannot be combined with direct assembly settings.")
+        config = ProxyConfig.model_validate(config)
+        config_resolver = resolve_config_selection(config, config_resolver)
+        providers = tuple(resolve_provider(provider) for provider in config.providers)
+        rails_configs = config.rails_configs
+        config_resolution_timeout = config.config_resolution_timeout
+        path_prefix = config.path_prefix
+        max_request_body_bytes = config.max_request_body_bytes
+        max_response_body_bytes = config.max_response_body_bytes
+        timeout = config.timeout
+    if providers is None:
+        raise TypeError("Supply a ProxyConfig or explicit providers.")
+    rails_configs = () if rails_configs is None else rails_configs
+    config_resolution_timeout = (
+        DEFAULT_CONFIG_RESOLUTION_TIMEOUT
+        if config_resolution_timeout is _UNSET_CONFIG_RESOLUTION_TIMEOUT
+        else config_resolution_timeout
+    )
+    path_prefix = "" if path_prefix is None else path_prefix
+    max_request_body_bytes = (
+        DEFAULT_MAX_REQUEST_BODY_BYTES if max_request_body_bytes is None else max_request_body_bytes
+    )
+    max_response_body_bytes = (
+        DEFAULT_MAX_RESPONSE_BODY_BYTES if max_response_body_bytes is None else max_response_body_bytes
+    )
+    timeout = 30.0 if timeout is None else timeout
 
     if http_transport_factory is not None and not callable(http_transport_factory):
         raise TypeError("The HTTP transport factory must be callable.")

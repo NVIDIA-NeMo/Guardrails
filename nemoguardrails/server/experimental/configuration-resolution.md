@@ -141,6 +141,10 @@ fails closed through the provider-native `config_resolution_failed` response,
 without forwarding the request or selecting a fallback policy. Request
 cancellation propagates instead of becoming a configuration error.
 
+For declarative Python assembly, set `ProxyConfig(config_resolution_timeout=..., ...)`.
+As with other application settings, this value belongs in `ProxyConfig` rather
+than a separate factory argument when a declaration is supplied.
+
 The deadline cannot preempt blocking synchronous work or force a resolver that
 suppresses cancellation to stop. Preloading removes request-time engine
 initialization; it does not make external policy selection free of latency.

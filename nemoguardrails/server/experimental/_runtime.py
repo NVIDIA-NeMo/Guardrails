@@ -36,7 +36,7 @@ DEFAULT_CONFIG_RESOLUTION_TIMEOUT = 5.0
 _HTTP_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 
 
-def _validate_config_resolution_timeout(timeout: float) -> float:
+def _validate_config_resolution_timeout(timeout: object) -> float:
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("The config resolution timeout must be a finite positive number of seconds.")
     return float(timeout)

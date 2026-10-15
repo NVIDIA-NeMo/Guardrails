@@ -18,14 +18,17 @@
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeAlias
+from typing import ClassVar, TypeAlias
 
 from fastapi import Request
+from pydantic import ConfigDict
 
 
 @dataclass(frozen=True, slots=True)
 class ConfigEntry:
     """Associate a deployment-owned identifier with a Rails config directory."""
+
+    __pydantic_config__: ClassVar[ConfigDict] = ConfigDict(extra="forbid", revalidate_instances="always")
 
     id: str
     config_path: Path
