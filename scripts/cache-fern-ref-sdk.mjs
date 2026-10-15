@@ -95,6 +95,13 @@ export function main(args = process.argv.slice(2), environment = process.env) {
     return;
   }
 
+  if (environment.FERN_REF_SDK_CACHE_ONLY === "1") {
+    throw new Error(
+      `No cached SDK reference for ${libraryConfig.input.ref} (${sdkInputCommit.slice(0, 12)}) at ${cacheDirectory}, ` +
+        "and FERN_REF_SDK_CACHE_ONLY=1 forbids generating it. Restore the .fern-cache/fern-ref-sdk cache or run " +
+        "`make docs-fern-generate-sdk` with FERN_TOKEN set.",
+    );
+  }
   console.log(`Generating ${libraryName} for ${libraryConfig.input.ref} (${sdkInputCommit.slice(0, 12)}).`);
   rmSync(outputRoot, { force: true, recursive: true });
   const originalFernConfig = readFileSync(fernConfigPath, "utf8");
