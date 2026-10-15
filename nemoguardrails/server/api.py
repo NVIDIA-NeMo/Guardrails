@@ -112,6 +112,7 @@ class GuardrailsApp(FastAPI):
         self.stop_signal: bool = False
         self.single_config_mode: bool = False
         self.single_config_id: Optional[str] = None
+        self.single_config: Optional[RailsConfig] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.task: Optional[asyncio.Future] = None
 
@@ -173,6 +174,10 @@ async def _server_lifespan(app: GuardrailsApp):
         or os.path.exists(os.path.join(app.rails_config_path, "config", "config.yml"))
         or os.path.exists(os.path.join(app.rails_config_path, "config", "config.yaml"))
     ):
+        # Loading here rather than on the first request makes an invalid config stop
+        # the server from starting. Load before setting the mode, so a failed load
+        # leaves no partial single-config state.
+        app.single_config = RailsConfig.from_path(app.rails_config_path)
         app.single_config_mode = True
         app.single_config_id = os.path.basename(app.rails_config_path)
     else:
@@ -205,6 +210,12 @@ async def _server_lifespan(app: GuardrailsApp):
         if hasattr(app, "task") and app.task is not None:
             app.task.cancel()
         log.info("Shutting down file observer")
+
+    # Reset so a later lifespan in the same process, as in tests, detects the mode
+    # afresh instead of inheriting it.
+    app.single_config_mode = False
+    app.single_config_id = None
+    app.single_config = None
 
 
 app = GuardrailsApp(
