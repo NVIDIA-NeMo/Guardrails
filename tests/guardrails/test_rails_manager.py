@@ -1888,6 +1888,49 @@ class TestRailsThatRewrite:
         assert result.triggered_rail == "topic safety check input"
         assert len(result.records) == 2
 
+    async def test_a_block_behind_a_rewrite_keeps_the_rewrite_for_the_record(self, nemoguards_rails_manager):
+        """The block is the verdict, but the masked text still reaches whoever records the request."""
+        self._install_input_pair(
+            nemoguards_rails_manager,
+            StubRail(_mask_user_message(MASKED)),
+            StubRail(RailOutcome.block(reason="off topic")),
+        )
+
+        result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
+
+        assert result.rewrite_before_block == MASKED
+
+    async def test_an_output_block_behind_a_rewrite_keeps_the_rewritten_response(self, nemoguards_rails_manager):
+        """The output direction keeps the response as the rails ahead of the block rewrote it."""
+        second_flow = "mask pii on output"
+        self._install(
+            nemoguards_rails_manager,
+            RailDirection.OUTPUT,
+            {
+                CONTENT_SAFETY_OUTPUT_FLOW: StubRail(_mask_bot_message("call me on <PHONE>")),
+                second_flow: StubRail(RailOutcome.block(reason="unsafe")),
+            },
+        )
+
+        result = await nemoguards_rails_manager._run_rails_sequential(
+            [CONTENT_SAFETY_OUTPUT_FLOW, second_flow], RailDirection.OUTPUT, SSN_MESSAGES, "call me on 555-0100"
+        )
+
+        assert result.is_safe is False
+        assert result.rewrite_before_block == "call me on <PHONE>"
+
+    async def test_a_block_with_no_rewrite_ahead_keeps_nothing(self, nemoguards_rails_manager):
+        """With nothing rewritten before the block, there is no rewrite for the record to keep."""
+        self._install_input_pair(
+            nemoguards_rails_manager,
+            StubRail(RailOutcome.allow()),
+            StubRail(RailOutcome.block(reason="off topic")),
+        )
+
+        result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
+
+        assert result.rewrite_before_block is None
+
     async def test_a_rewrite_leaves_the_callers_messages_untouched(self, nemoguards_rails_manager):
         """The caller's list arrives by identity, so masking must not edit the conversation it owns."""
         messages = [{"role": "user", "content": "my ssn is 123-45-6789"}]
@@ -2499,3 +2542,17 @@ class TestARewriteWithNoTurnToLandOn:
         )
 
         assert len(result.records) == 1
+
+    async def test_the_rewrite_already_applied_is_kept_for_the_record(self, nemoguards_rails_manager):
+        """The block keeps the text the rails ahead of it left, so the record of the request keeps their mask."""
+        nemoguards_rails_manager._rails[(RailDirection.INPUT, CONTENT_SAFETY_INPUT_FLOW)] = StubRail(
+            _mask_user_message("")
+        )
+        nemoguards_rails_manager._rails[(RailDirection.INPUT, TOPIC_SAFETY_INPUT_FLOW)] = StubRail(
+            _mask_user_message(MASKED)
+        )
+
+        result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
+
+        assert result.is_safe is False
+        assert result.rewrite_before_block == ""

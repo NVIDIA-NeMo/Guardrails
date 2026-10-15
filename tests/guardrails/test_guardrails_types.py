@@ -143,6 +143,12 @@ class TestRailResult:
 
         assert RailResult.block(reason="blocked", records=(record,)) == RailResult.block(reason="blocked")
 
+    def test_a_rewrite_before_a_block_stays_out_of_equality(self):
+        """What the rails rewrote ahead of a block is capture data, so the block alone is the verdict compared."""
+        kept = RailResult(RailOutcome.block(reason="blocked"), rewrite_before_block="my ssn is <SSN>")
+
+        assert kept == RailResult.block(reason="blocked")
+
     def test_is_unhashable_and_says_so(self):
         """The wrapped outcome is unhashable, and the error names this type rather than leaking from inside."""
         with pytest.raises(TypeError, match="unhashable type: 'RailResult'"):

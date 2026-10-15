@@ -103,7 +103,8 @@ class RailResult:
     than a second copy that could drift. What this type adds is the aggregation
     ``RailOutcome`` has no concept of, because it belongs to running *many* rails:
     which one blocked (``triggered_rail``), which tool calls or results it blocked
-    (``tool_violations``) and what every rail did (``records``).
+    (``tool_violations``), what every rail did (``records``), and what the rails ahead
+    of a block rewrote the checked text to (``rewrite_before_block``).
 
     ``records`` carries the per-rail execution records for every rail that ran in this
     check (not just the blocking one), so IORails can synthesize a ``GenerationLog``.
@@ -119,6 +120,9 @@ class RailResult:
     triggered_rail: str | None = None
     tool_violations: tuple[ToolViolation, ...] = ()
     records: tuple[RailCallRecord, ...] = field(default=(), compare=False)
+    # Capture data like ``records``, not part of the verdict: the block stands, but a record of
+    # the request that carried the text a mask removed would undo the mask.
+    rewrite_before_block: str | None = field(default=None, compare=False)
     __hash__ = None
 
     @property
