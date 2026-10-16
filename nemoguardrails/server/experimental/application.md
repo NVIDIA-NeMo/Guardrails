@@ -18,13 +18,22 @@ The server owns its launcher; it is not a subcommand of the library CLI.
 Its current module location is temporary. A later independent server package
 will register its own executable against the same CLI implementation.
 
-From this checkout, install dependencies with `uv sync --locked --extra server`,
-then use:
+From the repository root, install dependencies and copy the complete example
+into a deployment-owned directory:
 
 ```bash
-uv run --locked python -m nemoguardrails.server.experimental validate nemoguardrails/server/experimental/examples/basic/proxy.yaml
-uv run --locked python -m nemoguardrails.server.experimental inspect nemoguardrails/server/experimental/examples/basic/proxy.yaml
-uv run --locked python -m nemoguardrails.server.experimental serve nemoguardrails/server/experimental/examples/basic/proxy.yaml
+uv sync --locked --extra server
+cp -R nemoguardrails/server/experimental/examples/basic proxy-example
+cd proxy-example
+```
+
+Keep the copied `proxy.yaml` and its sibling `rails` directory together. Edit
+your copy rather than the package's bundled example. From this directory:
+
+```bash
+uv run --locked python -m nemoguardrails.server.experimental validate proxy.yaml
+uv run --locked python -m nemoguardrails.server.experimental inspect proxy.yaml
+uv run --locked python -m nemoguardrails.server.experimental serve proxy.yaml
 ```
 
 The [example manifest](examples/basic/proxy.yaml)
