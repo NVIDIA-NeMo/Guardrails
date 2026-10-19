@@ -73,11 +73,11 @@ def _request_headers(headers: HttpHeaders) -> list[tuple[bytes, bytes]]:
 
 
 def _response_headers(headers: httpx.Headers) -> HttpHeaders:
-    """Preserve raw end-to-end response headers, including duplicates and order."""
+    """Lowercase ASGI response names, preserving end-to-end values and order."""
 
     raw = tuple(headers.raw)
     excluded = _HOP_BY_HOP_HEADERS | _connection_tokens(raw)
-    return tuple((name, value) for name, value in raw if name.lower() not in excluded)
+    return tuple((name.lower(), value) for name, value in raw if name.lower() not in excluded)
 
 
 def _strip_mount_prefix(path: str, raw_path: bytes, mount_path: str) -> bytes:

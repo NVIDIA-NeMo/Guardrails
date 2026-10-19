@@ -18,6 +18,7 @@ import asyncio
 import httpx
 import pytest
 from fastapi import FastAPI
+from starlette.middleware.gzip import GZipMiddleware
 
 from nemoguardrails.server.experimental._content_checker import (
     ContentAllowed,
@@ -202,6 +203,114 @@ async def test_transport_connects_chat_router_to_upstream_between_inspections(st
         assert response.status_code == 400
         assert response.json()["error"]["code"] == "content_blocked"
         assert b"answer" not in response.content
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+async def test_transport_normalizes_response_header_names_without_merging_values(streaming):
+    """Emit lowercase ASGI headers while preserving duplicate values and order."""
+
+    provider_body = (
+        stream_event("answer") + b"data: [DONE]\n\n"
+        if streaming
+        else b'{"choices":[{"index":0,"message":{"role":"assistant","content":"answer"}}]}'
+    )
+    content_type = b"text/event-stream" if streaming else b"application/json"
+    source = TrackedStream([provider_body])
+
+    async def upstream(_request):
+        """Return mixed-case provider headers with separate cookie values."""
+
+        return httpx.Response(
+            200,
+            headers=(
+                (b"Content-Type", content_type),
+                (b"Set-Cookie", b"first=1; Path=/"),
+                (b"sEt-CoOkIe", b"second=2; Path=/"),
+                (b"X-Request-ID", b"Provider-ID"),
+            ),
+            stream=source,
+        )
+
+    checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as upstream_client:
+        transport = ProviderTransport(upstream_client, base_url="https://provider.test")
+        app = FastAPI()
+        app.include_router(
+            create_openai_chat_router(
+                checker=checker, dispatch=transport.dispatch, stream_dispatch=transport.stream_dispatch
+            )
+        )
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+            response = await client.post(
+                "/v1/chat/completions",
+                content=request_body(stream=streaming),
+                headers={"content-type": "application/json"},
+            )
+
+    assert response.status_code == 200
+    assert response.content == provider_body
+    assert response.headers.raw[:4] == [
+        (b"content-type", content_type),
+        (b"set-cookie", b"first=1; Path=/"),
+        (b"set-cookie", b"second=2; Path=/"),
+        (b"x-request-id", b"Provider-ID"),
+    ]
+    assert all(name == name.lower() for name, _ in response.headers.raw)
+    assert source.closed
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("content_type_name", [b"content-type", b"Content-Type"])
+async def test_transport_keeps_first_sse_event_uncompressed_with_gzip_middleware(content_type_name):
+    """Send the first checked SSE event before EOF regardless of header casing."""
+
+    first_event = stream_event("FIRST_TOKEN")
+    source = TrackedStream([first_event, b"data: [DONE]\n\n"])
+    body_messages = []
+
+    async def upstream(_request):
+        """Return separate SSE chunks with the selected header casing."""
+
+        return httpx.Response(200, headers=((content_type_name, b"text/event-stream"),), stream=source)
+
+    checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as upstream_client:
+        transport = ProviderTransport(upstream_client, base_url="https://provider.test")
+        app = FastAPI()
+        app.include_router(
+            create_openai_chat_router(
+                checker=checker, dispatch=transport.dispatch, stream_dispatch=transport.stream_dispatch
+            )
+        )
+        app.add_middleware(GZipMiddleware)
+
+        async def capture(scope, receive, send):
+            """Observe incremental ASGI messages before the test client buffers them."""
+
+            async def record(message):
+                """Retain body messages in their original send order."""
+
+                if message["type"] == "http.response.body":
+                    body_messages.append(dict(message))
+                await send(message)
+
+            await app(scope, receive, record)
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=capture), base_url="http://proxy.test"
+        ) as client:
+            response = await client.post(
+                "/v1/chat/completions",
+                content=request_body(stream=True),
+                headers={"content-type": "application/json", "accept-encoding": "gzip"},
+            )
+
+    assert response.status_code == 200
+    assert "content-encoding" not in response.headers
+    assert body_messages[0] == {"type": "http.response.body", "body": first_event, "more_body": True}
+    assert response.content == first_event + b"data: [DONE]\n\n"
+    assert source.closed
 
 
 @pytest.mark.asyncio
