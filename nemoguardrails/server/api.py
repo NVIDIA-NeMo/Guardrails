@@ -22,7 +22,7 @@ import os
 import re
 import time
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from typing import Any, AsyncIterator, Callable, List, Literal, Optional, Union
 
 import httpx
@@ -35,6 +35,7 @@ from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from nemoguardrails import Guardrails, LLMRails, RailsConfig, utils
+from nemoguardrails.context import conversation_id, get_conversation_id
 from nemoguardrails.exceptions import (
     InvalidCheckRequestError,
     InvalidModelConfigurationError,
@@ -562,6 +563,29 @@ async def _prepend_stream_chunk(
         yield chunk
 
 
+async def _in_conversation(
+    conversation: str,
+    stream_iterator: AsyncIterator[Union[str, dict]],
+) -> AsyncIterator[Union[str, dict]]:
+    """Advance *stream_iterator* with *conversation* as the conversation ID.
+
+    Rails that run while a chunk is pulled, such as streaming output rails, run in the
+    context of whoever pulls it, which for the response body is not the request handler.
+    """
+    try:
+        while True:
+            with conversation_id(conversation):
+                try:
+                    chunk = await anext(stream_iterator)
+                except StopAsyncIteration:
+                    return
+            yield chunk
+    finally:
+        close = getattr(stream_iterator, "aclose", None)
+        if callable(close):
+            await close()
+
+
 async def _format_streaming_response(
     stream_iterator: AsyncIterator[Union[str, dict, ToolCallChunk, ToolCallDeltaChunk]], model_name: str
 ) -> AsyncIterator[str]:
@@ -768,6 +792,9 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         # And prepend them.
         messages = thread_messages + messages
 
+    # An ID the embedding application already set wins over the request's thread.
+    thread_conversation = body.guardrails.thread_id if get_conversation_id() is None else None
+
     generation_options = body.guardrails.options
 
     # Initialize llm_params if not already set
@@ -796,10 +823,13 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
 
     if body.stream:
         # Use stream_async for streaming with output rails support
-        stream_iterator = llm_rails.stream_async(
-            messages=messages,
-            options=generation_options,
-        )
+        with conversation_id(thread_conversation) if thread_conversation else nullcontext():
+            stream_iterator = llm_rails.stream_async(
+                messages=messages,
+                options=generation_options,
+            )
+        if thread_conversation:
+            stream_iterator = _in_conversation(thread_conversation, stream_iterator)
 
         try:
             first_chunk = await anext(stream_iterator)
@@ -832,10 +862,11 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             media_type="text/event-stream",
         )
     else:
-        res = await llm_rails.generate_async(
-            messages=messages,
-            options=generation_options,
-        )
+        with conversation_id(thread_conversation) if thread_conversation else nullcontext():
+            res = await llm_rails.generate_async(
+                messages=messages,
+                options=generation_options,
+            )
 
         # IORails-only: prefix `content` with `reasoning_content` and think-tags.
         # A Guardrails wrapper can fall back to an LLMRails engine, which already

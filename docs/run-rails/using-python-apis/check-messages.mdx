@@ -353,6 +353,7 @@ with conversation_id("thread-42"):
 
 The previous ID is restored when the block exits, and concurrent requests each see only the ID they were made with.
 Use an ID that identifies one conversation, such as a chat thread ID.
+The server sets the ID from the `thread_id` of a [chat completion request](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model#conversation-threads), unless the application that runs the server already set one.
 A rail that reports checks to an external service can send the ID so that the service groups the checks of one conversation; the rail's catalog page describes whether it does.
 For how a custom action reads the ID, refer to [Action Parameters: Reading the Conversation ID](/configure-guardrails/actions/action-parameters#reading-the-conversation-id).
 
