@@ -14,13 +14,16 @@
 # limitations under the License.
 
 import os
+import sys
+from types import ModuleType
 from typing import Optional
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailDecision, RailOutcome
+from nemoguardrails.library.zscaler_aiguard import actions as zscaler_actions
 from tests.utils import TestChat
 
 input_rail_config = RailsConfig.from_content(
@@ -110,12 +113,14 @@ def _block_result(direction="IN", blocking_detectors=None, reason=None, **overri
 
 
 @pytest.fixture(autouse=True)
-def _reset_sdk_client():
+def _reset_sdk_client(monkeypatch):
     """Reset the module-level SDK client between tests."""
     import nemoguardrails.library.zscaler_aiguard.actions as mod
 
     mod._sdk_client = None
     mod._sdk_client_cloud = None
+    for name in ("AIGUARD_API_KEY", "AIGUARD_CLOUD", "AIGUARD_POLICY_ID"):
+        monkeypatch.delenv(name, raising=False)
     yield
     mod._sdk_client = None
     mod._sdk_client_cloud = None
@@ -693,3 +698,137 @@ async def test_zscaler_aiguard_action_invalid_policy_id_env():
 
         with pytest.raises(ValueError, match="AIGUARD_POLICY_ID"):
             await call_zscaler_aiguard_api(text="Test content", direction="IN")
+
+
+@pytest.fixture
+def sdk_helper(monkeypatch):
+    helper = MagicMock(name="LegacyZGuardClientHelper")
+    legacy = ModuleType("zscaler.zaiguard.legacy")
+    setattr(legacy, "LegacyZGuardClientHelper", helper)
+    monkeypatch.setitem(sys.modules, "zscaler", ModuleType("zscaler"))
+    monkeypatch.setitem(sys.modules, "zscaler.zaiguard", ModuleType("zscaler.zaiguard"))
+    monkeypatch.setitem(sys.modules, "zscaler.zaiguard.legacy", legacy)
+    monkeypatch.setenv("AIGUARD_API_KEY", "test-api-key")
+    return helper
+
+
+@pytest.mark.unit
+def test_zscaler_sdk_client_initialization_and_cache(sdk_helper, monkeypatch):
+    client = zscaler_actions._get_sdk_client()
+
+    sdk_helper.assert_called_once_with(cloud="us1")
+    assert client is sdk_helper.return_value
+    assert zscaler_actions._get_sdk_client() is client
+    sdk_helper.assert_called_once()
+
+    monkeypatch.setenv("AIGUARD_CLOUD", "eu1")
+    zscaler_actions._get_sdk_client()
+
+    assert sdk_helper.call_count == 2
+    sdk_helper.assert_called_with(cloud="eu1")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy_id", [None, 900])
+@pytest.mark.parametrize("direction", ["IN", "OUT"])
+async def test_zscaler_sdk_policy_calls(sdk_helper, policy_id, direction):
+    detection = sdk_helper.return_value.policy_detection
+    detection.resolve_and_execute_policy.return_value = ({"action": "ALLOW"}, None, None)
+    detection.execute_policy.return_value = ({"action": "BLOCK"}, None, None)
+
+    result = await zscaler_actions.call_zscaler_aiguard_api(
+        text="Test content", direction=direction, policy_id=policy_id
+    )
+
+    if policy_id is None:
+        detection.resolve_and_execute_policy.assert_called_once_with(content="Test content", direction=direction)
+        detection.execute_policy.assert_not_called()
+        assert result.decision is RailDecision.ALLOW
+    else:
+        detection.execute_policy.assert_called_once_with(
+            content="Test content", direction=direction, policy_id=policy_id
+        )
+        detection.resolve_and_execute_policy.assert_not_called()
+        assert result.decision is RailDecision.BLOCK
+    assert result.failed is False
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("policy_id", [None, 900])
+async def test_zscaler_sdk_error_tuple_returns_failure(sdk_helper, policy_id, caplog):
+    detection = sdk_helper.return_value.policy_detection
+    response = (None, None, "sensitive provider error detail")
+    detection.resolve_and_execute_policy.return_value = response
+    detection.execute_policy.return_value = response
+
+    result = await zscaler_actions.call_zscaler_aiguard_api(text="Test content", policy_id=policy_id)
+
+    assert result.is_blocked
+    assert result.failed is True
+    assert result.metadata["error_type"] == "RuntimeError"
+    assert "sensitive provider error detail" not in repr(result)
+    assert "sensitive provider error detail" not in caplog.text
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error_type", [RuntimeError, TimeoutError, ConnectionError, ValueError])
+async def test_zscaler_sdk_exceptions_return_failure(sdk_helper, error_type, caplog):
+    sdk_helper.return_value.policy_detection.resolve_and_execute_policy.side_effect = error_type(
+        "sensitive provider error detail"
+    )
+
+    result = await zscaler_actions.call_zscaler_aiguard_api(text="Test content")
+
+    assert result.is_blocked
+    assert result.failed is True
+    assert result.metadata["error_type"] == error_type.__name__
+    assert "sensitive provider error detail" not in repr(result)
+    assert "sensitive provider error detail" not in caplog.text
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_zscaler_sdk_missing_dependency_raises(monkeypatch):
+    monkeypatch.setitem(sys.modules, "zscaler.zaiguard.legacy", None)
+
+    with pytest.raises(ImportError, match="pip install zscaler-sdk-python"):
+        await zscaler_actions.call_zscaler_aiguard_api(text="Test content")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_zscaler_sdk_missing_api_key_raises(sdk_helper, monkeypatch):
+    monkeypatch.delenv("AIGUARD_API_KEY")
+
+    with pytest.raises(EnvironmentError, match="AIGUARD_API_KEY"):
+        await zscaler_actions.call_zscaler_aiguard_api(text="Test content")
+
+    sdk_helper.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scan_fails", [False, True])
+async def test_zscaler_iorails_distinguishes_scan_failures_from_policy_blocks(sdk_helper, monkeypatch, scan_fails):
+    from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_MESSAGE, IORails
+    from nemoguardrails.rails.llm.options import RailStatus
+
+    monkeypatch.setattr(
+        "nemoguardrails.guardrails.compiled_rail._is_installed", lambda name: name == "zscaler-sdk-python"
+    )
+    detection = sdk_helper.return_value.policy_detection.resolve_and_execute_policy
+    if scan_fails:
+        detection.return_value = (None, None, "sensitive provider error detail")
+    else:
+        detection.return_value = ({"action": "BLOCK"}, None, None)
+
+    async with IORails(input_rail_config, _report_usage=False) as rails:
+        result = await rails.check_async([{"role": "user", "content": "Test content"}])
+
+    assert result.status == RailStatus.BLOCKED
+    assert result.rail == "zscaler aiguard moderation on input"
+    assert result.content == (INTERNAL_ERROR_MESSAGE if scan_fails else REFUSAL_MESSAGE)
+    assert "sensitive provider error detail" not in repr(result)
