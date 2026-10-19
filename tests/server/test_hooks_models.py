@@ -402,6 +402,21 @@ class TestParseHookRequest:
 
         assert request.model_extra == {"added_by_a_later_release": {"nested": 1}}
 
+    @pytest.mark.parametrize("mode", ["python", "json"])
+    @pytest.mark.parametrize(
+        "agent, body",
+        [
+            *[("claude-code", body) for body in CLAUDE_CODE_EXAMPLES],
+            *[("codex", body) for body in CODEX_EXAMPLES],
+            *[("nemo-relay", body) for body in [NEMO_RELAY_SEARCH, NEMO_RELAY_EMPTY_QUERY]],
+        ],
+    )
+    def test_dumped_request_parses_again_unchanged(self, agent, body, mode):
+        """A request's `model_dump()` parses again on its own path to an equal request, so a saved request reloads."""
+        request = parse_hook_request(agent, body)
+
+        assert parse_hook_request(agent, request.model_dump(mode=mode)) == request
+
     @pytest.mark.parametrize(
         "agent, body", [("claude-code", CLAUDE_CODE_BASH), ("codex", CODEX_MCP), ("nemo-relay", NEMO_RELAY_SEARCH)]
     )

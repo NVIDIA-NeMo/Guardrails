@@ -57,8 +57,11 @@ class ClaudeCodePreToolUseRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     # Mandatory Codex-only fields. Declared first, so a Codex payload sent to this path reports them as its first error.
-    model: Any = None  # Codex-only Common input field (https://learn.chatgpt.com/docs/hooks#common-input-fields)
-    turn_id: Any = None  # Codex-only PreToolUse field (https://learn.chatgpt.com/docs/hooks#pretooluse)
+    # Excluded from dumps, since a dumped `None` would be rejected when the dump is validated again.
+    # Codex-only Common input field (https://learn.chatgpt.com/docs/hooks#common-input-fields)
+    model: Any = Field(default=None, exclude=True)
+    # Codex-only PreToolUse field (https://learn.chatgpt.com/docs/hooks#pretooluse)
+    turn_id: Any = Field(default=None, exclude=True)
 
     # Claude Code Common input fields (https://code.claude.com/docs/en/hooks#common-input-fields)
     session_id: str
@@ -110,11 +113,11 @@ class CodexPreToolUseRequest(BaseModel):
     agent_id: Optional[str] = None
     agent_type: Optional[str] = None
 
-    # Optional Claude-Code fields rejected by validator
-    prompt_id: Any = None
-    scratchpad_dir: Any = None
-    effort: Any = None
-    mcp_server: Any = None
+    # Optional Claude-Code fields rejected by validator, and excluded from dumps for the same reason as Claude Code's.
+    prompt_id: Any = Field(default=None, exclude=True)
+    scratchpad_dir: Any = Field(default=None, exclude=True)
+    effort: Any = Field(default=None, exclude=True)
+    mcp_server: Any = Field(default=None, exclude=True)
 
     @field_validator("prompt_id", "scratchpad_dir", "effort", "mcp_server", mode="before")
     @classmethod
