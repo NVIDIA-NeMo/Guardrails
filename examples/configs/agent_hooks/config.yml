@@ -1,0 +1,81 @@
+# Checks Claude Code's and Codex's tool calls before they run, with `nemoguardrails hooks-server`:
+#
+#   nemoguardrails hooks-server --config examples/configs/agent_hooks
+#
+# The server only runs tool-call rails. Every rail here is a regex, so no model is called and no API key is needed.
+
+models:
+  # A tool check needs a `main` model: it sets the tool format and declares the tools. The server never calls it.
+  - type: main
+    engine: nim
+    model: nvidia/nemotron-3.5-super-vl-120b-a12b
+    parameters:
+      # The allowlist. With `tool call validation` below, a call to any tool not declared here is denied,
+      # MCP tools (`mcp__<server>__<tool>`) included. This is a starting set: declare every tool your agents use.
+      # A tool with a per-tool rail must be declared even without `tool call validation`.
+      # `{type: object}` alone declares a tool that takes no arguments, so these schemas allow any arguments.
+      tools:
+        # Claude Code and Codex
+        - {type: function, function: {name: Bash, parameters: {type: object, additionalProperties: true}}}
+        # Claude Code
+        - {type: function, function: {name: Read, parameters: {type: object, additionalProperties: true}}}
+        - {type: function, function: {name: Write, parameters: {type: object, additionalProperties: true}}}
+        - {type: function, function: {name: Edit, parameters: {type: object, additionalProperties: true}}}
+        - {type: function, function: {name: Glob, parameters: {type: object, additionalProperties: true}}}
+        - {type: function, function: {name: Grep, parameters: {type: object, additionalProperties: true}}}
+        - {type: function, function: {name: WebFetch, parameters: {type: object, additionalProperties: true}}}
+        - {type: function, function: {name: WebSearch, parameters: {type: object, additionalProperties: true}}}
+        # Codex
+        - {type: function, function: {name: apply_patch, parameters: {type: object, additionalProperties: true}}}
+        - {type: function, function: {name: update_plan, parameters: {type: object, additionalProperties: true}}}
+
+rails:
+  tool_call:
+    # Global rails run on every tool call. Remove this to allow undeclared tools without a check;
+    # then only the tools under `per_tool` are checked.
+    flows:
+      - tool call validation
+
+    # Per-tool rails run on calls to the tool named, spelled exactly as the agent sends it.
+    per_tool:
+      Bash:
+        - regex check tool call $argument=command
+      Read:
+        - regex check tool call $argument=file_path
+      Write:
+        - regex check tool call $argument=file_path
+      Edit:
+        - regex check tool call $argument=file_path
+      # Codex edits files through `apply_patch`, with the whole patch in `command`.
+      apply_patch:
+        - regex check tool call $argument=command
+
+  config:
+    # Placeholder patterns for the per-tool rails above. Each is matched against the argument as JSON,
+    # such as {"file_path": "C:\\project\\.env"}, so a path separator can be `/` or an escaped `\`.
+    regex_detection:
+      tool_call:
+        Bash:
+          patterns:
+            - '\brm\s+-rf\b'
+            - '\bgit\s+push\s+(--force|-f)\b'
+            - 'curl\b[^|]*\|\s*(ba)?sh\b'
+        Read:
+          patterns:
+            - '[/\\"]\.env\b'
+            - '[/\\"]\.ssh[/\\]'
+            - '[/\\"]\.aws[/\\]+credentials\b'
+        Write:
+          patterns:
+            - '[/\\"]\.env\b'
+            - '[/\\"]\.ssh[/\\]'
+            - '[/\\"]\.aws[/\\]+credentials\b'
+        Edit:
+          patterns:
+            - '[/\\"]\.env\b'
+            - '[/\\"]\.ssh[/\\]'
+            - '[/\\"]\.aws[/\\]+credentials\b'
+        apply_patch:
+          patterns:
+            # A file header in the patch, such as `*** Update File: config/.env`, naming a secrets file.
+            - '\*\*\* (Add|Update|Delete) File: ([^\\]*/)?(\.env\b|\.ssh/|\.aws/credentials\b)'

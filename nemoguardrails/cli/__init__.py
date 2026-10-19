@@ -17,11 +17,14 @@
 import logging
 import os
 from enum import Enum
+from pathlib import Path
 from typing import List, Literal, Optional
 
 import typer
+import yaml
+from pydantic import ValidationError
 
-from nemoguardrails import __version__
+from nemoguardrails import RailsConfig, __version__
 from nemoguardrails.cli.chat import run_chat
 from nemoguardrails.cli.migration import migrate
 from nemoguardrails.cli.providers import _list_providers, select_provider_with_type
@@ -252,6 +255,60 @@ def server(
         uvicorn.run(server_app, port=port, log_level="info", host="0.0.0.0")
     finally:
         shutdown_metrics_exporter()
+
+
+@app.command("hooks-server")
+def hooks_server(
+    config: List[Path] = typer.Option(
+        ...,
+        exists=True,
+        help="Path to the configuration directory or file whose tool-call rails check the agents' tool calls.",
+    ),
+    host: str = typer.Option(
+        default="127.0.0.1",
+        help="The interface to listen on. The server has no authentication, so the default is loopback only.",
+    ),
+    port: int = typer.Option(default=8100, help="The port the server listens on."),
+):
+    """Start a NeMo Guardrails hooks server, which checks agents' tool calls before they run."""
+    # One config is the whole policy, so a second one is refused rather than dropped.
+    if len(config) > 1:
+        typer.secho("The hooks server takes exactly one --config.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    try:
+        import uvicorn
+
+        from nemoguardrails.server.hooks.app import create_hooks_app
+    except ImportError:
+        typer.secho(
+            "Server dependencies are missing. Install them with: pip install nemoguardrails[server]",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(1)
+
+    # The module sets the root logger to WARNING, which would hide the line logged for each check.
+    # The main server logs at INFO as well.
+    logging.basicConfig(level=logging.INFO)
+
+    try:
+        hooks_app = create_hooks_app(RailsConfig.from_path(str(config[0])))
+    except ValidationError as e:
+        typer.secho(f"Invalid configuration: {_validation_error_summary(e)}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    except (ValueError, yaml.YAMLError) as e:
+        typer.secho(str(e), fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    uvicorn.run(hooks_app, host=host, port=port, log_level="info")
+
+
+def _validation_error_summary(error: ValidationError) -> str:
+    """Each failing field and why, without the input values, which can hold a model's credentials."""
+    return "; ".join(
+        f"{'.'.join(str(part) for part in detail['loc']) or 'config'}: {detail['msg']}"
+        for detail in error.errors(include_url=False, include_input=False)
+    )
 
 
 @app.command()

@@ -855,6 +855,19 @@ class IORails(BaseGuardrails):
         """Return True iff IORails can handle the given config and llm argument."""
         return cls.unsupported_reason(config, llm) is None
 
+    @classmethod
+    def unconfigured_rail_type_reason(cls, config: RailsConfig, rail_type: RailType) -> Optional[str]:
+        """Return why ``check_async()`` refuses to run *rail_type* on *config*, or None when it can run it."""
+        if not _rail_type_configured(config, rail_type):
+            return f"Requested rail type '{rail_type.value}' has no configured rails."
+        # The engine registry holds one engine per configured model type, so this is its `main` engine.
+        if rail_type in TOOL_RAIL_TYPES and not any(model.type == "main" for model in config.models):
+            return (
+                f"Requested rail type '{rail_type.value}' needs a `main` model: its engine selects the "
+                "tool wire format and supplies config-declared tools."
+            )
+        return None
+
     def __init__(self, config: RailsConfig, *, _report_usage: bool = True) -> None:
         """Build the engine registry and rails manager from the given config."""
         self._running = False
@@ -1742,13 +1755,9 @@ class IORails(BaseGuardrails):
     def _validate_requested_rail_types(self, rail_types: list[RailType]) -> None:
         """Raise when a requested rail type has no rails to run, or a tool rail type has no main model."""
         for rail_type in rail_types:
-            if not _rail_type_configured(self.config, rail_type):
-                raise RailTypeNotConfiguredError(f"Requested rail type '{rail_type.value}' has no configured rails.")
-            if rail_type in TOOL_RAIL_TYPES and "main" not in self.engine_registry.llms:
-                raise RailTypeNotConfiguredError(
-                    f"Requested rail type '{rail_type.value}' needs a `main` model: its engine selects the "
-                    "tool wire format and supplies config-declared tools."
-                )
+            reason = self.unconfigured_rail_type_reason(self.config, rail_type)
+            if reason is not None:
+                raise RailTypeNotConfiguredError(reason)
 
     def _log_unrequested_tool_rails(self, messages: LLMMessages, req_id: str) -> None:
         """Say at INFO when auto-detection skips tool rails that could check this conversation."""

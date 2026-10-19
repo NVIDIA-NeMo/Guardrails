@@ -16,12 +16,30 @@
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
-from nemoguardrails import __version__
+from nemoguardrails import __version__, telemetry
 from nemoguardrails.cli import app
 
 runner = CliRunner()
+
+HOOKS_CONFIG_YML = """
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+    parameters:
+      tools:
+        - type: function
+          function:
+            name: Bash
+            parameters: {type: object, additionalProperties: true}
+rails:
+  tool_call:
+    per_tool:
+      Bash: [regex check tool call]
+"""
 
 
 def test_app():
@@ -399,6 +417,105 @@ class TestActionsServerCommand:
         mock_uvicorn.assert_called_once()
         call_args = mock_uvicorn.call_args
         assert call_args[1]["port"] == 9001
+
+
+class TestHooksServerCommand:
+    @pytest.fixture(autouse=True)
+    def _hooks_server_env(self, monkeypatch):
+        """Provider credentials, and the process's deployment type restored after the test."""
+        monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+        monkeypatch.setattr(telemetry, "_deployment_type_override", None)
+
+    @staticmethod
+    def _config_dir(tmp_path, config_yml: str) -> str:
+        """A config directory holding *config_yml* as its `config.yml`."""
+        (tmp_path / "config.yml").write_text(config_yml)
+        return str(tmp_path)
+
+    @patch("uvicorn.run")
+    def test_hooks_server_serves_the_config_on_loopback_port_8100_by_default(self, mock_uvicorn, tmp_path):
+        """With only `--config`, the hooks app is served on `127.0.0.1:8100`."""
+        from fastapi import FastAPI
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}"])
+
+        assert result.exit_code == 0, result.output
+        (server_app,), kwargs = mock_uvicorn.call_args
+        assert isinstance(server_app, FastAPI)
+        assert kwargs == {"host": "127.0.0.1", "port": 8100, "log_level": "info"}
+
+    @patch("uvicorn.run")
+    def test_hooks_server_honors_host_and_port(self, mock_uvicorn, tmp_path):
+        """`--host` and `--port` set where the server listens."""
+        config = self._config_dir(tmp_path, HOOKS_CONFIG_YML)
+
+        result = runner.invoke(app, ["hooks-server", f"--config={config}", "--host=0.0.0.0", "--port=9100"])
+
+        assert result.exit_code == 0, result.output
+        assert (mock_uvicorn.call_args.kwargs["host"], mock_uvicorn.call_args.kwargs["port"]) == ("0.0.0.0", 9100)
+
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_an_invalid_config_without_quoting_it(self, mock_uvicorn, tmp_path):
+        """A config that fails validation exits 1 with each failure, before binding, and without its values."""
+        config_yml = (
+            "models:\n"
+            "  - type: main\n"
+            "    engine: nim\n"
+            "    model: meta/llama-3.3-70b-instruct\n"
+            "    parameters:\n"
+            "      api_key: sk-secret-7f3a\n"
+            "rails:\n"
+            "  input:\n"
+            "    flows: [content safety check input $model=content_safety]\n"
+        )
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
+
+        assert result.exit_code == 1
+        assert "Invalid configuration: config: Value error, Missing a `content_safety_check_input" in result.output
+        assert "sk-secret-7f3a" not in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_a_config_it_cannot_serve(self, mock_uvicorn, tmp_path):
+        """A config without tool-call rails exits 1 with the reason, before binding."""
+        config_yml = "models:\n  - type: main\n    engine: nim\n    model: meta/llama-3.3-70b-instruct\n"
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
+
+        assert result.exit_code == 1
+        assert "The hooks server needs tool-call rails and a `main` model." in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_a_config_that_is_not_yaml(self, mock_uvicorn, tmp_path):
+        """A `config.yml` that isn't YAML exits 1 with the parser's message, before binding."""
+        config = self._config_dir(tmp_path, "models: [\n")
+
+        result = runner.invoke(app, ["hooks-server", f"--config={config}"])
+
+        assert result.exit_code == 1
+        assert "while parsing a flow node" in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_refuses_a_second_config(self, mock_uvicorn, tmp_path):
+        """A second `--config` exits 1, rather than one of the two policies being dropped."""
+        config = self._config_dir(tmp_path, HOOKS_CONFIG_YML)
+
+        result = runner.invoke(app, ["hooks-server", f"--config={config}", f"--config={config}"])
+
+        assert result.exit_code == 1
+        assert "exactly one --config" in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_requires_an_existing_config(self, mock_uvicorn, tmp_path):
+        """A `--config` path that doesn't exist is a usage error."""
+        result = runner.invoke(app, ["hooks-server", f"--config={tmp_path / 'missing'}"])
+
+        assert result.exit_code == 2
+        mock_uvicorn.assert_not_called()
 
 
 class TestFindProvidersCommand:
