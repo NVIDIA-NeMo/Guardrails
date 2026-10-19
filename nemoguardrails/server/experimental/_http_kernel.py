@@ -681,6 +681,12 @@ def create_http_proxy_router(
                 render_outcome,
                 request.method,
             )
+        except ResponseBodyTooLarge as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.RESPONSE_BODY_TOO_LARGE, failure),
+                render_outcome,
+                request.method,
+            )
         if len(response.body) > max_response_body_bytes:
             return _render_failure(
                 HttpOperationFailed(HttpFailureKind.RESPONSE_BODY_TOO_LARGE, ResponseBodyTooLarge()),

@@ -314,6 +314,40 @@ async def test_transport_keeps_first_sse_event_uncompressed_with_gzip_middleware
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(("size", "expected_status"), [(1024, 200), (1025, 502)])
+async def test_transport_maps_passthrough_response_overflow_to_native_error(size, expected_status):
+    """Accept the response limit and map transport overflow without leaking bytes."""
+
+    provider_body = b"x" * size
+    source = TrackedStream([provider_body[:512], provider_body[512:]])
+
+    async def upstream(_request):
+        """Return an unread response crossing the configured limit in chunks."""
+
+        return httpx.Response(200, headers={"content-type": "application/json"}, stream=source)
+
+    checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as upstream_client:
+        transport = ProviderTransport(upstream_client, base_url="https://provider.test", max_response_body_bytes=1024)
+        app = FastAPI()
+        app.include_router(
+            create_openai_chat_router(checker=checker, dispatch=transport.dispatch, max_response_body_bytes=1024)
+        )
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+            response = await client.get("/v1/models")
+        assert not upstream_client.is_closed
+
+    assert response.status_code == expected_status
+    if expected_status == 200:
+        assert response.content == provider_body
+    else:
+        assert response.json()["error"]["code"] == "response_body_too_large"
+        assert provider_body not in response.content
+    assert checker.calls == []
+    assert source.closed
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("mount_path", "path", "raw_path", "upstream_path"),
     [
