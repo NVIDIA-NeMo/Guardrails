@@ -1,6 +1,7 @@
 # INPUT RAILS
 
 flow zscaler aiguard moderation on input
+  global $user_message
   $result = await CallZscalerAiguardApiAction(text=$user_message, direction="IN")
 
   if $result.is_blocked
@@ -14,6 +15,7 @@ flow zscaler aiguard moderation on input
 # OUTPUT RAILS
 
 flow zscaler aiguard moderation on output
+  global $bot_message
   $result = await CallZscalerAiguardApiAction(text=$bot_message, direction="OUT")
 
   if $result.is_blocked

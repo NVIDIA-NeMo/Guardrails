@@ -17,7 +17,7 @@ import os
 import sys
 from types import ModuleType
 from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -832,3 +832,42 @@ async def test_zscaler_iorails_distinguishes_scan_failures_from_policy_blocks(sd
     assert result.rail == "zscaler aiguard moderation on input"
     assert result.content == (INTERNAL_ERROR_MESSAGE if scan_fails else REFUSAL_MESSAGE)
     assert "sensitive provider error detail" not in repr(result)
+
+
+@pytest.fixture
+def colang2_config():
+    return RailsConfig.from_content(
+        yaml_content="""
+            colang_version: "2.x"
+            models: []
+        """,
+        colang_content="""
+            import guardrails
+            import nemoguardrails.library.zscaler_aiguard
+
+            flow input rails $input_text
+                zscaler aiguard moderation on input
+
+            flow output rails $output_text
+                zscaler aiguard moderation on output
+
+            flow main
+                user said "Hello"
+                bot say "Ordinary response"
+        """,
+    )
+
+
+@pytest.mark.unit
+def test_zscaler_colang2_scans_actual_input_and_output(sdk_helper, colang2_config):
+    scan = sdk_helper.return_value.policy_detection.resolve_and_execute_policy
+    scan.return_value = ({"action": "ALLOW"}, None, None)
+    chat = TestChat(colang2_config, llm_completions=[])
+
+    chat >> "Hello"
+    chat << "Ordinary response"
+
+    assert scan.call_args_list == [
+        call(content="Hello", direction="IN"),
+        call(content="Ordinary response", direction="OUT"),
+    ]
