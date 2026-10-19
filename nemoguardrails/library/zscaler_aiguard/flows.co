@@ -9,7 +9,7 @@ flow zscaler aiguard moderation on input
       $message = $result.reason
       send ZscalerAiguardInputRailException(message=$message)
     else
-      bot inform answer unknown
+      bot refuse to respond
     abort
 
 # OUTPUT RAILS
@@ -23,5 +23,5 @@ flow zscaler aiguard moderation on output
       $message = $result.reason
       send ZscalerAiguardOutputRailException(message=$message)
     else
-      bot inform answer unknown
+      bot refuse to respond
     abort

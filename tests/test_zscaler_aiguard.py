@@ -871,3 +871,20 @@ def test_zscaler_colang2_scans_actual_input_and_output(sdk_helper, colang2_confi
         call(content="Hello", direction="IN"),
         call(content="Ordinary response", direction="OUT"),
     ]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("blocked_direction", ["IN", "OUT"])
+def test_zscaler_colang2_block_returns_refusal(sdk_helper, colang2_config, blocked_direction):
+    def scan(content, direction):
+        return ({"action": "BLOCK" if direction == blocked_direction else "ALLOW"}, None, None)
+
+    detection = sdk_helper.return_value.policy_detection.resolve_and_execute_policy
+    detection.side_effect = scan
+    chat = TestChat(colang2_config, llm_completions=[])
+
+    chat >> "Hello"
+    chat << "I'm sorry, I can't respond to that."
+
+    expected_content = "Hello" if blocked_direction == "IN" else "Ordinary response"
+    assert call(content=expected_content, direction=blocked_direction) in detection.call_args_list
