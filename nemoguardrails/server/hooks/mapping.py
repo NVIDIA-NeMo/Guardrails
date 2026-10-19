@@ -1,0 +1,160 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Turn a hook into the check it asks for, and the check's result into the agent's response."""
+
+import json
+from dataclasses import dataclass
+from typing import Any, Literal, Optional
+
+from nemoguardrails.rails.llm.options import RailsResult, RailStatus, ToolViolation, ToolViolationType
+from nemoguardrails.server.hooks.schemas import (
+    HookAgent,
+    HookErrorCode,
+    HookRequest,
+    NemoRelayToolConditionalExecutionGuardrailRequest,
+)
+
+# Claude Code and Codex show the deny reason to the model, so it says who denied the call.
+DENY_REASON_PREFIX = "NeMo Guardrails: "
+
+_UNSPECIFIED_DENY_REASON = "tool call blocked"
+
+
+def check_messages(request: HookRequest) -> list[dict]:
+    """The one assistant message carrying the hook's tool call, as `check_async()` takes it."""
+    tool_call: dict[str, Any] = {
+        "type": "function",
+        "function": {"name": request.tool_name, "arguments": json.dumps(request.tool_input)},
+    }
+    # Relay passes its guardrail callback no call id, so its call has none.
+    if not isinstance(request, NemoRelayToolConditionalExecutionGuardrailRequest):
+        tool_call["id"] = request.tool_use_id
+    return [{"role": "assistant", "content": None, "tool_calls": [tool_call]}]
+
+
+@dataclass(frozen=True, slots=True)
+class HookOutcome:
+    """A check's verdict on a tool call, before it is rendered for the agent."""
+
+    kind: Literal["allow", "deny", "error"]
+    reason: Optional[str] = None
+    code: Optional[HookErrorCode] = None
+    message: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        """Refuse any field the outcome's kind doesn't have, so only a valid allow, deny or error exists."""
+        if self.code is not None:
+            object.__setattr__(self, "code", HookErrorCode(self.code))
+        if self.kind == "allow":
+            self._require_unset("reason", "code", "message")
+        elif self.kind == "deny":
+            self._require_text("reason")
+            self._require_unset("code", "message")
+        elif self.kind == "error":
+            self._require_text("message")
+            self._require_unset("reason")
+        else:
+            raise ValueError(f"kind must be 'allow', 'deny' or 'error', got {self.kind!r}")
+
+    def _require_text(self, name: str) -> None:
+        """Raise unless the field *name* holds a non-empty string."""
+        value = getattr(self, name)
+        if value is None or value == "":
+            raise ValueError(f"a {self.kind} outcome needs a {name}")
+        if not isinstance(value, str):
+            raise TypeError(f"a {self.kind} outcome's {name} must be a string")
+
+    def _require_unset(self, *names: str) -> None:
+        """Raise when any of the fields *names* is set, since this kind of outcome has none of them."""
+        for name in names:
+            if getattr(self, name) is not None:
+                raise ValueError(f"a {self.kind} outcome has no {name}")
+
+    @classmethod
+    def allow(cls) -> "HookOutcome":
+        return cls(kind="allow")
+
+    @classmethod
+    def deny(cls, reason: str) -> "HookOutcome":
+        return cls(kind="deny", reason=reason)
+
+    @classmethod
+    def error(cls, message: str, code: Optional[HookErrorCode] = None) -> "HookOutcome":
+        return cls(kind="error", code=code, message=message)
+
+
+def outcome_from_result(result: RailsResult) -> HookOutcome:
+    """The verdict a tool-call check's result gives: allow, deny, or an error when no rail decided."""
+    if result.status == RailStatus.PASSED:
+        return HookOutcome.allow()
+    if result.status == RailStatus.BLOCKED:
+        return _blocked_outcome(result)
+    # A tool-call check rewrites nothing, so any other status breaks the engine's contract.
+    return HookOutcome.error(f"unexpected check status {result.status.value!r}")
+
+
+def _blocked_outcome(result: RailsResult) -> HookOutcome:
+    """A deny when any rail decided, or a `rail_failed` error when every violation is a rail failure."""
+    violations = result.tool_violations or []
+    # A block that reports no violations still blocks, so it is a deny rather than an error.
+    if violations and all(violation.violation_type == ToolViolationType.RAIL_FAILED for violation in violations):
+        return HookOutcome.error(_rail_failed_message(violations[0]), code=HookErrorCode.RAIL_FAILED)
+    return HookOutcome.deny(_deny_reason(result))
+
+
+def _deny_reason(result: RailsResult) -> str:
+    """The first non-empty reason among the decided violations, then the result's reason, then the rail that blocked."""
+    for violation in result.tool_violations or []:
+        if violation.violation_type != ToolViolationType.RAIL_FAILED and violation.reason:
+            return violation.reason
+    return result.reason or result.rail or _UNSPECIFIED_DENY_REASON
+
+
+def _rail_failed_message(violation: ToolViolation) -> str:
+    """The error message for a failed rail, naming the rail when the violation does."""
+    if violation.rail is None:
+        return f"a tool-call rail failed: {violation.reason}"
+    return f"rail '{violation.rail}' failed: {violation.reason}"
+
+
+def render_response(agent: HookAgent, outcome: HookOutcome) -> dict:
+    """The `200` body for an allow or a deny, in *agent*'s hook output format."""
+    if outcome.kind == "error":
+        raise ValueError("an error outcome is answered with an error status, not a 200 body")
+    if agent == "nemo-relay":
+        return _relay_response(outcome)
+    return _pre_tool_use_response(outcome)
+
+
+def _pre_tool_use_response(outcome: HookOutcome) -> dict:
+    """Claude Code's and Codex's `PreToolUse` output: no decision for an allow, the deny shape for a deny."""
+    if outcome.kind == "allow":
+        # No decision rather than "allow", which would skip Claude Code's permission prompt.
+        return {}
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": f"{DENY_REASON_PREFIX}{outcome.reason}",
+        }
+    }
+
+
+def _relay_response(outcome: HookOutcome) -> dict:
+    """The verdict the Relay plugin turns into its guardrail callback's `Ok(None)` or `Ok(Some(reason))`."""
+    if outcome.kind == "allow":
+        return {"decision": "allow"}
+    return {"decision": "deny", "reason": outcome.reason}
