@@ -643,11 +643,19 @@ class TestOutcomeFromResult:
             "a tool-call rail failed: tool call validation error", code=HookErrorCode.RAIL_FAILED
         )
 
-    def test_rail_failure_beside_a_decided_violation_is_deny(self):
-        """A rail failure reported beside a violation a rail decided is a deny, with the decided violation's reason."""
-        result = _blocked(RAIL_FAILED, PER_TOOL_BLOCK, reason=RAIL_FAILED.reason, content=INTERNAL_ERROR)
+    @pytest.mark.parametrize(
+        "decided, reason",
+        [
+            (PER_TOOL_BLOCK, "regex check tool call"),
+            (MALFORMED_ARGUMENTS, "tool call 'toolu_01' has malformed arguments"),
+        ],
+        ids=["per-tool-rail", "malformed-arguments"],
+    )
+    def test_rail_failure_beside_a_decided_violation_is_deny(self, decided, reason):
+        """A rail failure beside a decided violation, a rail's block or an unparsable call, is a deny with its reason."""
+        result = _blocked(RAIL_FAILED, decided, reason=RAIL_FAILED.reason, content=INTERNAL_ERROR)
 
-        assert outcome_from_result(result) == HookOutcome.deny("regex check tool call")
+        assert outcome_from_result(result) == HookOutcome.deny(reason)
 
     @pytest.mark.parametrize(
         "rail, reason, expected",
