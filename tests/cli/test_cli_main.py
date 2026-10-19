@@ -15,6 +15,7 @@
 
 import logging
 import os
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -525,6 +526,15 @@ class TestHooksServerCommand:
         assert result.exit_code == 1
         assert "exactly one --config" in result.output
         mock_uvicorn.assert_not_called()
+
+    def test_hooks_server_without_the_server_extra_prints_the_install_hint(self, tmp_path, monkeypatch):
+        """Without the `server` extra's packages, the command exits 1 with the install hint."""
+        monkeypatch.setitem(sys.modules, "uvicorn", None)
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}"])
+
+        assert result.exit_code == 1
+        assert "Install them with: pip install nemoguardrails[server]" in result.output
 
     @patch("uvicorn.run")
     def test_hooks_server_requires_an_existing_config(self, mock_uvicorn, tmp_path):
