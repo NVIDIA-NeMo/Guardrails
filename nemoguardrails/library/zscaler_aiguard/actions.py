@@ -44,6 +44,10 @@ _sdk_client = None
 _sdk_client_cloud = None
 
 
+class _MissingApiKeyError(EnvironmentError):
+    pass
+
+
 def _get_sdk_client():
     """Lazily initialise the Zscaler AI Guard SDK client."""
     global _sdk_client, _sdk_client_cloud
@@ -60,7 +64,7 @@ def _get_sdk_client():
             )
 
         if not os.environ.get("AIGUARD_API_KEY"):
-            raise EnvironmentError(
+            raise _MissingApiKeyError(
                 "AIGUARD_API_KEY environment variable is required for the Zscaler AI Guard integration."
             )
 
@@ -243,12 +247,12 @@ async def call_zscaler_aiguard_api(
             metadata=metadata,
         )
 
-    except (ImportError, EnvironmentError, ValueError):
+    except (ImportError, _MissingApiKeyError):
         raise
     except Exception as e:
         log.error("AI Guard scan failed: error_type=%s", type(e).__name__)
         message = _build_block_message(direction, "UNKNOWN", "unknown", [])
-        return RailOutcome.block(
+        return RailOutcome.failure(
             reason=message,
             metadata=_outcome_metadata(
                 "BLOCK",

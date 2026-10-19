@@ -220,7 +220,7 @@ async def test_zscaler_aiguard_api_error_blocks():
     )
 
     async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
-        return RailOutcome.block(
+        return RailOutcome.failure(
             reason="Zscaler AI Guard blocked the user prompt. Severity: UNKNOWN. Policy: unknown.",
             metadata={
                 "action": "BLOCK",
@@ -577,6 +577,7 @@ async def test_zscaler_aiguard_action_exception_fail_closed():
         result = await call_zscaler_aiguard_api(text="Hello", direction="IN")
 
         assert result.decision is RailDecision.BLOCK
+        assert result.failed is True
         assert result.metadata["action"] == "BLOCK"
         assert result.metadata["severity"] == "UNKNOWN"
         assert result.metadata["policy_name"] == "unknown"
