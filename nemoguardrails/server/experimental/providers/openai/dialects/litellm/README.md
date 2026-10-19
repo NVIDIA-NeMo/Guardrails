@@ -68,23 +68,14 @@ for what that gateway actually exposes. Do not automatically union dialects.
 
 The source baseline is LiteLLM tag `v1.102.1`, resolved to immutable commit
 [`d09bbae1c6df463e425558f60d460437193635da`](https://github.com/BerriAI/litellm/tree/d09bbae1c6df463e425558f60d460437193635da).
-This matches the version advertised by the reviewed gateway OpenAPI, but does
-not prove that the deployed build has no patches. Earlier recordings do not
-identify their serving build. The public demo OpenAPI advertised `1.93.0`,
-which is not a substitute for deployment-version evidence.
+This identifies the source reviewed for the field policy, not the build running
+in any deployment. See the [LiteLLM API stability policy](https://docs.litellm.ai/docs/api_stability_policy)
+for upstream compatibility guidance.
 
 | File | Observed behavior | SHA-256 of source bytes |
 | --- | --- | --- |
 | [`litellm/types/utils.py`](https://github.com/BerriAI/litellm/blob/d09bbae1c6df463e425558f60d460437193635da/litellm/types/utils.py) | Message/choice and stream root/delta declarations; buffered `Choices` stores the original finish reason when normalizing it. | `a1698ae315ba0c618aa25ed037338c8b47b8f821680176e31f95f588ff09b26f` |
 | [`convert_dict_to_response.py`](https://github.com/BerriAI/litellm/blob/d09bbae1c6df463e425558f60d460437193635da/litellm/litellm_core_utils/llm_response_utils/convert_dict_to_response.py) | Message conversion preserves existing extensions, collects unknown message members, and copies thinking blocks into the bag. Choice conversion collects unknown choice members. | `303a5f0b82318e8f87d0c3b31db791e8370d41cc069741dd503b8a6e2b31948b` |
-
-On 2026-10-12, the public and deployed OpenAPI documents both described
-`provider_specific_fields` as arbitrary objects or null in `Message` and
-`Choices`. Both Chat success responses used an empty schema, without an SSE
-schema. Thus these components are useful inventory evidence, not a complete
-route response contract. See the [LiteLLM API stability policy](https://docs.litellm.ai/docs/api_stability_policy)
-and [public demo schema](https://www.litellm.org/openapi.json). The internal
-schema and unrelated internal endpoints are not vendored here.
 
 ### Inventory decisions
 
@@ -105,13 +96,10 @@ key that LiteLLM's open dictionaries could contain.
 | Root response/stream identity, usage and other existing opaque fields | Preserve unchanged. Reasoning-token counts and cost inside usage are not reasoning text. |
 | Source constructor extras, including choice `enhancements`, and unknown backend fields | Reject unless already in the inherited opaque inventory. Open upstream dictionaries are not an automatic passthrough policy. |
 
-Separate deployment evidence is in the D-2 commit `1607aa70a464f2bb6fa4b650473c80a87f43f4e3`,
-under `tests/recorded/server/experimental/openai/cassettes/test_chat_completions/`:
-`test_buffered_chat_preserves_guarded_constrained_and_opaque_contract_fields.yaml`
-and `test_nvidia_chat_source_profile_preserves_allowed_relay[buffered].yaml`.
-Both contain message `{refusal: null}` and empty choice extension objects. The
-recorded streaming successes use the existing OpenAI event shapes. These
-recordings identify an OpenAI model route through the gateway, not raw vLLM.
+Recorded buffered and streaming exchanges are covered separately in
+[#2455](https://github.com/NVIDIA-NeMo/Guardrails/pull/2455). They exercise this
+dialect through the concrete HTTP transport against recorded gateway traffic;
+they do not establish direct vLLM compatibility.
 
 Recordings do not establish a complete provider schema. The unit fixtures cover
 additional source-backed shapes, including native finish metadata and empty
@@ -133,7 +121,7 @@ There is no request-controlled opt-out, YAML loader, wildcard metadata allowance
 or new deployment configuration system. Broader operator configuration can be
 added separately if needed.
 
-## Export and downstream handoff
+## Contract export
 
 Generate the complete effective document using the shared exporter:
 
@@ -149,10 +137,3 @@ is a resolved inspection document: inherited fields are included, not a YAML
 inheritance program. Runtime construction does not import the exporter or load
 this artifact. Export retains the base format's documented limitations, including
 Python strictness, case-alias checks, and handwritten stream lifecycle behavior.
-
-This change belongs after D-1 and before D-2. D-2 should explicitly select this
-endpoint for the reviewed gateway recordings and replay them without editing
-recorded payloads to fit the policy. D-3 may add trusted deployment-level dialect
-selection while retaining the OpenAI protocol family; no registry or deployment
-configuration format is added here. Direct vLLM, other LiteLLM routes, broader
-conformance, and compiler preparation remain separate work.
