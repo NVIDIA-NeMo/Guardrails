@@ -663,6 +663,10 @@ class _TurnConversation:
         else:
             self.masks_pending.discard(direction)
 
+    def withhold(self, direction: RailDirection) -> None:
+        """Keep *direction*'s text off the span, whatever its own masks decide on it later."""
+        self.masks_pending.add(direction)
+
 
 def _carries_text_to_mask(messages: LLMMessages, direction: RailDirection) -> bool:
     """Whether *messages* hold the text *direction*'s rails check: a user turn, or a response."""
@@ -914,10 +918,14 @@ class IORails(BaseGuardrails):
 
     def _masks_awaiting(self, messages: LLMMessages, directions: tuple[RailDirection, ...]) -> set[RailDirection]:
         """Which of *directions* have configured masks yet to decide on text *messages* carry."""
+        if not self._content_capture_enabled:
+            return set()
+        # Malformed entries are left for the request itself to reject, inside its span and its error log.
+        well_formed = [message for message in messages if isinstance(message, dict)]
         return {
             direction
             for direction in directions
-            if self.rails_manager.transform_flows[direction] and _carries_text_to_mask(messages, direction)
+            if self.rails_manager.transform_flows[direction] and _carries_text_to_mask(well_formed, direction)
         }
 
     def _speculative_generation_allowed(self, config: RailsConfig) -> bool:
@@ -1276,8 +1284,9 @@ class IORails(BaseGuardrails):
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
                 return _blocked_return(output_result)
-            if conversation is not None:
-                conversation.record_masks(RailDirection.OUTPUT, pending=output_result.rewrite_pending)
+            # The model read a turn the input mask never decided on, so its response may repeat it.
+            if conversation is not None and (turn.input_rewrite_pending or output_result.rewrite_pending):
+                conversation.withhold(RailDirection.OUTPUT)
 
             rewritten = _rewritten_bot_message(output_result)
             if rewritten is not None:
@@ -1293,6 +1302,9 @@ class IORails(BaseGuardrails):
         # reasoning_content field and keeps the message content clean.
         if reasoning_content:
             response_text = f"<think>{reasoning_content}</think>\n" + response_text
+            # The output masks ran on the answer alone, so the text returned holds reasoning none of them saw.
+            if conversation is not None and self.rails_manager.transform_flows[RailDirection.OUTPUT]:
+                conversation.withhold(RailDirection.OUTPUT)
 
         return _build_assistant_message(response_text, response.tool_calls)
 
@@ -1895,6 +1907,9 @@ class IORails(BaseGuardrails):
                     messages = rewrite_user_message(messages, rewritten)
                 conversation.messages = messages
                 conversation.record_masks(RailDirection.INPUT, pending=input_result.rewrite_pending)
+                # The model reads a turn the input mask never decided on, so its response may repeat it.
+                if input_result.rewrite_pending:
+                    conversation.withhold(RailDirection.OUTPUT)
 
                 # Step 2: Stream main LLM content from structured response.
                 # delta_content is forwarded as text chunks; delta_tool_calls are
@@ -2175,7 +2190,7 @@ class IORails(BaseGuardrails):
                 return
             if output_result.rewrite_pending:
                 # This batch goes out with a configured mask unrun, and a later batch cannot take that back.
-                conversation.record_masks(RailDirection.OUTPUT, pending=True)
+                conversation.withhold(RailDirection.OUTPUT)
 
             rewritten = _rewritten_bot_message(output_result)
             if rewritten is not None and stream_first:

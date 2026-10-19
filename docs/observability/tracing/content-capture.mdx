@@ -32,7 +32,7 @@ When content capture is enabled, IORails records content on three types of spans
 | Span (Kind) | Attribute or Event | When Recorded |
 |-------------|--------------------|---------------|
 | `guardrails.request` (SERVER) | `guardrails.request.input`: JSON-encoded list of the input messages, after any input-rail rewrite (and, on a check, any output-rail rewrite) | While capturing, unless a configured masking rail has not decided on the text; see [Privacy Considerations](#privacy-considerations) |
-| `guardrails.request` (SERVER) | `guardrails.request.output`: the text actually returned to the caller | When output is produced (a blocked request records the refusal message; an empty stream records nothing), unless it carries text a configured masking rail has not decided on |
+| `guardrails.request` (SERVER) | `guardrails.request.output`: the text actually returned to the caller | When output is produced (a blocked request records the refusal message; an empty stream records nothing), unless it could carry text a configured masking rail has not decided on; see [Privacy Considerations](#privacy-considerations) |
 | `chat <model>` (CLIENT) | LLM input and output, in the [selected format](#output-format) | Once per LLM call: the main generation call and every rail-action LLM call. On the streaming path, recorded when the stream ends; see [Streaming](#streaming) |
 | `guardrails.rail` (INTERNAL) | `guardrails.rail.input`: JSON-encoded `{"messages": ..., "bot_response": ...}` snapshot | Every rail execution, while capturing |
 | `guardrails.rail` (INTERNAL) | `guardrails.rail.reason`: the human-readable block reason | Only when the rail blocks the request |
@@ -236,7 +236,10 @@ In both cases, if no content was produced, IORails omits the output rather than 
   It records earlier turns of the conversation, which no rail checks, as the caller sent them.
   Until every configured masking rail has decided on the text it guards, the request span leaves that text out rather than record it unmasked.
   That happens when a masking rail fails or blocks, a rail that runs before it blocks, the request's generation options turn it off, a check's `rail_types` leaves out its direction, or a stream closes before its input rails finish.
-  `guardrails.request.input` is then absent, and so is `guardrails.request.output` when it would carry the unmasked text; a blocked request still records its refusal message.
+  `guardrails.request.input` is then absent, and so is `guardrails.request.output` when it would carry the unmasked text.
+  The output counts as unmasked text when the model answered a turn no input mask decided on, because the answer can repeat that turn.
+  It also counts when `generate_async()` returns reasoning inline as `<think>` tags, because output rails check the answer without the reasoning.
+  A blocked request records its refusal message, unless it is a stream whose output was already withheld.
   Each `guardrails.rail` span records the input its rail received, so the masking rail's own span carries the text before the mask.
   A rail that calls an LLM also records the prompt it built from that input on the call's own `chat <model>` CLIENT span.
   On a `check_async()` call, whose conversation includes the checked response, every rail that runs records that response as the caller sent it.
