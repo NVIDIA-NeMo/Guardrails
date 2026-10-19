@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 from unittest.mock import MagicMock, patch
 
@@ -443,6 +444,22 @@ class TestHooksServerCommand:
         (server_app,), kwargs = mock_uvicorn.call_args
         assert isinstance(server_app, FastAPI)
         assert kwargs == {"host": "127.0.0.1", "port": 8100, "log_level": "info"}
+
+    @patch("uvicorn.run")
+    def test_hooks_server_logs_at_info_even_when_the_root_logger_has_a_handler(self, mock_uvicorn, tmp_path):
+        """The root logger is at INFO when the server starts, so each check's log line shows, whatever handlers exist."""
+        root = logging.getLogger()
+        saved_level = root.level
+        root.setLevel(logging.WARNING)
+        root.addHandler(handler := logging.NullHandler())
+        try:
+            result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}"])
+
+            assert result.exit_code == 0, result.output
+            assert root.level == logging.INFO
+        finally:
+            root.removeHandler(handler)
+            root.setLevel(saved_level)
 
     @patch("uvicorn.run")
     def test_hooks_server_honors_host_and_port(self, mock_uvicorn, tmp_path):

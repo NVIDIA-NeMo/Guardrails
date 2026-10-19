@@ -288,8 +288,10 @@ def hooks_server(
         raise typer.Exit(1)
 
     # The module sets the root logger to WARNING, which would hide the line logged for each check.
-    # The main server logs at INFO as well.
-    logging.basicConfig(level=logging.INFO)
+    # The main server logs at INFO as well. basicConfig adds a handler only when the root logger has none,
+    # and then leaves the level alone too, so the level is set on its own.
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.INFO)
 
     try:
         hooks_app = create_hooks_app(RailsConfig.from_path(str(config[0])))

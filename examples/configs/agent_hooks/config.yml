@@ -53,6 +53,9 @@ rails:
   config:
     # Placeholder patterns for the per-tool rails above. Each is matched against the argument as JSON,
     # such as {"file_path": "C:\\project\\.env"}, so a path separator can be `/` or an escaped `\`.
+    # They show the shape of a policy, not a complete one: a regex is easy to get around, for example
+    # with `rm -fr` or `rm -r -f` for the first Bash pattern.
+    # The secrets-file patterns ignore case, since macOS and Windows file systems do.
     regex_detection:
       tool_call:
         Bash:
@@ -61,21 +64,26 @@ rails:
             - '\bgit\s+push\s+(--force|-f)\b'
             - 'curl\b[^|]*\|\s*(ba)?sh\b'
         Read:
+          case_insensitive: true
           patterns:
             - '[/\\"]\.env\b'
             - '[/\\"]\.ssh[/\\]'
             - '[/\\"]\.aws[/\\]+credentials\b'
         Write:
+          case_insensitive: true
           patterns:
             - '[/\\"]\.env\b'
             - '[/\\"]\.ssh[/\\]'
             - '[/\\"]\.aws[/\\]+credentials\b'
         Edit:
+          case_insensitive: true
           patterns:
             - '[/\\"]\.env\b'
             - '[/\\"]\.ssh[/\\]'
             - '[/\\"]\.aws[/\\]+credentials\b'
         apply_patch:
+          case_insensitive: true
           patterns:
-            # A file header in the patch, such as `*** Update File: config/.env`, naming a secrets file.
-            - '\*\*\* (Add|Update|Delete) File: ([^\\]*/)?(\.env\b|\.ssh/|\.aws/credentials\b)'
+            # A file header in the patch, such as `*** Update File: config/.env` or a rename's
+            # `*** Move to: config/.env`, naming a secrets file.
+            - '\*\*\* ((Add|Update|Delete) File|Move to): ([^\\]*/)?(\.env\b|\.ssh/|\.aws/credentials\b)'

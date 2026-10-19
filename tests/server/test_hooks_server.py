@@ -646,6 +646,7 @@ class TestExampleConfig:
             ("claude-code", "Bash", {"command": "npm test"}, None),
             ("claude-code", "Bash", {"command": "git push --force origin main"}, "regex check tool call"),
             ("claude-code", "Write", {"file_path": "C:\\project\\.env.local", "content": "x"}, "regex check tool call"),
+            ("claude-code", "Read", {"file_path": "/home/user/project/.ENV"}, "regex check tool call"),
             (
                 "claude-code",
                 "Edit",
@@ -660,16 +661,27 @@ class TestExampleConfig:
                 {"command": "*** Begin Patch\n*** Update File: config/.env\n@@\n-a\n+b\n*** End Patch\n"},
                 "regex check tool call",
             ),
+            (
+                "codex",
+                "apply_patch",
+                {
+                    "command": "*** Begin Patch\n*** Update File: notes.txt\n*** Move to: config/.env\n"
+                    "@@\n-a\n+b\n*** End Patch\n"
+                },
+                "regex check tool call",
+            ),
             ("nemo-relay", "Bash", {"command": "rm -rf /tmp/build"}, "regex check tool call"),
         ],
         ids=[
             "safe-command",
             "force-push",
             "secrets-file-on-windows",
+            "secrets-file-in-upper-case",
             "source-file-edit",
             "undeclared-tool",
             "safe-patch",
             "patch-to-secrets-file",
+            "patch-renaming-to-secrets-file",
             "relay-destructive-command",
         ],
     )
