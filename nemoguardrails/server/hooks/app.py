@@ -32,11 +32,11 @@ from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.guardrails.guardrails_types import quoted_identity
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.model_engine import ModelEngineError
-from nemoguardrails.guardrails.tool_schema import Toolset
+from nemoguardrails.guardrails.tool_schema import Toolset, validate_arguments
 from nemoguardrails.http.errors import HTTPClientError
 from nemoguardrails.llm.clients._errors import client_facing_message
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.options import RailType
+from nemoguardrails.rails.llm.options import RailType, ToolViolationType
 from nemoguardrails.server.exception_handlers import (
     _error_response,
     http_exception_handler,
@@ -110,7 +110,9 @@ def _build_engine(config: RailsConfig) -> Guardrails:
     rails_engine = engine.rails_engine
     if not isinstance(rails_engine, IORails):
         raise HooksConfigError("The hooks server's engine isn't IORails, the only engine that runs tool checks")
-    _warn_about_undeclared_tools(config, _declared_tools(rails_engine))
+    declared = _declared_tools(rails_engine)
+    _check_tool_schemas(declared)
+    _warn_about_undeclared_tools(config, declared)
     return engine
 
 
@@ -121,6 +123,16 @@ def _declared_tools(engine: IORails) -> Toolset:
     except Exception as exc:
         # A check whose tools don't parse blocks every call, so the server refuses to start instead.
         raise HooksConfigError(f"The hooks server can't read the `main` model's tools: {exc}") from exc
+
+
+def _check_tool_schemas(declared: Toolset) -> None:
+    """Raise `HooksConfigError` for a declared tool whose schema isn't valid JSON Schema, which fails every call to it."""
+    for tool in declared.tools:
+        # The per-call check, so startup refuses exactly the schemas a call would fail on. Empty arguments are enough,
+        # since the schema is checked before the arguments are.
+        violation = validate_arguments(tool, {})
+        if violation is not None and violation.violation_type == ToolViolationType.INVALID_TOOL_SCHEMA:
+            raise HooksConfigError(f"The hooks server can't use the `main` model's tools: {violation.reason}")
 
 
 def _warn_about_undeclared_tools(config: RailsConfig, declared: Toolset) -> None:

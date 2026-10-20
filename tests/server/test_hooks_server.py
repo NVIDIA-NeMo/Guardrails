@@ -550,6 +550,16 @@ class TestStartup:
         with pytest.raises(HooksConfigError, match="can't read the `main` model's tools: duplicate tool 'Bash'"):
             _app(config)
 
+    def test_tool_schema_that_is_not_json_schema_is_refused(self):
+        """A declared tool whose schema isn't valid JSON Schema, which would fail every call to it, is refused."""
+        config = {**HOOKS_CONFIG, "models": [_main_model(_tool("Bash", {"type": "not-a-type"}))]}
+
+        with pytest.raises(
+            HooksConfigError,
+            match="can't use the `main` model's tools: declared schema for tool 'Bash' is not valid JSON Schema",
+        ):
+            _app(config)
+
     def test_engine_is_iorails_without_the_engine_switch(self):
         """The server builds an IORails engine of its own, with `NEMO_GUARDRAILS_IORAILS_ENGINE` unset."""
         assert isinstance(_app(HOOKS_CONFIG).state.engine.rails_engine, IORails)
