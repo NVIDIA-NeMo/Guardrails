@@ -32,6 +32,16 @@ DENY_REASON_PREFIX = "NeMo Guardrails: "
 
 _UNSPECIFIED_DENY_REASON = "tool call blocked"
 
+# Violations that mean the check couldn't finish, rather than a decision on the call. A malformed call is a decision.
+_CHECK_FAILURES = frozenset(
+    {
+        ToolViolationType.RAIL_FAILED,
+        ToolViolationType.EXTRACTION_FAILED,
+        ToolViolationType.INVALID_TOOLSET,
+        ToolViolationType.INVALID_TOOL_SCHEMA,
+    }
+)
+
 
 def check_messages(request: HookRequest) -> list[dict]:
     """The one assistant message carrying the hook's tool call, as `check_async()` takes it."""
@@ -107,18 +117,28 @@ def outcome_from_result(result: RailsResult) -> HookOutcome:
 
 
 def _blocked_outcome(result: RailsResult) -> HookOutcome:
-    """A deny when any rail decided, or a `rail_failed` error when every violation is a rail failure."""
+    """A deny when any violation is a decision on the call, or an error when every violation is a check failure."""
     violations = result.tool_violations or []
     # A block that reports no violations still blocks, so it is a deny rather than an error.
-    if violations and all(violation.violation_type == ToolViolationType.RAIL_FAILED for violation in violations):
-        return HookOutcome.error(_rail_failed_message(violations[0]), code=HookErrorCode.RAIL_FAILED)
+    if violations and all(violation.violation_type in _CHECK_FAILURES for violation in violations):
+        return _check_failed_outcome(violations)
     return HookOutcome.deny(_deny_reason(result))
+
+
+def _check_failed_outcome(violations: list[ToolViolation]) -> HookOutcome:
+    """A `rail_failed` error when every failure is a rail's, otherwise an error with no code naming the first other."""
+    other_failures = [
+        violation for violation in violations if violation.violation_type != ToolViolationType.RAIL_FAILED
+    ]
+    if not other_failures:
+        return HookOutcome.error(_rail_failed_message(violations[0]), code=HookErrorCode.RAIL_FAILED)
+    return HookOutcome.error(f"the tool-call check failed: {other_failures[0].reason}")
 
 
 def _deny_reason(result: RailsResult) -> str:
     """The first non-empty reason among the decided violations, then the result's reason, then the rail that blocked."""
     for violation in result.tool_violations or []:
-        if violation.violation_type != ToolViolationType.RAIL_FAILED and violation.reason:
+        if violation.violation_type not in _CHECK_FAILURES and violation.reason:
             return violation.reason
     return result.reason or result.rail or _UNSPECIFIED_DENY_REASON
 

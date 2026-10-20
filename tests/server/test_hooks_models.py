@@ -261,6 +261,15 @@ RAIL_FAILED = call_violation(
     index=0,
     rail="regex check tool call",
 )
+EXTRACTION_FAILED = call_violation("extraction_failed", "tool call extraction failed")
+INVALID_TOOLSET = call_violation("invalid_toolset", "tool parsing failed")
+INVALID_TOOL_SCHEMA = call_violation(
+    "invalid_tool_schema",
+    "declared schema for tool 'Bash' is not valid JSON Schema",
+    tool_call_id="toolu_01",
+    tool_name="Bash",
+    index=0,
+)
 EMPTY_REASON_BLOCK = call_violation(
     "per_tool_rail",
     "",
@@ -642,6 +651,43 @@ class TestOutcomeFromResult:
         result = _blocked(RAIL_FAILED, decided, reason=RAIL_FAILED.reason, content=INTERNAL_ERROR)
 
         assert outcome_from_result(result) == HookOutcome.deny(reason)
+
+    @pytest.mark.parametrize(
+        "failure, message",
+        [
+            (EXTRACTION_FAILED, "the tool-call check failed: tool call extraction failed"),
+            (INVALID_TOOLSET, "the tool-call check failed: tool parsing failed"),
+            (
+                INVALID_TOOL_SCHEMA,
+                "the tool-call check failed: declared schema for tool 'Bash' is not valid JSON Schema",
+            ),
+        ],
+        ids=["extraction-failed", "invalid-toolset", "invalid-tool-schema"],
+    )
+    def test_check_failure_other_than_a_rail_is_error_without_a_code(self, failure, message):
+        """A block whose one violation says the check couldn't finish, though no rail failed, is an error with no code."""
+        result = _blocked(failure, reason=failure.reason)
+
+        assert outcome_from_result(result) == HookOutcome.error(message)
+
+    def test_rail_failure_beside_another_check_failure_is_error_without_a_code(self):
+        """A block whose violations are all check failures, not all of them a rail's, is an error with no code."""
+        result = _blocked(RAIL_FAILED, EXTRACTION_FAILED, reason=RAIL_FAILED.reason, content=INTERNAL_ERROR)
+
+        assert outcome_from_result(result) == HookOutcome.error(
+            "the tool-call check failed: tool call extraction failed"
+        )
+
+    @pytest.mark.parametrize(
+        "failure",
+        [EXTRACTION_FAILED, INVALID_TOOLSET, INVALID_TOOL_SCHEMA],
+        ids=["extraction-failed", "invalid-toolset", "invalid-tool-schema"],
+    )
+    def test_check_failure_beside_a_decided_violation_is_deny(self, failure):
+        """A check failure beside a rail's block is a deny with the block's reason, since a policy denial wins."""
+        result = _blocked(failure, PER_TOOL_BLOCK, reason=failure.reason)
+
+        assert outcome_from_result(result) == HookOutcome.deny("regex check tool call")
 
     @pytest.mark.parametrize(
         "rail, reason, expected",
