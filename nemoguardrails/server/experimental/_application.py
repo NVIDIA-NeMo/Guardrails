@@ -35,7 +35,7 @@ HttpTransportFactory = Callable[[], httpx.AsyncBaseTransport]
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI):
-    factory = application.state.experimental_http_transport_factory
+    factory = application.state.proxy_http_transport_factory
     transport = factory() if factory is not None else None
     if factory is not None and not isinstance(transport, httpx.AsyncBaseTransport):
         raise TypeError("The HTTP transport factory must return an httpx.AsyncBaseTransport.")
@@ -68,7 +68,7 @@ def create_proxy_application(
     if http_transport_factory is not None and not callable(http_transport_factory):
         raise TypeError("The HTTP transport factory must be callable.")
     application = FastAPI(lifespan=_lifespan)
-    application.state.experimental_http_transport_factory = http_transport_factory
+    application.state.proxy_http_transport_factory = http_transport_factory
     for router in local_routers:
         application.include_router(router)
     include_provider_routes(
