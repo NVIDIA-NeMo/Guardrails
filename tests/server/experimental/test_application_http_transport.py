@@ -183,7 +183,7 @@ def test_startup_closes_transport_if_runtime_construction_fails(monkeypatch):
             pass
 
     assert transport.close_calls == 1
-    assert not hasattr(application.state, "experimental_proxy_runtime")
+    assert not hasattr(application.state, "proxy_runtime")
 
 
 @pytest.mark.asyncio

@@ -75,7 +75,7 @@ class ProxyRuntime:
 def get_runtime(application: FastAPI) -> ProxyRuntime:
     """Return the runtime initialized by the application's active lifespan."""
 
-    runtime = getattr(application.state, "experimental_proxy_runtime", None)
+    runtime = getattr(application.state, "proxy_runtime", None)
     if not isinstance(runtime, ProxyRuntime):
         raise RuntimeError("The experimental proxy runtime is not available.")
     return runtime
