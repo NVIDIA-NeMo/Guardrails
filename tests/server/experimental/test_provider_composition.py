@@ -644,6 +644,31 @@ async def test_provider_composition_rejects_ambiguous_instance_identity(provider
             )
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("path_prefix", ["", "/guardrails"])
+@pytest.mark.parametrize("mount_path", ["/v1", "/v1/chat", "/v1/chat/completions"])
+async def test_composition_rejects_mounts_that_shadow_guarded_routes(reverse, path_prefix, mount_path):
+    """Reject a more specific catch-all before it can hide another instance's guard."""
+
+    providers = (
+        create_openai_chat_integration(instance_id="root"),
+        create_openai_chat_integration(instance_id="shadow", mount_path=mount_path),
+    )
+    application = FastAPI()
+    original_routes = tuple(application.routes)
+    async with httpx.AsyncClient() as upstream:
+        with pytest.raises(ValueError, match="would shadow a guarded route"):
+            include_provider_routes(
+                application,
+                providers[::-1] if reverse else providers,
+                checker=PassthroughChecker(),
+                http_client=upstream,
+                path_prefix=path_prefix,
+            )
+        assert tuple(application.routes) == original_routes
+
+
 def test_provider_mounts_have_one_canonical_static_form():
     for mount_path in ("providers/example", "/providers/example/", "/providers/{instance}", "/providers//example"):
         with pytest.raises(ValueError, match="mount path"):

@@ -31,6 +31,7 @@ from nemoguardrails.server.experimental._http_kernel import (
     HttpRouteRejectionKind,
     _request_path,
     _route_path_candidates,
+    _routes_overlap,
     create_http_proxy_router,
 )
 from nemoguardrails.server.experimental._provider_transport import DEFAULT_OUTBOUND_TIMEOUT, ProviderTransport
@@ -62,6 +63,17 @@ def _validate_providers(providers: Sequence[ProviderIntegration]) -> tuple[Provi
     ]
     if len(routes) != len(set(routes)):
         raise ValueError("Guarded endpoint paths must be globally unique after provider mounting.")
+    for provider in resolved:
+        for other in resolved:
+            mount = other.upstream.mount_path
+            if not mount.startswith(provider.upstream.mount_path + "/"):
+                continue
+            for endpoint in provider.endpoints:
+                guarded_path = f"{provider.upstream.mount_path}{endpoint.route_path}"
+                if _routes_overlap(guarded_path, mount) or _routes_overlap(guarded_path, mount + "/{path:path}"):
+                    raise ValueError(
+                        f"Provider mount {mount!r} would shadow a guarded route of instance {provider.instance_id!r}."
+                    )
     return resolved
 
 
@@ -165,7 +177,11 @@ def include_provider_routes(
     max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
     timeout: float = DEFAULT_OUTBOUND_TIMEOUT,
 ) -> None:
-    """Include provider instances from most-specific mount to least-specific."""
+    """Include provider instances from most-specific mount to least-specific.
+
+    Reject mounts that would hide another instance's guarded route before
+    modifying the application's routing table.
+    """
 
     normalized_prefix = path_prefix.rstrip("/")
     if normalized_prefix and (
