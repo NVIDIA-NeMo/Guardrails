@@ -19,7 +19,15 @@ import re
 from dataclasses import dataclass
 from urllib.parse import unquote_to_bytes
 
-from starlette.convertors import CONVERTOR_TYPES, PathConvertor
+from starlette.convertors import (
+    CONVERTOR_TYPES,
+    FloatConvertor,
+    IntegerConvertor,
+    PathConvertor,
+    StringConvertor,
+    UUIDConvertor,
+)
+from starlette.routing import compile_path
 
 HTTP_METHODS = ("DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT")
 
@@ -99,3 +107,18 @@ class GuardedOperationPath:
         """Return whether a concrete path belongs to this operation."""
 
         return _compile_guarded_path(self.route_path).fullmatch(path) is not None
+
+    def intersects_mount(self, mount_path: str) -> bool:
+        _, path_format, convertors = compile_path(self.route_path)
+        segment_convertors = (StringConvertor, IntegerConvertor, FloatConvertor, UUIDConvertor)
+        if any(type(convertor) not in segment_convertors for convertor in convertors.values()):
+            prefix = path_format.split("{", 1)[0]
+            return prefix.startswith(mount_path + "/") or mount_path.startswith(prefix) or prefix == mount_path
+        route_segments = self.route_path.strip("/").split("/")
+        mount_segments = mount_path.strip("/").split("/") if mount_path else []
+        if len(mount_segments) > len(route_segments):
+            return False
+        return all(
+            _compile_guarded_path("/" + route_segment).fullmatch("/" + mount_segment) is not None
+            for route_segment, mount_segment in zip(route_segments, mount_segments)
+        )

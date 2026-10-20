@@ -32,7 +32,6 @@ from nemoguardrails.server.experimental._http_kernel import (
     HttpRouteRejectionKind,
     _request_path,
     _route_path_candidates,
-    _routes_overlap,
     create_http_proxy_router,
 )
 from nemoguardrails.server.experimental._provider_transport import DEFAULT_OUTBOUND_TIMEOUT, ProviderTransport
@@ -70,8 +69,12 @@ def _validate_providers(providers: Sequence[ProviderIntegration]) -> tuple[Provi
             if not mount.startswith(provider.upstream.mount_path + "/"):
                 continue
             for endpoint in provider.endpoints:
-                guarded_path = f"{provider.upstream.mount_path}{endpoint.route_path}"
-                if _routes_overlap(guarded_path, mount) or _routes_overlap(guarded_path, mount + "/{path:path}"):
+                if any(
+                    replace(
+                        operation_path, route_path=f"{provider.upstream.mount_path}{operation_path.route_path}"
+                    ).intersects_mount(mount)
+                    for operation_path in endpoint.operation_paths
+                ):
                     raise ValueError(
                         f"Provider mount {mount!r} would shadow a guarded route of instance {provider.instance_id!r}."
                     )

@@ -327,7 +327,7 @@ async def test_dialects_of_one_protocol_can_coexist_without_widening_each_other(
     dialect = create_openai_chat_integration(
         instance_id="litellm",
         base_url="https://litellm.example/v1",
-        mount_path="/litellm",
+        mount_path="/providers/litellm",
         endpoint=LITELLM_CHAT_COMPLETIONS_ENDPOINT,
     )
     if streaming:
@@ -350,7 +350,7 @@ async def test_dialects_of_one_protocol_can_coexist_without_widening_each_other(
     try:
         payload = {"messages": [{"role": "user", "content": "hello"}], "stream": streaming}
         strict = await client.post("/v1/chat/completions", json=payload)
-        compatible = await client.post("/litellm/v1/chat/completions", json=payload)
+        compatible = await client.post("/providers/litellm/v1/chat/completions", json=payload)
     finally:
         await client.aclose()
         await upstream.aclose()
@@ -428,7 +428,7 @@ async def test_nested_provider_catchalls_route_most_specific_mount_first():
         create_openai_chat_integration(
             instance_id="nested",
             base_url="https://nested.example/v1",
-            mount_path="/providers/nested",
+            mount_path="/providers/instances/nested",
         ),
     )
     requests = []
@@ -439,7 +439,7 @@ async def test_nested_provider_catchalls_route_most_specific_mount_first():
 
     _, upstream_client, proxy_client = create_composed_app(providers, respond)
     try:
-        response = await proxy_client.get("/providers/nested/v1/models")
+        response = await proxy_client.get("/providers/instances/nested/v1/models")
     finally:
         await proxy_client.aclose()
         await upstream_client.aclose()
@@ -731,14 +731,21 @@ async def test_provider_composition_rejects_ambiguous_instance_identity(provider
 @pytest.mark.asyncio
 @pytest.mark.parametrize("reverse", [False, True])
 @pytest.mark.parametrize("path_prefix", ["", "/guardrails"])
-@pytest.mark.parametrize("mount_path", ["/v1", "/v1/chat", "/v1/chat/completions"])
-async def test_composition_rejects_mounts_that_shadow_guarded_routes(reverse, path_prefix, mount_path):
+@pytest.mark.parametrize("parent_mount", ["", "/providers/root"])
+@pytest.mark.parametrize(
+    "mount_path",
+    ["/v1", "/v1/chat", "/v1/chat/completions", "/v2", "/v2/chat", "/v2/chat/completions", "/litellm"],
+)
+async def test_composition_rejects_mounts_that_shadow_guarded_routes(reverse, path_prefix, parent_mount, mount_path):
     """Reject a more specific catch-all before it can hide another instance's guard."""
 
-    providers = (
-        create_openai_chat_integration(instance_id="root"),
-        create_openai_chat_integration(instance_id="shadow", mount_path=mount_path),
+    root = create_openai_chat_integration(instance_id="root", mount_path=parent_mount)
+    shadow = create_openai_chat_integration(
+        instance_id="shadow",
+        mount_path=parent_mount + mount_path,
+        endpoint=replace(root.endpoints[0], route_path="/v1/other", operation_paths=()),
     )
+    providers = (root, shadow)
     application = FastAPI()
     original_routes = tuple(application.routes)
     async with httpx.AsyncClient() as upstream:
@@ -751,6 +758,56 @@ async def test_composition_rejects_mounts_that_shadow_guarded_routes(reverse, pa
                 path_prefix=path_prefix,
             )
         assert tuple(application.routes) == original_routes
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("parent_mount", ["", "/providers/root"])
+@pytest.mark.parametrize("mount_path", ["/providers/named", "/v2/models", "/v2/chatty", "/v2/chat/completions/history"])
+async def test_composition_accepts_mounts_disjoint_from_guarded_patterns(parent_mount, mount_path):
+    root = create_openai_chat_integration(instance_id="root", mount_path=parent_mount)
+    child = create_openai_chat_integration(instance_id="child", mount_path=parent_mount + mount_path)
+    requests = []
+
+    async def respond(request):
+        requests.append(request)
+        return provider_response()
+
+    _, upstream, client = create_composed_app((root, child), respond)
+    try:
+        response = await client.get(parent_mount + mount_path + "/v1/models")
+    finally:
+        await client.aclose()
+        await upstream.aclose()
+
+    assert response.status_code == 200
+    assert len(requests) == 1
+    assert requests[0].url.path == "/v1/models"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("mount_path", "conflicts"), [("/2", True), ("/2/chat", True), ("/named", False)])
+async def test_mount_conflicts_respect_guarded_parameter_converters(mount_path, conflicts):
+    root = create_openai_chat_integration(instance_id="root")
+    root = replace(
+        root,
+        endpoints=(
+            replace(
+                root.endpoints[0],
+                route_path="/1/chat/completions",
+                operation_paths=(GuardedOperationPath("/{version:int}/chat/completions"),),
+            ),
+        ),
+    )
+    child = create_openai_chat_integration(instance_id="child", mount_path=mount_path)
+    application = FastAPI()
+    original_routes = tuple(application.routes)
+    async with httpx.AsyncClient() as upstream:
+        if conflicts:
+            with pytest.raises(ValueError, match="would shadow a guarded route"):
+                include_provider_routes(application, (root, child), checker=PassthroughChecker(), http_client=upstream)
+            assert tuple(application.routes) == original_routes
+        else:
+            include_provider_routes(application, (root, child), checker=PassthroughChecker(), http_client=upstream)
 
 
 def test_provider_mounts_have_one_canonical_static_form():

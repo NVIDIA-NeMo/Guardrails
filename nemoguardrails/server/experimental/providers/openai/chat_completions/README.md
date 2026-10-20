@@ -124,6 +124,19 @@ not exported. This includes properties with no selector field. An exported
 selector must be strict boolean (optionally nullable), with no default factory
 or custom selector validation. Unsupported schema keywords fail at export.
 
+## Provider route ownership
+
+Provider composition reserves every declared operation path, including rejection
+patterns such as `/{api_version}/chat/completions`. Adding an instance must not
+hide an existing instance's ownership behind a more specific catch-all. Conflicts
+are rejected before registering routes.
+
+For example, with a root OpenAI instance, mounts at `/v1`, `/v2`, and `/litellm`
+conflict with its Chat ownership. The version parameter matches any single path
+segment. Use a disjoint mount such as `/providers/litellm` for another instance.
+Nested mounts are supported when their namespaces do not intersect a parent's
+declared operation paths.
+
 ## Streaming ownership and limits
 
 Streaming dispatch owns the upstream resource until it returns
