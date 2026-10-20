@@ -22,6 +22,7 @@ from fastapi import FastAPI
 
 from nemoguardrails.server.experimental._content_checker import (
     ContentAllowed,
+    ContentBlocked,
     ContentInspectionPolicy,
     StreamBufferingPolicy,
 )
@@ -32,6 +33,7 @@ from nemoguardrails.server.experimental.providers.openai.dialects.litellm.chat_c
     LITELLM_CHAT_COMPLETIONS_ENDPOINT,
 )
 from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_integration
+from tests.server.experimental.checkers import StaticChecker
 
 
 class PassthroughChecker:
@@ -75,6 +77,81 @@ def create_composed_app(providers, handler, *, checker=None):
         base_url="http://proxy.test",
     )
     return application, upstream_client, proxy_client
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("mount_path", ["", "/providers/named"])
+@pytest.mark.parametrize(
+    ("base_path", "alias"),
+    [
+        ("/v1", "/chat/completions"),
+        ("/v1", "/chat%2Fcompletions"),
+        ("/v1", "/chat//completions"),
+        ("/v1", "/chat/completions/"),
+        ("/v1", "/chat/completions%3Fignored"),
+        ("/v1", "/chat/completions%23ignored"),
+        ("/%761", "/chat/completions"),
+        ("/proxy/v1", "/proxy/v1/v1/chat/completions"),
+        ("/v1/chat", "/completions"),
+    ],
+)
+async def test_composition_rejects_upstream_aliases_before_checks_or_dispatch(streaming, mount_path, base_path, alias):
+    """Keep alternate spellings of a guarded destination out of the catch-all."""
+
+    provider = create_openai_chat_integration(base_url=f"https://provider.example{base_path}", mount_path=mount_path)
+    checker = StaticChecker(
+        ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)), ContentBlocked("blocked by review checker")
+    )
+    requests = []
+
+    async def respond(request):
+        """Record any request that incorrectly escapes the guarded boundary."""
+
+        requests.append(request)
+        return provider_response()
+
+    _, upstream, client = create_composed_app((provider,), respond, checker=checker)
+    try:
+        payload = {"messages": [{"role": "user", "content": "must be blocked"}], "stream": streaming}
+        response = await client.post(mount_path + alias, json=payload)
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "non_canonical_path"
+        assert checker.calls == []
+        assert requests == []
+
+        canonical = await client.post(mount_path + "/v1/chat/completions", json=payload)
+        assert canonical.status_code == 400
+        assert checker.text_calls == [("input", "must be blocked")]
+        assert requests == []
+    finally:
+        await client.aclose()
+        await upstream.aclose()
+
+
+@pytest.mark.asyncio
+async def test_composition_retains_unconfigured_paths_without_upstream_rewriting():
+    """Forward an unbound path when it does not map to a guarded destination."""
+
+    provider = create_openai_chat_integration(base_url="https://provider.example")
+    requests = []
+
+    async def respond(request):
+        """Retain the actual provider path for the pass-through assertion."""
+
+        requests.append(request)
+        return provider_response()
+
+    _, upstream, client = create_composed_app((provider,), respond)
+    try:
+        response = await client.post("/chat/completions?trace=%2Fopaque", content=b"unconfigured operation")
+    finally:
+        await client.aclose()
+        await upstream.aclose()
+
+    assert response.status_code == 200
+    assert requests[0].url.raw_path == b"/chat/completions?trace=%2Fopaque"
+    assert requests[0].content == b"unconfigured operation"
 
 
 @pytest.mark.asyncio

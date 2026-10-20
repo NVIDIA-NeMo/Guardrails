@@ -584,6 +584,7 @@ def create_http_proxy_router(
     reserved_routes: Mapping[str, Collection[str]] | None = None,
     operation_ids: Mapping[str, str] | None = None,
     guarded_path_prefix: str = "",
+    validate_passthrough_path: Callable[[Request], HttpRouteRejected | None] | None = None,
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
     max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
 ) -> APIRouter:
@@ -591,6 +592,7 @@ def create_http_proxy_router(
 
     Application-owned routes must be registered before this router because its
     catch-all owns every path not handled by an earlier route.
+    A transport-specific validator may reject mapped aliases before body reads.
     """
 
     resolved_operations = _validate_operations(operations)
@@ -694,6 +696,10 @@ def create_http_proxy_router(
                     HttpRouteRejected(HttpRouteRejectionKind.NON_CANONICAL_PATH), render_outcome, request.method
                 )
         try:
+            if validate_passthrough_path is not None:
+                rejection = validate_passthrough_path(request)
+                if rejection is not None:
+                    return _render_failure(rejection, render_outcome, request.method)
             buffered_request = await _buffer_request(request, max_request_body_bytes)
             response = await dispatch(buffered_request)
         except RequestBodyTooLarge as failure:

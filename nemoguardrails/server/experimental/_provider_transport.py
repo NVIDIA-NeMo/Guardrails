@@ -165,11 +165,9 @@ class ProviderTransport:
         self._max_response_body_bytes = max_response_body_bytes
         self._timeout = float(timeout)
 
-    def _upstream_url(self, request: BufferedHttpRequest) -> httpx.URL:
+    def upstream_url(self, path: str, raw_path: bytes, query: bytes = b"") -> httpx.URL:
         """Apply the base and mount mapping without reencoding suffix or query bytes."""
 
-        path = request.path
-        raw_path = request.raw_path
         if not path.startswith("/") or not raw_path.startswith(b"/") or b"?" in raw_path:
             raise ValueError("An outbound request must contain an absolute path without a query.")
         if self._mount_path:
@@ -181,8 +179,8 @@ class ProviderTransport:
         else:
             raw_base_path = self._base_url.raw_path.rstrip(b"/")
             upstream_path = raw_base_path + raw_path
-        if request.query:
-            upstream_path += b"?" + request.query
+        if query:
+            upstream_path += b"?" + query
         return self._base_url.copy_with(raw_path=upstream_path)
 
     async def _open(self, request: BufferedHttpRequest) -> httpx.Response:
@@ -195,7 +193,7 @@ class ProviderTransport:
 
         upstream_request = httpx.Request(
             request.method,
-            self._upstream_url(request),
+            self.upstream_url(request.path, request.raw_path, request.query),
             headers=_request_headers(request.headers, self._control_headers),
             content=request.body,
             extensions={"timeout": httpx.Timeout(self._timeout).as_dict()},

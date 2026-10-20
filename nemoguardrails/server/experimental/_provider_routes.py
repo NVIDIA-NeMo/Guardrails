@@ -16,15 +16,21 @@
 """Construct FastAPI routes from declarative provider integrations."""
 
 from collections.abc import Collection, Mapping, Sequence
+from dataclasses import replace
+from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 
 from nemoguardrails.server.experimental._content_checker import ContentChecker
 from nemoguardrails.server.experimental._guarded_proxy import create_guarded_http_operation
 from nemoguardrails.server.experimental._http_kernel import (
     DEFAULT_MAX_REQUEST_BODY_BYTES,
     DEFAULT_MAX_RESPONSE_BODY_BYTES,
+    HttpRouteRejected,
+    HttpRouteRejectionKind,
+    _request_path,
+    _route_path_candidates,
     create_http_proxy_router,
 )
 from nemoguardrails.server.experimental._provider_transport import DEFAULT_OUTBOUND_TIMEOUT, ProviderTransport
@@ -79,7 +85,11 @@ def create_provider_router(
     max_request_body_bytes: int,
     max_response_body_bytes: int,
 ) -> APIRouter:
-    """Construct the guarded and transparent routes declared by one provider."""
+    """Construct one provider's guarded routes and checked pass-through routing.
+
+    Alternate paths reaching a guarded upstream destination are rejected before
+    forwarding; unrelated provider operations retain transparent forwarding.
+    """
 
     operations = tuple(
         create_guarded_http_operation(
@@ -94,6 +104,42 @@ def create_provider_router(
     operation_ids = {
         endpoint.operation_name: f"{provider.instance_id}.{endpoint.operation_name}" for endpoint in provider.endpoints
     }
+    guarded_paths = tuple(
+        operation_path for endpoint in provider.endpoints for operation_path in endpoint.operation_paths
+    )
+    mounted_paths = tuple(
+        replace(operation_path, route_path=f"{guarded_path_prefix}{operation_path.route_path}")
+        for operation_path in guarded_paths
+    )
+    upstream_paths = guarded_paths + tuple(
+        replace(
+            operation_path,
+            route_path=dispatcher.upstream_url(
+                operation_path.route_path, quote(operation_path.route_path, safe="/").encode("ascii")
+            ).path,
+        )
+        for operation_path in mounted_paths
+    )
+
+    def validate_passthrough_path(request: Request) -> HttpRouteRejected | None:
+        """Reject alternate local paths that reach this instance's guarded upstream."""
+
+        if any(operation_path.matches(request.scope["path"]) for operation_path in mounted_paths):
+            return None
+        upstream_path = dispatcher.upstream_url(request.scope["path"], _request_path(request)).path
+        candidates = _route_path_candidates(upstream_path)
+        allowed_methods = frozenset(
+            method
+            for operation_path in upstream_paths
+            if any(operation_path.matches(candidate) for candidate in candidates)
+            for method in operation_path.methods | operation_path.passthrough_methods
+        )
+        if not allowed_methods:
+            return None
+        if request.method not in allowed_methods:
+            return HttpRouteRejected(HttpRouteRejectionKind.METHOD_NOT_ALLOWED, allowed_methods)
+        return HttpRouteRejected(HttpRouteRejectionKind.NON_CANONICAL_PATH)
+
     return create_http_proxy_router(
         operations=operations,
         checker=checker,
@@ -102,6 +148,7 @@ def create_provider_router(
         reserved_routes=reserved_routes,
         operation_ids=operation_ids,
         guarded_path_prefix=guarded_path_prefix,
+        validate_passthrough_path=validate_passthrough_path,
         max_request_body_bytes=max_request_body_bytes,
         max_response_body_bytes=max_response_body_bytes,
     )
