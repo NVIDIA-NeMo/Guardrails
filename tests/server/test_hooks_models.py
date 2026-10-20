@@ -143,34 +143,8 @@ NEMO_RELAY_EMPTY_QUERY = {
 CLAUDE_CODE_EXAMPLES = [CLAUDE_CODE_BASH, CLAUDE_CODE_DESTRUCTIVE_BASH, CLAUDE_CODE_WRITE_WINDOWS, CLAUDE_CODE_MCP]
 CODEX_EXAMPLES = [CODEX_APPLY_PATCH, CODEX_MCP]
 
-CLAUDE_CODE_REQUIRED = [
-    "session_id",
-    "transcript_path",
-    "cwd",
-    "hook_event_name",
-    "tool_name",
-    "tool_input",
-    "tool_use_id",
-]
-CODEX_REQUIRED = [
-    "session_id",
-    "transcript_path",
-    "cwd",
-    "hook_event_name",
-    "model",
-    "permission_mode",
-    "turn_id",
-    "tool_name",
-    "tool_input",
-    "tool_use_id",
-]
+PRE_TOOL_USE_REQUIRED = ["hook_event_name", "tool_name", "tool_input", "tool_use_id"]
 NEMO_RELAY_REQUIRED = ["hook_event_name", "tool_name", "tool_input"]
-
-CLAUDE_CODE_REJECTED = ["model", "turn_id"]
-CODEX_REJECTED = ["prompt_id", "scratchpad_dir", "effort", "mcp_server"]
-
-CODEX_FIELD_ON_CLAUDE_CODE_PATH = "Codex field not accepted on /v1/hooks/claude-code"
-CLAUDE_CODE_FIELD_ON_CODEX_PATH = "Claude Code field not accepted on /v1/hooks/codex"
 
 # Codex's generated PreToolUse hook schemas, copied unchanged from openai/codex@e444aa99:
 # https://github.com/openai/codex/tree/e444aa99d76beeb8b5b0610b793c0cdefe58da58/codex-rs/hooks/schema/generated
@@ -341,26 +315,35 @@ class TestParseHookRequest:
         assert isinstance(request, model)
         assert (request.tool_name, request.tool_input) == (body["tool_name"], body["tool_input"])
 
-    @pytest.mark.parametrize("body", CLAUDE_CODE_EXAMPLES)
-    def test_claude_code_payload_fails_on_codex_path(self, body):
-        """A Claude Code payload on the Codex path fails first on Codex's required `model`."""
-        errors = _validation_errors("codex", body)
+    @pytest.mark.parametrize(
+        "agent, body",
+        [
+            *[("codex", body) for body in CLAUDE_CODE_EXAMPLES],
+            *[("claude-code", body) for body in CODEX_EXAMPLES],
+        ],
+    )
+    def test_payload_parses_on_the_other_agents_path(self, agent, body):
+        """A Claude Code payload parses on the Codex path and the reverse, since both paths read the same fields."""
+        request = parse_hook_request(agent, body)
 
-        assert (errors[0]["loc"], errors[0]["type"]) == (("model",), "missing")
+        assert (request.tool_name, request.tool_input, request.tool_use_id) == (
+            body["tool_name"],
+            body["tool_input"],
+            body["tool_use_id"],
+        )
 
-    @pytest.mark.parametrize("transcript_path", [None, "/home/user/.codex/sessions/rollout.jsonl"])
-    @pytest.mark.parametrize("body", CODEX_EXAMPLES)
-    def test_codex_payload_fails_on_claude_code_path(self, body, transcript_path):
-        """A Codex payload on the Claude Code path fails first on `model`, whatever its `transcript_path`."""
-        errors = _validation_errors("claude-code", {**body, "transcript_path": transcript_path})
+    @pytest.mark.parametrize("agent", ["claude-code", "codex"])
+    def test_body_with_only_the_fields_the_server_reads_parses(self, agent):
+        """A body with only `hook_event_name`, `tool_name`, `tool_input` and `tool_use_id` parses on either agent path."""
+        body = {field: CLAUDE_CODE_BASH[field] for field in PRE_TOOL_USE_REQUIRED}
 
-        assert (errors[0]["loc"], errors[0]["msg"]) == (("model",), CODEX_FIELD_ON_CLAUDE_CODE_PATH)
+        assert parse_hook_request(agent, body).tool_use_id == "toolu_01ABC123..."
 
     @pytest.mark.parametrize(
         "agent, body, field",
         [
-            *[("claude-code", CLAUDE_CODE_DESTRUCTIVE_BASH, field) for field in CLAUDE_CODE_REQUIRED],
-            *[("codex", CODEX_MCP, field) for field in CODEX_REQUIRED],
+            *[("claude-code", CLAUDE_CODE_DESTRUCTIVE_BASH, field) for field in PRE_TOOL_USE_REQUIRED],
+            *[("codex", CODEX_MCP, field) for field in PRE_TOOL_USE_REQUIRED],
             *[("nemo-relay", NEMO_RELAY_SEARCH, field) for field in NEMO_RELAY_REQUIRED],
         ],
     )
@@ -370,22 +353,25 @@ class TestParseHookRequest:
 
         assert [(error["loc"], error["type"]) for error in errors] == [((field,), "missing")]
 
-    @pytest.mark.parametrize("value", ["present", None])
     @pytest.mark.parametrize(
-        "agent, body, field, message",
+        "agent, body, field, value",
         [
-            *[
-                ("claude-code", CLAUDE_CODE_DESTRUCTIVE_BASH, field, CODEX_FIELD_ON_CLAUDE_CODE_PATH)
-                for field in CLAUDE_CODE_REJECTED
-            ],
-            *[("codex", CODEX_MCP, field, CLAUDE_CODE_FIELD_ON_CODEX_PATH) for field in CODEX_REJECTED],
+            ("claude-code", CLAUDE_CODE_DESTRUCTIVE_BASH, "model", "<active model slug>"),
+            ("claude-code", CLAUDE_CODE_DESTRUCTIVE_BASH, "turn_id", None),
+            ("claude-code", CLAUDE_CODE_DESTRUCTIVE_BASH, "transcript_path", None),
+            ("claude-code", CLAUDE_CODE_DESTRUCTIVE_BASH, "effort", "high"),
+            ("claude-code", CLAUDE_CODE_DESTRUCTIVE_BASH, "mcp_server", "github"),
+            ("codex", CODEX_MCP, "prompt_id", "550e8400-e29b-41d4-a716-446655440000"),
+            ("codex", CODEX_MCP, "mcp_server", {"name": "github", "source": "user"}),
+            ("codex", CODEX_MCP, "permission_mode", None),
+            ("codex", CODEX_MCP, "agent_id", 7),
         ],
     )
-    def test_other_agents_field_fails_at_that_field(self, agent, body, field, message, value):
-        """A field only the other agent sends fails at that field, even when it is null."""
-        errors = _validation_errors(agent, {**body, field: value})
+    def test_field_the_server_does_not_read_is_kept_as_sent(self, agent, body, field, value):
+        """A field the server doesn't read parses with any value, even another agent's field, and is kept as an extra."""
+        request = parse_hook_request(agent, {**body, field: value})
 
-        assert [(error["loc"], error["msg"]) for error in errors] == [((field,), message)]
+        assert request.model_extra[field] == value
 
     def test_nemo_relay_rejects_unknown_field(self):
         """The NeMo Relay path rejects a field its schema doesn't list."""
@@ -400,7 +386,7 @@ class TestParseHookRequest:
         """The Claude Code and Codex paths accept a field the spec doesn't list, so a new agent field is no error."""
         request = parse_hook_request(agent, {**body, "added_by_a_later_release": {"nested": 1}})
 
-        assert request.model_extra == {"added_by_a_later_release": {"nested": 1}}
+        assert request.model_extra["added_by_a_later_release"] == {"nested": 1}
 
     @pytest.mark.parametrize("mode", ["python", "json"])
     @pytest.mark.parametrize(
@@ -776,21 +762,15 @@ class TestCodexSchemas:
         """Every Claude Code and Codex response validates against Codex's output schema, which rejects unknown fields."""
         jsonschema.validate(render_response(agent, outcome), CODEX_OUTPUT_SCHEMA)
 
-    def test_codex_request_requires_what_codex_input_schema_requires(self):
-        """The Codex request model requires exactly the fields Codex's input schema requires."""
+    def test_codex_request_requires_only_fields_codex_always_sends(self):
+        """Every field the Codex request model requires is one Codex's input schema requires, so Codex always sends it."""
         required = {name for name, field in CodexPreToolUseRequest.model_fields.items() if field.is_required()}
 
-        assert required == set(CODEX_INPUT_SCHEMA["required"])
+        assert required <= set(CODEX_INPUT_SCHEMA["required"])
 
-    def test_codex_request_declares_codex_fields_and_the_rejected_ones(self):
-        """The Codex request model declares Codex's input fields, plus the Claude Code fields it rejects."""
-        declared = set(CodexPreToolUseRequest.model_fields)
-
-        assert declared == set(CODEX_INPUT_SCHEMA["properties"]) | set(CODEX_REJECTED)
-
-    def test_rejected_claude_code_fields_are_not_codex_fields(self):
-        """No field the Codex path rejects is one Codex's input schema allows."""
-        assert set(CODEX_REJECTED).isdisjoint(CODEX_INPUT_SCHEMA["properties"])
+    def test_codex_request_declares_only_codex_fields(self):
+        """The Codex request model declares no field outside Codex's input schema."""
+        assert set(CodexPreToolUseRequest.model_fields) <= set(CODEX_INPUT_SCHEMA["properties"])
 
     @pytest.mark.parametrize("body", CODEX_EXAMPLES)
     def test_spec_codex_examples_validate_against_codex_input_schema(self, body):
