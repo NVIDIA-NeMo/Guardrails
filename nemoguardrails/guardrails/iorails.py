@@ -928,6 +928,8 @@ class IORails(BaseGuardrails):
             try:
                 await stop()
             except BaseException as error:
+                if isinstance(error, Exception):
+                    log.warning("Failed to stop IORails component %s", name, exc_info=True)
                 if failure is None or not isinstance(error, Exception):
                     failure = error
             else:

@@ -277,6 +277,51 @@ async def test_cancellation_survives_a_secondary_cleanup_error(rails):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("cancelled", [False, True])
+async def test_shutdown_logs_component_failures_without_changing_error_precedence(
+    rails, monkeypatch, caplog, cancelled
+):
+    """Report each ordinary failure while retaining ownership and cancellation."""
+
+    await rails.startup()
+    core = rails.rails_engine
+    first = asyncio.CancelledError("queue cleanup interrupted") if cancelled else ValueError("queue cleanup failed")
+    second = RuntimeError("rails cleanup failed")
+    queue_stop = AsyncMock(side_effect=first)
+    rails_stop = AsyncMock(side_effect=second)
+    registry_stop = AsyncMock(wraps=core.engine_registry.stop)
+    caplog.clear()
+    try:
+        with monkeypatch.context() as patcher:
+            patcher.setattr(core._generate_async_queue, "stop", queue_stop)
+            patcher.setattr(core.rails_manager, "stop", rails_stop)
+            patcher.setattr(core.engine_registry, "stop", registry_stop)
+            with caplog.at_level(logging.WARNING, logger=IORails.__module__):
+                with pytest.raises(type(first)) as caught:
+                    await rails.shutdown()
+
+        assert caught.value is first
+        queue_stop.assert_awaited_once()
+        rails_stop.assert_awaited_once()
+        registry_stop.assert_awaited_once()
+        assert not core.is_running
+        assert core._owned_components == {"queue", "rails"}
+        records = [record for record in caplog.records if record.name == IORails.__module__]
+        components = ["rails"] if cancelled else ["queue", "rails"]
+        errors = [second] if cancelled else [first, second]
+        assert [record.getMessage() for record in records] == [
+            f"Failed to stop IORails component {component}" for component in components
+        ]
+        assert all(record.levelno == logging.WARNING for record in records)
+        assert all(record.exc_info is not None and record.exc_info[2] is not None for record in records)
+        assert [record.exc_info[1] for record in records] == errors
+    finally:
+        await rails.shutdown()
+
+    assert not core._owned_components
+
+
+@pytest.mark.asyncio
 async def test_failed_startup_can_retry_without_closing_unused_rail_http_client(rails):
     engine = ProbeEngine()
     actual_start = engine.start
