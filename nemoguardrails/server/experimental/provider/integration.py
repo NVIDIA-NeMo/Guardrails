@@ -19,19 +19,11 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, TypeAlias
 
-from starlette.routing import compile_path
-
+from nemoguardrails.server.experimental._http_paths import _route_shape
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapping
 
 ProviderOpenApiDocument: TypeAlias = Callable[[], Mapping[str, Any]]
-
-
-def _route_path_shape(path: str) -> str:
-    _, path_format, convertors = compile_path(path)
-    for name, convertor in convertors.items():
-        path_format = path_format.replace(f"{{{name}}}", f"{{{type(convertor).__name__}}}")
-    return path_format
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +80,7 @@ class ProviderIntegration:
             raise ValueError("A provider mount path must not contain dynamic parameters.")
 
         routes = [
-            (method, _route_path_shape(operation_path.route_path))
+            (method, _route_shape(operation_path.route_path))
             for endpoint in self.endpoints
             for operation_path in endpoint.operation_paths
             for method in operation_path.methods | operation_path.passthrough_methods

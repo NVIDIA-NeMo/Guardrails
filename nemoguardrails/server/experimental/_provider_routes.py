@@ -16,69 +16,83 @@
 """Construct FastAPI routes from declarative provider integrations."""
 
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, FastAPI, Request
-from starlette._utils import get_route_path
+from fastapi import APIRouter, FastAPI
 
 from nemoguardrails.server.experimental._content_checker import ContentChecker
 from nemoguardrails.server.experimental._guarded_proxy import create_guarded_http_operation
 from nemoguardrails.server.experimental._http_kernel import (
     DEFAULT_MAX_REQUEST_BODY_BYTES,
     DEFAULT_MAX_RESPONSE_BODY_BYTES,
-    HttpRouteRejected,
-    HttpRouteRejectionKind,
-    _request_path,
-    _route_path_candidates,
     create_http_proxy_router,
 )
+from nemoguardrails.server.experimental._http_paths import HttpRouteOwnership, _route_shape
 from nemoguardrails.server.experimental._provider_transport import DEFAULT_OUTBOUND_TIMEOUT, ProviderTransport
-from nemoguardrails.server.experimental.provider.integration import ProviderIntegration, _route_path_shape
+from nemoguardrails.server.experimental.provider.integration import ProviderIntegration
 
 
-def _validate_providers(providers: Sequence[ProviderIntegration]) -> tuple[ProviderIntegration, ...]:
-    resolved = tuple(providers)
-    if not resolved:
+@dataclass(frozen=True, slots=True)
+class ProviderRoutePlan:
+    provider: ProviderIntegration
+    mount_path: str
+    dispatcher: ProviderTransport
+    ownership: HttpRouteOwnership
+
+    @classmethod
+    def create(
+        cls, provider: ProviderIntegration, mount_path: str, dispatcher: ProviderTransport
+    ) -> "ProviderRoutePlan":
+        declared_paths = tuple(path for endpoint in provider.endpoints for path in endpoint.operation_paths)
+        local_paths = tuple(replace(path, route_path=f"{mount_path}{path.route_path}") for path in declared_paths)
+
+        def map_upstream_path(path: str, raw_path: bytes) -> str:
+            return dispatcher.upstream_url(path, raw_path).path
+
+        upstream_paths = declared_paths + tuple(
+            replace(
+                path, route_path=map_upstream_path(path.route_path, quote(path.route_path, safe="/").encode("ascii"))
+            )
+            for path in local_paths
+        )
+        return cls(provider, mount_path, dispatcher, HttpRouteOwnership(local_paths, upstream_paths, map_upstream_path))
+
+
+def _validate_provider_plans(plans: Sequence[ProviderRoutePlan]) -> None:
+    if not plans:
         raise ValueError("At least one provider integration is required.")
-    mount_paths = [provider.upstream.mount_path for provider in resolved]
+    mount_paths = [plan.mount_path for plan in plans]
     if len(mount_paths) != len(set(mount_paths)):
         raise ValueError("Provider mount paths must be unique.")
-    instance_ids = [provider.instance_id for provider in resolved]
+    instance_ids = [plan.provider.instance_id for plan in plans]
     if len(instance_ids) != len(set(instance_ids)):
         raise ValueError("Provider instance ids must be unique.")
 
     operation_ids = [
-        f"{provider.instance_id}.{endpoint.operation_name}" for provider in resolved for endpoint in provider.endpoints
+        f"{plan.provider.instance_id}.{endpoint.operation_name}"
+        for plan in plans
+        for endpoint in plan.provider.endpoints
     ]
     if len(operation_ids) != len(set(operation_ids)):
         raise ValueError("Guarded endpoint operation identifiers must be globally unique.")
     routes = [
-        (method, _route_path_shape(f"{provider.upstream.mount_path}{operation_path.route_path}"))
-        for provider in resolved
-        for endpoint in provider.endpoints
-        for operation_path in endpoint.operation_paths
+        (method, _route_shape(operation_path.route_path))
+        for plan in plans
+        for operation_path in plan.ownership.local_paths
         for method in operation_path.methods | operation_path.passthrough_methods
     ]
     if len(routes) != len(set(routes)):
         raise ValueError("Guarded endpoint paths must be globally unique after provider mounting.")
-    for provider in resolved:
-        for other in resolved:
-            mount = other.upstream.mount_path
-            if not mount.startswith(provider.upstream.mount_path + "/"):
+    for plan in plans:
+        for other in plans:
+            if not other.mount_path.startswith(plan.mount_path + "/"):
                 continue
-            for endpoint in provider.endpoints:
-                if any(
-                    replace(
-                        operation_path, route_path=f"{provider.upstream.mount_path}{operation_path.route_path}"
-                    ).intersects_mount(mount)
-                    for operation_path in endpoint.operation_paths
-                ):
-                    raise ValueError(
-                        f"Provider mount {mount!r} would shadow a guarded route of instance {provider.instance_id!r}."
-                    )
-    return resolved
+            if plan.ownership.intersects_mount(other.mount_path):
+                raise ValueError(
+                    f"Provider mount {other.mount_path!r} would shadow a guarded route of instance {plan.provider.instance_id!r}."
+                )
 
 
 def _registered_http_routes(router: APIRouter | FastAPI) -> dict[str, set[str]]:
@@ -92,12 +106,10 @@ def _registered_http_routes(router: APIRouter | FastAPI) -> dict[str, set[str]]:
 
 
 def create_provider_router(
-    provider: ProviderIntegration,
+    plan: ProviderRoutePlan,
     *,
     checker: ContentChecker,
-    dispatcher: ProviderTransport,
     reserved_routes: Mapping[str, Collection[str]],
-    guarded_path_prefix: str,
     max_request_body_bytes: int,
     max_response_body_bytes: int,
 ) -> APIRouter:
@@ -107,11 +119,12 @@ def create_provider_router(
     forwarding; unrelated provider operations retain transparent forwarding.
     """
 
+    provider = plan.provider
     operations = tuple(
         create_guarded_http_operation(
             endpoint,
             provider.errors,
-            stream_dispatch=dispatcher.stream_dispatch if endpoint.stream is not None else None,
+            stream_dispatch=plan.dispatcher.stream_dispatch if endpoint.stream is not None else None,
             max_stream_event_bytes=max_response_body_bytes,
             max_pending_stream_bytes=max_response_body_bytes,
         )
@@ -120,52 +133,15 @@ def create_provider_router(
     operation_ids = {
         endpoint.operation_name: f"{provider.instance_id}.{endpoint.operation_name}" for endpoint in provider.endpoints
     }
-    guarded_paths = tuple(
-        operation_path for endpoint in provider.endpoints for operation_path in endpoint.operation_paths
-    )
-    mounted_paths = tuple(
-        replace(operation_path, route_path=f"{guarded_path_prefix}{operation_path.route_path}")
-        for operation_path in guarded_paths
-    )
-    upstream_paths = guarded_paths + tuple(
-        replace(
-            operation_path,
-            route_path=dispatcher.upstream_url(
-                operation_path.route_path, quote(operation_path.route_path, safe="/").encode("ascii")
-            ).path,
-        )
-        for operation_path in mounted_paths
-    )
-
-    def validate_passthrough_path(request: Request) -> HttpRouteRejected | None:
-        """Reject alternate local paths that reach this instance's guarded upstream."""
-
-        path = get_route_path(request.scope)
-        if any(operation_path.matches(path) for operation_path in mounted_paths):
-            return None
-        upstream_path = dispatcher.upstream_url(path, _request_path(request)).path
-        candidates = _route_path_candidates(upstream_path)
-        allowed_methods = frozenset(
-            method
-            for operation_path in upstream_paths
-            if any(operation_path.matches(candidate) for candidate in candidates)
-            for method in operation_path.methods | operation_path.passthrough_methods
-        )
-        if not allowed_methods:
-            return None
-        if request.method not in allowed_methods:
-            return HttpRouteRejected(HttpRouteRejectionKind.METHOD_NOT_ALLOWED, allowed_methods)
-        return HttpRouteRejected(HttpRouteRejectionKind.NON_CANONICAL_PATH)
-
     return create_http_proxy_router(
         operations=operations,
         checker=checker,
-        dispatch=dispatcher.dispatch,
+        dispatch=plan.dispatcher.dispatch,
         render_outcome=provider.errors.renderer,
         reserved_routes=reserved_routes,
         operation_ids=operation_ids,
-        guarded_path_prefix=guarded_path_prefix,
-        validate_passthrough_path=validate_passthrough_path,
+        guarded_path_prefix=plan.mount_path,
+        route_ownership=plan.ownership,
         max_request_body_bytes=max_request_body_bytes,
         max_response_body_bytes=max_response_body_bytes,
     )
@@ -193,10 +169,9 @@ def include_provider_routes(
         not normalized_prefix.startswith("/") or not normalized_prefix.isascii() or "//" in normalized_prefix
     ):
         raise ValueError("The provider path prefix must be empty or one canonical absolute ASCII path.")
-    resolved_providers = _validate_providers(providers)
     reserved_routes = _registered_http_routes(application)
-    mounted = []
-    for provider in resolved_providers:
+    plans = []
+    for provider in providers:
         provider_prefix = f"{normalized_prefix}{provider.upstream.mount_path}"
         dispatcher = ProviderTransport(
             http_client,
@@ -206,16 +181,21 @@ def include_provider_routes(
             max_response_body_bytes=max_response_body_bytes,
             timeout=timeout,
         )
-        mounted.append((provider_prefix, provider, dispatcher))
+        plans.append(ProviderRoutePlan.create(provider, provider_prefix, dispatcher))
 
-    for provider_prefix, provider, dispatcher in sorted(mounted, key=lambda item: len(item[0]), reverse=True):
-        router = create_provider_router(
-            provider,
-            checker=checker,
-            dispatcher=dispatcher,
-            reserved_routes=reserved_routes,
-            guarded_path_prefix=provider_prefix,
-            max_request_body_bytes=max_request_body_bytes,
-            max_response_body_bytes=max_response_body_bytes,
+    _validate_provider_plans(plans)
+    routers = [
+        (
+            plan,
+            create_provider_router(
+                plan,
+                checker=checker,
+                reserved_routes=reserved_routes,
+                max_request_body_bytes=max_request_body_bytes,
+                max_response_body_bytes=max_response_body_bytes,
+            ),
         )
-        application.include_router(router, prefix=provider_prefix, tags=[provider.display_name])
+        for plan in sorted(plans, key=lambda plan: len(plan.mount_path), reverse=True)
+    ]
+    for plan, router in routers:
+        application.include_router(router, prefix=plan.mount_path, tags=[plan.provider.display_name])

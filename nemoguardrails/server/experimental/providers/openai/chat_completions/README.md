@@ -137,6 +137,22 @@ segment. Use a disjoint mount such as `/providers/litellm` for another instance.
 Nested mounts are supported when their namespaces do not intersect a parent's
 declared operation paths.
 
+Composition builds one routing plan per instance. Startup conflict validation and
+request classification use the same mounted ownership declarations. The plan
+also maps upstream ownership through the same URL mapping used for forwarding.
+Local and mapped paths are classified before reading a catch-all request body.
+Canonical declared pass-through methods, such as `GET /v1/chat/completions`,
+remain available; alternate paths reaching a guarded upstream destination are
+rejected.
+
+Transparent forwarding protects the operations and aliases declared by the
+selected instance. It does not discover undocumented aliases accepted by a
+backend. With an upstream base URL ending in `/v1`, `/chat/completions` maps to a
+guarded destination and is rejected. With a base URL containing no path prefix,
+that same request is forwarded unless the endpoint's `operation_paths` explicitly
+reserves it. Deployments whose backend supports additional equivalent paths must
+declare those paths in their reviewed endpoint policy.
+
 ## Streaming ownership and limits
 
 Streaming dispatch owns the upstream resource until it returns

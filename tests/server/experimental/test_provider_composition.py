@@ -131,10 +131,22 @@ async def test_composition_rejects_upstream_aliases_before_checks_or_dispatch(st
 
 
 @pytest.mark.asyncio
-async def test_composition_retains_unconfigured_paths_without_upstream_rewriting():
-    """Forward an unbound path when it does not map to a guarded destination."""
+@pytest.mark.parametrize("reserve_alias", [False, True])
+async def test_composition_respects_declared_aliases_without_upstream_rewriting(reserve_alias):
+    """Use explicit ownership when the upstream mapping does not add a prefix."""
 
     provider = create_openai_chat_integration(base_url="https://provider.example")
+    if reserve_alias:
+        endpoint = provider.endpoints[0]
+        provider = replace(
+            provider,
+            endpoints=(
+                replace(
+                    endpoint,
+                    operation_paths=(*endpoint.operation_paths, GuardedOperationPath("/chat/completions")),
+                ),
+            ),
+        )
     requests = []
 
     async def respond(request):
@@ -150,9 +162,52 @@ async def test_composition_retains_unconfigured_paths_without_upstream_rewriting
         await client.aclose()
         await upstream.aclose()
 
-    assert response.status_code == 200
-    assert requests[0].url.raw_path == b"/chat/completions?trace=%2Fopaque"
-    assert requests[0].content == b"unconfigured operation"
+    if reserve_alias:
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "non_canonical_path"
+        assert requests == []
+    else:
+        assert response.status_code == 200
+        assert requests[0].url.raw_path == b"/chat/completions?trace=%2Fopaque"
+        assert requests[0].content == b"unconfigured operation"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mount_path", ["", "/providers/named"])
+@pytest.mark.parametrize(
+    ("method", "path", "status", "code"),
+    [
+        ("POST", "/chat/completions", 422, "non_canonical_path"),
+        ("GET", "/chat/completions", 422, "non_canonical_path"),
+        ("PUT", "/chat/completions", 405, "method_not_allowed"),
+        ("PUT", "/v1/chat/completions", 405, "method_not_allowed"),
+        ("POST", "/v2/chat/completions", 422, "non_canonical_path"),
+        ("GET", "/v1/chat/completions/", 405, "method_not_allowed"),
+        ("POST", "/v1/chat/completions%3Fignored", 422, "non_canonical_path"),
+        ("GET", "/v1/chat/completions%23ignored", 405, "method_not_allowed"),
+    ],
+)
+async def test_composed_path_rejections_do_not_read_the_body(mount_path, method, path, status, code):
+    class UnreadableBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            raise AssertionError("Rejected paths must not consume the request body.")
+            yield
+
+    async def respond(_request):
+        raise AssertionError("Rejected paths must not reach the upstream.")
+
+    checker = StaticChecker(ContentInspectionPolicy(True, True))
+    provider = create_openai_chat_integration(base_url="https://provider.example/v1", mount_path=mount_path)
+    _, upstream, client = create_composed_app((provider,), respond, checker=checker)
+    try:
+        response = await client.request(method, mount_path + path, content=UnreadableBody())
+    finally:
+        await client.aclose()
+        await upstream.aclose()
+
+    assert response.status_code == status
+    assert response.json()["error"]["code"] == code
+    assert checker.calls == []
 
 
 @pytest.mark.asyncio
@@ -808,6 +863,30 @@ async def test_mount_conflicts_respect_guarded_parameter_converters(mount_path, 
             assert tuple(application.routes) == original_routes
         else:
             include_provider_routes(application, (root, child), checker=PassthroughChecker(), http_client=upstream)
+
+
+@pytest.mark.asyncio
+async def test_composition_does_not_install_routers_before_every_plan_is_validated():
+    root = create_openai_chat_integration(instance_id="root")
+    root = replace(
+        root,
+        endpoints=(
+            replace(root.endpoints[0], operation_paths=(GuardedOperationPath("/v1/chat/completions"),)),
+            replace(
+                root.endpoints[0],
+                route_path="/{version}/chat/completions",
+                operation_name="other.create",
+                operation_paths=(),
+            ),
+        ),
+    )
+    child = create_openai_chat_integration(instance_id="child", mount_path="/providers/named")
+    application = FastAPI()
+    original_routes = tuple(application.routes)
+    async with httpx.AsyncClient() as upstream:
+        with pytest.raises(ValueError, match="must not overlap"):
+            include_provider_routes(application, (root, child), checker=PassthroughChecker(), http_client=upstream)
+    assert tuple(application.routes) == original_routes
 
 
 def test_provider_mounts_have_one_canonical_static_form():
