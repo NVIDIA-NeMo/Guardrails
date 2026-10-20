@@ -49,6 +49,7 @@ from nemoguardrails.server.experimental._http_kernel import (
     HttpOperationFailed,
     HttpRouteRejected,
     HttpRouteRejectionKind,
+    InvalidRequestPath,
     _has_identity_encoding,
     _has_media_type,
     _render_response,
@@ -936,6 +937,33 @@ async def test_untyped_dispatch_failure_is_not_reclassified(guarded_operation, p
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
         with pytest.raises(RuntimeError, match="programming failure"):
             await client.post(path, json={"input": "question"})
+
+
+@pytest.mark.parametrize(
+    ("path", "raw_path", "root_path", "expected"),
+    [
+        ("/outer/v1/models", b"/%6Futer/v1/mo%64els", "/outer", b"/v1/mo%64els"),
+        ("/outerless/v1/models", b"/outerless/v1/models", "/outer", b"/outerless/v1/models"),
+        ("/v1/models", b"/v1/mo%64els", "/outer", b"/v1/mo%64els"),
+        ("/café/v1/models", b"/caf%C3%A9/v1/mo%64els", "/café", b"/v1/mo%64els"),
+        ("/outer/v1/café", None, "/outer", b"/v1/caf%C3%A9"),
+        ("/outer", b"/%6Futer", "/outer", b"/"),
+    ],
+)
+def test_request_path_respects_asgi_root_without_reencoding_suffix(path, raw_path, root_path, expected):
+    """Use ASGI mount boundaries without stripping an already-relative path twice."""
+
+    request = Request({"type": "http", "path": path, "raw_path": raw_path, "root_path": root_path})
+    assert _request_path(request) == expected
+
+
+@pytest.mark.parametrize("raw_path", [b"/other/v1/models", b"/%256Futer/v1/models"])
+def test_request_path_rejects_inconsistent_raw_asgi_mount(raw_path):
+    """Raise the typed path error when ASGI path representations disagree."""
+
+    request = Request({"type": "http", "path": "/outer/v1/models", "raw_path": raw_path, "root_path": "/outer"})
+    with pytest.raises(InvalidRequestPath, match="application mount"):
+        _request_path(request)
 
 
 def test_request_path_fallback_percent_encodes_unicode():

@@ -33,6 +33,7 @@ from nemoguardrails.server.experimental.providers.openai.dialects.litellm.chat_c
     LITELLM_CHAT_COMPLETIONS_ENDPOINT,
 )
 from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_integration
+from tests.server.experimental.chat_fixtures import stream_event
 from tests.server.experimental.checkers import StaticChecker
 
 
@@ -474,6 +475,89 @@ async def test_shared_application_prefix_does_not_change_upstream_paths():
 
     assert response.status_code == 200
     assert str(requests[0].url) == "https://provider.example/v1/models"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("provider_mount", ["", "/providers/named"])
+@pytest.mark.parametrize("path_prefix", ["", "/guardrails"])
+@pytest.mark.parametrize(("outer_mount", "outer_url"), [("/outer", "/%6Futer"), ("/café", "/caf%C3%A9")])
+async def test_outer_asgi_mount_preserves_guards_and_provider_paths(
+    streaming, provider_mount, path_prefix, outer_mount, outer_url
+):
+    """Strip the ASGI root once while retaining provider ownership and raw suffixes."""
+
+    provider = create_openai_chat_integration(base_url="https://provider.example/v1", mount_path=provider_mount)
+    checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+    requests = []
+    body = (
+        stream_event("answer")
+        + b'data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'
+        if streaming
+        else b'{"choices":[{"index":0,"message":{"role":"assistant","content":"answer"}}]}'
+    )
+
+    async def respond(request):
+        """Capture the wire URL and return a complete guarded response."""
+
+        requests.append(request)
+        if request.method == "GET":
+            return provider_response()
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream" if streaming else "application/json"},
+            stream=StaticResponseStream(body),
+        )
+
+    application = FastAPI()
+
+    @application.get("/health")
+    async def health():
+        """Reserve an application-owned route beneath the outer mount."""
+
+        return {"status": "ok"}
+
+    parent = FastAPI()
+    parent.mount(outer_mount, application)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as upstream:
+        include_provider_routes(
+            application,
+            (provider,),
+            checker=checker,
+            http_client=upstream,
+            path_prefix=path_prefix,
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=parent, raise_app_exceptions=False), base_url="http://proxy.test"
+        ) as client:
+            prefix = outer_url + path_prefix + provider_mount
+            query = "?trace=%2Fopaque&trace=%252Fopaque"
+            response = await client.post(
+                prefix + "/v1/chat/completions" + query,
+                json={"messages": [{"role": "user", "content": "hello"}], "stream": streaming},
+            )
+            assert response.status_code == 200
+            assert response.content == body
+            assert checker.text_calls == [("input", "hello"), ("output", "answer")]
+            assert requests[0].url.raw_path == b"/v1/chat/completions?trace=%2Fopaque&trace=%252Fopaque"
+
+            relay = await client.get(prefix + "/v1/mo%64els/caf%C3%A9" + query)
+            assert relay.status_code == 200
+            assert requests[1].url.raw_path == b"/v1/mo%64els/caf%C3%A9?trace=%2Fopaque&trace=%252Fopaque"
+
+            chat_list = await client.get(prefix + "/v1/chat/completions?limit=2")
+            assert chat_list.status_code == 200
+            assert requests[2].url.raw_path == b"/v1/chat/completions?limit=2"
+
+            alias = await client.post(prefix + "/chat/completions", content=b"must not reach upstream")
+            assert alias.status_code == 422
+            assert alias.json()["error"]["code"] == "non_canonical_path"
+            wrong_method = await client.put(prefix + "/v1/chat/completions")
+            assert wrong_method.status_code == 405
+            reserved = await client.post(outer_url + "/health")
+            assert reserved.status_code == 405
+            assert len(requests) == 3
+            assert checker.text_calls == [("input", "hello"), ("output", "answer")]
 
 
 @pytest.mark.asyncio

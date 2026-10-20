@@ -17,6 +17,7 @@
 
 import re
 from dataclasses import dataclass
+from urllib.parse import unquote_to_bytes
 
 from starlette.convertors import CONVERTOR_TYPES, PathConvertor
 
@@ -24,6 +25,35 @@ HTTP_METHODS = ("DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT")
 
 
 _PARAMETER = re.compile(r"{([a-zA-Z_][a-zA-Z0-9_]*)(:[a-zA-Z_][a-zA-Z0-9_]*)?}")
+
+
+def _strip_mount_prefix(path: str, raw_path: bytes, mount_path: str) -> bytes:
+    """Match a decoded mount while preserving the encoded suffix.
+
+    The mount and its following decoded slash are replaced by one literal
+    separator. Percent escapes in the remaining suffix are untouched.
+    """
+
+    if path == mount_path:
+        raw_mount = mount_path.encode("utf-8")
+    elif path.startswith(mount_path + "/"):
+        raw_mount = (mount_path + "/").encode("utf-8")
+    else:
+        raise ValueError("The outbound request path is outside the configured mount path.")
+    offset = 0
+    for character in raw_mount:
+        token = raw_path[offset : offset + 1]
+        width = 1
+        if token == b"%":
+            decoded = unquote_to_bytes(raw_path[offset : offset + 3])
+            if len(decoded) == 1:
+                token, width = decoded, 3
+        if token != bytes((character,)):
+            raise ValueError("The encoded outbound path does not match the configured mount path.")
+        offset += width
+    if path == mount_path and offset != len(raw_path):
+        raise ValueError("The encoded outbound path does not match the configured mount path.")
+    return b"/" + raw_path[offset:]
 
 
 def _compile_guarded_path(path: str) -> re.Pattern[str]:

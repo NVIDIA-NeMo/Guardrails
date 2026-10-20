@@ -17,7 +17,6 @@
 
 import math
 from collections.abc import Collection
-from urllib.parse import unquote_to_bytes
 
 import httpx
 
@@ -29,6 +28,7 @@ from nemoguardrails.server.experimental._http_kernel import (
     HttpHeaders,
     ResponseBodyTooLarge,
 )
+from nemoguardrails.server.experimental._http_paths import _strip_mount_prefix
 from nemoguardrails.server.experimental._httpx_response import _HttpxResponseBody
 from nemoguardrails.server.experimental._streaming_http import StreamingHttpResponse
 
@@ -80,35 +80,6 @@ def _response_headers(headers: httpx.Headers) -> HttpHeaders:
     raw = tuple(headers.raw)
     excluded = _HOP_BY_HOP_HEADERS | _connection_tokens(raw)
     return tuple((name.lower(), value) for name, value in raw if name.lower() not in excluded)
-
-
-def _strip_mount_prefix(path: str, raw_path: bytes, mount_path: str) -> bytes:
-    """Match the mount using ASGI's decoded path and preserve its raw suffix.
-
-    The mount and its following decoded slash are replaced by one literal
-    upstream separator. Percent escapes in the remaining suffix are untouched.
-    """
-
-    if path == mount_path:
-        raw_mount = mount_path.encode("ascii")
-    elif path.startswith(mount_path + "/"):
-        raw_mount = (mount_path + "/").encode("ascii")
-    else:
-        raise ValueError("The outbound request path is outside the configured mount path.")
-    offset = 0
-    for character in raw_mount:
-        token = raw_path[offset : offset + 1]
-        width = 1
-        if token == b"%":
-            decoded = unquote_to_bytes(raw_path[offset : offset + 3])
-            if len(decoded) == 1:
-                token, width = decoded, 3
-        if token != bytes((character,)):
-            raise ValueError("The encoded outbound path does not match the configured mount path.")
-        offset += width
-    if path == mount_path and offset != len(raw_path):
-        raise ValueError("The encoded outbound path does not match the configured mount path.")
-    return b"/" + raw_path[offset:]
 
 
 class ProviderTransport:

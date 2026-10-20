@@ -23,6 +23,7 @@ from typing import Any, cast
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
+from starlette._utils import get_route_path
 from starlette.convertors import FloatConvertor, IntegerConvertor, StringConvertor, UUIDConvertor
 from starlette.responses import Response
 from starlette.routing import compile_path
@@ -44,7 +45,7 @@ from nemoguardrails.server.experimental._content_checker import (
     validate_content_checker,
 )
 from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation, UnsupportedGuardedPayload
-from nemoguardrails.server.experimental._http_paths import HTTP_METHODS, GuardedOperationPath
+from nemoguardrails.server.experimental._http_paths import HTTP_METHODS, GuardedOperationPath, _strip_mount_prefix
 
 DEFAULT_MAX_REQUEST_BODY_BYTES = 1024 * 1024
 DEFAULT_MAX_RESPONSE_BODY_BYTES = 10 * 1024 * 1024
@@ -277,12 +278,17 @@ def _validate_operations(
 
 
 def _request_path(request: Request) -> bytes:
-    """Return the raw request path or reconstruct its ASCII encoding."""
+    """Return the application-relative raw path without reencoding its suffix."""
 
     raw_path = request.scope.get("raw_path")
-    if isinstance(raw_path, bytes):
-        return raw_path
-    return quote(request.scope["path"], safe="/").encode("ascii")
+    if not isinstance(raw_path, bytes):
+        raw_path = quote(request.scope["path"], safe="/").encode("ascii")
+    if get_route_path(request.scope) != request.scope["path"]:
+        try:
+            raw_path = _strip_mount_prefix(request.scope["path"], raw_path, request.scope["root_path"])
+        except ValueError as failure:
+            raise InvalidRequestPath("The encoded request path does not match the application mount.") from failure
+    return raw_path
 
 
 def _normalized_route_path(path: str) -> str:
@@ -376,7 +382,7 @@ async def _buffer_request(request: Request, max_body_bytes: int) -> BufferedHttp
         raise InvalidContentLength("Content-Length must match the buffered request body.")
     return BufferedHttpRequest(
         method=request.method,
-        path=request.scope["path"],
+        path=get_route_path(request.scope),
         raw_path=_request_path(request),
         query=request.scope.get("query_string", b""),
         headers=tuple(request.scope.get("headers", ())),
@@ -504,7 +510,8 @@ def _guarded_handler(
     async def handle(request: Request) -> Response:
         """Buffer, check, dispatch, and render one guarded request."""
 
-        if _normalized_route_path(request.scope["path"]) != request.scope["path"]:
+        route_path = get_route_path(request.scope)
+        if _normalized_route_path(route_path) != route_path:
             return _render_failure(
                 HttpRouteRejected(HttpRouteRejectionKind.NON_CANONICAL_PATH), render_outcome, request.method
             )
@@ -647,7 +654,7 @@ def create_http_proxy_router(
             return _render_failure(
                 HttpRouteRejected(HttpRouteRejectionKind.INVALID_REQUEST_PATH), render_outcome, request.method
             )
-        ownership_path = request.url.path if normalized_guarded_prefix else f"/{path}"
+        ownership_path = get_route_path(request.scope) if normalized_guarded_prefix else f"/{path}"
         candidates = _route_path_candidates(ownership_path)
         normalized_path = _normalized_route_path(ownership_path)
         reserved_methods = next(

@@ -21,6 +21,7 @@ from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, FastAPI, Request
+from starlette._utils import get_route_path
 
 from nemoguardrails.server.experimental._content_checker import ContentChecker
 from nemoguardrails.server.experimental._guarded_proxy import create_guarded_http_operation
@@ -136,9 +137,10 @@ def create_provider_router(
     def validate_passthrough_path(request: Request) -> HttpRouteRejected | None:
         """Reject alternate local paths that reach this instance's guarded upstream."""
 
-        if any(operation_path.matches(request.scope["path"]) for operation_path in mounted_paths):
+        path = get_route_path(request.scope)
+        if any(operation_path.matches(path) for operation_path in mounted_paths):
             return None
-        upstream_path = dispatcher.upstream_url(request.scope["path"], _request_path(request)).path
+        upstream_path = dispatcher.upstream_url(path, _request_path(request)).path
         candidates = _route_path_candidates(upstream_path)
         allowed_methods = frozenset(
             method
