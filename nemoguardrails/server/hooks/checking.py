@@ -13,22 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Turn a hook into the check it asks for, and the check's result into the agent's response."""
+"""The bridge to the engine: the check a hook's tool call asks for, and the verdict the check's result gives."""
 
 import json
 from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
 from nemoguardrails.rails.llm.options import RailsResult, RailStatus, ToolViolation, ToolViolationType
-from nemoguardrails.server.hooks.schemas import (
-    HookAgent,
-    HookErrorCode,
-    HookRequest,
-    NemoRelayToolConditionalExecutionGuardrailRequest,
-)
-
-# Claude Code and Codex show the deny reason to the model, so it says who denied the call.
-DENY_REASON_PREFIX = "NeMo Guardrails: "
+from nemoguardrails.server.hooks.schemas import HookErrorCode
 
 _UNSPECIFIED_DENY_REASON = "tool call blocked"
 
@@ -43,21 +35,29 @@ _CHECK_FAILURES = frozenset(
 )
 
 
-def check_messages(request: HookRequest) -> list[dict]:
-    """The one assistant message carrying the hook's tool call, as `check_async()` takes it."""
+@dataclass(frozen=True, slots=True)
+class ToolInvocation:
+    """The tool call a hook asks to check, whichever agent sent it; internal to the hooks server."""
+
+    name: str
+    arguments: Any
+    call_id: Optional[str] = None
+
+
+def check_messages(call: ToolInvocation) -> list[dict]:
+    """The one assistant message carrying *call*, as `check_async()` takes it; with no id when the call has none."""
     tool_call: dict[str, Any] = {
         "type": "function",
-        "function": {"name": request.tool_name, "arguments": json.dumps(request.tool_input)},
+        "function": {"name": call.name, "arguments": json.dumps(call.arguments)},
     }
-    # Relay passes its guardrail callback no call id, so its call has none.
-    if not isinstance(request, NemoRelayToolConditionalExecutionGuardrailRequest):
-        tool_call["id"] = request.tool_use_id
+    if call.call_id is not None:
+        tool_call["id"] = call.call_id
     return [{"role": "assistant", "content": None, "tool_calls": [tool_call]}]
 
 
 @dataclass(frozen=True, slots=True)
 class HookOutcome:
-    """A check's verdict on a tool call, before it is rendered for the agent."""
+    """A check's verdict on a tool call, before it becomes the agent's response."""
 
     kind: Literal["allow", "deny", "error"]
     reason: Optional[str] = None
@@ -148,33 +148,3 @@ def _rail_failed_message(violation: ToolViolation) -> str:
     if violation.rail is None:
         return f"a tool-call rail failed: {violation.reason}"
     return f"rail '{violation.rail}' failed: {violation.reason}"
-
-
-def render_response(agent: HookAgent, outcome: HookOutcome) -> dict:
-    """The `200` body for an allow or a deny, in *agent*'s hook output format."""
-    if outcome.kind == "error":
-        raise ValueError("an error outcome is answered with an error status, not a 200 body")
-    if agent == "nemo-relay":
-        return _relay_response(outcome)
-    return _pre_tool_use_response(outcome)
-
-
-def _pre_tool_use_response(outcome: HookOutcome) -> dict:
-    """Claude Code's and Codex's `PreToolUse` output: no decision for an allow, the deny shape for a deny."""
-    if outcome.kind == "allow":
-        # No decision rather than "allow", which would skip Claude Code's permission prompt.
-        return {}
-    return {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": f"{DENY_REASON_PREFIX}{outcome.reason}",
-        }
-    }
-
-
-def _relay_response(outcome: HookOutcome) -> dict:
-    """The verdict the Relay plugin turns into its guardrail callback's `Ok(None)` or `Ok(Some(reason))`."""
-    if outcome.kind == "allow":
-        return {"decision": "allow"}
-    return {"decision": "deny", "reason": outcome.reason}

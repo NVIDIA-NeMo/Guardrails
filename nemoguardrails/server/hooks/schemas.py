@@ -16,13 +16,9 @@
 """Request models for the agent hooks the hooks server checks, one interface per agent path."""
 
 from enum import Enum
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
-from nemoguardrails.guardrails.guardrails_types import quoted_identity
-
-HookAgent = Literal["claude-code", "codex", "nemo-relay"]
 
 
 class HookErrorCode(str, Enum):
@@ -73,42 +69,8 @@ class NemoRelayToolConditionalExecutionGuardrailRequest(BaseModel):
     tool_input: Any
 
 
-HookRequest = Union[
-    ClaudeCodePreToolUseRequest,
-    CodexPreToolUseRequest,
-    NemoRelayToolConditionalExecutionGuardrailRequest,
-]
-
-HOOK_HANDLERS: dict[HookAgent, dict[str, type[HookRequest]]] = {
-    "claude-code": {"PreToolUse": ClaudeCodePreToolUseRequest},
-    "codex": {"PreToolUse": CodexPreToolUseRequest},
-    "nemo-relay": {"NemoRelayToolConditionalExecutionGuardrail": NemoRelayToolConditionalExecutionGuardrailRequest},
-}
-
-
-class UnsupportedHookEventError(Exception):
-    """A `hook_event_name` that the agent's path doesn't handle."""
-
-    def __init__(self, agent: HookAgent, event: str) -> None:
-        self.agent = agent
-        self.event = event
-        handled = ", ".join(HOOK_HANDLERS[agent])
-        super().__init__(
-            f"hook_event_name {quoted_identity(event)!r} is not handled on /v1/hooks/{agent}; send {handled}"
-        )
-
-
 # Not underscored: pydantic quotes the class name in the error for a body that isn't an object.
 class HookBody(BaseModel):
     """The field every hook body carries, read before the body is validated as its event."""
 
     hook_event_name: str
-
-
-def parse_hook_request(agent: HookAgent, body: object) -> HookRequest:
-    """Validate *body* as the event it names, on *agent*'s path; error locations are relative to the body."""
-    event = HookBody.model_validate(body).hook_event_name
-    request_model = HOOK_HANDLERS[agent].get(event)
-    if request_model is None:
-        raise UnsupportedHookEventError(agent, event)
-    return request_model.model_validate(body)

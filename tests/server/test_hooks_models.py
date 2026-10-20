@@ -15,7 +15,7 @@
 
 import dataclasses
 import json
-from typing import Any, Optional
+from typing import Any, Optional, get_args
 
 import jsonschema
 import pytest
@@ -24,15 +24,15 @@ from pydantic_core import ErrorDetails
 
 from nemoguardrails.rails.llm.options import RailsResult, RailStatus, ToolViolation
 from nemoguardrails.server.hooks import (
+    ADAPTERS,
     HookAgent,
     HookErrorCode,
     HookOutcome,
     UnsupportedHookEventError,
     check_messages,
     outcome_from_result,
-    parse_hook_request,
-    render_response,
 )
+from nemoguardrails.server.hooks.checking import ToolInvocation
 from nemoguardrails.server.hooks.schemas import (
     ClaudeCodePreToolUseRequest,
     CodexPreToolUseRequest,
@@ -288,7 +288,7 @@ def _without(body: dict, field: str) -> dict:
 def _validation_errors(agent: HookAgent, body: Any) -> list[ErrorDetails]:
     """The pydantic errors *body* raises on *agent*'s path."""
     with pytest.raises(ValidationError) as exc_info:
-        parse_hook_request(agent, body)
+        ADAPTERS[agent].parse(body)
     return exc_info.value.errors()
 
 
@@ -305,24 +305,35 @@ def _blocked(
     )
 
 
-class TestParseHookRequest:
+class TestAdapters:
+    def test_registry_has_one_adapter_per_agent_naming_that_agent(self):
+        """The registry has an adapter for every agent path, and each adapter names the agent it is registered for."""
+        assert {agent: adapter.agent for agent, adapter in ADAPTERS.items()} == {
+            agent: agent for agent in get_args(HookAgent)
+        }
+
+    @pytest.mark.parametrize("agent", get_args(HookAgent))
+    def test_adapter_event_is_the_event_its_request_model_takes(self, agent):
+        """Each adapter's event is the one `hook_event_name` its request model accepts."""
+        adapter = ADAPTERS[agent]
+
+        assert get_args(adapter.request_model.model_fields["hook_event_name"].annotation) == (adapter.event,)
+
+
+class TestParse:
     @pytest.mark.parametrize(
-        "agent, body, model",
+        "agent, body, call_id",
         [
-            *[("claude-code", body, ClaudeCodePreToolUseRequest) for body in CLAUDE_CODE_EXAMPLES],
-            *[("codex", body, CodexPreToolUseRequest) for body in CODEX_EXAMPLES],
-            *[
-                ("nemo-relay", body, NemoRelayToolConditionalExecutionGuardrailRequest)
-                for body in [NEMO_RELAY_SEARCH, NEMO_RELAY_EMPTY_QUERY]
-            ],
+            *[("claude-code", body, body["tool_use_id"]) for body in CLAUDE_CODE_EXAMPLES],
+            *[("codex", body, body["tool_use_id"]) for body in CODEX_EXAMPLES],
+            *[("nemo-relay", body, None) for body in [NEMO_RELAY_SEARCH, NEMO_RELAY_EMPTY_QUERY]],
         ],
     )
-    def test_spec_request_examples_validate_on_their_own_path(self, agent, body, model):
-        """Every request example in the spec parses on its own path, as that path's model."""
-        request = parse_hook_request(agent, body)
-
-        assert isinstance(request, model)
-        assert (request.tool_name, request.tool_input) == (body["tool_name"], body["tool_input"])
+    def test_spec_request_examples_parse_on_their_own_path(self, agent, body, call_id):
+        """Every request example in the spec parses on its own path into the tool call it carries."""
+        assert ADAPTERS[agent].parse(body) == ToolInvocation(
+            name=body["tool_name"], arguments=body["tool_input"], call_id=call_id
+        )
 
     @pytest.mark.parametrize(
         "agent, body",
@@ -333,12 +344,8 @@ class TestParseHookRequest:
     )
     def test_payload_parses_on_the_other_agents_path(self, agent, body):
         """A Claude Code payload parses on the Codex path and the reverse, since both paths read the same fields."""
-        request = parse_hook_request(agent, body)
-
-        assert (request.tool_name, request.tool_input, request.tool_use_id) == (
-            body["tool_name"],
-            body["tool_input"],
-            body["tool_use_id"],
+        assert ADAPTERS[agent].parse(body) == ToolInvocation(
+            name=body["tool_name"], arguments=body["tool_input"], call_id=body["tool_use_id"]
         )
 
     @pytest.mark.parametrize("agent", ["claude-code", "codex"])
@@ -346,7 +353,7 @@ class TestParseHookRequest:
         """A body with only `hook_event_name`, `tool_name`, `tool_input` and `tool_use_id` parses on either agent path."""
         body = {field: CLAUDE_CODE_BASH[field] for field in PRE_TOOL_USE_REQUIRED}
 
-        assert parse_hook_request(agent, body).tool_use_id == "toolu_01ABC123..."
+        assert ADAPTERS[agent].parse(body).call_id == "toolu_01ABC123..."
 
     @pytest.mark.parametrize(
         "agent, body, field",
@@ -376,11 +383,9 @@ class TestParseHookRequest:
             ("codex", CODEX_MCP, "agent_id", 7),
         ],
     )
-    def test_field_the_server_does_not_read_is_kept_as_sent(self, agent, body, field, value):
-        """A field the server doesn't read parses with any value, even another agent's field, and is kept as an extra."""
-        request = parse_hook_request(agent, {**body, field: value})
-
-        assert request.model_extra[field] == value
+    def test_field_the_server_does_not_read_parses_with_any_value(self, agent, body, field, value):
+        """A field the server doesn't read parses with any value, even another agent's field, and leaves the call alone."""
+        assert ADAPTERS[agent].parse({**body, field: value}) == ADAPTERS[agent].parse(body)
 
     def test_nemo_relay_rejects_unknown_field(self):
         """The NeMo Relay path rejects a field its schema doesn't list."""
@@ -393,24 +398,27 @@ class TestParseHookRequest:
     @pytest.mark.parametrize("agent, body", [("claude-code", CLAUDE_CODE_DESTRUCTIVE_BASH), ("codex", CODEX_MCP)])
     def test_agent_paths_accept_unknown_fields(self, agent, body):
         """The Claude Code and Codex paths accept a field the spec doesn't list, so a new agent field is no error."""
-        request = parse_hook_request(agent, {**body, "added_by_a_later_release": {"nested": 1}})
+        unknown_field = {"added_by_a_later_release": {"nested": 1}}
 
-        assert request.model_extra["added_by_a_later_release"] == {"nested": 1}
+        assert ADAPTERS[agent].parse({**body, **unknown_field}) == ADAPTERS[agent].parse(body)
 
     @pytest.mark.parametrize("mode", ["python", "json"])
     @pytest.mark.parametrize(
-        "agent, body",
+        "model, body",
         [
-            *[("claude-code", body) for body in CLAUDE_CODE_EXAMPLES],
-            *[("codex", body) for body in CODEX_EXAMPLES],
-            *[("nemo-relay", body) for body in [NEMO_RELAY_SEARCH, NEMO_RELAY_EMPTY_QUERY]],
+            *[(ClaudeCodePreToolUseRequest, body) for body in CLAUDE_CODE_EXAMPLES],
+            *[(CodexPreToolUseRequest, body) for body in CODEX_EXAMPLES],
+            *[
+                (NemoRelayToolConditionalExecutionGuardrailRequest, body)
+                for body in [NEMO_RELAY_SEARCH, NEMO_RELAY_EMPTY_QUERY]
+            ],
         ],
     )
-    def test_dumped_request_parses_again_unchanged(self, agent, body, mode):
-        """A request's `model_dump()` parses again on its own path to an equal request, so a saved request reloads."""
-        request = parse_hook_request(agent, body)
+    def test_dumped_request_validates_again_unchanged(self, model, body, mode):
+        """A request's `model_dump()` validates again to an equal request, so a saved request reloads."""
+        request = model.model_validate(body)
 
-        assert parse_hook_request(agent, request.model_dump(mode=mode)) == request
+        assert model.model_validate(request.model_dump(mode=mode)) == request
 
     @pytest.mark.parametrize(
         "agent, body", [("claude-code", CLAUDE_CODE_BASH), ("codex", CODEX_MCP), ("nemo-relay", NEMO_RELAY_SEARCH)]
@@ -434,14 +442,14 @@ class TestParseHookRequest:
     def test_event_the_path_does_not_handle_raises_unsupported_hook_event(self, agent, event):
         """An event the path doesn't handle raises `UnsupportedHookEventError`, before the body is validated."""
         with pytest.raises(UnsupportedHookEventError) as exc_info:
-            parse_hook_request(agent, {"hook_event_name": event})
+            ADAPTERS[agent].parse({"hook_event_name": event})
 
         assert (exc_info.value.agent, exc_info.value.event) == (agent, event)
 
     def test_unsupported_hook_event_message_names_the_path_and_its_events(self):
         """The message names the event, the path and the event to send instead, as in the spec's example."""
         with pytest.raises(UnsupportedHookEventError) as exc_info:
-            parse_hook_request("claude-code", {**CLAUDE_CODE_BASH, "hook_event_name": "PostToolUse"})
+            ADAPTERS["claude-code"].parse({**CLAUDE_CODE_BASH, "hook_event_name": "PostToolUse"})
 
         assert str(exc_info.value) == (
             "hook_event_name 'PostToolUse' is not handled on /v1/hooks/claude-code; send PreToolUse"
@@ -450,7 +458,7 @@ class TestParseHookRequest:
     def test_unsupported_hook_event_message_cuts_and_escapes_the_event(self):
         """A long event name with line breaks reaches the message cut short and escaped."""
         with pytest.raises(UnsupportedHookEventError) as exc_info:
-            parse_hook_request("codex", {"hook_event_name": "Evil\n" * 1000})
+            ADAPTERS["codex"].parse({"hook_event_name": "Evil\n" * 1000})
 
         message = str(exc_info.value)
         assert "\n" not in message
@@ -474,7 +482,7 @@ class TestParseHookRequest:
 class TestCheckMessages:
     def test_claude_code_call_becomes_one_assistant_tool_call(self):
         """A Claude Code hook becomes one assistant message whose one tool call carries the hook's id, name and input."""
-        messages = check_messages(parse_hook_request("claude-code", CLAUDE_CODE_DESTRUCTIVE_BASH))
+        messages = check_messages(ADAPTERS["claude-code"].parse(CLAUDE_CODE_DESTRUCTIVE_BASH))
 
         assert messages == [
             {
@@ -492,7 +500,7 @@ class TestCheckMessages:
 
     def test_codex_call_carries_its_tool_use_id_and_json_encoded_input(self):
         """A Codex hook's call carries `tool_use_id` as its id, and `tool_input` encoded as JSON."""
-        (tool_call,) = check_messages(parse_hook_request("codex", CODEX_APPLY_PATCH))[0]["tool_calls"]
+        (tool_call,) = check_messages(ADAPTERS["codex"].parse(CODEX_APPLY_PATCH))[0]["tool_calls"]
 
         assert tool_call["id"] == "<tool call id>"
         assert tool_call["function"]["name"] == "apply_patch"
@@ -500,7 +508,7 @@ class TestCheckMessages:
 
     def test_nemo_relay_call_has_no_id(self):
         """A NeMo Relay call has no id, since its guardrail callback receives none."""
-        (tool_call,) = check_messages(parse_hook_request("nemo-relay", NEMO_RELAY_SEARCH))[0]["tool_calls"]
+        (tool_call,) = check_messages(ADAPTERS["nemo-relay"].parse(NEMO_RELAY_SEARCH))[0]["tool_calls"]
 
         assert tool_call == {
             "type": "function",
@@ -509,9 +517,9 @@ class TestCheckMessages:
 
     def test_non_object_tool_input_is_encoded_as_sent(self):
         """A `tool_input` that isn't an object is encoded as sent, for the engine to deny as malformed arguments."""
-        request = parse_hook_request("claude-code", {**CLAUDE_CODE_DESTRUCTIVE_BASH, "tool_input": "rm -rf /"})
+        call = ADAPTERS["claude-code"].parse({**CLAUDE_CODE_DESTRUCTIVE_BASH, "tool_input": "rm -rf /"})
 
-        (tool_call,) = check_messages(request)[0]["tool_calls"]
+        (tool_call,) = check_messages(call)[0]["tool_calls"]
 
         assert tool_call["function"]["arguments"] == '"rm -rf /"'
 
@@ -720,7 +728,7 @@ class TestOutcomeFromResult:
         assert outcome_from_result(result) == HookOutcome.error("unexpected check status 'modified'")
 
 
-class TestRenderResponse:
+class TestResponseBody:
     @pytest.mark.parametrize(
         "agent, outcome, expected",
         [
@@ -789,14 +797,14 @@ class TestRenderResponse:
         ],
     )
     def test_response_equals_spec_example(self, agent, outcome, expected):
-        """Each allow and deny renders exactly as the spec's response example for that path."""
-        assert render_response(agent, outcome) == expected
+        """Each allow's and deny's response body is exactly the spec's response example for that path."""
+        assert ADAPTERS[agent].response_body(outcome) == expected
 
     @pytest.mark.parametrize("agent", ["claude-code", "codex", "nemo-relay"])
     def test_error_outcome_has_no_200_body(self, agent):
-        """An error outcome has no `200` body to render on any path."""
+        """An error outcome has no `200` body on any path."""
         with pytest.raises(ValueError, match="error outcome"):
-            render_response(agent, HookOutcome.error("rail 'x' failed: x error", code=HookErrorCode.RAIL_FAILED))
+            ADAPTERS[agent].response_body(HookOutcome.error("rail 'x' failed: x error", code=HookErrorCode.RAIL_FAILED))
 
 
 class TestCodexSchemas:
@@ -806,7 +814,7 @@ class TestCodexSchemas:
     @pytest.mark.parametrize("agent", ["claude-code", "codex"])
     def test_agent_responses_validate_against_codex_output_schema(self, agent, outcome):
         """Every Claude Code and Codex response validates against Codex's output schema, which rejects unknown fields."""
-        jsonschema.validate(render_response(agent, outcome), CODEX_OUTPUT_SCHEMA)
+        jsonschema.validate(ADAPTERS[agent].response_body(outcome), CODEX_OUTPUT_SCHEMA)
 
     def test_codex_request_requires_only_fields_codex_always_sends(self):
         """Every field the Codex request model requires is one Codex's input schema requires, so Codex always sends it."""

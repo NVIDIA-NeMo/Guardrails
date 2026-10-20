@@ -15,23 +15,17 @@
 
 """Agent hook requests and responses for `nemoguardrails hooks-server`."""
 
-from nemoguardrails.server.hooks.mapping import HookOutcome, check_messages, outcome_from_result, render_response
-from nemoguardrails.server.hooks.schemas import (
-    HookAgent,
-    HookErrorCode,
-    HookRequest,
-    UnsupportedHookEventError,
-    parse_hook_request,
-)
+from nemoguardrails.server.hooks.adapters import ADAPTERS, HookAdapter, HookAgent, UnsupportedHookEventError
+from nemoguardrails.server.hooks.checking import HookOutcome, check_messages, outcome_from_result
+from nemoguardrails.server.hooks.schemas import HookErrorCode
 
 __all__ = [
+    "ADAPTERS",
+    "HookAdapter",
     "HookAgent",
     "HookErrorCode",
     "HookOutcome",
-    "HookRequest",
     "UnsupportedHookEventError",
     "check_messages",
     "outcome_from_result",
-    "parse_hook_request",
-    "render_response",
 ]
