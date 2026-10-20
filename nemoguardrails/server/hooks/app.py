@@ -44,15 +44,9 @@ from nemoguardrails.server.exception_handlers import (
     queue_full_error_handler,
     validation_error_handler,
 )
-from nemoguardrails.server.hooks.mapping import HookOutcome, check_messages, outcome_from_result, render_response
-from nemoguardrails.server.hooks.schemas import (
-    HookAgent,
-    HookErrorCode,
-    HookRequest,
-    NemoRelayToolConditionalExecutionGuardrailRequest,
-    UnsupportedHookEventError,
-    parse_hook_request,
-)
+from nemoguardrails.server.hooks.adapters import ADAPTERS, HookAdapter, HookAgent, UnsupportedHookEventError
+from nemoguardrails.server.hooks.checking import HookOutcome, ToolInvocation, check_messages, outcome_from_result
+from nemoguardrails.server.hooks.schemas import HookErrorCode
 from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
 
 log = logging.getLogger(__name__)
@@ -209,11 +203,12 @@ async def health() -> Response:
 
 async def _answer_hook(agent: HookAgent, request: Request) -> Response:
     """Check the tool call the hook carries, and answer with the agent's allow or deny, or an error status."""
-    hook = _parse_hook(agent, await _read_json(request))
-    outcome = await _check_tool_call(request.app.state.engine, agent, hook)
+    adapter = ADAPTERS[agent]
+    call = _parse_hook(adapter, await _read_json(request))
+    outcome = await _check_tool_call(request.app.state.engine, adapter, call)
     if outcome.kind == "error":
         return _error_response(500, outcome.message or "", code=outcome.code)
-    return JSONResponse(render_response(agent, outcome))
+    return JSONResponse(adapter.response_body(outcome))
 
 
 async def _read_json(request: Request) -> object:
@@ -227,39 +222,38 @@ async def _read_json(request: Request) -> object:
         ) from None
 
 
-def _parse_hook(agent: HookAgent, body: object) -> HookRequest:
-    """Validate *body* on *agent*'s path, raising a failure for the shared `422` handler to answer."""
+def _parse_hook(adapter: HookAdapter, body: object) -> ToolInvocation:
+    """The tool call *body* asks to check on *adapter*'s path, raising a failure for the shared `422` handler."""
     try:
-        return parse_hook_request(agent, body)
+        return adapter.parse(body)
     except ValidationError as exc:
         # Without the errors' `input`, and raised from None: the raw values, `tool_input` among them, stay out of logs.
         errors = exc.errors(include_url=False, include_input=False)
         raise RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in errors]) from None
 
 
-async def _check_tool_call(engine: Guardrails, agent: HookAgent, hook: HookRequest) -> HookOutcome:
+async def _check_tool_call(engine: Guardrails, adapter: HookAdapter, call: ToolInvocation) -> HookOutcome:
     """Run the config's tool-call rails on the hook's call, and log the verdict."""
     try:
-        result = await engine.check_async(check_messages(hook), rail_types=[RailType.TOOL_CALL])
+        result = await engine.check_async(check_messages(call), rail_types=[RailType.TOOL_CALL])
     except _MODEL_CALL_ERRORS as exc:
         outcome = HookOutcome.error(f"a tool-call rail failed: {client_facing_message(exc)}", HookErrorCode.RAIL_FAILED)
-        _log_check(agent, hook, outcome, rail=None)
+        _log_check(adapter, call, outcome, rail=None)
         return outcome
     outcome = outcome_from_result(result)
-    _log_check(agent, hook, outcome, rail=result.rail)
+    _log_check(adapter, call, outcome, rail=result.rail)
     return outcome
 
 
-def _log_check(agent: HookAgent, hook: HookRequest, outcome: HookOutcome, rail: Optional[str]) -> None:
+def _log_check(adapter: HookAdapter, call: ToolInvocation, outcome: HookOutcome, rail: Optional[str]) -> None:
     """Log one line for a check, without the tool's input; an error, which no rail decided, as a warning."""
-    tool_use_id = None if isinstance(hook, NemoRelayToolConditionalExecutionGuardrailRequest) else hook.tool_use_id
     log.log(
         logging.WARNING if outcome.kind == "error" else logging.INFO,
         "Hook check on /v1/hooks/%s: event=%s tool_name=%r tool_use_id=%r outcome=%s code=%s rail=%r",
-        agent,
-        hook.hook_event_name,
-        quoted_identity(hook.tool_name),
-        None if tool_use_id is None else quoted_identity(tool_use_id),
+        adapter.agent,
+        adapter.event,
+        quoted_identity(call.name),
+        None if call.call_id is None else quoted_identity(call.call_id),
         outcome.kind,
         None if outcome.code is None else outcome.code.value,
         rail,

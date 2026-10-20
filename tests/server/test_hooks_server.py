@@ -111,26 +111,6 @@ MISSING_TOOL_NAME = {
         "code": None,
     }
 }
-CLAUDE_CODE_PAYLOAD_ON_CODEX_PATH = {
-    "error": {
-        "message": "body.model: Field required; body.turn_id: Field required; "
-        "body.prompt_id: Claude Code field not accepted on /v1/hooks/codex; "
-        "body.scratchpad_dir: Claude Code field not accepted on /v1/hooks/codex",
-        "type": "invalid_request_error",
-        "param": "model",
-        "code": None,
-    }
-}
-CODEX_PAYLOAD_ON_CLAUDE_CODE_PATH = {
-    "error": {
-        "message": "body.model: Codex field not accepted on /v1/hooks/claude-code; "
-        "body.turn_id: Codex field not accepted on /v1/hooks/claude-code; "
-        "body.transcript_path: Input should be a valid string",
-        "type": "invalid_request_error",
-        "param": "model",
-        "code": None,
-    }
-}
 RELAY_UNKNOWN_FIELD = {
     "error": {
         "message": "body.session_id: Extra inputs are not permitted",
@@ -141,6 +121,14 @@ RELAY_UNKNOWN_FIELD = {
 }
 
 # The spec's `500` and `503` examples that don't depend on the configured rails.
+CHECK_FAILED = {
+    "error": {
+        "message": "the tool-call check failed: tool call extraction failed",
+        "type": "server_error",
+        "param": None,
+        "code": None,
+    }
+}
 INTERNAL_ERROR = {"error": {"message": "Internal server error", "type": "server_error", "param": None, "code": None}}
 OVERLOADED = {
     "error": {
@@ -350,6 +338,22 @@ class TestSpecExamples:
         assert (response.status_code, response.json()) == (200, DENY_NOT_ALLOWED)
 
     @pytest.mark.parametrize(
+        "body, expected",
+        [
+            (CLAUDE_CODE_BASH, {}),
+            (CLAUDE_CODE_DESTRUCTIVE_BASH, _denied("claude-code", "regex check tool call")),
+            (CODEX_APPLY_PATCH, {}),
+            (CODEX_MCP, {}),
+        ],
+        ids=["claudeCodeBash", "claudeCodeDestructiveBash", "codexApplyPatch", "codexMcp"],
+    )
+    def test_spec_request_example_gets_the_same_answer_on_either_agents_path(self, client, body, expected):
+        """A Claude Code or Codex request example is checked and answered the same on both agents' paths."""
+        responses = [client.post(f"/v1/hooks/{agent}", json=body) for agent in PRE_TOOL_USE_AGENTS]
+
+        assert [(response.status_code, response.json()) for response in responses] == [(200, expected)] * 2
+
+    @pytest.mark.parametrize(
         "agent, body, expected",
         [
             ("claude-code", {**CLAUDE_CODE_BASH, "hook_event_name": "PostToolUse"}, UNSUPPORTED_HOOK_EVENT),
@@ -358,17 +362,9 @@ class TestSpecExamples:
                 {key: value for key, value in CLAUDE_CODE_BASH.items() if key != "tool_name"},
                 MISSING_TOOL_NAME,
             ),
-            ("codex", CLAUDE_CODE_BASH, CLAUDE_CODE_PAYLOAD_ON_CODEX_PATH),
-            ("claude-code", CODEX_APPLY_PATCH, CODEX_PAYLOAD_ON_CLAUDE_CODE_PATH),
             ("nemo-relay", {**NEMO_RELAY_SEARCH, "session_id": "abc123"}, RELAY_UNKNOWN_FIELD),
         ],
-        ids=[
-            "unsupportedHookEvent",
-            "missingToolName",
-            "claudeCodePayloadOnCodexPath",
-            "codexPayloadOnClaudeCodePath",
-            "relayUnknownField",
-        ],
+        ids=["unsupportedHookEvent", "missingToolName", "relayUnknownField"],
     )
     def test_unprocessable_request_gets_the_spec_error(self, client, agent, body, expected):
         """Each of the spec's `422` examples is the body the server answers its request with."""
@@ -389,7 +385,7 @@ class TestValidation:
         "agent, field",
         [
             ("claude-code", "tool_use_id"),
-            ("codex", "turn_id"),
+            ("codex", "tool_use_id"),
             ("nemo-relay", "tool_input"),
             ("claude-code", "hook_event_name"),
         ],
@@ -402,12 +398,21 @@ class TestValidation:
 
         assert _error_param(response) == (422, field, None)
 
-    @pytest.mark.parametrize("agent, field", [("claude-code", "turn_id"), ("codex", "mcp_server")])
-    def test_other_agents_field_is_a_schema_error_at_that_field(self, client, agent, field):
-        """A field only the other agent sends gets a schema `422` naming that field."""
-        response = client.post(f"/v1/hooks/{agent}", json={**_HOOK_BODIES[agent], field: "x"})
+    @pytest.mark.parametrize(
+        "agent, field, value",
+        [
+            ("claude-code", "turn_id", 7),
+            ("codex", "mcp_server", None),
+            ("claude-code", "session_id", ["not", "a", "str"]),
+        ],
+    )
+    def test_field_the_server_does_not_read_is_accepted_with_any_value(self, client, agent, field, value):
+        """A field the server doesn't read, even the other agent's, is accepted with any value and the call checked."""
+        body = {**_hook(agent, "Bash", {"command": "rm -rf /tmp/build"}), field: value}
 
-        assert _error_param(response) == (422, field, None)
+        response = client.post(f"/v1/hooks/{agent}", json=body)
+
+        assert (response.status_code, response.json()) == (200, _denied(agent, "regex check tool call"))
 
     @pytest.mark.parametrize("body", [b"{not json", b"", b"\xff\xfe"], ids=["malformed", "empty", "not-utf-8"])
     def test_body_that_is_not_json_is_a_schema_error_without_a_param(self, client, body):
@@ -429,7 +434,7 @@ class TestValidation:
     def test_schema_error_never_quotes_the_tool_input(self, client, caplog):
         """A schema `422` reports fields and reasons only, so the tool input reaches neither the body nor the log."""
         caplog.set_level(logging.INFO)
-        body = {**_hook("codex", "Bash", {"command": "cat /tmp/secret-7f3a"}), "turn_id": 7}
+        body = {**_hook("codex", "Bash", {"command": "cat /tmp/secret-7f3a"}), "tool_use_id": 7}
 
         response = client.post("/v1/hooks/codex", json=body)
 
@@ -481,6 +486,15 @@ class TestErrors:
                 }
             },
         )
+
+    @pytest.mark.parametrize("agent", AGENTS)
+    def test_check_that_cannot_extract_the_call_is_check_failed_error(self, client, monkeypatch, agent):
+        """A check that fails before any rail decides gets the spec's `checkFailed` error, with no code."""
+        monkeypatch.setattr(ModelEngine, "extract_latest_tool_calls", MagicMock(side_effect=RuntimeError("a bug")))
+
+        response = client.post(f"/v1/hooks/{agent}", json=_HOOK_BODIES[agent])
+
+        assert (response.status_code, response.json()) == (500, CHECK_FAILED)
 
     def test_full_admission_queue_is_retryable_queue_full(self, failing_check):
         """A full admission queue gets the spec's `503 queue_full`, with `Retry-After`."""
