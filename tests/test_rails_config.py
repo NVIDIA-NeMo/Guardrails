@@ -23,6 +23,7 @@ from unittest import mock
 import pytest
 
 from nemoguardrails.llm.prompts import TaskPrompt
+from nemoguardrails.manifests import ActionRef, Binding, RailDirection, RailSurface
 from nemoguardrails.rails.llm.config import (
     ContentSafetyConfig,
     Model,
@@ -791,8 +792,22 @@ class TestTopicSafetyConfig:
             )
 
 
+def _catalog_with_tool_call_surface(*bindings: Binding) -> mock.Mock:
+    """Return a stand-in rail catalog holding one tool call surface, `judge rail`, with the given bindings."""
+    surface = RailSurface(
+        name="judge rail",
+        direction=RailDirection.TOOL_CALL,
+        action=ActionRef(
+            name="tool_safety_check_output",
+            target="nemoguardrails.library.tool_safety_check.actions:tool_safety_check_output",
+        ),
+        bindings=bindings,
+    )
+    return mock.Mock(**{"surfaces.return_value": {(RailDirection.TOOL_CALL, surface.name): surface}})
+
+
 class TestToolRailModelReferences:
-    """Test that tool rails naming a model type with $model= require that model to be defined"""
+    """Test that tool rails whose manifest binds a model type require that model to be defined"""
 
     @pytest.mark.parametrize(
         ("rails", "expected_prefix"),
@@ -806,7 +821,7 @@ class TestToolRailModelReferences:
                     }
                 },
                 "Tool call flow 'tool safety check tool call' for tool 'run_sql'",
-                id="tool_call-per_tool",
+                id="tool_call",
             ),
             pytest.param(
                 {
@@ -817,22 +832,12 @@ class TestToolRailModelReferences:
                     }
                 },
                 "Tool result flow 'tool safety check tool result' for tool 'run_sql'",
-                id="tool_result-per_tool",
-            ),
-            pytest.param(
-                {"tool_call": {"flows": ["tool safety check tool call $model=llama_guard"]}},
-                "Tool call flow 'tool safety check tool call'",
-                id="tool_call-flows",
-            ),
-            pytest.param(
-                {"tool_result": {"flows": ["tool safety check tool result $model=llama_guard"]}},
-                "Tool result flow 'tool safety check tool result'",
-                id="tool_result-flows",
+                id="tool_result",
             ),
         ],
     )
     def test_undefined_model_raises(self, rails, expected_prefix):
-        """A tool flow naming an undefined model raises, naming its section, its flow and, for a per-tool flow, its tool."""
+        """A per-tool tool safety flow naming an undefined model raises, naming its section, flow and tool."""
         with pytest.raises(
             ValueError,
             match=re.escape(
@@ -870,7 +875,7 @@ class TestToolRailModelReferences:
             )
 
     def test_tool_rails_with_defined_model_load(self):
-        """Tool rails naming a defined model in all four flow sets load with their flows intact."""
+        """Per-tool tool safety flows naming a defined model load with their flows intact."""
         config = RailsConfig.from_content(
             yaml_content="""
             models:
@@ -883,25 +888,19 @@ class TestToolRailModelReferences:
 
             rails:
               tool_call:
-                flows:
-                  - tool safety check tool call $model=llama_guard
                 per_tool:
                   run_sql:
                     - tool safety check tool call $model=llama_guard $variant=run_sql_check
               tool_result:
-                flows:
-                  - tool safety check tool result $model=llama_guard
                 per_tool:
                   run_sql:
                     - tool safety check tool result $model=llama_guard $variant=run_sql_check
                 """,
         )
 
-        assert config.rails.tool_call.flows == ["tool safety check tool call $model=llama_guard"]
         assert config.rails.tool_call.per_tool == {
             "run_sql": ["tool safety check tool call $model=llama_guard $variant=run_sql_check"]
         }
-        assert config.rails.tool_result.flows == ["tool safety check tool result $model=llama_guard"]
         assert config.rails.tool_result.per_tool == {
             "run_sql": ["tool safety check tool result $model=llama_guard $variant=run_sql_check"]
         }
@@ -931,6 +930,83 @@ class TestToolRailModelReferences:
         assert config.rails.tool_call.flows == ["tool call validation"]
         assert config.rails.tool_call.per_tool == {"Bash": ["regex check tool call $argument=command"]}
         assert config.rails.tool_result.flows == ["tool result validation"]
+
+    def test_global_rail_without_model_binding_ignores_model_suffix(self):
+        """A $model= suffix on a global tool rail whose manifest binds no model doesn't require that model."""
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models:
+              - type: main
+                engine: nim
+                model: meta/llama-3.3-70b-instruct
+
+            rails:
+              tool_call:
+                flows:
+                  - tool call validation $model=missing
+              tool_result:
+                flows:
+                  - tool result validation $model=missing
+                """,
+        )
+
+        assert config.rails.tool_call.flows == ["tool call validation $model=missing"]
+        assert config.rails.tool_result.flows == ["tool result validation $model=missing"]
+
+    def test_model_binding_under_another_parameter_name_raises(self):
+        """A model binding read from a surface parameter not named `model` is checked under that parameter's name."""
+        catalog = _catalog_with_tool_call_surface(Binding.model_param("model_name", "judge"))
+        with mock.patch("nemoguardrails.manifests.default_rail_catalog", return_value=catalog):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    "Tool call flow 'judge rail' for tool 'run_sql' references model type 'missing' "
+                    "that is not defined in the configuration. Detected model types: 'main'."
+                ),
+            ):
+                _ = RailsConfig.from_content(
+                    config={
+                        "models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}],
+                        "rails": {"tool_call": {"per_tool": {"run_sql": ["judge rail $judge=missing"]}}},
+                    }
+                )
+
+    def test_literal_model_binding_raises(self):
+        """A model type baked into a surface's manifest is checked even though the flow names no model."""
+        catalog = _catalog_with_tool_call_surface(Binding.model("model_name", "llama_guard"))
+        with mock.patch("nemoguardrails.manifests.default_rail_catalog", return_value=catalog):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    "Tool call flow 'judge rail' for tool 'run_sql' references model type 'llama_guard' "
+                    "that is not defined in the configuration. Detected model types: 'main'."
+                ),
+            ):
+                _ = RailsConfig.from_content(
+                    config={
+                        "models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}],
+                        "rails": {"tool_call": {"per_tool": {"run_sql": ["judge rail"]}}},
+                    }
+                )
+
+    def test_flow_without_catalog_surface_is_left_to_the_engine(self):
+        """A tool flow with no surface in the rail catalog loads, so the engine reports it rather than the model check."""
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models:
+              - type: main
+                engine: nim
+                model: meta/llama-3.3-70b-instruct
+
+            rails:
+              tool_call:
+                per_tool:
+                  run_sql:
+                    - not a catalog rail $model=missing
+                """,
+        )
+
+        assert config.rails.tool_call.per_tool == {"run_sql": ["not a catalog rail $model=missing"]}
 
     def test_malformed_tool_flow_is_left_to_the_engine(self):
         """A tool flow whose parameters don't parse loads, so the engine reports it rather than the model check."""
