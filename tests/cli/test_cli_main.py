@@ -495,6 +495,31 @@ class TestHooksServerCommand:
         mock_uvicorn.assert_not_called()
 
     @patch("uvicorn.run")
+    def test_hooks_server_exits_on_an_unset_api_key_variable(self, mock_uvicorn, tmp_path, monkeypatch):
+        """A model whose `api_key_env_var` isn't set exits 1 with the variable's name, before binding."""
+        monkeypatch.delenv("HOOKS_SERVER_TEST_API_KEY", raising=False)
+        config_yml = (
+            "models:\n"
+            "  - type: main\n"
+            "    engine: nim\n"
+            "    model: meta/llama-3.3-70b-instruct\n"
+            "    api_key_env_var: HOOKS_SERVER_TEST_API_KEY\n"
+            "rails:\n"
+            "  tool_call:\n"
+            "    per_tool:\n"
+            "      Bash: [regex check tool call]\n"
+        )
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
+
+        assert result.exit_code == 1
+        assert (
+            "Invalid configuration: models: Value error, "
+            "Model API Key environment variable 'HOOKS_SERVER_TEST_API_KEY' not set." in result.output
+        )
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
     def test_hooks_server_exits_on_a_config_it_cannot_serve(self, mock_uvicorn, tmp_path):
         """A config without tool-call rails exits 1 with the reason, before binding."""
         config_yml = "models:\n  - type: main\n    engine: nim\n    model: meta/llama-3.3-70b-instruct\n"
