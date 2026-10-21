@@ -285,17 +285,37 @@ async def test_localhost_disconnect_closes_upstream_socket(tmp_path, operation):
                 }[operation]
                 passthrough = operation == "passthrough"
                 kwargs = {} if passthrough else {"json": request_payload(operation, "disconnect", True)}
-                async with client.stream("GET" if passthrough else "POST", path, **kwargs) as response:
-                    assert response.status_code == 200
+                request = httpx.Request("GET" if passthrough else "POST", httpx.URL(url).join(path), **kwargs)
+                reader, writer = await asyncio.open_connection(request.url.host, request.url.port)
+                try:
+                    writer.write(
+                        request.method.encode()
+                        + b" "
+                        + request.url.raw_path
+                        + b" HTTP/1.1\r\n"
+                        + b"".join(name + b": " + value + b"\r\n" for name, value in request.headers.raw)
+                        + b"\r\n"
+                        + request.content
+                    )
+                    await writer.drain()
                     received = b""
                     with anyio.fail_after(5):
-                        async for chunk in response.aiter_bytes():
+                        headers = await reader.readuntil(b"\r\n\r\n")
+                        assert headers.split(b"\r\n", 1)[0].split()[1] == b"200", headers
+                        while True:
+                            chunk = await reader.read(4096)
+                            assert chunk, "the upstream ended before the downstream disconnected"
                             received += chunk
                             if (b"safe" if passthrough else b'"sa"') in received:
                                 break
-                        else:
-                            pytest.fail("the upstream ended before the downstream disconnected")
                     assert b'"error"' not in received
+                    writer.write_eof()
+                    with anyio.fail_after(5):
+                        await reader.read()
+                finally:
+                    writer.close()
+                    with anyio.fail_after(5):
+                        await writer.wait_closed()
                 with anyio.fail_after(5):
                     await disconnected.wait()
                 assert len(requests) == 1
