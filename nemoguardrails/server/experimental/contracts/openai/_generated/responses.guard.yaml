@@ -247,7 +247,13 @@ response:
   additionalProperties: false
   description: Bind one assistant text target; replacement is deliberately unsupported.
   properties:
+    access_programs:
+      x-nemo-guardrails:
+        classification: opaque
     background:
+      x-nemo-guardrails:
+        classification: opaque
+    billing:
       x-nemo-guardrails:
         classification: opaque
     completed_at:
@@ -260,6 +266,9 @@ response:
       x-nemo-guardrails:
         classification: opaque
     error:
+      x-nemo-guardrails:
+        classification: opaque
+    frequency_penalty:
       x-nemo-guardrails:
         classification: opaque
     id:
@@ -447,6 +456,9 @@ response:
     parallel_tool_calls:
       x-nemo-guardrails:
         classification: opaque
+    presence_penalty:
+      x-nemo-guardrails:
+        classification: opaque
     previous_response_id:
       x-nemo-guardrails:
         classification: opaque
@@ -477,6 +489,9 @@ response:
     status:
       x-nemo-guardrails:
         classification: opaque
+    store:
+      x-nemo-guardrails:
+        classification: opaque
     temperature:
       x-nemo-guardrails:
         classification: opaque
@@ -484,6 +499,9 @@ response:
       x-nemo-guardrails:
         classification: opaque
     tool_choice:
+      x-nemo-guardrails:
+        classification: opaque
+    tool_usage:
       x-nemo-guardrails:
         classification: opaque
     tools:
@@ -1178,7 +1196,13 @@ stream:
         description: Describe a full response snapshot without demanding a message
           before generation.
         properties:
+          access_programs:
+            x-nemo-guardrails:
+              classification: opaque
           background:
+            x-nemo-guardrails:
+              classification: opaque
+          billing:
             x-nemo-guardrails:
               classification: opaque
           completed_at:
@@ -1191,6 +1215,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           error:
+            x-nemo-guardrails:
+              classification: opaque
+          frequency_penalty:
             x-nemo-guardrails:
               classification: opaque
           id:
@@ -1380,6 +1407,9 @@ stream:
           parallel_tool_calls:
             x-nemo-guardrails:
               classification: opaque
+          presence_penalty:
+            x-nemo-guardrails:
+              classification: opaque
           previous_response_id:
             x-nemo-guardrails:
               classification: opaque
@@ -1410,6 +1440,9 @@ stream:
           status:
             x-nemo-guardrails:
               classification: opaque
+          store:
+            x-nemo-guardrails:
+              classification: opaque
           temperature:
             x-nemo-guardrails:
               classification: opaque
@@ -1417,6 +1450,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           tool_choice:
+            x-nemo-guardrails:
+              classification: opaque
+          tool_usage:
             x-nemo-guardrails:
               classification: opaque
           tools:
@@ -1485,7 +1521,13 @@ stream:
         description: Describe a full response snapshot without demanding a message
           before generation.
         properties:
+          access_programs:
+            x-nemo-guardrails:
+              classification: opaque
           background:
+            x-nemo-guardrails:
+              classification: opaque
+          billing:
             x-nemo-guardrails:
               classification: opaque
           completed_at:
@@ -1498,6 +1540,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           error:
+            x-nemo-guardrails:
+              classification: opaque
+          frequency_penalty:
             x-nemo-guardrails:
               classification: opaque
           id:
@@ -1687,6 +1732,9 @@ stream:
           parallel_tool_calls:
             x-nemo-guardrails:
               classification: opaque
+          presence_penalty:
+            x-nemo-guardrails:
+              classification: opaque
           previous_response_id:
             x-nemo-guardrails:
               classification: opaque
@@ -1717,6 +1765,9 @@ stream:
           status:
             x-nemo-guardrails:
               classification: opaque
+          store:
+            x-nemo-guardrails:
+              classification: opaque
           temperature:
             x-nemo-guardrails:
               classification: opaque
@@ -1724,6 +1775,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           tool_choice:
+            x-nemo-guardrails:
+              classification: opaque
+          tool_usage:
             x-nemo-guardrails:
               classification: opaque
           tools:
@@ -1793,7 +1847,13 @@ stream:
         description: Describe a full response snapshot without demanding a message
           before generation.
         properties:
+          access_programs:
+            x-nemo-guardrails:
+              classification: opaque
           background:
+            x-nemo-guardrails:
+              classification: opaque
+          billing:
             x-nemo-guardrails:
               classification: opaque
           completed_at:
@@ -1806,6 +1866,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           error:
+            x-nemo-guardrails:
+              classification: opaque
+          frequency_penalty:
             x-nemo-guardrails:
               classification: opaque
           id:
@@ -1995,6 +2058,9 @@ stream:
           parallel_tool_calls:
             x-nemo-guardrails:
               classification: opaque
+          presence_penalty:
+            x-nemo-guardrails:
+              classification: opaque
           previous_response_id:
             x-nemo-guardrails:
               classification: opaque
@@ -2025,6 +2091,9 @@ stream:
           status:
             x-nemo-guardrails:
               classification: opaque
+          store:
+            x-nemo-guardrails:
+              classification: opaque
           temperature:
             x-nemo-guardrails:
               classification: opaque
@@ -2032,6 +2101,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           tool_choice:
+            x-nemo-guardrails:
+              classification: opaque
+          tool_usage:
             x-nemo-guardrails:
               classification: opaque
           tools:
@@ -2100,7 +2172,13 @@ stream:
         description: Describe a full response snapshot without demanding a message
           before generation.
         properties:
+          access_programs:
+            x-nemo-guardrails:
+              classification: opaque
           background:
+            x-nemo-guardrails:
+              classification: opaque
+          billing:
             x-nemo-guardrails:
               classification: opaque
           completed_at:
@@ -2113,6 +2191,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           error:
+            x-nemo-guardrails:
+              classification: opaque
+          frequency_penalty:
             x-nemo-guardrails:
               classification: opaque
           id:
@@ -2302,6 +2383,9 @@ stream:
           parallel_tool_calls:
             x-nemo-guardrails:
               classification: opaque
+          presence_penalty:
+            x-nemo-guardrails:
+              classification: opaque
           previous_response_id:
             x-nemo-guardrails:
               classification: opaque
@@ -2332,6 +2416,9 @@ stream:
           status:
             x-nemo-guardrails:
               classification: opaque
+          store:
+            x-nemo-guardrails:
+              classification: opaque
           temperature:
             x-nemo-guardrails:
               classification: opaque
@@ -2339,6 +2426,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           tool_choice:
+            x-nemo-guardrails:
+              classification: opaque
+          tool_usage:
             x-nemo-guardrails:
               classification: opaque
           tools:
@@ -2407,7 +2497,13 @@ stream:
         description: Describe a full response snapshot without demanding a message
           before generation.
         properties:
+          access_programs:
+            x-nemo-guardrails:
+              classification: opaque
           background:
+            x-nemo-guardrails:
+              classification: opaque
+          billing:
             x-nemo-guardrails:
               classification: opaque
           completed_at:
@@ -2420,6 +2516,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           error:
+            x-nemo-guardrails:
+              classification: opaque
+          frequency_penalty:
             x-nemo-guardrails:
               classification: opaque
           id:
@@ -2609,6 +2708,9 @@ stream:
           parallel_tool_calls:
             x-nemo-guardrails:
               classification: opaque
+          presence_penalty:
+            x-nemo-guardrails:
+              classification: opaque
           previous_response_id:
             x-nemo-guardrails:
               classification: opaque
@@ -2639,6 +2741,9 @@ stream:
           status:
             x-nemo-guardrails:
               classification: opaque
+          store:
+            x-nemo-guardrails:
+              classification: opaque
           temperature:
             x-nemo-guardrails:
               classification: opaque
@@ -2646,6 +2751,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           tool_choice:
+            x-nemo-guardrails:
+              classification: opaque
+          tool_usage:
             x-nemo-guardrails:
               classification: opaque
           tools:
@@ -2714,7 +2822,13 @@ stream:
         description: Describe a full response snapshot without demanding a message
           before generation.
         properties:
+          access_programs:
+            x-nemo-guardrails:
+              classification: opaque
           background:
+            x-nemo-guardrails:
+              classification: opaque
+          billing:
             x-nemo-guardrails:
               classification: opaque
           completed_at:
@@ -2727,6 +2841,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           error:
+            x-nemo-guardrails:
+              classification: opaque
+          frequency_penalty:
             x-nemo-guardrails:
               classification: opaque
           id:
@@ -2916,6 +3033,9 @@ stream:
           parallel_tool_calls:
             x-nemo-guardrails:
               classification: opaque
+          presence_penalty:
+            x-nemo-guardrails:
+              classification: opaque
           previous_response_id:
             x-nemo-guardrails:
               classification: opaque
@@ -2946,6 +3066,9 @@ stream:
           status:
             x-nemo-guardrails:
               classification: opaque
+          store:
+            x-nemo-guardrails:
+              classification: opaque
           temperature:
             x-nemo-guardrails:
               classification: opaque
@@ -2953,6 +3076,9 @@ stream:
             x-nemo-guardrails:
               classification: opaque
           tool_choice:
+            x-nemo-guardrails:
+              classification: opaque
+          tool_usage:
             x-nemo-guardrails:
               classification: opaque
           tools:
