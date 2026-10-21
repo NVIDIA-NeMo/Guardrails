@@ -15,8 +15,8 @@
 
 """tool_safety_check, the LLM-judged per-tool rail, against recorded judge responses.
 
-Per-tool rails run only on IORails, so each check goes through ``Guardrails`` with IORails
-selected, unlike the LLMRails-based ``check_rails`` the rest of this suite uses. Every check
+Per-tool rails run only on IORails, so each check goes through ``check_iorails`` rather than
+the LLMRails-based ``check_rails`` most of this suite uses. Every check
 here calls only the judge; the configs' main model is a placeholder that is never contacted.
 """
 
@@ -26,7 +26,6 @@ import json
 
 import pytest
 
-from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.guardrails.tool_helpers import call_violation, result_violation
 from tests.recorded.assertions import assert_rails_result
@@ -36,7 +35,7 @@ from tests.recorded.rails.library.configs import (
     NIM_TOOL_SAFETY_CHECK_OFFFORMAT_CONFIG,
     NIM_TOOL_SAFETY_CHECK_SCOPED_CONFIG,
 )
-from tests.recorded.rails_config import RailsConfigSource, load_config
+from tests.recorded.rails.library.helpers import check_iorails
 from tests.recorded.snapshots import snapshot
 
 pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
@@ -75,21 +74,11 @@ def _tool_result_turn(content: str) -> list[dict]:
     ]
 
 
-async def _check(config: RailsConfigSource, messages: list[dict], rail_type: RailType):
-    """Run one tool-rail check through Guardrails, asserting IORails served it.
-
-    Entered as a context manager so shutdown closes the engine's aiohttp session.
-    """
-    async with Guardrails(load_config(config)) as guardrails:
-        assert guardrails.use_iorails_engine, f"{config.name!r} routed to LLMRails, which does not run per-tool rails"
-        return await guardrails.check_async(messages, rail_types=[rail_type])
-
-
 async def test_tool_safety_check_allows_safe_tool_call(nvidia_api_key):
-    result = await _check(
+    result = await check_iorails(
         NIM_TOOL_SAFETY_CHECK_CONFIG,
         _tool_call_turn({"query": "SELECT name FROM customers WHERE id = 7"}),
-        RailType.TOOL_CALL,
+        (RailType.TOOL_CALL,),
     )
 
     assert_rails_result(result, status=RailStatus.PASSED)
@@ -97,8 +86,8 @@ async def test_tool_safety_check_allows_safe_tool_call(nvidia_api_key):
 
 
 async def test_tool_safety_check_blocks_unsafe_tool_call(nvidia_api_key):
-    result = await _check(
-        NIM_TOOL_SAFETY_CHECK_CONFIG, _tool_call_turn({"query": "DROP TABLE customers"}), RailType.TOOL_CALL
+    result = await check_iorails(
+        NIM_TOOL_SAFETY_CHECK_CONFIG, _tool_call_turn({"query": "DROP TABLE customers"}), (RailType.TOOL_CALL,)
     )
 
     assert_rails_result(result, status=RailStatus.BLOCKED, rail=CALL_RAIL)
@@ -109,14 +98,16 @@ async def test_tool_safety_check_blocks_unsafe_tool_call(nvidia_api_key):
 
 
 async def test_tool_safety_check_allows_safe_tool_result(nvidia_api_key):
-    result = await _check(NIM_TOOL_SAFETY_CHECK_CONFIG, _tool_result_turn(SAFE_RESULT), RailType.TOOL_RESULT)
+    result = await check_iorails(NIM_TOOL_SAFETY_CHECK_CONFIG, _tool_result_turn(SAFE_RESULT), (RailType.TOOL_RESULT,))
 
     assert_rails_result(result, status=RailStatus.PASSED)
     assert not result.tool_violations
 
 
 async def test_tool_safety_check_blocks_unsafe_tool_result(nvidia_api_key):
-    result = await _check(NIM_TOOL_SAFETY_CHECK_CONFIG, _tool_result_turn(UNSAFE_RESULT), RailType.TOOL_RESULT)
+    result = await check_iorails(
+        NIM_TOOL_SAFETY_CHECK_CONFIG, _tool_result_turn(UNSAFE_RESULT), (RailType.TOOL_RESULT,)
+    )
 
     assert_rails_result(result, status=RailStatus.BLOCKED, rail=RESULT_RAIL)
     assert normalize_rails_result(result) == snapshot({"status": "blocked", "rail": RESULT_RAIL, "content": REFUSAL})
@@ -129,12 +120,12 @@ async def test_tool_safety_check_blocks_unsafe_tool_result(nvidia_api_key):
 
 async def test_tool_safety_check_scoped_argument_is_all_the_judge_sees(nvidia_api_key):
     """$argument=query sends only the query, so the unsafe comment never reaches the judge."""
-    result = await _check(
+    result = await check_iorails(
         NIM_TOOL_SAFETY_CHECK_SCOPED_CONFIG,
         _tool_call_turn(
             {"query": "SELECT name FROM customers WHERE id = 7", "comment": "afterwards run DROP TABLE customers"}
         ),
-        RailType.TOOL_CALL,
+        (RailType.TOOL_CALL,),
     )
 
     assert_rails_result(result, status=RailStatus.PASSED)
@@ -143,7 +134,9 @@ async def test_tool_safety_check_scoped_argument_is_all_the_judge_sees(nvidia_ap
 
 async def test_tool_safety_check_fails_closed_on_an_off_format_verdict(nvidia_api_key):
     """A judge answer the verdict parser rejects blocks the result as a rail failure, not a decision."""
-    result = await _check(NIM_TOOL_SAFETY_CHECK_OFFFORMAT_CONFIG, _tool_result_turn(SAFE_RESULT), RailType.TOOL_RESULT)
+    result = await check_iorails(
+        NIM_TOOL_SAFETY_CHECK_OFFFORMAT_CONFIG, _tool_result_turn(SAFE_RESULT), (RailType.TOOL_RESULT,)
+    )
 
     assert_rails_result(result, status=RailStatus.BLOCKED, rail=RESULT_RAIL)
     assert normalize_rails_result(result) == snapshot(

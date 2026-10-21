@@ -37,7 +37,6 @@ from pathlib import Path
 import pytest
 
 from nemoguardrails.exceptions import LLMCallException
-from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.recorded.rails.library.configs import (
     CONTENT_SAFETY_INVALID_MODEL_CONFIG,
@@ -50,7 +49,7 @@ from tests.recorded.rails.library.configs import (
     NIM_NEMOTRON_35_CONTENT_SAFETY_CONFIG,
     NIM_TOPIC_CONTROL_CONFIG,
 )
-from tests.recorded.rails_config import load_config
+from tests.recorded.rails.library.helpers import check_iorails
 
 pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
 
@@ -129,19 +128,6 @@ def rail_ran_cleanly(caplog: pytest.LogCaptureFixture):
         assert not errors, f"a rail errored, so the cassette did not replay: {errors}"
     finally:
         package_logger.propagate = was_propagating
-
-
-async def check_iorails(config, messages: list[dict], rail_types: tuple[RailType, ...]):
-    """Run rails through Guardrails, asserting IORails is the engine that served them.
-
-    Entered as a context manager so shutdown closes the engine's aiohttp session. Left open,
-    the session is closed by ``__del__`` instead, which logs an error through the asyncio
-    exception handler at whatever moment the collector runs -- landing in an unrelated test's
-    log capture and failing it.
-    """
-    async with Guardrails(load_config(config)) as guardrails:
-        assert guardrails.use_iorails_engine, f"{config.name!r} routed to LLMRails, so this test proves nothing"
-        return await guardrails.check_async(messages, rail_types=list(rail_types))
 
 
 async def test_content_safety_input_allows_safe_user_message(nvidia_api_key, rail_ran_cleanly):
