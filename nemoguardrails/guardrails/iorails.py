@@ -611,6 +611,25 @@ def _reject_misused_tool_policy_only(
         )
 
 
+def _reject_unreadable_tools(tools: Optional[list[dict]]) -> None:
+    """Raise when *tools* holds entries a check can't read as Chat Completions function tools, which it would drop."""
+    # Refused rather than dropped: a dropped entry would turn the caller's tool into "not an allowed tool", or leave
+    # the call to the tool lists alone, as though nothing were offered.
+    if tools is None:
+        return
+    if not isinstance(tools, list):
+        raise InvalidCheckRequestError("tools must be a list of Chat Completions function tools")
+    # Entries are reported by position only: their content is the caller's, and can be large.
+    unreadable = [str(index) for index, entry in enumerate(tools) if not _parse_tools_openai([entry])]
+    if not unreadable:
+        return
+    if len(unreadable) == 1:
+        which = f"tools entry {unreadable[0]} isn't a Chat Completions function tool"
+    else:
+        which = f"tools entries {', '.join(unreadable)} aren't Chat Completions function tools"
+    raise InvalidCheckRequestError(f"{which}: a function tool needs a `function` object with a non-empty `name`")
+
+
 def _has_tool_traffic(messages: LLMMessages) -> bool:
     """Whether *messages* carry a tool result or an assistant turn that calls tools."""
     for message in messages:
@@ -1649,14 +1668,16 @@ class IORails(BaseGuardrails):
         Raises:
             InvalidCheckRequestError: If ``tools`` or ``tool_policy_only`` is
                 given but ``rail_types`` does not include ``RailType.TOOL_CALL``,
-                ``tools`` offers a tool the config's tool lists deny every call
-                to, or both ``tools`` and ``tool_policy_only`` are given.
+                ``tools`` holds an entry that isn't a Chat Completions function
+                tool, ``tools`` offers a tool the config's tool lists deny every
+                call to, or both ``tools`` and ``tool_policy_only`` are given.
             RailTypeNotConfiguredError: If a requested rail type has no
                 configured rails.
         """
         # Before queueing: a request the check cannot serve takes no queue slot and is not logged as a failed check.
         _reject_misused_tool_policy_only(rail_types, tools, tool_policy_only)
         _reject_unread_tools(rail_types, tools)
+        _reject_unreadable_tools(tools)
         self._reject_denied_check_tools(tools)
         if rail_types is not None:
             self._validate_requested_rail_types(rail_types)

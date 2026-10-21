@@ -1670,6 +1670,40 @@ class TestCheckToolRailConfiguration:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
+        ("tools", "message"),
+        [
+            (
+                [WEATHER_TOOL, {"type": "function", "name": "get_weather", "parameters": {"type": "object"}}],
+                "tools entry 1 isn't a Chat Completions function tool",
+            ),
+            ([{"type": "function"}], "tools entry 0 isn't a Chat Completions function tool"),
+            ([{"type": "function", "function": {"name": ""}}], "tools entry 0 isn't a Chat Completions function tool"),
+            ([{"type": "custom", "custom": {"name": "grep"}}], "tools entry 0 isn't a Chat Completions function tool"),
+            (["get_weather", WEATHER_TOOL, 7], "tools entries 0, 2 aren't Chat Completions function tools"),
+        ],
+        ids=["flat-shape", "no-function", "empty-name", "custom-tool", "not-objects"],
+    )
+    async def test_tools_entry_that_is_not_a_function_tool_raises_before_queueing(self, tool_iorails, tools, message):
+        """A `tools` entry a check can't read as a function tool raises InvalidCheckRequestError naming its position."""
+        with patch.object(tool_iorails._generate_async_queue, "submit") as submit:
+            with pytest.raises(InvalidCheckRequestError) as exc_info:
+                await tool_iorails.check_async(
+                    tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL], tools=tools
+                )
+
+        assert str(exc_info.value) == f"{message}: a function tool needs a `function` object with a non-empty `name`"
+        submit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_tools_that_are_not_a_list_raise(self, tool_iorails):
+        """`tools` that isn't a list raises InvalidCheckRequestError rather than counting as no tools."""
+        with pytest.raises(InvalidCheckRequestError, match="^tools must be a list of Chat Completions function tools$"):
+            await tool_iorails.check_async(
+                tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL], tools={"get_weather": WEATHER_TOOL}
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
         "blocked_tools",
         [["WebFetch"], [{"name": "get_weather", "arguments": ["units"]}]],
         ids=["other-tool-blocked", "offered-tool-restricted-by-argument"],
