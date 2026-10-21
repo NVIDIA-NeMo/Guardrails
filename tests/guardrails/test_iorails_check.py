@@ -21,6 +21,7 @@ is_output_safe to control verdicts.
 """
 
 import asyncio
+import json
 import logging
 from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1518,13 +1519,38 @@ class TestCheckToolRailConfiguration:
                 await engine.check_async(tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL])
 
     @pytest.mark.asyncio
-    async def test_tool_rail_type_without_a_main_model_raises(self):
-        """Without a ``main`` model there is no wire format to read, so a tool check refuses to run."""
+    @pytest.mark.parametrize(
+        ("tools", "violation_types"),
+        [([WEATHER_TOOL], []), (None, [ToolViolationType.TOOL_NOT_ALLOWED])],
+        ids=["declared", "undeclared"],
+    )
+    async def test_tool_call_check_runs_without_a_main_model(self, tools, violation_types):
+        """A config with no models runs a tool-call check, reading the call and the tools as Chat Completions."""
         config = {"models": [], "rails": TOOL_CONFIG["rails"]}
 
         async with started_iorails(config) as engine:
-            with pytest.raises(RailTypeNotConfiguredError, match="needs a `main` model"):
-                await engine.check_async(tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL])
+            result = await engine.check_async(
+                tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL], tools=tools
+            )
+
+        assert [violation.violation_type for violation in result.tool_violations or ()] == violation_types
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("result_call_id", "violation_types"),
+        [("call_1", []), ("call_999", [ToolViolationType.UNKNOWN_CALL_ID])],
+        ids=["linked", "unlinked"],
+    )
+    async def test_tool_result_check_runs_without_a_main_model(self, result_call_id, violation_types):
+        """A config with no models runs a tool-result check, reading the conversation as Chat Completions."""
+        config = {"models": [], "rails": TOOL_CONFIG["rails"]}
+
+        async with started_iorails(config) as engine:
+            result = await engine.check_async(
+                make_tool_conversation(result_call_id=result_call_id), rail_types=[RailType.TOOL_RESULT]
+            )
+
+        assert [violation.violation_type for violation in result.tool_violations or ()] == violation_types
 
     @pytest.mark.asyncio
     async def test_auto_detection_runs_input_and_output_only_and_logs_a_hint(self, tool_and_io_iorails, caplog):
@@ -1588,6 +1614,137 @@ class TestCheckToolRailConfiguration:
 
         submit.assert_not_called()
         assert [record.getMessage() for record in caplog.records if record.levelno >= logging.ERROR] == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "tool_lists",
+        [
+            pytest.param({"blocked_tools": ["WebFetch"]}, id="blocked-by-name"),
+            pytest.param({"allowed_tools": ["get_weather"], "allow_unlisted_tools": False}, id="unlisted-denied"),
+        ],
+    )
+    async def test_tools_offering_a_denied_tool_raise_before_queueing(self, tool_lists):
+        """`tools` offering a tool the lists deny every call to raises InvalidCheckRequestError, taking no queue slot."""
+        config = {**TOOL_CONFIG, "rails": {"tool_call": {"flows": ["tool call validation"], **tool_lists}}}
+        web_fetch = {"type": "function", "function": {"name": "WebFetch", "parameters": {"type": "object"}}}
+
+        async with started_iorails(config) as engine:
+            with patch.object(engine._generate_async_queue, "submit") as submit:
+                with pytest.raises(InvalidCheckRequestError) as exc_info:
+                    await engine.check_async(
+                        tool_call_turn(wire_tool_call()),
+                        rail_types=[RailType.TOOL_CALL],
+                        tools=[WEATHER_TOOL, web_fetch],
+                    )
+
+        assert str(exc_info.value) == (
+            "tools offers tools that rails.tool_call denies every call to: 'WebFetch'; leave them out of tools"
+        )
+        submit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_tools_the_lists_allow_are_checked_as_usual(self):
+        """`tools` holding only tools the lists allow is the offered toolset the call is checked against."""
+        config = {
+            **TOOL_CONFIG,
+            "rails": {"tool_call": {"flows": ["tool call validation"], "blocked_tools": ["WebFetch"]}},
+        }
+
+        async with started_iorails(config) as engine:
+            result = await engine.check_async(
+                tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL], tools=[WEATHER_TOOL]
+            )
+
+        assert result.status == RailStatus.PASSED
+
+    @pytest.mark.asyncio
+    async def test_tool_policy_only_ignores_the_main_model_tools(self):
+        """With tool_policy_only, a call to a tool the `main` model doesn't declare passes the default tool lists."""
+        messages = tool_call_turn(wire_tool_call("delete_files", "{}"))
+
+        async with started_iorails(CONFIG_TOOLS_CONFIG) as engine:
+            offered = await engine.check_async(messages, rail_types=[RailType.TOOL_CALL])
+            policy_only = await engine.check_async(messages, rail_types=[RailType.TOOL_CALL], tool_policy_only=True)
+
+        assert (offered.status, policy_only.status) == (RailStatus.BLOCKED, RailStatus.PASSED)
+
+    @pytest.mark.asyncio
+    async def test_tool_policy_only_applies_the_tool_lists(self):
+        """With tool_policy_only, the tool lists deny a tool the `main` model declares but allowed_tools doesn't list."""
+        rails = {
+            "tool_call": {
+                "flows": ["tool call validation"],
+                "allowed_tools": ["run_sql"],
+                "allow_unlisted_tools": False,
+            }
+        }
+
+        async with started_iorails({**CONFIG_TOOLS_CONFIG, "rails": rails}) as engine:
+            result = await engine.check_async(
+                tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL], tool_policy_only=True
+            )
+
+        assert [violation.violation_type for violation in result.tool_violations] == [
+            ToolViolationType.TOOL_NOT_ALLOWED
+        ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("query", "status"),
+        [("SELECT 1", RailStatus.PASSED), ("DROP TABLE users", RailStatus.BLOCKED)],
+        ids=["allowed", "blocked"],
+    )
+    async def test_tool_policy_only_runs_per_tool_rails_with_no_model_or_tool_lists(self, query, status):
+        """With tool_policy_only, per-tool rails alone check their tool's calls on a config with no model or tool lists."""
+        messages = tool_call_turn(wire_tool_call("run_sql", json.dumps({"query": query})))
+
+        async with started_iorails({"models": [], "rails": PER_TOOL_ONLY_CONFIG["rails"]}) as engine:
+            result = await engine.check_async(messages, rail_types=[RailType.TOOL_CALL], tool_policy_only=True)
+
+        assert result.status == status
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("rail_types", "tools", "message"),
+        [
+            (
+                [RailType.TOOL_CALL],
+                [WEATHER_TOOL],
+                "tool_policy_only checks calls against the config's tool lists alone, so it ignores tools; "
+                "leave one out",
+            ),
+            (
+                [RailType.TOOL_RESULT],
+                None,
+                "tool_policy_only is read only by a tool_call check; include tool_call in rail_types or leave it out",
+            ),
+        ],
+        ids=["with-tools", "without-a-tool-call-check"],
+    )
+    async def test_misused_tool_policy_only_raises_before_queueing(self, tool_iorails, rail_types, tools, message):
+        """tool_policy_only with `tools`, or without a tool_call check, raises InvalidCheckRequestError unqueued."""
+        with patch.object(tool_iorails._generate_async_queue, "submit") as submit:
+            with pytest.raises(InvalidCheckRequestError) as exc_info:
+                await tool_iorails.check_async(
+                    make_tool_conversation(), rail_types=rail_types, tools=tools, tool_policy_only=True
+                )
+
+        assert str(exc_info.value) == message
+        submit.assert_not_called()
+
+    def test_sync_check_forwards_tool_policy_only(self):
+        """Sync ``check`` hands ``tool_policy_only`` to the engine it spins up."""
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            engine = IORails(RailsConfig.from_content(config=CONFIG_TOOLS_CONFIG))
+
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=engine):
+            result = engine.check(
+                tool_call_turn(wire_tool_call("delete_files", "{}")),
+                rail_types=[RailType.TOOL_CALL],
+                tool_policy_only=True,
+            )
+
+        assert result.status == RailStatus.PASSED
 
     def test_sync_check_forwards_tools(self):
         """Sync ``check`` hands ``tools`` to the engine it spins up."""

@@ -115,6 +115,20 @@ def _build_manager(
     )
 
 
+def _manager_with_tool_lists(per_tool: dict, **tool_lists) -> RailsManager:
+    """The RailsManager IORails builds for a config with *tool_lists*, *per_tool* rails and the run_sql pattern."""
+    config = RailsConfig.from_content(
+        config={
+            **STACK_CONFIG,
+            "rails": {
+                "config": {"regex_detection": RUN_SQL_PATTERN_CONFIG},
+                "tool_call": {"flows": ["tool call validation"], "per_tool": per_tool, **tool_lists},
+            },
+        }
+    )
+    return IORails(config).rails_manager
+
+
 class TestConfigSchema:
     def test_per_tool_field_defaults_to_empty(self):
         config = RailsConfig.from_content(config=STACK_CONFIG)
@@ -309,6 +323,60 @@ class TestAreToolCallsSafe:
         )
         result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], {})
         assert_result_blocked(result)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("query", "violations"),
+        [
+            ("SELECT 1", ()),
+            (
+                "DROP TABLE users",
+                (
+                    call_violation(
+                        "per_tool_rail",
+                        "regex check tool call",
+                        tool_call_id="call_1",
+                        tool_name="run_sql",
+                        index=0,
+                        rail="regex check tool call",
+                    ),
+                ),
+            ),
+        ],
+        ids=["allowed", "blocked"],
+    )
+    async def test_listed_tools_per_tool_rail_runs_with_nothing_offered(self, query, violations):
+        """With no tools offered, a per-tool rail on a tool allowed_tools lists runs and decides the call."""
+        manager = _manager_with_tool_lists({"run_sql": ["regex check tool call"]}, allowed_tools=["run_sql"])
+
+        result = await manager.are_tool_calls_safe([_sql_call(query)], None)
+
+        assert result.tool_violations == violations
+
+    @pytest.mark.asyncio
+    async def test_argument_name_is_checked_against_an_allowed_entry(self):
+        """With no tools offered, a per-tool rail's `$argument=` outside the tool's allowed_tools entry fails the rail."""
+        manager = _manager_with_tool_lists(
+            {"run_sql": ["regex check tool call $argument=nope"]},
+            allowed_tools=[{"name": "run_sql", "arguments": ["query"]}],
+        )
+
+        result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], None)
+
+        assert result.failed is True
+        assert [violation.violation_type for violation in result.tool_violations] == [ToolViolationType.RAIL_FAILED]
+
+    @pytest.mark.asyncio
+    async def test_argument_in_an_allowed_entry_scopes_the_per_tool_rail(self):
+        """With no tools offered, a per-tool rail's `$argument=` named in the allowed_tools entry checks that argument."""
+        manager = _manager_with_tool_lists(
+            {"run_sql": ["regex check tool call $argument=query"]},
+            allowed_tools=[{"name": "run_sql", "arguments": ["query"]}],
+        )
+
+        result = await manager.are_tool_calls_safe([_sql_call("DROP TABLE users")], None)
+
+        assert [violation.violation_type for violation in result.tool_violations] == [ToolViolationType.PER_TOOL_RAIL]
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("parallel", [False, True], ids=["sequential", "parallel"])

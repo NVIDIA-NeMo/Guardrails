@@ -1014,7 +1014,7 @@ class TestRailsManagerLatestToolCalls:
             ToolCall(id="call_1", function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}))
         ]
         mgr.are_tool_calls_safe.assert_awaited_once_with(
-            expected_calls, llm_params, enabled=["tool call validation"], model_type="main"
+            expected_calls, llm_params, enabled=["tool call validation"], model_type=None, tool_policy_only=False
         )
         assert result is verdict
 
@@ -1136,11 +1136,13 @@ class TestRailsManagerLatestToolCalls:
         assert result.reason == "tool parsing failed: duplicate tool 'get_weather' in toolset"
 
     @pytest.mark.asyncio
-    async def test_unexpected_extraction_error_blocks_with_a_fixed_reason(self):
+    async def test_unexpected_extraction_error_blocks_with_a_fixed_reason(self, monkeypatch):
         """Any other extraction error blocks with a fixed reason that carries none of the exception's text."""
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
-
-        mgr.engine_registry.extract_latest_tool_calls = MagicMock(side_effect=RuntimeError(_SECRET_VALUE))
+        monkeypatch.setattr(
+            "nemoguardrails.guardrails.rails_manager._latest_tool_calls_openai",
+            MagicMock(side_effect=RuntimeError(_SECRET_VALUE)),
+        )
 
         result = await mgr.are_latest_tool_calls_safe(make_tool_conversation(), {"tools": [WEATHER_TOOL]})
 

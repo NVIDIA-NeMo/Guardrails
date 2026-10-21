@@ -15,12 +15,14 @@
 
 """Unit tests for ToolCallRailAction (allowlist + argument-schema validation)."""
 
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
+from nemoguardrails.guardrails.tool_policy import ToolPolicy
 from nemoguardrails.guardrails.tool_schema import Tool, Toolset
+from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.types import ToolCall, ToolCallFunction
 from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_outcome_blocked, call_violation, violations_in
@@ -146,3 +148,165 @@ class TestToolCallRailAction:
         call = ToolCall(id="c1", type="code_interpreter", function=ToolCallFunction(name="", arguments={}))
         result = await ToolCallRailAction().run(toolset, [call])
         assert_outcome_blocked(result, "code_interpreter", "not an allowed tool")
+
+
+def _policy(**tool_lists: Any) -> ToolPolicy:
+    """The policy a config with *tool_lists* in rails.tool_call sets."""
+    config = RailsConfig.from_content(
+        config={"models": [], "rails": {"tool_call": {"flows": ["tool call validation"], **tool_lists}}}
+    )
+    return ToolPolicy.from_config(config.rails.tool_call)
+
+
+async def _violations(policy: ToolPolicy, toolset: Optional[Toolset], call: ToolCall) -> list:
+    """The violations `tool call validation` with *policy* reports for *call*, with *toolset* offered."""
+    return violations_in(await ToolCallRailAction(policy=policy).run(toolset, [call]))
+
+
+class TestToolLists:
+    @pytest.mark.asyncio
+    async def test_tool_blocked_by_name_is_tool_blocked(self):
+        """A call to a tool blocked_tools names bare is a `tool_blocked` violation."""
+        violations = await _violations(_policy(blocked_tools=["Bash"]), Toolset(), _call("Bash", {"command": "ls"}))
+
+        assert violations == [
+            call_violation(
+                "tool_blocked", "tool call 'Bash' is a blocked tool", tool_call_id="c1", tool_name="Bash", index=0
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_call_passing_a_blocked_argument_is_argument_blocked(self):
+        """A call that passes an argument a blocked_tools entry lists is `argument_blocked`, pointing at it."""
+        policy = _policy(blocked_tools=[{"name": "Bash", "arguments": ["sandbox", "timeout"]}])
+
+        violations = await _violations(policy, Toolset(), _call("Bash", {"command": "ls", "timeout": 5}))
+
+        assert violations == [
+            call_violation(
+                "argument_blocked",
+                "tool call 'Bash' passes argument 'timeout', which is blocked",
+                tool_call_id="c1",
+                tool_name="Bash",
+                index=0,
+                argument_path="/timeout",
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_call_without_a_blocked_argument_is_allowed(self):
+        """A call to a tool with a blocked_tools entry passes when it passes none of the entry's arguments."""
+        policy = _policy(blocked_tools=[{"name": "Bash", "arguments": ["sandbox"]}])
+
+        assert await _violations(policy, Toolset(), _call("Bash", {"command": "ls"})) == []
+
+    @pytest.mark.asyncio
+    async def test_argument_outside_an_allowed_entry_is_argument_not_allowed(self):
+        """Arguments an allowed_tools entry doesn't list are `argument_not_allowed`, counted rather than named."""
+        policy = _policy(allowed_tools=[{"name": "search", "arguments": ["query"]}])
+
+        violations = await _violations(
+            policy, Toolset(), _call("search", {"query": "q", "token": "secret", "limit": 3})
+        )
+
+        assert violations == [
+            call_violation(
+                "argument_not_allowed",
+                "tool call 'search' passes 2 arguments its allowed_tools entry doesn't list",
+                tool_call_id="c1",
+                tool_name="search",
+                index=0,
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_unlisted_tool_is_allowed_by_default(self):
+        """A call to a tool allowed_tools doesn't name passes while allow_unlisted_tools keeps its default."""
+        assert await _violations(_policy(allowed_tools=["Read"]), Toolset(), _call("Bash", {"command": "ls"})) == []
+
+    @pytest.mark.asyncio
+    async def test_unlisted_tool_is_tool_not_allowed_when_unlisted_tools_are_denied(self):
+        """With allow_unlisted_tools false, a call to a tool allowed_tools doesn't name is `tool_not_allowed`."""
+        policy = _policy(allowed_tools=["Read"], allow_unlisted_tools=False)
+
+        violations = await _violations(policy, Toolset(), _call("WebFetch", {"url": "https://example.com"}))
+
+        assert violations == [
+            call_violation(
+                "tool_not_allowed",
+                "tool call 'WebFetch' is not an allowed tool",
+                tool_call_id="c1",
+                tool_name="WebFetch",
+                index=0,
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_blocked_argument_entry_leaves_the_tool_unlisted(self):
+        """A tool only blocked_tools names, by an argument entry, is denied while unlisted tools are denied."""
+        policy = _policy(
+            allowed_tools=["Read"],
+            blocked_tools=[{"name": "Bash", "arguments": ["sandbox"]}],
+            allow_unlisted_tools=False,
+        )
+
+        violations = await _violations(policy, Toolset(), _call("Bash", {"command": "ls"}))
+
+        assert [violation.violation_type for violation in violations] == [ToolViolationType.TOOL_NOT_ALLOWED]
+
+    @pytest.mark.asyncio
+    async def test_lists_decide_before_the_offered_tools(self):
+        """A call to an offered tool that blocked_tools blocks is `tool_blocked`."""
+        violations = await _violations(_policy(blocked_tools=["get_weather"]), _toolset(), _call("get_weather", {}))
+
+        assert [violation.violation_type for violation in violations] == [ToolViolationType.TOOL_BLOCKED]
+
+    @pytest.mark.asyncio
+    async def test_allowed_tool_that_was_not_offered_is_tool_not_allowed(self):
+        """When tools were offered, a call to a tool the lists allow but the request didn't offer is denied."""
+        violations = await _violations(_policy(allowed_tools=["Bash"]), _toolset(), _call("Bash", {"command": "ls"}))
+
+        assert violations == [
+            call_violation(
+                "tool_not_allowed",
+                "tool call 'Bash' is not an allowed tool",
+                tool_call_id="c1",
+                tool_name="Bash",
+                index=0,
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_offered_schema_still_checks_what_the_lists_allow(self):
+        """When tools were offered, the offered schema checks the arguments of a call the lists allow."""
+        policy = _policy(allowed_tools=["get_weather"])
+
+        violations = await _violations(policy, _toolset(), _call("get_weather", {"city": 5}))
+
+        assert [violation.violation_type for violation in violations] == [ToolViolationType.ARGUMENTS_INVALID]
+
+    @pytest.mark.asyncio
+    async def test_with_nothing_offered_the_lists_alone_decide(self):
+        """With no tools offered, a call the lists allow passes with any arguments."""
+        policy = _policy(allowed_tools=["Bash"], allow_unlisted_tools=False)
+
+        assert await _violations(policy, Toolset(), _call("Bash", {"command": "ls", "anything": [1]})) == []
+
+    @pytest.mark.asyncio
+    async def test_with_no_lists_and_nothing_offered_every_call_is_denied(self):
+        """A config without the lists, given no offered tools, denies every call as before the lists existed."""
+        violations = await _violations(_policy(), Toolset(), _call("Bash", {"command": "ls"}))
+
+        assert [violation.violation_type for violation in violations] == [ToolViolationType.TOOL_NOT_ALLOWED]
+
+    @pytest.mark.asyncio
+    async def test_with_no_toolset_the_lists_alone_decide_even_at_their_defaults(self):
+        """With no toolset at all, as for an agent hook, a config without the lists allows the call."""
+        assert await _violations(_policy(), None, _call("Bash", {"command": "ls"})) == []
+
+    @pytest.mark.asyncio
+    async def test_action_without_a_policy_checks_only_the_offered_tools(self):
+        """`tool call validation` built without a policy behaves as before the lists existed."""
+        result = await ToolCallRailAction().run(_toolset(), [_call("get_weather", {"city": "Paris"})])
+
+        assert result.is_blocked is False

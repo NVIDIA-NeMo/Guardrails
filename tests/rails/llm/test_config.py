@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
+from collections.abc import Iterable
 
 import pytest
 from pydantic import ValidationError
@@ -24,6 +26,7 @@ from nemoguardrails.rails.llm.config import (
     RailsConfigData,
     TaskPrompt,
     ToolCallRails,
+    ToolEntry,
     ToolResultRails,
 )
 
@@ -120,6 +123,257 @@ def test_deprecated_tool_rail_fields_are_marked_in_schema():
 
     assert properties["tool_output"]["deprecated"] is True
     assert properties["tool_input"]["deprecated"] is True
+
+
+def _tool_call_config(tool_call: dict, models: tuple = ()) -> RailsConfig:
+    """A config with *tool_call* as rails.tool_call, beside *models*."""
+    return RailsConfig.from_content(config={"models": list(models), "rails": {"tool_call": tool_call}})
+
+
+def _main_model_with_tools(*tools: tuple) -> dict:
+    """A `main` model offering each `(name, argument names)` in *tools* as a Chat Completions tool."""
+    return {
+        "type": "main",
+        "engine": "openai",
+        "model": "gpt-4o",
+        "parameters": {
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "parameters": {"type": "object", "properties": {argument: {} for argument in arguments}},
+                    },
+                }
+                for name, arguments in tools
+            ]
+        },
+    }
+
+
+def _tool_list_warnings(record: Iterable[warnings.WarningMessage]) -> list[str]:
+    """The messages of the recorded warnings about the `main` model's tools."""
+    return [str(item.message) for item in record if str(item.message).startswith("The `main` model offers")]
+
+
+def test_tool_lists_take_names_and_entries_with_arguments():
+    """A tool list entry is a bare name or a name with an argument list, and both load as written."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              tool_call:
+                flows:
+                  - tool call validation
+                allowed_tools:
+                  - Read
+                  - name: Bash
+                    arguments: [command, description]
+                blocked_tools:
+                  - WebFetch
+                  - name: Read
+                    arguments: [pages]
+                allow_unlisted_tools: false
+        """
+    )
+    tool_call = config.rails.tool_call
+
+    assert tool_call.allowed_tools == ["Read", ToolEntry(name="Bash", arguments=["command", "description"])]
+    assert tool_call.blocked_tools == ["WebFetch", ToolEntry(name="Read", arguments=["pages"])]
+    assert tool_call.allow_unlisted_tools is False
+
+
+def test_tool_lists_default_to_allowing_every_tool():
+    """Without the tool list settings, both lists are empty and unlisted tools are allowed."""
+    tool_call = _tool_call_config({"flows": ["tool call validation"]}).rails.tool_call
+
+    assert tool_call.allowed_tools == []
+    assert tool_call.blocked_tools == []
+    assert tool_call.allow_unlisted_tools is True
+    assert tool_call.sets_tool_lists is False
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        pytest.param({"name": "Bash", "arguments": ["command"], "values": ["ls"]}, id="unknown-key"),
+        pytest.param({"name": "Bash"}, id="no-arguments"),
+        pytest.param({"name": "Bash", "arguments": []}, id="empty-arguments"),
+    ],
+)
+def test_tool_entry_that_is_not_a_name_with_arguments_is_refused(entry):
+    """A tool list entry with an unknown key, or without a non-empty argument list, fails validation."""
+    with pytest.raises(ValidationError, match="rails.tool_call.allowed_tools.0.ToolEntry"):
+        _tool_call_config({"flows": ["tool call validation"], "allowed_tools": [entry]})
+
+
+def test_tool_entry_naming_an_argument_twice_is_refused():
+    """A tool list entry that lists the same argument twice fails validation, naming the argument."""
+    with pytest.raises(ValidationError, match=r"arguments names \['command'\] more than once"):
+        _tool_call_config(
+            {
+                "flows": ["tool call validation"],
+                "blocked_tools": [{"name": "Bash", "arguments": ["command", "command"]}],
+            }
+        )
+
+
+@pytest.mark.parametrize("list_name", ["allowed_tools", "blocked_tools"])
+@pytest.mark.parametrize(
+    "entries",
+    [
+        pytest.param(["Bash", "Bash"], id="bare-twice"),
+        pytest.param(["Bash", {"name": "Bash", "arguments": ["command"]}], id="bare-and-entry"),
+    ],
+)
+def test_tool_named_twice_in_one_list_is_refused(list_name, entries):
+    """A list that names a tool twice, in either shape, fails validation naming the list and the tool."""
+    with pytest.raises(ValidationError, match=f"rails.tool_call.{list_name} names tool 'Bash' more than once"):
+        _tool_call_config({"flows": ["tool call validation"], list_name: entries})
+
+
+@pytest.mark.parametrize(
+    "allowed",
+    [pytest.param("Bash", id="bare"), pytest.param({"name": "Bash", "arguments": ["command"]}, id="entry")],
+)
+def test_tool_allowed_and_blocked_by_name_is_refused(allowed):
+    """A tool that blocked_tools blocks by name and allowed_tools also lists fails validation naming the tool."""
+    with pytest.raises(ValidationError, match="allowed_tools allows tool 'Bash', which blocked_tools blocks by name"):
+        _tool_call_config({"flows": ["tool call validation"], "allowed_tools": [allowed], "blocked_tools": ["Bash"]})
+
+
+def test_argument_entry_in_blocked_tools_beside_an_allowed_name_loads():
+    """Blocking one argument of a tool that allowed_tools allows by name is a valid config."""
+    config = _tool_call_config(
+        {
+            "flows": ["tool call validation"],
+            "allowed_tools": ["Bash"],
+            "blocked_tools": [{"name": "Bash", "arguments": ["dangerouslyDisableSandbox"]}],
+            "allow_unlisted_tools": False,
+        }
+    )
+
+    assert config.rails.tool_call.allowed_tools == ["Bash"]
+
+
+def test_per_tool_rails_on_a_tool_blocked_by_name_are_refused():
+    """per_tool rails on a tool that blocked_tools blocks by name fail validation, since they would never run."""
+    with pytest.raises(ValidationError, match="per_tool has rails for tool 'Bash', which blocked_tools blocks by name"):
+        _tool_call_config(
+            {
+                "flows": ["tool call validation"],
+                "blocked_tools": ["Bash"],
+                "per_tool": {"Bash": ["regex check tool call"]},
+            }
+        )
+
+
+def test_per_tool_rails_on_an_unlisted_tool_are_refused_when_unlisted_tools_are_denied():
+    """per_tool rails on a tool allowed_tools doesn't list fail validation while allow_unlisted_tools is false."""
+    with pytest.raises(ValidationError, match="per_tool has rails for tool 'Bash', which allowed_tools doesn't list"):
+        _tool_call_config(
+            {
+                "flows": ["tool call validation"],
+                "allowed_tools": ["Read"],
+                "allow_unlisted_tools": False,
+                "per_tool": {"Bash": ["regex check tool call"]},
+            }
+        )
+
+
+def test_per_tool_rails_on_an_unlisted_tool_load_when_unlisted_tools_are_allowed():
+    """per_tool rails on a tool allowed_tools doesn't list are valid while unlisted tools are allowed."""
+    config = _tool_call_config(
+        {"flows": ["tool call validation"], "allowed_tools": ["Read"], "per_tool": {"Bash": ["regex check tool call"]}}
+    )
+
+    assert config.rails.tool_call.per_tool == {"Bash": ["regex check tool call"]}
+
+
+@pytest.mark.parametrize(
+    "tool_lists",
+    [
+        pytest.param({"allowed_tools": ["Bash"]}, id="allowed"),
+        pytest.param({"blocked_tools": ["Bash"]}, id="blocked"),
+        pytest.param({"allow_unlisted_tools": False}, id="unlisted-denied"),
+    ],
+)
+def test_tool_lists_without_tool_call_validation_are_refused(tool_lists):
+    """Any tool list setting without `tool call validation` in rails.tool_call.flows fails validation."""
+    with pytest.raises(ValidationError, match="but only the 'tool call validation' flow enforces them"):
+        _tool_call_config(tool_lists)
+
+
+@pytest.mark.parametrize(
+    "tool_lists",
+    [
+        pytest.param({"blocked_tools": ["WebFetch"]}, id="blocked-by-name"),
+        pytest.param({"allowed_tools": ["Read"], "allow_unlisted_tools": False}, id="unlisted-denied"),
+    ],
+)
+def test_main_tool_the_lists_deny_is_warned_about(tool_lists):
+    """A tool the `main` model offers whose every call the lists deny raises a UserWarning naming it."""
+    main = _main_model_with_tools(("Read", ["file_path"]), ("WebFetch", ["url"]))
+
+    with pytest.warns(UserWarning) as record:
+        _tool_call_config({"flows": ["tool call validation"], **tool_lists}, models=(main,))
+
+    assert _tool_list_warnings(record) == [
+        "The `main` model offers tool 'WebFetch', but rails.tool_call's tool lists deny every call to it; "
+        "remove it from the model's tools, or allow it."
+    ]
+
+
+@pytest.mark.parametrize(
+    "tool_lists",
+    [
+        pytest.param({"blocked_tools": [{"name": "Bash", "arguments": ["sandbox"]}]}, id="blocked-argument"),
+        pytest.param({"allowed_tools": [{"name": "Bash", "arguments": ["command"]}]}, id="argument-not-allowed"),
+    ],
+)
+def test_main_tool_argument_the_lists_deny_is_warned_about(tool_lists):
+    """A `main` tool whose schema offers an argument the lists deny raises a UserWarning naming the argument."""
+    main = _main_model_with_tools(("Bash", ["command", "sandbox"]))
+
+    with pytest.warns(UserWarning) as record:
+        _tool_call_config({"flows": ["tool call validation"], **tool_lists}, models=(main,))
+
+    assert _tool_list_warnings(record) == [
+        "The `main` model offers tool 'Bash' with arguments ['sandbox'], but rails.tool_call's tool lists deny "
+        "a call that passes them."
+    ]
+
+
+@pytest.mark.parametrize("strict_first", [True, False], ids=["strict-first", "strict-last"])
+def test_merged_configs_deny_unlisted_tools_when_either_does(strict_first):
+    """Adding two configs keeps allow_unlisted_tools false when either sets it, whichever comes last."""
+    strict = _tool_call_config(
+        {"flows": ["tool call validation"], "allowed_tools": ["Read"], "allow_unlisted_tools": False}
+    )
+    loose = _tool_call_config({"flows": ["tool call validation"]})
+
+    merged = strict + loose if strict_first else loose + strict
+
+    assert (merged.rails.tool_call.allowed_tools, merged.rails.tool_call.allow_unlisted_tools) == (["Read"], False)
+
+
+def test_main_tools_the_lists_allow_raise_no_warning():
+    """No warning is raised when the lists allow every tool and argument the `main` model offers."""
+    main = _main_model_with_tools(("Read", ["file_path"]), ("Bash", ["command"]))
+
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        _tool_call_config(
+            {
+                "flows": ["tool call validation"],
+                "allowed_tools": ["Read", {"name": "Bash", "arguments": ["command", "description"]}],
+                "blocked_tools": ["WebFetch", {"name": "Bash", "arguments": ["sandbox"]}],
+                "allow_unlisted_tools": False,
+            },
+            models=(main,),
+        )
+
+    assert _tool_list_warnings(record) == []
 
 
 @pytest.mark.parametrize(

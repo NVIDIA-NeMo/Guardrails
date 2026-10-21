@@ -33,6 +33,7 @@ from nemoguardrails.exceptions import (
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
     ToolConversationTooLongError,
+    ToolNotAllowedError,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError, HTTPStatusError
@@ -136,6 +137,11 @@ async def rail_type_not_supported_error_handler(request: Request, exc: RailTypeN
 
 async def invalid_check_request_error_handler(request: Request, exc: InvalidCheckRequestError) -> Response:
     log.warning("Invalid check request: %s", exc)
+    return _error_response(422, str(exc))
+
+
+async def tool_not_allowed_error_handler(request: Request, exc: ToolNotAllowedError) -> Response:
+    log.warning("Tool not allowed: %s", exc)
     return _error_response(422, str(exc))
 
 

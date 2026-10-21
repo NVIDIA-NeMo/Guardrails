@@ -66,30 +66,43 @@ def _tool(name: str, parameters: dict) -> dict:
     return {"type": "function", "function": {"name": name, "parameters": parameters}}
 
 
+# Per-tool rails alone, with no model and no tool lists: every tool is allowed, and Bash's rail checks its calls.
 HOOKS_CONFIG = {
-    "models": [_main_model(_tool("Bash", ANY_ARGUMENTS))],
+    "models": [],
     "rails": {
         "config": {"regex_detection": {"tool_call": {"Bash": {"patterns": [r"rm\s+-rf"]}}}},
         "tool_call": {"per_tool": {"Bash": ["regex check tool call $argument=command"]}},
     },
 }
 
-# The rail raises on a `$argument=` its tool's closed schema can't accept, so every `Read` call fails it.
+# The rail raises on a `$argument=` its tool's allowed_tools entry doesn't list, so every `Read` call fails it.
 RAIL_FAILURE_CONFIG = {
-    "models": [
-        _main_model(
-            _tool(
-                "Read",
-                {"type": "object", "properties": {"file_path": {"type": "string"}}, "additionalProperties": False},
-            )
-        )
-    ],
-    "rails": {"tool_call": {"per_tool": {"Read": ["regex check tool call $argument=x"]}}},
+    "models": [],
+    "rails": {
+        "tool_call": {
+            "flows": ["tool call validation"],
+            "allowed_tools": [{"name": "Read", "arguments": ["file_path"]}],
+            "per_tool": {"Read": ["regex check tool call $argument=x"]},
+        }
+    },
 }
 
 ALLOWLIST_CONFIG = {
-    "models": [_main_model(_tool("Bash", ANY_ARGUMENTS))],
-    "rails": {"tool_call": {"flows": ["tool call validation"]}},
+    "models": [],
+    "rails": {
+        "tool_call": {"flows": ["tool call validation"], "allowed_tools": ["Bash"], "allow_unlisted_tools": False}
+    },
+}
+
+# Blocks WebFetch by name, and a Bash call that passes `run_in_background`.
+BLOCKLIST_CONFIG = {
+    "models": [],
+    "rails": {
+        "tool_call": {
+            "flows": ["tool call validation"],
+            "blocked_tools": ["WebFetch", {"name": "Bash", "arguments": ["run_in_background"]}],
+        }
+    },
 }
 
 _HOOK_BODIES = {"claude-code": CLAUDE_CODE_DESTRUCTIVE_BASH, "codex": CODEX_MCP, "nemo-relay": NEMO_RELAY_SEARCH}
@@ -150,6 +163,15 @@ DENY_NOT_ALLOWED = {
 
 MODEL_CALL_FAILURE = "model 'llama_guard' timed out"
 
+UNUSED_MAIN_MODEL = (
+    "The config has a `main` model, which the hooks server doesn't use: it checks tool calls and never generates a "
+    "response, and no tool-call rail names `$model=main`."
+)
+IGNORED_MAIN_MODEL_TOOLS = (
+    "The `main` model declares tools in parameters.tools, which the hooks server ignores: it checks each tool call "
+    "against rails.tool_call.allowed_tools, blocked_tools and allow_unlisted_tools only."
+)
+
 EXAMPLE_CONFIGS_PATH = Path(__file__).parents[2] / "examples" / "configs" / "agent_hooks"
 EXAMPLE_CONFIGS = {"claude-code": "claude_code", "codex": "codex", "nemo-relay": "nemo_relay"}
 
@@ -180,6 +202,15 @@ def _denied(agent: HookAgent, reason: str) -> dict:
 def _app(config: dict):
     """A hooks server for *config*."""
     return create_hooks_app(RailsConfig.from_content(config=config))
+
+
+def _hooks_server_warnings(caplog) -> list[str]:
+    """The warnings the hooks server logged."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == hooks_app.__name__ and record.levelno == logging.WARNING
+    ]
 
 
 def _error_param(response) -> tuple[int, Any, Any]:
@@ -217,7 +248,7 @@ def failing_check(client, monkeypatch):
     """Make every check on *client* raise the exception the test passes in."""
 
     def fail_with(exc: BaseException) -> TestClient:
-        monkeypatch.setattr(client.app.state.engine, "check_async", AsyncMock(side_effect=exc))
+        monkeypatch.setattr(client.app.state.engine.rails_engine, "check_async", AsyncMock(side_effect=exc))
         return client
 
     return fail_with
@@ -260,6 +291,42 @@ class TestChecks:
         response = client.post(f"/v1/hooks/{agent}", json=_hook(agent, "Read", {"file_path": "/etc/passwd"}))
 
         assert (response.status_code, response.json()) == (200, _allowed(agent))
+
+    @pytest.mark.parametrize("agent", AGENTS)
+    @pytest.mark.parametrize(
+        "tool_name, tool_input, reason",
+        [
+            ("WebFetch", {"url": "https://example.com"}, "tool call 'WebFetch' is a blocked tool"),
+            (
+                "Bash",
+                {"command": "npm test", "run_in_background": True},
+                "tool call 'Bash' passes argument 'run_in_background', which is blocked",
+            ),
+            ("Bash", {"command": "npm test"}, None),
+        ],
+        ids=["tool-blocked", "argument-blocked", "no-blocked-argument"],
+    )
+    def test_blocked_tools_deny_a_tool_or_one_of_its_arguments(self, agent, tool_name, tool_input, reason):
+        """blocked_tools denies a tool by name, or a call passing one of its blocked arguments, naming either."""
+        with TestClient(_app(BLOCKLIST_CONFIG)) as client:
+            response = client.post(f"/v1/hooks/{agent}", json=_hook(agent, tool_name, tool_input))
+
+        expected = _allowed(agent) if reason is None else _denied(agent, reason)
+        assert (response.status_code, response.json()) == (200, expected)
+
+    @pytest.mark.parametrize(
+        "tool_name, expected",
+        [("WebFetch", DENY_NOT_ALLOWED), ("Bash", {})],
+        ids=["declared-on-main-but-not-allowed", "allowed-but-not-declared-on-main"],
+    )
+    def test_main_model_tools_play_no_part_in_the_check(self, tool_name, expected):
+        """Only the tool lists decide: a tool the `main` model declares is denied, and one it doesn't is allowed."""
+        config = {**ALLOWLIST_CONFIG, "models": [_main_model(_tool("WebFetch", ANY_ARGUMENTS))]}
+
+        with TestClient(_app(config)) as client:
+            response = client.post("/v1/hooks/claude-code", json=_hook("claude-code", tool_name, {"url": "x"}))
+
+        assert (response.status_code, response.json()) == (200, expected)
 
     @pytest.mark.parametrize("agent", AGENTS)
     def test_body_is_read_as_json_whatever_its_content_type(self, client, agent):
@@ -332,7 +399,7 @@ class TestSpecExamples:
         assert (response.status_code, response.json()) == (200, expected)
 
     def test_undeclared_tool_with_the_allowlist_gets_the_spec_deny(self):
-        """A tool the `main` model doesn't declare, with `tool call validation` configured, gets `denyNotAllowed`."""
+        """A tool allowed_tools doesn't list, while unlisted tools are denied, gets `denyNotAllowed`."""
         with TestClient(_app(ALLOWLIST_CONFIG)) as client:
             response = client.post("/v1/hooks/claude-code", json=_hook("claude-code", "WebFetch", {"url": "x"}))
 
@@ -491,7 +558,10 @@ class TestErrors:
     @pytest.mark.parametrize("agent", AGENTS)
     def test_check_that_cannot_extract_the_call_is_check_failed_error(self, client, monkeypatch, agent):
         """A check that fails before any rail decides gets the spec's `checkFailed` error, with no code."""
-        monkeypatch.setattr(ModelEngine, "extract_latest_tool_calls", MagicMock(side_effect=RuntimeError("a bug")))
+        monkeypatch.setattr(
+            "nemoguardrails.guardrails.rails_manager._latest_tool_calls_openai",
+            MagicMock(side_effect=RuntimeError("a bug")),
+        )
 
         response = client.post(f"/v1/hooks/{agent}", json=_HOOK_BODIES[agent])
 
@@ -521,19 +591,15 @@ class TestStartup:
         [
             ({"models": [MAIN_MODEL]}, "Requested rail type 'tool_call' has no configured rails."),
             ({"models": [MAIN_MODEL], "rails": {"tool_call": {"per_tool": {"Bash": []}}}}, "has no configured rails"),
-            (
-                {"models": [], "rails": ALLOWLIST_CONFIG["rails"]},
-                "Requested rail type 'tool_call' needs a `main` model",
-            ),
         ],
-        ids=["no-tool-call-rails", "per-tool-entry-without-flows", "no-main-model"],
+        ids=["no-tool-call-rails", "per-tool-entry-without-flows"],
     )
     def test_config_a_tool_call_check_refuses_is_refused_before_the_engine(self, monkeypatch, config, reason):
-        """A config without tool-call rails or a `main` model is refused, before any engine is built."""
+        """A config without tool-call rails is refused, before any engine is built."""
         engine = MagicMock()
         monkeypatch.setattr(hooks_app, "Guardrails", engine)
 
-        with pytest.raises(HooksConfigError, match="needs tool-call rails and a `main` model") as exc_info:
+        with pytest.raises(HooksConfigError, match="The hooks server needs tool-call rails") as exc_info:
             _app(config)
 
         assert reason in str(exc_info.value)
@@ -558,23 +624,6 @@ class TestStartup:
         with pytest.raises(HooksConfigError, match="isn't IORails"):
             _app(HOOKS_CONFIG)
 
-    def test_tools_that_do_not_parse_are_refused(self):
-        """A `main` model whose tools don't parse, which would deny every call, is refused."""
-        config = {**HOOKS_CONFIG, "models": [_main_model(_tool("Bash", ANY_ARGUMENTS), _tool("Bash", ANY_ARGUMENTS))]}
-
-        with pytest.raises(HooksConfigError, match="can't read the `main` model's tools: duplicate tool 'Bash'"):
-            _app(config)
-
-    def test_tool_schema_that_is_not_json_schema_is_refused(self):
-        """A declared tool whose schema isn't valid JSON Schema, which would fail every call to it, is refused."""
-        config = {**HOOKS_CONFIG, "models": [_main_model(_tool("Bash", {"type": "not-a-type"}))]}
-
-        with pytest.raises(
-            HooksConfigError,
-            match="can't use the `main` model's tools: declared schema for tool 'Bash' is not valid JSON Schema",
-        ):
-            _app(config)
-
     def test_engine_is_iorails_without_the_engine_switch(self):
         """The server builds an IORails engine of its own, with `NEMO_GUARDRAILS_IORAILS_ENGINE` unset."""
         assert isinstance(_app(HOOKS_CONFIG).state.engine.rails_engine, IORails)
@@ -592,41 +641,44 @@ class TestStartup:
 
         assert deployment_types == [telemetry.DeploymentTypeEnum.API]
 
-    def test_rails_that_deny_every_call_are_warned_about(self, caplog):
-        """The allowlist with no tools declared, and a `per_tool` rail on an undeclared tool, each log a warning."""
+    @pytest.mark.parametrize(
+        "main_model, warnings",
+        [
+            (MAIN_MODEL, [UNUSED_MAIN_MODEL]),
+            (_main_model(_tool("Bash", ANY_ARGUMENTS)), [UNUSED_MAIN_MODEL, IGNORED_MAIN_MODEL_TOOLS]),
+        ],
+        ids=["main-model", "main-model-with-tools"],
+    )
+    def test_main_model_is_warned_about_as_unused(self, caplog, main_model, warnings):
+        """A `main` model logs that the server doesn't use it, and tools it declares log that the server ignores them."""
+        _app({**HOOKS_CONFIG, "models": [main_model]})
+
+        assert _hooks_server_warnings(caplog) == warnings
+
+    def test_main_model_a_rail_names_is_not_warned_about_as_unused(self, caplog):
+        """A `main` model a tool-call rail names with `$model=main` is used, so only its declared tools are warned about."""
         config = {
-            "models": [MAIN_MODEL],
-            "rails": {
-                "tool_call": {
-                    "flows": ["tool call validation"],
-                    "per_tool": {"Bash": ["regex check tool call"], "Write": []},
+            "models": [_main_model(_tool("Bash", ANY_ARGUMENTS))],
+            "rails": {"tool_call": {"per_tool": {"Bash": ["tool safety check tool call $model=main $variant=bash"]}}},
+            "prompts": [
+                {
+                    "task": "tool_safety_check_tool_call $model=main $variant=bash",
+                    "content": "Is this call to {{ tool_name }} safe? {{ tool_call_arguments }}",
+                    "output_parser": "parse_tool_safety_verdict",
                 }
-            },
+            ],
         }
 
         _app(config)
 
-        assert [
-            (record.levelno, record.getMessage()) for record in caplog.records if record.name == hooks_app.__name__
-        ] == [
-            (
-                logging.WARNING,
-                "`tool call validation` is in rails.tool_call.flows, but the `main` model declares no tools, "
-                "so every tool call is denied",
-            ),
-            (
-                logging.WARNING,
-                "rails.tool_call.per_tool has rails for 'Bash', but the `main` model doesn't declare that tool, "
-                "so every call to it is denied",
-            ),
-        ]
+        assert _hooks_server_warnings(caplog) == [IGNORED_MAIN_MODEL_TOOLS]
 
     @pytest.mark.parametrize("config", [HOOKS_CONFIG, ALLOWLIST_CONFIG], ids=["per-tool", "allowlist"])
-    def test_rails_on_declared_tools_log_no_warning(self, caplog, config):
-        """A config whose rails all check declared tools logs no warning."""
+    def test_config_without_a_main_model_logs_no_warning(self, caplog, config):
+        """A config with no `main` model starts without a warning."""
         _app(config)
 
-        assert [record for record in caplog.records if record.name == hooks_app.__name__] == []
+        assert _hooks_server_warnings(caplog) == []
 
     def test_engine_starts_with_the_server_and_stops_with_it(self, monkeypatch):
         """The engine starts before the server answers a request, and stops when the server shuts down."""
@@ -666,10 +718,10 @@ class TestExampleConfig:
 
     @pytest.mark.parametrize("agent", AGENTS)
     def test_example_config_starts_without_warnings(self, caplog, agent):
-        """Each example declares every tool it has rails for, so the server starts without a warning."""
+        """Each example has no model and passes config validation, so the server starts without a warning."""
         _example_app(agent)
 
-        assert [record for record in caplog.records if record.name == hooks_app.__name__] == []
+        assert _hooks_server_warnings(caplog) == []
 
     @pytest.mark.parametrize(
         "agent, tool_name, tool_input, reason",
@@ -715,17 +767,14 @@ class TestExampleConfig:
                 "tool call 'Write' is not an allowed tool",
             ),
             ("nemo-relay", "search", NEMO_RELAY_SEARCH["tool_input"], None),
+            ("nemo-relay", "search", NEMO_RELAY_EMPTY_QUERY["tool_input"], "regex check tool call"),
+            ("nemo-relay", "search", {}, "regex check tool call"),
+            ("nemo-relay", "search", {"query": 7}, "regex check tool call"),
             (
                 "nemo-relay",
                 "search",
-                NEMO_RELAY_EMPTY_QUERY["tool_input"],
-                "arguments for tool 'search' do not match its schema: 'minLength' failed at '/query'",
-            ),
-            (
-                "nemo-relay",
-                "search",
-                {},
-                "arguments for tool 'search' do not match its schema: 'required' failed at '/query'",
+                {"query": "weather", "limit": 3},
+                "tool call 'search' passes 1 argument its allowed_tools entry doesn't list",
             ),
             ("nemo-relay", "Bash", {"command": "ls"}, "tool call 'Bash' is not an allowed tool"),
         ],
@@ -745,6 +794,8 @@ class TestExampleConfig:
             "nemo-relay-search",
             "nemo-relay-empty-query",
             "nemo-relay-no-query",
+            "nemo-relay-query-not-a-string",
+            "nemo-relay-unlisted-argument",
             "nemo-relay-undeclared-tool",
         ],
     )

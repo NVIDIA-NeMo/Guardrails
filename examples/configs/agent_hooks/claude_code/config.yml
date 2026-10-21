@@ -11,32 +11,30 @@
 # `codex` and `nemo_relay` examples beside it hold theirs. A server for both Claude Code and Codex merges the two.
 # The server only runs tool-call rails. Every rail here is a regex, so no model is called and no API key is needed.
 
-models:
-  # A tool check needs a `main` model: it sets the tool format and declares the tools. The server never calls it.
-  - type: main
-    engine: nim
-    model: nvidia/nemotron-3.5-super-vl-120b-a12b
-    parameters:
-      # The allowlist. With `tool call validation` below, a call to any tool not declared here is denied,
-      # MCP tools (`mcp__<server>__<tool>`) included. This is a starting set: declare every tool you use.
-      # A tool with a per-tool rail must be declared even without `tool call validation`.
-      # `{type: object}` alone declares a tool that takes no arguments, so these schemas allow any arguments.
-      tools:
-        - {type: function, function: {name: Bash, parameters: {type: object, additionalProperties: true}}}
-        - {type: function, function: {name: Read, parameters: {type: object, additionalProperties: true}}}
-        - {type: function, function: {name: Write, parameters: {type: object, additionalProperties: true}}}
-        - {type: function, function: {name: Edit, parameters: {type: object, additionalProperties: true}}}
-        - {type: function, function: {name: Glob, parameters: {type: object, additionalProperties: true}}}
-        - {type: function, function: {name: Grep, parameters: {type: object, additionalProperties: true}}}
-        - {type: function, function: {name: WebFetch, parameters: {type: object, additionalProperties: true}}}
-        - {type: function, function: {name: WebSearch, parameters: {type: object, additionalProperties: true}}}
+# The server checks tool calls and never generates a response, so the config needs no model.
+models: []
 
 rails:
   tool_call:
-    # Global rails run on every tool call. Remove this to allow undeclared tools without a check;
-    # then only the tools under `per_tool` are checked.
+    # Global rails run on every tool call. `tool call validation` enforces the tool lists below,
+    # which need it.
     flows:
       - tool call validation
+
+    # The allowlist. With `allow_unlisted_tools: false`, a call to any tool not listed here is denied,
+    # MCP tools (`mcp__<server>__<tool>`) included. This is a starting set: list every tool you use.
+    # A bare name allows any arguments. Set `allow_unlisted_tools: true` to allow unlisted tools
+    # without a check; then only the tools under `per_tool` are checked.
+    allowed_tools:
+      - Bash
+      - Read
+      - Write
+      - Edit
+      - Glob
+      - Grep
+      - WebFetch
+      - WebSearch
+    allow_unlisted_tools: false
 
     # Per-tool rails run on calls to the tool named, spelled exactly as Claude Code sends it.
     per_tool:

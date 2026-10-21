@@ -12,30 +12,41 @@
 # NeMo Relay forwards the tool names of whatever it wraps. This example is for an application tool, `search`, as in
 # NeMo Relay's "Add a Tool Policy", whose policy rejects a search without a query. Behind NeMo Relay's Claude Code or
 # Codex integration, the tool names are that agent's, so use the `claude_code` or `codex` example's tools and rails.
-# The server only runs tool-call rails. The check here is the tool's schema, so no model is called and no API key is
-# needed.
+# The server only runs tool-call rails. The checks here are the tool lists and a regex, so no model is called and no
+# API key is needed.
 
-models:
-  # A tool check needs a `main` model: it sets the tool format and declares the tools. The server never calls it.
-  - type: main
-    engine: nim
-    model: nvidia/nemotron-3.5-super-vl-120b-a12b
-    parameters:
-      # The allowlist, and each tool's arguments. With `tool call validation` below, a call to any tool not declared
-      # here is denied, and so is a call whose arguments don't match its tool's schema: here, a `search` with no
-      # `query`, or an empty one.
-      tools:
-        - type: function
-          function:
-            name: search
-            parameters:
-              type: object
-              properties:
-                query: {type: string, minLength: 1}
-              required: [query]
+# The server checks tool calls and never generates a response, so the config needs no model.
+models: []
 
 rails:
   tool_call:
-    # Global rails run on every tool call: the allowlist and the schema check.
+    # Global rails run on every tool call. `tool call validation` enforces the tool lists below,
+    # which need it.
     flows:
       - tool call validation
+
+    # The allowlist, and each tool's arguments. With `allow_unlisted_tools: false`, a call to any tool not listed
+    # here is denied, and so is a `search` that passes an argument other than `query`.
+    allowed_tools:
+      - name: search
+        arguments: [query]
+    allow_unlisted_tools: false
+
+    # The policy for `search`: a search needs a query, and the query a non-empty string.
+    per_tool:
+      search:
+        - regex check tool call $argument=query
+
+  config:
+    regex_detection:
+      tool_call:
+        search:
+          # Each pattern is matched against the call's `query` as JSON, such as {"query": "weather"}. A call without
+          # `query` is matched against all its arguments, which the allowlist leaves empty: {}.
+          patterns:
+            # An empty query.
+            - '^\{"query": ""\}$'
+            # A query that isn't a string.
+            - '^\{"query": [^"]'
+            # No query.
+            - '^\{\}$'

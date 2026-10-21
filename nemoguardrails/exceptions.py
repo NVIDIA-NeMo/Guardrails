@@ -21,6 +21,7 @@ __all__ = [
     "InvalidRailsConfigurationError",
     "InvalidCheckRequestError",
     "InvalidStateError",
+    "ToolNotAllowedError",
     "LLMCallException",
     "LLMClientError",
     "LLMAuthenticationError",
@@ -88,6 +89,12 @@ class RailTypeNotSupportedError(InvalidRailsConfigurationError):
 
 class InvalidCheckRequestError(ValueError):
     """Raised when a check's arguments contradict each other, such as `tools` without a `tool_call` check."""
+
+    pass
+
+
+class ToolNotAllowedError(ValueError):
+    """Raised when a generation request offers the model a tool the config's tool lists deny."""
 
     pass
 

@@ -46,6 +46,7 @@ from nemoguardrails.exceptions import (
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
     ToolConversationTooLongError,
+    ToolNotAllowedError,
 )
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.model_engine import ModelEngineError
@@ -73,6 +74,7 @@ from nemoguardrails.server.exception_handlers import (
     rail_type_not_supported_error_handler,
     streaming_capacity_error_handler,
     tool_conversation_too_long_error_handler,
+    tool_not_allowed_error_handler,
     validation_error_handler,
 )
 from nemoguardrails.server.metrics import shutdown_metrics_exporter, start_metrics_exporter
@@ -237,6 +239,7 @@ _EXCEPTION_HANDLERS = (
     (RailTypeNotConfiguredError, rail_type_not_configured_error_handler),
     (RailTypeNotSupportedError, rail_type_not_supported_error_handler),
     (InvalidCheckRequestError, invalid_check_request_error_handler),
+    (ToolNotAllowedError, tool_not_allowed_error_handler),
     (InvalidStateError, invalid_state_error_handler),
     (ToolConversationTooLongError, tool_conversation_too_long_error_handler),
     (RequestValidationError, validation_error_handler),
@@ -909,9 +912,10 @@ def _violations_in_request_positions(
 async def guardrail_check(body: GuardrailCheckRequest, request: Request):
     """Guardrail check request.
 
-    Returns 422 when ``rail_types`` includes a type with no configured flows, or when
+    Returns 422 when ``rail_types`` includes a type with no configured flows, when
     the serving engine cannot run a tool check it was asked for: a tool rail type, or
-    ``tools``, on a config the IORails engine does not serve.
+    ``tools``, on a config the IORails engine does not serve, or when ``tools`` offers
+    a tool the config's tool lists deny every call to.
     """
     api_request_headers.set(request.headers)
 

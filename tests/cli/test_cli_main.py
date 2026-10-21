@@ -27,16 +27,7 @@ from nemoguardrails.cli import app
 runner = CliRunner()
 
 HOOKS_CONFIG_YML = """
-models:
-  - type: main
-    engine: nim
-    model: meta/llama-3.3-70b-instruct
-    parameters:
-      tools:
-        - type: function
-          function:
-            name: Bash
-            parameters: {type: object, additionalProperties: true}
+models: []
 rails:
   tool_call:
     per_tool:
@@ -527,7 +518,7 @@ class TestHooksServerCommand:
         result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
 
         assert result.exit_code == 1
-        assert "The hooks server needs tool-call rails and a `main` model." in result.output
+        assert "The hooks server needs tool-call rails." in result.output
         mock_uvicorn.assert_not_called()
 
     @patch("uvicorn.run")

@@ -482,6 +482,63 @@ def test_check_with_unread_tools_returns_422_under_iorails_alias(tool_rails_alia
     stubbed_main_model.assert_not_awaited()
 
 
+WEB_FETCH_TOOL = {"type": "function", "function": {"name": "WebFetch", "parameters": {"type": "object"}}}
+
+
+@pytest.fixture
+def tool_lists_alias(monkeypatch):
+    """Alias LLMRails->Guardrails and serve a passthrough config whose tool-call rail blocks WebFetch."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    rails = {**TOOL_CONFIG["rails"], "tool_call": {"flows": ["tool call validation"], "blocked_tools": ["WebFetch"]}}
+    tool_lists_config = RailsConfig.from_content(config={**TOOL_CONFIG, "passthrough": True, "rails": rails})
+
+    async def _fake_start(self):
+        self._running = True
+
+    monkeypatch.setattr(api, "LLMRails", Guardrails)
+    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: tool_lists_config))
+    monkeypatch.setattr(IORails, "start", _fake_start)
+    api.llm_rails_instances.clear()
+    yield
+    api.llm_rails_instances.clear()
+
+
+def test_check_offering_a_denied_tool_returns_422_under_iorails_alias(tool_lists_alias, stubbed_main_model):
+    """/v1/checks answers 422 when `tools` offers a tool the config's tool lists deny, naming it."""
+    response = _post_check(tool_call_turn(wire_tool_call()), ["tool_call"], tools=[WEATHER_TOOL, WEB_FETCH_TOOL])
+
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == (
+        "tools offers tools that rails.tool_call denies every call to: 'WebFetch'; leave them out of tools"
+    )
+    stubbed_main_model.assert_not_awaited()
+
+
+def test_chat_completion_offering_a_denied_tool_returns_422_under_iorails_alias(tool_lists_alias, stubbed_main_model):
+    """/v1/chat/completions answers 422 when `tools` offers the model a denied tool, without calling it."""
+    client = TestClient(api.app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Fetch the docs."}],
+            "tools": [WEATHER_TOOL, WEB_FETCH_TOOL],
+            "guardrails": {"config_id": "tools"},
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"] == {
+        "message": "llm_params.tools offers the model tools that rails.tool_call denies every call to: 'WebFetch'; "
+        "leave them out of llm_params.tools",
+        "type": "invalid_request_error",
+        "param": None,
+        "code": None,
+    }
+    stubbed_main_model.assert_not_awaited()
+
+
 # A Colang input rail, which LLMRails runs through its own runtime: the config the server holds when
 # NEMO_GUARDRAILS_IORAILS_ENGINE is unset.
 INPUT_RAIL_COLANG = """
