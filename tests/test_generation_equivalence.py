@@ -45,7 +45,7 @@ the event stream, so each scenario is pinned across four channels:
 import asyncio
 import os
 from typing import cast
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -578,8 +578,7 @@ class TestSingleCall:
         await actions.generate_bot_message(events=events, context={})
 
         # The handoff was consumed on the cache-miss fall-through, not leaked.
-        with pytest.raises(KeyError):
-            _streaming_handoff.take(handler.uid)
+        assert _streaming_handoff.take(handler.uid) is None
 
     @pytest.mark.asyncio
     async def test_predefined_message_evicts_pending_handoff(self):
@@ -625,8 +624,7 @@ class TestSingleCall:
         await actions.generate_bot_message(events=events, context={})
 
         # The predefined-message branch bypassed the cache but still released the handoff.
-        with pytest.raises(KeyError):
-            _streaming_handoff.take(handler.uid)
+        assert _streaming_handoff.take(handler.uid) is None
 
     @pytest.mark.asyncio
     async def test_cache_returns_none_when_last_user_event_not_user_intent(self):
@@ -695,8 +693,169 @@ class TestStreaming:
 
         assert registry.take(handler.uid) is handler
         # Taken once, the handler is gone -- it does not linger for the module lifetime.
-        with pytest.raises(KeyError):
-            registry.take(handler.uid)
+        assert registry.take(handler.uid) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "first_bot,second_bot",
+    [
+        ("greet", "farewell"),
+        ("$greeting", "$farewell"),
+    ],
+)
+async def test_single_call_streaming_handles_subsequent_bot_replies(monkeypatch, first_bot, second_bot):
+    from nemoguardrails.actions.llm import generation
+    from nemoguardrails.context import streaming_handler_var
+    from nemoguardrails.streaming import StreamingHandler
+
+    registry = generation._StreamingHandoffRegistry()
+    monkeypatch.setattr(generation, "_streaming_handoff", registry)
+    config = RailsConfig.from_content(
+        f"""
+        define user express greeting
+            "hello"
+        define bot greet
+            "Hello!"
+        define bot farewell
+            "Goodbye!"
+        define flow
+            user express greeting
+            $greeting = "Hello!"
+            $farewell = "Goodbye!"
+            bot {first_bot}
+            bot {second_bot}
+        """,
+        yaml_content="streaming: true\nrails:\n  dialog:\n    single_call:\n      enabled: true\n",
+    )
+    llm = RecordingFakeLLM(responses=['  express greeting\nbot greet\n  "Cached reply."'])
+    chat = TestChat(config, llm=llm)
+    token = streaming_handler_var.set(None)
+    try:
+        response = await asyncio.wait_for(
+            chat.app.generate_async(
+                messages=[{"role": "user", "content": "hello"}],
+                streaming_handler=StreamingHandler(),
+                options=LOG_OPTS,
+            ),
+            timeout=5,
+        )
+    finally:
+        streaming_handler_var.reset(token)
+
+    assert [event["text"] for event in response.log.internal_events if event["type"] == "BotMessage"] == [
+        "Hello!",
+        "Goodbye!",
+    ]
+    assert llm.inference_count == 1
+    assert registry._handlers == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cached_intent", ["respond kindly", "another intent"])
+async def test_single_call_consumed_handoff_regenerates_bot_message(monkeypatch, cached_intent):
+    from nemoguardrails.actions.llm import generation
+    from nemoguardrails.context import streaming_handler_var
+    from nemoguardrails.streaming import StreamingHandler
+
+    registry = generation._StreamingHandoffRegistry()
+    monkeypatch.setattr(generation, "_streaming_handoff", registry)
+    config = RailsConfig.from_content(
+        'define user express greeting\n    "hello"\n',
+        yaml_content="rails:\n  dialog:\n    single_call:\n      enabled: true\n",
+    )
+    llm = FakeLLMModel(responses=['  "First reply."', '  "Second reply."'])
+    actions = LLMGenerationActions(
+        config=config,
+        llm=llm,
+        llm_task_manager=LLMTaskManager(config),
+        get_embedding_search_provider_instance=MagicMock(return_value=None),
+    )
+    actions.bot_message_index = MagicMock(search=AsyncMock(return_value=[]))
+    handler = StreamingHandler()
+    marker = registry.register(handler)
+    assert registry.take(handler.uid) is handler
+    events = [
+        new_event_dict(
+            "UserIntent",
+            intent="express greeting",
+            additional_info=build_single_call_payload(
+                bot_intent_event=new_event_dict("BotIntent", intent=cached_intent),
+                bot_message_event=new_event_dict("BotMessage", text=marker),
+            ),
+        ),
+        new_event_dict("BotIntent", intent="respond kindly"),
+    ]
+    token = streaming_handler_var.set(None)
+    try:
+        first = await actions.generate_bot_message(events=events, context={})
+        second = await actions.generate_bot_message(events=events, context={})
+    finally:
+        streaming_handler_var.reset(token)
+
+    assert [event["text"] for event in first.events if event["type"] == "BotMessage"] == ["First reply."]
+    assert [event["text"] for event in second.events if event["type"] == "BotMessage"] == ["Second reply."]
+    assert llm.inference_count == 2
+    assert registry._handlers == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("single_call", [False, True])
+@pytest.mark.parametrize(
+    "content,query",
+    [
+        ("product support", "product support"),
+        (
+            [
+                {"type": "text", "text": "product"},
+                {"type": "image_url", "image_url": {"url": "https://example.com/product.png"}},
+                {"type": "text", "text": "support"},
+            ],
+            "product support",
+        ),
+        ([{"type": "image_url", "image_url": {"url": "https://example.com/product.png"}}], ""),
+    ],
+)
+async def test_general_turn_normalizes_kb_query_preserving_content(monkeypatch, single_call, content, query):
+    from nemoguardrails import LLMRails
+    from tests.testing.embeddings import DeterministicEmbeddingSearchProvider
+
+    monkeypatch.setattr(
+        LLMRails,
+        "_get_embeddings_search_provider_instance",
+        lambda self, config=None: DeterministicEmbeddingSearchProvider(),
+    )
+    config = RailsConfig.from_content(
+        config={
+            "models": [{"type": "main", "engine": "openai", "model": "test"}],
+            "rails": {"dialog": {"single_call": {"enabled": single_call}}},
+            "knowledge_base": {"embedding_search_provider": {"name": "test"}},
+            "docs": [{"format": "md", "content": "# Product\n\nProduct support is available daily."}],
+            "prompts": [
+                {
+                    "task": "general",
+                    "models": ["openai/test"],
+                    "messages": [
+                        {"type": "system", "content": "{{ relevant_chunks }}"},
+                        "{{ history | to_chat_messages }}",
+                    ],
+                }
+            ],
+        }
+    )
+    chat = TestChat(config, llm_completions=["Support is available daily."])
+    search = AsyncMock(wraps=chat.app.kb.search_relevant_chunks)
+    monkeypatch.setattr(chat.app.kb, "search_relevant_chunks", search)
+    generate = AsyncMock(wraps=chat.llm.generate_async)
+    monkeypatch.setattr(chat.llm, "generate_async", generate)
+
+    response = await chat.app.generate_async(messages=[{"role": "user", "content": content}], options=LOG_OPTS)
+
+    assert response.response == [{"role": "assistant", "content": "Support is available daily."}]
+    search.assert_awaited_once_with(query)
+    prompt = generate.call_args.args[0]
+    assert "Product support is available daily." in prompt[0].content
+    assert prompt[-1].content == content
 
 
 class TestGeneralAndPassthrough:

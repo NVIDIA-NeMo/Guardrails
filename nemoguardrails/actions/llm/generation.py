@@ -96,9 +96,9 @@ class _StreamingHandoffRegistry:
             return text[len(self._MARKER_PREFIX) : -len(self._MARKER_SUFFIX)]
         return None
 
-    def take(self, uid: str) -> "StreamingHandler":
-        """Return the registered handler for ``uid`` and remove it from the registry."""
-        return self._handlers.pop(uid)
+    def take(self, uid: str) -> Optional["StreamingHandler"]:
+        """Remove and return the handler for ``uid``, or None if already consumed."""
+        return self._handlers.pop(uid, None)
 
 
 _streaming_handoff = _StreamingHandoffRegistry()
@@ -611,7 +611,10 @@ class LLMGenerationActions:
 
         else:
             if kb:
-                chunks = await kb.search_relevant_chunks(event["text"])
+                query = event["text"]
+                if isinstance(query, list):
+                    query = " ".join(item["text"] for item in query if item["type"] == "text")
+                chunks = await kb.search_relevant_chunks(query)
                 relevant_chunks = "\n".join([chunk["body"] for chunk in chunks])
             else:
                 # in case there is  no user flow (user message) then we need the context update to work for relevant_chunks
@@ -918,6 +921,8 @@ class LLMGenerationActions:
         streaming_handler_uid = _streaming_handoff.parse_marker(text)
         if streaming_handler_uid is not None:
             _streaming_handler = _streaming_handoff.take(streaming_handler_uid)
+            if _streaming_handler is None:
+                return None
 
             # We pipe the content from this handler to the main one.
             # The marker is only present when generation streamed,
