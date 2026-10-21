@@ -112,7 +112,8 @@ class _ClosingStreamingResponse(StreamingResponse):
             await super().__call__(scope, receive, send)
         finally:
             try:
-                await close_stream(self.owned_body)
+                if self.owned_body is not self.source:
+                    await close_stream(self.owned_body)
             finally:
                 await close_stream(self.source, close=self.close)
 

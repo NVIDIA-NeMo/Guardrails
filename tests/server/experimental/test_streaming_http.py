@@ -405,6 +405,51 @@ async def test_stalled_response_cleanup_preserves_send_failure(monkeypatch, capl
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("same_source", [False, True])
+@pytest.mark.parametrize("close_mode", ["complete", "hang", "raise"])
+@pytest.mark.parametrize("with_callback", [False, True])
+async def test_response_finalizer_closes_each_owner_once(monkeypatch, same_source, close_mode, with_callback):
+    monkeypatch.setattr(_stream_cleanup, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01)
+    attempts = []
+
+    class ClosingSource(Source):
+        def __init__(self, name):
+            super().__init__([])
+            self.name = name
+
+        async def aclose(self):
+            attempts.append(self.name)
+            if close_mode == "hang":
+                await anyio.sleep_forever()
+            if close_mode == "raise":
+                raise RuntimeError("cleanup failed")
+            await super().aclose()
+
+    async def close_resource():
+        await anyio.sleep(0)
+        attempts.append("resource")
+
+    body = ClosingSource("body")
+    source = body if same_source else ClosingSource("source")
+    response = _ClosingStreamingResponse(body, source, status_code=200, close=close_resource if with_callback else None)
+
+    async def receive():
+        await anyio.sleep_forever()
+
+    async def send(_message):
+        raise OSError("downstream disconnected")
+
+    with anyio.fail_after(1):
+        with pytest.raises(ClientDisconnect):
+            await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+
+    expected = ["body"] if same_source else ["body", "source"]
+    if with_callback:
+        expected.append("resource")
+    assert attempts == expected
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("stalled_body", [False, True])
 async def test_stalled_response_cleanup_preserves_task_cancellation(monkeypatch, caplog, stalled_body):
     monkeypatch.setattr(_stream_cleanup, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01)
