@@ -32,6 +32,16 @@ comparison explicitly checks consumption, rewinds the cassette once, and then
 checks the uninspected pass separately. Unrestricted playback repeats are not
 enabled, so extra dispatches or HTTP retries cannot reuse the recorded response.
 
+## Native Responses coverage
+
+The [Responses suite](openai/test_responses.py) calls native OpenAI during
+authorized capture and selects the base Responses endpoint during offline replay.
+Its four cassettes cover buffered/streaming success and genuine invalid-model
+errors requested in both modes. Successful recordings are reused with synthetic
+checker verdicts for buffered blocking, first/later streaming-window blocking,
+and overlapping context.
+Responses errors use native SSE framing without a Chat `[DONE]` marker.
+
 Blocking tests reference the existing successful cassettes and force
 `record_mode="none"`. They cannot refresh or manufacture evidence. Refresh the
 original success tests when authorized; do not create separate provider

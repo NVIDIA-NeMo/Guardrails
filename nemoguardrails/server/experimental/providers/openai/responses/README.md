@@ -141,8 +141,29 @@ baseline. The old Responses implementation provided characterization cases,
 not authoritative generated models. The
 [official streaming guide](https://developers.openai.com/api/docs/guides/streaming-responses)
 describes semantic SSE events; this integration intentionally supports only the
-reviewed subset above. Tests use synthetic API-shaped payloads, not recordings
-or a claim of compatibility with every OpenAI-compatible server.
+reviewed subset above. Synthetic tests cover unsupported shapes; the native
+[recorded suite](../../../../../../tests/recorded/server/experimental/openai/test_responses.py)
+also exercises successful buffered and streaming exchanges and genuine HTTP
+errors from `https://api.openai.com/v1/responses`. This is evidence for the
+captured native profile, not every OpenAI-compatible server.
+
+The captures use `gpt-5-nano-2025-08-07` with minimal reasoning, a short benign
+greeting, and `store: false`, matching the model family used by the LiteLLM
+comparison. They were captured on 2026-10-21. The model is a historical
+compatibility baseline, not a recommendation for new applications. Refresh
+requires `OPENAI_API_KEY`; default replay supplies a dummy key and blocks the
+network. No SDK or additional provider extra is needed beyond the repository's
+recording dependencies and the experimental HTTP proxy dependencies.
+
+Both native modes return `store`, `access_programs`, `frequency_penalty`,
+`presence_penalty`, and `tool_usage`; buffered output also includes `billing`.
+These are response metadata, not LiteLLM-only extensions. The base contract
+preserves them uninspected in buffered responses and lifecycle snapshots. This
+does not admit them as new request controls or permit unreviewed output items.
+
+The pinned schema's `Response` properties omit `store` even though its own
+text-response example contains it. Native recordings provide additional evidence
+for accepting this metadata.
 
 Focused tests cover projections, export parity, protocol behavior, fragmented
 SSE, blocked output, and application composition with real offline regex Rails
