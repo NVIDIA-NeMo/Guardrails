@@ -266,7 +266,7 @@ def test_only_guarded_output_inspection_forces_identity_encoding():
 def test_passthrough_streams_bodies_outside_guarded_limits_and_preserves_representation_headers():
     transport = TrackingTransport()
     application = create_proxy_application(
-        providers=(create_openai_chat_integration(),),
+        providers=(create_openai_chat_integration(base_url="https://api.openai.com/v1"),),
         checker=StaticChecker(),
         http_transport_factory=lambda: transport,
         max_request_body_bytes=1,
