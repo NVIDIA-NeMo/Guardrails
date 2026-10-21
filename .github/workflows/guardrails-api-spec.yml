@@ -1,4 +1,4 @@
-name: OpenAPI generation
+name: Guardrails API specification
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
       - "fern/generators.yml"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/openapi.yml"
+      - ".github/workflows/guardrails-api-spec.yml"
       - ".github/workflows/api-conformance-docs.yml"
       - ".github/actions/setup-uv/**"
   push:
@@ -23,7 +23,7 @@ on:
       - "fern/generators.yml"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/openapi.yml"
+      - ".github/workflows/guardrails-api-spec.yml"
       - ".github/workflows/api-conformance-docs.yml"
       - ".github/actions/setup-uv/**"
   workflow_dispatch:
@@ -33,7 +33,7 @@ permissions:
 
 jobs:
   check:
-    name: Check generated OpenAPI
+    name: Check generated Guardrails API specification
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

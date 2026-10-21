@@ -54,11 +54,11 @@ Validate your source and documentation changes with:
 make docs-fern
 ```
 
-The `OpenAPI generation` workflow generates the specification and tests the
-exporter on pull requests and `develop` pushes affecting the contract or its
-generation inputs. The documentation build and deployment jobs generate their own
-references from the source revision being built; they do not depend on a committed
-OpenAPI file or a previous job's generated output.
+The `Guardrails API specification` workflow in `.github/workflows/guardrails-api-spec.yml`
+generates the specification and tests the exporter on pull requests and `develop`
+pushes affecting the contract or its generation inputs. The documentation build and
+deployment jobs generate their own references from the source revision being built;
+they do not depend on a committed OpenAPI file or a previous job's generated output.
 
 The documentation conformance workflow compares the overlay-applied specifications
 from the base and current revisions. It generates the base specification from that
