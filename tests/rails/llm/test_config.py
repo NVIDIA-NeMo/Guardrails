@@ -252,6 +252,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
         ),
         "injection_detection": ("InjectionDetection",),
         "jailbreak_detection": ("JailbreakDetectionConfig",),
+        "decision_model": ("DecisionModelConfig", "DecisionModelOptions", "DecisionModelQuestion"),
         "pangea": ("PangeaRailConfig", "PangeaRailOptions"),
         "patronusai": (
             "PatronusEvaluationSuccessStrategy",
@@ -300,6 +301,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
         "hf_classifier",
         "injection_detection",
         "jailbreak_detection",
+        "decision_model",
         "pangea",
         "patronus",
         "polygraf",
@@ -374,6 +376,7 @@ def test_builtin_rail_config_modules_use_supported_imports():
         "pydantic",
         "re",
         "typing",
+        "warnings",
         "nemoguardrails.manifests.config_schema",
     }
     library_path = Path("nemoguardrails/library")

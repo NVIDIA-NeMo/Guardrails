@@ -303,6 +303,20 @@ POLICYAI_OUTPUT = RailSpec(
     action="call_policyai_api",
 )
 
+DECISION_MODEL_INPUT = RailSpec(
+    name="decision_model_input",
+    flow="decision model check input",
+    direction="input",
+    action="decision_model_check",
+)
+
+DECISION_MODEL_OUTPUT = RailSpec(
+    name="decision_model_output",
+    flow="decision model check output",
+    direction="output",
+    action="decision_model_check",
+)
+
 REGEX_INPUT = RailSpec(
     name="regex_input",
     flow="regex check input",
@@ -1298,6 +1312,15 @@ def _policyai_outcome(metadata: dict[str, Any]) -> RailOutcome:
     return RailOutcome.allow(reason=reason, metadata=metadata)
 
 
+def _decision_model_outcome(*, blocked: bool) -> RailOutcome:
+    if blocked:
+        return RailOutcome.block(
+            reason="Decision model flagged: jailbreak",
+            metadata={"scores": {"jailbreak": 0.9, "harmful_request": 0.1}, "triggered": ["jailbreak"]},
+        )
+    return RailOutcome.allow(metadata={"scores": {"jailbreak": 0.1, "harmful_request": 0.1}, "triggered": []})
+
+
 FIXTURES = [
     _case(
         "self_check_output_allows_outcome_allow",
@@ -1523,6 +1546,50 @@ FIXTURES = [
         "policyai_output_blocks_outcome_block_exception",
         POLICYAI_OUTPUT,
         _policyai_outcome(POLICYAI_UNSAFE_OUTCOME_KWARGS),
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "decision_model_input_allows_outcome_allow",
+        DECISION_MODEL_INPUT,
+        _decision_model_outcome(blocked=False),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "decision_model_input_blocks_outcome_block",
+        DECISION_MODEL_INPUT,
+        _decision_model_outcome(blocked=True),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "decision_model_input_blocks_outcome_block_exception",
+        DECISION_MODEL_INPUT,
+        _decision_model_outcome(blocked=True),
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "decision_model_output_allows_outcome_allow",
+        DECISION_MODEL_OUTPUT,
+        _decision_model_outcome(blocked=False),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "decision_model_output_blocks_outcome_block",
+        DECISION_MODEL_OUTPUT,
+        _decision_model_outcome(blocked=True),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "decision_model_output_blocks_outcome_block_exception",
+        DECISION_MODEL_OUTPUT,
+        _decision_model_outcome(blocked=True),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -3167,7 +3234,7 @@ def test_enable_rails_exceptions_is_honoured_only_by_llmrails():
     """A blocked rail raises an exception turn on LLMRails and returns the refusal on IORails."""
     # The flag is implemented entirely in each rail's Colang flow, which branches on
     # $config.enable_rails_exceptions to `create event <Rail>Exception`. IORails runs no Colang
-    # runtime, so it has nothing to raise and no per-rail event name to raise it under; 36 of
+    # runtime, so it has nothing to raise and no per-rail event name to raise it under; 38 of
     # the enabled cases carry the flag and diverge this way. The decision agrees on both engines
     # -- only the shape of the block differs -- so this is pinned here rather than left to the
     # table above, where a decision-level assertion would pass without recording it.
