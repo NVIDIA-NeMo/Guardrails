@@ -34,7 +34,7 @@ async def check_rails(
     return await rails.check_async(messages, rail_types=list(rail_types) if rail_types is not None else None)
 
 
-async def check_iorails(config, messages: list[dict], rail_types: tuple[RailType, ...]):
+async def check_iorails(config: RailsConfigSource, messages: list[dict], rail_types: tuple[RailType, ...]):
     """Run rails through Guardrails, asserting IORails is the engine that served them.
 
     Entered as a context manager so shutdown closes the engine's aiohttp session. Left open,

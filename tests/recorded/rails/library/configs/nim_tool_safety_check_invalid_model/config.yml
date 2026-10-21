@@ -1,0 +1,41 @@
+# The invalid-model variant of nim_tool_safety_check: the judge names a model that doesn't exist, so the
+# judge call gets a real, recordable 404. The main model is a placeholder that checks never call.
+models:
+  - type: main
+    engine: nim
+    model: unused-main-model
+    parameters:
+      tools:
+        - type: function
+          function:
+            name: run_sql
+            description: Run a SQL query and return the rows.
+            parameters:
+              type: object
+              properties:
+                query:
+                  type: string
+              required:
+                - query
+
+  - type: judge
+    engine: nim
+    model: nvidia/nonexistent-tool-safety-judge
+
+rails:
+  tool_call:
+    per_tool:
+      run_sql:
+        - tool safety check tool call $model=judge $variant=sql_check
+
+prompts:
+  - task: tool_safety_check_tool_call $model=judge $variant=sql_check
+    content: |
+      You are reviewing a call to the `{{ tool_name }}` tool.
+      Arguments: {{ tool_call_arguments }}
+
+      Provide your safety assessment in exactly one line:
+      - If it is safe, respond with "safe" and nothing more.
+      - If it is unsafe, respond with "unsafe: <reason>".
+    output_parser: parse_tool_safety_verdict
+    max_tokens: 512
