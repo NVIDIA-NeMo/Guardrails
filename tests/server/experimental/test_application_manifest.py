@@ -64,8 +64,12 @@ def write_manifest(tmp_path, document):
 
 
 @pytest.mark.parametrize("dialect", [None, "litellm"])
-def test_yaml_and_python_resolve_identical_bindings_from_another_directory(tmp_path, document, monkeypatch, dialect):
+@pytest.mark.parametrize("resolution_timeout", [0.5, 5.0])
+def test_yaml_and_python_resolve_identical_bindings_from_another_directory(
+    tmp_path, document, monkeypatch, dialect, resolution_timeout
+):
     document["providers"][0]["dialect"] = dialect
+    document["config_resolution_timeout"] = resolution_timeout
     path = write_manifest(tmp_path, document)
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
@@ -73,6 +77,7 @@ def test_yaml_and_python_resolve_identical_bindings_from_another_directory(tmp_p
     config = load_manifest(path)
     expected = ProxyConfig(
         rails_configs=(ConfigEntry("standard", tmp_path / "rails"),),
+        config_resolution_timeout=resolution_timeout,
         providers=(
             ProviderConfig(
                 provider="openai",
@@ -85,6 +90,7 @@ def test_yaml_and_python_resolve_identical_bindings_from_another_directory(tmp_p
         ),
     )
     assert config == expected
+    assert cli.inspect_config(config)["limits"]["config_resolution_timeout"] == resolution_timeout
     assert resolve_provider(config.providers[0]) == resolve_provider(expected.providers[0])
     actual_app = create_proxy_application(config)
     expected_app = create_proxy_application(expected)

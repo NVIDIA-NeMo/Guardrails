@@ -74,7 +74,7 @@ documents are rejected. Input is UTF-8 and bounded to 1 MiB, depth 32 and 10,000
 nodes (including keys). The manifest is deployment-owned; never accept uploads
 from callers as configuration.
 
-`validate` checks the declaration, directory/config-file availability, upstream
+`validate` checks the declaration, directory availability, upstream
 URL rules and route composition. It does not read Rails contents, import their
 actions, start engines, contact providers or prove checker compatibility.
 `inspect` returns JSON describing actual bindings and directional profiles,
@@ -346,6 +346,13 @@ The default application prefix is empty, the request limit is 1 MiB, the
 response limit is 10 MiB, and the outbound timeout is 30 seconds. The limits
 retain existing guarded-versus-passthrough behavior; they are not a newly added
 global response-buffering rule.
+
+`config_resolution_timeout` defaults to five seconds and applies separately to
+trusted resolver execution. Set it in `ProxyConfig` or the manifest, or as a
+keyword in direct Python assembly. Synchronous resolvers must remain short and
+non-blocking; the cooperative deadline cannot interrupt blocking code. See
+[configuration resolution](configuration-resolution.md) for asynchronous selection
+and fail-closed timeout behavior.
 
 The new selection path reuses existing lifecycle owners. It does not fix or
 claim complete safety for interrupted startup/shutdown or failed HTTP cleanup.

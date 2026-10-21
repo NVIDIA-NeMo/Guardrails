@@ -110,6 +110,7 @@ def inspect_config(config: ProxyConfig) -> dict:
             "max_request_body_bytes": config.max_request_body_bytes,
             "max_response_body_bytes": config.max_response_body_bytes,
             "timeout": config.timeout,
+            "config_resolution_timeout": config.config_resolution_timeout,
         },
         "routing": {
             "unselected_routes": "passthrough within provider mounts, excluding reserved application routes",
