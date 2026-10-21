@@ -25,6 +25,7 @@ import json
 import os
 import re
 import signal
+import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -177,6 +178,7 @@ async def launched_proxy(tmp_path, upstream, dialect=None):
         "0",
         cwd=tmp_path,
         env=environment,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
@@ -201,18 +203,24 @@ async def launched_proxy(tmp_path, upstream, dialect=None):
         if drain is None and process.stdout is not None:
             drain = asyncio.create_task(process.stdout.read())
         if process.returncode is None:
-            process.terminate()
             try:
+                if sys.platform == "win32":
+                    process.send_signal(signal.CTRL_BREAK_EVENT)
+                else:
+                    process.terminate()
                 await asyncio.wait_for(process.wait(), 10)
             except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
                 pytest.fail("launcher did not shut down within 10 seconds")
+            finally:
+                if process.returncode is None:
+                    process.kill()
+                    await process.wait()
         if drain is not None:
             lines.append(await drain)
         output = b"".join(lines).decode()
         if ready:
-            assert process.returncode in (0, -signal.SIGTERM), output
+            if sys.platform != "win32":
+                assert process.returncode in (0, -signal.SIGTERM), output
             assert "Application shutdown complete." in output, output
 
 
