@@ -132,11 +132,15 @@ async def test_tool_safety_check_scoped_argument_is_all_the_judge_sees(nvidia_ap
     assert not result.tool_violations
 
 
-async def test_tool_safety_check_fails_closed_on_an_off_format_verdict(nvidia_api_key):
+async def test_tool_safety_check_fails_closed_on_an_off_format_verdict(nvidia_api_key, vcr):
     """A judge answer the verdict parser rejects blocks the result as a rail failure, not a decision."""
     result = await check_iorails(
         NIM_TOOL_SAFETY_CHECK_OFFFORMAT_CONFIG, _tool_result_turn(SAFE_RESULT), (RailType.TOOL_RESULT,)
     )
+
+    # A judge call that never got the recorded answer fails the rail the same way, so prove it was served.
+    if vcr.record_mode == "none":
+        assert vcr.play_count == 1
 
     assert_rails_result(result, status=RailStatus.BLOCKED, rail=RESULT_RAIL)
     assert normalize_rails_result(result) == snapshot(
