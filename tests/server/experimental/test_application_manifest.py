@@ -191,7 +191,7 @@ def test_unknown_keys_rejected_with_coordinates_not_source_values(tmp_path, docu
     assert "SECRET" not in result.output
 
 
-@pytest.mark.parametrize("fault", ["duplicate_mount", "duplicate_id", "missing_directory", "missing_config", "prefix"])
+@pytest.mark.parametrize("fault", ["duplicate_mount", "duplicate_id", "missing_directory", "prefix"])
 def test_assembly_validation_is_shared(tmp_path, document, fault):
     if fault.startswith("duplicate"):
         document["providers"].append(
@@ -203,8 +203,6 @@ def test_assembly_validation_is_shared(tmp_path, document, fault):
         )
     elif fault == "missing_directory":
         document["rails_configs"][0]["config_path"] = "SECRET_MISSING"
-    elif fault == "missing_config":
-        (tmp_path / "rails/config.yml").unlink()
     else:
         document["path_prefix"] = "invalid"
     result = runner.invoke(cli.app, ["validate", str(write_manifest(tmp_path, document))])
@@ -213,13 +211,21 @@ def test_assembly_validation_is_shared(tmp_path, document, fault):
     assert "SECRET" not in result.output
 
 
-def test_validation_and_inspection_do_not_load_rails_or_create_owners(tmp_path, document, monkeypatch):
+@pytest.mark.parametrize("filename", ["config.yml", "nested/policy.yaml", None], ids=["named", "nested", "empty"])
+def test_validation_and_inspection_do_not_load_rails_or_create_owners(tmp_path, document, monkeypatch, filename):
     def forbidden(*args, **kwargs):
         pytest.fail("structural commands must not enter runtime construction or load Rails")
 
     monkeypatch.setattr(_repository.RailsConfig, "from_path", forbidden)
     monkeypatch.setattr(_repository, "Guardrails", forbidden)
     monkeypatch.setattr(_application.ServerRuntime, "create", forbidden)
+    source = tmp_path / "rails/config.yml"
+    if filename is None:
+        source.unlink()
+    elif filename != "config.yml":
+        destination = tmp_path / "rails" / filename
+        destination.parent.mkdir(parents=True)
+        source.rename(destination)
     (tmp_path / "rails/actions.py").write_text("raise RuntimeError('must not execute')", encoding="utf-8")
     path = write_manifest(tmp_path, document)
     assert runner.invoke(cli.app, ["validate", str(path)]).exit_code == 0
