@@ -300,6 +300,37 @@ class TestToolLists:
         assert [violation.violation_type for violation in violations] == [ToolViolationType.TOOL_NOT_ALLOWED]
 
     @pytest.mark.asyncio
+    async def test_blocked_argument_is_reported_before_one_outside_the_allowed_entry(self):
+        """An argument both blocked and outside the tool's allowed_tools entry is reported as `argument_blocked`."""
+        policy = _policy(
+            allowed_tools=[{"name": "search", "arguments": ["query"]}],
+            blocked_tools=[{"name": "search", "arguments": ["limit"]}],
+        )
+
+        violations = await _violations(policy, Toolset(), _call("search", {"query": "q", "limit": 3}))
+
+        assert [violation.violation_type for violation in violations] == [ToolViolationType.ARGUMENT_BLOCKED]
+
+    @pytest.mark.asyncio
+    async def test_every_call_is_reported_in_order_across_the_lists_and_the_offered_tools(self):
+        """Calls that fail the lists and calls that fail the offered tools each get a violation, in call order."""
+        calls = [
+            _call("get_weather", {"city": "Paris"}, call_id="c1"),
+            _call("rm_rf", {}, call_id="c2"),
+            _call("get_weather", {"city": 5}, call_id="c3"),
+            _call("delete_files", {}, call_id="c4"),
+        ]
+
+        result = await ToolCallRailAction(policy=_policy(blocked_tools=["rm_rf"])).run(_toolset(), calls)
+
+        assert [(violation.violation_type, violation.index) for violation in violations_in(result)] == [
+            (ToolViolationType.TOOL_BLOCKED, 1),
+            (ToolViolationType.ARGUMENTS_INVALID, 2),
+            (ToolViolationType.TOOL_NOT_ALLOWED, 3),
+        ]
+        assert result.reason == "tool call 'rm_rf' is a blocked tool"
+
+    @pytest.mark.asyncio
     async def test_with_no_toolset_the_lists_alone_decide_even_at_their_defaults(self):
         """With no toolset at all, as for an agent hook, a config without the lists allows the call."""
         assert await _violations(_policy(), None, _call("Bash", {"command": "ls"})) == []

@@ -354,6 +354,20 @@ class TestAreToolCallsSafe:
         assert result.tool_violations == violations
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("query", "violation_types"),
+        [("SELECT 1", []), ("DROP TABLE users", [ToolViolationType.PER_TOOL_RAIL])],
+        ids=["allowed", "blocked"],
+    )
+    async def test_unlisted_tools_per_tool_rail_runs_with_nothing_offered(self, query, violation_types):
+        """With a tool policy set and unlisted tools allowed, a per-tool rail on a tool allowed_tools doesn't name runs."""
+        manager = _manager_with_tool_lists({"run_sql": ["regex check tool call"]}, blocked_tools=["drop_database"])
+
+        result = await manager.are_tool_calls_safe([_sql_call(query)], None)
+
+        assert [violation.violation_type for violation in result.tool_violations] == violation_types
+
+    @pytest.mark.asyncio
     async def test_argument_name_is_checked_against_an_allowed_entry(self):
         """With no tools offered, a per-tool rail's `$argument=` outside the tool's allowed_tools entry fails the rail."""
         manager = _manager_with_tool_lists(

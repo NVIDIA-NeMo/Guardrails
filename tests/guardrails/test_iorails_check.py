@@ -1553,6 +1553,32 @@ class TestCheckToolRailConfiguration:
         assert [violation.violation_type for violation in result.tool_violations or ()] == violation_types
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("content", "violation_types"),
+        [("18 rows", []), ("ssn: 123-45-6789", [ToolViolationType.PER_TOOL_RAIL])],
+        ids=["allowed", "blocked"],
+    )
+    async def test_per_tool_result_rails_run_without_a_main_model(self, content, violation_types):
+        """A config with no models runs a tool's per-tool result rails on its results in a tool-result check."""
+        config = {
+            "models": [],
+            "rails": {
+                "config": {
+                    "regex_detection": {"tool_result": {"run_sql": {"patterns": [r"ssn:\s*\d{3}-\d{2}-\d{4}"]}}}
+                },
+                "tool_result": {"per_tool": {"run_sql": ["regex check tool result"]}},
+            },
+        }
+        messages = make_tool_conversation(
+            result_name="run_sql", tool_name="run_sql", arguments='{"query": "SELECT 1"}', content=content
+        )
+
+        async with started_iorails(config) as engine:
+            result = await engine.check_async(messages, rail_types=[RailType.TOOL_RESULT])
+
+        assert [violation.violation_type for violation in result.tool_violations or ()] == violation_types
+
+    @pytest.mark.asyncio
     async def test_auto_detection_runs_input_and_output_only_and_logs_a_hint(self, tool_and_io_iorails, caplog):
         """With ``rail_types`` omitted, tool traffic runs only input and output rails, with an INFO hint."""
         order = _record_calls(tool_and_io_iorails)
@@ -1643,11 +1669,16 @@ class TestCheckToolRailConfiguration:
         submit.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_tools_the_lists_allow_are_checked_as_usual(self):
-        """`tools` holding only tools the lists allow is the offered toolset the call is checked against."""
+    @pytest.mark.parametrize(
+        "blocked_tools",
+        [["WebFetch"], [{"name": "get_weather", "arguments": ["units"]}]],
+        ids=["other-tool-blocked", "offered-tool-restricted-by-argument"],
+    )
+    async def test_tools_the_lists_allow_are_checked_as_usual(self, blocked_tools):
+        """`tools` with no tool the lists deny by name, even one they restrict by argument, is checked as usual."""
         config = {
             **TOOL_CONFIG,
-            "rails": {"tool_call": {"flows": ["tool call validation"], "blocked_tools": ["WebFetch"]}},
+            "rails": {"tool_call": {"flows": ["tool call validation"], "blocked_tools": blocked_tools}},
         }
 
         async with started_iorails(config) as engine:
@@ -1718,8 +1749,13 @@ class TestCheckToolRailConfiguration:
                 None,
                 "tool_policy_only is read only by a tool_call check; include tool_call in rail_types or leave it out",
             ),
+            (
+                None,
+                None,
+                "tool_policy_only is read only by a tool_call check; include tool_call in rail_types or leave it out",
+            ),
         ],
-        ids=["with-tools", "without-a-tool-call-check"],
+        ids=["with-tools", "without-a-tool-call-check", "auto-detection"],
     )
     async def test_misused_tool_policy_only_raises_before_queueing(self, tool_iorails, rail_types, tools, message):
         """tool_policy_only with `tools`, or without a tool_call check, raises InvalidCheckRequestError unqueued."""

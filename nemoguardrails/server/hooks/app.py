@@ -188,7 +188,7 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
     """Check the tool call the hook carries, and answer with the agent's allow or deny, or an error status."""
     adapter = ADAPTERS[agent]
     call = _parse_hook(adapter, await _read_json(request))
-    outcome = await _check_tool_call(request.app.state.engine.rails_engine, adapter, call)
+    outcome = await _check_tool_call(request.app.state.engine, adapter, call)
     if outcome.kind == "error":
         return _error_response(500, outcome.message or "", code=outcome.code)
     return JSONResponse(adapter.response_body(outcome))
@@ -215,7 +215,7 @@ def _parse_hook(adapter: HookAdapter, body: object) -> ToolInvocation:
         raise RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in errors]) from None
 
 
-async def _check_tool_call(engine: IORails, adapter: HookAdapter, call: ToolInvocation) -> HookOutcome:
+async def _check_tool_call(engine: Guardrails, adapter: HookAdapter, call: ToolInvocation) -> HookOutcome:
     """Run the config's tool-call rails on the hook's call, and log the verdict."""
     try:
         # An agent offers no tools to a model here, so only the config's tool lists decide which tools a call may use.

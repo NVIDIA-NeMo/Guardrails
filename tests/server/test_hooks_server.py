@@ -248,7 +248,7 @@ def failing_check(client, monkeypatch):
     """Make every check on *client* raise the exception the test passes in."""
 
     def fail_with(exc: BaseException) -> TestClient:
-        monkeypatch.setattr(client.app.state.engine.rails_engine, "check_async", AsyncMock(side_effect=exc))
+        monkeypatch.setattr(client.app.state.engine, "check_async", AsyncMock(side_effect=exc))
         return client
 
     return fail_with

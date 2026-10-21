@@ -514,6 +514,30 @@ def test_check_offering_a_denied_tool_returns_422_under_iorails_alias(tool_lists
     stubbed_main_model.assert_not_awaited()
 
 
+def test_check_returns_a_tool_policy_block_under_iorails_alias(tool_lists_alias, stubbed_main_model):
+    """/v1/checks answers 200 blocked, with the tool policy's violation, for a call to a tool blocked_tools names."""
+    response = _post_check(tool_call_turn(wire_tool_call("WebFetch", '{"url": "https://example.com"}')), ["tool_call"])
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "blocked",
+        "content": REFUSAL_MESSAGE,
+        "rail": "tool call validation",
+        "reason": "tool call 'WebFetch' is a blocked tool",
+        "tool_violations": [
+            {
+                "kind": "tool_call",
+                "violation_type": "tool_blocked",
+                "reason": "tool call 'WebFetch' is a blocked tool",
+                "tool_call_id": "call_1",
+                "tool_name": "WebFetch",
+                "index": 0,
+            }
+        ],
+    }
+    stubbed_main_model.assert_not_awaited()
+
+
 def test_chat_completion_offering_a_denied_tool_returns_422_under_iorails_alias(tool_lists_alias, stubbed_main_model):
     """/v1/chat/completions answers 422 when `tools` offers the model a denied tool, without calling it."""
     client = TestClient(api.app, raise_server_exceptions=False)

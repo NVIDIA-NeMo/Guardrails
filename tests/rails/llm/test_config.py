@@ -357,6 +357,29 @@ def test_merged_configs_deny_unlisted_tools_when_either_does(strict_first):
     assert (merged.rails.tool_call.allowed_tools, merged.rails.tool_call.allow_unlisted_tools) == (["Read"], False)
 
 
+def test_merged_configs_allow_the_tools_either_allows():
+    """Adding two configs that both set allowed_tools allows every tool either lists."""
+    first = _tool_call_config({"flows": ["tool call validation"], "allowed_tools": ["Read"]})
+    second = _tool_call_config({"flows": ["tool call validation"], "allowed_tools": ["Bash"]})
+
+    merged = first + second
+
+    assert sorted(merged.rails.tool_call.allowed_tools) == ["Bash", "Read"]
+
+
+def test_deprecated_tool_output_name_carries_the_tool_lists():
+    """The tool lists set under the deprecated rails.tool_output name load into rails.tool_call."""
+    with pytest.warns(DeprecationWarning, match="rails.tool_output is deprecated"):
+        config = RailsConfig.from_content(
+            config={
+                "models": [],
+                "rails": {"tool_output": {"flows": ["tool call validation"], "blocked_tools": ["WebFetch"]}},
+            }
+        )
+
+    assert config.rails.tool_call.blocked_tools == ["WebFetch"]
+
+
 def test_main_tools_the_lists_allow_raise_no_warning():
     """No warning is raised when the lists allow every tool and argument the `main` model offers."""
     main = _main_model_with_tools(("Read", ["file_path"]), ("Bash", ["command"]))

@@ -511,6 +511,80 @@ class TestOfferedToolsTheListsDeny:
         assert fake.inference_count == 1
 
 
+def _main_offering(*tools: dict) -> dict:
+    """The `main` model, offering *tools* in its parameters."""
+    return {**CONFIG_TOOLS_CONFIG["models"][0], "parameters": {"tools": list(tools)}}
+
+
+# The tool-call rail with a tool list that blocks one of get_weather's arguments, which its schema allows.
+UNITS_BLOCKED_RAILS = {
+    **TOOL_CONFIG["rails"],
+    "tool_call": {
+        "flows": ["tool call validation"],
+        "blocked_tools": [{"name": "get_weather", "arguments": ["units"]}],
+    },
+}
+
+
+class TestToolListsDecideGeneratedCalls:
+    """In generation, the tool lists decide each tool call the model makes, after the request's tools are accepted."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("name", "arguments", "called"),
+        [("WebFetch", '{"url": "https://example.com"}', []), ("get_weather", '{"city": "Paris"}', ["get_weather"])],
+        ids=["blocked-tool", "allowed-tool"],
+    )
+    async def test_call_to_a_main_model_tool_the_lists_block_is_refused(self, name, arguments, called):
+        """A model's call to a `main` model tool that blocked_tools names is refused, and a call to another passes."""
+        config = {"models": [_main_offering(WEATHER_TOOL, WEB_FETCH_TOOL)], "rails": TOOL_LISTS_RAILS}
+
+        async with started_iorails(config) as engine:
+            _inject_json_response(engine, _tool_call_payload(name, arguments))
+            result = await engine.generate_async(messages=MESSAGES)
+
+        assert [call["function"]["name"] for call in result.get("tool_calls") or []] == called
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("arguments", "called"),
+        [('{"city": "Paris", "units": "C"}', []), ('{"city": "Paris"}', ["get_weather"])],
+        ids=["blocked-argument", "no-blocked-argument"],
+    )
+    async def test_call_passing_a_blocked_argument_to_an_offered_tool_is_refused(self, arguments, called):
+        """A model's call that passes an argument blocked_tools names is refused, though the offered schema allows it."""
+        async with started_iorails({**TOOL_CONFIG, "rails": UNITS_BLOCKED_RAILS}) as engine:
+            _inject_json_response(engine, _tool_call_payload("get_weather", arguments))
+            result = await engine.generate_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS})
+
+        assert [call["function"]["name"] for call in result.tool_calls or []] == called
+
+    @pytest.mark.asyncio
+    async def test_streamed_call_the_lists_block_is_refused(self):
+        """In streaming, a model's call to a `main` model tool that blocked_tools names is refused by the tool-call rails."""
+        config = {"models": [_main_offering(WEATHER_TOOL, WEB_FETCH_TOOL)], "rails": TOOL_LISTS_RAILS}
+
+        async with started_iorails(config) as engine:
+            _inject_sse_stream(engine, _tool_call_sse_lines("WebFetch", ['{"url": "https://example.com"}']))
+            chunks = await _collect(engine.stream_async(MESSAGES))
+
+        assert [violation["error"]["param"] for violation in _stream_violation_chunks(chunks)] == ["tool_call_rails"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("rails", "called"),
+        [(TOOL_LISTS_RAILS, ["delete_files"]), (TOOL_CONFIG["rails"], [])],
+        ids=["tool-policy-set", "no-tool-policy"],
+    )
+    async def test_request_offering_no_tools_leaves_the_call_to_the_tool_policy(self, rails, called):
+        """With `llm_params.tools: []`, a config's tool policy alone decides a call; without one, the call is refused."""
+        async with started_iorails({**TOOL_CONFIG, "rails": rails}) as engine:
+            _inject_json_response(engine, _tool_call_payload("delete_files", "{}"))
+            result = await engine.generate_async(messages=MESSAGES, options={"llm_params": {"tools": []}})
+
+        assert [call["function"]["name"] for call in result.tool_calls or []] == called
+
+
 class TestNonStreamingToolResults:
     @pytest.mark.asyncio
     async def test_linked_tool_result_passes(self, iorails):
