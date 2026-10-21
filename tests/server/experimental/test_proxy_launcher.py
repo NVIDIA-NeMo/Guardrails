@@ -42,6 +42,7 @@ from tests.server.experimental.test_openai_responses_streaming_projections impor
 
 ROOT = Path(__file__).resolve().parents[3]
 EXAMPLE = ROOT / "nemoguardrails/server/experimental/examples/basic"
+LAUNCHER_TIMEOUT_SECONDS = 30
 
 
 def chat_response(text="safe"):
@@ -187,7 +188,7 @@ async def launched_proxy(tmp_path, upstream, dialect=None):
     ready = False
     try:
         assert process.stdout is not None
-        with anyio.fail_after(30):
+        with anyio.fail_after(LAUNCHER_TIMEOUT_SECONDS):
             while True:
                 line = await process.stdout.readline()
                 assert line, b"".join(lines).decode()
@@ -200,6 +201,7 @@ async def launched_proxy(tmp_path, upstream, dialect=None):
         drain = asyncio.create_task(process.stdout.read())
         yield url
     finally:
+        shutdown_timed_out = False
         if drain is None and process.stdout is not None:
             drain = asyncio.create_task(process.stdout.read())
         if process.returncode is None:
@@ -208,9 +210,9 @@ async def launched_proxy(tmp_path, upstream, dialect=None):
                     process.send_signal(signal.CTRL_BREAK_EVENT)
                 else:
                     process.terminate()
-                await asyncio.wait_for(process.wait(), 10)
+                await asyncio.wait_for(process.wait(), LAUNCHER_TIMEOUT_SECONDS)
             except asyncio.TimeoutError:
-                pytest.fail("launcher did not shut down within 10 seconds")
+                shutdown_timed_out = True
             finally:
                 if process.returncode is None:
                     process.kill()
@@ -218,10 +220,14 @@ async def launched_proxy(tmp_path, upstream, dialect=None):
         if drain is not None:
             lines.append(await drain)
         output = b"".join(lines).decode()
+        if shutdown_timed_out:
+            pytest.fail(f"launcher did not shut down within {LAUNCHER_TIMEOUT_SECONDS} seconds:\n{output}")
         if ready:
             if sys.platform != "win32":
                 assert process.returncode in (0, -signal.SIGTERM), output
             assert "Application shutdown complete." in output, output
+            assert "cleanup timed out" not in output.lower(), output
+            assert "cleanup failed" not in output.lower(), output
 
 
 @pytest.mark.asyncio
