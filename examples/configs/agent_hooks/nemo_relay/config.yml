@@ -1,3 +1,6 @@
+# Needs NeMo Relay 0.10.1 or later: at 0.10.0, an error from the guardrail let a Claude Code tool call run.
+# Behind NeMo Relay's Claude Code or Codex integration, the agent's version is NeMo Relay's to set, not this server's.
+#
 # Checks the tool calls a NeMo Relay plugin's tool conditional-execution guardrail forwards, with
 # `nemoguardrails hooks-server`:
 #

@@ -1,3 +1,6 @@
+# Needs Claude Code 2.1.295 or later. HTTP hooks came in 2.1.63, but `onFailure: "block"`, which makes a check that
+# fails block the tool instead of letting it run, came in 2.1.295.
+#
 # Checks Claude Code's tool calls before they run, with `nemoguardrails hooks-server`:
 #
 #   nemoguardrails hooks-server --config examples/configs/agent_hooks/claude_code
