@@ -318,6 +318,7 @@ def test_configurable_api_key_requirements_document_shipped_names():
     manifests = all_rail_manifests()
 
     expected = {
+        "decision_model": "DECISION_MODEL_API_KEY",
         "gliner": "NVIDIA_API_KEY",
         "jailbreak_detection": "NVIDIA_API_KEY",
         "trend_micro": "V1_API_KEY",
