@@ -33,6 +33,9 @@ NIM_NEMOTRON_35_CONTENT_SAFETY_THINKING_CONFIG = RailsConfigSource.from_path(
 NIM_NEMOTRON_35_CONTENT_SAFETY_TRUNCATING_CONFIG = RailsConfigSource.from_path(
     CONFIGS_DIR, "nim_nemotron_35_content_safety_truncating"
 )
+NIM_TOOL_SAFETY_CHECK_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nim_tool_safety_check")
+NIM_TOOL_SAFETY_CHECK_SCOPED_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nim_tool_safety_check_scoped")
+NIM_TOOL_SAFETY_CHECK_OFFFORMAT_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nim_tool_safety_check_offformat")
 NIM_TOPIC_CONTROL_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nim_topic_control")
 NIM_JAILBREAK_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nim_jailbreak")
 OPENAI_SELF_CHECK_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "openai_self_check")

@@ -1,0 +1,25 @@
+# The off-format variant of nim_tool_safety_check: the tool-result prompt asks for a prose
+# description instead of a verdict, so the judge answers in a form parse_tool_safety_verdict
+# rejects. Exists to record that response and check the rail fails closed on it. The main model
+# is a placeholder that checks never call.
+models:
+  - type: main
+    engine: nim
+    model: unused-main-model
+
+  - type: judge
+    engine: nim
+    model: nvidia/nemotron-3.5-super-vl-120b-a12b
+
+rails:
+  tool_result:
+    per_tool:
+      run_sql:
+        - tool safety check tool result $model=judge $variant=sql_check
+
+prompts:
+  - task: tool_safety_check_tool_result $model=judge $variant=sql_check
+    content: |
+      Describe this tool result in one friendly sentence: {{ tool_result_content }}
+    output_parser: parse_tool_safety_verdict
+    max_tokens: 512

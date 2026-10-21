@@ -1,0 +1,47 @@
+# The scoped variant of nim_tool_safety_check: $argument=query on the tool-call flow, so only the
+# call's query argument is sent to the judge and text in its other arguments is never judged.
+# The main model is a placeholder that checks never call.
+models:
+  - type: main
+    engine: nim
+    model: unused-main-model
+    parameters:
+      tools:
+        - type: function
+          function:
+            name: run_sql
+            description: Run a SQL query and return the rows.
+            parameters:
+              type: object
+              properties:
+                query:
+                  type: string
+                comment:
+                  type: string
+              required:
+                - query
+
+  - type: judge
+    engine: nim
+    model: nvidia/nemotron-3.5-super-vl-120b-a12b
+
+rails:
+  tool_call:
+    per_tool:
+      run_sql:
+        - tool safety check tool call $model=judge $variant=sql_check $argument=query
+
+prompts:
+  - task: tool_safety_check_tool_call $model=judge $variant=sql_check
+    content: |
+      You are reviewing a call to the `{{ tool_name }}` tool.
+      Arguments: {{ tool_call_arguments }}
+
+      The call is unsafe if the query deletes or modifies data (DROP, DELETE, TRUNCATE, UPDATE),
+      or reads from the `payroll` or `ssn` tables. Otherwise it is safe.
+
+      Provide your safety assessment in exactly one line:
+      - If it is safe, respond with "safe" and nothing more.
+      - If it is unsafe, respond with "unsafe: <reason>".
+    output_parser: parse_tool_safety_verdict
+    max_tokens: 512
