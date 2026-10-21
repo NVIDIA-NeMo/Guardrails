@@ -150,7 +150,8 @@ DENY_NOT_ALLOWED = {
 
 MODEL_CALL_FAILURE = "model 'llama_guard' timed out"
 
-EXAMPLE_CONFIG_PATH = Path(__file__).parents[2] / "examples" / "configs" / "agent_hooks"
+EXAMPLE_CONFIGS_PATH = Path(__file__).parents[2] / "examples" / "configs" / "agent_hooks"
+EXAMPLE_CONFIGS = {"claude-code": "claude_code", "codex": "codex", "nemo-relay": "nemo_relay"}
 
 
 def _hook(agent: HookAgent, tool_name: str, tool_input: Any) -> dict:
@@ -651,16 +652,22 @@ class TestStartup:
                 pass
 
 
-class TestExampleConfig:
-    @pytest.fixture
-    def example_client(self):
-        """A running hooks server for `examples/configs/agent_hooks`."""
-        with TestClient(create_hooks_app(RailsConfig.from_path(str(EXAMPLE_CONFIG_PATH)))) as client:
-            yield client
+def _example_app(agent: HookAgent):
+    """A hooks server for *agent*'s example config, `examples/configs/agent_hooks/<harness>`."""
+    return create_hooks_app(RailsConfig.from_path(str(EXAMPLE_CONFIGS_PATH / EXAMPLE_CONFIGS[agent])))
 
-    def test_example_config_starts_without_warnings(self, caplog):
-        """The example declares every tool it has rails for, so the server starts without a warning."""
-        create_hooks_app(RailsConfig.from_path(str(EXAMPLE_CONFIG_PATH)))
+
+class TestExampleConfig:
+    def test_there_is_one_example_per_agent(self):
+        """Each agent path has an example config of its own, and there's no other example config."""
+        examples = sorted(path.name for path in EXAMPLE_CONFIGS_PATH.iterdir() if path.is_dir())
+
+        assert examples == sorted(EXAMPLE_CONFIGS.values())
+
+    @pytest.mark.parametrize("agent", AGENTS)
+    def test_example_config_starts_without_warnings(self, caplog, agent):
+        """Each example declares every tool it has rails for, so the server starts without a warning."""
+        _example_app(agent)
 
         assert [record for record in caplog.records if record.name == hooks_app.__name__] == []
 
@@ -678,6 +685,13 @@ class TestExampleConfig:
                 None,
             ),
             ("claude-code", "TodoWrite", {"todos": []}, "tool call 'TodoWrite' is not an allowed tool"),
+            (
+                "claude-code",
+                "apply_patch",
+                CODEX_APPLY_PATCH["tool_input"],
+                "tool call 'apply_patch' is not an allowed tool",
+            ),
+            ("codex", "Bash", {"command": "rm -rf /tmp/build"}, "regex check tool call"),
             ("codex", "apply_patch", CODEX_APPLY_PATCH["tool_input"], None),
             (
                 "codex",
@@ -694,24 +708,50 @@ class TestExampleConfig:
                 },
                 "regex check tool call",
             ),
-            ("nemo-relay", "Bash", {"command": "rm -rf /tmp/build"}, "regex check tool call"),
+            (
+                "codex",
+                "Write",
+                {"file_path": "/home/user/notes.txt", "content": "x"},
+                "tool call 'Write' is not an allowed tool",
+            ),
+            ("nemo-relay", "search", NEMO_RELAY_SEARCH["tool_input"], None),
+            (
+                "nemo-relay",
+                "search",
+                NEMO_RELAY_EMPTY_QUERY["tool_input"],
+                "arguments for tool 'search' do not match its schema: 'minLength' failed at '/query'",
+            ),
+            (
+                "nemo-relay",
+                "search",
+                {},
+                "arguments for tool 'search' do not match its schema: 'required' failed at '/query'",
+            ),
+            ("nemo-relay", "Bash", {"command": "ls"}, "tool call 'Bash' is not an allowed tool"),
         ],
         ids=[
-            "safe-command",
-            "force-push",
-            "secrets-file-on-windows",
-            "secrets-file-in-upper-case",
-            "source-file-edit",
-            "undeclared-tool",
-            "safe-patch",
-            "patch-to-secrets-file",
-            "patch-renaming-to-secrets-file",
-            "relay-destructive-command",
+            "claude-code-safe-command",
+            "claude-code-force-push",
+            "claude-code-secrets-file-on-windows",
+            "claude-code-secrets-file-in-upper-case",
+            "claude-code-source-file-edit",
+            "claude-code-undeclared-tool",
+            "claude-code-codex-tool",
+            "codex-destructive-command",
+            "codex-safe-patch",
+            "codex-patch-to-secrets-file",
+            "codex-patch-renaming-to-secrets-file",
+            "codex-claude-code-tool",
+            "nemo-relay-search",
+            "nemo-relay-empty-query",
+            "nemo-relay-no-query",
+            "nemo-relay-undeclared-tool",
         ],
     )
-    def test_example_config_placeholder_rails(self, example_client, agent, tool_name, tool_input, reason):
-        """The example's allowlist and placeholder per-tool rails allow safe calls and deny the ones they target."""
-        response = example_client.post(f"/v1/hooks/{agent}", json=_hook(agent, tool_name, tool_input))
+    def test_example_config_rails(self, agent, tool_name, tool_input, reason):
+        """Each agent's example allows safe calls to its own tools and denies the calls its rails target."""
+        with TestClient(_example_app(agent)) as client:
+            response = client.post(f"/v1/hooks/{agent}", json=_hook(agent, tool_name, tool_input))
 
         expected = _allowed(agent) if reason is None else _denied(agent, reason)
         assert (response.status_code, response.json()) == (200, expected)

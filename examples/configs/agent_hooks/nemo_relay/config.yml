@@ -1,0 +1,38 @@
+# Checks the tool calls a NeMo Relay plugin's tool conditional-execution guardrail forwards, with
+# `nemoguardrails hooks-server`:
+#
+#   nemoguardrails hooks-server --config examples/configs/agent_hooks/nemo_relay
+#
+# The plugin's guardrail posts each call's tool name and arguments to http://localhost:8100/v1/hooks/nemo-relay.
+# The server applies its one config on every path it serves. Rails are chosen by the tool name in each call, never by
+# the path, which only picks the request and response format.
+# NeMo Relay forwards the tool names of whatever it wraps. This example is for an application tool, `search`, as in
+# NeMo Relay's "Add a Tool Policy", whose policy rejects a search without a query. Behind NeMo Relay's Claude Code or
+# Codex integration, the tool names are that agent's, so use the `claude_code` or `codex` example's tools and rails.
+# The server only runs tool-call rails. The check here is the tool's schema, so no model is called and no API key is
+# needed.
+
+models:
+  # A tool check needs a `main` model: it sets the tool format and declares the tools. The server never calls it.
+  - type: main
+    engine: nim
+    model: nvidia/nemotron-3.5-super-vl-120b-a12b
+    parameters:
+      # The allowlist, and each tool's arguments. With `tool call validation` below, a call to any tool not declared
+      # here is denied, and so is a call whose arguments don't match its tool's schema: here, a `search` with no
+      # `query`, or an empty one.
+      tools:
+        - type: function
+          function:
+            name: search
+            parameters:
+              type: object
+              properties:
+                query: {type: string, minLength: 1}
+              required: [query]
+
+rails:
+  tool_call:
+    # Global rails run on every tool call: the allowlist and the schema check.
+    flows:
+      - tool call validation

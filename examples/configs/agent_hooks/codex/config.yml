@@ -1,0 +1,60 @@
+# Checks Codex's tool calls before they run, with `nemoguardrails hooks-server`:
+#
+#   nemoguardrails hooks-server --config examples/configs/agent_hooks/codex
+#
+# Point Codex's `PreToolUse` command hook at http://localhost:8100/v1/hooks/codex, with curl.
+# The server applies its one config on every path it serves. Rails are chosen by the tool name in each call, never by
+# the path, which only picks the request and response format. So this config holds the tools Codex calls; the
+# `claude_code` and `nemo_relay` examples beside it hold theirs. A server for both Claude Code and Codex merges the two.
+# The server only runs tool-call rails. Every rail here is a regex, so no model is called and no API key is needed.
+
+models:
+  # A tool check needs a `main` model: it sets the tool format and declares the tools. The server never calls it.
+  - type: main
+    engine: nim
+    model: nvidia/nemotron-3.5-super-vl-120b-a12b
+    parameters:
+      # The allowlist. With `tool call validation` below, a call to any tool not declared here is denied,
+      # MCP tools (`mcp__<server>__<tool>`) included. This is a starting set: declare every tool you use.
+      # A tool with a per-tool rail must be declared even without `tool call validation`.
+      # `{type: object}` alone declares a tool that takes no arguments, so these schemas allow any arguments.
+      tools:
+        # Codex reports shell commands as `Bash`, with the command in `command`.
+        - {type: function, function: {name: Bash, parameters: {type: object, additionalProperties: true}}}
+        # Codex edits files through `apply_patch`, even when a hook's matcher says `Edit` or `Write`.
+        - {type: function, function: {name: apply_patch, parameters: {type: object, additionalProperties: true}}}
+        - {type: function, function: {name: update_plan, parameters: {type: object, additionalProperties: true}}}
+
+rails:
+  tool_call:
+    # Global rails run on every tool call. Remove this to allow undeclared tools without a check;
+    # then only the tools under `per_tool` are checked.
+    flows:
+      - tool call validation
+
+    # Per-tool rails run on calls to the tool named, spelled exactly as Codex sends it.
+    per_tool:
+      Bash:
+        - regex check tool call $argument=command
+      # The whole patch is in `command`.
+      apply_patch:
+        - regex check tool call $argument=command
+
+  config:
+    # Placeholder patterns for the per-tool rails above. Each is matched against the argument as JSON.
+    # They show the shape of a policy, not a complete one: a regex is easy to get around, for example
+    # with `rm -fr` or `rm -r -f` for the first Bash pattern.
+    regex_detection:
+      tool_call:
+        Bash:
+          patterns:
+            - '\brm\s+-rf\b'
+            - '\bgit\s+push\s+(--force|-f)\b'
+            - 'curl\b[^|]*\|\s*(ba)?sh\b'
+        apply_patch:
+          # The secrets-file patterns ignore case, since macOS and Windows file systems do.
+          case_insensitive: true
+          patterns:
+            # A file header in the patch, such as `*** Update File: config/.env` or a rename's
+            # `*** Move to: config/.env`, naming a secrets file.
+            - '\*\*\* ((Add|Update|Delete) File|Move to): ([^\\]*/)?(\.env\b|\.ssh/|\.aws/credentials\b)'
