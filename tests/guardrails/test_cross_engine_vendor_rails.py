@@ -93,6 +93,14 @@ POLICYAI_ENV = {
     "POLICYAI_BASE_URL": "https://policyai.example",
     "POLICYAI_TAG_NAME": "test-tag",
 }
+DECISION_MODEL_CONFIG = {
+    "decision_model": {"server_endpoint": "https://decision-model.example/v1/assess", "model": "test-decision-model"}
+}
+DECISION_MODEL_ENV = {"DECISION_MODEL_API_KEY": "test-key"}
+DECISION_MODEL_INPUT_ALLOW = {"answers": {"jailbreak": {"noul": 0.02}, "harmful_request": {"noul": 0.01}}}
+DECISION_MODEL_INPUT_BLOCK = {"answers": {"jailbreak": {"noul": 0.97}, "harmful_request": {"noul": 0.01}}}
+DECISION_MODEL_OUTPUT_ALLOW = {"answers": {"harmful_content": {"noul": 0.02}, "policy_violation": {"noul": 0.01}}}
+DECISION_MODEL_OUTPUT_BLOCK = {"answers": {"harmful_content": {"noul": 0.97}, "policy_violation": {"noul": 0.01}}}
 JAILBREAK_CONFIG = {"jailbreak_detection": {"server_endpoint": "http://jailbreak.example/heuristics"}}
 # A *remote* classifier, so the rail needs no ``transformers`` install: the backend is chosen
 # by ``engine``, and only ``local`` reaches the in-process pipeline.
@@ -322,6 +330,26 @@ VENDOR_RAILS = [
             "data": [{"status": "ok", "assessment": "UNSAFE", "category": "pii", "severity": 3, "reason": "blocked"}]
         },
         env=POLICYAI_ENV,
+    ),
+    # Decision model asks a battery of yes/no questions and blocks when any probability reaches its
+    # threshold (0.5 by default), so the payloads straddle it.
+    VendorRail(
+        rail_id="decision_model_input",
+        flow="decision model check input",
+        direction="input",
+        allow_payload=DECISION_MODEL_INPUT_ALLOW,
+        block_payload=DECISION_MODEL_INPUT_BLOCK,
+        env=DECISION_MODEL_ENV,
+        rails_config=DECISION_MODEL_CONFIG,
+    ),
+    VendorRail(
+        rail_id="decision_model_output",
+        flow="decision model check output",
+        direction="output",
+        allow_payload=DECISION_MODEL_OUTPUT_ALLOW,
+        block_payload=DECISION_MODEL_OUTPUT_BLOCK,
+        env=DECISION_MODEL_ENV,
+        rails_config=DECISION_MODEL_CONFIG,
     ),
     # The detailed variant scores each violation against its own threshold rather than one
     # shared cut-off, so the blocking score must clear the rule it names: harassment is 0.8.

@@ -2197,6 +2197,7 @@ class TestScopeGateCharacterization:
             ("input", "content safety check input"),
             ("input", "context bloat detection on input"),
             ("input", "crowdstrike aidr guard input"),
+            ("input", "decision model check input"),
             ("input", "detect pii on input"),
             ("input", "detect sensitive data on input"),
             ("input", "f5 guardrails scan input"),
@@ -2239,6 +2240,7 @@ class TestScopeGateCharacterization:
             ("output", "guardrailsai check output"),
             ("output", "hf classifier check output"),
             ("output", "injection detection"),
+            ("output", "decision model check output"),
             ("output", "llama guard check output"),
             ("output", "mask pii on output"),
             ("output", "mask sensitive data on output"),
@@ -2266,7 +2268,7 @@ class TestScopeGateCharacterization:
         return IORails._unservable_rails_reason([flow], direction, deps)
 
     def test_the_admitted_surfaces_are_exactly_the_pinned_set(self):
-        """Every catalog surface in scope is one of the 60 named here, and vice versa."""
+        """Every catalog surface in scope is one of the 63 named here, and vice versa."""
         admitted = {
             (direction.value, name)
             for direction in (SurfaceDirection.INPUT, SurfaceDirection.OUTPUT)
