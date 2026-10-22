@@ -22,6 +22,7 @@ import httpx
 import pytest
 import pytest_asyncio
 
+import nemoguardrails
 from nemoguardrails import Guardrails
 from nemoguardrails.guardrails import _lifecycle
 from nemoguardrails.guardrails.base_engine import BaseEngine
@@ -70,6 +71,7 @@ class StartupEngine(BaseEngine):
 async def startup_owner(monkeypatch, failure, cleanup):
     """Keep real Guardrails and HTTPX lifecycle owners behind a controlled engine."""
 
+    monkeypatch.setattr(nemoguardrails, "LLMRails", Guardrails)
     monkeypatch.setattr(_lifecycle, "_ROLLBACK_TIMEOUT_SECONDS", 0.01)
     monkeypatch.setattr(_repository, "_SHUTDOWN_TIMEOUT_SECONDS", 0.01)
     probe = StartupEngine(failure, cleanup)

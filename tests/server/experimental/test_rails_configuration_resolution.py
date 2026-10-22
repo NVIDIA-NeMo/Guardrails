@@ -23,7 +23,10 @@ import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
-from nemoguardrails import RailsConfig
+import nemoguardrails
+from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.library.regex import actions as regex_actions
+from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.server.experimental._application import create_proxy_application
 from nemoguardrails.server.experimental._content_checker import (
     ContentAllowed,
@@ -92,6 +95,67 @@ def chat_request():
         "model": "provider-model",
         "messages": [{"role": "user", "content": "hello"}],
     }
+
+
+@pytest.mark.parametrize("stage", ["input", "output"])
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("decision", ["allow", "block", "failure"])
+@pytest.mark.parametrize("engine", [LLMRails, Guardrails], ids=["llmrails", "iorails"])
+def test_real_rail_decisions_with_both_engines(tmp_path, monkeypatch, stage, stream, decision, engine):
+    monkeypatch.setattr(nemoguardrails, "LLMRails", engine)
+    entry = config_entry(tmp_path)
+    failed = decision == "failure"
+    config = {
+        "models": [],
+        "rails": {
+            "config": {"regex_detection": {stage: {"patterns": ["forbidden" if decision == "allow" else ".*"]}}},
+            stage: {"flows": [f"regex check {stage}"]},
+        },
+    }
+    if stage == "output" and stream:
+        config["rails"][stage]["streaming"] = {
+            "enabled": True,
+            "chunk_size": 1,
+            "context_size": 0,
+            "stream_first": False,
+        }
+    (entry.config_path / "config.yml").write_text(json.dumps(config), encoding="utf-8")
+    marker = "internal-rail-failure-details"
+    if failed:
+        monkeypatch.setattr(regex_actions, "_regex_outcome", MagicMock(side_effect=RuntimeError(marker)))
+    transport = RecordingTransport()
+    application = create_proxy_application(
+        providers=(create_openai_chat_integration(),),
+        rails_configs=(entry,),
+        http_transport_factory=lambda: transport,
+    )
+    with TestClient(application) as client:
+        response = client.post("/v1/chat/completions", json={**chat_request(), "stream": stream})
+
+    if decision == "allow":
+        assert response.status_code == 200
+        assert len(transport.requests) == 1
+        if stream:
+            assert b'"content":"safe"' in response.content
+            assert response.content.endswith(b"data: [DONE]\n\n")
+        else:
+            assert response.json()["choices"][0]["message"]["content"] == "safe"
+        return
+
+    expected_code = f"guardrails_{stage}_check_failed" if failed else "content_blocked"
+    if stage == "output" and stream:
+        assert response.status_code == 200
+        events = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: {")]
+        error = next(event["error"] for event in events if "error" in event)
+        assert response.content.endswith(b"data: [DONE]\n\n")
+        assert b'"content":"safe"' not in response.content
+    else:
+        assert response.status_code == (502 if failed else 400)
+        error = response.json()["error"]
+    assert error["code"] == expected_code
+    assert error["type"] == ("proxy_error" if failed else "guardrails_violation")
+    assert marker not in response.text
+    assert len(transport.requests) == (1 if stage == "output" else 0)
 
 
 def test_trusted_resolver_receives_request_and_provider_context(tmp_path, monkeypatch):

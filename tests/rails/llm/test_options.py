@@ -19,7 +19,27 @@ from nemoguardrails.rails.llm.options import (
     GenerationOptions,
     GenerationRailsOptions,
     GenerationResponse,
+    RailsResult,
+    RailStatus,
 )
+
+
+@pytest.mark.parametrize("status", list(RailStatus))
+def test_rails_result_without_failure_flag_remains_compatible(status):
+    original = {"status": status.value, "content": "checked content", "rail": None}
+    result = RailsResult.model_validate(original)
+
+    assert result.failed is False
+    assert result.status is status
+    assert result.model_dump(mode="json")["failed"] is False
+    assert RailsResult.model_validate_json(result.model_dump_json()) == result
+
+
+def test_failed_rails_result_preserves_blocked_status_in_serialization():
+    result = RailsResult(status=RailStatus.BLOCKED, content="inspection failed", failed=True)
+
+    assert result.status is RailStatus.BLOCKED
+    assert RailsResult.model_validate_json(result.model_dump_json()).failed is True
 
 
 def test_generation_options_initialization():

@@ -13,13 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
 
 import pytest
 
-from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.exceptions import RailTypeNotConfiguredError, RailTypeNotSupportedError
+from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.exceptions import LLMCallException, RailTypeNotConfiguredError, RailTypeNotSupportedError
 from nemoguardrails.rails.llm.llmrails import (
+    LLMRails,
     _determine_rails_from_messages,
     _get_blocking_rail,
     _get_last_content_by_role,
@@ -264,6 +267,106 @@ def mock_rails():
 
 
 class TestCheckAsyncIntegration:
+    @check_entry_points
+    @pytest.mark.parametrize("stage", ["input", "output"])
+    @pytest.mark.parametrize("parallel", [False, True])
+    @pytest.mark.parametrize("failure", ["exception", "outcome", "missing"])
+    def test_action_failure_sets_typed_failure_flag(self, entry_point, stage, parallel, failure):
+        config = RailsConfig.from_content(
+            colang_content=(
+                "define flow broken rail\n"
+                "  $result = execute broken_check\n"
+                "  if $result.is_blocked\n"
+                "    bot refuse to respond\n"
+                "    stop\n"
+                "define flow other rail\n"
+                "  $result = execute other_check\n"
+            ),
+            config={
+                "models": [],
+                "rails": {stage: {"flows": ["broken rail", "other rail"], "parallel": parallel}},
+            },
+        )
+        rails = LLMRails(config)
+        calls = []
+
+        async def broken_check():
+            calls.append(True)
+            if failure == "outcome":
+                return RailOutcome.failure(reason="internal-action-failure")
+            raise RuntimeError("internal-action-failure")
+
+        async def other_check():
+            return RailOutcome.allow()
+
+        if failure != "missing":
+            rails.register_action(broken_check, name="broken_check")
+        rails.register_action(other_check, name="other_check")
+        messages = [{"role": "user", "content": "hello"}]
+        if stage == "output":
+            messages.append({"role": "assistant", "content": "answer"})
+        result = run_check(rails, entry_point, messages, rail_types=[RailType(stage)])
+
+        assert calls == ([] if failure == "missing" else [True])
+        assert result.status == RailStatus.BLOCKED
+        assert result.failed is True
+        assert "internal error" in result.content
+        assert "internal-action-failure" not in result.content
+
+        rails.register_action(other_check, name="broken_check")
+        next_result = run_check(rails, entry_point, messages, rail_types=[RailType(stage)])
+        assert next_result.status == RailStatus.PASSED
+        assert next_result.failed is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("content", ["hello", "block", "modify"])
+    async def test_legacy_results_do_not_report_typed_failures(self, mock_rails, content):
+        result = await mock_rails.check_async([{"role": "user", "content": content}])
+
+        assert result.failed is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("parallel", [False, True])
+    async def test_policy_block_is_not_a_failure_despite_message_or_metadata(self, parallel):
+        config = RailsConfig.from_content(
+            colang_content=(
+                'define bot refuse to respond\n  "I\'m sorry, an internal error has occurred."\n'
+                "define flow block rail\n"
+                "  $result = execute block_check\n"
+                "  if $result.is_blocked\n"
+                "    bot refuse to respond\n"
+                "    stop\n"
+            ),
+            config={"models": [], "rails": {"input": {"flows": ["block rail"], "parallel": parallel}}},
+        )
+        rails = LLMRails(config)
+
+        async def block_check():
+            return RailOutcome.block(metadata={"failed": True, "is_success": False})
+
+        rails.register_action(block_check, name="block_check")
+        result = await rails.check_async([{"role": "user", "content": "hello"}])
+        assert result.status == RailStatus.BLOCKED
+        assert "internal error" in result.content
+        assert result.failed is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error", [LLMCallException("provider failure"), asyncio.CancelledError()])
+    async def test_check_preserves_escaping_exceptions(self, error):
+        config = RailsConfig.from_content(
+            colang_content="define flow broken input\n  $result = execute broken_check\n",
+            config={"models": [], "rails": {"input": {"flows": ["broken input"]}}},
+        )
+        rails = LLMRails(config)
+
+        async def broken_check():
+            raise error
+
+        rails.register_action(broken_check, name="broken_check")
+        with pytest.raises(type(error)) as caught:
+            await rails.check_async([{"role": "user", "content": "hello"}])
+        assert caught.value is error
+
     @pytest.mark.asyncio
     async def test_input_passed(self, mock_rails):
         messages = [{"role": "user", "content": "hello"}]

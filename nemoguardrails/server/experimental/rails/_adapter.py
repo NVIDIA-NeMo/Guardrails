@@ -56,6 +56,8 @@ def _rail_is_configured(rails: _LegacyGuardrails, rail_type: RailType) -> bool:
 
 
 def _decision(result: RailsResult) -> ContentCheckDecision:
+    if result.failed:
+        return ContentCheckFailed("The Guardrails check failed.")
     if result.status == RailStatus.BLOCKED:
         return ContentBlocked(message=result.content, rule=result.rail)
     if result.status == RailStatus.MODIFIED:
@@ -70,6 +72,8 @@ class LegacyGuardrailsChecker:
         self._rails = rails
 
     def inspection_policy(self) -> ContentInspectionPolicy:
+        if self._rails.config.colang_version != "1.0":
+            raise UnsupportedContentCheckerConfiguration("The proxy requires Colang 1.0 input/output checks.")
         rail_config = self._rails.config.rails
         unsupported = [
             rail_type

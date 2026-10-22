@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio
+import importlib
 import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -22,9 +23,12 @@ import httpx
 import pytest
 import yaml
 
+import nemoguardrails
 from nemoguardrails import Guardrails, RailsConfig
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.http.transport import HttpxHTTPClient
+from nemoguardrails.rails.llm.llmrails import LLMRails
+from nemoguardrails.rails.llm.options import RailStatus
 from nemoguardrails.server.experimental import _runtime, rails
 from nemoguardrails.server.experimental._application import create_proxy_application
 from nemoguardrails.server.experimental._content_checker import UnsupportedContentCheckerConfiguration
@@ -42,9 +46,9 @@ async def test_application_preloads_even_unselected_configs_before_readiness(tmp
     path = config_path(tmp_path)
     engines = []
 
-    def create_engine(*, config, require_iorails):
+    def create_engine(*, config, use_iorails):
         assert isinstance(config, RailsConfig)
-        assert require_iorails
+        assert use_iorails is (nemoguardrails.LLMRails is Guardrails)
         index = len(engines)
 
         async def start():
@@ -96,7 +100,7 @@ async def test_unsupported_unselected_policy_prevents_readiness_and_closes_owner
     )
     engines = []
 
-    def create_engine(*, config, require_iorails):
+    def create_engine(*, config, use_iorails):
         assert isinstance(config, RailsConfig)
         instance = MagicMock(config=config, startup=AsyncMock(), shutdown=AsyncMock())
         engines.append(instance)
@@ -329,6 +333,7 @@ async def test_shutdown_is_shielded_and_concurrent_closes_do_not_duplicate_clean
 async def test_repository_retries_real_core_shutdown_after_queue_timeout(tmp_path, monkeypatch):
     """Retain the real engine until interrupted worker cleanup completes."""
 
+    monkeypatch.setattr(nemoguardrails, "LLMRails", Guardrails)
     monkeypatch.setattr(_repository, "_SHUTDOWN_TIMEOUT_SECONDS", 0.02)
     repository = GuardrailsRepository((ConfigEntry("policy", config_path(tmp_path)),))
     await repository.startup()
@@ -458,6 +463,59 @@ async def test_http_shutdown_is_bounded_and_preserves_primary_failure(monkeypatc
     client.aclose.assert_awaited_once()
     assert "HTTP client cleanup" in caplog.text
     assert "private HTTP cleanup detail" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("environment", [None, "0", "1", "TrUe", "yes"])
+@pytest.mark.parametrize("custom_flow", [False, True])
+async def test_repository_follows_library_engine_selection(tmp_path, monkeypatch, environment, custom_flow):
+    path = config_path(tmp_path)
+    if custom_flow:
+        (path / "config.yml").write_text("models: []\nrails:\n  input:\n    flows: [custom input]\n", encoding="utf-8")
+        (path / "rails.co").write_text('define flow custom input\n  $user_message = "rewritten"\n', encoding="utf-8")
+    repository = GuardrailsRepository((ConfigEntry("policy", path),))
+    try:
+        with monkeypatch.context() as selection:
+            if environment is None:
+                selection.delenv("NEMO_GUARDRAILS_IORAILS_ENGINE", raising=False)
+            else:
+                selection.setenv("NEMO_GUARDRAILS_IORAILS_ENGINE", environment)
+            importlib.reload(nemoguardrails)
+            try:
+                await repository.startup()
+                facade = repository._checkers["policy"]._rails
+                assert isinstance(facade, Guardrails)
+                expected = IORails if environment in ("1", "TrUe", "yes") and not custom_flow else LLMRails
+                assert isinstance(facade.rails_engine, expected)
+                result = await facade.check_async([{"role": "user", "content": "hello"}])
+                assert result.status == (RailStatus.MODIFIED if custom_flow else RailStatus.PASSED)
+                assert result.failed is False
+            finally:
+                await repository.close()
+            assert not repository.has_pending_cleanup
+    finally:
+        importlib.reload(nemoguardrails)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("engine", [LLMRails, Guardrails], ids=["llmrails", "iorails-fallback"])
+async def test_colang_2_configuration_prevents_readiness(tmp_path, monkeypatch, engine):
+    monkeypatch.setattr(nemoguardrails, "LLMRails", engine)
+    path = config_path(tmp_path)
+    (path / "config.yml").write_text('models: []\ncolang_version: "2.x"\n', encoding="utf-8")
+    transport = httpx.MockTransport(lambda _request: pytest.fail("no dispatch expected"))
+    transport.aclose = AsyncMock()
+    application = create_proxy_application(
+        providers=(create_openai_chat_integration(),),
+        rails_configs=(ConfigEntry("policy", path),),
+        http_transport_factory=lambda: transport,
+    )
+    with pytest.raises(UnsupportedContentCheckerConfiguration, match="Colang 1.0"):
+        async with application.router.lifespan_context(application):
+            pytest.fail("unsupported checks must prevent readiness")
+    assert not hasattr(application.state, "proxy_runtime")
+    assert not hasattr(application.state, "proxy_cleanup_runtime")
+    transport.aclose.assert_awaited_once()
 
 
 def config_path(tmp_path):

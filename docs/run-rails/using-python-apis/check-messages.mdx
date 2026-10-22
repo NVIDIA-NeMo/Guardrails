@@ -202,6 +202,7 @@ The `RailsResult` object contains the outcome of the rails check.
 | `status` | `RailStatus` | `PASSED`, `MODIFIED`, or `BLOCKED` |
 | `content` | `str` | The final content after rails processing |
 | `rail` | `Optional[str]` | Name of the rail that blocked the content (only when `BLOCKED`) |
+| `failed` | `bool` | `True` when either engine reports a rail execution failure; the status remains `BLOCKED`. Defaults to `False`. |
 | `reason` | `Optional[str]` | Why the rail blocked the content (IORails only; `None` on `LLMRails` and when not `BLOCKED`) |
 | `tool_violations` | `Optional[List[ToolViolation]]` | The tool calls or tool results a tool rail blocked (IORails only; `None` unless a tool rail blocked). Refer to [Tool Violations](#tool-violations) |
 
@@ -371,7 +372,7 @@ Both engines take `messages` and `rail_types`, but each engine executes a check 
 | Tool rails | Not run. Requesting a tool rail type, or passing `tools`, raises `RailTypeNotSupportedError` | Run when named in `rail_types`. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only) |
 | `BLOCKED` content | The refusal message defined by the configuration's Colang flow | A fixed refusal message that the configuration does not change |
 | `BLOCKED` reason | Not reported. `reason` is `None` | The blocking rail's own explanation, or the rail's name when it gives none |
-| Rail that fails to execute | Handled by the Colang runtime's internal-error path | `BLOCKED` with an internal-error message that is distinct from the refusal message |
+| Rail that fails to execute | `BLOCKED` with `failed=True` for failures reported by the Colang runtime | `BLOCKED` with `failed=True` for failures reported by the rails manager |
 | Requested direction with no content to check | An output-only check with no user message runs with an empty user message supplied as context | The direction is skipped and the result is `PASSED` |
 | Admission control | None | Shares the non-streaming admission queue with `generate_async()`, and raises `NonStreamingWorkQueueFullError` (a subclass of `asyncio.QueueFull`) when the queue is full |
 | Tracing and metrics | Spans through a tracing adapter with no OpenTelemetry metrics | The same request span and request metrics as `generate_async()`. Refer to [Observability for IORails Checks](#observability-for-iorails-checks) |
@@ -383,10 +384,16 @@ On `LLMRails`, the blocked content is the bot message the Colang flow defines, s
 On `IORails`, a blocked check returns the engine's fixed refusal message, `I'm sorry, I can't respond to that.`, which the configuration cannot change.
 That is the same string the built-in rails use by default, so an unmodified configuration produces the same text on both engines.
 
-`IORails` also distinguishes a policy block from a rail execution failure.
-When a rail fails to execute, the check returns `BLOCKED` with `I'm sorry, an internal error has occurred.` instead of the refusal message.
+Both engines distinguish a policy block from a reported rail execution failure.
+When a rail fails to execute, the check returns `BLOCKED` with `failed=True` and `I'm sorry, an internal error has occurred.` instead of the refusal message.
 This distinction prevents the application from reporting an operational failure as a content refusal.
-That wording matches the sentence the Colang runtime produces on `LLMRails` when an action fails.
+LLMRails detects failures from action completion events and typed rail outcomes for the current check, including parallel rails.
+It does not infer failure from the refusal message or custom action metadata.
+
+Use `failed` to classify a reported execution failure before handling an ordinary policy block.
+The status stays `BLOCKED`, so existing callers that stop on that status continue to stop on failures.
+Exceptions that escape engine execution continue to propagate to the caller instead of becoming a `RailsResult`.
+Existing serialized results without `failed` remain valid and default to `False`; newly serialized results include the field unless the caller excludes default values.
 
 On `IORails`, a blocked check also sets `reason`, which explains the block for logs and diagnostics.
 When a rail fails to execute, `reason` names the rail that failed.

@@ -145,6 +145,29 @@ The deadline cannot preempt blocking synchronous work or force a resolver that
 suppresses cancellation to stop. Preloading removes request-time engine
 initialization; it does not make external policy selection free of latency.
 
+## Engine selection
+
+The proxy follows the library's `NEMO_GUARDRAILS_IORAILS_ENGINE` environment
+switch. Set it before the process imports `nemoguardrails`:
+
+```bash
+export NEMO_GUARDRAILS_IORAILS_ENGINE=1
+```
+
+With `1`, `true`, or `yes` (case-insensitive), compatible configurations use
+IORails. Other configurations fall back to LLMRails with the library's warning.
+With the variable unset or set to `0` or `false`, configurations use LLMRails.
+Restart the process to change the selection. The proxy uses the `Guardrails`
+facade for startup, checks, and shutdown with either engine.
+
+The catalog and request resolver work the same way with either engine. The
+proxy supports Colang 1.0 input/output checks. Colang 2.x configurations prevent
+readiness because the LLMRails check API requires logging options that its
+Colang 2.x runtime does not support. Retrieval and tool rails also prevent
+readiness. IORails-specific features, including its
+admission queue and OpenTelemetry metrics, are available only for configurations
+that actually run on IORails.
+
 ## Lifecycle
 
 Config IDs and directory paths are validated and fixed during application
@@ -208,6 +231,21 @@ It does not define hot reload, cache invalidation, concurrent replacement, or a
 configuration CRUD control plane. Adding those capabilities later requires
 separate decisions about authentication, persistence, versioning, atomicity,
 rollback, auditing, and in-flight requests.
+
+## Inspection failures
+
+Both engines populate the `RailsResult.failed` flag. It
+distinguishes a rail execution failure from a policy block while keeping both
+results `BLOCKED` for existing callers. The proxy maps reported failures to
+`ContentCheckFailed` and returns a generic HTTP 502 inspection error. A policy
+block remains HTTP 400. If an output stream has already started, the proxy
+emits the corresponding error event and terminates the stream; it cannot
+change the HTTP status already sent.
+
+LLMRails reads action completion events and typed rail outcomes for the current
+check, including parallel rails. The adapter does not infer failures from
+`content` or `reason` text. Exceptions escaping a check continue to map to
+`ContentCheckFailed`.
 
 ## Trust boundary
 

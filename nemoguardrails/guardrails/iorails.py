@@ -627,6 +627,7 @@ def _blocked_check_result(result: RailResult) -> RailsResult:
         status=RailStatus.BLOCKED,
         content=_blocked_message(result),
         rail=result.triggered_rail,
+        failed=result.failed,
         reason=client_reason(result),
         tool_violations=list(result.tool_violations) or None,
     )

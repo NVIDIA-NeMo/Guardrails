@@ -592,6 +592,7 @@ class TestCheckAsyncFailedRail:
         assert result.status == RailStatus.BLOCKED
         assert result.content == INTERNAL_ERROR_MESSAGE
         assert result.rail == "f5 guardrails scan input"
+        assert result.failed is True
 
     @pytest.mark.asyncio
     async def test_output_rail_failure_returns_the_internal_error_message(self, iorails):
@@ -603,6 +604,7 @@ class TestCheckAsyncFailedRail:
         assert result.status == RailStatus.BLOCKED
         assert result.content == INTERNAL_ERROR_MESSAGE
         assert result.rail == "f5 guardrails scan output"
+        assert result.failed is True
 
     @pytest.mark.asyncio
     async def test_a_failed_rail_is_distinguishable_from_a_rail_that_fired(self, iorails):
@@ -616,6 +618,8 @@ class TestCheckAsyncFailedRail:
         assert failed.status == decided.status
         assert failed.rail == decided.rail
         assert failed.content != decided.content
+        assert failed.failed is True
+        assert decided.failed is False
 
 
 class TestCheckSync:
@@ -660,6 +664,7 @@ class TestCheckSync:
 
         assert result.status == RailStatus.BLOCKED
         assert result.content == INTERNAL_ERROR_MESSAGE
+        assert result.failed is True
 
     def test_check_with_explicit_rails_skips_output(self, iorails_sync):
         """Sync check() honors rail_types, skipping the output rail."""

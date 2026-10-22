@@ -49,7 +49,7 @@ from nemoguardrails.actions.llm.utils import (
     get_and_clear_response_metadata_contextvar,
     get_colang_history,
 )
-from nemoguardrails.actions.rail_outcome import require_rail_outcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, require_rail_outcome
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang import parse_colang_file
@@ -1713,7 +1713,7 @@ class LLMRails(BaseGuardrails):
             original_content = _get_last_content_by_role(messages, "user")
 
         messages = _normalize_messages_for_rails(messages, rails_to_run)
-        options["log"] = {"activated_rails": True}
+        options["log"] = {"activated_rails": True, "internal_events": True}
 
         response = await self.generate_async(messages=messages, options=options)
 
@@ -1722,6 +1722,14 @@ class LLMRails(BaseGuardrails):
 
         blocking_rail = _get_blocking_rail(response)
         result_content = _get_last_response_content(response)
+
+        if _check_execution_failed(response):
+            return RailsResult(
+                status=RailStatus.BLOCKED,
+                failed=True,
+                content="I'm sorry, an internal error has occurred.",
+                rail=blocking_rail,
+            )
 
         if blocking_rail:
             return RailsResult(status=RailStatus.BLOCKED, content=result_content, rail=blocking_rail)
@@ -2182,6 +2190,20 @@ def _get_last_content_by_role(messages: List[dict], role: str) -> str:
         if msg.get("role") == role:
             return msg.get("content", "")
     return ""
+
+
+def _check_execution_failed(response: "GenerationResponse") -> bool:
+    if response.log is None:
+        return False
+    for event in response.log.internal_events or []:
+        if event["type"] != "InternalSystemActionFinished":
+            continue
+        if event.get("is_success") is False:
+            return True
+        outcome = event.get("return_value")
+        if isinstance(outcome, RailOutcome) and outcome.failed:
+            return True
+    return False
 
 
 def _get_blocking_rail(response: "GenerationResponse") -> Optional[str]:
