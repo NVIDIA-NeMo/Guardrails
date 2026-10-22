@@ -23,6 +23,7 @@ from nemoguardrails.context import roundtrip_id
 from nemoguardrails.guardrails.guardrails_types import _set_request_id, reset_request_id
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
 from nemoguardrails.library.hiddenlayer._payloads import (
+    _NO_REQUEST_ID,
     _REQUEST_PATH,
     _RESPONSE_PATH,
     _SURFACE_PATH,
@@ -45,8 +46,19 @@ def _tool_call(arguments, call_id="call_abc", name="run_sql") -> ToolCall:
     return ToolCall(id=call_id, function=ToolCallFunction(name=name, arguments=arguments))
 
 
+@pytest.fixture(autouse=True)
+def no_request_id():
+    """Pin the request ID to its default, which is what the round-trip fallback keys on.
+
+    The variable is process-global and whatever ran before may have left one set.
+    """
+    token = _set_request_id(_NO_REQUEST_ID)
+    yield
+    reset_request_id(token)
+
+
 @pytest.fixture
-def request_id():
+def request_id(no_request_id):
     token = _set_request_id("e6d265e12f615e34")
     yield
     reset_request_id(token)
