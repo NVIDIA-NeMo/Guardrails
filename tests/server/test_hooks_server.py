@@ -321,11 +321,15 @@ class TestChecks:
         check.assert_not_awaited()
 
     @pytest.mark.parametrize("agent", AGENTS)
-    def test_tool_without_rails_is_allowed(self, client, agent):
-        """A call to a tool no rail is configured for is allowed without a check, though no model declares it."""
+    def test_tool_without_rails_is_allowed(self, client, monkeypatch, agent):
+        """A call to a tool with no per-tool rail is allowed without a check, though another tool has one."""
+        check = AsyncMock(wraps=client.app.state.engine.check_async)
+        monkeypatch.setattr(client.app.state.engine, "check_async", check)
+
         response = client.post(f"/v1/hooks/{agent}", json=_hook(agent, "Read", {"file_path": "/etc/passwd"}))
 
         assert (response.status_code, response.json()) == (200, _allowed(agent))
+        check.assert_not_awaited()
 
     @pytest.mark.parametrize("agent", AGENTS)
     @pytest.mark.parametrize(
@@ -622,7 +626,7 @@ class TestErrors:
     )
     def test_failed_model_call_is_rail_failed_error(self, failing_check, exc):
         """A rail's model call that fails and propagates out of the check gets `500 rail_failed`."""
-        response = failing_check(exc).post("/v1/hooks/codex", json=CODEX_MCP)
+        response = failing_check(exc).post("/v1/hooks/codex", json=_hook("codex", "Bash", {"command": "npm test"}))
 
         assert (response.status_code, response.json()) == (
             500,
@@ -644,7 +648,7 @@ class TestErrors:
             MagicMock(side_effect=RuntimeError("a bug")),
         )
 
-        response = client.post(f"/v1/hooks/{agent}", json=_HOOK_BODIES[agent])
+        response = client.post(f"/v1/hooks/{agent}", json=_hook(agent, "Bash", {"command": "npm test"}))
 
         assert (response.status_code, response.json()) == (500, CHECK_FAILED)
 
@@ -654,6 +658,14 @@ class TestErrors:
 
         assert (response.status_code, response.headers["retry-after"], response.json()) == (503, "30", OVERLOADED)
 
+    def test_full_admission_queue_leaves_a_tool_without_rails_allowed(self, failing_check):
+        """A call to a tool with no per-tool rail is allowed while the admission queue is full: it isn't queued."""
+        client = failing_check(NonStreamingWorkQueueFullError())
+
+        response = client.post("/v1/hooks/claude-code", json=_hook("claude-code", "Read", {"file_path": "README.md"}))
+
+        assert (response.status_code, response.json()) == (200, _allowed("claude-code"))
+
     @pytest.mark.parametrize(
         "exc",
         [RuntimeError("unexpected"), RailTypeNotConfiguredError("Requested rail type 'tool_call' has no rails.")],
@@ -661,7 +673,9 @@ class TestErrors:
     )
     def test_unexpected_failure_is_internal_error(self, failing_check, exc):
         """Any other failure, a library `ValueError` included, gets the spec's `500` internal error."""
-        response = failing_check(exc).post("/v1/hooks/nemo-relay", json=NEMO_RELAY_SEARCH)
+        response = failing_check(exc).post(
+            "/v1/hooks/nemo-relay", json=_hook("nemo-relay", "Bash", {"command": "npm test"})
+        )
 
         assert (response.status_code, response.json()) == (500, INTERNAL_ERROR)
 

@@ -299,7 +299,7 @@ def _parse_hook(adapter: HookAdapter, body: object) -> ToolInvocation:
 async def _check_tool_call(
     engine: Guardrails, policy: ToolPolicy, adapter: HookAdapter, call: ToolInvocation
 ) -> HookOutcome:
-    """Decide the hook's call with the tool policy, then run the config's per-tool rails on it, and log the verdict."""
+    """Decide the hook's call with the tool policy, then run its tool's per-tool rails on it, and log the verdict."""
     if not isinstance(call.arguments, dict):
         outcome = HookOutcome.deny(f"tool call '{quoted_identity(call.name)}' has arguments that aren't a JSON object")
         _log_check(adapter, call, outcome, rail=None)
@@ -309,7 +309,8 @@ async def _check_tool_call(
         outcome = HookOutcome.deny(reason)
         _log_check(adapter, call, outcome, rail=_TOOL_POLICY)
         return outcome
-    if not _has_per_tool_rails(engine.config):
+    # Only a tool with per-tool rails needs the check: it would run nothing else, and would take a queue slot.
+    if not engine.config.rails.tool_call.per_tool.get(call.name):
         outcome = HookOutcome.allow()
         _log_check(adapter, call, outcome, rail=None)
         return outcome
