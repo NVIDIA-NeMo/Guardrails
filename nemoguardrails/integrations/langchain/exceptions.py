@@ -19,6 +19,13 @@ from nemoguardrails.rails.llm.options import RailsResult
 
 
 class GuardrailViolation(Exception):
+    """Raised by ``GuardrailsMiddleware`` with ``raise_on_violation=True`` when a rail blocks or fails.
+
+    ``rail_type`` is ``"input"``, ``"output"``, ``"tool_call"`` or ``"tool_result"``. ``result``
+    holds the blocking ``RailsResult``; it is None when the rail failed to run or, for
+    ``"tool_result"``, when the tool returned messages the rail cannot check.
+    """
+
     def __init__(
         self,
         message: str,

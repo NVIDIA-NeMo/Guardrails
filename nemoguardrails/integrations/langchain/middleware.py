@@ -15,14 +15,33 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextvars
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Tuple, Union
 
 from langchain.agents.middleware.types import AgentMiddleware, AgentState, hook_config
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    RemoveMessage,
+    ToolMessage,
+    convert_to_messages,
+    convert_to_openai_messages,
+)
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from langgraph.types import Command, Send
 
 if TYPE_CHECKING:
+    from langgraph.prebuilt.tool_node import ToolCallRequest
     from langgraph.runtime import Runtime as LangGraphRuntime
+from nemoguardrails.guardrails.guardrails import Guardrails
+from nemoguardrails.guardrails.iorails import IORails, _rail_type_configured
+from nemoguardrails.guardrails.model_engine import _ENGINE_BASE_URLS
 from nemoguardrails.integrations.langchain.exceptions import GuardrailViolation
 from nemoguardrails.integrations.langchain.message_utils import (
     create_ai_message,
@@ -30,12 +49,312 @@ from nemoguardrails.integrations.langchain.message_utils import (
     is_human_message,
     messages_to_dicts,
 )
-from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.config import Rails, RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType
 from nemoguardrails.utils import get_or_create_event_loop
 
 log = logging.getLogger(__name__)
+
+
+def _iorails_can_build(model: Any) -> bool:
+    return model.engine in _ENGINE_BASE_URLS or bool((model.parameters or {}).get("base_url"))
+
+
+_DISABLE_TOOL_RAILS_HINT = "Pass enable_tool_rails=False to run the middleware without tool rails."
+
+
+def _tool_rails_config(config: RailsConfig) -> RailsConfig:
+    """Project *config* onto the tool rails, so IORails can serve them.
+
+    The input and output rails stay on LLMRails, so their flows (custom Colang, Colang 2.x)
+    do not decide whether IORails can serve the tool rails. Prompts, tracing and the other
+    top-level settings carry over.
+
+    Raises:
+        ValueError: If the config has no ``main`` model, its ``main`` model is one IORails
+            cannot build, or IORails cannot serve the projected tool rails.
+    """
+    main = next((model for model in config.models if model.type == "main"), None)
+    if main is None:
+        raise ValueError(
+            f"Tool rails need a `main` model; IORails reads tool calls in its wire format. {_DISABLE_TOOL_RAILS_HINT}"
+        )
+    if not _iorails_can_build(main):
+        raise ValueError(
+            f"Tool rails need a `main` model with engine {sorted(_ENGINE_BASE_URLS)} or a "
+            f"`parameters.base_url`; got engine '{main.engine}'. {_DISABLE_TOOL_RAILS_HINT}"
+        )
+
+    rail_sections = ("config", RailType.TOOL_CALL.value, RailType.TOOL_RESULT.value)
+    projection = config.model_copy(
+        deep=True,
+        update={
+            # IORails builds a client for every model and raises on one it cannot build,
+            # such as a FastEmbed embeddings model the input rails use.
+            "models": [model for model in config.models if _iorails_can_build(model)],
+            "rails": Rails(**{section: getattr(config.rails, section) for section in rail_sections}),
+            "flows": [],
+            "colang_version": "1.0",
+        },
+    )
+    reason = IORails.unsupported_reason(projection)
+    if reason is not None:
+        raise ValueError(f"Tool rails cannot run on IORails: {reason}. {_DISABLE_TOOL_RAILS_HINT}")
+    return projection
+
+
+def _event_loop_running() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
+class _LoopBoundGuardrails:
+    """Runs tool-rail checks for one tool-only config on IORails.
+
+    A started IORails engine serves only the event loop it started on, so async checks get
+    one engine per running loop, and engines of closed loops are dropped.
+    """
+
+    def __init__(self, config: RailsConfig):
+        self._config = config
+        self._engines: Dict[asyncio.AbstractEventLoop, Guardrails] = {}
+        self._lock = threading.Lock()
+        # Never started: its sync check runs a short-lived engine per call.
+        self._sync_engine = Guardrails(config, require_iorails=True)
+
+    def _engine(self) -> Guardrails:
+        loop = asyncio.get_running_loop()
+        with self._lock:
+            for closed in [other for other in self._engines if other.is_closed()]:
+                del self._engines[closed]
+            engine = self._engines.get(loop)
+            if engine is None:
+                engine = self._engines[loop] = Guardrails(self._config, require_iorails=True)
+            return engine
+
+    async def check_async(
+        self, messages: List[dict], rail_type: RailType, tools: Optional[List[dict]] = None
+    ) -> RailsResult:
+        return await self._engine().check_async(messages, rail_types=[rail_type], tools=tools)
+
+    def check(self, messages: List[dict], rail_type: RailType, tools: Optional[List[dict]] = None) -> RailsResult:
+        def run() -> RailsResult:
+            return self._sync_engine.check(messages, rail_types=[rail_type], tools=tools)
+
+        if not _event_loop_running():
+            return run()
+        # The sync check starts its own event loop, which cannot run inside a running one.
+        context = contextvars.copy_context()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(context.run, run).result()
+
+    async def aclose(self) -> None:
+        loop = asyncio.get_running_loop()
+        with self._lock:
+            engine = self._engines.pop(loop, None)
+        if engine is not None:
+            await engine.shutdown()
+
+
+class _UnsafeToolResult(Exception):
+    """A tool returned messages the tool-result rail cannot vouch for."""
+
+
+@dataclass
+class _ToolResultReview:
+    """A tool's return, with re-emitted history swapped for the originals from state.
+
+    ``terminator`` is the tool message to check, if any; ``terminator_entry`` is the same
+    message as it appears in ``result`` (an object or a dict). ``message_keys`` are the dict
+    keys whose message lists the review walked in the return's updates and ``Send`` arguments.
+    """
+
+    result: Any
+    terminator: Optional[ToolMessage] = None
+    terminator_entry: Any = field(default=None, repr=False)
+    message_keys: Tuple[str, ...] = ("messages",)
+
+
+def _as_message(entry: Any) -> BaseMessage:
+    if isinstance(entry, BaseMessage):
+        return entry
+    try:
+        return convert_to_messages([entry])[0]
+    except Exception as e:
+        raise _UnsafeToolResult("a message that cannot be read") from e
+
+
+def _is_tool_call(entry: Any) -> bool:
+    """Whether an entry is a tool call rather than a message."""
+    if not isinstance(entry, dict):
+        return False
+    if entry.get("type") == "tool_call":
+        return True
+    return "name" in entry and "args" in entry and "role" not in entry
+
+
+def _map_messages(entries: Any, transform: Callable[[Any], Any]) -> Any:
+    if not isinstance(entries, list):
+        raise _UnsafeToolResult(f"messages of type {type(entries).__name__}")
+    mapped = [transform(entry) for entry in entries]
+    return entries if all(new is old for new, old in zip(mapped, entries)) else mapped
+
+
+def _map_message_fields(fields: dict, keys: Tuple[str, ...], transform: Callable[[Any], Any]) -> dict:
+    changed = {}
+    for key in keys:
+        if key in fields:
+            mapped = _map_messages(fields[key], transform)
+            if mapped is not fields[key]:
+                changed[key] = mapped
+    return {**fields, **changed} if changed else fields
+
+
+def _map_send(send: Send, keys: Tuple[str, ...], transform: Callable[[Any], Any]) -> Send:
+    arg = send.arg
+    if isinstance(arg, dict):
+        mapped = _map_message_fields(arg, keys, transform)
+    elif isinstance(arg, list):
+        # A list of tool calls, as create_agent sends to its tool node, holds no messages.
+        # Anything else is vetted as a conversation: the message shorthands LangChain accepts
+        # are too many to recognize one by one, and an unrecognized one must not reach a model.
+        mapped = arg if all(_is_tool_call(entry) for entry in arg) else _map_messages(arg, transform)
+    elif arg is None or isinstance(arg, (str, int, float, bool)):
+        mapped = arg
+    else:
+        # Such as a state model, whose messages cannot be rewritten in place.
+        raise _UnsafeToolResult(f"a Send with an argument of type {type(arg).__name__}")
+    return send if mapped is arg else Send(send.node, mapped)
+
+
+def _map_goto(goto: Any, keys: Tuple[str, ...], transform: Callable[[Any], Any]) -> Any:
+    if isinstance(goto, Send):
+        return _map_send(goto, keys, transform)
+    if isinstance(goto, (list, tuple)):
+        mapped = [_map_send(item, keys, transform) if isinstance(item, Send) else item for item in goto]
+        return goto if all(new is old for new, old in zip(mapped, goto)) else type(goto)(mapped)
+    return goto
+
+
+def _map_command(command: Command, transform: Callable[[Any], Any], keys: Tuple[str, ...]) -> Command:
+    update = command.update
+    if update is None:
+        mapped_update = None
+    elif isinstance(update, list):
+        mapped_update = _map_messages(update, transform)
+    elif isinstance(update, dict):
+        mapped_update = _map_message_fields(update, keys, transform)
+    else:
+        raise _UnsafeToolResult(f"a Command update of type {type(update).__name__}")
+    goto = _map_goto(command.goto, keys, transform)
+    if mapped_update is update and goto is command.goto:
+        return command
+    return replace(command, update=mapped_update, goto=goto)
+
+
+def _map_tool_result(result: Any, transform: Callable[[Any], Any], keys: Tuple[str, ...] = ("messages",)) -> Any:
+    """Rebuild a tool's return with *transform* applied to every message it adds to the conversation.
+
+    Accepts the returns LangGraph's ``ToolNode`` accepts: a ``ToolMessage``, a ``Command``, or a
+    list of those. In a ``Command``, the messages are a list ``update``, or the lists under *keys*
+    in a dict ``update`` and in the arguments of the ``Send`` objects in ``goto``. The container
+    keeps its shape; a part *transform* leaves unchanged keeps its identity.
+
+    Raises:
+        _UnsafeToolResult: On any other shape.
+    """
+    if isinstance(result, ToolMessage):
+        return transform(result)
+    if isinstance(result, Command):
+        return _map_command(result, transform, keys)
+    if isinstance(result, list) and all(isinstance(item, (Command, ToolMessage)) for item in result):
+        mapped = [_map_tool_result(item, transform, keys) for item in result]
+        return result if all(new is old for new, old in zip(mapped, result)) else mapped
+    raise _UnsafeToolResult(f"a tool return of type {type(result).__name__}")
+
+
+def _made_call(message: Any, call_id: str) -> bool:
+    return isinstance(message, AIMessage) and any(call.get("id") == call_id for call in message.tool_calls)
+
+
+def _state_fields(state: Any) -> Dict[str, Any]:
+    """The named fields of a graph state, whichever way the state class stores them.
+
+    A state declared with ``__slots__`` (a slotted dataclass, say) has no ``__dict__``, and
+    reading no fields would hide the conversation and leave the messages in it unchecked.
+    """
+    if isinstance(state, dict):
+        return state
+    fields = getattr(state, "__dict__", None)
+    if fields:
+        return dict(fields)
+    names: List[str] = []
+    for klass in type(state).__mro__:
+        slots = getattr(klass, "__slots__", ())
+        names.extend([slots] if isinstance(slots, str) else slots)
+    return {name: getattr(state, name) for name in dict.fromkeys(names) if hasattr(state, name)}
+
+
+def _conversation(state: Any, call_id: str) -> Tuple[Optional[str], Any]:
+    """The key and message list of the conversation in *state*: the list with the AI message that made the call.
+
+    A list state is the conversation itself, with no key. A ``ToolNode`` with a custom
+    ``messages_key`` keeps the conversation under that key. Without a match it is ``messages``.
+    """
+    if isinstance(state, list):
+        return None, state
+    fields = _state_fields(state)
+    for key in sorted(fields, key=lambda name: name != "messages"):
+        value = fields[key]
+        if isinstance(value, list) and any(_made_call(message, call_id) for message in value):
+            return key, value
+    return "messages", fields.get("messages")
+
+
+def _messages_by_id(messages: Any) -> Dict[str, BaseMessage]:
+    if not isinstance(messages, list):
+        return {}
+    return {message.id: message for message in messages if isinstance(message, BaseMessage) and message.id}
+
+
+def _review_tool_result(request: ToolCallRequest, result: Any) -> _ToolResultReview:
+    """Find the tool message to check in *result* and vet every other message it adds.
+
+    Only the message answering this call can be checked: the rail links a result to its call
+    by id. Any other message passes only when it re-emits conversation history unchanged
+    (handoff tools do), and the original from state is emitted in its place, because the
+    message reducer replaces history by id and would otherwise accept an edited copy.
+
+    Raises:
+        _UnsafeToolResult: If *result* adds anything else.
+    """
+    call_id = request.tool_call["id"]
+    key, conversation = _conversation(request.state, call_id)
+    history = _messages_by_id(conversation)
+    review = _ToolResultReview(
+        result=None, message_keys=tuple(dict.fromkeys(name for name in ("messages", key) if name))
+    )
+
+    def vet(entry: Any) -> Any:
+        message = _as_message(entry)
+        if isinstance(message, RemoveMessage):
+            return entry
+        if isinstance(message, ToolMessage) and message.tool_call_id == call_id:
+            if review.terminator is not None:
+                raise _UnsafeToolResult("more than one tool message for this call")
+            review.terminator, review.terminator_entry = message, entry
+            return entry
+        original = history.get(message.id) if message.id else None
+        if original is None or type(original) is not type(message) or original != message:
+            raise _UnsafeToolResult(f"a {type(message).__name__} that is not unchanged conversation history")
+        return original
+
+    review.result = _map_tool_result(result, vet, review.message_keys)
+    return review
 
 
 class GuardrailsMiddleware(AgentMiddleware):
@@ -48,13 +367,26 @@ class GuardrailsMiddleware(AgentMiddleware):
         blocked_output_message: str = "I cannot provide this response due to content policy.",
         enable_input_rails: bool = True,
         enable_output_rails: bool = True,
+        enable_tool_rails: bool = True,
+        blocked_tool_call_message: str = (
+            "Tool call blocked due to content policy. The tool was not executed; do not retry this call."
+        ),
+        blocked_tool_result_message: str = "Tool result withheld due to content policy.",
     ):
         if config_path is not None:
             config = RailsConfig.from_path(config_path)
         elif config_yaml is not None:
-            config = RailsConfig.from_content(config_yaml)
+            config = RailsConfig.from_content(yaml_content=config_yaml)
         else:
             raise ValueError("Either 'config_path' or 'config_yaml' must be provided to GuardrailsMiddleware")
+
+        self._tool_call_rails_on = enable_tool_rails and _rail_type_configured(config, RailType.TOOL_CALL)
+        self._tool_result_rails_on = enable_tool_rails and _rail_type_configured(config, RailType.TOOL_RESULT)
+        # Input and output rails stay on LLMRails; tool rails need IORails, which cannot serve
+        # the custom Colang flows most input and output rails use.
+        self._tool_rails: Optional[_LoopBoundGuardrails] = None
+        if self._tool_call_rails_on or self._tool_result_rails_on:
+            self._tool_rails = _LoopBoundGuardrails(_tool_rails_config(config))
 
         self.rails = LLMRails(config=config)
         self.raise_on_violation = raise_on_violation
@@ -62,6 +394,9 @@ class GuardrailsMiddleware(AgentMiddleware):
         self.blocked_output_message = blocked_output_message
         self.enable_input_rails = enable_input_rails
         self.enable_output_rails = enable_output_rails
+        self.enable_tool_rails = enable_tool_rails
+        self.blocked_tool_call_message = blocked_tool_call_message
+        self.blocked_tool_result_message = blocked_tool_result_message
 
     def _has_input_rails(self) -> bool:
         return len(self.rails.config.rails.input.flows) > 0
@@ -236,8 +571,158 @@ class GuardrailsMiddleware(AgentMiddleware):
         loop = get_or_create_event_loop()
         return loop.run_until_complete(self.aafter_model(state, runtime))
 
+    def _tool_call_payload(self, request: ToolCallRequest) -> tuple[List[dict], List[dict]]:
+        messages = convert_to_openai_messages([AIMessage(content="", tool_calls=[request.tool_call])])
+        tools = [convert_to_openai_tool(request.tool)] if request.tool is not None else []
+        return messages, tools
+
+    def _tool_result_payload(self, request: ToolCallRequest, tool_message: ToolMessage) -> List[dict]:
+        # Only this call and its result: a tool_result check re-checks every tool message it is given.
+        return convert_to_openai_messages([AIMessage(content="", tool_calls=[request.tool_call]), tool_message])
+
+    def _tool_check_passed(self, outcome: Union[RailsResult, Exception], rail_type: str) -> bool:
+        """Whether a tool check lets the call or result through; raises instead when ``raise_on_violation``."""
+        label = rail_type.replace("_", " ").capitalize()
+        if isinstance(outcome, Exception):
+            log.error("Error checking %s rails: %s", rail_type.replace("_", " "), outcome, exc_info=outcome)
+            if self.raise_on_violation:
+                raise GuardrailViolation(
+                    message=f"{label} rail execution error: {outcome}",
+                    rail_type=rail_type,
+                ) from outcome
+            return False
+
+        if outcome.status == RailStatus.PASSED:
+            return True
+        if outcome.status == RailStatus.MODIFIED:
+            # Tool rewrites are not applied here; passing the original would skip the rewrite.
+            log.warning("%s modified by %s; rewrites are not applied, so it is blocked", label, outcome.rail)
+
+        failure_message = f"{label} blocked by {outcome.rail or 'unknown rail'}"
+        # The reason goes to the log only: the model reads the blocked message, and an injected
+        # instruction could use the reason to work around the rail.
+        log.warning("%s: %s", failure_message, outcome.reason)
+        if self.raise_on_violation:
+            raise GuardrailViolation(message=failure_message, result=outcome, rail_type=rail_type)
+        return False
+
+    def _blocked_tool_call(self, request: ToolCallRequest) -> ToolMessage:
+        return ToolMessage(
+            content=self.blocked_tool_call_message,
+            tool_call_id=request.tool_call["id"],
+            name=request.tool_call["name"],
+            status="error",
+        )
+
+    def _withhold_tool_result(self, review: _ToolResultReview) -> Any:
+        """Rebuild the reviewed return with only the checked tool message's content withheld.
+
+        A tool message the tool returned as a dict comes back as a ``ToolMessage``, so no dict
+        form, such as a serialized message's ``kwargs``, carries the original content on.
+        """
+        blocked = review.terminator.model_copy(
+            update={"content": self.blocked_tool_result_message, "status": "error", "artifact": None}
+        )
+        entry = review.terminator_entry
+        return _map_tool_result(
+            review.result, lambda message: blocked if message is entry else message, review.message_keys
+        )
+
+    def _review_tool_result(self, request: ToolCallRequest, result: Any) -> _ToolResultReview:
+        """Review a tool's return; one that adds unvetted messages is replaced by one blocked tool message."""
+        try:
+            return _review_tool_result(request, result)
+        except _UnsafeToolResult as e:
+            failure_message = f"Tool result blocked: the tool returned {e}"
+            if self.raise_on_violation:
+                raise GuardrailViolation(message=failure_message, rail_type="tool_result") from e
+            log.warning(failure_message)
+            return _ToolResultReview(
+                result=ToolMessage(
+                    content=self.blocked_tool_result_message,
+                    tool_call_id=request.tool_call["id"],
+                    name=request.tool_call["name"],
+                    status="error",
+                )
+            )
+
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable[Union[ToolMessage, Command]]],
+    ) -> Union[ToolMessage, Command]:
+        if self._tool_call_rails_on:
+            try:
+                messages, tools = self._tool_call_payload(request)
+                outcome = await self._tool_rails.check_async(messages, RailType.TOOL_CALL, tools)
+            except Exception as e:
+                outcome = e
+            if not self._tool_check_passed(outcome, "tool_call"):
+                return self._blocked_tool_call(request)
+
+        result = await handler(request)
+        if not self._tool_result_rails_on:
+            return result
+
+        review = self._review_tool_result(request, result)
+        if review.terminator is None:
+            return review.result
+        try:
+            outcome = await self._tool_rails.check_async(
+                self._tool_result_payload(request, review.terminator), RailType.TOOL_RESULT
+            )
+        except Exception as e:
+            outcome = e
+        if not self._tool_check_passed(outcome, "tool_result"):
+            return self._withhold_tool_result(review)
+        return review.result
+
+    def wrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Union[ToolMessage, Command]],
+    ) -> Union[ToolMessage, Command]:
+        if self._tool_call_rails_on:
+            try:
+                messages, tools = self._tool_call_payload(request)
+                outcome = self._tool_rails.check(messages, RailType.TOOL_CALL, tools)
+            except Exception as e:
+                outcome = e
+            if not self._tool_check_passed(outcome, "tool_call"):
+                return self._blocked_tool_call(request)
+
+        result = handler(request)
+        if not self._tool_result_rails_on:
+            return result
+
+        review = self._review_tool_result(request, result)
+        if review.terminator is None:
+            return review.result
+        try:
+            outcome = self._tool_rails.check(
+                self._tool_result_payload(request, review.terminator), RailType.TOOL_RESULT
+            )
+        except Exception as e:
+            outcome = e
+        if not self._tool_check_passed(outcome, "tool_result"):
+            return self._withhold_tool_result(review)
+        return review.result
+
+    async def aclose(self) -> None:
+        """Shut down the tool-rails engine bound to the running event loop.
+
+        Call it before that loop closes, for example at the end of the coroutine passed to
+        ``asyncio.run``, to release the engine's connections.
+        """
+        if self._tool_rails is not None:
+            await self._tool_rails.aclose()
+
 
 class InputRailsMiddleware(GuardrailsMiddleware):
+    # create_agent adds a ToolNode for any middleware class that overrides a tool hook.
+    wrap_tool_call = AgentMiddleware.wrap_tool_call
+    awrap_tool_call = AgentMiddleware.awrap_tool_call
+
     def __init__(
         self,
         config_path: Optional[str] = None,
@@ -253,6 +738,7 @@ class InputRailsMiddleware(GuardrailsMiddleware):
             blocked_output_message="",
             enable_input_rails=True,
             enable_output_rails=False,
+            enable_tool_rails=False,
         )
 
     async def aafter_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
@@ -263,6 +749,10 @@ class InputRailsMiddleware(GuardrailsMiddleware):
 
 
 class OutputRailsMiddleware(GuardrailsMiddleware):
+    # create_agent adds a ToolNode for any middleware class that overrides a tool hook.
+    wrap_tool_call = AgentMiddleware.wrap_tool_call
+    awrap_tool_call = AgentMiddleware.awrap_tool_call
+
     def __init__(
         self,
         config_path: Optional[str] = None,
@@ -278,6 +768,7 @@ class OutputRailsMiddleware(GuardrailsMiddleware):
             blocked_output_message=blocked_output_message,
             enable_input_rails=False,
             enable_output_rails=True,
+            enable_tool_rails=False,
         )
 
     @hook_config(can_jump_to=["end"])
