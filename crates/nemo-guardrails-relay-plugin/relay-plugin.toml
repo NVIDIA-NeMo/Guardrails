@@ -1,5 +1,5 @@
 manifest_version = 1
-description = "Checks tool calls and tool results with a NeMo Guardrails server."
+description = "Checks tool calls with a NeMo Guardrails hooks server."
 
 [plugin]
 id = "nvidia.nemo_guardrails_checks"
@@ -8,7 +8,8 @@ kind = "rust_dynamic"
 
 [compat]
 # Native ABI v7 ships with Relay 0.10, and Relay refuses a native manifest whose range admits 0.9.
-relay = ">=0.10,<1.0"
+# 0.10.1 is the floor: on 0.10.0, an error from the guardrail lets a Claude Code tool call run.
+relay = ">=0.10.1,<1.0"
 native_api = "1"
 
 [defaults]

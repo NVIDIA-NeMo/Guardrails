@@ -20,8 +20,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 
-use nemo_relay::plugin::dynamic::initialize;
+use nemo_relay::plugin::dynamic::{initialize, relay_version_matches};
 use nemo_relay::plugin::{PluginConfig, list_plugin_kinds};
+use semver::{Version, VersionReq};
 use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
@@ -43,8 +44,7 @@ async fn valid_config_activates_and_closes() {
     let mut activation = initialize(
         PluginConfig::default(),
         Some(bundle.plugins_toml(json!({
-            "endpoint": "http://127.0.0.1:8000",
-            "config_id": "tool_checks",
+            "endpoint": "http://127.0.0.1:8100",
             "headers": {"authorization": "Bearer test-token"},
             "timeout_millis": 1500,
             "priority": 0,
@@ -70,22 +70,22 @@ async fn schema_rejects_config_without_endpoint() {
     let _host = HOST.lock().await;
     let bundle = Bundle::new();
 
-    let error = initialize_error(bundle.plugins_toml(json!({"config_id": "tool_checks"}))).await;
+    let error = initialize_error(bundle.plugins_toml(json!({"timeout_millis": 1500}))).await;
 
     assert!(error.contains("configuration does not satisfy"), "{error}");
     assert!(error.contains("endpoint"), "{error}");
     assert!(!list_plugin_kinds().contains(&PLUGIN_ID.to_owned()));
 }
 
-/// The manifest's config schema rejects an empty `config_id`.
+/// The manifest's config schema rejects a field it doesn't declare, such as `config_id`.
 #[tokio::test]
-async fn schema_rejects_empty_config_id() {
+async fn schema_rejects_unknown_field() {
     let _host = HOST.lock().await;
     let bundle = Bundle::new();
 
     let error = initialize_error(bundle.plugins_toml(json!({
-        "endpoint": "http://127.0.0.1:8000",
-        "config_id": ""
+        "endpoint": "http://127.0.0.1:8100",
+        "config_id": "tool_checks"
     })))
     .await;
 
@@ -94,24 +94,72 @@ async fn schema_rejects_empty_config_id() {
     assert!(!list_plugin_kinds().contains(&PLUGIN_ID.to_owned()));
 }
 
-/// The plugin's own validation rejects an endpoint that passes the schema but isn't a URL, and
-/// the host unloads the plugin again.
+/// The manifest's config schema rejects a `priority` outside the plugin's 32-bit range.
 #[tokio::test]
-async fn plugin_rejects_endpoint_the_schema_allows() {
+async fn schema_rejects_priority_outside_32_bits() {
     let _host = HOST.lock().await;
     let bundle = Bundle::new();
 
     let error = initialize_error(bundle.plugins_toml(json!({
-        "endpoint": "http://exa mple.com",
-        "config_id": "tool_checks"
+        "endpoint": "http://127.0.0.1:8100",
+        "priority": 3_000_000_000_i64
     })))
     .await;
 
-    assert!(
-        error.contains("invalid NeMo Guardrails checks config: endpoint is not a valid URL"),
-        "{error}"
-    );
+    assert!(error.contains("configuration does not satisfy"), "{error}");
+    assert!(error.contains("priority"), "{error}");
     assert!(!list_plugin_kinds().contains(&PLUGIN_ID.to_owned()));
+}
+
+/// The manifest's `compat.relay` refuses Relay 0.10.0, whose CLI hooks let a call run when a
+/// guardrail returns an error, and accepts 0.10.1 and later 0.10 releases.
+#[test]
+fn manifest_refuses_relay_hosts_before_0_10_1() {
+    let manifest: toml::Table = toml::from_str(
+        &std::fs::read_to_string(crate_dir().join("relay-plugin.toml"))
+            .expect("manifest template should be readable"),
+    )
+    .expect("manifest template should be TOML");
+    let requirement: VersionReq = manifest["compat"]["relay"]
+        .as_str()
+        .expect("compat.relay should be a string")
+        .parse()
+        .expect("compat.relay should be a version requirement");
+
+    for (version, accepted) in [("0.10.0", false), ("0.10.1", true), ("0.10.4", true)] {
+        let version = Version::parse(version).expect("test version should parse");
+        assert_eq!(
+            relay_version_matches(&requirement, &version),
+            accepted,
+            "{version}"
+        );
+    }
+}
+
+/// The plugin's own validation rejects endpoints the schema allows, without repeating a password,
+/// and the host unloads the plugin again.
+#[tokio::test]
+async fn plugin_rejects_endpoints_the_schema_allows() {
+    let _host = HOST.lock().await;
+
+    // The schema leaves credentials to the plugin, because Relay's schema errors quote the value.
+    for (endpoint, message) in [
+        ("http://exa mple.com", "endpoint is not a valid URL"),
+        (
+            "https://user:secret@gw.example.com",
+            "endpoint must not contain a username or password",
+        ),
+    ] {
+        let bundle = Bundle::new();
+        let error = initialize_error(bundle.plugins_toml(json!({"endpoint": endpoint}))).await;
+
+        assert!(
+            error.contains(&format!("invalid NeMo Guardrails checks config: {message}")),
+            "{endpoint}: {error}"
+        );
+        assert!(!error.contains("secret"), "{endpoint}: {error}");
+        assert!(!list_plugin_kinds().contains(&PLUGIN_ID.to_owned()));
+    }
 }
 
 async fn initialize_error(plugins_toml: PathBuf) -> String {

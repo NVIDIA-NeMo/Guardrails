@@ -1,20 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "NeMo Guardrails checks for NeMo Relay",
-  "description": "Checks tool calls and tool results with the /v1/checks/input and /v1/checks/output endpoints of a NeMo Guardrails server.",
+  "description": "Checks tool calls with the /v1/hooks/nemo-relay endpoint of a NeMo Guardrails hooks server, started with nemoguardrails hooks-server.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["endpoint", "config_id"],
+  "required": ["endpoint"],
   "properties": {
     "endpoint": {
       "type": "string",
       "pattern": "^https?://",
-      "description": "Base URL of the NeMo Guardrails server, such as http://127.0.0.1:8000."
-    },
-    "config_id": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Guardrails configuration to check against. It must name a configuration loaded on the server."
+      "description": "Base URL of the NeMo Guardrails hooks server, such as http://127.0.0.1:8100. It must not contain a username or password: send credentials in headers."
     },
     "headers": {
       "type": "object",
@@ -22,18 +17,20 @@
         "type": "string"
       },
       "default": {},
-      "description": "Headers sent with every check, for a proxy or gateway in front of the Guardrails server, such as authorization. Values are treated as sensitive."
+      "description": "Headers sent with every check, for a proxy or gateway in front of the hooks server, such as authorization. Values are treated as sensitive."
     },
     "timeout_millis": {
       "type": "integer",
       "minimum": 1,
-      "default": 1500,
-      "description": "Time limit for one check, in milliseconds. Keep it under the host's hook limit: 1500 or less in gateway modes, about 25000 in daemon mode."
+      "default": 25000,
+      "description": "Time limit for one check, in milliseconds. Keep it under the host's hook limit: 30 seconds for Claude Code and Codex hooks, 5 seconds by default for pi."
     },
     "priority": {
       "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647,
       "default": 0,
-      "description": "NeMo Relay execution-intercept priority. Lower values run further out."
+      "description": "NeMo Relay tool conditional-execution guardrail priority. Lower values run earlier."
     },
     "executor": {
       "type": "object",

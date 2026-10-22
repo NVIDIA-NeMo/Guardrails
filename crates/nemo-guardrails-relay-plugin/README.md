@@ -1,6 +1,10 @@
 # NeMo Guardrails checks plugin for NeMo Relay
 
-A native [NeMo Relay](https://github.com/NVIDIA/NeMo-Relay) plugin, `nvidia.nemo_guardrails_checks`, that will check tool calls and tool results with the checks API of a NeMo Guardrails server: `/v1/checks/output` for tool calls and `/v1/checks/input` for tool results.
+A native [NeMo Relay](https://github.com/NVIDIA/NeMo-Relay) plugin, `nvidia.nemo_guardrails_checks`, that will check tool calls with a NeMo Guardrails hooks server.
+Before each tool call that Relay manages, the plugin will post the tool's name and arguments to the hooks server's `/v1/hooks/nemo-relay` endpoint.
+A deny from the server will become a guardrail rejection, and a check that fails (an error status, a timeout, a server that can't be reached) will become an error.
+Relay blocks the call on either, from 0.10.1 on, with one exception: on an error, pi's extension lets the call run unless `NEMO_RELAY_PI_FAIL=closed` is set.
+Start the hooks server with `nemoguardrails hooks-server --config <path>`; it checks every call against that one configuration.
 
 > [!NOTE]
 > This crate is a scaffold.
@@ -8,7 +12,8 @@ A native [NeMo Relay](https://github.com/NVIDIA/NeMo-Relay) plugin, `nvidia.nemo
 
 ## Compatibility
 
-- NeMo Relay 0.10 and later 0.x releases, through native ABI v7 (`compat.relay = ">=0.10,<1.0"`).
+- NeMo Relay 0.10.1 and later 0.x releases, through native ABI v7 (`compat.relay = ">=0.10.1,<1.0"`).
+  Relay 0.10.0 is excluded: the plugin will report a failed check as an error, and at 0.10.0 an error from a guardrail lets a Claude Code tool call run.
 - Each Relay minor release changes the native ABI, so the plugin is rebuilt against each one.
 
 ## Configuration
@@ -18,11 +23,10 @@ Relay passes the plugin's entry in `plugins.toml` as the component config.
 
 | Field | Default | Description |
 |---|---|---|
-| `endpoint` | — | Required. Base URL of the NeMo Guardrails server, using http or https. The plugin calls its `/v1/checks/input` and `/v1/checks/output` endpoints. |
-| `config_id` | — | Required. Guardrails configuration to check against. It must name a configuration loaded on the server. |
-| `headers` | `{}` | Headers sent with every check. The Guardrails server has no authentication of its own, so these serve a proxy or gateway in front of it, such as an `authorization` header. Values are treated as sensitive. |
-| `timeout_millis` | `1500` | Time limit for one check, in milliseconds. |
-| `priority` | `0` | Relay execution-intercept priority. |
+| `endpoint` | — | Required. Base URL of the NeMo Guardrails hooks server, using http or https, such as `http://127.0.0.1:8100`. The plugin calls its `/v1/hooks/nemo-relay` endpoint, keeping any path prefix. It must not contain a username or password; send credentials in `headers`. |
+| `headers` | `{}` | Headers sent with every check. The hooks server has no authentication of its own, so these serve a proxy or gateway in front of it, such as an `authorization` header. Values are treated as sensitive. |
+| `timeout_millis` | `25000` | Time limit for one check, in milliseconds. Keep it under the host's hook limit: 30 seconds for Claude Code and Codex hooks, 5 seconds by default for pi. |
+| `priority` | `0` | Priority of the plugin's tool conditional-execution guardrail among Relay's guardrails. Lower values run earlier. |
 | `executor` | — | Reserved by the Relay SDK for its executor settings. |
 
 An invalid config is reported with the diagnostic code `nemo_guardrails_checks.invalid_config`.

@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! NeMo Relay native plugin that checks tool calls and tool results with a NeMo Guardrails server.
+//! NeMo Relay native plugin that checks tool calls with a NeMo Guardrails hooks server.
 //!
 //! Relay loads the `cdylib` through the `nemo_relay_register_plugin` symbol that
 //! `relay-plugin.toml` names. The plugin validates its component configuration and registers
@@ -111,8 +111,7 @@ mod tests {
     #[test]
     fn valid_config_has_no_diagnostics() {
         let diagnostics = validate(json!({
-            "endpoint": "http://127.0.0.1:8000",
-            "config_id": "tool_checks",
+            "endpoint": "http://127.0.0.1:8100",
             "executor": {"worker_threads": 2}
         }));
 
@@ -141,8 +140,7 @@ mod tests {
     #[test]
     fn invalid_executor_keeps_the_sdk_diagnostic() {
         let diagnostics = validate(json!({
-            "endpoint": "http://127.0.0.1:8000",
-            "config_id": "tool_checks",
+            "endpoint": "http://127.0.0.1:8100",
             "executor": {"worker_threads": 0}
         }));
 

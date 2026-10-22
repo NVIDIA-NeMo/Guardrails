@@ -29,22 +29,21 @@ const EXECUTOR_KEY: &str = "executor";
 
 /// Default per-check timeout.
 ///
-/// It stays under the 2-second hook limit of Relay's gateway modes, so a slow check ends as a
-/// rejection rather than as a failed hook.
-pub const DEFAULT_TIMEOUT_MILLIS: u64 = 1_500;
+/// It stays under the 30-second limit that Relay's CLI hooks allow, leaving time for the hook's own
+/// round trip, so a slow check fails in the plugin rather than in hook delivery.
+pub const DEFAULT_TIMEOUT_MILLIS: u64 = 25_000;
 
 /// A validated component configuration.
 #[derive(Debug, Clone)]
 pub struct ChecksConfig {
-    /// Base URL of the NeMo Guardrails server.
+    /// Base URL of the NeMo Guardrails hooks server. Its path ends in `/`, so joining a relative
+    /// path keeps a proxy's path prefix.
     pub endpoint: Url,
-    /// Guardrails configuration to check against.
-    pub config_id: String,
     /// Headers sent with every check, with their values marked sensitive.
     pub headers: HeaderMap,
     /// Time limit for one check.
     pub timeout: Duration,
-    /// Execution-intercept priority. Lower values run further out.
+    /// Tool conditional-execution guardrail priority. Lower values run earlier.
     pub priority: i32,
 }
 
@@ -79,7 +78,6 @@ impl std::error::Error for ConfigError {}
 #[serde(default, deny_unknown_fields)]
 struct RawConfig {
     endpoint: String,
-    config_id: Option<String>,
     headers: BTreeMap<String, String>,
     timeout_millis: u64,
     priority: i32,
@@ -89,7 +87,6 @@ impl Default for RawConfig {
     fn default() -> Self {
         Self {
             endpoint: String::new(),
-            config_id: None,
             headers: BTreeMap::new(),
             timeout_millis: DEFAULT_TIMEOUT_MILLIS,
             priority: 0,
@@ -109,7 +106,6 @@ impl ChecksConfig {
             })?;
         Ok(Self {
             endpoint: parse_endpoint(&raw.endpoint)?,
-            config_id: parse_config_id(raw.config_id)?,
             headers: header_map(&raw.headers)?,
             timeout: parse_timeout(raw.timeout_millis)?,
             priority: raw.priority,
@@ -121,7 +117,7 @@ fn parse_endpoint(endpoint: &str) -> Result<Url, ConfigError> {
     if endpoint.trim().is_empty() {
         return Err(ConfigError::new("endpoint", "endpoint is required"));
     }
-    let url = Url::parse(endpoint).map_err(|error| {
+    let mut url = Url::parse(endpoint).map_err(|error| {
         ConfigError::new("endpoint", format!("endpoint is not a valid URL: {error}"))
     })?;
     if !matches!(url.scheme(), "http" | "https") {
@@ -130,17 +126,19 @@ fn parse_endpoint(endpoint: &str) -> Result<Url, ConfigError> {
             "endpoint must use http or https",
         ));
     }
-    Ok(url)
-}
-
-fn parse_config_id(config_id: Option<String>) -> Result<String, ConfigError> {
-    let Some(config_id) = config_id else {
-        return Err(ConfigError::new("config_id", "config_id is required"));
-    };
-    if config_id.trim().is_empty() {
-        return Err(ConfigError::new("config_id", "config_id must not be empty"));
+    // Url's debug output shows the password, while header values are marked sensitive.
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(ConfigError::new(
+            "endpoint",
+            "endpoint must not contain a username or password; send credentials in headers",
+        ));
     }
-    Ok(config_id)
+    // Joining a relative path replaces the last path segment unless the path ends in '/'.
+    if !url.path().ends_with('/') {
+        let path = format!("{}/", url.path());
+        url.set_path(&path);
+    }
+    Ok(url)
 }
 
 fn header_map(headers: &BTreeMap<String, String>) -> Result<HeaderMap, ConfigError> {
@@ -195,15 +193,12 @@ mod tests {
         parse(config).expect_err("config should be rejected")
     }
 
-    /// Only `endpoint` and `config_id` are required; the other fields take their documented defaults.
+    /// Only `endpoint` is required; the other fields take their documented defaults.
     #[test]
     fn defaults_apply_when_only_required_fields_are_set() {
-        let config =
-            parse(json!({"endpoint": "http://127.0.0.1:8000", "config_id": "tool_checks"}))
-                .expect("config is valid");
+        let config = parse(json!({"endpoint": "http://127.0.0.1:8100"})).expect("config is valid");
 
-        assert_eq!(config.endpoint.as_str(), "http://127.0.0.1:8000/");
-        assert_eq!(config.config_id, "tool_checks");
+        assert_eq!(config.endpoint.as_str(), "http://127.0.0.1:8100/");
         assert!(config.headers.is_empty());
         assert_eq!(
             config.timeout,
@@ -217,7 +212,6 @@ mod tests {
     fn all_fields_are_read_and_executor_is_ignored() {
         let config = parse(json!({
             "endpoint": "https://guardrails.example.com/base",
-            "config_id": "tool_checks",
             "headers": {"Authorization": "Bearer token"},
             "timeout_millis": 25_000,
             "priority": -5,
@@ -227,20 +221,39 @@ mod tests {
 
         assert_eq!(
             config.endpoint.as_str(),
-            "https://guardrails.example.com/base"
+            "https://guardrails.example.com/base/"
         );
-        assert_eq!(config.config_id, "tool_checks");
         assert_eq!(config.headers["authorization"], "Bearer token");
         assert_eq!(config.timeout, Duration::from_millis(25_000));
         assert_eq!(config.priority, -5);
+    }
+
+    /// Joining the hook path keeps the endpoint's path prefix, with or without a trailing slash.
+    #[test]
+    fn endpoint_path_prefix_survives_joining_the_hook_path() {
+        for endpoint in [
+            "https://gw.example.com/guardrails",
+            "https://gw.example.com/guardrails/",
+        ] {
+            let config = parse(json!({"endpoint": endpoint})).expect("config is valid");
+
+            assert_eq!(
+                config
+                    .endpoint
+                    .join("v1/hooks/nemo-relay")
+                    .expect("the hook path joins")
+                    .as_str(),
+                "https://gw.example.com/guardrails/v1/hooks/nemo-relay",
+                "{endpoint}"
+            );
+        }
     }
 
     /// Header values are marked sensitive, so debug output hides them.
     #[test]
     fn header_values_are_sensitive() {
         let config = parse(json!({
-            "endpoint": "http://127.0.0.1:8000",
-            "config_id": "tool_checks",
+            "endpoint": "http://127.0.0.1:8100",
             "headers": {"authorization": "Bearer secret-token"}
         }))
         .expect("config is valid");
@@ -265,32 +278,32 @@ mod tests {
                 "endpoint must use http or https",
             ),
             (
-                json!({"endpoint": "http://h"}),
-                "config_id",
-                "config_id is required",
+                json!({"endpoint": "https://user:secret@gw.example.com"}),
+                "endpoint",
+                "endpoint must not contain a username or password; send credentials in headers",
             ),
             (
-                json!({"endpoint": "http://h", "config_id": " "}),
-                "config_id",
-                "config_id must not be empty",
+                json!({"endpoint": "https://user@gw.example.com"}),
+                "endpoint",
+                "endpoint must not contain a username or password; send credentials in headers",
             ),
             (
-                json!({"endpoint": "http://h", "config_id": "c", "timeout_millis": 0}),
+                json!({"endpoint": "http://h", "timeout_millis": 0}),
                 "timeout_millis",
                 "timeout_millis must be greater than zero",
             ),
             (
-                json!({"endpoint": "http://h", "config_id": "c", "headers": {"bad name": "x"}}),
+                json!({"endpoint": "http://h", "headers": {"bad name": "x"}}),
                 "headers",
                 "headers contains invalid header name 'bad name': ",
             ),
             (
-                json!({"endpoint": "http://h", "config_id": "c", "headers": {"x-token": "a\nb"}}),
+                json!({"endpoint": "http://h", "headers": {"x-token": "a\nb"}}),
                 "headers",
                 "headers[x-token] has an invalid value: ",
             ),
             (
-                json!({"endpoint": "http://h", "config_id": "c", "headers": {"X-Token": "a", "x-token": "b"}}),
+                json!({"endpoint": "http://h", "headers": {"X-Token": "a", "x-token": "b"}}),
                 "headers",
                 "headers sets 'x-token' more than once, ignoring case",
             ),
@@ -311,7 +324,6 @@ mod tests {
     fn invalid_header_value_is_not_echoed() {
         let error = parse_error(json!({
             "endpoint": "http://h",
-            "config_id": "c",
             "headers": {"authorization": "Bearer secret-token\n"}
         }));
 
@@ -327,7 +339,7 @@ mod tests {
                 "unknown field `mystery`",
             ),
             (
-                json!({"endpoint": "http://h", "config_id": "c", "timeout_millis": "fast"}),
+                json!({"endpoint": "http://h", "timeout_millis": "fast"}),
                 "invalid type: string \"fast\"",
             ),
         ] {
