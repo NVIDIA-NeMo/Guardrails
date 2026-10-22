@@ -1,0 +1,47 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-5-nano
+    parameters:
+      tools:
+        - type: function
+          function:
+            name: run_sql
+            description: Run a read-only SQL query against the orders database.
+            parameters:
+              type: object
+              properties:
+                query:
+                  type: string
+              required:
+                - query
+
+instructions:
+  - type: general
+    content: You are a helpful assistant.
+
+rails:
+  config:
+    hiddenlayer:
+      project_id: my-project
+  input:
+    flows:
+      - hiddenlayer check input
+  output:
+    flows:
+      - hiddenlayer check output
+    streaming:
+      enabled: true
+      stream_first: false
+      context_size: 0
+      chunk_size: 1000000
+  tool_call:
+    flows:
+      - tool call validation
+    per_tool:
+      run_sql: [hiddenlayer check tool call]
+  tool_result:
+    flows:
+      - tool result validation
+    per_tool:
+      run_sql: [hiddenlayer check tool result]
