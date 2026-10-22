@@ -72,7 +72,7 @@ fn executor_diagnostic(message: String) -> ConfigDiagnostic {
     ConfigDiagnostic {
         level: DiagnosticLevel::Error,
         code: "native_executor_config.invalid".into(),
-        component: Some(PLUGIN_KIND.into()),
+        component: None,
         field: Some("executor.worker_threads".into()),
         message,
     }
@@ -136,23 +136,33 @@ mod tests {
         );
     }
 
-    /// An invalid executor override still yields the SDK's executor diagnostic.
+    /// A plugin that keeps the SDK's default `validate`, for comparison.
+    struct SdkDefaultValidate;
+
+    impl NativePlugin for SdkDefaultValidate {
+        fn plugin_kind(&self) -> &str {
+            PLUGIN_KIND
+        }
+
+        fn register(
+            &mut self,
+            _plugin_config: &Map<String, Json>,
+            _ctx: &mut PluginContext<'_>,
+        ) -> nemo_relay_plugin::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// An invalid executor override yields exactly the diagnostic the SDK's own `validate` gives.
     #[test]
     fn invalid_executor_keeps_the_sdk_diagnostic() {
-        let diagnostics = validate(json!({
-            "endpoint": "http://127.0.0.1:8100",
-            "executor": {"worker_threads": 0}
-        }));
+        for executor in [json!({"worker_threads": 0}), json!(5)] {
+            let config = json!({"endpoint": "http://127.0.0.1:8100", "executor": executor});
+            let sdk_diagnostics =
+                SdkDefaultValidate.validate(config.as_object().expect("config is an object"));
 
-        assert_eq!(
-            diagnostics,
-            vec![ConfigDiagnostic {
-                level: DiagnosticLevel::Error,
-                code: "native_executor_config.invalid".into(),
-                component: Some(PLUGIN_KIND.into()),
-                field: Some("executor.worker_threads".into()),
-                message: "executor.worker_threads must be greater than zero".into(),
-            }]
-        );
+            assert_eq!(sdk_diagnostics.len(), 1, "{executor}");
+            assert_eq!(validate(config), sdk_diagnostics, "{executor}");
+        }
     }
 }

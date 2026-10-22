@@ -15,23 +15,34 @@
 
 //! Component configuration, read from the plugin's entry in `plugins.toml`.
 
-use std::collections::BTreeMap;
 use std::fmt;
 use std::time::Duration;
 
 use reqwest::Url;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
+use serde::de::IgnoredAny;
 use serde_json::{Map, Value as Json};
-
-/// Key that the Relay SDK reserves in every component config for its executor settings.
-const EXECUTOR_KEY: &str = "executor";
 
 /// Default per-check timeout.
 ///
 /// It stays under the 30-second limit that Relay's CLI hooks allow, leaving time for the hook's own
 /// round trip, so a slow check fails in the plugin rather than in hook delivery.
 pub const DEFAULT_TIMEOUT_MILLIS: u64 = 25_000;
+
+/// Headers that the plugin's HTTP client sets itself, or that control how a request is framed.
+const CLIENT_OWNED_HEADERS: [&str; 10] = [
+    "connection",
+    "content-length",
+    "content-type",
+    "host",
+    "keep-alive",
+    "proxy-connection",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+];
 
 /// A validated component configuration.
 #[derive(Debug, Clone)]
@@ -78,18 +89,23 @@ impl std::error::Error for ConfigError {}
 #[serde(default, deny_unknown_fields)]
 struct RawConfig {
     endpoint: String,
-    headers: BTreeMap<String, String>,
+    // Read as JSON and checked by `header_map`, because serde's type errors quote the value.
+    headers: Json,
     timeout_millis: u64,
     priority: i32,
+    // Reserved by the Relay SDK for its executor settings, which the SDK validates.
+    #[serde(rename = "executor")]
+    _executor: IgnoredAny,
 }
 
 impl Default for RawConfig {
     fn default() -> Self {
         Self {
             endpoint: String::new(),
-            headers: BTreeMap::new(),
+            headers: Json::Object(Map::new()),
             timeout_millis: DEFAULT_TIMEOUT_MILLIS,
             priority: 0,
+            _executor: IgnoredAny,
         }
     }
 }
@@ -97,13 +113,10 @@ impl Default for RawConfig {
 impl ChecksConfig {
     /// Parses and validates one component config, ignoring the SDK's `executor` key.
     pub fn from_component_config(config: &Map<String, Json>) -> Result<Self, ConfigError> {
-        let mut config = config.clone();
-        config.remove(EXECUTOR_KEY);
-        let raw: RawConfig =
-            serde_json::from_value(Json::Object(config)).map_err(|error| ConfigError {
-                field: None,
-                message: error.to_string(),
-            })?;
+        let raw = RawConfig::deserialize(config).map_err(|error| ConfigError {
+            field: None,
+            message: error.to_string(),
+        })?;
         Ok(Self {
             endpoint: parse_endpoint(&raw.endpoint)?,
             headers: header_map(&raw.headers)?,
@@ -141,7 +154,10 @@ fn parse_endpoint(endpoint: &str) -> Result<Url, ConfigError> {
     Ok(url)
 }
 
-fn header_map(headers: &BTreeMap<String, String>) -> Result<HeaderMap, ConfigError> {
+fn header_map(headers: &Json) -> Result<HeaderMap, ConfigError> {
+    let Json::Object(headers) = headers else {
+        return Err(ConfigError::new("headers", "headers must be an object"));
+    };
     let mut header_map = HeaderMap::new();
     for (name, value) in headers {
         let header_name = HeaderName::from_bytes(name.as_bytes()).map_err(|error| {
@@ -150,6 +166,20 @@ fn header_map(headers: &BTreeMap<String, String>) -> Result<HeaderMap, ConfigErr
                 format!("headers contains invalid header name '{name}': {error}"),
             )
         })?;
+        if CLIENT_OWNED_HEADERS.contains(&header_name.as_str()) {
+            return Err(ConfigError::new(
+                "headers",
+                format!(
+                    "headers must not set '{header_name}', which the plugin's HTTP client controls"
+                ),
+            ));
+        }
+        let Json::String(value) = value else {
+            return Err(ConfigError::new(
+                "headers",
+                format!("headers[{name}] must be a string"),
+            ));
+        };
         // The error describes the value without quoting it, so a malformed secret stays out of the message.
         let mut header_value = HeaderValue::from_str(value).map_err(|error| {
             ConfigError::new(
@@ -328,6 +358,55 @@ mod tests {
         }));
 
         assert!(!error.message.contains("secret-token"), "{}", error.message);
+    }
+
+    /// Headers that the HTTP client sets itself, or that frame the request, are rejected by name.
+    #[test]
+    fn client_owned_headers_are_rejected() {
+        for name in [
+            "Connection",
+            "content-length",
+            "Content-Type",
+            "host",
+            "keep-alive",
+            "proxy-connection",
+            "te",
+            "trailer",
+            "Transfer-Encoding",
+            "upgrade",
+        ] {
+            let mut headers = Map::new();
+            headers.insert(name.to_owned(), json!("x"));
+
+            let error = parse_error(json!({"endpoint": "http://h", "headers": headers}));
+
+            assert_eq!(error.field, Some("headers"), "{name}");
+            assert_eq!(
+                error.message,
+                format!(
+                    "headers must not set '{}', which the plugin's HTTP client controls",
+                    name.to_ascii_lowercase()
+                ),
+                "{name}"
+            );
+        }
+    }
+
+    /// Headers of the wrong type are rejected at `headers`, without quoting the value.
+    #[test]
+    fn mistyped_headers_are_rejected_without_their_values() {
+        for (headers, message) in [
+            (
+                json!({"x-api-key": 8_675_309_123_u64}),
+                "headers[x-api-key] must be a string",
+            ),
+            (json!("Bearer secret-token"), "headers must be an object"),
+        ] {
+            let error = parse_error(json!({"endpoint": "http://h", "headers": headers}));
+
+            assert_eq!(error.field, Some("headers"), "{headers}");
+            assert_eq!(error.message, message, "{headers}");
+        }
     }
 
     /// Unknown fields and values of the wrong type fail parsing, with no single field to blame.

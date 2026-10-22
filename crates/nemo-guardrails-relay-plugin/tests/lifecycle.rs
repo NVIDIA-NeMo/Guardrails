@@ -162,6 +162,40 @@ async fn plugin_rejects_endpoints_the_schema_allows() {
     }
 }
 
+/// Headers of the wrong type are rejected by the plugin, not the schema, so the host's error
+/// doesn't quote a value that may be a credential.
+#[tokio::test]
+async fn plugin_rejects_mistyped_headers_without_quoting_them() {
+    let _host = HOST.lock().await;
+
+    for (headers, message, value) in [
+        (
+            json!({"x-api-key": 8_675_309_123_u64}),
+            "headers[x-api-key] must be a string",
+            "8675309123",
+        ),
+        (
+            json!("Bearer secret-token"),
+            "headers must be an object",
+            "secret-token",
+        ),
+    ] {
+        let bundle = Bundle::new();
+        let error = initialize_error(bundle.plugins_toml(json!({
+            "endpoint": "http://127.0.0.1:8100",
+            "headers": headers
+        })))
+        .await;
+
+        assert!(
+            error.contains(&format!("invalid NeMo Guardrails checks config: {message}")),
+            "{error}"
+        );
+        assert!(!error.contains(value), "{error}");
+        assert!(!list_plugin_kinds().contains(&PLUGIN_ID.to_owned()));
+    }
+}
+
 async fn initialize_error(plugins_toml: PathBuf) -> String {
     match initialize(PluginConfig::default(), Some(plugins_toml)).await {
         Ok(_) => panic!("the host should refuse the config"),

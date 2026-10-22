@@ -24,7 +24,7 @@ Relay passes the plugin's entry in `plugins.toml` as the component config.
 | Field | Default | Description |
 |---|---|---|
 | `endpoint` | — | Required. Base URL of the NeMo Guardrails hooks server, using http or https, such as `http://127.0.0.1:8100`. The plugin calls its `/v1/hooks/nemo-relay` endpoint, keeping any path prefix. It must not contain a username or password; send credentials in `headers`. |
-| `headers` | `{}` | Headers sent with every check. The hooks server has no authentication of its own, so these serve a proxy or gateway in front of it, such as an `authorization` header. Values are treated as sensitive. |
+| `headers` | `{}` | Headers sent with every check, as header names and string values. The hooks server has no authentication of its own, so these serve a proxy or gateway in front of it, such as an `authorization` header. Values are treated as sensitive, and no error quotes one. Headers the plugin's HTTP client controls, such as `content-type`, `content-length` and `host`, are rejected. |
 | `timeout_millis` | `25000` | Time limit for one check, in milliseconds. Keep it under the host's hook limit: 30 seconds for Claude Code and Codex hooks, 5 seconds by default for pi. |
 | `priority` | `0` | Priority of the plugin's tool conditional-execution guardrail among Relay's guardrails. Lower values run earlier. |
 | `executor` | — | Reserved by the Relay SDK for its executor settings. |
@@ -39,10 +39,14 @@ From the repository root:
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test -p nemo-guardrails-relay-plugin
+# As the NeMo-Relay-Plugins release pipeline runs it, loading the release-profile library
+cargo test --locked --release -p nemo-guardrails-relay-plugin
 cargo build --release -p nemo-guardrails-relay-plugin
+# The packaging script's tests
+make test TEST=crates/nemo-guardrails-relay-plugin/scripts/test_package_bundle.py
 ```
 
-`tests/lifecycle.rs` builds the plugin library, then loads it into a real Relay host through the `nemo-relay` crate.
+`tests/lifecycle.rs` builds the plugin library in the test's profile, then loads it into a real Relay host through the `nemo-relay` crate.
 `.cargo/config.toml` sets `NEMO_RELAY_TEST_SKIP_IMPLICIT_CONFIG=1`, so that the host tests ignore a machine-wide `/etc/nemo-relay/plugins.toml`.
 
 ## Packaging

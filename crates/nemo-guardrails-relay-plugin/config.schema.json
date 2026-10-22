@@ -12,12 +12,8 @@
       "description": "Base URL of the NeMo Guardrails hooks server, such as http://127.0.0.1:8100. It must not contain a username or password: send credentials in headers."
     },
     "headers": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      },
       "default": {},
-      "description": "Headers sent with every check, for a proxy or gateway in front of the hooks server, such as authorization. Values are treated as sensitive."
+      "description": "Headers sent with every check, as an object of header names and string values, for a proxy or gateway in front of the hooks server, such as authorization. Values are treated as sensitive, so the plugin rather than this schema checks them: a schema error would quote the value. Headers the plugin's HTTP client controls, such as content-type and content-length, are rejected."
     },
     "timeout_millis": {
       "type": "integer",
