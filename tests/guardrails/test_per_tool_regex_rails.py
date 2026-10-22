@@ -115,20 +115,6 @@ def _build_manager(
     )
 
 
-def _manager_with_tool_lists(per_tool: dict, **tool_lists) -> RailsManager:
-    """The RailsManager IORails builds for a config with *tool_lists*, *per_tool* rails and the run_sql pattern."""
-    config = RailsConfig.from_content(
-        config={
-            **STACK_CONFIG,
-            "rails": {
-                "config": {"regex_detection": RUN_SQL_PATTERN_CONFIG},
-                "tool_call": {"flows": ["tool call validation"], "per_tool": per_tool, **tool_lists},
-            },
-        }
-    )
-    return IORails(config).rails_manager
-
-
 class TestConfigSchema:
     def test_per_tool_field_defaults_to_empty(self):
         config = RailsConfig.from_content(config=STACK_CONFIG)
@@ -323,17 +309,6 @@ class TestAreToolCallsSafe:
         )
         result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], {})
         assert_result_blocked(result)
-
-    @pytest.mark.asyncio
-    async def test_listed_tool_offered_nothing_is_denied_before_its_per_tool_rail(self):
-        """With no tools offered, a call to a tool allowed_tools lists is `tool_not_allowed`, and its rail never runs."""
-        manager = _manager_with_tool_lists({"run_sql": ["regex check tool call"]}, allowed_tools=["run_sql"])
-
-        result = await manager.are_tool_calls_safe([_sql_call("DROP TABLE users")], None)
-
-        assert [violation.violation_type for violation in result.tool_violations] == [
-            ToolViolationType.TOOL_NOT_ALLOWED
-        ]
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("parallel", [False, True], ids=["sequential", "parallel"])

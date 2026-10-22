@@ -40,6 +40,7 @@ from nemoguardrails.server.hooks.schemas import (
     CodexPreToolUseRequest,
     NemoRelayToolConditionalExecutionGuardrailRequest,
 )
+from nemoguardrails.server.hooks.tool_policy import ToolPolicy
 from tests.guardrails.tool_helpers import call_violation
 
 CLAUDE_CODE_BASH = {
@@ -526,10 +527,9 @@ class TestCheckMessages:
         assert tool_call["function"]["arguments"] == '"rm -rf /"'
 
 
-def _tool_lists_config(**tool_lists: Any) -> RailsConfig:
-    """A config with no model whose tool-call rails set *tool_lists*."""
-    tool_call = {"flows": ["tool call validation"], **tool_lists}
-    return RailsConfig.from_content(config={"models": [], "rails": {"tool_call": tool_call}})
+def _tool_policy(**hooks: Any) -> ToolPolicy:
+    """The hooks server's tool policy for a config with *hooks* as its hooks section."""
+    return ToolPolicy.from_config(RailsConfig.from_content(config={"models": [], "hooks": hooks}).hooks)
 
 
 class TestCheckTools:
@@ -556,7 +556,7 @@ class TestCheckTools:
         """The called tool is the one tool offered, taking any arguments, unless an allowed_tools entry lists them."""
         call = ToolInvocation(name="Bash", arguments={"command": "npm test"})
 
-        tools = check_tools(call, _tool_lists_config(**tool_lists))
+        tools = check_tools(call, _tool_policy(**tool_lists))
 
         assert tools == [
             {
@@ -567,10 +567,10 @@ class TestCheckTools:
 
     def test_called_tool_with_an_allowed_tools_entry_is_declared_with_its_arguments(self):
         """A called tool with an allowed_tools entry is offered taking exactly the arguments the entry lists."""
-        config = _tool_lists_config(allowed_tools=["Bash", {"name": "search", "arguments": ["query", "limit"]}])
+        policy = _tool_policy(allowed_tools=["Bash", {"name": "search", "arguments": ["query", "limit"]}])
         call = ToolInvocation(name="search", arguments={"query": "weather"})
 
-        tools = check_tools(call, config)
+        tools = check_tools(call, policy)
 
         assert tools == [
             {

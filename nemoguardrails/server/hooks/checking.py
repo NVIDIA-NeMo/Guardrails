@@ -19,9 +19,9 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
-from nemoguardrails.rails.llm.config import RailsConfig, ToolEntry
 from nemoguardrails.rails.llm.options import RailsResult, RailStatus, ToolViolation, ToolViolationType
 from nemoguardrails.server.hooks.schemas import HookErrorCode
+from nemoguardrails.server.hooks.tool_policy import ToolPolicy
 
 _UNSPECIFIED_DENY_REASON = "tool call blocked"
 
@@ -56,11 +56,11 @@ def check_messages(call: ToolInvocation) -> list[dict]:
     return [{"role": "assistant", "content": None, "tool_calls": [tool_call]}]
 
 
-def check_tools(call: ToolInvocation, config: RailsConfig) -> list[dict]:
-    """The tool *call* names, as the one tool `check_async()` takes in `tools`, with the arguments it may take."""
+def check_tools(call: ToolInvocation, policy: ToolPolicy) -> list[dict]:
+    """The tool *call* names, as the one tool `check_async()` takes in `tools`, with the arguments *policy* allows."""
     # A hook carries no list of the agent's tools, but an agent calls only tools it has, so the called tool was offered.
-    # Its declaration comes from the config's allowed_tools; the tool lists still decide whether the call is allowed.
-    arguments = _allowed_tools_entry_arguments(config, call.name)
+    # The server has already applied the policy; the declaration gives the per-tool rails the arguments it allows.
+    arguments = policy.allowed_arguments(call.name)
     if arguments is None:
         # `{"type": "object"}` alone would declare a tool that takes no arguments.
         parameters: dict[str, Any] = {"type": "object", "additionalProperties": True}
@@ -71,14 +71,6 @@ def check_tools(call: ToolInvocation, config: RailsConfig) -> list[dict]:
             "additionalProperties": False,
         }
     return [{"type": "function", "function": {"name": call.name, "parameters": parameters}}]
-
-
-def _allowed_tools_entry_arguments(config: RailsConfig, name: str) -> Optional[list[str]]:
-    """The arguments *name*'s allowed_tools entry lists, or None when allowed_tools names it bare or not at all."""
-    for entry in config.rails.tool_call.allowed_tools:
-        if isinstance(entry, ToolEntry) and entry.name == name:
-            return list(entry.arguments)
-    return None
 
 
 @dataclass(frozen=True, slots=True)

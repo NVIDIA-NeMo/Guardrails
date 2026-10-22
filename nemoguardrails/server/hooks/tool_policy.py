@@ -13,27 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The tool policy `rails.tool_call` sets: which tools a call may use, and which of their arguments it may pass."""
-
-from __future__ import annotations
+"""The hooks server's tool policy: which tools an agent's call may use, and which of their arguments it may pass."""
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import Any, Optional, Union
 
 from nemoguardrails.guardrails.guardrails_types import quoted_identity
-from nemoguardrails.guardrails.tool_schema import ArgumentsViolation, _json_pointer
-from nemoguardrails.rails.llm.options import ToolViolationType
-
-if TYPE_CHECKING:
-    from nemoguardrails.rails.llm.config import ToolCallRails, ToolEntry
+from nemoguardrails.rails.llm.config import HooksConfig, ToolEntry
 
 # A tool's entry in one list: None for a bare name, else the argument names the entry lists, in config order.
 ToolArguments = Optional[tuple[str, ...]]
 
 
-def _entries(tool_list: Iterable[Union[str, "ToolEntry"]]) -> Mapping[str, ToolArguments]:
+def _entries(tool_list: Iterable[Union[str, ToolEntry]]) -> Mapping[str, ToolArguments]:
     """Each tool a list names, with its entry's arguments, or None for a bare name."""
     entries: dict[str, ToolArguments] = {}
     for entry in tool_list:
@@ -46,7 +40,7 @@ def _entries(tool_list: Iterable[Union[str, "ToolEntry"]]) -> Mapping[str, ToolA
 
 @dataclass(frozen=True)
 class ToolPolicy:
-    """`allowed_tools`, `blocked_tools` and `allow_unlisted_tools`, read once from `rails.tool_call`."""
+    """`hooks.allowed_tools`, `blocked_tools` and `allow_unlisted_tools`, read once when the server starts."""
 
     allowed: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
     blocked: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
@@ -54,12 +48,12 @@ class ToolPolicy:
     allow_unlisted: bool = True
 
     @classmethod
-    def from_config(cls, tool_call: "ToolCallRails") -> "ToolPolicy":
-        """The policy *tool_call*'s lists set."""
+    def from_config(cls, hooks: HooksConfig) -> "ToolPolicy":
+        """The policy a config's hooks section sets."""
         return cls(
-            allowed=_entries(tool_call.allowed_tools),
-            blocked=_entries(tool_call.blocked_tools),
-            allow_unlisted=tool_call.allow_unlisted_tools,
+            allowed=_entries(hooks.allowed_tools),
+            blocked=_entries(hooks.blocked_tools),
+            allow_unlisted=hooks.allow_unlisted_tools,
         )
 
     def blocked_by_name(self, name: str) -> bool:
@@ -72,47 +66,27 @@ class ToolPolicy:
             return True
         return name not in self.allowed and not self.allow_unlisted
 
-    def denied_arguments(self, name: str, argument_names: Iterable[str]) -> list[str]:
-        """Those of *argument_names* a call to *name* is denied for passing, in the order given."""
-        blocked = self.blocked.get(name) or ()
-        allowed = self.allowed.get(name)
-        return [
-            argument
-            for argument in argument_names
-            if argument in blocked or (allowed is not None and argument not in allowed)
-        ]
+    def allowed_arguments(self, name: str) -> ToolArguments:
+        """The arguments *name*'s `allowed_tools` entry lists, or None when any argument is allowed."""
+        return self.allowed.get(name)
 
-    def decide(self, name: str, arguments: Mapping[str, Any]) -> Optional[ArgumentsViolation]:
-        """Why the lists deny a call to *name* with *arguments*, or None when they let it through."""
+    def decide(self, name: str, arguments: Mapping[str, Any]) -> Optional[str]:
+        """Why the policy denies a call to *name* with *arguments*, or None when it lets the call through."""
         passed = arguments.keys()
         if self.blocked_by_name(name):
-            return ArgumentsViolation(
-                violation_type=ToolViolationType.TOOL_BLOCKED,
-                reason=f"tool call '{quoted_identity(name)}' is a blocked tool",
-            )
+            return f"tool call '{quoted_identity(name)}' is a blocked tool"
         blocked = next((argument for argument in self.blocked.get(name) or () if argument in passed), None)
         if blocked is not None:
             # The argument's name comes from the config, so the reason can state it.
-            return ArgumentsViolation(
-                violation_type=ToolViolationType.ARGUMENT_BLOCKED,
-                reason=f"tool call '{quoted_identity(name)}' passes argument '{blocked}', which is blocked",
-                argument_path=_json_pointer([blocked]),
-            )
+            return f"tool call '{quoted_identity(name)}' passes argument '{blocked}', which is blocked"
         if name not in self.allowed:
             if self.allow_unlisted:
                 return None
-            return ArgumentsViolation(
-                violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
-                reason=f"tool call '{quoted_identity(name)}' is not an allowed tool",
-            )
+            return f"tool call '{quoted_identity(name)}' is not an allowed tool"
         allowed = self.allowed[name]
         unlisted = [] if allowed is None else [argument for argument in passed if argument not in allowed]
         if not unlisted:
             return None
-        # A count, not the names: the caller chose them, so they can carry data.
+        # A count, not the names: the agent chose them, so they can carry data.
         noun = "argument" if len(unlisted) == 1 else "arguments"
-        return ArgumentsViolation(
-            violation_type=ToolViolationType.ARGUMENT_NOT_ALLOWED,
-            reason=f"tool call '{quoted_identity(name)}' passes {len(unlisted)} {noun} its allowed_tools entry "
-            "doesn't list",
-        )
+        return f"tool call '{quoted_identity(name)}' passes {len(unlisted)} {noun} its allowed_tools entry doesn't list"

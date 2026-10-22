@@ -12,26 +12,23 @@
 # NeMo Relay forwards the tool names of whatever it wraps. This example is for an application tool, `search`, as in
 # NeMo Relay's "Add a Tool Policy", whose policy rejects a search without a query. Behind NeMo Relay's Claude Code or
 # Codex integration, the tool names are that agent's, so use the `claude_code` or `codex` example's tools and rails.
-# The server only runs tool-call rails. The checks here are the tool lists and a regex, so no model is called and no
-# API key is needed.
+# The server applies the tool policy, then tool-call rails. The checks here are the tool lists and a regex, so no
+# model is called and no API key is needed.
 
 # The server checks tool calls and never generates a response, so the config needs no model.
 models: []
 
+# The tool policy, which the hooks server applies to each call before any rail runs.
+hooks:
+  # The allowlist, and each tool's arguments. With `allow_unlisted_tools: false`, a call to any tool not listed
+  # here is denied, and so is a `search` that passes an argument other than `query`.
+  allowed_tools:
+    - name: search
+      arguments: [query]
+  allow_unlisted_tools: false
+
 rails:
   tool_call:
-    # Global rails run on every tool call. `tool call validation` enforces the tool lists below,
-    # which need it.
-    flows:
-      - tool call validation
-
-    # The allowlist, and each tool's arguments. With `allow_unlisted_tools: false`, a call to any tool not listed
-    # here is denied, and so is a `search` that passes an argument other than `query`.
-    allowed_tools:
-      - name: search
-        arguments: [query]
-    allow_unlisted_tools: false
-
     # The policy for `search`: a search needs a query, and the query a non-empty string.
     per_tool:
       search:

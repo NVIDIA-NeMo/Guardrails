@@ -1518,6 +1518,18 @@ class TestCheckToolRailConfiguration:
                 await engine.check_async(tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL])
 
     @pytest.mark.asyncio
+    async def test_tool_call_check_ignores_the_hooks_section(self):
+        """A check doesn't read the hooks section, which only the hooks server applies, so its blocklist decides nothing."""
+        config = {"models": [], "hooks": {"blocked_tools": ["get_weather"]}, "rails": TOOL_CONFIG["rails"]}
+
+        async with started_iorails(config) as engine:
+            result = await engine.check_async(
+                tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL], tools=[WEATHER_TOOL]
+            )
+
+        assert result.status == RailStatus.PASSED
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         ("tools", "violation_types"),
         [([WEATHER_TOOL], []), (None, [ToolViolationType.TOOL_NOT_ALLOWED])],
@@ -1642,33 +1654,6 @@ class TestCheckToolRailConfiguration:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        ("tool_lists", "violation_type"),
-        [
-            pytest.param({"blocked_tools": ["WebFetch"]}, ToolViolationType.TOOL_BLOCKED, id="blocked-by-name"),
-            pytest.param(
-                {"allowed_tools": ["get_weather"], "allow_unlisted_tools": False},
-                ToolViolationType.TOOL_NOT_ALLOWED,
-                id="unlisted-denied",
-            ),
-        ],
-    )
-    async def test_tools_offering_a_denied_tool_get_the_lists_verdict(self, tool_lists, violation_type):
-        """`tools` offering a tool the lists deny is checked, not refused: only the call to that tool is denied."""
-        config = {**TOOL_CONFIG, "rails": {"tool_call": {"flows": ["tool call validation"], **tool_lists}}}
-        web_fetch = {"type": "function", "function": {"name": "WebFetch", "parameters": {"type": "object"}}}
-        messages = tool_call_turn(wire_tool_call(), wire_tool_call("WebFetch", "{}", call_id="call_2"))
-
-        async with started_iorails(config) as engine:
-            result = await engine.check_async(
-                messages, rail_types=[RailType.TOOL_CALL], tools=[WEATHER_TOOL, web_fetch]
-            )
-
-        assert [(violation.violation_type, violation.tool_name) for violation in result.tool_violations] == [
-            (violation_type, "WebFetch")
-        ]
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
         ("tools", "message"),
         [
             (
@@ -1700,26 +1685,6 @@ class TestCheckToolRailConfiguration:
             await tool_iorails.check_async(
                 tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL], tools={"get_weather": WEATHER_TOOL}
             )
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "blocked_tools",
-        [["WebFetch"], [{"name": "get_weather", "arguments": ["units"]}]],
-        ids=["other-tool-blocked", "offered-tool-restricted-by-argument"],
-    )
-    async def test_tools_the_lists_allow_are_checked_as_usual(self, blocked_tools):
-        """`tools` with no tool the lists deny by name, even one they restrict by argument, is checked as usual."""
-        config = {
-            **TOOL_CONFIG,
-            "rails": {"tool_call": {"flows": ["tool call validation"], "blocked_tools": blocked_tools}},
-        }
-
-        async with started_iorails(config) as engine:
-            result = await engine.check_async(
-                tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL], tools=[WEATHER_TOOL]
-            )
-
-        assert result.status == RailStatus.PASSED
 
     def test_sync_check_forwards_tools(self):
         """Sync ``check`` hands ``tools`` to the engine it spins up."""

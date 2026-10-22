@@ -1635,23 +1635,16 @@ def _ignored_settings_warnings(record) -> list[str]:
         ({"tool_result": {"per_tool": {"Bash": ["regex check tool result"]}}}, "rails.tool_result.per_tool"),
         (
             {
-                "tool_call": {
-                    "flows": ["tool call validation"],
-                    "allowed_tools": ["Bash"],
-                    "allow_unlisted_tools": False,
-                }
+                "tool_call": {"per_tool": {"Bash": ["regex check tool call"]}},
+                "tool_result": {"per_tool": {"Bash": ["regex check tool result"]}},
             },
-            "rails.tool_call.allowed_tools, rails.tool_call.allow_unlisted_tools",
-        ),
-        (
-            {"tool_call": {"flows": ["tool call validation"], "blocked_tools": ["WebFetch"]}},
-            "rails.tool_call.blocked_tools",
+            "rails.tool_call.per_tool, rails.tool_result.per_tool",
         ),
     ],
-    ids=["per-tool-call", "per-tool-result", "allowlist", "blocklist"],
+    ids=["per-tool-call", "per-tool-result", "both"],
 )
 def test_iorails_only_tool_settings_are_warned_about(rails, settings):
-    """LLMRails warns, naming each one, when a config sets per-tool rails or a tool policy, which it ignores."""
+    """LLMRails warns, naming each one, when a config sets per-tool rails, which it ignores."""
     config = RailsConfig.from_content(config={"models": [], "rails": rails})
 
     with pytest.warns(UserWarning) as record:
@@ -1661,7 +1654,7 @@ def test_iorails_only_tool_settings_are_warned_about(rails, settings):
 
 
 def test_config_without_iorails_only_tool_settings_is_not_warned_about():
-    """LLMRails raises no such warning for a config with no per-tool rails and no tool policy."""
+    """LLMRails raises no such warning for a config with no per-tool rails."""
     config = RailsConfig.from_content(config={"models": [], "rails": {"tool_call": {"per_tool": {"Bash": []}}}})
 
     with warnings.catch_warnings(record=True) as record:

@@ -2177,19 +2177,12 @@ def _reject_tools(tools: Optional[List[dict]]) -> None:
 
 
 def _iorails_only_tool_settings(config: RailsConfig) -> List[str]:
-    """The settings *config* sets that only the IORails engine runs or enforces."""
-    tool_call = config.rails.tool_call
+    """The tool rail settings *config* sets that only the IORails engine runs."""
     settings = []
-    if any(tool_call.per_tool.values()):
+    if any(config.rails.tool_call.per_tool.values()):
         settings.append("rails.tool_call.per_tool")
     if any(config.rails.tool_result.per_tool.values()):
         settings.append("rails.tool_result.per_tool")
-    if tool_call.allowed_tools:
-        settings.append("rails.tool_call.allowed_tools")
-    if tool_call.blocked_tools:
-        settings.append("rails.tool_call.blocked_tools")
-    if not tool_call.allow_unlisted_tools:
-        settings.append("rails.tool_call.allow_unlisted_tools")
     return settings
 
 

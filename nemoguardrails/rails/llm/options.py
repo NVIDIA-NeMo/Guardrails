@@ -122,9 +122,6 @@ class ToolViolationType(str, Enum):
 
     # Tool calls
     TOOL_NOT_ALLOWED = "tool_not_allowed"
-    TOOL_BLOCKED = "tool_blocked"
-    ARGUMENT_BLOCKED = "argument_blocked"
-    ARGUMENT_NOT_ALLOWED = "argument_not_allowed"
     ARGUMENTS_INVALID = "arguments_invalid"
     UNEXPECTED_ARGUMENTS = "unexpected_arguments"
     INVALID_TOOL_SCHEMA = "invalid_tool_schema"
@@ -170,8 +167,7 @@ class ToolViolation(BaseModel):
         "For a result, its message's position in `messages`.",
     )
     argument_path: Optional[str] = Field(
-        default=None,
-        description="JSON Pointer to the failing argument (`arguments_invalid` and `argument_blocked` only).",
+        default=None, description="JSON Pointer to the failing argument (`arguments_invalid` only)."
     )
     schema_keyword: Optional[str] = Field(
         default=None, description="The JSON Schema keyword that failed (`arguments_invalid` only)."

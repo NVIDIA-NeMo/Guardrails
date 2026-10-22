@@ -15,41 +15,32 @@
 
 """Tool-call safety rail for IORails.
 
-Validates the tool calls a model emitted against the config's tool lists
-(``rails.tool_call.allowed_tools``, ``blocked_tools`` and ``allow_unlisted_tools``),
-then against the request's declared ``Toolset``: every call must name an offered
-tool, and its arguments must satisfy that tool's JSON Schema. The rail is local and
-model-free -- it runs through :meth:`ToolRailAction._guarded`, so a malformed call
-or an unexpected error fails closed (blocks) rather than propagating.
+Validates the tool calls a model emitted against the request's declared
+``Toolset``: every call must name an allowed tool, and its arguments must
+satisfy that tool's JSON Schema. The rail is local and model-free -- it runs
+through :meth:`ToolRailAction._guarded`, so a malformed call or an unexpected
+error fails closed (blocks) rather than propagating.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.guardrails_types import quoted_identity
-from nemoguardrails.guardrails.tool_policy import ToolPolicy
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, violations_outcome
-from nemoguardrails.guardrails.tool_schema import ArgumentsViolation, validate_arguments
+from nemoguardrails.guardrails.tool_schema import validate_arguments
 from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
 
 if TYPE_CHECKING:
-    from opentelemetry.trace import Tracer
-
     from nemoguardrails.guardrails.tool_schema import Toolset
     from nemoguardrails.types import ToolCall
 
 
 class ToolCallRailAction(ToolRailAction):
-    """Check the model's tool calls against the config's tool lists, then the declared toolset (allowlist + schema)."""
+    """Check the model's tool calls against the declared toolset (allowlist + schema)."""
 
     action_name = "tool call validation"
-
-    def __init__(self, tracer: Optional["Tracer"] = None, policy: Optional[ToolPolicy] = None) -> None:
-        """Store the tracer and the config's tool lists, which allow every tool when not given."""
-        super().__init__(tracer)
-        self._policy = policy or ToolPolicy()
 
     async def run(self, toolset: "Toolset", tool_calls: List["ToolCall"]) -> RailOutcome:
         """Block unless every tool call names an allowed tool with schema-valid arguments."""
@@ -69,30 +60,26 @@ class ToolCallRailAction(ToolRailAction):
         # Hosted/server tools (e.g. web_search) have no function name; fall back to
         # call.type, mirroring Tool.key = name or type used when indexing the toolset.
         name = call.function.name or call.type
-        violation = self._first_violation(toolset, name, call)
-        if violation is None:
+        tool = toolset.get(name)
+        if tool is None:
+            return ToolViolation(
+                kind="tool_call",
+                violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+                reason=f"tool call '{quoted_identity(name)}' is not an allowed tool",
+                tool_call_id=call.id or None,
+                tool_name=name,
+                index=index,
+            )
+        arguments = validate_arguments(tool, call.function.arguments)
+        if arguments is None:
             return None
         return ToolViolation(
             kind="tool_call",
-            violation_type=violation.violation_type,
-            reason=violation.reason,
+            violation_type=arguments.violation_type,
+            reason=arguments.reason,
             tool_call_id=call.id or None,
             tool_name=name,
             index=index,
-            argument_path=violation.argument_path,
-            schema_keyword=violation.schema_keyword,
+            argument_path=arguments.argument_path,
+            schema_keyword=arguments.schema_keyword,
         )
-
-    def _first_violation(self, toolset: "Toolset", name: str, call: "ToolCall") -> Optional[ArgumentsViolation]:
-        """Why the config's lists deny *call*, else why the offered tools do, or None when both let it through."""
-        denied = self._policy.decide(name, call.function.arguments)
-        if denied is not None:
-            return denied
-        # The lists only narrow the offered tools: a call they allow must still name an offered tool.
-        tool = toolset.get(name)
-        if tool is None:
-            return ArgumentsViolation(
-                violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
-                reason=f"tool call '{quoted_identity(name)}' is not an allowed tool",
-            )
-        return validate_arguments(tool, call.function.arguments)

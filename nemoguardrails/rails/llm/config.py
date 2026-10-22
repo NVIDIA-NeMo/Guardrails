@@ -436,7 +436,7 @@ class ActionRails(BaseModel):
 
 
 class ToolEntry(BaseModel):
-    """A tool in `allowed_tools` or `blocked_tools`, named with the arguments its entry is about."""
+    """A tool in `hooks.allowed_tools` or `hooks.blocked_tools`, named with the arguments its entry is about."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -457,7 +457,50 @@ class ToolEntry(BaseModel):
         return arguments
 
 
-_TOOL_CALL_VALIDATION_FLOW = "tool call validation"
+class HooksConfig(BaseModel):
+    """The tool policy `nemoguardrails hooks-server` applies to each hook's call; no engine reads it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    allowed_tools: List[Union[str, ToolEntry]] = Field(
+        default_factory=list,
+        description="Tools a call may use: a name, which allows any arguments, or a `{name, arguments}` entry, "
+        "which allows only those arguments.",
+    )
+    blocked_tools: List[Union[str, ToolEntry]] = Field(
+        default_factory=list,
+        description="Tools a call may not use: a name, which blocks every call to the tool, or a `{name, arguments}` "
+        "entry, which blocks a call that passes any of those arguments.",
+    )
+    allow_unlisted_tools: bool = Field(
+        default=True,
+        description="Whether a call to a tool `allowed_tools` doesn't name is allowed.",
+    )
+
+    @model_validator(mode="after")
+    def check_tool_lists(self) -> "HooksConfig":
+        """Refuse tool lists that name a tool twice, or that allow a tool they block by name."""
+        for list_name in ("allowed_tools", "blocked_tools"):
+            repeated = _first_repeated_tool_name(getattr(self, list_name))
+            if repeated is not None:
+                raise InvalidRailsConfigurationError(
+                    f"hooks.{list_name} names tool '{repeated}' more than once; list each tool once."
+                )
+        blocked_by_name = {entry for entry in self.blocked_tools if isinstance(entry, str)}
+        contradicted = [
+            _tool_entry_name(entry) for entry in self.allowed_tools if _tool_entry_name(entry) in blocked_by_name
+        ]
+        if contradicted:
+            raise InvalidRailsConfigurationError(
+                f"hooks.allowed_tools allows tool '{contradicted[0]}', which hooks.blocked_tools blocks by name; "
+                "remove it from one of the two lists."
+            )
+        return self
+
+    @property
+    def sets_tool_policy(self) -> bool:
+        """Whether `allowed_tools`, `blocked_tools` or `allow_unlisted_tools` differs from its default."""
+        return bool(self.allowed_tools) or bool(self.blocked_tools) or not self.allow_unlisted_tools
 
 
 class ToolCallRails(BaseModel):
@@ -479,85 +522,11 @@ class ToolCallRails(BaseModel):
         default=False,
         description="If True, the tool call rails are executed in parallel.",
     )
-    allowed_tools: List[Union[str, ToolEntry]] = Field(
-        default_factory=list,
-        description="Tools a call may use: a name, which allows any arguments, or a `{name, arguments}` entry, "
-        "which allows only those arguments. Enforced by the `tool call validation` flow.",
-    )
-    blocked_tools: List[Union[str, ToolEntry]] = Field(
-        default_factory=list,
-        description="Tools a call may not use: a name, which blocks every call to the tool, or a `{name, arguments}` "
-        "entry, which blocks a call that passes any of those arguments. Enforced by the `tool call validation` flow.",
-    )
-    allow_unlisted_tools: bool = Field(
-        default=True,
-        description="Whether a call to a tool `allowed_tools` doesn't name is allowed. "
-        "Enforced by the `tool call validation` flow.",
-    )
-
-    @model_validator(mode="after")
-    def check_tool_lists(self) -> "ToolCallRails":
-        """Refuse tool lists that contradict each other or the per-tool rails, or that no flow enforces."""
-        for list_name in ("allowed_tools", "blocked_tools"):
-            repeated = _first_repeated_tool_name(getattr(self, list_name))
-            if repeated is not None:
-                raise InvalidRailsConfigurationError(
-                    f"rails.tool_call.{list_name} names tool '{repeated}' more than once; list each tool once."
-                )
-        blocked_by_name = {entry for entry in self.blocked_tools if isinstance(entry, str)}
-        allowed_names = [_tool_entry_name(entry) for entry in self.allowed_tools]
-        contradicted = [name for name in allowed_names if name in blocked_by_name]
-        if contradicted:
-            raise InvalidRailsConfigurationError(
-                f"rails.tool_call.allowed_tools allows tool '{contradicted[0]}', which blocked_tools blocks by name; "
-                "remove it from one of the two lists."
-            )
-        for name, flows in self.per_tool.items():
-            if flows and name in blocked_by_name:
-                raise InvalidRailsConfigurationError(
-                    f"rails.tool_call.per_tool has rails for tool '{name}', which blocked_tools blocks by name, "
-                    "so they never run; remove its per_tool entry, or unblock it."
-                )
-            if flows and not self.allow_unlisted_tools and name not in allowed_names:
-                raise InvalidRailsConfigurationError(
-                    f"rails.tool_call.per_tool has rails for tool '{name}', which allowed_tools doesn't list while "
-                    "allow_unlisted_tools is false, so they never run; add it to allowed_tools."
-                )
-        if self.sets_tool_lists and not any(
-            _normalize_flow_id(flow) == _TOOL_CALL_VALIDATION_FLOW for flow in self.flows
-        ):
-            raise InvalidRailsConfigurationError(
-                "rails.tool_call sets allowed_tools, blocked_tools or allow_unlisted_tools, but only the "
-                f"'{_TOOL_CALL_VALIDATION_FLOW}' flow enforces them; add it to rails.tool_call.flows."
-            )
-        return self
-
-    @property
-    def sets_tool_lists(self) -> bool:
-        """Whether `allowed_tools`, `blocked_tools` or `allow_unlisted_tools` differs from its default."""
-        return bool(self.allowed_tools) or bool(self.blocked_tools) or not self.allow_unlisted_tools
 
 
 def _tool_entry_name(entry: Union[str, ToolEntry]) -> str:
     """The tool a list entry names."""
     return entry if isinstance(entry, str) else entry.name
-
-
-def _chat_completions_tool_arguments(tools: Any) -> List[Tuple[str, List[str]]]:
-    """Each tool a Chat Completions `tools` list declares, read as the engine reads it, with its schema's arguments."""
-    # Imported here: the engine imports this module.
-    from nemoguardrails.guardrails.model_engine import _parse_tools_openai
-
-    # Lenient: tools that don't parse are left to the engine, which refuses them when a call is checked.
-    if not isinstance(tools, list):
-        return []
-    named: List[Tuple[str, List[str]]] = []
-    for tool in _parse_tools_openai(tools):
-        schema = tool.arguments_schema
-        properties = schema.get("properties") if isinstance(schema, dict) else None
-        argument_names = [key for key in properties if isinstance(key, str)] if isinstance(properties, dict) else []
-        named.append((tool.key, argument_names))
-    return named
 
 
 def _first_repeated_tool_name(tool_list: List[Union[str, ToolEntry]]) -> Optional[str]:
@@ -819,6 +788,7 @@ def _join_config(dest_config: dict, additional_config: dict):
         "enable_rails_exceptions",
         "tracing",
         "metrics",
+        "hooks",
     ]
 
     for field in additional_fields:
@@ -1134,6 +1104,11 @@ class RailsConfig(BaseModel):
         description="Configuration for the various rails (input, output, etc.).",
     )
 
+    hooks: HooksConfig = Field(
+        default_factory=HooksConfig,
+        description="The tool policy of `nemoguardrails hooks-server`, which only that server reads.",
+    )
+
     streaming: bool = Field(
         default=False,
         deprecated="The 'streaming' field is no longer required. Use stream_async() method directly instead. This field will be removed in a future version.",
@@ -1427,37 +1402,6 @@ class RailsConfig(BaseModel):
                 raise InvalidRailsConfigurationError(f"Model API Key environment variable '{api_key}' not set.")
         return models
 
-    @model_validator(mode="after")
-    def warn_about_main_tools_the_tool_lists_deny(self) -> "RailsConfig":
-        """Warn for each tool the `main` model offers whose calls rails.tool_call's lists deny, all or some of them."""
-        if not self.rails.tool_call.sets_tool_lists:
-            return self
-        # Imported here: the policy belongs to the engine, which imports this module.
-        from nemoguardrails.guardrails.tool_policy import ToolPolicy
-
-        policy = ToolPolicy.from_config(self.rails.tool_call)
-        for model in self.models:
-            if model.type != "main":
-                continue
-            for name, argument_names in _chat_completions_tool_arguments(model.parameters.get("tools")):
-                if policy.denied_by_name(name):
-                    warnings.warn(
-                        f"The `main` model offers tool '{name}', but rails.tool_call's tool lists deny every call to "
-                        "it; remove it from the model's tools, or allow it.",
-                        UserWarning,
-                        stacklevel=2,
-                    )
-                    continue
-                denied = policy.denied_arguments(name, argument_names)
-                if denied:
-                    warnings.warn(
-                        f"The `main` model offers tool '{name}' with arguments {denied}, but rails.tool_call's tool "
-                        "lists deny a call that passes them.",
-                        UserWarning,
-                        stacklevel=2,
-                    )
-        return self
-
     raw_llm_call_action: Optional[str] = Field(
         default="raw llm call",
         description="The name of the action that would execute the original raw LLM call. ",
@@ -1637,9 +1581,8 @@ def _join_rails_configs(base_rails_config: RailsConfig, updated_rails_config: Ra
 
     combined_rails_config_dict = _join_dict(base_rails_config.model_dump(), updated_rails_config.model_dump())
     # Every dump carries the default `true`, so the later config would always win; the merged policy is the stricter.
-    combined_rails_config_dict["rails"]["tool_call"]["allow_unlisted_tools"] = (
-        base_rails_config.rails.tool_call.allow_unlisted_tools
-        and updated_rails_config.rails.tool_call.allow_unlisted_tools
+    combined_rails_config_dict["hooks"]["allow_unlisted_tools"] = (
+        base_rails_config.hooks.allow_unlisted_tools and updated_rails_config.hooks.allow_unlisted_tools
     )
     # filter out empty strings to avoid leading/trailing commas
     config_paths = [

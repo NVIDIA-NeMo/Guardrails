@@ -43,7 +43,6 @@ from nemoguardrails.guardrails.model_engine import (
     _parse_tools_openai,
 )
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
-from nemoguardrails.guardrails.tool_policy import ToolPolicy
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, reported_violations, violations_outcome
 from nemoguardrails.guardrails.tool_schema import (
     ArgumentsViolation,
@@ -364,7 +363,6 @@ class RailsManager:
         tool_result_flows: Optional[list[str]] = None,
         per_tool_call_flows: Optional[dict[str, list[str]]] = None,
         per_tool_result_flows: Optional[dict[str, list[str]]] = None,
-        tool_policy: Optional[ToolPolicy] = None,
         tracer: Optional["Tracer"] = None,
         content_capture_enabled: bool = False,
     ) -> None:
@@ -388,7 +386,6 @@ class RailsManager:
         self.tool_result_flows: list[str] = list(tool_result_flows or [])
         self.per_tool_call_flows: dict[str, list[str]] = dict(per_tool_call_flows or {})
         self.per_tool_result_flows: dict[str, list[str]] = dict(per_tool_result_flows or {})
-        self.tool_policy: ToolPolicy = tool_policy or ToolPolicy()
 
         deps = self._rail_dependencies()
         # Keyed by direction as well as flow: compilation is direction-specific, so a surface
@@ -411,9 +408,7 @@ class RailsManager:
 
         # Tool Call Actions run on tool invocations from the main LLM response
         # Tool Result Actions run on the results of executing Tool Calls in the harness
-        self._tool_call_actions = self._build_tool_actions(
-            self.tool_call_flows, ToolCallRailAction, policy=self.tool_policy
-        )
+        self._tool_call_actions = self._build_tool_actions(self.tool_call_flows, ToolCallRailAction)
         self._tool_result_actions = self._build_tool_actions(self.tool_result_flows, ToolResultRailAction)
 
         self._per_tool_rails: dict[tuple[SurfaceDirection, str], CompiledRail] = {}
@@ -503,10 +498,8 @@ class RailsManager:
         """Close the runtime-owned pooled HTTP client."""
         await self._http_client.close()
 
-    def _build_tool_actions(
-        self, flows: list[str], expected_cls: type[_ToolActionT], **action_kwargs: Any
-    ) -> dict[str, _ToolActionT]:
-        """Instantiate the tool rails for *flows* with *action_kwargs*, checking each resolves to *expected_cls*.
+    def _build_tool_actions(self, flows: list[str], expected_cls: type[_ToolActionT]) -> dict[str, _ToolActionT]:
+        """Instantiate the tool rails for *flows*, checking each resolves to *expected_cls*.
 
         Raises ``RuntimeError`` on a duplicate flow, an unknown flow, or a flow that
         resolves to the wrong direction. Duplicates are rejected because the dispatch
@@ -521,12 +514,12 @@ class RailsManager:
             if action_cls is None:
                 available = sorted(_TOOL_ACTION_CLASSES.keys())
                 raise RuntimeError(f"Tool rail flow '{base_name}' not supported. Available: {available}")
-            # Checked before instantiating, since *action_kwargs* are only for the expected class.
-            if not issubclass(action_cls, expected_cls):
+            action = action_cls(tracer=self._tracer)
+            if not isinstance(action, expected_cls):
                 raise RuntimeError(
-                    f"Tool rail flow '{flow}' resolved to {action_cls.__name__}, expected {expected_cls.__name__}"
+                    f"Tool rail flow '{flow}' resolved to {type(action).__name__}, expected {expected_cls.__name__}"
                 )
-            actions[flow] = action_cls(tracer=self._tracer, **action_kwargs)
+            actions[flow] = action
         return actions
 
     async def is_input_safe(self, messages: list[dict], *, enabled: Union[bool, list[str]] = True) -> RailResult:

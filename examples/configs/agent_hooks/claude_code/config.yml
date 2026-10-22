@@ -14,28 +14,25 @@
 # The server checks tool calls and never generates a response, so the config needs no model.
 models: []
 
+# The tool policy, which the hooks server applies to each call before any rail runs.
+hooks:
+  # The allowlist. With `allow_unlisted_tools: false`, a call to any tool not listed here is denied,
+  # MCP tools (`mcp__<server>__<tool>`) included. This is a starting set: list every tool you use.
+  # A bare name allows any arguments. Set `allow_unlisted_tools: true` to allow unlisted tools
+  # without a check; then only the tools under `per_tool` are checked.
+  allowed_tools:
+    - Bash
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - WebFetch
+    - WebSearch
+  allow_unlisted_tools: false
+
 rails:
   tool_call:
-    # Global rails run on every tool call. `tool call validation` enforces the tool lists below,
-    # which need it.
-    flows:
-      - tool call validation
-
-    # The allowlist. With `allow_unlisted_tools: false`, a call to any tool not listed here is denied,
-    # MCP tools (`mcp__<server>__<tool>`) included. This is a starting set: list every tool you use.
-    # A bare name allows any arguments. Set `allow_unlisted_tools: true` to allow unlisted tools
-    # without a check; then only the tools under `per_tool` are checked.
-    allowed_tools:
-      - Bash
-      - Read
-      - Write
-      - Edit
-      - Glob
-      - Grep
-      - WebFetch
-      - WebSearch
-    allow_unlisted_tools: false
-
     # Per-tool rails run on calls to the tool named, spelled exactly as Claude Code sends it.
     per_tool:
       Bash:

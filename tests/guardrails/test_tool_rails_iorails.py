@@ -23,22 +23,18 @@ RailsManager tool rails run end to end. They are the IORails-level companions to
 """
 
 import json
-import logging
 from dataclasses import dataclass
 from typing import Optional, Union
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from pydantic import ValidationError
 
 from nemoguardrails import Guardrails
-from nemoguardrails.exceptions import ToolNotAllowedError
 from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.testing.fake_model import FakeLLMModel
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.tool_helpers import (
     WEATHER_SCHEMA,
@@ -406,181 +402,6 @@ class TestConfigDeclaredTools:
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
         assert violations[0]["error"]["param"] == "tool_call_rails"
-
-
-WEB_FETCH_TOOL = {
-    "type": "function",
-    "function": {"name": "WebFetch", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}}},
-}
-# The tool-call rail with a tool list that blocks WebFetch.
-TOOL_LISTS_RAILS = {
-    **TOOL_CONFIG["rails"],
-    "tool_call": {"flows": ["tool call validation"], "blocked_tools": ["WebFetch"]},
-}
-DENIED_OFFER_MESSAGE = (
-    "llm_params.tools offers the model tools that rails.tool_call denies every call to: 'WebFetch'; "
-    "leave them out of llm_params.tools"
-)
-
-
-def _fake_main_model(iorails: IORails, monkeypatch, *responses: str) -> FakeLLMModel:
-    """Stand a FakeLLMModel answering *responses* in for the `main` model, for generation and streaming."""
-    fake = FakeLLMModel(responses=list(responses))
-
-    async def model_call(model_type, messages, **kwargs):
-        return await fake.generate_async(messages, **kwargs)
-
-    async def stream_model_call(model_type, messages, **kwargs):
-        async for chunk in fake.stream_async(messages, **kwargs):
-            yield chunk
-
-    monkeypatch.setattr(iorails.engine_registry, "model_call", model_call)
-    monkeypatch.setattr(iorails.engine_registry, "stream_model_call", stream_model_call)
-    return fake
-
-
-@pytest_asyncio.fixture
-async def tool_lists_iorails():
-    """A started IORails whose tool-call rail blocks WebFetch by name."""
-    async with started_iorails({**TOOL_CONFIG, "rails": TOOL_LISTS_RAILS}) as engine:
-        yield engine
-
-
-class TestOfferedToolsTheListsDeny:
-    """A generation request that offers the model a tool the config's lists deny is refused before the model runs."""
-
-    @pytest.mark.asyncio
-    async def test_generation_offering_a_denied_tool_raises_before_the_model_is_called(
-        self, tool_lists_iorails, monkeypatch
-    ):
-        """generate_async raises ToolNotAllowedError naming the denied tool, and the model is never called."""
-        fake = _fake_main_model(tool_lists_iorails, monkeypatch, "It is sunny.")
-
-        with pytest.raises(ToolNotAllowedError) as exc_info:
-            await tool_lists_iorails.generate_async(
-                messages=MESSAGES, options={"llm_params": {"tools": [WEATHER_TOOL, WEB_FETCH_TOOL]}}
-            )
-
-        assert str(exc_info.value) == DENIED_OFFER_MESSAGE
-        assert fake.inference_count == 0
-
-    @pytest.mark.asyncio
-    async def test_streaming_offering_a_denied_tool_raises_before_the_model_is_called(
-        self, tool_lists_iorails, monkeypatch
-    ):
-        """stream_async raises ToolNotAllowedError when called, and the model is never called."""
-        fake = _fake_main_model(tool_lists_iorails, monkeypatch, "It is sunny.")
-
-        with pytest.raises(ToolNotAllowedError, match="'WebFetch'"):
-            tool_lists_iorails.stream_async(MESSAGES, options={"llm_params": {"tools": [WEB_FETCH_TOOL]}})
-
-        assert fake.inference_count == 0
-
-    @pytest.mark.asyncio
-    async def test_generation_offering_only_allowed_tools_reaches_the_model(self, tool_lists_iorails, monkeypatch):
-        """A request whose tools the lists allow is generated as usual."""
-        fake = _fake_main_model(tool_lists_iorails, monkeypatch, "It is sunny.")
-
-        result = await tool_lists_iorails.generate_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS})
-
-        assert result.response == [{"role": "assistant", "content": "It is sunny."}]
-        assert fake.inference_count == 1
-
-    @pytest.mark.asyncio
-    async def test_invalid_options_still_fail_as_a_queued_generation(self, tool_lists_iorails, caplog):
-        """Options that aren't valid GenerationOptions fail in the queue worker, logged as a failed generation."""
-        with caplog.at_level(logging.ERROR, logger="nemoguardrails.guardrails.iorails"):
-            with pytest.raises(ValidationError):
-                await tool_lists_iorails.generate_async(messages=MESSAGES, options={"llm_params": "not a dict"})
-
-        assert any("generate_async failed" in record.getMessage() for record in caplog.records)
-
-    @pytest.mark.asyncio
-    async def test_main_model_tools_the_lists_deny_do_not_raise(self, monkeypatch):
-        """Tools the `main` model declares get the load-time warning, not the request error, so generation runs."""
-        main = {**CONFIG_TOOLS_CONFIG["models"][0], "parameters": {"tools": [WEATHER_TOOL, WEB_FETCH_TOOL]}}
-        monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
-
-        with pytest.warns(UserWarning, match="offers tool 'WebFetch'"):
-            config = RailsConfig.from_content(config={"models": [main], "rails": TOOL_LISTS_RAILS})
-        async with IORails(config) as engine:
-            fake = _fake_main_model(engine, monkeypatch, "It is sunny.")
-            result = await engine.generate_async(messages=MESSAGES)
-
-        assert result == {"role": "assistant", "content": "It is sunny."}
-        assert fake.inference_count == 1
-
-
-def _main_offering(*tools: dict) -> dict:
-    """The `main` model, offering *tools* in its parameters."""
-    return {**CONFIG_TOOLS_CONFIG["models"][0], "parameters": {"tools": list(tools)}}
-
-
-# The tool-call rail with a tool list that blocks one of get_weather's arguments, which its schema allows.
-UNITS_BLOCKED_RAILS = {
-    **TOOL_CONFIG["rails"],
-    "tool_call": {
-        "flows": ["tool call validation"],
-        "blocked_tools": [{"name": "get_weather", "arguments": ["units"]}],
-    },
-}
-
-
-class TestToolListsDecideGeneratedCalls:
-    """In generation, the tool lists decide each tool call the model makes, after the request's tools are accepted."""
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        ("name", "arguments", "called"),
-        [("WebFetch", '{"url": "https://example.com"}', []), ("get_weather", '{"city": "Paris"}', ["get_weather"])],
-        ids=["blocked-tool", "allowed-tool"],
-    )
-    async def test_call_to_a_main_model_tool_the_lists_block_is_refused(self, name, arguments, called):
-        """A model's call to a `main` model tool that blocked_tools names is refused, and a call to another passes."""
-        config = {"models": [_main_offering(WEATHER_TOOL, WEB_FETCH_TOOL)], "rails": TOOL_LISTS_RAILS}
-
-        async with started_iorails(config) as engine:
-            _inject_json_response(engine, _tool_call_payload(name, arguments))
-            result = await engine.generate_async(messages=MESSAGES)
-
-        assert [call["function"]["name"] for call in result.get("tool_calls") or []] == called
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        ("arguments", "called"),
-        [('{"city": "Paris", "units": "C"}', []), ('{"city": "Paris"}', ["get_weather"])],
-        ids=["blocked-argument", "no-blocked-argument"],
-    )
-    async def test_call_passing_a_blocked_argument_to_an_offered_tool_is_refused(self, arguments, called):
-        """A model's call that passes an argument blocked_tools names is refused, though the offered schema allows it."""
-        async with started_iorails({**TOOL_CONFIG, "rails": UNITS_BLOCKED_RAILS}) as engine:
-            _inject_json_response(engine, _tool_call_payload("get_weather", arguments))
-            result = await engine.generate_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS})
-
-        assert [call["function"]["name"] for call in result.tool_calls or []] == called
-
-    @pytest.mark.asyncio
-    async def test_streamed_call_the_lists_block_is_refused(self):
-        """In streaming, a model's call to a `main` model tool that blocked_tools names is refused by the tool-call rails."""
-        config = {"models": [_main_offering(WEATHER_TOOL, WEB_FETCH_TOOL)], "rails": TOOL_LISTS_RAILS}
-
-        async with started_iorails(config) as engine:
-            _inject_sse_stream(engine, _tool_call_sse_lines("WebFetch", ['{"url": "https://example.com"}']))
-            chunks = await _collect(engine.stream_async(MESSAGES))
-
-        assert [violation["error"]["param"] for violation in _stream_violation_chunks(chunks)] == ["tool_call_rails"]
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "rails", [TOOL_LISTS_RAILS, TOOL_CONFIG["rails"]], ids=["tool-policy-set", "no-tool-policy"]
-    )
-    async def test_request_offering_no_tools_refuses_every_call(self, rails):
-        """With `llm_params.tools: []`, a model's call is refused, whether or not the config sets a tool policy."""
-        async with started_iorails({**TOOL_CONFIG, "rails": rails}) as engine:
-            _inject_json_response(engine, _tool_call_payload("delete_files", "{}"))
-            result = await engine.generate_async(messages=MESSAGES, options={"llm_params": {"tools": []}})
-
-        assert [call["function"]["name"] for call in result.tool_calls or []] == []
 
 
 class TestNonStreamingToolResults:

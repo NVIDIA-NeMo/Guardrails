@@ -333,26 +333,6 @@ class TestGuardrailsRouting:
         with pytest.raises(ValueError, match="per-tool rails"):
             Guardrails(config=config, use_iorails=True)
 
-    @pytest.mark.parametrize(
-        "tool_lists",
-        [
-            pytest.param({"allowed_tools": ["run_sql"]}, id="allowed"),
-            pytest.param({"blocked_tools": ["drop_table"]}, id="blocked"),
-            pytest.param({"allow_unlisted_tools": False}, id="unlisted-denied"),
-        ],
-    )
-    def test_use_iorails_true_tool_lists_config_iorails_cannot_handle_raises(self, tool_lists):
-        """A config with tool lists IORails can't serve raises rather than fall back to LLMRails, which ignores them."""
-        config = _make_iorails_config(
-            rails={
-                "input": {"flows": ["this flow does not exist"]},
-                "tool_call": {"flows": ["tool call validation"], **tool_lists},
-            }
-        )
-
-        with pytest.raises(ValueError, match="Configured tool lists"):
-            Guardrails(config=config, use_iorails=True)
-
 
 class TestGuardrailsInit:
     """Tests for Guardrails.__init__ method."""

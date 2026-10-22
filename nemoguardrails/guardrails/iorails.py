@@ -25,12 +25,10 @@ import json
 import logging
 import time
 import warnings
-from collections.abc import AsyncGenerator, AsyncIterator, Iterable
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import nullcontext, suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Union
-
-from pydantic import ValidationError
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
@@ -40,7 +38,6 @@ from nemoguardrails.exceptions import (
     RailTypeNotConfiguredError,
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
-    ToolNotAllowedError,
 )
 from nemoguardrails.guardrails._lifecycle import rollback_startup
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
@@ -62,7 +59,6 @@ from nemoguardrails.guardrails.guardrails_types import (
     current_user_turn_index,
     display_reason,
     get_request_id,
-    quoted_identity,
     rewrite_user_message,
     serialize_prompt,
     truncate,
@@ -86,8 +82,6 @@ from nemoguardrails.guardrails.telemetry import (
     stream_active_metric,
     traced_request,
 )
-from nemoguardrails.guardrails.tool_policy import ToolPolicy
-from nemoguardrails.guardrails.tool_schema import Tool
 from nemoguardrails.llm.call import _extract_and_remove_think_tags
 from nemoguardrails.llm.clients._errors import (
     STREAM_ERROR_TYPES,
@@ -573,16 +567,6 @@ def _main_model_tools(config: RailsConfig) -> Optional[list]:
     return None if main is None else main.parameters.get("tools")
 
 
-def _names_denied(policy: ToolPolicy, offered: Iterable[Tool]) -> list[str]:
-    """The offered tools *policy* denies every call to, each once, in the order offered."""
-    return list(dict.fromkeys(tool.key for tool in offered if policy.denied_by_name(tool.key)))
-
-
-def _quoted_names(names: list[str]) -> str:
-    """*names* quoted and joined, each cut to a length safe to log, since a request chose them."""
-    return ", ".join(f"'{quoted_identity(name)}'" for name in names)
-
-
 def _reject_unread_tools(rail_types: Optional[list[RailType]], tools: Optional[list[dict]]) -> None:
     """Raise when *tools* is passed to a check that runs no tool_call rails, which would leave it unread."""
     # Refused rather than ignored, so a caller who expected its tool calls validated learns they were not.
@@ -939,7 +923,6 @@ class IORails(BaseGuardrails):
             tool_result_flows=config.rails.tool_result.flows,
             per_tool_call_flows=config.rails.tool_call.per_tool,
             per_tool_result_flows=config.rails.tool_result.per_tool,
-            tool_policy=ToolPolicy.from_config(config.rails.tool_call),
             tracer=self._tracer,
             content_capture_enabled=self._content_capture_enabled,
         )
@@ -1163,13 +1146,8 @@ class IORails(BaseGuardrails):
         rejection shows up in BOTH
         ``requests.errors{error.type=NonStreamingWorkQueueFullError}`` and
         ``nonstream.rejections`` — honest dual-signal reporting.
-
-        Raises ``ToolNotAllowedError``, before queueing, when ``llm_params.tools``
-        offers the model a tool the config's tool lists deny every call to.
         """
         messages = self._convert_to_messages(prompt, messages)
-        # Before submitting, so a refused request takes no queue slot and is not logged as a failed generation.
-        self._reject_denied_generation_tools(options)
         await self.start()
         metrics_ctx = request_metrics() if self._metrics_enabled else nullcontext()
         with metrics_ctx:
@@ -1662,10 +1640,7 @@ class IORails(BaseGuardrails):
                 raise NonStreamingWorkQueueFullError(*e.args) from e
 
     async def _run_check(
-        self,
-        messages: LLMMessages,
-        rail_types: Optional[list[RailType]],
-        tools: Optional[list[dict]],
+        self, messages: LLMMessages, rail_types: Optional[list[RailType]], tools: Optional[list[dict]]
     ) -> RailsResult:
         """Queue-worker entry for ``check_async``: wrap the rails in a request span."""
         tracer = self._tracer if self._tracing_enabled else None
@@ -1676,13 +1651,7 @@ class IORails(BaseGuardrails):
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
-                result = await self._do_check(
-                    messages,
-                    rail_types,
-                    req_id,
-                    tools=tools,
-                    conversation=conversation,
-                )
+                result = await self._do_check(messages, rail_types, req_id, tools=tools, conversation=conversation)
             except Exception:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] check failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
@@ -1803,28 +1772,6 @@ class IORails(BaseGuardrails):
             return RailsResult(status=RailStatus.MODIFIED, content=pass_content)
         return RailsResult(status=RailStatus.PASSED, content=pass_content)
 
-    def _reject_denied_generation_tools(self, options: Optional[Union[dict, GenerationOptions]]) -> None:
-        """Raise when ``llm_params.tools`` offers the model a tool the config's tool lists deny every call to."""
-        try:
-            options = _coerce_generation_options(options)
-        except ValidationError:
-            # Invalid options fail in the queue worker instead, where a failed generation is logged and counted.
-            return
-        tools = options.llm_params.get("tools") if options is not None and options.llm_params else None
-        if not tools:
-            return
-        try:
-            offered = self.engine_registry.parse_tools("main", {"tools": tools}).tools
-        except Exception:
-            # Tools that don't parse can't be checked by name; the tool-call rail blocks every call made with them.
-            return
-        denied = _names_denied(self.rails_manager.tool_policy, offered)
-        if denied:
-            raise ToolNotAllowedError(
-                f"llm_params.tools offers the model tools that rails.tool_call denies every call to: "
-                f"{_quoted_names(denied)}; leave them out of llm_params.tools"
-            )
-
     def _validate_requested_rail_types(self, rail_types: list[RailType]) -> None:
         """Raise when a requested rail type has no rails to run."""
         for rail_type in rail_types:
@@ -1908,8 +1855,6 @@ class IORails(BaseGuardrails):
                 streaming enabled (BufferStrategy requires plain string chunks).
             StreamingCapacityExceededError: If the streaming concurrency
                 limit is reached (load shedding).
-            ToolNotAllowedError: If ``llm_params.tools`` offers the model a
-                tool the config's tool lists deny every call to.
         """
         if self._speculative_generation:
             warnings.warn(
@@ -1929,7 +1874,6 @@ class IORails(BaseGuardrails):
         # (passed unchanged to the LLM call, including tool definitions) and the
         # per-request tool-rail toggles off the coerced GenerationOptions.
         options = _coerce_generation_options(options)
-        self._reject_denied_generation_tools(options)
         llm_kwargs: dict = options.llm_params if (options and options.llm_params) else {}
         input_enabled = options.rails.input if options else True
         output_enabled = options.rails.output if options else True
