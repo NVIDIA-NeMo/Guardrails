@@ -21,7 +21,7 @@ from types import MappingProxyType
 from typing import Any, Optional, Union
 
 from nemoguardrails.guardrails.guardrails_types import quoted_identity
-from nemoguardrails.rails.llm.config import HooksConfig, ToolEntry
+from nemoguardrails.rails.llm.config import HooksServerConfig, ToolEntry
 
 # A tool's entry in one list: None for a bare name, else the argument names the entry lists, in config order.
 ToolArguments = Optional[tuple[str, ...]]
@@ -40,7 +40,7 @@ def _entries(tool_list: Iterable[Union[str, ToolEntry]]) -> Mapping[str, ToolArg
 
 @dataclass(frozen=True)
 class ToolPolicy:
-    """`hooks.allowed_tools`, `blocked_tools` and `allow_unlisted_tools`, read once when the server starts."""
+    """`hooks_server.allowed_tools`, `blocked_tools` and `allow_unlisted_tools`, read once when the server starts."""
 
     allowed: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
     blocked: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
@@ -48,12 +48,12 @@ class ToolPolicy:
     allow_unlisted: bool = True
 
     @classmethod
-    def from_config(cls, hooks: HooksConfig) -> "ToolPolicy":
-        """The policy a config's hooks section sets."""
+    def from_config(cls, hooks_server: HooksServerConfig) -> "ToolPolicy":
+        """The policy a config's hooks_server section sets."""
         return cls(
-            allowed=_entries(hooks.allowed_tools),
-            blocked=_entries(hooks.blocked_tools),
-            allow_unlisted=hooks.allow_unlisted_tools,
+            allowed=_entries(hooks_server.allowed_tools),
+            blocked=_entries(hooks_server.blocked_tools),
+            allow_unlisted=hooks_server.allow_unlisted_tools,
         )
 
     def blocked_by_name(self, name: str) -> bool:

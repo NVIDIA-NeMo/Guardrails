@@ -528,8 +528,8 @@ class TestCheckMessages:
 
 
 def _tool_policy(**hooks: Any) -> ToolPolicy:
-    """The hooks server's tool policy for a config with *hooks* as its hooks section."""
-    return ToolPolicy.from_config(RailsConfig.from_content(config={"models": [], "hooks": hooks}).hooks)
+    """The hooks server's tool policy for a config with *hooks* as its hooks_server section."""
+    return ToolPolicy.from_config(RailsConfig.from_content(config={"models": [], "hooks_server": hooks}).hooks_server)
 
 
 class TestCheckTools:

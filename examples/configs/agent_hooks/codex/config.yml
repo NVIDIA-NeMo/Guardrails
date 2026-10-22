@@ -17,7 +17,7 @@
 models: []
 
 # The tool policy, which the hooks server applies to each call before any rail runs.
-hooks:
+hooks_server:
   # The allowlist. With `allow_unlisted_tools: false`, a call to any tool not listed here is denied,
   # MCP tools (`mcp__<server>__<tool>`) included. This is a starting set: list every tool you use.
   # A bare name allows any arguments. Set `allow_unlisted_tools: true` to allow unlisted tools

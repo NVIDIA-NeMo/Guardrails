@@ -70,16 +70,47 @@ class HooksConfigError(ConfigurationError):
 
 
 def check_hooks_config(config: RailsConfig) -> None:
-    """Raise `HooksConfigError` unless *config* has tool-call rails that can run, IORails can serve it, and a rail uses
-    any `main` model."""
-    reason = IORails.unconfigured_rail_type_reason(config, RailType.TOOL_CALL)
-    if reason is not None:
-        raise HooksConfigError(f"The hooks server needs tool-call rails. {reason}")
+    """Raise `HooksConfigError` unless IORails can serve *config*, it can deny a call, and its rails and `main` run."""
     reason = IORails.unsupported_reason(config)
     if reason is not None:
         raise HooksConfigError(f"The hooks server runs on IORails, which can't serve this config: {reason}")
-    _check_per_tool_rails_can_run(config, ToolPolicy.from_config(config.hooks))
+    _check_no_global_tool_call_rails(config)
+    _check_something_can_deny(config)
+    _check_per_tool_rails_can_run(config, ToolPolicy.from_config(config.hooks_server))
     _check_main_model(config)
+
+
+def _check_no_global_tool_call_rails(config: RailsConfig) -> None:
+    """Raise when rails.tool_call.flows lists a rail, which can't deny a call the tool policy allows."""
+    # IORails' one global tool-call rail checks a call against the offered tools, and the server offers the called tool.
+    if config.rails.tool_call.flows:
+        raise HooksConfigError(
+            f"rails.tool_call.flows lists '{config.rails.tool_call.flows[0]}', which can't deny a call on the hooks "
+            "server: the server applies its tool policy and declares the called tool itself, so only per-tool rails "
+            "check a call. Restrict tools with hooks_server.allowed_tools and hooks_server.allow_unlisted_tools: "
+            "false, and remove the flow."
+        )
+
+
+def _check_something_can_deny(config: RailsConfig) -> None:
+    """Raise unless the tool policy or a per-tool rail can deny a call, since otherwise every call is allowed."""
+    if config.hooks_server.can_deny or _has_per_tool_rails(config):
+        return
+    if config.hooks_server.allowed_tools:
+        raise HooksConfigError(
+            "hooks_server.allowed_tools names tools by name only while hooks_server.allow_unlisted_tools is true, "
+            "so the tool policy denies nothing, and with no per-tool rails every tool call would be allowed; set "
+            "hooks_server.allow_unlisted_tools: false."
+        )
+    raise HooksConfigError(
+        "The hooks server needs a tool policy in the hooks_server section, or per-tool rails under "
+        "rails.tool_call.per_tool; this config has neither, so every tool call would be allowed."
+    )
+
+
+def _has_per_tool_rails(config: RailsConfig) -> bool:
+    """Whether *config* lists a per-tool rail for any tool's calls."""
+    return any(config.rails.tool_call.per_tool.values())
 
 
 def _check_per_tool_rails_can_run(config: RailsConfig, policy: ToolPolicy) -> None:
@@ -89,13 +120,14 @@ def _check_per_tool_rails_can_run(config: RailsConfig, policy: ToolPolicy) -> No
             continue
         if policy.blocked_by_name(name):
             raise HooksConfigError(
-                f"rails.tool_call.per_tool has rails for tool '{name}', which hooks.blocked_tools blocks by name, so "
-                "they never run; remove its per_tool entry, or unblock it."
+                f"rails.tool_call.per_tool has rails for tool '{name}', which hooks_server.blocked_tools blocks by "
+                "name, so they never run; remove its per_tool entry, or unblock it."
             )
         if policy.denied_by_name(name):
             raise HooksConfigError(
-                f"rails.tool_call.per_tool has rails for tool '{name}', which hooks.allowed_tools doesn't list while "
-                "hooks.allow_unlisted_tools is false, so they never run; add it to hooks.allowed_tools."
+                f"rails.tool_call.per_tool has rails for tool '{name}', which hooks_server.allowed_tools doesn't list "
+                "while hooks_server.allow_unlisted_tools is false, so they never run; add it to "
+                "hooks_server.allowed_tools."
             )
 
 
@@ -111,11 +143,11 @@ def _check_main_model(config: RailsConfig) -> None:
             "hooks server a config of its own."
         )
     # Refused rather than warned about: a config that declared its allowlist on `main` would allow every tool here.
-    if main.parameters.get("tools") and not config.hooks.sets_tool_policy:
+    if main.parameters.get("tools") and not config.hooks_server.can_deny:
         raise HooksConfigError(
-            "The `main` model declares tools in parameters.tools, which the hooks server ignores, and the hooks "
-            "section sets no tool policy, so every tool call would be allowed. List the tools in "
-            "hooks.allowed_tools with allow_unlisted_tools: false, or remove parameters.tools."
+            "The `main` model declares tools in parameters.tools, which the hooks server ignores, and the hooks_server "
+            "section sets no tool policy that can deny a call, so every tool call would be allowed. List the tools in "
+            "hooks_server.allowed_tools with allow_unlisted_tools: false, or remove parameters.tools."
         )
 
 
@@ -136,7 +168,7 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
         openapi_url=None,
     )
     app.state.engine = engine
-    app.state.tool_policy = ToolPolicy.from_config(config.hooks)
+    app.state.tool_policy = ToolPolicy.from_config(config.hooks_server)
     for exc_type, handler in _EXCEPTION_HANDLERS:
         # Handlers are typed with their specific exception; Starlette's stub expects
         # (Request, Exception), so ty flags the narrower signature as a false positive.
@@ -163,7 +195,7 @@ def _warn_about_ignored_main_model_tools(config: RailsConfig) -> None:
     if main is not None and main.parameters.get("tools"):
         log.warning(
             "The `main` model declares tools in parameters.tools, which the hooks server ignores: it checks each "
-            "tool call against hooks.allowed_tools, blocked_tools and allow_unlisted_tools only."
+            "tool call against hooks_server.allowed_tools, blocked_tools and allow_unlisted_tools only."
         )
 
 
@@ -267,14 +299,20 @@ def _parse_hook(adapter: HookAdapter, body: object) -> ToolInvocation:
 async def _check_tool_call(
     engine: Guardrails, policy: ToolPolicy, adapter: HookAdapter, call: ToolInvocation
 ) -> HookOutcome:
-    """Decide the hook's call with the tool policy, then run the config's tool-call rails on it, and log the verdict."""
-    # A `tool_input` that isn't an object skips the policy: the rails deny it as malformed arguments.
-    if isinstance(call.arguments, dict):
-        reason = policy.decide(call.name, call.arguments)
-        if reason is not None:
-            outcome = HookOutcome.deny(reason)
-            _log_check(adapter, call, outcome, rail=_TOOL_POLICY)
-            return outcome
+    """Decide the hook's call with the tool policy, then run the config's per-tool rails on it, and log the verdict."""
+    if not isinstance(call.arguments, dict):
+        outcome = HookOutcome.deny(f"tool call '{quoted_identity(call.name)}' has arguments that aren't a JSON object")
+        _log_check(adapter, call, outcome, rail=None)
+        return outcome
+    reason = policy.decide(call.name, call.arguments)
+    if reason is not None:
+        outcome = HookOutcome.deny(reason)
+        _log_check(adapter, call, outcome, rail=_TOOL_POLICY)
+        return outcome
+    if not _has_per_tool_rails(engine.config):
+        outcome = HookOutcome.allow()
+        _log_check(adapter, call, outcome, rail=None)
+        return outcome
     try:
         result = await engine.check_async(
             check_messages(call), rail_types=[RailType.TOOL_CALL], tools=check_tools(call, policy)

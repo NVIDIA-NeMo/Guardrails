@@ -19,7 +19,7 @@
 models: []
 
 # The tool policy, which the hooks server applies to each call before any rail runs.
-hooks:
+hooks_server:
   # The allowlist, and each tool's arguments. With `allow_unlisted_tools: false`, a call to any tool not listed
   # here is denied, and so is a `search` that passes an argument other than `query`.
   allowed_tools:

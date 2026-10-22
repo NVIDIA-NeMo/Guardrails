@@ -26,6 +26,8 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    TypeAdapter,
+    ValidationError,
     field_validator,
     model_validator,
 )
@@ -436,7 +438,7 @@ class ActionRails(BaseModel):
 
 
 class ToolEntry(BaseModel):
-    """A tool in `hooks.allowed_tools` or `hooks.blocked_tools`, named with the arguments its entry is about."""
+    """A tool in `hooks_server.allowed_tools` or `blocked_tools`, named with the arguments its entry is about."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -457,7 +459,7 @@ class ToolEntry(BaseModel):
         return arguments
 
 
-class HooksConfig(BaseModel):
+class HooksServerConfig(BaseModel):
     """The tool policy `nemoguardrails hooks-server` applies to each hook's call; no engine reads it."""
 
     model_config = ConfigDict(extra="forbid")
@@ -478,13 +480,13 @@ class HooksConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def check_tool_lists(self) -> "HooksConfig":
+    def check_tool_lists(self) -> "HooksServerConfig":
         """Refuse tool lists that name a tool twice, or that allow a tool they block by name."""
         for list_name in ("allowed_tools", "blocked_tools"):
             repeated = _first_repeated_tool_name(getattr(self, list_name))
             if repeated is not None:
                 raise InvalidRailsConfigurationError(
-                    f"hooks.{list_name} names tool '{repeated}' more than once; list each tool once."
+                    f"hooks_server.{list_name} names tool '{repeated}' more than once; list each tool once."
                 )
         blocked_by_name = {entry for entry in self.blocked_tools if isinstance(entry, str)}
         contradicted = [
@@ -492,15 +494,18 @@ class HooksConfig(BaseModel):
         ]
         if contradicted:
             raise InvalidRailsConfigurationError(
-                f"hooks.allowed_tools allows tool '{contradicted[0]}', which hooks.blocked_tools blocks by name; "
-                "remove it from one of the two lists."
+                f"hooks_server.allowed_tools allows tool '{contradicted[0]}', which hooks_server.blocked_tools blocks "
+                "by name; remove it from one of the two lists."
             )
         return self
 
     @property
-    def sets_tool_policy(self) -> bool:
-        """Whether `allowed_tools`, `blocked_tools` or `allow_unlisted_tools` differs from its default."""
-        return bool(self.allowed_tools) or bool(self.blocked_tools) or not self.allow_unlisted_tools
+    def can_deny(self) -> bool:
+        """Whether the policy can deny a call: it blocks something, denies unlisted tools, or limits a tool's arguments."""
+        # Bare names in allowed_tools deny nothing while unlisted tools are allowed.
+        if self.blocked_tools or not self.allow_unlisted_tools:
+            return True
+        return any(isinstance(entry, ToolEntry) for entry in self.allowed_tools)
 
 
 class ToolCallRails(BaseModel):
@@ -761,6 +766,11 @@ def _join_config(dest_config: dict, additional_config: dict):
         **additional_config.get("sensitive_data_detection", {}),
     }
 
+    if "hooks_server" in additional_config:
+        dest_config["hooks_server"] = _join_hooks_server_sections(
+            dest_config.get("hooks_server"), additional_config["hooks_server"]
+        )
+
     dest_config["embedding_search_provider"] = dest_config.get(
         "embedding_search_provider", {}
     ) or additional_config.get("embedding_search_provider", {})
@@ -788,7 +798,6 @@ def _join_config(dest_config: dict, additional_config: dict):
         "enable_rails_exceptions",
         "tracing",
         "metrics",
-        "hooks",
     ]
 
     for field in additional_fields:
@@ -809,11 +818,54 @@ def _join_config(dest_config: dict, additional_config: dict):
             "sensitive_data_detection",
             "embedding_search_provider",
             "import_paths",
+            "hooks_server",
         }
     )
 
     # Reads all the other fields and merges them with the custom_data field
     merge_two_dicts(dest_config.get("custom_data", {}), additional_config, ignore_fields)
+
+
+def _join_hooks_server_sections(dest: Any, additional: Any) -> Any:
+    """The hooks_server section two config files set between them: both files' lists, and the stricter setting."""
+    # Joined rather than replaced, as `RailsConfig +` joins them, so a later file can't drop an earlier one's restrictions.
+    if dest is None:
+        return additional
+    if not isinstance(dest, dict) or not isinstance(additional, dict):
+        # Not a section on one side: keep that side, so validation refuses it.
+        return additional if isinstance(dest, dict) else dest
+    joined = {**dest, **additional}
+    for key in ("allowed_tools", "blocked_tools"):
+        if key in dest and key in additional:
+            joined[key] = _joined_tool_list(dest[key], additional[key])
+    if "allow_unlisted_tools" in dest and "allow_unlisted_tools" in additional:
+        joined["allow_unlisted_tools"] = _stricter_allow_unlisted(
+            dest["allow_unlisted_tools"], additional["allow_unlisted_tools"]
+        )
+    return joined
+
+
+def _joined_tool_list(first: Any, second: Any) -> Any:
+    """Both tool lists, each entry once, or whichever of the two isn't a list, so validation refuses it."""
+    if isinstance(first, list) and isinstance(second, list):
+        return _unique_list_concat(first, second)
+    return second if isinstance(first, list) else first
+
+
+def _stricter_allow_unlisted(first: Any, second: Any) -> Any:
+    """`false` if either value denies unlisted tools, or whichever value isn't a boolean, so validation refuses it."""
+    parsed = [_as_bool(value) for value in (first, second)]
+    if None in parsed:
+        return (first, second)[parsed.index(None)]
+    return all(parsed)
+
+
+def _as_bool(value: Any) -> Optional[bool]:
+    """*value* as the boolean a config field would read it as, or None when it isn't one."""
+    try:
+        return TypeAdapter(bool).validate_python(value)
+    except ValidationError:
+        return None
 
 
 def _load_path(
@@ -1104,8 +1156,8 @@ class RailsConfig(BaseModel):
         description="Configuration for the various rails (input, output, etc.).",
     )
 
-    hooks: HooksConfig = Field(
-        default_factory=HooksConfig,
+    hooks_server: HooksServerConfig = Field(
+        default_factory=HooksServerConfig,
         description="The tool policy of `nemoguardrails hooks-server`, which only that server reads.",
     )
 
@@ -1581,8 +1633,8 @@ def _join_rails_configs(base_rails_config: RailsConfig, updated_rails_config: Ra
 
     combined_rails_config_dict = _join_dict(base_rails_config.model_dump(), updated_rails_config.model_dump())
     # Every dump carries the default `true`, so the later config would always win; the merged policy is the stricter.
-    combined_rails_config_dict["hooks"]["allow_unlisted_tools"] = (
-        base_rails_config.hooks.allow_unlisted_tools and updated_rails_config.hooks.allow_unlisted_tools
+    combined_rails_config_dict["hooks_server"]["allow_unlisted_tools"] = (
+        base_rails_config.hooks_server.allow_unlisted_tools and updated_rails_config.hooks_server.allow_unlisted_tools
     )
     # filter out empty strings to avoid leading/trailing commas
     config_paths = [

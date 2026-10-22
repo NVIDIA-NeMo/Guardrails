@@ -1518,9 +1518,9 @@ class TestCheckToolRailConfiguration:
                 await engine.check_async(tool_call_turn(wire_tool_call()), rail_types=[RailType.TOOL_CALL])
 
     @pytest.mark.asyncio
-    async def test_tool_call_check_ignores_the_hooks_section(self):
-        """A check doesn't read the hooks section, which only the hooks server applies, so its blocklist decides nothing."""
-        config = {"models": [], "hooks": {"blocked_tools": ["get_weather"]}, "rails": TOOL_CONFIG["rails"]}
+    async def test_tool_call_check_ignores_the_hooks_server_section(self):
+        """A check doesn't read the hooks_server section, which only the hooks server applies."""
+        config = {"models": [], "hooks_server": {"blocked_tools": ["get_weather"]}, "rails": TOOL_CONFIG["rails"]}
 
         async with started_iorails(config) as engine:
             result = await engine.check_async(

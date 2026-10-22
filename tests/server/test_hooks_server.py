@@ -79,26 +79,17 @@ HOOKS_CONFIG = {
 # The rail raises on a `$argument=` its tool's allowed_tools entry doesn't list, so every `Read` call fails it.
 RAIL_FAILURE_CONFIG = {
     "models": [],
-    "hooks": {"allowed_tools": [{"name": "Read", "arguments": ["file_path"]}]},
-    "rails": {
-        "tool_call": {
-            "flows": ["tool call validation"],
-            "per_tool": {"Read": ["regex check tool call $argument=x"]},
-        }
-    },
+    "hooks_server": {"allowed_tools": [{"name": "Read", "arguments": ["file_path"]}]},
+    "rails": {"tool_call": {"per_tool": {"Read": ["regex check tool call $argument=x"]}}},
 }
 
-ALLOWLIST_CONFIG = {
-    "models": [],
-    "hooks": {"allowed_tools": ["Bash"], "allow_unlisted_tools": False},
-    "rails": {"tool_call": {"flows": ["tool call validation"]}},
-}
+# A tool policy alone, with no rails: the server decides every call itself.
+ALLOWLIST_CONFIG = {"models": [], "hooks_server": {"allowed_tools": ["Bash"], "allow_unlisted_tools": False}}
 
-# Blocks WebFetch by name, and a Bash call that passes `run_in_background`.
+# Blocks WebFetch by name, and a Bash call that passes `run_in_background`; no rails.
 BLOCKLIST_CONFIG = {
     "models": [],
-    "hooks": {"blocked_tools": ["WebFetch", {"name": "Bash", "arguments": ["run_in_background"]}]},
-    "rails": {"tool_call": {"flows": ["tool call validation"]}},
+    "hooks_server": {"blocked_tools": ["WebFetch", {"name": "Bash", "arguments": ["run_in_background"]}]},
 }
 
 _HOOK_BODIES = {"claude-code": CLAUDE_CODE_DESTRUCTIVE_BASH, "codex": CODEX_MCP, "nemo-relay": NEMO_RELAY_SEARCH}
@@ -166,12 +157,26 @@ UNUSED_MAIN_MODEL = (
 )
 IGNORED_MAIN_MODEL_TOOLS = (
     "The `main` model declares tools in parameters.tools, which the hooks server ignores: it checks each tool call "
-    "against hooks.allowed_tools, blocked_tools and allow_unlisted_tools only."
+    "against hooks_server.allowed_tools, blocked_tools and allow_unlisted_tools only."
 )
 MAIN_MODEL_TOOLS_WITHOUT_TOOL_LISTS = (
-    "The `main` model declares tools in parameters.tools, which the hooks server ignores, and the hooks section sets "
-    "no tool policy, so every tool call would be allowed. List the tools in hooks.allowed_tools with "
-    "allow_unlisted_tools: false, or remove parameters.tools."
+    "The `main` model declares tools in parameters.tools, which the hooks server ignores, and the hooks_server "
+    "section sets no tool policy that can deny a call, so every tool call would be allowed. List the tools in "
+    "hooks_server.allowed_tools with allow_unlisted_tools: false, or remove parameters.tools."
+)
+NOTHING_TO_DENY = (
+    "The hooks server needs a tool policy in the hooks_server section, or per-tool rails under "
+    "rails.tool_call.per_tool; this config has neither, so every tool call would be allowed."
+)
+ALLOWED_NAMES_DENY_NOTHING = (
+    "hooks_server.allowed_tools names tools by name only while hooks_server.allow_unlisted_tools is true, so the tool "
+    "policy denies nothing, and with no per-tool rails every tool call would be allowed; set "
+    "hooks_server.allow_unlisted_tools: false."
+)
+TOOL_CALL_VALIDATION_ON_THE_HOOKS_SERVER = (
+    "rails.tool_call.flows lists 'tool call validation', which can't deny a call on the hooks server: the server "
+    "applies its tool policy and declares the called tool itself, so only per-tool rails check a call. Restrict tools "
+    "with hooks_server.allowed_tools and hooks_server.allow_unlisted_tools: false, and remove the flow."
 )
 
 EXAMPLE_CONFIGS_PATH = Path(__file__).parents[2] / "examples" / "configs" / "agent_hooks"
@@ -206,12 +211,12 @@ def _app(config: dict):
     return create_hooks_app(RailsConfig.from_content(config=config))
 
 
-def _main_model_rail_config(main_model: dict, hooks: Optional[dict] = None, **tool_call: Any) -> dict:
-    """A config whose per-tool rail on Bash calls *main_model* with `$model=main`, with *hooks* and *tool_call* added."""
+def _main_model_rail_config(main_model: dict, hooks_server: Optional[dict] = None, **tool_call: Any) -> dict:
+    """A config whose per-tool rail on Bash calls *main_model* as `$model=main`, plus *hooks_server* and *tool_call*."""
     per_tool = {"Bash": ["tool safety check tool call $model=main $variant=bash"]}
     return {
         "models": [main_model],
-        "hooks": hooks or {},
+        "hooks_server": hooks_server or {},
         "rails": {"tool_call": {"per_tool": per_tool, **tool_call}},
         "prompts": [
             {
@@ -288,21 +293,32 @@ class TestChecks:
 
         assert (response.status_code, response.json()) == (200, _denied(agent, "regex check tool call"))
 
-    @pytest.mark.parametrize(
-        "agent, call",
-        [
-            ("claude-code", f"'{CLAUDE_CODE_DESTRUCTIVE_BASH['tool_use_id']}'"),
-            ("codex", f"'{CODEX_MCP['tool_use_id']}'"),
-            ("nemo-relay", "at index 0"),
-        ],
-    )
+    @pytest.mark.parametrize("agent", AGENTS)
     @pytest.mark.parametrize("tool_input", ["rm -rf /tmp/build", ["rm", "-rf"], None])
-    def test_input_that_is_not_an_object_is_denied_as_malformed(self, client, agent, call, tool_input):
-        """A `tool_input` that isn't a JSON object is denied as malformed arguments, naming the call."""
-        response = client.post(f"/v1/hooks/{agent}", json=_hook(agent, "Bash", tool_input))
+    @pytest.mark.parametrize("config", [HOOKS_CONFIG, ALLOWLIST_CONFIG], ids=["per-tool-rails", "policy-only"])
+    def test_input_that_is_not_an_object_is_denied_as_malformed(self, agent, tool_input, config):
+        """A `tool_input` that isn't a JSON object is denied by the server, naming the tool, with or without rails."""
+        with TestClient(_app(config)) as client:
+            response = client.post(f"/v1/hooks/{agent}", json=_hook(agent, "Bash", tool_input))
 
-        reason = f"tool call extraction failed: tool call {call} has malformed arguments"
+        reason = "tool call 'Bash' has arguments that aren't a JSON object"
         assert (response.status_code, response.json()) == (200, _denied(agent, reason))
+
+    @pytest.mark.parametrize(
+        ("tool_name", "expected"),
+        [("Bash", {}), ("WebFetch", DENY_NOT_ALLOWED)],
+        ids=["allowed", "unlisted"],
+    )
+    def test_policy_only_config_decides_without_the_rails(self, monkeypatch, tool_name, expected):
+        """With a tool policy and no rails, the policy alone decides each call, and no check runs."""
+        with TestClient(_app(ALLOWLIST_CONFIG)) as client:
+            check = AsyncMock(wraps=client.app.state.engine.check_async)
+            monkeypatch.setattr(client.app.state.engine, "check_async", check)
+
+            response = client.post("/v1/hooks/claude-code", json=_hook("claude-code", tool_name, {"url": "x"}))
+
+        assert (response.status_code, response.json()) == (200, expected)
+        check.assert_not_awaited()
 
     @pytest.mark.parametrize("agent", AGENTS)
     def test_tool_without_rails_is_allowed(self, client, agent):
@@ -335,7 +351,7 @@ class TestChecks:
 
     def test_call_the_tool_policy_denies_is_answered_without_the_rails(self, monkeypatch):
         """A call the tool policy denies gets the agent's deny without a check, so no rail runs on it."""
-        with TestClient(_app(BLOCKLIST_CONFIG)) as client:
+        with TestClient(_app({**HOOKS_CONFIG, "hooks_server": BLOCKLIST_CONFIG["hooks_server"]})) as client:
             check = AsyncMock(wraps=client.app.state.engine.check_async)
             monkeypatch.setattr(client.app.state.engine, "check_async", check)
 
@@ -372,8 +388,7 @@ class TestChecks:
         """Only the tool lists decide: a tool the `main` model declares is denied, and one it doesn't is allowed."""
         config = _main_model_rail_config(
             _main_model(_tool("WebFetch", ANY_ARGUMENTS)),
-            hooks={"allowed_tools": ["Bash", "Read"], "allow_unlisted_tools": False},
-            flows=["tool call validation"],
+            hooks_server={"allowed_tools": ["Bash", "Read"], "allow_unlisted_tools": False},
             # The rail that uses `main` is on Read, so these checks never call the model.
             per_tool={"Read": ["tool safety check tool call $model=main $variant=bash"]},
         )
@@ -385,7 +400,7 @@ class TestChecks:
 
     def test_check_offers_the_called_tool_on_the_existing_check_arguments(self, monkeypatch):
         """A call is checked with tool-call rails and the called tool's declaration as `tools`, and nothing else."""
-        with TestClient(_app(ALLOWLIST_CONFIG)) as client:
+        with TestClient(_app({**HOOKS_CONFIG, "hooks_server": ALLOWLIST_CONFIG["hooks_server"]})) as client:
             engine = client.app.state.engine
             check = AsyncMock(wraps=engine.check_async)
             monkeypatch.setattr(engine, "check_async", check)
@@ -653,22 +668,40 @@ class TestErrors:
 
 class TestStartup:
     @pytest.mark.parametrize(
-        "config, reason",
+        ("config", "message"),
         [
-            ({"models": [MAIN_MODEL]}, "Requested rail type 'tool_call' has no configured rails."),
-            ({"models": [MAIN_MODEL], "rails": {"tool_call": {"per_tool": {"Bash": []}}}}, "has no configured rails"),
+            ({"models": []}, NOTHING_TO_DENY),
+            ({"models": [], "rails": {"tool_call": {"per_tool": {"Bash": []}}}}, NOTHING_TO_DENY),
+            ({"models": [], "hooks_server": {"allowed_tools": ["Bash", "Read"]}}, ALLOWED_NAMES_DENY_NOTHING),
         ],
-        ids=["no-tool-call-rails", "per-tool-entry-without-flows"],
+        ids=["nothing", "per-tool-entry-without-rails", "allowed-names-only"],
     )
-    def test_config_a_tool_call_check_refuses_is_refused_before_the_engine(self, monkeypatch, config, reason):
-        """A config without tool-call rails is refused, before any engine is built."""
+    def test_config_that_can_deny_no_call_is_refused_before_the_engine(self, monkeypatch, config, message):
+        """A config with no tool policy that can deny and no per-tool rails is refused, since it allows every call."""
         engine = MagicMock()
         monkeypatch.setattr(hooks_app, "Guardrails", engine)
 
-        with pytest.raises(HooksConfigError, match="The hooks server needs tool-call rails") as exc_info:
+        with pytest.raises(HooksConfigError) as exc_info:
             _app(config)
 
-        assert reason in str(exc_info.value)
+        assert str(exc_info.value) == message
+        engine.assert_not_called()
+
+    def test_allowed_names_beside_per_tool_rails_start(self):
+        """Bare allowed_tools names with unlisted tools allowed start when per-tool rails can deny a call."""
+        config = {**HOOKS_CONFIG, "hooks_server": {"allowed_tools": ["Bash", "Read"]}}
+
+        assert isinstance(_app(config).state.engine.rails_engine, IORails)
+
+    def test_config_with_tool_call_validation_is_refused_before_the_engine(self, monkeypatch):
+        """`tool call validation` is refused, since the server declares the called tool and the flow can't deny."""
+        engine = MagicMock()
+        monkeypatch.setattr(hooks_app, "Guardrails", engine)
+
+        with pytest.raises(HooksConfigError) as exc_info:
+            _app({**ALLOWLIST_CONFIG, "rails": {"tool_call": {"flows": ["tool call validation"]}}})
+
+        assert str(exc_info.value) == TOOL_CALL_VALIDATION_ON_THE_HOOKS_SERVER
         engine.assert_not_called()
 
     @pytest.mark.parametrize(
@@ -676,13 +709,14 @@ class TestStartup:
         [
             (
                 {"blocked_tools": ["Bash"]},
-                "rails.tool_call.per_tool has rails for tool 'Bash', which hooks.blocked_tools blocks by name, so they "
-                "never run; remove its per_tool entry, or unblock it.",
+                "rails.tool_call.per_tool has rails for tool 'Bash', which hooks_server.blocked_tools blocks by name, "
+                "so they never run; remove its per_tool entry, or unblock it.",
             ),
             (
                 {"allowed_tools": ["Read"], "allow_unlisted_tools": False},
-                "rails.tool_call.per_tool has rails for tool 'Bash', which hooks.allowed_tools doesn't list while "
-                "hooks.allow_unlisted_tools is false, so they never run; add it to hooks.allowed_tools.",
+                "rails.tool_call.per_tool has rails for tool 'Bash', which hooks_server.allowed_tools doesn't list "
+                "while hooks_server.allow_unlisted_tools is false, so they never run; add it to "
+                "hooks_server.allowed_tools.",
             ),
         ],
         ids=["blocked-by-name", "unlisted-denied"],
@@ -695,24 +729,27 @@ class TestStartup:
         monkeypatch.setattr(hooks_app, "Guardrails", engine)
 
         with pytest.raises(HooksConfigError) as exc_info:
-            _app({**HOOKS_CONFIG, "hooks": hooks})
+            _app({**HOOKS_CONFIG, "hooks_server": hooks})
 
         assert str(exc_info.value) == message
         engine.assert_not_called()
 
     def test_per_tool_entry_without_rails_on_a_blocked_tool_starts(self):
-        """A per_tool entry with no rails on a tool hooks.blocked_tools blocks by name starts, since it has no rails to skip."""
+        """A per_tool entry with no rails on a tool blocked by name starts, since it has no rails to skip."""
         config = {
             "models": [],
-            "hooks": {"blocked_tools": ["Bash"]},
-            "rails": {"tool_call": {"flows": ["tool call validation"], "per_tool": {"Bash": []}}},
+            "hooks_server": {"blocked_tools": ["Bash"]},
+            "rails": {"tool_call": {"per_tool": {"Bash": []}}},
         }
 
         assert isinstance(_app(config).state.engine.rails_engine, IORails)
 
     def test_per_tool_rails_beside_a_blocked_argument_start(self):
-        """per_tool rails on a tool whose hooks.blocked_tools entry blocks only an argument start, since they run."""
-        config = {**HOOKS_CONFIG, "hooks": {"blocked_tools": [{"name": "Bash", "arguments": ["run_in_background"]}]}}
+        """per_tool rails on a tool whose blocked_tools entry blocks only an argument start, since they run."""
+        config = {
+            **HOOKS_CONFIG,
+            "hooks_server": {"blocked_tools": [{"name": "Bash", "arguments": ["run_in_background"]}]},
+        }
 
         assert isinstance(_app(config).state.engine.rails_engine, IORails)
 
@@ -768,16 +805,14 @@ class TestStartup:
         assert str(exc_info.value) == UNUSED_MAIN_MODEL
         engine.assert_not_called()
 
-    @pytest.mark.parametrize(
-        "tool_call", [{}, {"flows": ["tool call validation"]}], ids=["per-tool-rails", "tool-call-validation"]
-    )
-    def test_main_model_tools_without_tool_lists_are_refused_before_the_engine(self, monkeypatch, tool_call):
-        """Tools on a `main` model a rail names, with no tool lists, are refused, since every tool would be allowed."""
+    @pytest.mark.parametrize("hooks", [None, {"allowed_tools": ["Bash"]}], ids=["no-policy", "policy-denying-nothing"])
+    def test_main_model_tools_without_tool_lists_are_refused_before_the_engine(self, monkeypatch, hooks):
+        """Tools on a `main` model a rail names, with no policy that can deny, are refused, as every tool is allowed."""
         engine = MagicMock()
         monkeypatch.setattr(hooks_app, "Guardrails", engine)
 
         with pytest.raises(HooksConfigError) as exc_info:
-            _app(_main_model_rail_config(_main_model(_tool("Bash", ANY_ARGUMENTS)), **tool_call))
+            _app(_main_model_rail_config(_main_model(_tool("Bash", ANY_ARGUMENTS)), hooks_server=hooks))
 
         assert str(exc_info.value) == MAIN_MODEL_TOOLS_WITHOUT_TOOL_LISTS
         engine.assert_not_called()
@@ -791,7 +826,8 @@ class TestStartup:
     def test_tools_on_a_main_model_a_rail_names_are_warned_about_with_tool_lists(self, caplog):
         """With tool lists set, tools on a `main` model a rail names only log that the server ignores them."""
         config = _main_model_rail_config(
-            _main_model(_tool("Bash", ANY_ARGUMENTS)), hooks={"allowed_tools": ["Bash"]}, flows=["tool call validation"]
+            _main_model(_tool("Bash", ANY_ARGUMENTS)),
+            hooks_server={"allowed_tools": ["Bash"], "allow_unlisted_tools": False},
         )
 
         _app(config)

@@ -512,13 +512,13 @@ class TestHooksServerCommand:
 
     @patch("uvicorn.run")
     def test_hooks_server_exits_on_a_config_it_cannot_serve(self, mock_uvicorn, tmp_path):
-        """A config without tool-call rails exits 1 with the reason, before binding."""
+        """A config that can deny no tool call exits 1 with the reason, before binding."""
         config_yml = "models:\n  - type: main\n    engine: nim\n    model: meta/llama-3.3-70b-instruct\n"
 
         result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
 
         assert result.exit_code == 1
-        assert "The hooks server needs tool-call rails." in result.output
+        assert "The hooks server needs a tool policy in the hooks_server section, or per-tool rails" in result.output
         mock_uvicorn.assert_not_called()
 
     @patch("uvicorn.run")

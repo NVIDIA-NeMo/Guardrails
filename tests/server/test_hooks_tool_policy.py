@@ -24,19 +24,19 @@ from nemoguardrails.server.hooks.tool_policy import ToolPolicy
 
 
 def _policy(**hooks: Any) -> ToolPolicy:
-    """The policy a config with *hooks* as its hooks section sets."""
-    return ToolPolicy.from_config(RailsConfig.from_content(config={"models": [], "hooks": hooks}).hooks)
+    """The policy a config with *hooks* as its hooks_server section sets."""
+    return ToolPolicy.from_config(RailsConfig.from_content(config={"models": [], "hooks_server": hooks}).hooks_server)
 
 
 class TestDecide:
     def test_tool_blocked_by_name_is_denied(self):
-        """A call to a tool hooks.blocked_tools names bare is denied as a blocked tool."""
+        """A call to a tool hooks_server.blocked_tools names bare is denied as a blocked tool."""
         reason = _policy(blocked_tools=["Bash"]).decide("Bash", {"command": "ls"})
 
         assert reason == "tool call 'Bash' is a blocked tool"
 
     def test_call_passing_a_blocked_argument_is_denied_naming_it(self):
-        """A call that passes an argument a hooks.blocked_tools entry lists is denied, naming the argument."""
+        """A call that passes an argument a hooks_server.blocked_tools entry lists is denied, naming the argument."""
         policy = _policy(blocked_tools=[{"name": "Bash", "arguments": ["sandbox", "timeout"]}])
 
         reason = policy.decide("Bash", {"command": "ls", "timeout": 5})
@@ -44,7 +44,7 @@ class TestDecide:
         assert reason == "tool call 'Bash' passes argument 'timeout', which is blocked"
 
     def test_call_without_a_blocked_argument_is_allowed(self):
-        """A call to a tool with a hooks.blocked_tools entry is allowed when it passes none of the entry's arguments."""
+        """A call to a tool with a blocked_tools entry is allowed when it passes none of the entry's arguments."""
         assert (
             _policy(blocked_tools=[{"name": "Bash", "arguments": ["sandbox"]}]).decide("Bash", {"command": "ls"})
             is None
@@ -62,21 +62,21 @@ class TestDecide:
         ids=["one", "two"],
     )
     def test_arguments_outside_an_allowed_entry_are_denied_by_count(self, arguments, reason):
-        """Arguments a hooks.allowed_tools entry doesn't list are denied, counted rather than named."""
+        """Arguments a hooks_server.allowed_tools entry doesn't list are denied, counted rather than named."""
         assert _policy(allowed_tools=[{"name": "search", "arguments": ["query"]}]).decide("search", arguments) == reason
 
     def test_tool_allowed_by_name_takes_any_arguments(self):
-        """A call to a tool hooks.allowed_tools names bare is allowed with any arguments."""
+        """A call to a tool hooks_server.allowed_tools names bare is allowed with any arguments."""
         policy = _policy(allowed_tools=["Bash"], allow_unlisted_tools=False)
 
         assert policy.decide("Bash", {"command": "ls", "anything": [1]}) is None
 
     def test_unlisted_tool_is_allowed_by_default(self):
-        """A call to a tool hooks.allowed_tools doesn't name is allowed while allow_unlisted_tools keeps its default."""
+        """A call to a tool allowed_tools doesn't name is allowed while allow_unlisted_tools keeps its default."""
         assert _policy(allowed_tools=["Read"]).decide("Bash", {"command": "ls"}) is None
 
     def test_unlisted_tool_is_denied_when_unlisted_tools_are_denied(self):
-        """With allow_unlisted_tools false, a call to a tool hooks.allowed_tools doesn't name is not allowed."""
+        """With allow_unlisted_tools false, a call to a tool hooks_server.allowed_tools doesn't name is not allowed."""
         policy = _policy(allowed_tools=["Read"], allow_unlisted_tools=False)
 
         assert (
@@ -84,7 +84,7 @@ class TestDecide:
         )
 
     def test_blocked_argument_entry_leaves_the_tool_unlisted(self):
-        """A tool only hooks.blocked_tools names, by an argument entry, is denied while unlisted tools are denied."""
+        """A tool only blocked_tools names, by an argument entry, is denied while unlisted tools are denied."""
         policy = _policy(
             allowed_tools=["Read"],
             blocked_tools=[{"name": "Bash", "arguments": ["sandbox"]}],
@@ -105,7 +105,7 @@ class TestDecide:
         assert reason == "tool call 'search' passes argument 'limit', which is blocked"
 
     def test_default_policy_allows_every_call(self):
-        """With no hooks section, the policy allows a call to any tool with any arguments."""
+        """With no hooks_server section, the policy allows a call to any tool with any arguments."""
         assert _policy().decide("mcp__any__tool", {"anything": True}) is None
 
 

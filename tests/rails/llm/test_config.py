@@ -15,9 +15,11 @@
 
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from nemoguardrails.rails.llm.config import (
+    HooksServerConfig,
     Model,
     Rails,
     RailsConfig,
@@ -123,17 +125,17 @@ def test_deprecated_tool_rail_fields_are_marked_in_schema():
     assert properties["tool_input"]["deprecated"] is True
 
 
-def _hooks_config(hooks: dict) -> RailsConfig:
-    """A config with *hooks* as its hooks section, and no models."""
-    return RailsConfig.from_content(config={"models": [], "hooks": hooks})
+def _hooks_server_config(hooks_server: dict) -> RailsConfig:
+    """A config with *hooks_server* as its hooks_server section, and no models."""
+    return RailsConfig.from_content(config={"models": [], "hooks_server": hooks_server})
 
 
-def test_hooks_section_takes_names_and_entries_with_arguments():
-    """The hooks section's tool lists take bare names and names with argument lists, and load as written."""
+def test_hooks_server_section_takes_names_and_entries_with_arguments():
+    """The hooks_server section's tool lists take bare names and names with argument lists, and load as written."""
     config = RailsConfig.from_content(
         yaml_content="""
             models: []
-            hooks:
+            hooks_server:
               allowed_tools:
                 - Read
                 - name: Bash
@@ -146,24 +148,40 @@ def test_hooks_section_takes_names_and_entries_with_arguments():
         """
     )
 
-    assert config.hooks.allowed_tools == ["Read", ToolEntry(name="Bash", arguments=["command", "description"])]
-    assert config.hooks.blocked_tools == ["WebFetch", ToolEntry(name="Read", arguments=["pages"])]
-    assert config.hooks.allow_unlisted_tools is False
-    assert config.hooks.sets_tool_policy is True
+    assert config.hooks_server.allowed_tools == ["Read", ToolEntry(name="Bash", arguments=["command", "description"])]
+    assert config.hooks_server.blocked_tools == ["WebFetch", ToolEntry(name="Read", arguments=["pages"])]
+    assert config.hooks_server.allow_unlisted_tools is False
+    assert config.hooks_server.can_deny is True
 
 
-def test_hooks_section_defaults_to_allowing_every_tool():
-    """Without a hooks section, both lists are empty, unlisted tools are allowed, and no tool policy is set."""
-    hooks = RailsConfig.from_content(config={"models": []}).hooks
+def test_hooks_server_section_defaults_to_allowing_every_tool():
+    """Without a hooks_server section, both lists are empty, unlisted tools are allowed, and nothing can be denied."""
+    hooks_server = RailsConfig.from_content(config={"models": []}).hooks_server
 
-    assert (hooks.allowed_tools, hooks.blocked_tools, hooks.allow_unlisted_tools) == ([], [], True)
-    assert hooks.sets_tool_policy is False
+    assert (hooks_server.allowed_tools, hooks_server.blocked_tools, hooks_server.allow_unlisted_tools) == ([], [], True)
+    assert hooks_server.can_deny is False
 
 
-def test_hooks_section_with_an_unknown_key_is_refused():
-    """An unknown key in the hooks section fails validation rather than being ignored."""
-    with pytest.raises(ValidationError, match=r"hooks\.alowed_tools"):
-        _hooks_config({"alowed_tools": ["Bash"]})
+@pytest.mark.parametrize(
+    ("hooks", "can_deny"),
+    [
+        pytest.param({"blocked_tools": ["Bash"]}, True, id="blocked-by-name"),
+        pytest.param({"blocked_tools": [{"name": "Bash", "arguments": ["sandbox"]}]}, True, id="blocked-argument"),
+        pytest.param({"allow_unlisted_tools": False}, True, id="unlisted-denied"),
+        pytest.param({"allowed_tools": [{"name": "search", "arguments": ["query"]}]}, True, id="allowed-entry"),
+        pytest.param({"allowed_tools": ["Bash", "Read"]}, False, id="allowed-bare-names"),
+        pytest.param({}, False, id="defaults"),
+    ],
+)
+def test_hooks_server_policy_can_deny_only_when_a_setting_restricts_a_call(hooks, can_deny):
+    """The policy can deny a call only by blocking, denying unlisted tools, or restricting a tool's arguments."""
+    assert _hooks_server_config(hooks).hooks_server.can_deny is can_deny
+
+
+def test_hooks_server_section_with_an_unknown_key_is_refused():
+    """An unknown key in the hooks_server section fails validation rather than being ignored."""
+    with pytest.raises(ValidationError, match=r"hooks_server\.alowed_tools"):
+        _hooks_server_config({"alowed_tools": ["Bash"]})
 
 
 @pytest.mark.parametrize(
@@ -174,16 +192,16 @@ def test_hooks_section_with_an_unknown_key_is_refused():
         pytest.param({"name": "Bash", "arguments": []}, id="empty-arguments"),
     ],
 )
-def test_hooks_tool_entry_that_is_not_a_name_with_arguments_is_refused(entry):
+def test_hooks_server_tool_entry_that_is_not_a_name_with_arguments_is_refused(entry):
     """A hooks tool list entry with an unknown key, or without a non-empty argument list, fails validation."""
-    with pytest.raises(ValidationError, match=r"hooks\.allowed_tools\.0\.ToolEntry"):
-        _hooks_config({"allowed_tools": [entry]})
+    with pytest.raises(ValidationError, match=r"hooks_server\.allowed_tools\.0\.ToolEntry"):
+        _hooks_server_config({"allowed_tools": [entry]})
 
 
-def test_hooks_tool_entry_naming_an_argument_twice_is_refused():
+def test_hooks_server_tool_entry_naming_an_argument_twice_is_refused():
     """A hooks tool list entry that lists the same argument twice fails validation, naming the argument."""
     with pytest.raises(ValidationError, match=r"arguments names \['command'\] more than once"):
-        _hooks_config({"blocked_tools": [{"name": "Bash", "arguments": ["command", "command"]}]})
+        _hooks_server_config({"blocked_tools": [{"name": "Bash", "arguments": ["command", "command"]}]})
 
 
 @pytest.mark.parametrize("list_name", ["allowed_tools", "blocked_tools"])
@@ -194,27 +212,28 @@ def test_hooks_tool_entry_naming_an_argument_twice_is_refused():
         pytest.param(["Bash", {"name": "Bash", "arguments": ["command"]}], id="bare-and-entry"),
     ],
 )
-def test_hooks_tool_named_twice_in_one_list_is_refused(list_name, entries):
+def test_hooks_server_tool_named_twice_in_one_list_is_refused(list_name, entries):
     """A hooks list that names a tool twice, in either shape, fails validation naming the list and the tool."""
-    with pytest.raises(ValidationError, match=f"hooks.{list_name} names tool 'Bash' more than once"):
-        _hooks_config({list_name: entries})
+    with pytest.raises(ValidationError, match=f"hooks_server.{list_name} names tool 'Bash' more than once"):
+        _hooks_server_config({list_name: entries})
 
 
 @pytest.mark.parametrize(
     "allowed",
     [pytest.param("Bash", id="bare"), pytest.param({"name": "Bash", "arguments": ["command"]}, id="entry")],
 )
-def test_hooks_tool_allowed_and_blocked_by_name_is_refused(allowed):
-    """A tool that hooks.blocked_tools blocks by name and hooks.allowed_tools also lists fails validation."""
+def test_hooks_server_tool_allowed_and_blocked_by_name_is_refused(allowed):
+    """A tool that hooks_server.blocked_tools blocks by name and allowed_tools also lists fails validation."""
     with pytest.raises(
-        ValidationError, match="hooks.allowed_tools allows tool 'Bash', which hooks.blocked_tools blocks by name"
+        ValidationError,
+        match="hooks_server.allowed_tools allows tool 'Bash', which hooks_server.blocked_tools blocks by name",
     ):
-        _hooks_config({"allowed_tools": [allowed], "blocked_tools": ["Bash"]})
+        _hooks_server_config({"allowed_tools": [allowed], "blocked_tools": ["Bash"]})
 
 
-def test_hooks_argument_entry_in_blocked_tools_beside_an_allowed_name_loads():
-    """Blocking one argument of a tool that hooks.allowed_tools allows by name is a valid config."""
-    config = _hooks_config(
+def test_hooks_server_argument_entry_in_blocked_tools_beside_an_allowed_name_loads():
+    """Blocking one argument of a tool that hooks_server.allowed_tools allows by name is a valid config."""
+    config = _hooks_server_config(
         {
             "allowed_tools": ["Bash"],
             "blocked_tools": [{"name": "Bash", "arguments": ["dangerouslyDisableSandbox"]}],
@@ -222,18 +241,116 @@ def test_hooks_argument_entry_in_blocked_tools_beside_an_allowed_name_loads():
         }
     )
 
-    assert config.hooks.blocked_tools == [ToolEntry(name="Bash", arguments=["dangerouslyDisableSandbox"])]
+    assert config.hooks_server.blocked_tools == [ToolEntry(name="Bash", arguments=["dangerouslyDisableSandbox"])]
 
 
 @pytest.mark.parametrize("strict_first", [True, False], ids=["strict-first", "strict-last"])
-def test_merged_configs_deny_unlisted_hooks_tools_when_either_does(strict_first):
-    """Adding two configs keeps hooks.allow_unlisted_tools false when either sets it, whichever comes last."""
-    strict = _hooks_config({"allowed_tools": ["Read"], "allow_unlisted_tools": False})
-    loose = _hooks_config({})
+def test_merged_configs_deny_unlisted_hooks_server_tools_when_either_does(strict_first):
+    """Adding two configs keeps hooks_server.allow_unlisted_tools false when either sets it, whichever comes last."""
+    strict = _hooks_server_config({"allowed_tools": ["Read"], "allow_unlisted_tools": False})
+    loose = _hooks_server_config({})
 
     merged = strict + loose if strict_first else loose + strict
 
-    assert (merged.hooks.allowed_tools, merged.hooks.allow_unlisted_tools) == (["Read"], False)
+    assert (merged.hooks_server.allowed_tools, merged.hooks_server.allow_unlisted_tools) == (["Read"], False)
+
+
+STRICT_HOOKS_SERVER = {"blocked_tools": ["WebFetch"], "allow_unlisted_tools": False}
+LOOSE_HOOKS_SERVER = {"allowed_tools": ["Read"]}
+
+
+def _joined_hooks_server(first: dict, second: dict) -> HooksServerConfig:
+    """The hooks_server section a config joins from *first* and then *second*, as two config files are joined."""
+    config = RailsConfig.from_content(
+        config={"models": [], "hooks_server": first}, yaml_content=yaml.safe_dump({"hooks_server": second})
+    )
+    return config.hooks_server
+
+
+@pytest.mark.parametrize("strict_first", [True, False], ids=["strict-first", "strict-last"])
+def test_joined_hooks_server_sections_keep_every_restriction(strict_first):
+    """Joining two files' hooks_server sections keeps both files' lists, and denies unlisted tools if either does."""
+    first, second = (
+        (STRICT_HOOKS_SERVER, LOOSE_HOOKS_SERVER) if strict_first else (LOOSE_HOOKS_SERVER, STRICT_HOOKS_SERVER)
+    )
+
+    joined = _joined_hooks_server(first, second)
+
+    assert (joined.allowed_tools, joined.blocked_tools, joined.allow_unlisted_tools) == (["Read"], ["WebFetch"], False)
+
+
+def test_joined_hooks_server_sections_list_a_tool_both_name_once():
+    """A tool both files' sections name the same way is listed once in the joined section."""
+    joined = _joined_hooks_server({"allowed_tools": ["Read", "Bash"]}, {"allowed_tools": ["Bash"]})
+
+    assert joined.allowed_tools == ["Read", "Bash"]
+
+
+def test_joined_hooks_server_sections_that_contradict_are_refused():
+    """A tool one file allows and another blocks by name fails validation once the sections are joined."""
+    with pytest.raises(
+        ValidationError, match="hooks_server.allowed_tools allows tool 'Bash', which hooks_server.blocked_tools"
+    ):
+        _joined_hooks_server({"allowed_tools": ["Bash"]}, {"blocked_tools": ["Bash"]})
+
+
+@pytest.mark.parametrize("deny_first", [True, False], ids=["deny-first", "deny-last"])
+def test_joined_hooks_server_sections_deny_unlisted_tools_when_either_does(deny_first):
+    """When both files set allow_unlisted_tools, the joined section denies unlisted tools if either file does."""
+    first, second = ({"allow_unlisted_tools": False}, {"allow_unlisted_tools": True})
+
+    joined = _joined_hooks_server(first, second) if deny_first else _joined_hooks_server(second, first)
+
+    assert joined.allow_unlisted_tools is False
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "location"),
+    [
+        ({"allow_unlisted_tools": "sometimes"}, {"allow_unlisted_tools": True}, r"hooks_server\.allow_unlisted_tools"),
+        ({"allowed_tools": ["Read"]}, {"allowed_tools": "Bash"}, r"hooks_server\.allowed_tools"),
+        ({"allowed_tools": ["Read"]}, ["Bash"], r"hooks_server\n"),
+    ],
+    ids=["setting-not-a-boolean", "list-not-a-list", "section-not-a-mapping"],
+)
+def test_joined_hooks_server_section_with_an_invalid_part_is_refused(first, second, location):
+    """A part of either file's hooks_server section that has the wrong type still fails validation after the join."""
+    with pytest.raises(ValidationError, match=location):
+        _joined_hooks_server(first, second)
+
+
+def test_hooks_server_sections_in_one_directory_keep_every_restriction(tmp_path):
+    """Two files in one config directory join their hooks_server sections, whichever loads first."""
+    (tmp_path / "config.yml").write_text(yaml.safe_dump({"models": [], "hooks_server": STRICT_HOOKS_SERVER}))
+    (tmp_path / "extra.yml").write_text(yaml.safe_dump({"hooks_server": LOOSE_HOOKS_SERVER}))
+
+    hooks_server = RailsConfig.from_path(str(tmp_path)).hooks_server
+
+    assert (hooks_server.allowed_tools, hooks_server.blocked_tools, hooks_server.allow_unlisted_tools) == (
+        ["Read"],
+        ["WebFetch"],
+        False,
+    )
+
+
+def test_imported_hooks_server_section_keeps_every_restriction(tmp_path):
+    """A config that imports another joins the imported hooks_server section with its own."""
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "config.yml").write_text(yaml.safe_dump({"hooks_server": STRICT_HOOKS_SERVER}))
+    local = tmp_path / "local"
+    local.mkdir()
+    (local / "config.yml").write_text(
+        yaml.safe_dump({"models": [], "import_paths": [str(shared)], "hooks_server": LOOSE_HOOKS_SERVER})
+    )
+
+    hooks_server = RailsConfig.from_path(str(local)).hooks_server
+
+    assert (hooks_server.allowed_tools, hooks_server.blocked_tools, hooks_server.allow_unlisted_tools) == (
+        ["Read"],
+        ["WebFetch"],
+        False,
+    )
 
 
 @pytest.mark.parametrize(
