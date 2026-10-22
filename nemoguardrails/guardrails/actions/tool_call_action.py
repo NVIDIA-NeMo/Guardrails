@@ -51,14 +51,11 @@ class ToolCallRailAction(ToolRailAction):
         super().__init__(tracer)
         self._policy = policy or ToolPolicy()
 
-    async def run(self, toolset: Optional["Toolset"], tool_calls: List["ToolCall"]) -> RailOutcome:
-        """Block unless every tool call names an allowed tool with schema-valid arguments.
-
-        *toolset* is None when the caller offers no tools at all, so the config's tool lists alone decide.
-        """
+    async def run(self, toolset: "Toolset", tool_calls: List["ToolCall"]) -> RailOutcome:
+        """Block unless every tool call names an allowed tool with schema-valid arguments."""
         return self._guarded(lambda: self._validate(toolset, tool_calls))
 
-    def _validate(self, toolset: Optional["Toolset"], tool_calls: List["ToolCall"]) -> RailOutcome:
+    def _validate(self, toolset: "Toolset", tool_calls: List["ToolCall"]) -> RailOutcome:
         """Allowlist each call by name, then validate its arguments, reporting every call that fails."""
         violations: list[ToolViolation] = []
         for index, call in enumerate(tool_calls):
@@ -67,7 +64,7 @@ class ToolCallRailAction(ToolRailAction):
                 violations.append(violation)
         return violations_outcome(violations)
 
-    def _call_violation(self, toolset: Optional["Toolset"], index: int, call: "ToolCall") -> "ToolViolation | None":
+    def _call_violation(self, toolset: "Toolset", index: int, call: "ToolCall") -> "ToolViolation | None":
         """The first check *call* fails, as a violation at its *index*, or None when it passes."""
         # Hosted/server tools (e.g. web_search) have no function name; fall back to
         # call.type, mirroring Tool.key = name or type used when indexing the toolset.
@@ -86,17 +83,12 @@ class ToolCallRailAction(ToolRailAction):
             schema_keyword=violation.schema_keyword,
         )
 
-    def _first_violation(
-        self, toolset: Optional["Toolset"], name: str, call: "ToolCall"
-    ) -> Optional[ArgumentsViolation]:
+    def _first_violation(self, toolset: "Toolset", name: str, call: "ToolCall") -> Optional[ArgumentsViolation]:
         """Why the config's lists deny *call*, else why the offered tools do, or None when both let it through."""
         denied = self._policy.decide(name, call.function.arguments)
         if denied is not None:
             return denied
-        # Offered none, a config without the lists still denies every call below, as before the lists existed.
-        if self._policy.decides_alone(toolset):
-            return None
-        assert toolset is not None, "decides_alone() is True whenever no tools can be offered"
+        # The lists only narrow the offered tools: a call they allow must still name an offered tool.
         tool = toolset.get(name)
         if tool is None:
             return ArgumentsViolation(

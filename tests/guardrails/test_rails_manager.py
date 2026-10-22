@@ -1014,7 +1014,7 @@ class TestRailsManagerLatestToolCalls:
             ToolCall(id="call_1", function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}))
         ]
         mgr.are_tool_calls_safe.assert_awaited_once_with(
-            expected_calls, llm_params, enabled=["tool call validation"], model_type=None, tool_policy_only=False
+            expected_calls, llm_params, enabled=["tool call validation"], model_type=None
         )
         assert result is verdict
 

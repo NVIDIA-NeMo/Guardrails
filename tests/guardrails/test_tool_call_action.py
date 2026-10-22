@@ -15,7 +15,7 @@
 
 """Unit tests for ToolCallRailAction (allowlist + argument-schema validation)."""
 
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 
@@ -158,9 +158,14 @@ def _policy(**tool_lists: Any) -> ToolPolicy:
     return ToolPolicy.from_config(config.rails.tool_call)
 
 
-async def _violations(policy: ToolPolicy, toolset: Optional[Toolset], call: ToolCall) -> list:
+async def _violations(policy: ToolPolicy, toolset: Toolset, call: ToolCall) -> list:
     """The violations `tool call validation` with *policy* reports for *call*, with *toolset* offered."""
     return violations_in(await ToolCallRailAction(policy=policy).run(toolset, [call]))
+
+
+def _offering(name: str) -> Toolset:
+    """A toolset offering *name*, taking any arguments, so only the lists can deny a call to it."""
+    return Toolset(tools=[Tool(name=name, arguments_schema={"type": "object", "additionalProperties": True})])
 
 
 class TestToolLists:
@@ -198,7 +203,7 @@ class TestToolLists:
         """A call to a tool with a blocked_tools entry passes when it passes none of the entry's arguments."""
         policy = _policy(blocked_tools=[{"name": "Bash", "arguments": ["sandbox"]}])
 
-        assert await _violations(policy, Toolset(), _call("Bash", {"command": "ls"})) == []
+        assert await _violations(policy, _offering("Bash"), _call("Bash", {"command": "ls"})) == []
 
     @pytest.mark.asyncio
     async def test_argument_outside_an_allowed_entry_is_argument_not_allowed(self):
@@ -222,7 +227,9 @@ class TestToolLists:
     @pytest.mark.asyncio
     async def test_unlisted_tool_is_allowed_by_default(self):
         """A call to a tool allowed_tools doesn't name passes while allow_unlisted_tools keeps its default."""
-        assert await _violations(_policy(allowed_tools=["Read"]), Toolset(), _call("Bash", {"command": "ls"})) == []
+        policy = _policy(allowed_tools=["Read"])
+
+        assert await _violations(policy, _offering("Bash"), _call("Bash", {"command": "ls"})) == []
 
     @pytest.mark.asyncio
     async def test_unlisted_tool_is_tool_not_allowed_when_unlisted_tools_are_denied(self):
@@ -286,11 +293,13 @@ class TestToolLists:
         assert [violation.violation_type for violation in violations] == [ToolViolationType.ARGUMENTS_INVALID]
 
     @pytest.mark.asyncio
-    async def test_with_nothing_offered_the_lists_alone_decide(self):
-        """With no tools offered, a call the lists allow passes with any arguments."""
+    async def test_with_nothing_offered_a_call_the_lists_allow_is_tool_not_allowed(self):
+        """With no tools offered, a call the lists allow is still denied: the lists narrow the offered tools."""
         policy = _policy(allowed_tools=["Bash"], allow_unlisted_tools=False)
 
-        assert await _violations(policy, Toolset(), _call("Bash", {"command": "ls", "anything": [1]})) == []
+        violations = await _violations(policy, Toolset(), _call("Bash", {"command": "ls"}))
+
+        assert [violation.violation_type for violation in violations] == [ToolViolationType.TOOL_NOT_ALLOWED]
 
     @pytest.mark.asyncio
     async def test_with_no_lists_and_nothing_offered_every_call_is_denied(self):
@@ -329,11 +338,6 @@ class TestToolLists:
             (ToolViolationType.TOOL_NOT_ALLOWED, 3),
         ]
         assert result.reason == "tool call 'rm_rf' is a blocked tool"
-
-    @pytest.mark.asyncio
-    async def test_with_no_toolset_the_lists_alone_decide_even_at_their_defaults(self):
-        """With no toolset at all, as for an agent hook, a config without the lists allows the call."""
-        assert await _violations(_policy(), None, _call("Bash", {"command": "ls"})) == []
 
     @pytest.mark.asyncio
     async def test_action_without_a_policy_checks_only_the_offered_tools(self):

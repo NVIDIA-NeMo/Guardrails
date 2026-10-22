@@ -519,14 +519,11 @@ def tool_lists_alias(monkeypatch):
     api.llm_rails_instances.clear()
 
 
-def test_check_offering_a_denied_tool_returns_422_under_iorails_alias(tool_lists_alias, stubbed_main_model):
-    """/v1/checks answers 422 when `tools` offers a tool the config's tool lists deny, naming it."""
+def test_check_offering_a_denied_tool_checks_calls_to_others_under_iorails_alias(tool_lists_alias, stubbed_main_model):
+    """/v1/checks answers 200 passed for a call to an offered tool, though `tools` also offers a denied one."""
     response = _post_check(tool_call_turn(wire_tool_call()), ["tool_call"], tools=[WEATHER_TOOL, WEB_FETCH_TOOL])
 
-    assert response.status_code == 422
-    assert response.json()["error"]["message"] == (
-        "tools offers tools that rails.tool_call denies every call to: 'WebFetch'; leave them out of tools"
-    )
+    assert (response.status_code, response.json()["status"]) == (200, "passed")
     stubbed_main_model.assert_not_awaited()
 
 

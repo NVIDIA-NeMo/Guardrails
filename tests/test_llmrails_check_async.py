@@ -618,12 +618,6 @@ class TestToolRailTypesAreNotSupported:
         with pytest.raises(RailTypeNotSupportedError, match="tools"):
             run_check(mock_rails, entry_point, [{"role": "user", "content": "hello"}], rail_types=rail_types, tools=[])
 
-    @check_entry_points
-    def test_tool_policy_only_raises(self, mock_rails, entry_point):
-        """Both entry points raise ``RailTypeNotSupportedError`` for ``tool_policy_only``, read only by IORails."""
-        with pytest.raises(RailTypeNotSupportedError, match="does not take tool_policy_only"):
-            run_check(mock_rails, entry_point, [{"role": "user", "content": "hello"}], tool_policy_only=True)
-
 
 @pytest.fixture
 def no_main_llm_config():

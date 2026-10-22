@@ -572,17 +572,15 @@ class TestToolListsDecideGeneratedCalls:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        ("rails", "called"),
-        [(TOOL_LISTS_RAILS, ["delete_files"]), (TOOL_CONFIG["rails"], [])],
-        ids=["tool-policy-set", "no-tool-policy"],
+        "rails", [TOOL_LISTS_RAILS, TOOL_CONFIG["rails"]], ids=["tool-policy-set", "no-tool-policy"]
     )
-    async def test_request_offering_no_tools_leaves_the_call_to_the_tool_policy(self, rails, called):
-        """With `llm_params.tools: []`, a config's tool policy alone decides a call; without one, the call is refused."""
+    async def test_request_offering_no_tools_refuses_every_call(self, rails):
+        """With `llm_params.tools: []`, a model's call is refused, whether or not the config sets a tool policy."""
         async with started_iorails({**TOOL_CONFIG, "rails": rails}) as engine:
             _inject_json_response(engine, _tool_call_payload("delete_files", "{}"))
             result = await engine.generate_async(messages=MESSAGES, options={"llm_params": {"tools": []}})
 
-        assert [call["function"]["name"] for call in result.tool_calls or []] == called
+        assert [call["function"]["name"] for call in result.tool_calls or []] == []
 
 
 class TestNonStreamingToolResults:

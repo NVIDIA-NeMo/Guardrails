@@ -915,8 +915,7 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
     Returns 422 when ``rail_types`` includes a type with no configured flows, when
     the serving engine cannot run a tool check it was asked for: a tool rail type, or
     ``tools``, on a config the IORails engine does not serve, or when ``tools`` holds an
-    entry that isn't a function tool, or offers a tool the config's tool lists deny
-    every call to.
+    entry that isn't a function tool.
     """
     api_request_headers.set(request.headers)
 

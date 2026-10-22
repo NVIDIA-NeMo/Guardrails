@@ -16,7 +16,7 @@
 """Agent hook requests and responses for `nemoguardrails hooks-server`."""
 
 from nemoguardrails.server.hooks.adapters import ADAPTERS, HookAdapter, HookAgent, UnsupportedHookEventError
-from nemoguardrails.server.hooks.checking import HookOutcome, check_messages, outcome_from_result
+from nemoguardrails.server.hooks.checking import HookOutcome, check_messages, check_tools, outcome_from_result
 from nemoguardrails.server.hooks.schemas import HookErrorCode
 
 __all__ = [
@@ -27,5 +27,6 @@ __all__ = [
     "HookOutcome",
     "UnsupportedHookEventError",
     "check_messages",
+    "check_tools",
     "outcome_from_result",
 ]

@@ -1680,7 +1680,6 @@ class LLMRails(BaseGuardrails):
         rail_types: Optional[List[RailType]] = None,
         *,
         tools: Optional[List[dict]] = None,
-        tool_policy_only: bool = False,
     ) -> RailsResult:
         """Run rails on messages based on their content (asynchronous).
 
@@ -1703,7 +1702,6 @@ class LLMRails(BaseGuardrails):
                   When provided, overrides automatic detection.
             tools: Not supported. Only a tool-call check reads tools, and
                   only the IORails engine runs one.
-            tool_policy_only: Not supported, for the same reason as ``tools``.
 
         Returns:
             RailsResult containing:
@@ -1730,14 +1728,13 @@ class LLMRails(BaseGuardrails):
                 result = await rails.check_async(messages, rail_types=[RailType.INPUT])
 
         Raises:
-            RailTypeNotSupportedError: If ``tools`` or ``tool_policy_only`` is
-                given, or a requested rail type is ``tool_call`` or
-                ``tool_result``, which only the IORails engine runs.
+            RailTypeNotSupportedError: If ``tools`` is given, or a requested rail
+                type is ``tool_call`` or ``tool_result``, which only the IORails
+                engine runs.
             RailTypeNotConfiguredError: If a requested rail type has no
                 configured flows.
         """
         _reject_tools(tools)
-        _reject_tool_policy_only(tool_policy_only)
         if rail_types is not None:
             _reject_tool_rail_types(rail_types)
             for rt in rail_types:
@@ -1781,7 +1778,6 @@ class LLMRails(BaseGuardrails):
         rail_types: Optional[List[RailType]] = None,
         *,
         tools: Optional[List[dict]] = None,
-        tool_policy_only: bool = False,
     ) -> RailsResult:
         """Run rails on messages based on their content (synchronous).
 
@@ -1791,15 +1787,14 @@ class LLMRails(BaseGuardrails):
             messages: List of message dicts with 'role' and 'content' fields.
             rail_types: Optional list of rail types to run. See check_async() for details.
             tools: Not supported. See check_async() for details.
-            tool_policy_only: Not supported. See check_async() for details.
 
         Returns:
             RailsResult containing status, content, and optional blocking rail name.
 
         Raises:
-            RailTypeNotSupportedError: If ``tools`` or ``tool_policy_only`` is
-                given, or a requested rail type is ``tool_call`` or
-                ``tool_result``, which only the IORails engine runs.
+            RailTypeNotSupportedError: If ``tools`` is given, or a requested rail
+                type is ``tool_call`` or ``tool_result``, which only the IORails
+                engine runs.
             RailTypeNotConfiguredError: If a requested rail type has no
                 configured flows.
         """
@@ -1809,9 +1804,7 @@ class LLMRails(BaseGuardrails):
             )
 
         loop = get_or_create_event_loop()
-        return loop.run_until_complete(
-            self.check_async(messages, rail_types=rail_types, tools=tools, tool_policy_only=tool_policy_only)
-        )
+        return loop.run_until_complete(self.check_async(messages, rail_types=rail_types, tools=tools))
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration."""
@@ -2179,15 +2172,6 @@ def _reject_tools(tools: Optional[List[dict]]) -> None:
     if tools is not None:
         raise RailTypeNotSupportedError(
             "LLMRails check() does not run tool rails, so it does not take tools; "
-            "tool_call checks run on the IORails engine only."
-        )
-
-
-def _reject_tool_policy_only(tool_policy_only: bool) -> None:
-    """Raise when a check asks for tool_policy_only, which only an IORails tool-call check reads."""
-    if tool_policy_only:
-        raise RailTypeNotSupportedError(
-            "LLMRails check() does not run tool rails, so it does not take tool_policy_only; "
             "tool_call checks run on the IORails engine only."
         )
 

@@ -20,7 +20,7 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import jsonschema
 import pytest
@@ -32,6 +32,7 @@ from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine, ModelEngineError
 from nemoguardrails.http.errors import HTTPConnectionError
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import RailType
 from nemoguardrails.server.hooks import HookAgent
 from nemoguardrails.server.hooks import app as hooks_app
 from nemoguardrails.server.hooks.app import HooksConfigError, create_hooks_app
@@ -165,11 +166,17 @@ MODEL_CALL_FAILURE = "model 'llama_guard' timed out"
 
 UNUSED_MAIN_MODEL = (
     "The config has a `main` model, which the hooks server doesn't use: it checks tool calls and never generates a "
-    "response, and no tool-call rail names `$model=main`."
+    "response, and no tool-call rail names `$model=main`. Remove the `main` model, or give the hooks server a config "
+    "of its own."
 )
 IGNORED_MAIN_MODEL_TOOLS = (
     "The `main` model declares tools in parameters.tools, which the hooks server ignores: it checks each tool call "
     "against rails.tool_call.allowed_tools, blocked_tools and allow_unlisted_tools only."
+)
+MAIN_MODEL_TOOLS_WITHOUT_TOOL_LISTS = (
+    "The `main` model declares tools in parameters.tools, which the hooks server ignores, and rails.tool_call sets "
+    "no tool lists, so every tool call would be allowed. List the tools in rails.tool_call.allowed_tools with "
+    "allow_unlisted_tools: false, or remove parameters.tools."
 )
 
 EXAMPLE_CONFIGS_PATH = Path(__file__).parents[2] / "examples" / "configs" / "agent_hooks"
@@ -202,6 +209,22 @@ def _denied(agent: HookAgent, reason: str) -> dict:
 def _app(config: dict):
     """A hooks server for *config*."""
     return create_hooks_app(RailsConfig.from_content(config=config))
+
+
+def _main_model_rail_config(main_model: dict, **tool_call: Any) -> dict:
+    """A config whose per-tool rail on Bash calls *main_model* with `$model=main`, and with *tool_call* added."""
+    per_tool = {"Bash": ["tool safety check tool call $model=main $variant=bash"]}
+    return {
+        "models": [main_model],
+        "rails": {"tool_call": {"per_tool": per_tool, **tool_call}},
+        "prompts": [
+            {
+                "task": "tool_safety_check_tool_call $model=main $variant=bash",
+                "content": "Is this call to {{ tool_name }} safe? {{ tool_call_arguments }}",
+                "output_parser": "parse_tool_safety_verdict",
+            }
+        ],
+    }
 
 
 def _hooks_server_warnings(caplog) -> list[str]:
@@ -321,12 +344,30 @@ class TestChecks:
     )
     def test_main_model_tools_play_no_part_in_the_check(self, tool_name, expected):
         """Only the tool lists decide: a tool the `main` model declares is denied, and one it doesn't is allowed."""
-        config = {**ALLOWLIST_CONFIG, "models": [_main_model(_tool("WebFetch", ANY_ARGUMENTS))]}
+        config = _main_model_rail_config(
+            _main_model(_tool("WebFetch", ANY_ARGUMENTS)),
+            flows=["tool call validation"],
+            allowed_tools=["Bash", "Read"],
+            allow_unlisted_tools=False,
+            # The rail that uses `main` is on Read, so these checks never call the model.
+            per_tool={"Read": ["tool safety check tool call $model=main $variant=bash"]},
+        )
 
         with TestClient(_app(config)) as client:
             response = client.post("/v1/hooks/claude-code", json=_hook("claude-code", tool_name, {"url": "x"}))
 
         assert (response.status_code, response.json()) == (200, expected)
+
+    def test_check_offers_the_called_tool_on_the_existing_check_arguments(self, monkeypatch):
+        """A call is checked with tool-call rails and the called tool's declaration as `tools`, and nothing else."""
+        with TestClient(_app(ALLOWLIST_CONFIG)) as client:
+            engine = client.app.state.engine
+            check = AsyncMock(wraps=engine.check_async)
+            monkeypatch.setattr(engine, "check_async", check)
+
+            client.post("/v1/hooks/claude-code", json=_hook("claude-code", "Bash", {"command": "npm test"}))
+
+        check.assert_awaited_once_with(ANY, rail_types=[RailType.TOOL_CALL], tools=[_tool("Bash", ANY_ARGUMENTS)])
 
     @pytest.mark.parametrize("agent", AGENTS)
     def test_body_is_read_as_json_whatever_its_content_type(self, client, agent):
@@ -642,32 +683,46 @@ class TestStartup:
         assert deployment_types == [telemetry.DeploymentTypeEnum.API]
 
     @pytest.mark.parametrize(
-        "main_model, warnings",
-        [
-            (MAIN_MODEL, [UNUSED_MAIN_MODEL]),
-            (_main_model(_tool("Bash", ANY_ARGUMENTS)), [UNUSED_MAIN_MODEL, IGNORED_MAIN_MODEL_TOOLS]),
-        ],
+        "main_model",
+        [MAIN_MODEL, _main_model(_tool("Bash", ANY_ARGUMENTS))],
         ids=["main-model", "main-model-with-tools"],
     )
-    def test_main_model_is_warned_about_as_unused(self, caplog, main_model, warnings):
-        """A `main` model logs that the server doesn't use it, and tools it declares log that the server ignores them."""
-        _app({**HOOKS_CONFIG, "models": [main_model]})
+    def test_main_model_no_rail_names_is_refused_before_the_engine(self, monkeypatch, main_model):
+        """A `main` model no tool-call rail names is refused, since the server never uses it."""
+        engine = MagicMock()
+        monkeypatch.setattr(hooks_app, "Guardrails", engine)
 
-        assert _hooks_server_warnings(caplog) == warnings
+        with pytest.raises(HooksConfigError) as exc_info:
+            _app({**ALLOWLIST_CONFIG, "models": [main_model]})
 
-    def test_main_model_a_rail_names_is_not_warned_about_as_unused(self, caplog):
-        """A `main` model a tool-call rail names with `$model=main` is used, so only its declared tools are warned about."""
-        config = {
-            "models": [_main_model(_tool("Bash", ANY_ARGUMENTS))],
-            "rails": {"tool_call": {"per_tool": {"Bash": ["tool safety check tool call $model=main $variant=bash"]}}},
-            "prompts": [
-                {
-                    "task": "tool_safety_check_tool_call $model=main $variant=bash",
-                    "content": "Is this call to {{ tool_name }} safe? {{ tool_call_arguments }}",
-                    "output_parser": "parse_tool_safety_verdict",
-                }
-            ],
-        }
+        assert str(exc_info.value) == UNUSED_MAIN_MODEL
+        engine.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "tool_call", [{}, {"flows": ["tool call validation"]}], ids=["per-tool-rails", "tool-call-validation"]
+    )
+    def test_main_model_tools_without_tool_lists_are_refused_before_the_engine(self, monkeypatch, tool_call):
+        """Tools on a `main` model a rail names, with no tool lists, are refused, since every tool would be allowed."""
+        engine = MagicMock()
+        monkeypatch.setattr(hooks_app, "Guardrails", engine)
+
+        with pytest.raises(HooksConfigError) as exc_info:
+            _app(_main_model_rail_config(_main_model(_tool("Bash", ANY_ARGUMENTS)), **tool_call))
+
+        assert str(exc_info.value) == MAIN_MODEL_TOOLS_WITHOUT_TOOL_LISTS
+        engine.assert_not_called()
+
+    def test_main_model_a_rail_names_starts_without_a_warning(self, caplog):
+        """A `main` model a tool-call rail names with `$model=main` is used, so the server starts without a warning."""
+        _app(_main_model_rail_config(MAIN_MODEL))
+
+        assert _hooks_server_warnings(caplog) == []
+
+    def test_tools_on_a_main_model_a_rail_names_are_warned_about_with_tool_lists(self, caplog):
+        """With tool lists set, tools on a `main` model a rail names only log that the server ignores them."""
+        config = _main_model_rail_config(
+            _main_model(_tool("Bash", ANY_ARGUMENTS)), flows=["tool call validation"], allowed_tools=["Bash"]
+        )
 
         _app(config)
 

@@ -572,7 +572,6 @@ class RailsManager:
         *,
         enabled: Union[bool, list[str]] = True,
         model_type: Optional[str] = "main",
-        tool_policy_only: bool = False,
     ) -> RailResult:
         """Validate the model's emitted tool calls (OUTPUT-direction tool rail).
 
@@ -580,7 +579,6 @@ class RailsManager:
         (``tool_calls``) plus the request's declared tools (``llm_params``) and returns
         a ``RailResult``. ``model_type`` names the engine whose wire format the tools are
         in; ``None`` reads them as Chat Completions, as a check does, with no model.
-        ``tool_policy_only`` ignores ``llm_params``, so the config's tool lists alone decide.
         """
         if not tool_calls:
             return RailResult.allow()
@@ -590,7 +588,7 @@ class RailsManager:
         active = self._enabled_flows(list(self._tool_call_actions), enabled)
         global_result = RailResult.allow()
         try:
-            toolset = None if tool_policy_only else self._offered_tools(model_type, llm_params)
+            toolset = self._offered_tools(model_type, llm_params)
         except Exception as e:
             log.warning("[%s] tool parsing failed; blocking tool calls: %s", get_request_id(), e)
             return _blocked_before_rails(
@@ -610,7 +608,7 @@ class RailsManager:
         checks: list[_PerToolCheck] = []
         for index, tool_call in enumerate(tool_calls):
             tool_name = tool_call.function.name or tool_call.type
-            tool_definition = self._per_tool_definition(toolset, tool_name)
+            tool_definition = toolset.get(tool_name)
             for flow in self._enabled_flows(self.per_tool_call_flows.get(tool_name, []), enabled):
                 checks.append(
                     _PerToolCheck(
@@ -649,27 +647,17 @@ class RailsManager:
         tools = (llm_params or {}).get("tools")
         return Toolset(tools=_parse_tools_openai(tools)) if tools else Toolset()
 
-    def _per_tool_definition(self, toolset: Optional[Toolset], tool_name: str) -> Optional[Tool]:
-        """The declaration a per-tool rail checks a call to *tool_name* against, or None when it has none."""
-        # With no tools offered, the config's lists stand in for the declarations.
-        if self.tool_policy.decides_alone(toolset):
-            return self.tool_policy.definition_for(tool_name)
-        assert toolset is not None, "decides_alone() is True whenever no tools can be offered"
-        return toolset.get(tool_name)
-
     async def are_latest_tool_calls_safe(
         self,
         messages: list[dict],
         llm_params: Optional[dict],
         *,
         enabled: Union[bool, list[str]] = True,
-        tool_policy_only: bool = False,
     ) -> RailResult:
         """Validate the tool calls on the last assistant message of *messages*, as a check with no model response.
 
         The messages and the tools in *llm_params* are read as Chat Completions, the format of the APIs a check
-        takes them from, whatever the ``main`` model is, so a check needs no model. ``tool_policy_only`` ignores
-        *llm_params*, so the config's tool lists alone decide.
+        takes them from, whatever the ``main`` model is, so a check needs no model.
         """
         if not self._any_tool_call_rail_enabled(enabled):
             return RailResult.allow()
@@ -689,15 +677,11 @@ class RailsManager:
                 )
             )
         if any(isinstance(entry, ToolCallExtractionError) for entry in extracted):
-            return await self._blocked_with_every_call_violation(
-                extracted, llm_params, enabled=enabled, tool_policy_only=tool_policy_only
-            )
+            return await self._blocked_with_every_call_violation(extracted, llm_params, enabled=enabled)
         tool_calls = [entry for entry in extracted if isinstance(entry, ToolCall)]
         if not tool_calls:
             log.debug("[%s] the latest assistant message carries no tool calls", get_request_id())
-        return await self.are_tool_calls_safe(
-            tool_calls, llm_params, enabled=enabled, model_type=None, tool_policy_only=tool_policy_only
-        )
+        return await self.are_tool_calls_safe(tool_calls, llm_params, enabled=enabled, model_type=None)
 
     async def _blocked_with_every_call_violation(
         self,
@@ -705,7 +689,6 @@ class RailsManager:
         llm_params: Optional[dict],
         *,
         enabled: Union[bool, list[str]],
-        tool_policy_only: bool,
     ) -> RailResult:
         """Block a turn with unparsable calls, still validating the calls that parsed so they are reported too."""
         failures = [entry for entry in extracted if isinstance(entry, ToolCallExtractionError)]
@@ -720,11 +703,7 @@ class RailsManager:
         violations = [_extraction_violation(failure) for failure in failures]
         parsed = [(position, entry) for position, entry in enumerate(extracted) if isinstance(entry, ToolCall)]
         rails_result = await self.are_tool_calls_safe(
-            [call for _, call in parsed],
-            llm_params,
-            enabled=enabled,
-            model_type=None,
-            tool_policy_only=tool_policy_only,
+            [call for _, call in parsed], llm_params, enabled=enabled, model_type=None
         )
         positions = [position for position, _ in parsed]
         violations.extend(_at_call_position(violation, positions) for violation in rails_result.tool_violations)
@@ -921,9 +900,7 @@ class RailsManager:
                 )
             return result
 
-    async def _run_tool_call_rail(
-        self, flow: str, tool_calls: list[ToolCall], toolset: Optional[Toolset]
-    ) -> RailResult:
+    async def _run_tool_call_rail(self, flow: str, tool_calls: list[ToolCall], toolset: Toolset) -> RailResult:
         """Dispatch a single tool-call rail to its action, wrapped in an OUTPUT rail span."""
         with rail_span(self._tracer, flow, RailDirection.OUTPUT) as span:
             result = _tool_rail_result(await self._tool_call_actions[flow].run(toolset, tool_calls), flow)

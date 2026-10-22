@@ -34,7 +34,7 @@ from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError
 from nemoguardrails.llm.clients._errors import client_facing_message
-from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_model
+from nemoguardrails.rails.llm.config import Model, RailsConfig, _get_flow_model
 from nemoguardrails.rails.llm.options import RailType
 from nemoguardrails.server.exception_handlers import (
     _error_response,
@@ -44,7 +44,13 @@ from nemoguardrails.server.exception_handlers import (
     validation_error_handler,
 )
 from nemoguardrails.server.hooks.adapters import ADAPTERS, HookAdapter, HookAgent, UnsupportedHookEventError
-from nemoguardrails.server.hooks.checking import HookOutcome, ToolInvocation, check_messages, outcome_from_result
+from nemoguardrails.server.hooks.checking import (
+    HookOutcome,
+    ToolInvocation,
+    check_messages,
+    check_tools,
+    outcome_from_result,
+)
 from nemoguardrails.server.hooks.schemas import HookErrorCode
 from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
 
@@ -60,19 +66,40 @@ class HooksConfigError(ConfigurationError):
 
 
 def check_hooks_config(config: RailsConfig) -> None:
-    """Raise `HooksConfigError` unless *config* has tool-call rails and IORails can run it."""
+    """Raise `HooksConfigError` unless *config* has tool-call rails, IORails can run it, and a rail uses any `main`."""
     reason = IORails.unconfigured_rail_type_reason(config, RailType.TOOL_CALL)
     if reason is not None:
         raise HooksConfigError(f"The hooks server needs tool-call rails. {reason}")
     reason = IORails.unsupported_reason(config)
     if reason is not None:
         raise HooksConfigError(f"The hooks server runs on IORails, which can't serve this config: {reason}")
+    _check_main_model(config)
+
+
+def _check_main_model(config: RailsConfig) -> None:
+    """Raise unless a tool-call rail uses any `main` model, and tool lists replace the tools it declares."""
+    main = _main_model(config)
+    if main is None:
+        return
+    if not _tool_call_rails_use_model(config, "main"):
+        raise HooksConfigError(
+            "The config has a `main` model, which the hooks server doesn't use: it checks tool calls and never "
+            "generates a response, and no tool-call rail names `$model=main`. Remove the `main` model, or give the "
+            "hooks server a config of its own."
+        )
+    # Refused rather than warned about: a config that declared its allowlist on `main` would allow every tool here.
+    if main.parameters.get("tools") and not config.rails.tool_call.sets_tool_lists:
+        raise HooksConfigError(
+            "The `main` model declares tools in parameters.tools, which the hooks server ignores, and "
+            "rails.tool_call sets no tool lists, so every tool call would be allowed. List the tools in "
+            "rails.tool_call.allowed_tools with allow_unlisted_tools: false, or remove parameters.tools."
+        )
 
 
 def create_hooks_app(config: RailsConfig) -> FastAPI:
     """Build the hooks server for *config*, with its own engine; raises `HooksConfigError` if it can't serve hooks."""
     check_hooks_config(config)
-    _warn_about_the_main_model(config)
+    _warn_about_ignored_main_model_tools(config)
     # IORails reports usage when it is built, so the deployment type is claimed before that.
     set_deployment_type(DeploymentTypeEnum.API.value)
     engine = _build_engine(config)
@@ -106,21 +133,19 @@ def _build_engine(config: RailsConfig) -> Guardrails:
     return engine
 
 
-def _warn_about_the_main_model(config: RailsConfig) -> None:
-    """Warn that the hooks server generates no response with a `main` model, and ignores the tools it declares."""
-    main = next((model for model in config.models if model.type == "main"), None)
-    if main is None:
-        return
-    if not _tool_call_rails_use_model(config, "main"):
-        log.warning(
-            "The config has a `main` model, which the hooks server doesn't use: it checks tool calls and never "
-            "generates a response, and no tool-call rail names `$model=main`."
-        )
-    if main.parameters.get("tools"):
+def _warn_about_ignored_main_model_tools(config: RailsConfig) -> None:
+    """Warn that the hooks server ignores the tools a `main` model declares, since the tool lists replace them."""
+    main = _main_model(config)
+    if main is not None and main.parameters.get("tools"):
         log.warning(
             "The `main` model declares tools in parameters.tools, which the hooks server ignores: it checks each "
             "tool call against rails.tool_call.allowed_tools, blocked_tools and allow_unlisted_tools only."
         )
+
+
+def _main_model(config: RailsConfig) -> Optional[Model]:
+    """*config*'s `main` model, or None without one."""
+    return next((model for model in config.models if model.type == "main"), None)
 
 
 def _tool_call_rails_use_model(config: RailsConfig, model_type: str) -> bool:
@@ -218,8 +243,9 @@ def _parse_hook(adapter: HookAdapter, body: object) -> ToolInvocation:
 async def _check_tool_call(engine: Guardrails, adapter: HookAdapter, call: ToolInvocation) -> HookOutcome:
     """Run the config's tool-call rails on the hook's call, and log the verdict."""
     try:
-        # An agent offers no tools to a model here, so only the config's tool lists decide which tools a call may use.
-        result = await engine.check_async(check_messages(call), rail_types=[RailType.TOOL_CALL], tool_policy_only=True)
+        result = await engine.check_async(
+            check_messages(call), rail_types=[RailType.TOOL_CALL], tools=check_tools(call, engine.config)
+        )
     except _MODEL_CALL_ERRORS as exc:
         outcome = HookOutcome.error(f"a tool-call rail failed: {client_facing_message(exc)}", HookErrorCode.RAIL_FAILED)
         _log_check(adapter, call, outcome, rail=None)

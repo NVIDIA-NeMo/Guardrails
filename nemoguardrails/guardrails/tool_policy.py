@@ -23,7 +23,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from nemoguardrails.guardrails.guardrails_types import quoted_identity
-from nemoguardrails.guardrails.tool_schema import ArgumentsViolation, Tool, Toolset, _json_pointer
+from nemoguardrails.guardrails.tool_schema import ArgumentsViolation, _json_pointer
 from nemoguardrails.rails.llm.options import ToolViolationType
 
 if TYPE_CHECKING:
@@ -62,11 +62,6 @@ class ToolPolicy:
             allow_unlisted=tool_call.allow_unlisted_tools,
         )
 
-    @property
-    def is_set(self) -> bool:
-        """Whether any of the three settings differs from its default, so the policy can deny a call."""
-        return bool(self.allowed) or bool(self.blocked) or not self.allow_unlisted
-
     def blocked_by_name(self, name: str) -> bool:
         """Whether `blocked_tools` names *name* bare, which blocks every call to it."""
         return name in self.blocked and self.blocked[name] is None
@@ -86,12 +81,6 @@ class ToolPolicy:
             for argument in argument_names
             if argument in blocked or (allowed is not None and argument not in allowed)
         ]
-
-    def decides_alone(self, offered: Optional[Toolset]) -> bool:
-        """Whether the policy alone decides a call: no tools can be offered (None), or none were and the policy is set."""
-        if offered is None:
-            return True
-        return self.is_set and not offered.tools
 
     def decide(self, name: str, arguments: Mapping[str, Any]) -> Optional[ArgumentsViolation]:
         """Why the lists deny a call to *name* with *arguments*, or None when they let it through."""
@@ -126,19 +115,4 @@ class ToolPolicy:
             violation_type=ToolViolationType.ARGUMENT_NOT_ALLOWED,
             reason=f"tool call '{quoted_identity(name)}' passes {len(unlisted)} {noun} its allowed_tools entry "
             "doesn't list",
-        )
-
-    def definition_for(self, name: str) -> Tool:
-        """The declaration a per-tool rail checks a call to *name* against when the request offered no tools."""
-        arguments = self.allowed.get(name)
-        if arguments is None:
-            # A bare or unlisted name allows any arguments, which a schema with no properties would refuse.
-            return Tool(name=name, arguments_schema={"type": "object", "additionalProperties": True})
-        return Tool(
-            name=name,
-            arguments_schema={
-                "type": "object",
-                "properties": {argument: {} for argument in arguments},
-                "additionalProperties": False,
-            },
         )

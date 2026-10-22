@@ -252,7 +252,7 @@ class TestGuardrailsRouting:
     async def test_check_delegates_to_iorails(
         self, mock_iorails_init, mock_start, mock_stop, _content_safety_rails_config
     ):
-        """check / check_async delegate to the IORails engine, forwarding rail_types, tools and tool_policy_only."""
+        """check / check_async delegate to the IORails engine, forwarding rail_types and tools."""
         async with Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True) as guardrails:
             assert isinstance(guardrails.rails_engine, IORails)
 
@@ -265,14 +265,12 @@ class TestGuardrailsRouting:
             result = await guardrails.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=_TOOLS)
             assert result is expected
             guardrails.rails_engine.check_async.assert_awaited_once_with(
-                messages, rail_types=[RailType.TOOL_CALL], tools=_TOOLS, tool_policy_only=False
+                messages, rail_types=[RailType.TOOL_CALL], tools=_TOOLS
             )
 
-            sync_result = guardrails.check(messages, rail_types=[RailType.TOOL_CALL], tool_policy_only=True)
+            sync_result = guardrails.check(messages)
             assert sync_result is expected
-            guardrails.rails_engine.check.assert_called_once_with(
-                messages, rail_types=[RailType.TOOL_CALL], tools=None, tool_policy_only=True
-            )
+            guardrails.rails_engine.check.assert_called_once_with(messages, rail_types=None, tools=None)
 
     @pytest.mark.asyncio
     @patch.object(LLMRails, "__init__", return_value=None)
@@ -1585,9 +1583,7 @@ class TestLLMRailsOnlyMethods:
         messages = [{"role": "user", "content": "hi"}]
         result = guardrails.check(messages, rail_types=[RailType.INPUT])
 
-        mock_llmrails_instance.check.assert_called_once_with(
-            messages, rail_types=[RailType.INPUT], tools=None, tool_policy_only=False
-        )
+        mock_llmrails_instance.check.assert_called_once_with(messages, rail_types=[RailType.INPUT], tools=None)
         assert result is sentinel
 
     @pytest.mark.asyncio
@@ -1604,9 +1600,7 @@ class TestLLMRailsOnlyMethods:
         messages = [{"role": "user", "content": "hi"}]
         result = await guardrails.check_async(messages, rail_types=[RailType.OUTPUT])
 
-        mock_llmrails_instance.check_async.assert_called_once_with(
-            messages, rail_types=[RailType.OUTPUT], tools=None, tool_policy_only=False
-        )
+        mock_llmrails_instance.check_async.assert_called_once_with(messages, rail_types=[RailType.OUTPUT], tools=None)
         assert result is sentinel
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -2384,18 +2378,6 @@ class TestCheckToolRailsOnLLMRails:
                 [{"role": "user", "content": "hi"}],
                 rail_types=[RailType.TOOL_CALL, RailType.TOOL_RESULT],
                 tools=tools,
-            )
-
-    @check_entry_points
-    def test_tool_policy_only_raises_not_supported(self, llmrails_guardrails, entry_point):
-        """``tool_policy_only`` raises ``RailTypeNotSupportedError`` from either entry point."""
-        with pytest.raises(RailTypeNotSupportedError, match="does not take tool_policy_only"):
-            run_check(
-                llmrails_guardrails,
-                entry_point,
-                [{"role": "user", "content": "hi"}],
-                rail_types=[RailType.TOOL_CALL],
-                tool_policy_only=True,
             )
 
     @check_entry_points
