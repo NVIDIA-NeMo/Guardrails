@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Agent Middleware"
 sidebar-title: "Agent Middleware"
-description: "Add guardrails to LangChain agents using the GuardrailsMiddleware for automatic input and output safety checks on every model call."
-keywords: ["GuardrailsMiddleware", "AgentMiddleware", "create_agent", "before_model", "after_model", "input rails", "output rails"]
+description: "Add guardrails to LangChain agents using the GuardrailsMiddleware for input and output safety checks on every model call and tool rails on every tool call and tool result."
+keywords: ["GuardrailsMiddleware", "AgentMiddleware", "create_agent", "before_model", "after_model", "wrap_tool_call", "input rails", "output rails", "tool rails"]
 content:
   type: "how_to"
 ---
@@ -22,14 +22,17 @@ User Input
   → before_model (input rails)     ← fires every iteration
   → MODEL CALL
   → after_model (output rails)     ← fires every iteration
-  → Has tool_calls? YES → execute tools → back to before_model
+  → Has tool_calls? YES → for each tool call:
+        wrap_tool_call (tool call rails) → execute tool → (tool result rails)
+     → back to before_model
   → Has tool_calls? NO  → END
 ```
 
-`GuardrailsMiddleware` hooks into `before_model` and `after_model` to apply NeMo Guardrails at each step. This means:
+`GuardrailsMiddleware` hooks into `before_model` and `after_model` to apply NeMo Guardrails at each step, and into `wrap_tool_call` when the config has tool rails. This means:
 
 - **Input rails** run before every model call, not just the first.
 - **Output rails** run after every model response, including intermediate tool-calling responses.
+- **Tool call rails** run before each tool executes, and **tool result rails** run on each tool result before the model sees it. Refer to [Tool Rails](#tool-rails).
 - If input rails block, the middleware skips the model call (`jump_to: "end"`).
 - If output rails block, the middleware replaces the AIMessage with a policy message (no `tool_calls`), terminating the loop naturally.
 
@@ -40,8 +43,10 @@ User Input
 Install the required dependencies:
 
 ```bash
-pip install nemoguardrails langchain langchain-openai langgraph
+pip install nemoguardrails "langchain>=1.0" langchain-openai langgraph
 ```
+
+The middleware requires LangChain 1.0 or later.
 
 Set up your environment:
 
@@ -96,6 +101,9 @@ The `GuardrailsMiddleware` constructor accepts the following parameters.
 | `blocked_output_message` | `str` | `"I cannot provide this response due to content policy."` | Message returned when output is blocked. |
 | `enable_input_rails` | `bool` | `True` | Enable input rail checks in `before_model`. |
 | `enable_output_rails` | `bool` | `True` | Enable output rail checks in `after_model`. |
+| `enable_tool_rails` | `bool` | `True` | Run the config's tool call and tool result rails in `wrap_tool_call` and `awrap_tool_call`. Has no effect when the config has no tool rails. |
+| `blocked_tool_call_message` | `str` | `"Tool call blocked due to content policy. The tool was not executed; do not retry this call."` | Content of the tool message returned in place of a blocked tool call. |
+| `blocked_tool_result_message` | `str` | `"Tool result withheld due to content policy."` | Content that replaces a blocked tool result. |
 
 ### Guardrails Configuration
 
@@ -151,6 +159,98 @@ prompts:
 ```
 
 For the full NeMo Guardrails configuration reference, see the [Configuration Guide](/configure-guardrails/yaml-schema).
+
+---
+
+## Tool Rails
+
+When the config has tool rails, `GuardrailsMiddleware` checks every tool call before the tool runs and every tool result before the model sees it.
+Tool call rails are the `rails.tool_call` section and tool result rails are the `rails.tool_result` section, including `per_tool` rails.
+For the available rails, refer to [Tool Calling Rails](/configure-guardrails/guardrail-catalog/tool-calling).
+
+<Warning>
+    Tool rails are on by default (`enable_tool_rails=True`). A config that already has `rails.tool_call` or `rails.tool_result` sections, which earlier versions of the middleware ignored, now runs them in the middleware.
+    If those sections hold custom Colang flows written for `LLMRails`, or the config's `main` model cannot serve tool rails, the constructor raises `ValueError` instead of running the agent without them.
+    Pass `enable_tool_rails=False` to keep the earlier behavior.
+</Warning>
+
+### Configure Tool Rails
+
+The following `config.yml` blocks a `run_sql` call whose arguments drop a table and withholds a `fetch_page` result that carries a prompt injection.
+Tools without a `per_tool` entry are not checked.
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o
+
+rails:
+  tool_call:
+    per_tool:
+      run_sql: [regex check tool call]
+  tool_result:
+    per_tool:
+      fetch_page: [regex check tool result]
+  config:
+    regex_detection:
+      tool_call:
+        run_sql:
+          patterns: ["(?i)drop\\s+table"]
+      tool_result:
+        fetch_page:
+          patterns: ["(?i)ignore (all )?previous instructions"]
+```
+
+### How the Middleware Runs Tool Rails
+
+- Tool rails run on the IORails engine. The middleware builds it from the `models`, `rails.config`, `rails.tool_call` and `rails.tool_result` sections of your config, while input and output rails keep running on `LLMRails`. Configs whose input or output rails use custom Colang flows or Colang 2.x can still use tool rails.
+- The config needs a `main` model with the `openai` or `nim` engine, or a `parameters.base_url`. IORails uses it only to read tool calls in the OpenAI Chat Completions format; tool rails never call it. Your agent can use any LangChain chat model.
+- Other models that IORails cannot build, such as a `FastEmbed` embeddings model, are left out of the tool rails engine.
+- The constructor raises `ValueError` when the config has no `main` model, its `main` model uses another engine without a `base_url`, or IORails cannot serve the tool rails. Pass `enable_tool_rails=False` to run the middleware without tool rails.
+- Prompts, tracing, and the other top-level settings of your config also apply to the tool rails engine, so LLM-judged tool rails such as `tool safety check tool result` find their prompts.
+- The tool call check sends the call with the tool's schema, so `tool call validation` and per-tool schema checks see the agent's real tool definition. The tool result check sends only that call and its result, not the conversation history.
+
+### Blocked Tool Calls and Results
+
+- A blocked tool call is not executed. The tool receives no call, and the model receives a tool message with `blocked_tool_call_message` and `status="error"`.
+- A blocked tool result keeps its `tool_call_id`, `name` and `id`. Its content becomes `blocked_tool_result_message`, its `status` becomes `"error"`, and its `artifact` is dropped. The tool already ran, so blocking a result does not undo its side effects; use a tool call rail for that.
+- The model never sees the rail's reason, which the middleware logs at `WARNING`.
+- With `raise_on_violation=True`, the middleware raises `GuardrailViolation` with `rail_type` set to `"tool_call"` or `"tool_result"` instead.
+- If a check fails with an error, the middleware blocks the call or result in the same way.
+- Only a passing check lets a call or result through. A rail that rewrites a tool call or result (a `MODIFIED` result) blocks it, because the middleware does not apply rewrites to tool payloads.
+- Each tool call in a parallel batch is checked independently, so a blocked call does not block the others.
+
+### Tools That Return Commands
+
+A tool can return a `ToolMessage`, a `Command` that carries messages, or a list of `Command` and `ToolMessage` objects.
+The middleware checks every message the tool adds to the conversation:
+
+- The tool message that answers the call is checked by the tool result rails. When it is blocked, only its content changes and the return keeps its shape. A tool message the tool returned as a dict comes back as a `ToolMessage`.
+- A message the tool re-emits from the conversation history passes only if it is unchanged, and the middleware emits the original message from the agent state in its place. Handoff tools that copy the conversation forward keep working.
+- A `RemoveMessage` passes.
+- Any other message, such as a new `AIMessage` or a new tool message for another call, cannot be checked. The middleware then replaces the whole return with one blocked tool message, which drops the `Command`'s state update and `goto`.
+
+The middleware finds these messages in a list `update`, and under the `messages` key, or the state key that holds the conversation such as a `ToolNode`'s custom `messages_key`, in a dict `update` and in the arguments of the `Send` objects in `goto`.
+A `Send` whose argument is neither a dict nor a list, such as a state object, cannot be checked and is blocked in the same way.
+The middleware does not check other `update` or `Send` argument keys, or other `Command` fields.
+
+### Event Loops and Sync Calls
+
+- Prefer `ainvoke` and `astream`. The middleware runs async tool checks on one IORails engine per running event loop and drops engines whose loop has closed.
+- Call `await guardrails.aclose()` before an event loop closes, for example at the end of the coroutine you pass to `asyncio.run`, to release that loop's engine.
+- Sync calls such as `invoke` run each check on a short-lived engine.
+
+### Disable Tool Rails
+
+Set `enable_tool_rails=False` to skip tool checks for a config that has tool rails.
+LangChain decides whether to add a tool node from the middleware class, not the instance, so an agent that uses `GuardrailsMiddleware` always gets a `ToolNode` and skips its check for unknown dynamically registered tools, even with tool rails off.
+To avoid that, use `InputRailsMiddleware` or `OutputRailsMiddleware`, which do not hook tool calls.
+
+### Middleware Order
+
+LangChain runs the first middleware in the list as the outermost tool wrapper.
+List `GuardrailsMiddleware` after any middleware that changes tool requests in `wrap_tool_call`, so the rails check the arguments that actually run.
 
 ---
 
@@ -290,13 +390,15 @@ Be aware of the following constraints when using `GuardrailsMiddleware` with too
 
 ### Security Considerations for Tool-Calling Agents
 
-Rails evaluate the `content` field of messages only. This has two implications for tool-calling agents:
+Input and output rails evaluate the `content` field of messages only. Without tool rails, this has two implications for tool-calling agents:
 
 **Tool call arguments are not inspected.** When the LLM generates a tool call, the arguments (e.g., `send_email(body="SSN: 123-45-6789")`) are in the `tool_calls` field, not `content`. Input and output rails do not see or validate these arguments.
 
 **Tool results bypass input rails.** When a tool returns its result as a `ToolMessage`, that message is not subject to input rail validation. Malicious or unexpected tool outputs can influence subsequent model responses without being checked.
 
-To mitigate these risks, enable output rails to validate the final LLM response before it reaches the user. This ensures that even if unsafe content enters through tool calls or tool results, the model's response is still checked. However, note that intermediate tool-calling responses often have **empty content** (the instructions are in the `tool_calls` field), and some LLM-based output rails (such as `self_check_output`) may flag empty content as a false positive. If you encounter this, you can disable output rails as a workaround — but be aware this also removes the safety net for tool result content:
+Configure [tool rails](#tool-rails) to check tool call arguments and tool results. Tool rails do not cover provider-executed tools, which the model provider runs without a tool call reaching the agent, and they block rather than apply tool rewrites.
+
+Also enable output rails to validate the final LLM response before it reaches the user. This ensures that even if unsafe content enters through tool calls or tool results, the model's response is still checked. However, note that intermediate tool-calling responses often have **empty content** (the instructions are in the `tool_calls` field), and some LLM-based output rails (such as `self_check_output`) may flag empty content as a false positive. If you encounter this, you can disable output rails as a workaround — but be aware this also removes the safety net for tool result content:
 
 ```python
 guardrails = GuardrailsMiddleware(
@@ -319,15 +421,17 @@ Summary of the middleware classes and exception type.
 
 ### GuardrailsMiddleware
 
-The main middleware class. Implements both async (`abefore_model`, `aafter_model`) and sync (`before_model`, `after_model`) hooks.
+The main middleware class. Implements both async (`abefore_model`, `aafter_model`, `awrap_tool_call`) and sync (`before_model`, `after_model`, `wrap_tool_call`) hooks. The tool hooks call the tool unchanged when the config has no tool rails or `enable_tool_rails=False`.
+
+`aclose()` is a coroutine that shuts down the tool rails engine of the running event loop.
 
 ### InputRailsMiddleware
 
-Convenience subclass that only runs input rails. The `aafter_model` hook is a no-op.
+Convenience subclass that only runs input rails. The `aafter_model` hook is a no-op, and it does not hook tool calls.
 
 ### OutputRailsMiddleware
 
-Convenience subclass that only runs output rails. The `abefore_model` hook is a no-op.
+Convenience subclass that only runs output rails. The `abefore_model` hook is a no-op, and it does not hook tool calls.
 
 ### GuardrailViolation
 
@@ -335,8 +439,8 @@ Exception raised when `raise_on_violation=True` and a rail blocks.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `result` | `RailsResult` | The full result from `check_async`, including status and rail name. |
-| `rail_type` | `str` | Either `"input"` or `"output"`. |
+| `result` | `RailsResult` | The full result from `check_async`, including status and rail name. `None` when the rail failed to run, or when a tool returned messages the tool result rails cannot check. |
+| `rail_type` | `str` | `"input"`, `"output"`, `"tool_call"` or `"tool_result"`. |
 
 ---
 
@@ -349,6 +453,7 @@ Choose between the two integration approaches based on your architecture.
 | Integration point | Agent loop hooks (`before_model`/`after_model`) | Chain composition (LCEL `\|` operator) |
 | Tool-calling agents | Native support via `create_agent` | Requires manual graph construction |
 | Per-iteration checks | Automatic on every model call | Manual — only wraps the specific node |
+| Tool call and tool result rails | Every tool call and result, when the config has tool rails | Not supported |
 | Blocking mechanism | `jump_to: "end"` (input) / message replacement (output) | Returns blocked content |
 | Streaming | Not supported | Supported |
 | LangGraph compatibility | Via `create_agent` | Via LCEL composition in graph nodes |

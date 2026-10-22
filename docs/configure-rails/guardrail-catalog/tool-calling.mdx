@@ -409,6 +409,7 @@ response = await rails.generate_async(
 ## Check Tool Calls and Results Without Generation
 
 An agent harness that calls its own model can use the same rails to validate tool traffic without IORails generating a response.
+For LangChain agents built with `create_agent`, `GuardrailsMiddleware` runs these checks on every tool call and tool result for you; refer to [Agent Middleware: Tool Rails](/integration-with-third-party-libraries/langchain/agent-middleware#tool-rails).
 Run a check with `RailType.TOOL_CALL` on the conversation that ends in the model's tool calls, and with `RailType.TOOL_RESULT` after appending the tool results:
 
 ```python
