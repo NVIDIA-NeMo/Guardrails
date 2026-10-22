@@ -60,8 +60,11 @@ from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.context import (
     explain_info_var,
     generation_options_var,
+    get_conversation_id,
     llm_stats_var,
+    new_roundtrip_id,
     raw_llm_request,
+    stream_with_request_ids,
     streaming_handler_var,
 )
 from nemoguardrails.embeddings.index import EmbeddingsIndex
@@ -996,6 +999,25 @@ class LLMRails(BaseGuardrails):
             The completion (when a prompt is provided) or the next message.
 
         System messages are not yet supported."""
+        # One call covers the request and the response leg of one model call, so the round trip
+        # is the call. A caller that has already opened one keeps its ID.
+        with new_roundtrip_id():
+            return await self._generate_async(
+                prompt=prompt,
+                messages=messages,
+                options=options,
+                state=state,
+                streaming_handler=streaming_handler,
+            )
+
+    async def _generate_async(
+        self,
+        prompt: Optional[str] = None,
+        messages: Optional[List[dict]] = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        state: Optional[Union[dict, State]] = None,
+        streaming_handler: Optional[StreamingHandler] = None,
+    ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         # convert options to gen_options of type GenerationOptions
         gen_options: Optional[GenerationOptions] = None
 
@@ -1497,7 +1519,11 @@ class LLMRails(BaseGuardrails):
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)
 
-        task = asyncio.create_task(_generation_task())
+        # The generation runs in its own task and the chunks are pulled by whoever consumes the
+        # returned iterator, so the two ends of one model call only share a round trip if the ID
+        # is minted here and restored on both sides.
+        with new_roundtrip_id() as roundtrip:
+            task = asyncio.create_task(_generation_task())
 
         # Store task reference to prevent garbage collection and ensure proper cleanup
         if not hasattr(self, "_active_tasks"):
@@ -1523,9 +1549,17 @@ class LLMRails(BaseGuardrails):
         else:
             base_iterator = streaming_handler
 
+        # The IDs of the request are captured here rather than held across the yields below,
+        # which resume in the context of whoever pulls the chunk.
+        chunks = stream_with_request_ids(
+            base_iterator,
+            conversation=get_conversation_id(),
+            roundtrip=roundtrip,
+        )
+
         async def wrapped_iterator():
             try:
-                async for chunk in base_iterator:
+                async for chunk in chunks:
                     if chunk is not None:
                         yield chunk
             except BaseException:

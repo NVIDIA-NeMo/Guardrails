@@ -357,6 +357,29 @@ The server sets the ID from the `thread_id` of a [chat completion request](/run-
 A rail that reports checks to an external service can send the ID so that the service groups the checks of one conversation; the rail's catalog page describes whether it does.
 For how a custom action reads the ID, refer to [Action Parameters: Reading the Conversation ID](/configure-guardrails/actions/action-parameters#reading-the-conversation-id).
 
+### Setting a Round-Trip ID
+
+A round trip is one model call: the request leg that checks what goes to the model and the response leg that checks what comes back.
+Both legs report under the same round-trip ID, which lets a rail that reports to an external service pair them.
+`generate_async()`, `stream_async()`, and `check_async()` open a round trip and mint an ID for it, so a caller that runs a whole model call through one of them has nothing to set.
+
+Set the ID yourself with `roundtrip_id()` from `nemoguardrails.context` when the application knows where a model call starts and ends and NeMo Guardrails cannot:
+an agent framework runs the checks of one call as separate `check_async()` calls, each of which would otherwise open a round trip of its own.
+
+```python
+from nemoguardrails.context import roundtrip_id
+from nemoguardrails.rails.llm.options import RailType
+
+with roundtrip_id(call_id):
+    checked = await rails.check_async(messages, rail_types=[RailType.INPUT])
+    # ... call the model ...
+    await rails.check_async(messages + [response], rail_types=[RailType.OUTPUT])
+```
+
+An ID you set is never overwritten, and the previous one is restored when the block exits.
+NeMo Guardrails does not interpret the ID; a rail that requires a particular format converts it.
+An action reads the ID with `get_roundtrip_id()`.
+
 ### Checking on the IORails Engine
 
 Construct the `Guardrails` facade to run checks on the IORails engine.
