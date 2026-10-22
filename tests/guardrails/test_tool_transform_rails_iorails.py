@@ -314,9 +314,9 @@ class TestTheRequestSpanRecordsTheMask:
         assert _captured_input(span_exporter)[-1]["content"] == MASKED_RESULT
 
 
-def failing_mask() -> StubRail:
+def failing_mask(target: TransformTarget = TransformTarget.TOOL_RESULT) -> StubRail:
     """A masking rail whose provider is down, which ``CompiledRail`` turns into a fail-closed block."""
-    return StubRail(RailOutcome.failure(reason="the masking provider is down"), TransformTarget.TOOL_RESULT)
+    return StubRail(RailOutcome.failure(reason="the masking provider is down"), target)
 
 
 @pytest.mark.asyncio
@@ -497,3 +497,66 @@ class TestStreamReturnsTheRewrittenCall:
 
         assert [v["error"]["param"] for v in _stream_violation_chunks(chunks)] == ["tool_call_rails"]
         assert _terminal_tool_calls(chunks) == []
+
+
+def assistant_weather_call(arguments: dict) -> list[dict]:
+    """A user question answered by an assistant turn that calls ``get_weather`` with *arguments*."""
+    return WEATHER_QUESTION + [{"role": "assistant", "content": None, "tool_calls": [wire_weather_call(arguments)]}]
+
+
+@pytest.mark.asyncio
+class TestTheRequestSpanWithholdsACallTheMaskNeverReached:
+    """A configured call mask that never decided leaves the arguments off the span rather than recording them."""
+
+    async def test_a_stream_with_the_tool_call_rails_turned_off_withholds_the_output(self, span_exporter):
+        """The options turned the mask off, so the terminal chunk carries the raw arguments and the span records none."""
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_call_transform_config(output=False, capture=True), span_exporter
+        ) as engine:
+            _inject_sse_stream(engine, _tool_call_sse_lines("get_weather", [json.dumps(RAW_ARGUMENTS)]))
+
+            chunks = await _drain(
+                engine.stream_async(messages=WEATHER_QUESTION, options={"rails": {"tool_call": False}})
+            )
+
+        assert _terminal_tool_calls(chunks) == [wire_weather_call(RAW_ARGUMENTS)]
+        assert _has_captured_output(span_exporter) is False
+
+    async def test_a_check_that_leaves_tool_calls_out_withholds_the_conversation(self, span_exporter):
+        """``rail_types`` ran the input rails alone, so no mask decided on the call the conversation carries."""
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_call_transform_config(capture=True), span_exporter
+        ) as engine:
+            await engine.check_async(assistant_weather_call(RAW_ARGUMENTS), rail_types=[RailType.INPUT])
+
+        assert _has_captured_input(span_exporter) is False
+
+    async def test_a_failed_call_mask_withholds_the_checked_conversation(self, span_exporter):
+        """The mask raised, so the conversation still holds the raw arguments and the span records none of them."""
+        rails = ToolTransformRails(call_mask=failing_mask(TransformTarget.TOOL_CALL))
+        async with capturing_tool_transform_iorails(
+            rails, tool_call_transform_config(capture=True), span_exporter
+        ) as engine:
+            result = await engine.check_async(assistant_weather_call(RAW_ARGUMENTS), rail_types=[RailType.TOOL_CALL])
+
+        assert result.status.value == "blocked"
+        assert _has_captured_input(span_exporter) is False
+
+    async def test_a_call_the_extractor_cannot_parse_withholds_the_checked_conversation(self, span_exporter):
+        """No mask can decide on a call nobody could parse, and the conversation still holds every call as sent."""
+        messages = WEATHER_QUESTION + [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": "{not json"}}
+                ],
+            }
+        ]
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_call_transform_config(capture=True), span_exporter
+        ) as engine:
+            result = await engine.check_async(messages, rail_types=[RailType.TOOL_CALL])
+
+        assert result.status.value == "blocked"
+        assert _has_captured_input(span_exporter) is False

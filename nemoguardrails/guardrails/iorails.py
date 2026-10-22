@@ -709,12 +709,23 @@ class _TurnConversation:
 
 
 def _carries_text_to_mask(messages: LLMMessages, direction: _MaskedDirection) -> bool:
-    """Whether *messages* hold the text *direction*'s rails check: a user turn, a response, or a tool result."""
+    """Whether *messages* hold the text *direction*'s rails check: a turn, a response, or a tool payload."""
     if direction is RailDirection.INPUT:
         return current_user_turn_index(messages) is not None
     if direction is SurfaceDirection.TOOL_RESULT:
         return any(message.get("role") == "tool" for message in messages)
+    if direction is SurfaceDirection.TOOL_CALL:
+        # Only the latest assistant turn's calls are checked, as only the latest user turn is.
+        return bool(_latest_assistant_message(messages).get("tool_calls"))
     return bool(_get_last_content_by_role(messages, "assistant"))
+
+
+def _latest_assistant_message(messages: LLMMessages) -> dict:
+    """The last assistant message of *messages*, or an empty one when it holds none."""
+    for message in reversed(messages):
+        if message.get("role") == "assistant":
+            return message
+    return {}
 
 
 def _generation_input_for_capture(conversation: _TurnConversation) -> Optional[LLMMessages]:
@@ -1683,7 +1694,13 @@ class IORails(BaseGuardrails):
         conversation = _TurnConversation(
             messages=messages,
             masks_pending=self._masks_awaiting(
-                messages, (RailDirection.INPUT, RailDirection.OUTPUT, SurfaceDirection.TOOL_RESULT)
+                messages,
+                (
+                    RailDirection.INPUT,
+                    RailDirection.OUTPUT,
+                    SurfaceDirection.TOOL_RESULT,
+                    SurfaceDirection.TOOL_CALL,
+                ),
             ),
         )
         with traced_request(tracer) as (request_span, req_id):
@@ -1786,6 +1803,7 @@ class IORails(BaseGuardrails):
 
         if "tool_call" in rails_to_run:
             tool_call = await self._check_latest_tool_calls(messages, tools, req_id)
+            conversation.record_masks(SurfaceDirection.TOOL_CALL, pending=tool_call.rewrite_pending)
             if not tool_call.is_safe:
                 conversation.messages = _apply_tool_rewrites_before_block(messages, tool_call)
                 return _blocked_check_result(tool_call)
@@ -2198,6 +2216,10 @@ class IORails(BaseGuardrails):
                                                 delivered.append(violation)
                                             yield _frame_for_stream(violation, include_metadata)
                                         else:
+                                            if tool_call.rewrite_pending:
+                                                # The calls go out with a configured mask unrun, and the
+                                                # terminal chunk carrying them is recorded as delivered.
+                                                conversation.withhold(RailDirection.OUTPUT)
                                             # A new name: assigning accumulated_tool_calls here would make it local.
                                             final_tool_calls = (
                                                 list(tool_call.tool_calls)

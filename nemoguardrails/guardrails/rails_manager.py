@@ -717,8 +717,11 @@ class RailsManager:
         """
         if not tool_calls:
             return RailResult.allow()
+        # Every return ahead of the per-tool checks leaves each mask configured for a call this
+        # request carries unrun, so it says so and the request withholds the arguments from its record.
+        masks_unrun = bool(self._configured_call_masks(tool_calls))
         if not self._any_tool_call_rail_enabled(enabled):
-            return RailResult.allow()
+            return RailResult(RailOutcome.allow(), rewrite_pending=masks_unrun)
 
         active = self._enabled_flows(list(self._tool_call_actions), enabled)
         global_result = RailResult.allow()
@@ -731,21 +734,27 @@ class RailsManager:
                     kind="tool_call",
                     violation_type=ToolViolationType.INVALID_TOOLSET,
                     reason=_tool_parsing_failure_reason(e),
-                )
+                ),
+                rewrite_pending=masks_unrun,
             )
 
         if active:
             rails = {flow: self._run_tool_call_rail(flow, tool_calls, toolset) for flow in active}
             global_result = await self._run_tool_rails_sequential(rails, RailDirection.OUTPUT)
             if not global_result.is_safe:
-                return global_result
+                return replace(global_result, rewrite_pending=masks_unrun)
 
         checks: list[_PerToolCheck] = []
+        # Keyed as the checks are, so a mask the toggle dropped is still counted as owing a decision.
+        expected_masks: set[str] = set()
         for index, tool_call in enumerate(tool_calls):
             tool_name = tool_call.function.name or tool_call.type
             tool_definition = toolset.get(tool_name)
-            flows = self._enabled_flows(self.per_tool_call_flows.get(tool_name, []), enabled)
-            rewriting = tuple(f for f in flows if f in self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL])
+            configured = self.per_tool_call_flows.get(tool_name, [])
+            masking = self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL]
+            expected_masks.update(f"{index}:{flow}" for flow in configured if flow in masking)
+            flows = self._enabled_flows(configured, enabled)
+            rewriting = tuple(f for f in flows if f in masking)
             for flow in _transforms_first(rewriting, flows):
                 checks.append(
                     _PerToolCheck(
@@ -753,7 +762,7 @@ class RailsManager:
                     )
                 )
         if not checks:
-            return global_result
+            return replace(global_result, rewrite_pending=bool(expected_masks))
 
         if self.tool_call_parallel:
             rails = {
@@ -770,9 +779,11 @@ class RailsManager:
             per_tool_result = await self._run_rails_parallel(
                 rails, RailDirection.OUTPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
             )
+            # A configured mask turns the tool directions sequential, so there is none to wait on here.
             rewritten: dict[int, _ToolRewrite] = {}
+            decided: set[str] = set()
         else:
-            per_tool_result, rewritten, _ = await self._run_per_tool_rails_sequential(
+            per_tool_result, rewritten, decided = await self._run_per_tool_rails_sequential(
                 checks, SurfaceDirection.TOOL_CALL
             )
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
@@ -780,6 +791,7 @@ class RailsManager:
             verdict = RailResult.allow(records=combined_records)
         else:
             verdict = replace(per_tool_result, records=combined_records)
+        verdict = replace(verdict, rewrite_pending=bool(expected_masks - decided))
         return _with_rewritten_calls(verdict, tool_calls, rewritten, toolset)
 
     def _offered_tools(self, model_type: Optional[str], llm_params: Optional[dict]) -> Toolset:
@@ -802,7 +814,8 @@ class RailsManager:
         takes them from, whatever the ``main`` model is, so a check needs no model.
         """
         if not self._any_tool_call_rail_enabled(enabled):
-            return RailResult.allow()
+            masks = self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL]
+            return RailResult(RailOutcome.allow(), rewrite_pending=bool(masks))
         try:
             extracted = _latest_tool_calls_openai(messages)
         except ToolCallExtractionError as e:
@@ -844,9 +857,10 @@ class RailsManager:
         except ValueError as e:
             reason = _UNPLACEABLE_TOOL_REWRITE_REASON[SurfaceDirection.TOOL_CALL]
             log.error("[%s] %s: %s", get_request_id(), reason, e)
+            # The mask decided, but its text never reached the conversation, which still holds the call as sent.
             if not verdict.is_safe:
-                return verdict
-            return RailResult.block(reason=reason, records=verdict.records)
+                return replace(verdict, rewrite_pending=True)
+            return RailResult.block(reason=reason, records=verdict.records, rewrite_pending=True)
         if verdict.is_safe:
             return replace(verdict, messages=rewritten_messages)
         return replace(verdict, messages_before_block=rewritten_messages)
@@ -883,8 +897,12 @@ class RailsManager:
             outcome = RailOutcome.failure(reason=client_reason(rails_result))
         else:
             outcome = RailOutcome.block(reason=violations[0].reason)
+        # No mask can have decided on a call nobody could parse, so any configured one is still owed a decision.
+        masks_unrun = rails_result.rewrite_pending or bool(self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL])
         # No triggered_rail: the block is the manager's, as for any call it cannot parse.
-        blocked = RailResult(outcome, tool_violations=tuple(violations), records=rails_result.records)
+        blocked = RailResult(
+            outcome, tool_violations=tuple(violations), records=rails_result.records, rewrite_pending=masks_unrun
+        )
         rewrites = _rewritten_call_arguments(rails_result, [call for _, call in parsed], positions)
         return self._with_rewritten_latest_calls(blocked, rewrites, messages, None)
 
@@ -1066,6 +1084,12 @@ class RailsManager:
         """Every configured flow of *direction* free to rewrite its text, whether or not this request runs it."""
         configured = self.input_flows if direction is RailDirection.INPUT else self.output_flows
         return set(_rewriting_flows(self._rails, direction, configured))
+
+    def _configured_call_masks(self, tool_calls: Sequence[ToolCall]) -> set[str]:
+        """Every configured per-tool flow free to rewrite one of *tool_calls*, whether or not this request runs it."""
+        masking = self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL]
+        names = {tool_call.function.name or tool_call.type for tool_call in tool_calls}
+        return {flow for name in names for flow in self.per_tool_call_flows.get(name, []) if flow in masking}
 
     def _nothing_ran(self, direction: RailDirection) -> RailResult:
         """The verdict when a request runs none of *direction*'s rails: allowed, with any configured mask unrun."""
