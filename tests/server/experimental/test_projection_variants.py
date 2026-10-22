@@ -19,9 +19,13 @@ from dataclasses import replace
 from typing import Annotated, ClassVar, Literal
 
 import pytest
-from pydantic import ValidationError
+from pydantic import StrictBool, ValidationError
 
-from nemoguardrails.server.experimental.provider.payload import GuardedArraySelection, GuardedPayloadModel
+from nemoguardrails.server.experimental.provider.payload import (
+    GuardedArraySelection,
+    GuardedPayloadModel,
+    GuardedRequestModel,
+)
 from nemoguardrails.server.experimental.provider.projection_policy import (
     EXTENSION,
     ArrayVariant,
@@ -244,3 +248,106 @@ def test_unselected_variants_cannot_hide_text():
     for derive in (text_location, stream_text_path):
         with pytest.raises(ValueError, match="hide guarded"):
             derive(Invalid)
+
+
+@pytest.fixture(params=[(Literal[1], 1), (Literal[True], True), (Literal[False], False)])
+def scalar_variant_request(request):
+    annotation, expected = request.param
+
+    class ScalarMessage(PolicyModel):
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(
+            variant=ArrayVariant((("type", "message"), ("kind", expected), ("revision", 2)), "exactly_one")
+        )
+        type: Annotated[Literal["message"], constrained()]
+        kind: Annotated[annotation, constrained()]
+        revision: Annotated[Literal[2], constrained()]
+        text: Annotated[str, guarded("user", replaceable=False, min_length=1)]
+
+    class Request(PolicyModel, GuardedRequestModel):
+        output: Annotated[list[MetadataItem | ScalarMessage], guarded()]
+        stream: Annotated[StrictBool, constrained()] = False
+        stream_selector_field = "stream"
+
+    Request.guarded_text_location = text_location(Request)
+    Request.projection_contract = payload_contract(Request, projection_id="scalar.request", direction="request")
+    return Request, expected
+
+
+def test_scalar_variant_validation_preserves_original_target(scalar_variant_request):
+    model, expected = scalar_variant_request
+    item = {"type": "message", "kind": expected, "revision": 2, "text": "answer"}
+    document = {"output": [{"type": "metadata"}, item]}
+    projection = model.validate_payload(document)
+    target = projection.locate_guarded_message(document)
+    assert target.message.content == "answer"
+    item["text"] = "updated"
+    assert target.message.content == "updated"
+    assert type(item["kind"]) is type(expected)
+    assert model.model_validate(projection) is projection
+
+
+def test_scalar_variant_rejects_coercion_before_extraction(scalar_variant_request):
+    model, expected = scalar_variant_request
+    for value in (True, False, 0, 1, 0.0, 1.0, "1", "true", None):
+        if type(value) is type(expected) and value == expected:
+            continue
+        document = {"output": [{"type": "message", "kind": value, "revision": 2, "text": "answer"}]}
+        with pytest.raises(ValidationError):
+            model.validate_payload(document)
+
+
+@pytest.mark.parametrize("revision", [2.0, "2", True, None])
+def test_variant_checks_each_discriminator(scalar_variant_request, revision):
+    model, expected = scalar_variant_request
+    with pytest.raises(ValidationError):
+        model.validate_payload(
+            {"output": [{"type": "message", "kind": expected, "revision": revision, "text": "answer"}]}
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [True, 1.0])
+async def test_coerced_variant_request_returns_unsupported_shape(scalar_variant_request, value):
+    import httpx
+    from fastapi import FastAPI
+
+    from nemoguardrails.server.experimental._content_checker import ContentInspectionPolicy
+    from nemoguardrails.server.experimental._guarded_proxy import create_guarded_http_operation
+    from nemoguardrails.server.experimental._http_kernel import create_http_proxy_router
+    from nemoguardrails.server.experimental.providers.openai.errors import OPENAI_ERROR_MAPPING
+    from nemoguardrails.server.experimental.providers.openai.responses.endpoint import RESPONSES_ENDPOINT
+    from tests.server.experimental.checkers import StaticChecker
+
+    model, expected = scalar_variant_request
+    if type(value) is type(expected) and value == expected:
+        value = 1
+    endpoint = replace(RESPONSES_ENDPOINT, guarded_request_model=model)
+    inspector = StaticChecker(ContentInspectionPolicy(True, True))
+
+    async def dispatch(request):
+        raise AssertionError("Invalid discriminator must not reach the provider")
+
+    app = FastAPI()
+    app.include_router(
+        create_http_proxy_router(
+            operations=(
+                create_guarded_http_operation(
+                    endpoint,
+                    OPENAI_ERROR_MAPPING,
+                    max_stream_event_bytes=1024,
+                    max_pending_stream_bytes=1024,
+                ),
+            ),
+            checker=inspector,
+            dispatch=dispatch,
+            render_outcome=OPENAI_ERROR_MAPPING.renderer,
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+        response = await client.post(
+            "/v1/responses",
+            json={"output": [{"type": "message", "kind": value, "revision": 2, "text": "answer"}]},
+        )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "unsupported_responses_shape"
+    assert inspector.calls == []

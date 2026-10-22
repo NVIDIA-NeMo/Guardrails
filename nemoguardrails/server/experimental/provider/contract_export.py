@@ -74,7 +74,11 @@ def _validate_stream_model(model: type[PolicyModel]) -> None:
                 "function-wrap",
                 "function-plain",
             }:
-                if node["function"]["function"] is not PolicyModel.reject_unreviewed_fields:
+                function = node["function"]["function"]
+                if getattr(function, "__func__", function) not in {
+                    PolicyModel.reject_unreviewed_fields,
+                    PolicyModel.reject_coerced_variant_discriminators.__func__,
+                }:
                     raise ValueError("Custom stream validators cannot be represented by the contract")
             for name, child in node.items():
                 if isinstance(kind, str) and name in {"metadata", "default", "config", "function"}:
@@ -202,8 +206,12 @@ def _validate_stream_selector(model: type[GuardedRequestModel]) -> None:
     decorators = model.__pydantic_decorators__
     if any(selector in item.info.fields or "*" in item.info.fields for item in decorators.field_validators.values()):
         raise ValueError("Custom stream selector validators cannot be represented by the contract")
-    allowed = {PolicyModel.reject_unreviewed_fields, GuardedPayloadModel.validate_guarded_text_target}
-    if any(item.func not in allowed for item in decorators.model_validators.values()):
+    allowed = {
+        PolicyModel.reject_unreviewed_fields,
+        PolicyModel.reject_coerced_variant_discriminators.__func__,
+        GuardedPayloadModel.validate_guarded_text_target,
+    }
+    if any(getattr(item.func, "__func__", item.func) not in allowed for item in decorators.model_validators.values()):
         raise ValueError("Custom response-mode validation cannot be represented by the declared stream selector")
     if field.default_factory is not None:
         raise ValueError("A stream selector default factory cannot be represented by the contract")

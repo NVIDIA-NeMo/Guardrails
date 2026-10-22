@@ -90,6 +90,10 @@ Object `variant` metadata describes discriminator matching and selected-variant
 cardinality. This is distinct from ordinary array length constraints.
 Typed `ObjectPolicy.variant` declarations derive the runtime array selectors;
 required literal discriminators must distinguish the reviewed object branches.
+Runtime validation checks discriminator types before coercion so selection in
+the parsed model agrees with selection in the original payload. Integer `1`,
+boolean `true`, and floating-point `1.0` are not interchangeable selectors.
+Generic JSON Schema does not express this Python type strictness.
 For example, Responses can retain reasoning items while requiring exactly one
 assistant message. Generic JSON Schema validators ignore this guard annotation;
 they do not enforce selected-variant cardinality without policy-aware handling.

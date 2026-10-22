@@ -22,6 +22,7 @@ exported contract schemas.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from types import UnionType
 from typing import Annotated, Any, ClassVar, Literal, Union, cast, get_args, get_origin
@@ -193,6 +194,16 @@ class PolicyModel(BaseModel):
         node["properties"] = dict(sorted(properties.items()))
         node[EXTENSION] = metadata
         return node
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_coerced_variant_discriminators(cls, value: Any) -> Any:
+        """Keep parsed variant selection consistent with the original payload."""
+        if cls.policy.variant is not None and isinstance(value, Mapping):
+            for name, expected in cls.policy.variant.match:
+                if name in value and type(value[name]) is not type(expected):
+                    raise ValueError(f"Variant discriminator {name!r} requires its declared literal type")
+        return value
 
     @model_validator(mode="after")
     def reject_unreviewed_fields(self, info: ValidationInfo) -> Self:
