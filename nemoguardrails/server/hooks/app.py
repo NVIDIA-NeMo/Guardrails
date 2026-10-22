@@ -53,7 +53,7 @@ from nemoguardrails.server.hooks.checking import (
 )
 from nemoguardrails.server.hooks.schemas import HookErrorCode
 from nemoguardrails.server.hooks.tool_policy import ToolPolicy
-from nemoguardrails.server.metrics import MetricsExporterSettings, shutdown_metrics_exporter, start_metrics_exporter
+from nemoguardrails.server.metrics import MetricsExporterSettings, running_metrics_exporter
 from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
 
 log = logging.getLogger(__name__)
@@ -223,19 +223,17 @@ def _tool_call_rails_use_model(config: RailsConfig, model_type: str) -> bool:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Start the metrics exporter and the engine before the server accepts requests, and stop both on shutdown."""
+    """Start the metrics exporter and the engine before the server accepts requests, and stop them on shutdown."""
     engine: Guardrails = app.state.engine
-    # A no-op under the CLI, which has already started it; this starts it for an app served any other way.
-    if start_metrics_exporter(metrics_exporter_settings()) is not None:
-        _warn_if_the_config_records_no_metrics(engine.config)
-    try:
+    # Under the CLI this reuses the CLI's exporter, which the CLI stops; served any other way, the app owns it.
+    with running_metrics_exporter(metrics_exporter_settings()) as exporter:
+        if exporter is not None:
+            _warn_if_the_config_records_no_metrics(engine.config)
         await engine.startup()
         try:
             yield
         finally:
             await engine.shutdown()
-    finally:
-        shutdown_metrics_exporter()
 
 
 def _warn_if_the_config_records_no_metrics(config: RailsConfig) -> None:

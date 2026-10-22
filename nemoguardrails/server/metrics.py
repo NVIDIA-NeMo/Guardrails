@@ -33,7 +33,9 @@ per process and never lets it be replaced, so the provider is installed once
 and kept for the life of the process (the SDK shuts it down at interpreter
 exit).  ``start``/``shutdown`` only manage the HTTP listener, which is what
 lets an embedded application or a test client cycle the server lifespan
-repeatedly without losing metrics export.
+repeatedly without losing metrics export.  The listener is process-wide too,
+so a lifespan holds it through :func:`running_metrics_exporter`, which stops
+only a listener that lifespan started.
 
 All OpenTelemetry SDK and Prometheus imports are deferred into
 :func:`_require_otel_sdk` and the functions that use them, so importing this
@@ -43,9 +45,10 @@ module never requires the optional dependencies; they are pulled in by the
 
 import logging
 import os
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, List, Mapping, Optional
+from typing import TYPE_CHECKING, Iterator, List, Mapping, Optional
 
 if TYPE_CHECKING:  # pragma: no cover
     from opentelemetry.sdk.metrics import MeterProvider
@@ -360,3 +363,36 @@ def shutdown_metrics_exporter() -> None:
     exporter, _active_exporter = _active_exporter, None
     exporter.shutdown()
     log.info("Prometheus metrics endpoint stopped")
+
+
+@contextmanager
+def running_metrics_exporter(
+    settings: Optional[MetricsExporterSettings] = None,
+) -> Iterator[Optional[PrometheusMetricsExporter]]:
+    """Yield the running exporter, starting one from ``settings`` if none runs; on exit, stop only one it started."""
+    running_before = _active_exporter
+    _warn_if_another_exporter_is_running(running_before, settings)
+    exporter = start_metrics_exporter(settings)
+    # The CLI or another app in the process may own the listener, and still be serving its scrape endpoint.
+    started_here = exporter is not None and exporter is not running_before
+    try:
+        yield exporter
+    finally:
+        if started_here and _active_exporter is exporter:
+            shutdown_metrics_exporter()
+
+
+def _warn_if_another_exporter_is_running(
+    running: Optional[PrometheusMetricsExporter], settings: Optional[MetricsExporterSettings]
+) -> None:
+    """Warn that the running exporter is served in place of the one ``settings`` ask for, when they differ."""
+    if running is None or settings is None or not settings.enabled:
+        return
+    if settings != running.settings:
+        log.warning(
+            "A Prometheus metrics endpoint is already running on %s; serving it instead of %s:%s (service.name=%s).",
+            running.url,
+            settings.host,
+            settings.port,
+            settings.service_name,
+        )
