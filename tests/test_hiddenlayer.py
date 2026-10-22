@@ -914,6 +914,11 @@ class TestSessionId:
         assert await self._session_ids(self._config(), conversation) == [None] * 4
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("conversation", ["thread-42\r\nX-Injected: 1", "thread-42 "], ids=["crlf", "trailing"])
+    async def test_an_id_no_header_can_carry_is_dropped_so_the_checks_still_run(self, conversation):
+        assert await self._session_ids(self._config(), conversation) == [None] * 4
+
+    @pytest.mark.asyncio
     async def test_config_field_disables_it_even_when_the_environment_enables_it(self, monkeypatch):
         monkeypatch.setenv("HIDDENLAYER_SEND_SESSION_ID", "1")
         assert await self._session_ids(self._config("send_session_id: false")) == [None] * 4

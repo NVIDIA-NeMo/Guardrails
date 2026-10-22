@@ -25,6 +25,7 @@ conversation history reaches HiddenLayer through ``HL-Runtime-Session-Id``.
 
 import json
 import logging
+import re
 import uuid
 from typing import Any, Dict, Optional, Set, Union
 
@@ -48,6 +49,9 @@ _SURFACE_PATH: Dict[Surface, str] = {
 }
 
 MAX_SESSION_ID_BYTES = 2048
+
+# Everything a header value cannot carry: non-ASCII, control characters (NUL, CR, LF) and DEL.
+_UNSENDABLE_IN_HEADER = re.compile(r"[^\t\x20-\x7e]")
 
 # Generated once; changing it changes every roundtrip ID derived from a request ID.
 _ROUNDTRIP_NAMESPACE = uuid.UUID("19c5a9b4-eaa2-4f26-9ca7-ad76963cb8be")
@@ -201,17 +205,18 @@ def _roundtrip_id() -> str:
 def _session_header_value(session_id: Optional[str]) -> Optional[str]:
     """The session ID to send, or None when there is none to send or it cannot be sent.
 
-    ``HL-Runtime-Session-Id`` is at most 2048 bytes of UTF-8 without NUL, and a non-ASCII header
-    value cannot be encoded for the wire at all. An ID that breaks either rule is dropped rather
-    than truncated: truncating can map two conversations onto one session and merge their
-    histories, while dropping degrades to the "no history" the contract already allows.
+    ``HL-Runtime-Session-Id`` is at most 2048 bytes, and a header value carries printable ASCII
+    and tabs only, with no leading or trailing whitespace. An ID that breaks either rule is
+    dropped rather than repaired: stripping or truncating can map two conversations onto one
+    session and merge their histories, while dropping degrades to the "no history" the contract
+    already allows.
     """
     if not session_id:
         return None
-    if not session_id.isascii():
-        problem = "is not ASCII"
-    elif "\x00" in session_id:
-        problem = "contains NUL"
+    if _UNSENDABLE_IN_HEADER.search(session_id):
+        problem = "holds a character a header value cannot carry"
+    elif session_id.strip(" \t") != session_id:
+        problem = "starts or ends with whitespace"
     elif len(session_id.encode("utf-8")) > MAX_SESSION_ID_BYTES:
         problem = f"is over {MAX_SESSION_ID_BYTES} bytes"
     else:

@@ -324,11 +324,23 @@ class TestSessionHeaderValue:
 
     @pytest.mark.parametrize(
         "value",
-        ["nemo:café", "nemo:a\x00b", "nemo:" + "x" * 2048],
-        ids=["non-ascii", "nul", "over-cap"],
+        [
+            "nemo:café",
+            "nemo:a\x00b",
+            "nemo:a\r\nX-Injected: 1",
+            "nemo:a\nb",
+            "nemo:a\x7fb",
+            "nemo:a ",
+            "nemo:" + "x" * 2048,
+        ],
+        ids=["non-ascii", "nul", "crlf", "lf", "del", "trailing-space", "over-cap"],
     )
     def test_an_unsendable_id_is_dropped_not_truncated(self, value):
         assert _session_header_value(value) is None
+
+    @pytest.mark.parametrize("value", ["nemo:conv 1", "nemo:conv\t1", "nemo:" + "x" * 2043])
+    def test_a_sendable_id_is_kept_whole(self, value):
+        assert _session_header_value(value) == value
 
     def test_the_drop_is_logged_once_per_process(self, caplog):
         with caplog.at_level("WARNING"):
