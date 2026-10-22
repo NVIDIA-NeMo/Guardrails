@@ -104,7 +104,7 @@ def _tool_definition(tool: Tool, tool_name: str) -> Dict[str, Any]:
 
 
 def _joined_text(content: list) -> Optional[str]:
-    """The text parts of *content* joined with newlines, or None when a part is not a typed object."""
+    """The text parts of *content* joined with newlines, or None when it yields no text."""
     texts = []
     for part in content:
         if not isinstance(part, dict) or not isinstance(part.get("type"), str):
@@ -113,16 +113,18 @@ def _joined_text(content: list) -> Optional[str]:
             if not isinstance(part.get("text"), str):
                 return None
             texts.append(part["text"])
-    return "\n".join(texts)
+    return "\n".join(texts) or None
 
 
 def _result_content(content: Union[str, list, None]) -> str:
     """The tool result content to evaluate, always a string.
 
-    A ``tool`` message's ``content`` is typed as a string, so a list of typed parts is sent as its
-    text parts joined with newlines and any other list as its JSON encoding.
+    A ``tool`` message's ``content`` is typed as a string, so a list of parts is sent as its text
+    parts joined with newlines. A list that yields no text at all, such as one whose parts are of
+    another vocabulary or are not typed objects, is sent as its JSON encoding: the empty string it
+    would otherwise reduce to would leave the result evaluated as nothing.
     """
-    if content is None:
+    if not content:
         return ""
     if isinstance(content, list):
         joined = _joined_text(content)
