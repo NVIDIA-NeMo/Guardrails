@@ -120,6 +120,35 @@ Disabling those routes is a separate deployment policy.
 Deployment authentication and socket-level acceptance
 belong to the application/example work, not these declarations.
 
+### Stored responses and enforcement scope
+
+Request `store` is forwarded unchanged and remains uninspected. OpenAI
+[defaults omitted `store` to true](https://developers.openai.com/api/reference/python/resources/responses/methods/create),
+allowing later API retrieval. An approved streaming prefix can expose the
+response ID before a later output window is blocked. Blocking withholds the
+pending stream content; it does not delete upstream state or guarantee that
+closing the stream cancels provider generation or storage.
+
+`GET /v1/responses/{response_id}` is an unguarded passthrough route. If the
+provider retained the response and authorizes retrieval, that route can return
+content withheld by the POST output check. This applies even when Responses is
+selected for guarding. The offline storage characterization test models a
+retained response; it does not establish how a live provider stores every
+interrupted foreground stream.
+
+Applications using this proxy as an enforcement boundary must restrict exposed
+routes, including retrieval and other unguarded generation operations, and
+control direct upstream access. Apply that policy before forwarding requests
+with application-owned credentials. Caller-owned upstream credentials may also
+allow callers to bypass the proxy directly. Retrieval restrictions must cover
+existing stored resources as well as newly created responses.
+
+Applications may additionally require explicit `store: false` when persistent
+responses are unwanted. A projection default does not insert that field into
+forwarded bytes, and disabling storage for new requests does not restrict access
+to existing resources or other passthrough operations. Storage settings alone
+therefore do not provide an application-wide enforcement boundary.
+
 ## Contract export and verification
 
 ```bash
