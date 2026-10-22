@@ -103,6 +103,9 @@ async def audit_message(text: str):
 
 For how a caller sets the ID, refer to [Checking Messages Against Rails: Setting a Conversation ID](/run-guardrailed-inference/using-python-apis/check-messages#setting-a-conversation-id).
 
+`get_roundtrip_id()` reads the ID of the model call the check belongs to in the same way, so an action can pair the request leg of a call with its response leg.
+For how a caller sets that ID, refer to [Checking Messages Against Rails: Setting a Round-Trip ID](/run-guardrailed-inference/using-python-apis/check-messages#setting-a-round-trip-id).
+
 ## The `events` Parameter
 
 The `events` parameter provides the complete event history:
