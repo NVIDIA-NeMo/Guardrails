@@ -1977,6 +1977,9 @@ class IORails(BaseGuardrails):
                 if tool_result.messages is not None:
                     log.info("[%s] Tool result rails rewrote the tool results", req_id)
                     messages = tool_result.messages
+                    # The request span records ``conversation`` once the stream ends, which a caller
+                    # can bring about before the input rails return, so the mask reaches it here.
+                    conversation.messages = messages
 
                 # Step 1: Input rails (non-streaming)
                 log.info("[%s] Running input rails", req_id)

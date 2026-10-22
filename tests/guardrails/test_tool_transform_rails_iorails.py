@@ -20,8 +20,9 @@ transport is mocked, so what is asserted is what the model was sent, what the ot
 handed and what the request span recorded.
 """
 
+import asyncio
 import copy
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import AsyncIterator, Optional
 
 import pytest
@@ -348,3 +349,24 @@ class TestTheRequestSpanWithholdsAResultTheMaskNeverReached:
 
         assert _has_captured_input(span_exporter) is False
         assert _has_captured_output(span_exporter) is False
+
+    async def test_a_stream_closed_before_its_input_rails_finish_records_the_masked_result(self, span_exporter):
+        """The caller left while the input rails ran, and the mask had already reached what the span records."""
+        input_rails_reached = asyncio.Event()
+
+        async def input_rails_that_never_finish(messages, **kwargs):
+            input_rails_reached.set()
+            await asyncio.Event().wait()
+
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_transform_config(output=False, capture=True), span_exporter
+        ) as engine:
+            engine.rails_manager.is_input_safe = input_rails_that_never_finish
+            stream = engine.stream_async(messages=make_tool_conversation(content=RAW_RESULT))
+            first_chunk = asyncio.create_task(anext(stream))
+            await input_rails_reached.wait()
+            first_chunk.cancel()
+            with suppress(asyncio.CancelledError):
+                await first_chunk
+
+        assert _captured_input(span_exporter)[-1]["content"] == MASKED_RESULT
