@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,6 +26,7 @@ from langchain_core.messages import (
 )
 from langchain_core.messages.tool import ToolCall
 
+from nemoguardrails.context import conversation_id, get_conversation_id
 from nemoguardrails.integrations.langchain.exceptions import GuardrailViolation
 from nemoguardrails.integrations.langchain.middleware import (
     GuardrailsMiddleware,
@@ -1569,3 +1571,50 @@ class TestModifiedStatus:
         assert len(modified.tool_calls) == 1
         assert modified.tool_calls[0]["name"] == "search"
         assert modified.tool_calls[0]["id"] == "tc-1"
+
+
+class TestConversationId:
+    @staticmethod
+    def _recording_middleware(mock_rails_factory, seen: list):
+        async def check(messages, rail_types):
+            seen.append(get_conversation_id())
+            return RailsResult(status=RailStatus.PASSED, content=messages[-1]["content"])
+
+        return create_middleware_with_rails(mock_rails_factory(check_side_effect=check))
+
+    @staticmethod
+    async def _run_model_hooks(middleware, runtime):
+        await middleware.abefore_model({"messages": [HumanMessage(content="hi")]}, runtime)
+        await middleware.aafter_model({"messages": [HumanMessage(content="hi"), AIMessage(content="yo")]}, runtime)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "runtime",
+        [
+            SimpleNamespace(execution_info=SimpleNamespace(thread_id="thread-7")),
+            SimpleNamespace(execution_info=None, config={"configurable": {"thread_id": "thread-7"}}),
+        ],
+        ids=["execution_info", "config"],
+    )
+    async def test_input_and_output_checks_see_the_thread_id(self, mock_rails_factory, runtime):
+        seen = []
+        await self._run_model_hooks(self._recording_middleware(mock_rails_factory, seen), runtime)
+
+        assert seen == ["thread-7", "thread-7"]
+        assert get_conversation_id() is None
+
+    @pytest.mark.asyncio
+    async def test_no_conversation_id_without_a_thread(self, mock_rails_factory):
+        seen = []
+        await self._run_model_hooks(self._recording_middleware(mock_rails_factory, seen), None)
+
+        assert seen == [None, None]
+
+    @pytest.mark.asyncio
+    async def test_a_conversation_id_the_application_set_is_kept(self, mock_rails_factory):
+        seen = []
+        runtime = SimpleNamespace(execution_info=SimpleNamespace(thread_id="thread-7"))
+        with conversation_id("app-conversation"):
+            await self._run_model_hooks(self._recording_middleware(mock_rails_factory, seen), runtime)
+
+        assert seen == ["app-conversation", "app-conversation"]
