@@ -9,13 +9,13 @@ content:
   type: "reference"
 ---
 
-The NVIDIA NeMo Guardrails library ships 36 built-in rails under `nemoguardrails/library`.
+The NVIDIA NeMo Guardrails library ships 37 built-in rails under `nemoguardrails/library`.
 Each rail declares its behavior in a [rail manifest](/reference/rail-manifests), and each manifest exposes one or more *surfaces*.
 A surface is the flow name you list under `rails.input.flows`, `rails.output.flows`, or `rails.retrieval.flows` in `config.yml`.
 
-The 36 manifests declare 86 surfaces in total.
-`LLMRails` runs 80 of them through its Colang runtime, in both Colang 1.0 and Colang 2.x.
-`IORails` runs 67 of them by compiling the manifest directly, without Colang.
+The 37 manifests declare 90 surfaces in total.
+`LLMRails` runs 82 of them through its Colang runtime, in both Colang 1.0 and Colang 2.x.
+`IORails` runs 71 of them by compiling the manifest directly, without Colang.
 
 This page lists every surface and the engine that can run it.
 For capability areas that are not tied to a specific rail, such as streaming, observability, and the generation API, refer to [Engine Feature Support](/reference/engine-feature-support).
@@ -37,12 +37,12 @@ The following table summarizes surface support by direction:
 
 | Direction | Surfaces | LLMRails | IORails |
 |---|---:|---:|---:|
-| Input | 34 | 34 | 33 |
-| Output | 36 | 36 | 29 |
+| Input | 35 | 35 | 34 |
+| Output | 37 | 37 | 30 |
 | Retrieval | 11 | 11 | 0 |
-| Tool_call | 3 | 0 | 3 |
-| Tool_result | 3 | 0 | 3 |
-| **Total** | **87** | **81** | **68** |
+| Tool_call | 4 | 0 | 4 |
+| Tool_result | 4 | 0 | 4 |
+| **Total** | **91** | **83** | **72** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
 A configuration that declares one routes to `LLMRails` by default.
@@ -73,6 +73,7 @@ The following table lists the input surfaces:
 | `gliner detect pii on input` | GLiNER | ✓ | ✓ | |
 | `gliner mask pii on input` | GLiNER | ✓ | ✓ | Rewrites `user_message` |
 | `guardrailsai check input` | Guardrails AI | ✓ | ✓ | |
+| `hiddenlayer check input` | HiddenLayer AI Runtime Security | ✓ | ✓ | Rewrites `user_message` |
 | `hf classifier check input` | Hugging Face Classifier | ✓ | ✓ | |
 | `jailbreak detection heuristics` | Jailbreak Detection | ✓ | ✗ | Backend ambiguity, [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285) |
 | `jailbreak detection model` | Jailbreak Detection | ✓ | ✓ | |
@@ -116,6 +117,7 @@ The following table lists the output surfaces:
 | `gliner mask pii on output` | GLiNER | ✓ | ✓ | Rewrites `bot_message` |
 | `guardrailsai check output` | Guardrails AI | ✓ | ✓ | |
 | `self check hallucination` | Hallucination Detection | ✓ | ✗ | Reads `_last_bot_prompt` |
+| `hiddenlayer check output` | HiddenLayer AI Runtime Security | ✓ | ✓ | Rewrites `bot_message` |
 | `hf classifier check output` | Hugging Face Classifier | ✓ | ✓ | |
 | `injection detection` | Injection Detection | ✓ | ✓ | Rewrites `bot_message` |
 | `llama guard check output` | Llama Guard | ✓ | ✓ | |
@@ -164,6 +166,7 @@ Per-tool checks are an `IORails`-only capability by design:
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
 | `cel check tool call` | Common Expression Language (CEL) | ✗ | ✓ | IORails-only capability by design |
+| `hiddenlayer check tool call` | HiddenLayer AI Runtime Security | ✗ | ✓ | IORails-only capability by design |
 | `regex check tool call` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
 | `tool safety check tool call` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
 
@@ -175,6 +178,7 @@ Per-tool checks are an `IORails`-only capability by design:
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
 | `cel check tool result` | Common Expression Language (CEL) | ✗ | ✓ | IORails-only capability by design |
+| `hiddenlayer check tool result` | HiddenLayer AI Runtime Security | ✗ | ✓ | IORails-only capability by design |
 | `regex check tool result` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
 | `tool safety check tool result` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
 

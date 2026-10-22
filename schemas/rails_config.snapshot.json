@@ -476,6 +476,93 @@
       "title": "GuardrailsAIValidatorConfig",
       "type": "object"
     },
+    "HiddenLayerRailConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for the HiddenLayer AI Runtime Security integration.\n\nThe client ID and secret are intentionally not part of this config. They are secrets and\nmust be provided via the HIDDENLAYER_CLIENT_ID and HIDDENLAYER_CLIENT_SECRET environment\nvariables.",
+      "properties": {
+        "api_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Base URL of the HiddenLayer API serving the NeMo Guardrails request-evaluation and response-evaluation routes. Falls back to the HIDDENLAYER_BASE_URL environment variable, then to https://api.us.hiddenlayer.ai. Must use https://, except on a loopback host.",
+          "title": "Api Url"
+        },
+        "fail_open": {
+          "default": false,
+          "description": "If True, allow content through when the HiddenLayer API cannot be reached or does not answer with a verdict. It covers transport failures only: an evaluation HiddenLayer itself could not complete comes back as a verdict and is always applied. This changes the security posture of the rail and should be reviewed as part of the guardrails config.",
+          "title": "Fail Open",
+          "type": "boolean"
+        },
+        "max_retries": {
+          "default": 2,
+          "description": "Number of additional attempts after the HiddenLayer API returns HTTP 429, 502, 503 or 504. Total attempts per request equal max_retries + 1.",
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "max_retry_after_seconds": {
+          "default": 30.0,
+          "description": "Upper bound (in seconds) on how long to honor a Retry-After header, and on the exponential backoff delay.",
+          "minimum": 0.0,
+          "title": "Max Retry After Seconds",
+          "type": "number"
+        },
+        "project_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "HiddenLayer project ID or alias whose policy evaluates the interactions. Falls back to the HIDDENLAYER_PROJECT_ID environment variable. When unset, or when the ID is unknown, HiddenLayer uses the tenant's default project.",
+          "title": "Project Id"
+        },
+        "requester_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requester ID recorded with each evaluation. Falls back to the HIDDENLAYER_REQUESTER_ID environment variable, then to 'hiddenlayer-nemo'.",
+          "title": "Requester Id"
+        },
+        "retry_backoff_seconds": {
+          "default": 1.0,
+          "description": "Base delay (in seconds) for exponential backoff with jitter when a retryable response has no usable Retry-After header.",
+          "minimum": 0.0,
+          "title": "Retry Backoff Seconds",
+          "type": "number"
+        },
+        "send_session_id": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "If True, send the conversation ID of each request, when the caller set one with nemoguardrails.context.conversation_id(), as the HiddenLayer session ID. It is the only source of conversation history: without it HiddenLayer evaluates each check on its own. The ID is recorded with the interactions, so do not use one that carries personal data. Falls back to the HIDDENLAYER_SEND_SESSION_ID environment variable (0, false, no or off disables it), then to True.",
+          "title": "Send Session Id"
+        }
+      },
+      "title": "HiddenLayerRailConfig",
+      "type": "object"
+    },
     "InjectionDetection": {
       "properties": {
         "action": {
@@ -1395,6 +1482,17 @@
       "default": null,
       "description": "Named HF classifier configurations. Keys are classifier names referenced by flows.",
       "title": "Hf Classifier"
+    },
+    "hiddenlayer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HiddenLayerRailConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for HiddenLayer AI Runtime Security."
     },
     "injection_detection": {
       "anyOf": [
