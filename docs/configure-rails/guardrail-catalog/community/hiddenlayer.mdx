@@ -70,7 +70,7 @@ HiddenLayer resolves session IDs across the whole tenant, so two conversations t
 Use a conversation ID that is unique to one conversation, such as a random thread ID.
 
 The session ID is the only source of conversation history: the body of each check carries the current turn only, and HiddenLayer evaluates it against the conversation's recent messages.
-A conversation ID that is not ASCII, or longer than 2048 bytes, cannot be sent; the rail drops it, logs one warning, and the checks are evaluated without history rather than under a truncated ID that two conversations could share.
+A conversation ID that holds anything a header cannot carry, such as a line break or a non-ASCII character, or that is longer than 2048 bytes, cannot be sent; the rail drops it, logs one warning, and the checks are evaluated without history rather than under a truncated ID that two conversations could share.
 
 Without a conversation ID the rail sends no session ID, HiddenLayer evaluates each check on its own, and it usually records each request as its own session.
 Set `send_session_id: false` to stop sending the ID.
