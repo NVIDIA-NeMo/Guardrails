@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NeMo Guardrails checks for NeMo Relay",
+  "description": "Checks tool calls and tool results with the /v1/checks/input and /v1/checks/output endpoints of a NeMo Guardrails server.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["endpoint", "config_id"],
+  "properties": {
+    "endpoint": {
+      "type": "string",
+      "pattern": "^https?://",
+      "description": "Base URL of the NeMo Guardrails server, such as http://127.0.0.1:8000."
+    },
+    "config_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Guardrails configuration to check against. It must name a configuration loaded on the server."
+    },
+    "headers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "description": "Headers sent with every check, for a proxy or gateway in front of the Guardrails server, such as authorization. Values are treated as sensitive."
+    },
+    "timeout_millis": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1500,
+      "description": "Time limit for one check, in milliseconds. Keep it under the host's hook limit: 1500 or less in gateway modes, about 25000 in daemon mode."
+    },
+    "priority": {
+      "type": "integer",
+      "default": 0,
+      "description": "NeMo Relay execution-intercept priority. Lower values run further out."
+    },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional NeMo Relay SDK executor override.",
+      "properties": {
+        "worker_threads": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of worker threads for the plugin's SDK-owned executor."
+        }
+      }
+    }
+  }
+}

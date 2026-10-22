@@ -26,3 +26,5 @@ original_dataset
 eval_outputs
 /**/chitchat/user.co
 /**/banking/user.co
+# Rust build output
+target

@@ -1,0 +1,32 @@
+manifest_version = 1
+description = "Checks tool calls and tool results with a NeMo Guardrails server."
+
+[plugin]
+id = "nvidia.nemo_guardrails_checks"
+name = "NeMo Guardrails checks"
+kind = "rust_dynamic"
+
+[compat]
+# Native ABI v7 ships with Relay 0.10, and Relay refuses a native manifest whose range admits 0.9.
+relay = ">=0.10,<1.0"
+native_api = "1"
+
+[defaults]
+enabled = false
+
+[capabilities]
+items = ["plugin_native", "config_schema"]
+
+[config_schema]
+path = "config.schema.json"
+
+# scripts/package_bundle.py fills in the placeholders below.
+[source]
+artifact = "<platform-library-file>"
+
+[integrity]
+sha256 = "sha256:<artifact-sha256>"
+
+[load]
+library = "<platform-library-file>"
+symbol = "nemo_relay_register_plugin"

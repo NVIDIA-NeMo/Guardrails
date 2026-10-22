@@ -1,0 +1,7 @@
+[workspace]
+resolver = "3"
+members = ["crates/nemo-guardrails-relay-plugin"]
+
+[profile.release]
+lto = "thin"
+strip = true
