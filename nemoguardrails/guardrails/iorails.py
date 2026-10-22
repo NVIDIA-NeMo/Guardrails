@@ -674,6 +674,13 @@ def _rewritten_bot_message(result: RailResult) -> Optional[str]:
     return result.outcome.transform_text.get(TransformTarget.BOT_MESSAGE.value)
 
 
+# A direction whose rails may mask the text they check: the user turn, the response, or a tool result.
+_MaskedDirection = Union[RailDirection, SurfaceDirection]
+
+# The directions whose masks guard text the request's input messages carry.
+_INPUT_MASK_DIRECTIONS: frozenset[_MaskedDirection] = frozenset({RailDirection.INPUT, SurfaceDirection.TOOL_RESULT})
+
+
 @dataclass(slots=True)
 class _TurnConversation:
     """The messages a turn is running against, mutable so a rewrite reaches what was built first.
@@ -685,32 +692,34 @@ class _TurnConversation:
     # The directions whose configured masks have yet to decide on their text, which the request
     # span then withholds. Seeded before any rail runs, so an exit nobody foresaw withholds the
     # text rather than records it unmasked.
-    masks_pending: set[RailDirection] = field(default_factory=set)
+    masks_pending: set[_MaskedDirection] = field(default_factory=set)
     # Whose text a check reports back, and so which direction's masks its content waits on.
     reported_direction: Optional[RailDirection] = None
 
-    def record_masks(self, direction: RailDirection, *, pending: bool) -> None:
+    def record_masks(self, direction: _MaskedDirection, *, pending: bool) -> None:
         """Note whether *direction*'s masks have all decided on its text, as its rails reported."""
         if pending:
             self.masks_pending.add(direction)
         else:
             self.masks_pending.discard(direction)
 
-    def withhold(self, direction: RailDirection) -> None:
+    def withhold(self, direction: _MaskedDirection) -> None:
         """Keep *direction*'s text off the span, whatever its own masks decide on it later."""
         self.masks_pending.add(direction)
 
 
-def _carries_text_to_mask(messages: LLMMessages, direction: RailDirection) -> bool:
-    """Whether *messages* hold the text *direction*'s rails check: a user turn, or a response."""
+def _carries_text_to_mask(messages: LLMMessages, direction: _MaskedDirection) -> bool:
+    """Whether *messages* hold the text *direction*'s rails check: a user turn, a response, or a tool result."""
     if direction is RailDirection.INPUT:
         return current_user_turn_index(messages) is not None
+    if direction is SurfaceDirection.TOOL_RESULT:
+        return any(message.get("role") == "tool" for message in messages)
     return bool(_get_last_content_by_role(messages, "assistant"))
 
 
 def _generation_input_for_capture(conversation: _TurnConversation) -> Optional[LLMMessages]:
-    """A generation's messages for the span, or None while an input mask has yet to decide on the user turn."""
-    if RailDirection.INPUT in conversation.masks_pending:
+    """A generation's messages for the span, or None while a mask has yet to decide on text they carry."""
+    if conversation.masks_pending & _INPUT_MASK_DIRECTIONS:
         return None
     return conversation.messages
 
@@ -958,7 +967,7 @@ class IORails(BaseGuardrails):
 
             report_usage(config, deployment_type="library", rails_engine=RailsEngineEnum.IORAILS.value)
 
-    def _masks_awaiting(self, messages: LLMMessages, directions: tuple[RailDirection, ...]) -> set[RailDirection]:
+    def _masks_awaiting(self, messages: LLMMessages, directions: tuple[_MaskedDirection, ...]) -> set[_MaskedDirection]:
         """Which of *directions* have configured masks yet to decide on text *messages* carry."""
         if not self._content_capture_enabled:
             return set()
@@ -967,8 +976,14 @@ class IORails(BaseGuardrails):
         return {
             direction
             for direction in directions
-            if self.rails_manager.transform_flows[direction] and _carries_text_to_mask(well_formed, direction)
+            if self._configured_masks(direction) and _carries_text_to_mask(well_formed, direction)
         }
+
+    def _configured_masks(self, direction: _MaskedDirection) -> tuple[str, ...]:
+        """The configured flows free to rewrite *direction*'s text, whether or not this request runs them."""
+        if isinstance(direction, RailDirection):
+            return self.rails_manager.transform_flows[direction]
+        return self.rails_manager.per_tool_transform_flows[direction]
 
     def _speculative_generation_allowed(self, config: RailsConfig) -> bool:
         """Whether input rails may race the main call, which a rewriting input rail rules out.
@@ -1180,9 +1195,10 @@ class IORails(BaseGuardrails):
         lifecycle scope by ``generate_async``, not here.
         """
         tracer = self._tracer if self._tracing_enabled else None
-        # A generation's messages carry no response to mask, only the user turn.
+        # A generation's messages carry no response to mask, only the user turn and any tool results.
         conversation = _TurnConversation(
-            messages=messages, masks_pending=self._masks_awaiting(messages, (RailDirection.INPUT,))
+            messages=messages,
+            masks_pending=self._masks_awaiting(messages, (RailDirection.INPUT, SurfaceDirection.TOOL_RESULT)),
         )
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
@@ -1271,6 +1287,8 @@ class IORails(BaseGuardrails):
         log.info("[%s] Running tool result rails", req_id)
         tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_result_enabled)
         records.extend(tool_result.records)
+        if conversation is not None:
+            conversation.record_masks(SurfaceDirection.TOOL_RESULT, pending=tool_result.rewrite_pending)
         if not tool_result.is_safe:
             log.info("[%s] Tool result blocked: %s", req_id, display_reason(tool_result))
             if self._metrics_enabled:
@@ -1345,8 +1363,9 @@ class IORails(BaseGuardrails):
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
                 return _blocked_return(output_result)
-            # The model read a turn the input mask never decided on, so its response may repeat it.
-            if conversation is not None and (turn.input_rewrite_pending or output_result.rewrite_pending):
+            # The model read text an input or tool-result mask never decided on, so its response may repeat it.
+            unmasked_input = turn.input_rewrite_pending or tool_result.rewrite_pending
+            if conversation is not None and (unmasked_input or output_result.rewrite_pending):
                 conversation.withhold(RailDirection.OUTPUT)
 
             rewritten = _rewritten_bot_message(output_result)
@@ -1659,7 +1678,9 @@ class IORails(BaseGuardrails):
         tracer = self._tracer if self._tracing_enabled else None
         conversation = _TurnConversation(
             messages=messages,
-            masks_pending=self._masks_awaiting(messages, (RailDirection.INPUT, RailDirection.OUTPUT)),
+            masks_pending=self._masks_awaiting(
+                messages, (RailDirection.INPUT, RailDirection.OUTPUT, SurfaceDirection.TOOL_RESULT)
+            ),
         )
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
@@ -1725,6 +1746,7 @@ class IORails(BaseGuardrails):
 
         if "tool_result" in rails_to_run:
             tool_result = await self._check_tool_results(messages, req_id)
+            conversation.record_masks(SurfaceDirection.TOOL_RESULT, pending=tool_result.rewrite_pending)
             if not tool_result.is_safe:
                 conversation.messages = _apply_tool_rewrites_before_block(messages, tool_result)
                 return _blocked_check_result(tool_result)
@@ -1906,7 +1928,8 @@ class IORails(BaseGuardrails):
         # The output-rail wrapper is built before the generation task runs, so it cannot be handed
         # the messages by value: an input rail may rewrite them after that point.
         conversation = _TurnConversation(
-            messages=messages, masks_pending=self._masks_awaiting(messages, (RailDirection.INPUT,))
+            messages=messages,
+            masks_pending=self._masks_awaiting(messages, (RailDirection.INPUT, SurfaceDirection.TOOL_RESULT)),
         )
         # Tool calls assembled by the stream: _generation_task rebinds this (via
         # nonlocal) to the engine's finalized list and _wrapped_iterator reads it
@@ -1934,6 +1957,7 @@ class IORails(BaseGuardrails):
                 # Symmetric with INPUT rails for dialog use-case
                 log.info("[%s] Running tool result rails", req_id)
                 tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_result_enabled)
+                conversation.record_masks(SurfaceDirection.TOOL_RESULT, pending=tool_result.rewrite_pending)
                 if not tool_result.is_safe:
                     log.info("[%s] Tool result blocked: %s", req_id, display_reason(tool_result))
                     if self._metrics_enabled:
@@ -1982,8 +2006,8 @@ class IORails(BaseGuardrails):
                     messages = rewrite_user_message(messages, rewritten)
                 conversation.messages = messages
                 conversation.record_masks(RailDirection.INPUT, pending=input_result.rewrite_pending)
-                # The model reads a turn the input mask never decided on, so its response may repeat it.
-                if input_result.rewrite_pending:
+                # The model reads text an input or tool-result mask never decided on, so its response may repeat it.
+                if input_result.rewrite_pending or tool_result.rewrite_pending:
                     conversation.withhold(RailDirection.OUTPUT)
 
                 # Step 2: Stream main LLM content from structured response.

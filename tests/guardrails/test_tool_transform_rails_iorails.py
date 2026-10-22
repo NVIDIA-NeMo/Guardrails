@@ -27,10 +27,11 @@ from typing import AsyncIterator, Optional
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
+from nemoguardrails.rails.llm.options import RailType
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.rail_stubs import StubRail, rails_compiled_as, rewriting_stub
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
@@ -41,7 +42,13 @@ from tests.guardrails.test_tool_rails_iorails import (
     _text_payload,
     _text_sse_lines,
 )
-from tests.guardrails.test_transform_rail_pipeline import CAPTURE_CONTENT, _captured_input, _capturing
+from tests.guardrails.test_transform_rail_pipeline import (
+    CAPTURE_CONTENT,
+    _captured_input,
+    _capturing,
+    _has_captured_input,
+    _has_captured_output,
+)
 from tests.guardrails.tool_helpers import make_tool_conversation
 
 INPUT_FLOW = "content safety check input $model=content_safety"
@@ -271,3 +278,73 @@ class TestTheRequestSpanRecordsTheMask:
             await _drain(engine.stream_async(messages=make_tool_conversation(content=RAW_RESULT)))
 
         assert _captured_input(span_exporter)[-1]["content"] == MASKED_RESULT
+
+
+def failing_mask() -> StubRail:
+    """A masking rail whose provider is down, which ``CompiledRail`` turns into a fail-closed block."""
+    return StubRail(RailOutcome.failure(reason="the masking provider is down"), TransformTarget.TOOL_RESULT)
+
+
+@pytest.mark.asyncio
+class TestTheRequestSpanWithholdsAResultTheMaskNeverReached:
+    """A configured mask that never decided leaves the result off the span rather than recording it as sent."""
+
+    async def test_a_failed_mask_withholds_the_result(self, span_exporter):
+        """The mask raised, so the conversation still holds the raw result and the span records none of it."""
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(mask=failing_mask()), tool_transform_config(capture=True), span_exporter
+        ) as engine:
+            result = await engine.generate_async(messages=make_tool_conversation(content=RAW_RESULT))
+
+        assert result["content"] != RAW_RESULT
+        assert _has_captured_input(span_exporter) is False
+
+    async def test_a_result_the_manager_cannot_link_withholds_the_result(self, span_exporter):
+        """The block lands before any per-tool rail runs, so the mask never saw the result the request carries."""
+        messages = make_tool_conversation(result_call_id="call_other", content=RAW_RESULT)
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_transform_config(capture=True), span_exporter
+        ) as engine:
+            result = await engine.generate_async(messages=messages)
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        assert _has_captured_input(span_exporter) is False
+
+    async def test_tool_rails_turned_off_for_the_request_withhold_the_result(self, span_exporter):
+        """The generation options turned the mask off, so the model read the raw result and the span records neither."""
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_transform_config(capture=True), span_exporter
+        ) as engine:
+            _inject_json_response(engine, _text_payload("It is 18C."))
+
+            await engine.generate_async(
+                messages=make_tool_conversation(content=RAW_RESULT), options={"rails": {"tool_result": False}}
+            )
+
+        assert _has_captured_input(span_exporter) is False
+        assert _has_captured_output(span_exporter) is False
+
+    async def test_a_check_that_leaves_tool_results_out_withholds_the_result(self, span_exporter):
+        """``rail_types`` ran the input rails alone, so no mask decided on the result the conversation carries."""
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_transform_config(capture=True), span_exporter
+        ) as engine:
+            await engine.check_async(make_tool_conversation(content=RAW_RESULT), rail_types=[RailType.INPUT])
+
+        assert _has_captured_input(span_exporter) is False
+
+    async def test_a_stream_with_the_tool_rails_turned_off_withholds_the_result(self, span_exporter):
+        """The streamed request reaches the same verdict as the generated one: nothing masked, nothing recorded."""
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_transform_config(output=False, capture=True), span_exporter
+        ) as engine:
+            _inject_sse_stream(engine, _text_sse_lines("It is 18C."))
+
+            await _drain(
+                engine.stream_async(
+                    messages=make_tool_conversation(content=RAW_RESULT), options={"rails": {"tool_result": False}}
+                )
+            )
+
+        assert _has_captured_input(span_exporter) is False
+        assert _has_captured_output(span_exporter) is False

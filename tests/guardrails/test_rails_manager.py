@@ -1873,7 +1873,7 @@ class TestPerToolRailsThatRewrite:
             "0:mask", MASK_FLOW, tool_call=call, tool_result=ToolResult(call_id="call_1", content="18C")
         )
 
-        result, rewritten = await mgr._run_per_tool_rails_sequential([check], SurfaceDirection.TOOL_RESULT)
+        result, rewritten, _ = await mgr._run_per_tool_rails_sequential([check], SurfaceDirection.TOOL_RESULT)
 
         assert result.is_safe is False
         assert result.reason == "a rail rewrote a tool result this request does not have"

@@ -190,6 +190,7 @@ class RailResult:
         triggered_rail: str | None = None,
         tool_violations: tuple[ToolViolation, ...] = (),
         records: tuple[RailCallRecord, ...] = (),
+        rewrite_pending: bool = False,
     ) -> "RailResult":
         """A result that stops the content. Only a block names a triggering rail or tool violations."""
         return cls(
@@ -197,6 +198,7 @@ class RailResult:
             triggered_rail=triggered_rail,
             tool_violations=tool_violations,
             records=records,
+            rewrite_pending=rewrite_pending,
         )
 
 
