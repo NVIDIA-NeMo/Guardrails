@@ -78,6 +78,7 @@ fn executor_diagnostic(message: String) -> ConfigDiagnostic {
     }
 }
 
+/// The plugin's diagnostic for an invalid component config.
 fn invalid_config_diagnostic(error: &ConfigError) -> ConfigDiagnostic {
     ConfigDiagnostic {
         level: DiagnosticLevel::Error,
@@ -88,6 +89,7 @@ fn invalid_config_diagnostic(error: &ConfigError) -> ConfigDiagnostic {
     }
 }
 
+/// The message that both `validate` and `register` give for an invalid component config.
 fn invalid_config_message(error: &ConfigError) -> String {
     format!("invalid NeMo Guardrails checks config: {error}")
 }
@@ -103,6 +105,7 @@ mod tests {
 
     use super::*;
 
+    /// Validates a JSON component config as Relay does.
     fn validate(config: Json) -> Vec<ConfigDiagnostic> {
         NemoGuardrailsChecksPlugin.validate(config.as_object().expect("config is an object"))
     }

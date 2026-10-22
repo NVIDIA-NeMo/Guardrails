@@ -68,6 +68,7 @@ pub struct ConfigError {
 }
 
 impl ConfigError {
+    /// An error about one config field.
     fn new(field: &'static str, message: impl Into<String>) -> Self {
         Self {
             field: Some(field),
@@ -126,6 +127,7 @@ impl ChecksConfig {
     }
 }
 
+/// The endpoint as an http or https URL with no credentials, its path ending in `/`.
 fn parse_endpoint(endpoint: &str) -> Result<Url, ConfigError> {
     if endpoint.trim().is_empty() {
         return Err(ConfigError::new("endpoint", "endpoint is required"));
@@ -154,6 +156,7 @@ fn parse_endpoint(endpoint: &str) -> Result<Url, ConfigError> {
     Ok(url)
 }
 
+/// The headers to send, with sensitive values, rejecting malformed and client-owned ones.
 fn header_map(headers: &Json) -> Result<HeaderMap, ConfigError> {
     let Json::Object(headers) = headers else {
         return Err(ConfigError::new("headers", "headers must be an object"));
@@ -199,6 +202,7 @@ fn header_map(headers: &Json) -> Result<HeaderMap, ConfigError> {
     Ok(header_map)
 }
 
+/// The per-check timeout, which must be greater than zero.
 fn parse_timeout(timeout_millis: u64) -> Result<Duration, ConfigError> {
     if timeout_millis == 0 {
         return Err(ConfigError::new(
@@ -215,10 +219,12 @@ mod tests {
 
     use super::*;
 
+    /// Parses a JSON component config as the plugin does.
     fn parse(config: Json) -> Result<ChecksConfig, ConfigError> {
         ChecksConfig::from_component_config(config.as_object().expect("config is an object"))
     }
 
+    /// The error a JSON component config is rejected with.
     fn parse_error(config: Json) -> ConfigError {
         parse(config).expect_err("config should be rejected")
     }

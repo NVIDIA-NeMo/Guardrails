@@ -49,6 +49,9 @@ def digest(path: Path) -> str:
 
 def archive_problem(archive: Path, bundle: Path) -> Optional[str]:
     """Why *archive* can't hold a bundle written to *bundle*, or None when it can."""
+    # Equal paths included: the output directory would be created where the archive goes.
+    if bundle.is_relative_to(archive):
+        return f"bundle output directory must not be the archive path or inside it: {bundle}"
     if archive.parent.is_relative_to(bundle):
         return f"bundle archive must be outside output directory: {archive}"
     if not archive.name.endswith(ARCHIVE_SUFFIXES):

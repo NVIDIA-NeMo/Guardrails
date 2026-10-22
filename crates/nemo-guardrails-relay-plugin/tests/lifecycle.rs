@@ -196,6 +196,7 @@ async fn plugin_rejects_mistyped_headers_without_quoting_them() {
     }
 }
 
+/// The error the host refuses a `plugins.toml` with.
 async fn initialize_error(plugins_toml: PathBuf) -> String {
     match initialize(PluginConfig::default(), Some(plugins_toml)).await {
         Ok(_) => panic!("the host should refuse the config"),
@@ -209,6 +210,7 @@ struct Bundle {
 }
 
 impl Bundle {
+    /// Packages the built library with the crate's manifest and schema in a temporary directory.
     fn new() -> Self {
         let directory = TempDir::new().expect("bundle directory should be created");
         let library = built_library();
@@ -251,6 +253,7 @@ impl Bundle {
     }
 }
 
+/// The crate's own directory, which holds the manifest and schema.
 fn crate_dir() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
 }
@@ -260,42 +263,49 @@ fn built_library() -> &'static Path {
     LIBRARY.get_or_init(build_library)
 }
 
+/// Builds the plugin library and returns the path Cargo reports for it.
 fn build_library() -> PathBuf {
-    let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lifecycle");
-    let profile = if cfg!(debug_assertions) {
-        "debug"
-    } else {
-        "release"
-    };
     let mut command = Command::new(env!("CARGO"));
     command
-        .args(["build", "--locked", "--manifest-path"])
+        .args([
+            "build",
+            "--locked",
+            "--message-format=json-render-diagnostics",
+            "--manifest-path",
+        ])
         .arg(crate_dir().join("Cargo.toml"))
         .arg("--target-dir")
-        .arg(&target_dir);
-    if profile == "release" {
+        .arg(Path::new(env!("CARGO_TARGET_TMPDIR")).join("lifecycle"));
+    if !cfg!(debug_assertions) {
         command.arg("--release");
     }
-    let status = command.status().expect("cargo build should start");
+    let output = command.output().expect("cargo build should start");
     assert!(
-        status.success(),
-        "cargo build should build the plugin library"
+        output.status.success(),
+        "cargo build should build the plugin library:\n{}",
+        String::from_utf8_lossy(&output.stderr)
     );
 
-    // The NeMo-Relay-Plugins release pipeline sets CARGO_BUILD_TARGET, which moves the output
-    // into a directory named after the target triple.
-    let library = target_dir
-        .join(std::env::var("CARGO_BUILD_TARGET").unwrap_or_default())
-        .join(profile)
-        .join(format!(
-            "{}{LIBRARY_STEM}{}",
-            std::env::consts::DLL_PREFIX,
-            std::env::consts::DLL_SUFFIX
-        ));
+    // Cargo reports where it wrote the library, which already accounts for a target chosen by
+    // CARGO_BUILD_TARGET (as the NeMo-Relay-Plugins pipeline does), `build.target` or `--target`.
+    let messages = String::from_utf8(output.stdout).expect("cargo's messages should be UTF-8");
+    let library = messages
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Json>(line).ok())
+        .filter(|message| {
+            message["reason"] == "compiler-artifact" && message["target"]["name"] == LIBRARY_STEM
+        })
+        .filter_map(|message| message["filenames"].as_array().cloned())
+        .flatten()
+        .filter_map(|filename| filename.as_str().map(str::to_owned))
+        .find(|filename| filename.ends_with(std::env::consts::DLL_SUFFIX))
+        .map(PathBuf::from)
+        .expect("cargo should report the plugin library");
     assert!(library.is_file(), "missing {}", library.display());
     library
 }
 
+/// The file's SHA-256 digest, as lowercase hex.
 fn sha256_hex(path: &Path) -> String {
     let digest = Sha256::digest(std::fs::read(path).expect("library should be readable"));
     digest.iter().map(|byte| format!("{byte:02x}")).collect()

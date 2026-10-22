@@ -60,6 +60,27 @@ def test_unusable_archive_is_refused_before_the_bundle_is_written(tmp_path, libr
     assert not output.exists() or not any(output.iterdir())
 
 
+@pytest.mark.parametrize(
+    "output_name, archive_name",
+    [
+        ("bundle.zip", "bundle.zip"),
+        ("bundle.tar.gz/inner", "bundle.tar.gz"),
+        ("bundle", "bundle/bundle.zip"),
+    ],
+    ids=["archive-at-output", "output-inside-archive", "archive-inside-output"],
+)
+def test_archive_overlapping_the_output_is_refused_before_writing(tmp_path, library, output_name, archive_name):
+    """An archive path that is, contains, or sits inside the output directory is refused before anything is written."""
+    output = tmp_path / output_name
+    archive = tmp_path / archive_name
+
+    result = _package(library, output, archive)
+
+    assert result.returncode == 2, result.stderr
+    assert not output.exists()
+    assert not archive.exists()
+
+
 @pytest.mark.parametrize("suffix", [".tar.gz", ".zip"])
 def test_archives_of_the_same_files_are_identical(tmp_path, library, suffix):
     """Two archives of the same files have the same bytes, whatever the files' modification times."""
