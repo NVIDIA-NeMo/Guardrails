@@ -34,6 +34,12 @@ rails:
       Bash: [regex check tool call]
 """
 
+METRICS_VARIABLES = (
+    "NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER",
+    "NEMO_GUARDRAILS_SERVER_METRICS_HOST",
+    "NEMO_GUARDRAILS_SERVER_METRICS_PORT",
+)
+
 
 def test_app():
     result = runner.invoke(
@@ -415,8 +421,10 @@ class TestActionsServerCommand:
 class TestHooksServerCommand:
     @pytest.fixture(autouse=True)
     def _hooks_server_env(self, monkeypatch):
-        """Provider credentials, and the process's deployment type restored after the test."""
+        """Provider credentials, no metrics variables, and the process's deployment type restored after the test."""
         monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+        for name in (*METRICS_VARIABLES, "NEMO_GUARDRAILS_SERVER_METRICS_SERVICE_NAME", "OTEL_SERVICE_NAME"):
+            monkeypatch.delenv(name, raising=False)
         monkeypatch.setattr(telemetry, "_deployment_type_override", None)
 
     @staticmethod
@@ -570,6 +578,85 @@ class TestHooksServerCommand:
         result = runner.invoke(app, ["hooks-server", f"--config={tmp_path / 'missing'}"])
 
         assert result.exit_code == 2
+        mock_uvicorn.assert_not_called()
+
+    @patch("nemoguardrails.server.metrics.shutdown_metrics_exporter")
+    @patch("nemoguardrails.server.metrics.start_metrics_exporter")
+    @patch("uvicorn.run")
+    def test_hooks_server_metrics_flags_start_the_exporter_around_the_server(
+        self, mock_uvicorn, mock_start, mock_shutdown, tmp_path
+    ):
+        """The flags reach the variables; the exporter starts with them once the app is built, and stops after the server."""
+        from nemoguardrails.server.hooks import app as hooks_app
+        from nemoguardrails.server.metrics import MetricsExporter, MetricsExporterSettings
+
+        events = []
+        build_app = hooks_app.create_hooks_app
+
+        def create_hooks_app(config):
+            """Record that the app is built, and build it."""
+            events.append("build")
+            return build_app(config)
+
+        mock_start.side_effect = lambda settings: events.append(("start", settings))
+        mock_uvicorn.side_effect = lambda *args, **kwargs: events.append("serve")
+        mock_shutdown.side_effect = lambda: events.append("stop")
+        flags = ["--metrics-exporter=prometheus", "--metrics-host=0.0.0.0", "--metrics-port=9500"]
+
+        with patch.dict(os.environ), patch.object(hooks_app, "create_hooks_app", create_hooks_app):
+            result = runner.invoke(
+                app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}", *flags]
+            )
+            variables = {name: os.environ.get(name) for name in METRICS_VARIABLES}
+
+        assert result.exit_code == 0, result.output
+        assert variables == dict(zip(METRICS_VARIABLES, ["prometheus", "0.0.0.0", "9500"]))
+        settings = MetricsExporterSettings(MetricsExporter.PROMETHEUS, "0.0.0.0", 9500, "nemoguardrails-hooks-server")
+        assert events == ["build", ("start", settings), "serve", "stop"]
+
+    @patch("nemoguardrails.server.metrics.shutdown_metrics_exporter")
+    @patch("nemoguardrails.server.metrics.start_metrics_exporter")
+    @patch("uvicorn.run")
+    def test_hooks_server_without_metrics_flags_uses_the_hooks_defaults(
+        self, mock_uvicorn, mock_start, mock_shutdown, tmp_path
+    ):
+        """Without the metrics flags, the variables stay unset, and the exporter gets the hooks server's defaults."""
+        from nemoguardrails.server.metrics import MetricsExporterSettings
+
+        with patch.dict(os.environ):
+            result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}"])
+            variables = {name: os.environ.get(name) for name in METRICS_VARIABLES}
+
+        assert result.exit_code == 0, result.output
+        assert variables == dict.fromkeys(METRICS_VARIABLES)
+        mock_start.assert_called_once_with(
+            MetricsExporterSettings(host="127.0.0.1", port=9465, service_name="nemoguardrails-hooks-server")
+        )
+        mock_shutdown.assert_called_once_with()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_an_invalid_metrics_setting_before_binding(self, mock_uvicorn, tmp_path):
+        """An exporter setting the server can't use exits 1 with the reason, before the server starts."""
+        config = self._config_dir(tmp_path, HOOKS_CONFIG_YML)
+
+        with patch.dict(os.environ):
+            result = runner.invoke(app, ["hooks-server", f"--config={config}", "--metrics-exporter=otlp"])
+
+        assert result.exit_code == 1
+        assert "Unsupported NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER='otlp'" in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch("nemoguardrails.server.metrics.start_metrics_exporter")
+    @patch("uvicorn.run")
+    def test_hooks_server_refuses_a_config_before_starting_the_exporter(self, mock_uvicorn, mock_start, tmp_path):
+        """A config the server can't serve exits 1 before the exporter starts, so no metrics port is bound."""
+        config_yml = "models:\n  - type: main\n    engine: nim\n    model: meta/llama-3.3-70b-instruct\n"
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
+
+        assert result.exit_code == 1
+        assert "The hooks server needs tool-call rails." in result.output
+        mock_start.assert_not_called()
         mock_uvicorn.assert_not_called()
 
 

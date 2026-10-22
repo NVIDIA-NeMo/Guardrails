@@ -19,11 +19,13 @@ The library records metrics through the OpenTelemetry API only, so these tests
 cover the one place the server owns an SDK: ``nemoguardrails.server.metrics``.
 They check the env-var contract, the view that narrows export to the
 ``guardrails.nonstream.*`` instruments, the scrape endpoint lifecycle, and the
-FastAPI lifespan hook.  No test talks to a model provider.
+FastAPI lifespans of the main server and the hooks server.  No test talks to a
+model provider.
 """
 
 import asyncio
 import copy
+import logging
 import sys
 import urllib.request
 from unittest.mock import patch
@@ -36,10 +38,13 @@ from opentelemetry.metrics import Observation
 from prometheus_client import CollectorRegistry, generate_latest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails import telemetry as usage_telemetry
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.server import api
 from nemoguardrails.server import metrics as server_metrics
+from nemoguardrails.server.hooks import app as hooks_app
+from nemoguardrails.server.hooks.app import create_hooks_app, metrics_exporter_settings
 from nemoguardrails.server.metrics import (
     ENV_EXPORTER,
     ENV_HOST,
@@ -134,6 +139,21 @@ class TestSettingsFromEnv:
         assert MetricsExporterSettings.from_env({"OTEL_SERVICE_NAME": "from-otel"}).service_name == "from-otel"
         both = {"OTEL_SERVICE_NAME": "from-otel", ENV_SERVICE_NAME: "from-nemo"}
         assert MetricsExporterSettings.from_env(both).service_name == "from-nemo"
+
+    def test_defaults_fill_the_variables_left_unset(self):
+        """The caller's defaults take the place of the module's for every variable that is unset."""
+        defaults = MetricsExporterSettings(host="127.0.0.1", port=9999, service_name="from-defaults")
+
+        assert MetricsExporterSettings.from_env({}, defaults=defaults) == defaults
+
+    def test_variables_override_the_defaults(self):
+        """A set variable wins over the caller's defaults, and OTEL_SERVICE_NAME over the default service name."""
+        defaults = MetricsExporterSettings(host="127.0.0.1", port=9999, service_name="from-defaults")
+        environ = {ENV_EXPORTER: "prometheus", ENV_HOST: "0.0.0.0", ENV_PORT: "9500", "OTEL_SERVICE_NAME": "from-otel"}
+
+        settings = MetricsExporterSettings.from_env(environ, defaults=defaults)
+
+        assert settings == MetricsExporterSettings(MetricsExporter.PROMETHEUS, "0.0.0.0", 9500, "from-otel")
 
     def test_rejects_unknown_exporter(self):
         """Unsupported exporter names fail with the list of supported values."""
@@ -425,3 +445,129 @@ class TestIORailsEndToEnd:
         assert active_line.endswith(" 1.0")
         assert "guardrails_requests_active" not in busy
         assert "gen_ai_client" not in busy
+
+
+# Only model-free rails, so no check reaches a model.
+HOOKS_METRICS_CONFIG = {
+    "models": [],
+    "metrics": {"enabled": True},
+    "rails": {
+        "config": {"regex_detection": {"tool_call": {"Bash": {"patterns": [r"rm\s+-rf"]}}}},
+        "tool_call": {"per_tool": {"Bash": ["regex check tool call $argument=command"]}},
+    },
+}
+
+NO_METRICS_WARNING = (
+    "The metrics exporter is running, but the config doesn't set `metrics.enabled: true`, so the engine "
+    "records no metrics, and the scrape endpoint shows none."
+)
+
+
+def _hooks_app(config: dict):
+    """A hooks server for *config*."""
+    return create_hooks_app(RailsConfig.from_content(config=config))
+
+
+def _bash_hook(command: str) -> dict:
+    """A Claude Code `PreToolUse` hook for a Bash call running *command*."""
+    return {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": command},
+        "tool_use_id": "toolu_01",
+    }
+
+
+@pytest.fixture
+def hooks_server_env(monkeypatch):
+    """No metrics variables but those a test sets, and the process's deployment type restored after the test."""
+    for name in (ENV_EXPORTER, ENV_HOST, ENV_PORT, ENV_SERVICE_NAME, "OTEL_SERVICE_NAME"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(usage_telemetry, "_deployment_type_override", None)
+
+
+@pytest.mark.usefixtures("hooks_server_env")
+class TestHooksServer:
+    def test_defaults_keep_clear_of_the_main_server(self):
+        """Unset variables give the hooks server no exporter, loopback port 9465, and a service name of its own."""
+        settings = metrics_exporter_settings({})
+
+        assert settings == MetricsExporterSettings(
+            MetricsExporter.NONE, "127.0.0.1", 9465, "nemoguardrails-hooks-server"
+        )
+
+    def test_lifespan_exports_the_admission_queue_gauges_from_startup(self):
+        """The lifespan starts the exporter, showing the engine's queue gauges as the hooks service, and stops it."""
+        with patch.dict("os.environ", LOOPBACK_EPHEMERAL):
+            with TestClient(_hooks_app(HOOKS_METRICS_CONFIG)):
+                exporter = get_active_metrics_exporter()
+                assert exporter is not None
+                output = _scrape(exporter.url)
+            assert get_active_metrics_exporter() is None
+
+        assert "guardrails_nonstream_queued{" in output
+        assert "guardrails_nonstream_active{" in output
+        assert 'service_name="nemoguardrails-hooks-server"' in output
+
+    def test_scrape_after_checks_holds_only_the_admission_queue_series(self):
+        """After an allow and a deny, the scrape has no request series and nothing of the tool call."""
+        with patch.dict("os.environ", LOOPBACK_EPHEMERAL):
+            with TestClient(_hooks_app(HOOKS_METRICS_CONFIG)) as client:
+                assert client.post("/v1/hooks/claude-code", json=_bash_hook("npm test")).json() == {}
+                denied = client.post("/v1/hooks/claude-code", json=_bash_hook("rm -rf /tmp/secret-marker-7f3a"))
+                assert denied.json()["hookSpecificOutput"]["permissionDecision"] == "deny"
+                output = _scrape(get_active_metrics_exporter().url)
+
+        assert "guardrails_nonstream_queued{" in output
+        assert "guardrails_requests" not in output
+        assert "Bash" not in output
+        assert "secret-marker-7f3a" not in output
+
+    def test_lifespan_serves_the_exporter_the_cli_started(self):
+        """The lifespan keeps the exporter the CLI started before the app, and stops it on shutdown."""
+        with patch.dict("os.environ", LOOPBACK_EPHEMERAL):
+            started = start_metrics_exporter(metrics_exporter_settings())
+            with TestClient(_hooks_app(HOOKS_METRICS_CONFIG)):
+                assert get_active_metrics_exporter() is started
+        assert get_active_metrics_exporter() is None
+
+    def test_lifespan_releases_the_exporter_when_the_engine_fails_to_start(self, monkeypatch):
+        """An engine that fails to start, with the exporter already running, fails startup and releases the exporter."""
+        app = _hooks_app(HOOKS_METRICS_CONFIG)
+        exporters_at_startup = []
+
+        async def fail_to_start():
+            """Note the exporter running when the engine starts, then fail."""
+            exporters_at_startup.append(get_active_metrics_exporter())
+            raise RuntimeError("Failed to start engine")
+
+        monkeypatch.setattr(app.state.engine, "startup", fail_to_start)
+
+        with patch.dict("os.environ", LOOPBACK_EPHEMERAL):
+            with pytest.raises(RuntimeError, match="Failed to start engine"):
+                with TestClient(app):
+                    pass  # pragma: no cover - startup raises before the body runs
+
+        [exporter_at_startup] = exporters_at_startup
+        assert exporter_at_startup is not None
+        assert get_active_metrics_exporter() is None
+
+    def test_lifespan_without_variables_starts_no_exporter(self):
+        """Without the variables, the hooks server exports no metrics."""
+        with TestClient(_hooks_app(HOOKS_METRICS_CONFIG)):
+            assert get_active_metrics_exporter() is None
+
+    @pytest.mark.parametrize(
+        "metrics_enabled, environ, warnings",
+        [(False, LOOPBACK_EPHEMERAL, [NO_METRICS_WARNING]), (True, LOOPBACK_EPHEMERAL, []), (False, {}, [])],
+        ids=["exporter-without-metrics", "exporter-with-metrics", "no-exporter"],
+    )
+    def test_exporter_for_a_config_without_metrics_is_warned_about(self, caplog, metrics_enabled, environ, warnings):
+        """The server warns at startup when the exporter runs and the config doesn't turn metrics on, and only then."""
+        config = {**HOOKS_METRICS_CONFIG, "metrics": {"enabled": metrics_enabled}}
+
+        with patch.dict("os.environ", environ), caplog.at_level(logging.WARNING, logger=hooks_app.__name__):
+            with TestClient(_hooks_app(config)):
+                pass
+
+        assert [record.getMessage() for record in caplog.records if record.name == hooks_app.__name__] == warnings

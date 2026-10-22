@@ -18,7 +18,7 @@
 import json
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Mapping, Optional
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -53,6 +53,7 @@ from nemoguardrails.server.hooks.checking import (
 )
 from nemoguardrails.server.hooks.schemas import HookErrorCode
 from nemoguardrails.server.hooks.tool_policy import ToolPolicy
+from nemoguardrails.server.metrics import MetricsExporterSettings, shutdown_metrics_exporter, start_metrics_exporter
 from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
 
 log = logging.getLogger(__name__)
@@ -63,6 +64,14 @@ _MODEL_CALL_ERRORS = (LLMCallException, ModelEngineError, HTTPClientError)
 
 # What the log line names as deciding a call the tool policy denies, in place of a rail.
 _TOOL_POLICY = "tool policy"
+
+# A port and service name of its own, so it exports beside the main server on one host, and loopback, like its API.
+_METRICS_DEFAULTS = MetricsExporterSettings(host="127.0.0.1", port=9465, service_name="nemoguardrails-hooks-server")
+
+
+def metrics_exporter_settings(environ: Optional[Mapping[str, str]] = None) -> MetricsExporterSettings:
+    """The `NEMO_GUARDRAILS_SERVER_METRICS_*` exporter settings, with the hooks server's defaults for those unset."""
+    return MetricsExporterSettings.from_env(environ, defaults=_METRICS_DEFAULTS)
 
 
 class HooksConfigError(ConfigurationError):
@@ -214,13 +223,28 @@ def _tool_call_rails_use_model(config: RailsConfig, model_type: str) -> bool:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Start the engine before the server accepts requests, and stop it on shutdown."""
+    """Start the metrics exporter and the engine before the server accepts requests, and stop both on shutdown."""
     engine: Guardrails = app.state.engine
-    await engine.startup()
+    # A no-op under the CLI, which has already started it; this starts it for an app served any other way.
+    if start_metrics_exporter(metrics_exporter_settings()) is not None:
+        _warn_if_the_config_records_no_metrics(engine.config)
     try:
-        yield
+        await engine.startup()
+        try:
+            yield
+        finally:
+            await engine.shutdown()
     finally:
-        await engine.shutdown()
+        shutdown_metrics_exporter()
+
+
+def _warn_if_the_config_records_no_metrics(config: RailsConfig) -> None:
+    """Warn that the scrape endpoint will show no guardrails metrics, when the config doesn't turn them on."""
+    if not config.metrics.enabled:
+        log.warning(
+            "The metrics exporter is running, but the config doesn't set `metrics.enabled: true`, so the engine "
+            "records no metrics, and the scrape endpoint shows none."
+        )
 
 
 _router = APIRouter()

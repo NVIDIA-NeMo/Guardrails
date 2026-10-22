@@ -127,6 +127,13 @@ def chat(
     )
 
 
+_METRICS_EXPORTER_HELP = (
+    "Expose the IORails non-streaming admission-queue metrics (guardrails.nonstream.*) on a scrape "
+    "endpoint. Supported: 'prometheus'. Overrides NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER; "
+    "metrics are not exported by default."
+)
+
+
 @app.command()
 def server(
     port: int = typer.Option(default=8000, help="The port that the server should listen on. "),
@@ -152,14 +159,7 @@ def server(
         default="",
         help="A prefix that should be added to all server paths. Should start with '/'.",
     ),
-    metrics_exporter: Optional[str] = typer.Option(
-        default=None,
-        help=(
-            "Expose the IORails non-streaming admission-queue metrics (guardrails.nonstream.*) on a scrape "
-            "endpoint. Supported: 'prometheus'. Overrides NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER; "
-            "metrics are not exported by default."
-        ),
-    ),
+    metrics_exporter: Optional[str] = typer.Option(default=None, help=_METRICS_EXPORTER_HELP),
     metrics_host: Optional[str] = typer.Option(
         default=None,
         help="Interface for the Prometheus scrape endpoint. Overrides NEMO_GUARDRAILS_SERVER_METRICS_HOST (default 0.0.0.0).",
@@ -178,12 +178,7 @@ def server(
 
     # The metrics flags are forwarded the same way so the server lifespan, which
     # also runs under a bare uvicorn invocation, sees one source of truth.
-    if metrics_exporter is not None:
-        os.environ["NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER"] = metrics_exporter
-    if metrics_host is not None:
-        os.environ["NEMO_GUARDRAILS_SERVER_METRICS_HOST"] = metrics_host
-    if metrics_port is not None:
-        os.environ["NEMO_GUARDRAILS_SERVER_METRICS_PORT"] = str(metrics_port)
+    _forward_metrics_options(metrics_exporter, metrics_host, metrics_port)
 
     try:
         import uvicorn
@@ -257,6 +252,16 @@ def server(
         shutdown_metrics_exporter()
 
 
+def _forward_metrics_options(exporter: Optional[str], host: Optional[str], port: Optional[int]) -> None:
+    """Set the `NEMO_GUARDRAILS_SERVER_METRICS_*` variable of each metrics flag given, leaving the others alone."""
+    if exporter is not None:
+        os.environ["NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER"] = exporter
+    if host is not None:
+        os.environ["NEMO_GUARDRAILS_SERVER_METRICS_HOST"] = host
+    if port is not None:
+        os.environ["NEMO_GUARDRAILS_SERVER_METRICS_PORT"] = str(port)
+
+
 @app.command("hooks-server")
 def hooks_server(
     config: List[Path] = typer.Option(
@@ -269,6 +274,15 @@ def hooks_server(
         help="The interface to listen on. The server has no authentication, so the default is loopback only.",
     ),
     port: int = typer.Option(default=8100, help="The port the server listens on."),
+    metrics_exporter: Optional[str] = typer.Option(default=None, help=_METRICS_EXPORTER_HELP),
+    metrics_host: Optional[str] = typer.Option(
+        default=None,
+        help="Interface for the Prometheus scrape endpoint. Overrides NEMO_GUARDRAILS_SERVER_METRICS_HOST (default 127.0.0.1).",
+    ),
+    metrics_port: Optional[int] = typer.Option(
+        default=None,
+        help="Port for the Prometheus scrape endpoint. Overrides NEMO_GUARDRAILS_SERVER_METRICS_PORT (default 9465).",
+    ),
 ):
     """Start a NeMo Guardrails hooks server, which checks agents' tool calls before they run."""
     # One config is the whole policy, so a second one is refused rather than dropped.
@@ -276,10 +290,18 @@ def hooks_server(
         typer.secho("The hooks server takes exactly one --config.", fg=typer.colors.RED)
         raise typer.Exit(1)
 
+    # Forwarded as the `server` command forwards them, so the app's lifespan reads the same settings.
+    _forward_metrics_options(metrics_exporter, metrics_host, metrics_port)
+
     try:
         import uvicorn
 
-        from nemoguardrails.server.hooks.app import create_hooks_app
+        from nemoguardrails.server.hooks.app import create_hooks_app, metrics_exporter_settings
+        from nemoguardrails.server.metrics import (
+            MetricsExporterConfigError,
+            shutdown_metrics_exporter,
+            start_metrics_exporter,
+        )
     except ImportError:
         typer.secho(
             "Server dependencies are missing. Install them with: pip install nemoguardrails[server]",
@@ -302,7 +324,18 @@ def hooks_server(
         typer.secho(str(e), fg=typer.colors.RED)
         raise typer.Exit(1)
 
-    uvicorn.run(hooks_app, host=host, port=port, log_level="info")
+    # The lifespan starts it too, as the main server's does, but an exporter that can't start would then fail the
+    # app's startup with a traceback. Started here, once the config is accepted, it exits 1 with the reason instead.
+    try:
+        start_metrics_exporter(metrics_exporter_settings())
+    except MetricsExporterConfigError as e:
+        typer.secho(str(e), fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    try:
+        uvicorn.run(hooks_app, host=host, port=port, log_level="info")
+    finally:
+        shutdown_metrics_exporter()
 
 
 def _validation_error_summary(error: ValidationError) -> str:

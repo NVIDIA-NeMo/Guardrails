@@ -13,12 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Opt-in metrics export for the Guardrails server.
+"""Opt-in metrics export for the Guardrails servers.
 
 The IORails engine records its metrics through the OpenTelemetry *API* only;
 something has to install an SDK ``MeterProvider`` or every emission is a
 silent no-op.  For library users that "something" is their application.  For
-the packaged ``nemoguardrails server`` command it is this module: it builds a
+the packaged ``nemoguardrails server`` and ``nemoguardrails hooks-server``
+commands it is this module: it builds a
 ``MeterProvider`` backed by a ``PrometheusMetricReader``, serves the scrape
 endpoint on a dedicated port, and stops the listener with the server.
 
@@ -102,11 +103,15 @@ class MetricsExporterSettings:
         return self.exporter != MetricsExporter.NONE
 
     @classmethod
-    def from_env(cls, environ: Optional[Mapping[str, str]] = None) -> "MetricsExporterSettings":
+    def from_env(
+        cls, environ: Optional[Mapping[str, str]] = None, *, defaults: Optional["MetricsExporterSettings"] = None
+    ) -> "MetricsExporterSettings":
         """Resolve settings from environment variables, raising :class:`MetricsExporterConfigError` on invalid values."""
         env = os.environ if environ is None else environ
+        # What a variable leaves unset: the caller's defaults, such as the hooks server's, or the main server's.
+        fallback = cls() if defaults is None else defaults
 
-        raw_exporter = env.get(ENV_EXPORTER, MetricsExporter.NONE.value).strip().lower() or MetricsExporter.NONE.value
+        raw_exporter = env.get(ENV_EXPORTER, fallback.exporter.value).strip().lower() or MetricsExporter.NONE.value
         try:
             exporter = MetricsExporter(raw_exporter)
         except ValueError:
@@ -115,7 +120,7 @@ class MetricsExporterSettings:
                 f"Unsupported {ENV_EXPORTER}={raw_exporter!r}. Supported values: {supported}."
             ) from None
 
-        raw_port = env.get(ENV_PORT, str(DEFAULT_PORT)).strip()
+        raw_port = env.get(ENV_PORT, str(fallback.port)).strip()
         try:
             port = int(raw_port)
         except ValueError:
@@ -123,11 +128,11 @@ class MetricsExporterSettings:
         if not 0 <= port <= 65535:
             raise MetricsExporterConfigError(f"{ENV_PORT} must be between 0 and 65535, got {port}.")
 
-        host = env.get(ENV_HOST, DEFAULT_HOST).strip() or DEFAULT_HOST
+        host = env.get(ENV_HOST, fallback.host).strip() or fallback.host
         # OTEL_SERVICE_NAME is the SDK-standard knob; the NEMO_ variable wins
         # when both are set so server operators have one obvious override.
         service_name = (
-            env.get(ENV_SERVICE_NAME, "").strip() or env.get("OTEL_SERVICE_NAME", "").strip() or DEFAULT_SERVICE_NAME
+            env.get(ENV_SERVICE_NAME, "").strip() or env.get("OTEL_SERVICE_NAME", "").strip() or fallback.service_name
         )
 
         return cls(exporter=exporter, host=host, port=port, service_name=service_name)
