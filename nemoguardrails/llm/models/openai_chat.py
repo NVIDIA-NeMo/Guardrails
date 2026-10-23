@@ -59,6 +59,11 @@ class OpenAIChatModel:
         if provider_name is None:
             provider_name = _KNOWN_PROVIDER_URLS.get(client.provider_url or "", "openai")
         self._provider_name = provider_name
+        # Streaming is chosen by generate_async vs stream_async. Leaving
+        # parameters.stream in the defaults makes every rail call (self-check,
+        # and the rest) request an SSE response that the JSON parser cannot read.
+        kwargs.pop("stream", None)
+        kwargs.pop("stream_options", None)
         self._default_kwargs = kwargs
 
     @property

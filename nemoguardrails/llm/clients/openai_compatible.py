@@ -35,17 +35,27 @@ class OpenAICompatibleClient(BaseClient):
         include_usage_in_stream: Optional[bool] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
+        # The method argument owns the call mode. A model config that sets
+        # parameters.stream (or a per-call llm_params entry) must not turn a
+        # non-streaming completion into an SSE body, and must not turn
+        # stream_chat_completion back into a single JSON response.
+        extra = dict(kwargs)
+        extra.pop("stream", None)
+        caller_stream_options = extra.pop("stream_options", None)
+
         payload: Dict[str, Any] = {
             "model": model,
             "messages": messages,
         }
         if stop:
             payload["stop"] = stop
+        payload.update(extra)
         if stream:
             payload["stream"] = True
-            if include_usage_in_stream is not False:
+            if caller_stream_options is not None:
+                payload["stream_options"] = caller_stream_options
+            elif include_usage_in_stream is not False:
                 payload["stream_options"] = {"include_usage": True}
-        payload.update(kwargs)
         return payload
 
     async def chat_completion(
@@ -56,6 +66,9 @@ class OpenAICompatibleClient(BaseClient):
         stop: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> HTTPResponse:
+        # Drop call-mode keys before they bind to _build_payload's stream argument.
+        kwargs.pop("stream", None)
+        kwargs.pop("stream_options", None)
         payload = self._build_payload(model, messages, stop=stop, **kwargs)
         return await self._apost(self._ROUTE, payload)
 
@@ -67,6 +80,7 @@ class OpenAICompatibleClient(BaseClient):
         stop: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> AsyncGenerator[HTTPResponse, None]:
+        kwargs.pop("stream", None)
         payload = self._build_payload(model, messages, stop=stop, stream=True, **kwargs)
         gen = self._apost_stream(self._ROUTE, payload)
         try:
