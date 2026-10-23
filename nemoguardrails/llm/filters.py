@@ -261,6 +261,22 @@ def verbose_v1(colang_history: str) -> str:
     return "\n".join(lines)
 
 
+def apply_tool_result_updates(messages: List[dict], events: List[dict]) -> List[dict]:
+    updates = {}
+    for event in events:
+        if event["type"] == "StartToolResultRails":
+            for message in event.get("tool_messages", []):
+                updates[message.get("tool_call_id", "")] = "[Tool result blocked by guardrails.]"
+        elif event["type"] == "ToolMessageUpdated":
+            updates[event["tool_call_id"]] = event["content"]
+    return [
+        {**message, "content": updates[message.get("tool_call_id", "")]}
+        if message["role"] == "tool" and message.get("tool_call_id", "") in updates
+        else message.copy()
+        for message in messages
+    ]
+
+
 def to_chat_messages(events: List[dict]) -> List[dict]:
     """Filter that turns an array of events into a sequence of user/assistant messages.
 
@@ -285,7 +301,7 @@ def to_chat_messages(events: List[dict]) -> List[dict]:
             # Handle system messages that might contain multimodal content
             messages.append({"role": "system", "content": event["content"]})
 
-    return messages
+    return apply_tool_result_updates(messages, events)
 
 
 def user_assistant_sequence(events: List[dict]) -> str:
@@ -302,6 +318,9 @@ def user_assistant_sequence(events: List[dict]) -> str:
     For multimodal content, it extracts text content and indicates if there were images.
     """
     history_items = []
+    tool_messages = iter(
+        apply_tool_result_updates([event["message"] for event in events if event["type"] == "ToolMessage"], events)
+    )
     for event in events:
         if event["type"] == "UserMessage":
             if event.get("is_tool_result"):
@@ -329,7 +348,7 @@ def user_assistant_sequence(events: List[dict]) -> str:
         elif event["type"] == "BotToolCalls":
             history_items.append("Assistant tool calls: " + json.dumps(event["tool_calls"]))
         elif event["type"] == "ToolMessage":
-            history_items.append("Tool: " + json.dumps(event["message"]))
+            history_items.append("Tool: " + json.dumps(next(tool_messages)))
 
     return "\n".join(history_items)
 

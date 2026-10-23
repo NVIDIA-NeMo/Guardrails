@@ -842,25 +842,33 @@ class LLMRails(BaseGuardrails):
                                 user_message = prev_msg["content"]
                                 break
 
-                        if user_message:
-                            # If tool result rails are configured, group all tool messages
+                        if user_message is not None:
                             if self.config.rails.tool_result.flows:
-                                # Collect all tool messages for grouped processing
-                                tool_messages = []
-                                for tool_idx in range(len(messages)):
-                                    if messages[tool_idx]["role"] == "tool":
-                                        tool_messages.append(
-                                            {
-                                                "content": messages[tool_idx]["content"],
-                                                "name": messages[tool_idx].get("name", "unknown"),
-                                                "tool_call_id": messages[tool_idx].get("tool_call_id", ""),
-                                            }
-                                        )
-
+                                batch_start = idx
+                                while batch_start > 0 and messages[batch_start - 1]["role"] == "tool":
+                                    batch_start -= 1
+                                tool_names = {
+                                    call.get("id", ""): call.get("function", {}).get(
+                                        "name", call.get("name", "unknown")
+                                    )
+                                    for previous in messages[:batch_start]
+                                    if previous["role"] == "assistant"
+                                    for call in previous.get("tool_calls", [])
+                                }
+                                tool_messages = [
+                                    {
+                                        "content": tool_message["content"],
+                                        "name": tool_message.get("name")
+                                        or tool_names.get(tool_message.get("tool_call_id", ""), "unknown"),
+                                        "tool_call_id": tool_message.get("tool_call_id", ""),
+                                    }
+                                    for tool_message in messages[batch_start:]
+                                ]
                                 events.append(
                                     {
                                         "type": "UserToolMessages",
                                         "tool_messages": tool_messages,
+                                        "user_message": user_message,
                                     }
                                 )
 

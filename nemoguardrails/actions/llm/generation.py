@@ -53,6 +53,7 @@ from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.call import llm_call
 from nemoguardrails.llm.completion_parsing import get_multiline_response, strip_quotes
+from nemoguardrails.llm.filters import apply_tool_result_updates
 from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
@@ -575,12 +576,12 @@ class LLMGenerationActions:
                     # as it may have been altered by the input rails.
                     prompt = event["text"]
                 elif isinstance(raw_prompt, list):
-                    prompt = raw_prompt.copy()
+                    prompt = apply_tool_result_updates(raw_prompt, events)
 
                     # In this case, if the last message is from the user, we replace the text
                     # just in case the input rails may have altered it.
                     if prompt[-1]["role"] == "user":
-                        raw_prompt[-1]["content"] = event["text"]
+                        prompt[-1]["content"] = event["text"]
                 else:
                     raise ValueError(f"Unsupported type for raw prompt: {type(raw_prompt)}")
 
