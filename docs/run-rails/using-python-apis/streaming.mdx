@@ -325,7 +325,11 @@ async for chunk in app.stream_async(messages=history):
 
 `LLMRails` output-rail streaming does not support tool calls. Receiving a tool-call
 event raises `StreamingNotSupportedError` before that event is released, regardless
-of `stream_first`. Buffered dialog generation, `RunnableRails`, and the chat CLI also reject streamed
+of `stream_first`. Configured tool-call rails also prevent tool-call events from
+being released unless explicitly disabled with `options.rails.tool_call: false`.
+Tool-call rails need the complete call to validate or rewrite it; streamed fragments
+would reach the caller before those checks. Text-only responses can still stream.
+Buffered dialog generation, `RunnableRails`, and the chat CLI also reject streamed
 tool-call events explicitly.
 Use the supported non-streaming tool-calling path when these checks are required.
 

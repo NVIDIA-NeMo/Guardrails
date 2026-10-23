@@ -195,11 +195,14 @@ async def test_cancelling_after_first_delta_closes_upstream(provider_stream):
     assert provider_stream.closed.is_set()
 
 
-@pytest.mark.parametrize("output_rails", [False, True])
-async def test_server_sends_delta_before_upstream_finishes(provider_stream, monkeypatch, output_rails):
-    config = {"models": [], "passthrough": True, "streaming": True}
-    if output_rails:
+@pytest.mark.parametrize("rail_type", [None, "output", "tool_call"])
+@pytest.mark.parametrize("passthrough", [False, True])
+async def test_server_sends_delta_before_upstream_finishes(provider_stream, monkeypatch, rail_type, passthrough):
+    config = {"models": [], "passthrough": passthrough, "streaming": True}
+    if rail_type == "output":
         config["rails"] = {"output": {"flows": ["check output"], "streaming": {"enabled": True, "stream_first": False}}}
+    elif rail_type == "tool_call":
+        config["rails"] = {"tool_call": {"flows": ["check output"]}}
     rails = LLMRails(
         RailsConfig.from_content(
             config=config,
@@ -253,16 +256,16 @@ async def test_server_sends_delta_before_upstream_finishes(provider_stream, monk
     task = asyncio.create_task(api.app(scope, receive, send))
     try:
         await asyncio.wait_for(provider_stream.paused.wait(), 2)
-        if not output_rails:
+        if rail_type is None:
             await asyncio.wait_for(delivered.wait(), 2)
             assert not task.done()
             assert not provider_stream.release.is_set()
         provider_stream.release.set()
         await asyncio.wait_for(task, 5)
         body = b"".join(message.get("body", b"") for message in sent).decode()
-        if output_rails:
+        if rail_type is not None:
             assert not delivered.is_set()
-            assert "Tool calls are not supported with output rails during streaming." in body
+            assert "Tool calls are not supported with output rails or tool-call rails during streaming." in body
         else:
             frames = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: {")]
             choices = [frame["choices"][0] for frame in frames]

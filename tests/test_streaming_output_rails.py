@@ -738,7 +738,7 @@ async def test_tool_calls_with_output_streaming_are_explicitly_unsupported(strea
         llm=FakeLLMModel(llm_responses=[LLMResponse(content="BLOCK", tool_calls=[ToolCall(id="call_1")])]),
     )
     emitted = []
-    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails during streaming"):
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails.*during streaming"):
         async for chunk in rails.stream_async(prompt="test", include_metadata=include_metadata):
             emitted.append(chunk)
     assert emitted == []
@@ -762,6 +762,6 @@ async def test_direct_generation_handler_cannot_release_tool_calls_with_output_r
     rails = LLMRails(config, llm=model)
     handler = StreamingHandler()
     await rails.generate_async(prompt="test", streaming_handler=handler)
-    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails during streaming"):
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails.*during streaming"):
         async for chunk in handler:
             assert chunk == ""

@@ -892,7 +892,7 @@ async def test_anext_rejects_tool_calls_when_disabled():
 
     handler = StreamingHandler(allow_tool_calls=False)
     await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
-    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails during streaming"):
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails.*during streaming"):
         await anext(handler)
 
 
@@ -904,7 +904,7 @@ async def test_pipe_cannot_bypass_disabled_tool_calls():
     handler = StreamingHandler(allow_tool_calls=False)
     target = StreamingHandler()
     handler.set_pipe_to(target)
-    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails during streaming"):
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails.*during streaming"):
         await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
     assert target.queue.empty()
 

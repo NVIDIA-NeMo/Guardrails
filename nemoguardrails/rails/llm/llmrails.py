@@ -1033,7 +1033,10 @@ class LLMRails(BaseGuardrails):
             log.warning("No main LLM specified in the config and no LLM provided via constructor.")
 
         if streaming_handler:
-            if self.config.rails.output.flows:
+            tool_call_rails_enabled = self.config.rails.tool_call.flows and (
+                gen_options is None or gen_options.rails.tool_call
+            )
+            if self.config.rails.output.flows or tool_call_rails_enabled:
                 streaming_handler.allow_tool_calls = False
             streaming_handler_var.set(streaming_handler)
 

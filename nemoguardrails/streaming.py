@@ -219,7 +219,9 @@ class StreamingHandler(AsyncIterator):
 
     def _validate_chunk(self, chunk):
         if isinstance(chunk, (ToolCallChunk, ToolCallDeltaChunk)) and not self.allow_tool_calls:
-            raise StreamingNotSupportedError("Tool calls are not supported with output rails during streaming.")
+            raise StreamingNotSupportedError(
+                "Tool calls are not supported with output rails or tool-call rails during streaming."
+            )
 
     async def _process(
         self,
