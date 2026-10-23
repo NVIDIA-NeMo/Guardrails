@@ -252,6 +252,10 @@ class LLMModel(Protocol):
     objects. Adapters convert ``ChatMessage`` to whatever their SDK expects.
     ``**kwargs`` are forwarded to the underlying SDK (e.g. temperature,
     max_tokens).
+
+    Bearer-token backends (e.g. ``OpenAIChatModel``) additionally expose a
+    settable ``api_key`` property for in-place credential rotation; this is
+    not part of the protocol, so check with ``hasattr`` before relying on it.
     """
 
     async def generate_async(
