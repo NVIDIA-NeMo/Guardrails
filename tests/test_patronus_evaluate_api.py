@@ -367,7 +367,7 @@ def test_patronus_evaluate_api_internal_error_when_no_env_set():
 def test_patronus_evaluate_api_internal_error_when_no_evaluators_provided():
     """
     Test that an internal error is returned when no 'evaluators' dict
-    is passed in teh evaluate_config params.
+    is passed in the evaluate_config params.
     """
     yaml_evaluate_config = """
   config:
