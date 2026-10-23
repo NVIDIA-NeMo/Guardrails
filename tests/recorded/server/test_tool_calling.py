@@ -18,10 +18,8 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
-import pytest_asyncio
 
 from nemoguardrails import LLMRails
-from nemoguardrails.llm.frameworks import _areset_frameworks, get_default_framework, set_default_framework
 from nemoguardrails.rails.llm.config import MessageTemplate, TaskPrompt
 from nemoguardrails.server import api
 from tests.recorded.rails.public_api.configs import OPENAI_BASELINE_CONFIG, OPENAI_MODEL
@@ -29,18 +27,6 @@ from tests.recorded.rails_config import load_config
 from tests.recorded.snapshots import snapshot
 
 pytestmark = [pytest.mark.recorded, pytest.mark.vcr(ignore_hosts=["testserver"]), pytest.mark.asyncio]
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def default_llm_framework():
-    """Select the default provider framework for each test, then close clients and restore the selection."""
-    previous = get_default_framework()
-    set_default_framework("default")
-    try:
-        yield
-    finally:
-        await _areset_frameworks()
-        set_default_framework(previous)
 
 
 async def test_non_passthrough_chat_tool_round_trip(openai_api_key, monkeypatch, vcr):
