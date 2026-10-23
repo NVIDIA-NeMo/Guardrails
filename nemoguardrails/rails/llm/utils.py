@@ -46,13 +46,26 @@ def get_history_cache_key(messages: List[dict]) -> str:
                 # Use the content directly without json.dumps
                 key_items.append(msg["content"])
         elif msg["role"] == "assistant":
-            key_items.append(msg.get("content", ""))
+            key_items.append(msg.get("content") or "")
             if msg.get("tool_calls"):
-                key_items.append(json.dumps(msg["tool_calls"], sort_keys=True))
+                calls = []
+                for call in msg["tool_calls"]:
+                    function = call.get("function", {}).copy()
+                    if isinstance(function.get("arguments"), str):
+                        try:
+                            function["arguments"] = json.loads(function["arguments"])
+                        except ValueError:
+                            pass
+                    calls.append({**call, "function": function} if function else call)
+                key_items.append(json.dumps(calls, sort_keys=True))
         elif msg["role"] == "tool":
             key_items.append(json.dumps(msg, sort_keys=True))
         elif msg["role"] == "context":
-            key_items.append(json.dumps(msg["content"]))
+            context = {key: value for key, value in msg["content"].items() if key != "generation_options"}
+            if context:
+                key_items.append(json.dumps(context))
+        elif msg["role"] in ("system", "developer"):
+            key_items.append(json.dumps(msg, sort_keys=True))
         elif msg["role"] == "event":
             key_items.append(json.dumps(msg["event"]))
 

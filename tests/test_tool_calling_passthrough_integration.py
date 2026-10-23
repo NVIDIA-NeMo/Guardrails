@@ -25,6 +25,7 @@ from nemoguardrails.exceptions import ToolConversationTooLongError
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.rails.llm.llmrails import GenerationOptions, GenerationResponse
+from nemoguardrails.rails.llm.utils import get_history_cache_key
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.utils import FakeLLMModel, TestChat
 
@@ -847,3 +848,119 @@ class TestToolCallingNonPassthroughIntegration:
         assert "tool_calls" not in result
         assert result["role"] == "assistant"
         assert result["content"] == "I'll check the weather for you."
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("options", [False, True])
+@pytest.mark.parametrize("wire_format", [False, True])
+async def test_input_rail_rewrite_survives_cached_tool_round_trip(options, wire_format):
+    config = RailsConfig.from_content(
+        yaml_content="""
+models: []
+passthrough: false
+rails:
+  input:
+    flows: [rewrite query]
+""",
+        colang_content="""
+define flow rewrite query
+  $user_message = "REWRITTEN query"
+""",
+    )
+    model = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        id="call_weather", function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"})
+                    )
+                ],
+            ),
+            LLMResponse(content="Final answer."),
+        ]
+    )
+    model.generate_async = AsyncMock(wraps=model.generate_async)
+    rails = LLMRails(config, llm=model)
+    messages = [{"role": "user", "content": "ORIGINAL query"}]
+    first = await rails.generate_async(
+        messages=messages, options={"llm_params": {"tool_choice": "required"}} if options else None
+    )
+    assistant = {**first.response[0], "tool_calls": first.tool_calls} if options else first
+    if wire_format:
+        assistant = copy.deepcopy(assistant)
+        assistant.pop("content", None)
+        for call in assistant["tool_calls"]:
+            call["function"]["arguments"] = json.dumps(call["function"]["arguments"])
+    messages.append(assistant)
+    assert get_history_cache_key(messages) in rails.events_history_cache
+    messages.append({"role": "tool", "tool_call_id": "call_weather", "content": "Sunny"})
+    await rails.generate_async(messages=messages, options={"llm_params": {"tool_choice": "auto"}} if options else None)
+    prompt = model.generate_async.await_args.args[0]
+    assert "REWRITTEN query" in prompt[0].content
+    assert "ORIGINAL query" not in prompt[0].content
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("block", [False, True])
+async def test_cached_history_contains_only_approved_tool_calls(block):
+    config = RailsConfig.from_content(
+        yaml_content=json.dumps(
+            {"models": [], "passthrough": False, "rails": {"tool_call": {"flows": ["check calls"]}}}
+        ),
+        colang_content="""
+define flow check calls
+"""
+        + (
+            """  bot refuse call
+  abort
+
+define bot refuse call
+  "Tool call rejected."
+"""
+            if block
+            else """  $tool_calls = execute approve_calls(tool_calls=$tool_calls)
+"""
+        ),
+    )
+    model = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        id="call_weather", function=ToolCallFunction(name="get_weather", arguments={"city": "ORIGINAL"})
+                    )
+                ],
+            ),
+            LLMResponse(content="Final answer."),
+        ]
+    )
+    model.generate_async = AsyncMock(wraps=model.generate_async)
+    rails = LLMRails(config, llm=model)
+
+    async def approve_calls(tool_calls):
+        approved = copy.deepcopy(tool_calls)
+        approved[0]["function"]["arguments"] = {"city": "APPROVED"}
+        return approved
+
+    rails.register_action(approve_calls, name="approve_calls")
+    messages = [{"role": "user", "content": "Weather?"}]
+    first = await rails.generate_async(messages=messages)
+    messages.append(first)
+    if block:
+        assert "tool_calls" not in first
+        messages.append({"role": "user", "content": "Hello"})
+    else:
+        assert first["tool_calls"][0]["function"]["arguments"] == {"city": "APPROVED"}
+        messages.append({"role": "tool", "tool_call_id": "call_weather", "content": "Sunny"})
+    await rails.generate_async(messages=messages)
+    prompt = model.generate_async.await_args.args[0]
+    sent = (
+        [{"role": "user", "content": prompt}] if isinstance(prompt, str) else [message.to_dict() for message in prompt]
+    )
+    assert "ORIGINAL" not in json.dumps(sent)
+    if block:
+        assert not any(message.get("tool_calls") for message in sent)
+    else:
+        assert next(message["tool_calls"] for message in sent if message.get("tool_calls")) == first["tool_calls"]

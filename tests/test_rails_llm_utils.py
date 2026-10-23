@@ -392,3 +392,28 @@ def test_get_action_details_no_match(dummy_flows):
     with pytest.raises(ValueError) as exc_info:
         get_action_details_from_flow_id("non_existing_flow", dummy_flows)
     assert "No action found for flow_id" in str(exc_info.value)
+
+
+@pytest.mark.parametrize("role", ["system", "developer"])
+def test_history_cache_keys_distinguish_instructions(role):
+    histories = [
+        [{"role": role, "content": text}, {"role": "user", "content": "Hello"}]
+        for text in ("First policy", "Second policy")
+    ]
+    assert get_history_cache_key(histories[0]) != get_history_cache_key(histories[1])
+
+
+def test_tool_history_cache_key_normalizes_arguments_without_mutating_messages():
+    call = {"id": "call_1", "type": "function", "function": {"name": "weather", "arguments": '{ "city": "Paris" }'}}
+    wire = [{"role": "assistant", "content": None, "tool_calls": [call]}]
+    native = [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{**call, "function": {"name": "weather", "arguments": {"city": "Paris"}}}],
+        }
+    ]
+    assert get_history_cache_key(wire) == get_history_cache_key(native)
+    assert call["function"]["arguments"] == '{ "city": "Paris" }'
+    call["function"]["arguments"] = "malformed"
+    assert get_history_cache_key(wire) != get_history_cache_key(native)
