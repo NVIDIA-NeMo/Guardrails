@@ -219,17 +219,17 @@ Two versions of Colang, 1.0 and 2.0, are supported and Colang 1.0 is the default
 
 For a brief introduction to the Colang 1.0 syntax, see the [Colang 1.0 Language Syntax Guide](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/colang).
 
-To get started with Colang 2.0, see the [Colang 2.0 Documentation](https://docs.nvidia.com/nemo/guardrails/colang-2/overview.html).
+To get started with Colang 2.0, see the [Colang 2.0 Documentation](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/colang/colang-2).
 
 ### Guardrails Library
 
-NeMo Guardrails comes with a set of [built-in guardrails](https://docs.nvidia.com/nemo/guardrails/user-guides/guardrails-library.html).
+NeMo Guardrails comes with a set of [built-in guardrails](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/guardrail-catalog).
 
 ```{note}
 The built-in guardrails may or may not be suitable for a given production use case. As always, developers should work with their internal application team to ensure guardrails meets requirements for the relevant industry and use case and address unforeseen product misuse.
 ```
 
-The library includes guardrails for LLM self-checking (input/output moderation, fact-checking, hallucination detection), NVIDIA safety models (content safety, topic safety), jailbreak and injection detection, and integrations with community models and third-party APIs. For the complete list, see the [Guardrails Library documentation](https://docs.nvidia.com/nemo/guardrails/user-guides/guardrails-library.html).
+The library includes guardrails for LLM self-checking (input/output moderation, fact-checking, hallucination detection), NVIDIA safety models (content safety, topic safety), jailbreak and injection detection, and integrations with community models and third-party APIs. For the complete list, see the [Guardrails Library documentation](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/guardrail-catalog).
 
 ## CLI
 
@@ -278,11 +278,11 @@ Sample output:
 
 #### Docker
 
-To start a guardrails server, you can also use a Docker container. The NeMo Guardrails library provides a [Dockerfile](./Dockerfile) that you can use to build a `nemoguardrails` image. For further information, see the [using Docker](https://docs.nvidia.com/nemo/guardrails/user-guides/advanced/using-docker.html) section.
+To start a guardrails server, you can also use a Docker container. The NeMo Guardrails library provides a [Dockerfile](./Dockerfile) that you can use to build a `nemoguardrails` image. For further information, see the [using Docker](https://docs.nvidia.com/nemo/guardrails/more-deployment-options/using-docker) section.
 
 ## Integration with LangChain (Optional)
 
-LangChain integration is opt-in. To enable it, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`. Then install the LangChain packages your configuration requires. After you enable the integration, you can wrap a guardrails configuration around a LangChain chain (or any `Runnable`), and you can call a LangChain chain from within a guardrails configuration. For more information, refer to the [LangChain Integration Documentation](https://docs.nvidia.com/nemo/guardrails/user-guides/langchain/langchain-integration.html).
+LangChain integration is opt-in. To enable it, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`. Then install the LangChain packages your configuration requires. After you enable the integration, you can wrap a guardrails configuration around a LangChain chain (or any `Runnable`), and you can call a LangChain chain from within a guardrails configuration. For more information, refer to the [LangChain Integration Documentation](https://docs.nvidia.com/nemo/guardrails/integration-with-third-party-libraries/langchain/langchain-integration).
 
 ## Evaluation
 
@@ -305,7 +305,7 @@ To the best of our knowledge, the NeMo Guardrails library is the only guardrails
 - [Getting Started Guide](https://docs.nvidia.com/nemo/guardrails/getting-started)
 - [Examples](./examples)
 - [FAQs](https://docs.nvidia.com/nemo/guardrails/faqs.html)
-- [Security Guidelines](https://docs.nvidia.com/nemo/guardrails/security/guidelines.html)
+- [Security Guidelines](https://docs.nvidia.com/nemo/guardrails/resources/guidelines)
 
 ## Telemetry and Privacy
 
@@ -352,7 +352,7 @@ mkdir -p ~/.config/nemoguardrails && touch ~/.config/nemoguardrails/do_not_track
 
 Set the opt-out before the NVIDIA NeMo Guardrails library starts. Changing environment variables or creating `do_not_track` after telemetry has started does not stop an already-running heartbeat thread.
 
-Refer to [docs/telemetry.md](https://docs.nvidia.com/nemo/guardrails/latest/telemetry.html) for the full schema and field-by-field descriptions.
+Refer to [docs/telemetry.md](https://docs.nvidia.com/nemo/guardrails/resources/telemetry) for the full schema and field-by-field descriptions.
 
 You may opt out of telemetry collection at any time. Opting out applies only to data collection by the NVIDIA NeMo Guardrails library itself.
 
