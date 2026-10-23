@@ -1,0 +1,41 @@
+# NeMo Guardrails configuration for the governance tracing example.
+#
+# Prerequisites
+# -------------
+# pip install nemoguardrails[tracing] opentelemetry-sdk opentelemetry-exporter-otlp openai
+#
+# Then start Jaeger all-in-one:
+#   docker run -d --name jaeger \
+#     -p 6831:6831/udp -p 16686:16686 -p 4317:4317 \
+#     jaegertracing/all-in-one:latest
+#
+# Set your LLM API key:
+#   export OPENAI_API_KEY="sk-..."
+#
+# Run the example:
+#   python governance_tracing_example.py
+
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+tracing:
+  enabled: true
+  # Use the OpenTelemetry span format (v2) for full attribute support.
+  span_format: opentelemetry
+  # Set to true to capture message content in trace events.
+  # Keep false in production for data-privacy compliance.
+  enable_content_capture: false
+  adapters:
+    - name: OpenTelemetry
+
+rails:
+  input:
+    flows:
+      - check jailbreak
+      - check input sensitive data
+
+  output:
+    flows:
+      - check output sensitive data
