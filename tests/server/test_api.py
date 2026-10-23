@@ -1884,3 +1884,45 @@ def test_list_models_upstream_missing_data_key():
     assert response.status_code == 200
     data = response.json()
     assert data["data"] == []
+
+
+@pytest.mark.parametrize("passthrough", [False, True])
+def test_chat_completion_tool_call_rail_block_omits_rejected_calls(passthrough):
+    from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
+
+    config = RailsConfig.from_content(
+        yaml_content=json.dumps(
+            {"models": [], "passthrough": passthrough, "rails": {"tool_call": {"flows": ["block calls"]}}}
+        ),
+        colang_content="""
+define flow block calls
+  bot refuse call
+  abort
+
+define bot refuse call
+  "Tool call rejected."
+""",
+    )
+    model = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[ToolCall(id="call_weather", function=ToolCallFunction(name="weather", arguments={}))],
+            )
+        ]
+    )
+    rails = LLMRails(config, llm=model)
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "test-model",
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+    assert response.status_code == 200
+    choice = response.json()["choices"][0]
+    assert choice["finish_reason"] == "stop"
+    assert choice["message"] == {"role": "assistant", "content": "Tool call rejected."}
+    assert model.inference_count == 1

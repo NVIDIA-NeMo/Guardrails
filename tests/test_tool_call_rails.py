@@ -63,10 +63,9 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
 async def test_tool_call_rails_basic():
     test_tool_calls = [
         {
-            "name": "allowed_tool",
-            "args": {"param": "safe_value"},
+            "function": {"name": "allowed_tool", "arguments": {"param": "safe_value"}},
             "id": "call_safe",
-            "type": "tool_call",
+            "type": "function",
         }
     ]
 
@@ -103,7 +102,7 @@ async def test_tool_call_rails_basic():
         result = await chat.app.generate_async(messages=[{"role": "user", "content": "Use allowed tool"}])
 
         assert result["tool_calls"] is not None
-        assert result["tool_calls"][0]["name"] == "allowed_tool"
+        assert result["tool_calls"][0]["function"]["name"] == "allowed_tool"
 
 
 @pytest.mark.asyncio
@@ -153,10 +152,9 @@ async def test_tool_call_rails_blocking():
 async def test_multiple_tool_call_rails():
     test_tool_calls = [
         {
-            "name": "test_tool",
-            "args": {"param": "safe"},
+            "function": {"name": "test_tool", "arguments": {"param": "safe"}},
             "id": "call_test",
-            "type": "tool_call",
+            "type": "function",
         }
     ]
 
@@ -202,7 +200,7 @@ async def test_multiple_tool_call_rails():
         result = await chat.app.generate_async(messages=[{"role": "user", "content": "Use test tool"}])
 
         assert result["tool_calls"] is not None
-        assert result["tool_calls"][0]["name"] == "test_tool"
+        assert result["tool_calls"][0]["function"]["name"] == "test_tool"
 
 
 @pytest.mark.asyncio

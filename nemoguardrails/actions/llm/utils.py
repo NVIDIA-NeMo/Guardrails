@@ -518,9 +518,10 @@ def extract_tool_calls_from_events(events: list) -> Optional[list]:
 
     ``StartToolCallBotAction`` carries the tool calls that passed tool-call
     rails and should be returned to the caller. ``BotToolCalls`` is used as a
-    fallback for paths that do not emit the post-rail action event.
+    fallback only for paths that do not run tool-call rails.
     """
     bot_tool_calls = None
+    tool_call_rails_started = False
 
     for event in events:
         if event.get("type") == "StartToolCallBotAction":
@@ -529,8 +530,10 @@ def extract_tool_calls_from_events(events: list) -> Optional[list]:
                 return tool_calls
         elif event.get("type") == "BotToolCalls":
             bot_tool_calls = event.get("tool_calls")
+        elif event.get("type") == "StartToolCallRails":
+            tool_call_rails_started = True
 
-    return bot_tool_calls
+    return None if tool_call_rails_started else bot_tool_calls
 
 
 def extract_bot_thinking_from_events(events: list):
