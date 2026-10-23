@@ -125,7 +125,7 @@ For the field reference, refer to [Configuration Reference: Hooks Server Tool Po
 List the rails for each tool under `rails.tool_call.per_tool`, keyed by the tool's name.
 The following rails check a tool call:
 
-- [`regex check tool call`](/configure-guardrails/guardrail-catalog/community/regex) matches regular expressions against the call's arguments, with no model.
+- [`regex check tool call`](/configure-guardrails/guardrail-catalog/third-party/regex) matches regular expressions against the call's arguments, with no model.
 - [`cel check tool call`](/configure-guardrails/guardrail-catalog/cel) evaluates Common Expression Language (CEL) expressions over the call's arguments, with no model.
 - [`tool safety check tool call`](/configure-guardrails/guardrail-catalog/tool-safety-check) asks a judge model whether the call is safe, so the configuration needs that model.
 

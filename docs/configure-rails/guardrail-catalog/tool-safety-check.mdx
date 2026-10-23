@@ -8,7 +8,7 @@ content:
   type: "reference"
 ---
 
-Tool Safety Check judges a tool call's arguments, or a tool result's content, against safety instructions you write per tool, evaluated by a judge LLM. It is scoped per tool through the same `rails.tool_call.per_tool` / `rails.tool_result.per_tool` dispatch mechanism as [Regex Detection](/configure-guardrails/guardrail-catalog/community/regex), so different tools can use different judge models or different instructions.
+Tool Safety Check judges a tool call's arguments, or a tool result's content, against safety instructions you write per tool, evaluated by a judge LLM. It is scoped per tool through the same `rails.tool_call.per_tool` / `rails.tool_result.per_tool` dispatch mechanism as [Regex Detection](/configure-guardrails/guardrail-catalog/third-party/regex), so different tools can use different judge models or different instructions.
 
 To use the tool safety check, you should:
 

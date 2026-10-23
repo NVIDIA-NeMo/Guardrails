@@ -10,7 +10,7 @@ content:
 
 The CEL rail checks a tool call's arguments, or a tool result's content, against [Common Expression Language (CEL)](https://cel.dev) expressions that you write per tool. CEL is a small, side-effect-free expression language used for policy rules in systems such as Kubernetes admission policies and Envoy. Each expression evaluates to `true` when the tool is being used in a way you want to block.
 
-Unlike [Regex Detection](/configure-guardrails/guardrail-catalog/community/regex), which matches text patterns, CEL expressions address the structured fields of a tool call directly, so one rule can combine several arguments. Unlike [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check), the check is deterministic and calls no model. It is scoped per tool through the same `rails.tool_call.per_tool` and `rails.tool_result.per_tool` dispatch mechanism as both.
+Unlike [Regex Detection](/configure-guardrails/guardrail-catalog/third-party/regex), which matches text patterns, CEL expressions address the structured fields of a tool call directly, so one rule can combine several arguments. Unlike [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check), the check is deterministic and calls no model. It is scoped per tool through the same `rails.tool_call.per_tool` and `rails.tool_result.per_tool` dispatch mechanism as both.
 
 ## Installation
 

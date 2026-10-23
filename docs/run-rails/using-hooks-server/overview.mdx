@@ -12,7 +12,7 @@ It provides the following capabilities:
 
 - Receives each tool call from the agent's own pre-tool hook: an HTTP hook in Claude Code, a command hook in Codex, or a tool conditional-execution guardrail in a NeMo Relay plugin.
 - Applies a tool policy that allows or blocks tools, and their arguments, by name.
-- Runs per-tool rails on the calls the policy allows, such as [regular expressions](/configure-guardrails/guardrail-catalog/community/regex), [CEL expressions](/configure-guardrails/guardrail-catalog/cel), or an LLM-judged [tool safety check](/configure-guardrails/guardrail-catalog/tool-safety-check).
+- Runs per-tool rails on the calls the policy allows, such as [regular expressions](/configure-guardrails/guardrail-catalog/third-party/regex), [CEL expressions](/configure-guardrails/guardrail-catalog/cel), or an LLM-judged [tool safety check](/configure-guardrails/guardrail-catalog/tool-safety-check).
 - Answers in each agent's own hook output format, so the agent cancels a denied call and tells its model why.
 - Needs no model, unless a rail you configure calls one.
 
@@ -74,8 +74,9 @@ They are separate processes, with separate commands, ports, and purposes, and ne
 | Model | A `main` model, for chat completions | None, unless a rail calls one |
 | Engine | `LLMRails`, or `IORails` with `NEMO_GUARDRAILS_IORAILS_ENGINE` set | Always `IORails` |
 | Default address | `0.0.0.0:8000` | `127.0.0.1:8100` |
-| Default metrics endpoint | `0.0.0.0:9464` | `127.0.0.1:9465` |
+| Metrics address, when exported | `0.0.0.0:9464` | `127.0.0.1:9465` |
 
+Neither server exports metrics unless you start it with `--metrics-exporter prometheus`.
 Both servers answer the same health checks, `GET /v1/health` and `GET /healthz`, and return errors in the same envelope.
 A configuration written for one server doesn't serve the other: the hooks server refuses a `main` model that no rail uses, and the Guardrails API server ignores the `hooks_server` section.
 To guard an application's chat traffic and its agent's tool calls, run both servers, each with its own configuration.
