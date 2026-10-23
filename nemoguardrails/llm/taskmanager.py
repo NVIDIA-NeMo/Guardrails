@@ -286,6 +286,23 @@ class LLMTaskManager:
 
         return len(text)
 
+    def _get_tool_conversation_length(self, messages: List[dict]) -> int:
+        sized_messages = []
+        for message in messages:
+            content = message.get("content")
+            if isinstance(content, list):
+                sized_content = []
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "image_url":
+                        image_url = part.get("image_url")
+                        if isinstance(image_url, dict) and isinstance(image_url.get("url"), str):
+                            if re.fullmatch(r"data:image/[^;]+;base64,[A-Za-z0-9+/=]+", image_url["url"]):
+                                part = {**part, "image_url": {**image_url, "url": "[IMAGE_CONTENT]"}}
+                    sized_content.append(part)
+                message = {**message, "content": sized_content}
+            sized_messages.append(message)
+        return len(json.dumps(sized_messages, ensure_ascii=False))
+
     def _render_tool_conversation(
         self, prompt: TaskPrompt, events: List[dict], tool_history_start: int, context: Optional[dict]
     ) -> List[dict]:
@@ -296,7 +313,7 @@ class LLMTaskManager:
             messages = self._render_messages(prompt.messages or [], context=context, events=events)
 
         if prompt.max_length is not None:
-            actual_length = len(json.dumps(messages, ensure_ascii=False))
+            actual_length = self._get_tool_conversation_length(messages)
             if actual_length > prompt.max_length:
                 raise ToolConversationTooLongError(actual_length=actual_length, max_length=prompt.max_length)
         return messages

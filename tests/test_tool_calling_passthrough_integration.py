@@ -964,3 +964,52 @@ define bot refuse call
         assert not any(message.get("tool_calls") for message in sent)
     else:
         assert next(message["tool_calls"] for message in sent if message.get("tool_calls")) == first["tool_calls"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("image_position", ["initial", "later"])
+async def test_tool_prompt_budget_discounts_inline_image_data_without_changing_it(tool_history, image_position):
+    image_content = [
+        {"type": "text", "text": "Inspect this image."},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64," + "A" * 20000, "detail": "low"}},
+    ]
+    if image_position == "initial":
+        tool_history[0]["content"] = image_content
+    else:
+        tool_history.extend(
+            [
+                {"role": "user", "content": image_content},
+                {"role": "assistant", "content": "An image."},
+                {"role": "user", "content": "Recheck the image."},
+            ]
+        )
+    original = copy.deepcopy(tool_history)
+    model = FakeLLMModel(responses=["Answer"])
+    model.generate_async = AsyncMock(wraps=model.generate_async)
+    rails = LLMRails(_tool_prompt_config(True, 1000), llm=model)
+    result = await rails.generate_async(messages=tool_history)
+    assert result == {"role": "assistant", "content": "Answer"}
+    sent = [message.to_dict() for message in model.generate_async.await_args.args[0]]
+    assert next(message["content"] for message in sent if isinstance(message.get("content"), list)) == image_content
+    assert tool_history == original
+    assert model.inference_count == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("oversized_field", ["arguments", "result", "caption"])
+async def test_tool_prompt_budget_counts_text_even_when_it_contains_image_data(tool_history, oversized_field):
+    data_url = "data:image/png;base64," + "A" * 20000
+    if oversized_field == "arguments":
+        tool_history[1]["tool_calls"][0]["function"]["arguments"]["city"] = data_url
+    elif oversized_field == "result":
+        tool_history[-1]["content"] = data_url
+    else:
+        tool_history[0]["content"] = [
+            {"type": "text", "text": data_url},
+            {"type": "image_url", "image_url": {"url": data_url}},
+        ]
+    model = FakeLLMModel(responses=["Must not be called"])
+    rails = LLMRails(_tool_prompt_config(True, 1000), llm=model)
+    with pytest.raises(ToolConversationTooLongError):
+        await rails.generate_async(messages=tool_history)
+    assert model.inference_count == 0
