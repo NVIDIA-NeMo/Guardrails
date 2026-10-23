@@ -489,3 +489,20 @@ def test_streaming_chunk_types():
 
     for chunk in chunks:
         assert chunk.__class__.__name__ == "AIMessageChunk"
+
+
+@pytest.mark.asyncio
+async def test_runnable_rails_rejects_structured_tool_events(monkeypatch):
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+    from nemoguardrails.types import ToolCall, ToolCallChunk
+
+    config = RailsConfig.from_content(config={"models": []})
+    rails = RunnableRails(config, llm=StreamingFakeLLM(responses=[]))
+
+    async def stream(**kwargs):
+        yield ToolCallChunk([ToolCall(id="call_1")])
+
+    monkeypatch.setattr(rails.rails, "stream_async", stream)
+    with pytest.raises(StreamingNotSupportedError, match="RunnableRails.*streamed tool calls"):
+        async for chunk in rails.astream("Hi"):
+            pytest.fail(f"Unexpected emitted chunk: {chunk}")
