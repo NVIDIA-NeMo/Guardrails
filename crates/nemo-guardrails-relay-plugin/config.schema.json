@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NeMo Guardrails checks for NeMo Relay",
+  "description": "Checks tool calls with the /v1/hooks/nemo-relay endpoint of a NeMo Guardrails hooks server, started with nemoguardrails hooks-server.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["endpoint"],
+  "properties": {
+    "endpoint": {
+      "type": "string",
+      "pattern": "^https?://",
+      "description": "Base URL of the NeMo Guardrails hooks server, such as http://127.0.0.1:8100. It must not contain a username or password: send credentials in headers."
+    },
+    "headers": {
+      "default": {},
+      "description": "Headers sent with every check, as an object of header names and string values, for a proxy or gateway in front of the hooks server, such as authorization. Values are treated as sensitive, so the plugin rather than this schema checks them: a schema error would quote the value. Headers the plugin's HTTP client controls, such as content-type and content-length, are rejected."
+    },
+    "timeout_millis": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 25000,
+      "description": "Time limit for one check, in milliseconds. Keep it under the host's hook limit: 30 seconds for Claude Code and Codex hooks, 5 seconds by default for pi."
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647,
+      "default": 0,
+      "description": "NeMo Relay tool conditional-execution guardrail priority. Lower values run earlier."
+    },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional NeMo Relay SDK executor override.",
+      "properties": {
+        "worker_threads": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of worker threads for the plugin's SDK-owned executor."
+        }
+      }
+    }
+  }
+}
