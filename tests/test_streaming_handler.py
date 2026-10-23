@@ -911,22 +911,27 @@ async def test_pipe_cannot_bypass_disabled_tool_calls():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("after_prefix", [False, True])
-async def test_buffered_wait_observes_producer_failure(after_prefix):
+@pytest.mark.parametrize("producer_first", [False, True])
+async def test_buffered_wait_observes_producer_failure(after_prefix, producer_first):
     from nemoguardrails.exceptions import StreamingNotSupportedError
 
     handler = StreamingHandler(enable_buffer=True)
     release = asyncio.Event()
     error = StreamingNotSupportedError("buffered tool calls are unsupported")
+    prefix_ready = asyncio.Event()
 
     async def produce():
         if after_prefix:
             await handler.push_chunk('user greeting\nbot greeting\n"Hello')
+        prefix_ready.set()
         await release.wait()
         raise error
 
     producer = asyncio.create_task(produce())
     handler.set_producer_task(producer)
     try:
+        if producer_first:
+            await asyncio.wait_for(prefix_ready.wait(), 2)
         if after_prefix:
             assert await asyncio.wait_for(handler.wait_top_k_nonempty_lines(2), 2) == "user greeting\nbot greeting"
             assert not producer.done()
