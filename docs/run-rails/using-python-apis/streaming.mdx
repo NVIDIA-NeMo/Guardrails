@@ -154,7 +154,7 @@ async for chunk in rails.stream_async(messages=messages, include_metadata=True):
     print(chunk)
 ```
 
-With `include_metadata=True`, each chunk is a `dict` with a mandatory `"text"` key.
+With `include_metadata=True`, each text chunk is a `dict` with a mandatory `"text"` key.
 A chunk that carries metadata also has a `"metadata"` key, which can hold the following:
 
 - `provider_metadata`: nonstandard fields the provider returned with the chunk, such as `response_headers` and vendor extensions.
@@ -184,7 +184,7 @@ If you use `StreamingHandler` directly, the handler can still push these keys an
 
 An `IORails` tool-call response adds an assembled tool-call JSON frame after this empty frame, so the tool-call frame is the final frame in that stream.
 
-Without `include_metadata`, chunks are plain strings (default behavior).
+Without `include_metadata`, text chunks are plain strings (default behavior).
 
 <Warning>
 
@@ -222,7 +222,8 @@ This behavior prevents repeated response headers from flooding the stream.
 
 `stream_async()` accepts an `options` argument on both engines.
 Unlike `generate()` and `generate_async()`, passing it does not change what the iterator yields.
-The chunk shape is governed solely by `include_metadata`: plain strings when it is `False`, and `{"text": ..., "metadata": ...}` dictionaries when it is `True`.
+Text chunk shapes are governed by `include_metadata`: plain strings when it is `False`, and `{"text": ..., "metadata": ...}` dictionaries when it is `True`.
+`LLMRails` emits completed tool calls as `ToolCallChunk` objects in either metadata mode.
 Neither engine yields or returns a `GenerationResponse` from a stream.
 
 This behavior applies when the engine generates the stream.
@@ -262,18 +263,59 @@ Do not rely on a stream rejecting an option that the non-streaming call refuses.
 
 </Warning>
 
-Two `GenerationResponse` fields have no streamed equivalent:
+Two `GenerationResponse` fields have engine-specific streaming behavior:
 
 - `reasoning_content`: Neither engine emits provider reasoning deltas as chunk text.
   A model that embeds `<think>` tags in its content streams them as ordinary text, so output rails process the reasoning.
   `IORails` logs one warning per request when it detects this.
 - `tool_calls`: `IORails` emits assembled tool calls as a terminal chunk whose text is a `{"tool_calls": [...]}` JSON string.
   The string uses the OpenAI wire shape with `function.arguments` as a JSON string, while the non-streaming `GenerationResponse.tool_calls` uses dictionary arguments.
-  `LLMRails` does not push tool calls into the stream, so they reach only the discarded `GenerationResponse`.
+  `LLMRails` emits a structured `ToolCallChunk` containing canonical `ToolCall` objects with dictionary arguments, as described below.
 
 To obtain a `GenerationResponse` for a request, use `generate_async()`.
 To obtain token usage while streaming, read the `usage` metadata frame described above.
 For the non-streaming option and field tables, refer to [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options#iorails-and-llmrails-differences).
+
+## Tool Calls in LLMRails Streams
+
+When an `LLMRails` backend returns completed tool calls, the stream yields a
+`ToolCallChunk` from `nemoguardrails.types`. Its `tool_calls` field contains the
+same `ToolCall` dataclasses used by `LLMResponse`, including dictionary-valued
+`function.arguments`. The event remains a `ToolCallChunk` with
+`include_metadata=True`; it is never placed inside a text or metadata dictionary.
+
+This is initial support for forwarding completed calls, not incremental argument
+streaming. The default OpenAI-compatible backend assembles provider fragments
+before emitting the calls. Backend support determines when calls become available.
+Tool-call events do not contribute to assistant text and are not processed by text
+stop sequences or prefix/suffix filters. JSON-shaped model text remains text.
+
+```python
+from nemoguardrails.types import ToolCallChunk
+
+async for chunk in app.stream_async(messages=history):
+    if isinstance(chunk, ToolCallChunk):
+        for call in chunk.tool_calls:
+            print(call.function.name, call.function.arguments)
+    else:
+        print(chunk, end="", flush=True)
+```
+
+<Warning>
+
+`LLMRails` output-rail streaming does not support tool calls. Receiving a tool-call
+event raises `StreamingNotSupportedError` before that event is released, regardless
+of `stream_first`. Buffered dialog generation, `RunnableRails`, and the chat CLI also reject streamed
+tool-call events explicitly.
+Use the supported non-streaming tool-calling path when these checks are required.
+
+The Guardrails server still rejects requests combining `stream: true` with
+`tools`, `tool_choice`, or `parallel_tool_calls` with HTTP 422. Its stream formatter
+can serialize backend-produced `ToolCallChunk` events as OpenAI-compatible
+`delta.tool_calls`, but this does not enable streaming tool requests or tool safety
+checks. Argument dictionaries are serialized to JSON only at this server boundary.
+
+</Warning>
 
 ## Token Usage Tracking
 
