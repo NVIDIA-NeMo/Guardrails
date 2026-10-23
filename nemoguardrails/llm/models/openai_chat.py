@@ -155,8 +155,9 @@ class OpenAIChatModel:
                 if chunk is None:
                     continue
 
-                if chunk.finish_reason == "tool_calls" and tool_call_acc:
+                if chunk.finish_reason in ("tool_calls", "stop") and tool_call_acc:
                     chunk.delta_tool_calls = self._finalize_tool_calls(tool_call_acc)
+                    tool_call_acc.clear()
 
                 yield chunk
         except LLMClientError as exc:

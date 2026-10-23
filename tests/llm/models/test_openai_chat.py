@@ -285,7 +285,8 @@ class TestStream:
         assert results[0].usage.total_tokens == 6
 
     @pytest.mark.asyncio
-    async def test_tool_call_accumulation(self):
+    @pytest.mark.parametrize("finish_reason", ["tool_calls", "stop", "length", "content_filter"])
+    async def test_tool_call_accumulation(self, finish_reason):
         mc = _mock_client()
 
         async def mock_stream(*args, **kwargs):
@@ -321,7 +322,7 @@ class TestStream:
                         }
                     ],
                 },
-                {"id": "c", "model": "gpt-4o", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]},
+                {"id": "c", "model": "gpt-4o", "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}]},
             ]:
                 yield HTTPResponse(body=c)
 
@@ -333,7 +334,11 @@ class TestStream:
             results.append(chunk)
 
         final = results[-1]
-        assert final.finish_reason == "tool_calls"
+        assert final.finish_reason == finish_reason
+        if finish_reason in ("length", "content_filter"):
+            assert not any(chunk.delta_tool_calls for chunk in results)
+            return
+        assert sum(bool(chunk.delta_tool_calls) for chunk in results) == 1
         assert len(final.delta_tool_calls) == 1
         assert final.delta_tool_calls[0].function.name == "get_weather"
         assert final.delta_tool_calls[0].function.arguments == {"city": "Paris"}
