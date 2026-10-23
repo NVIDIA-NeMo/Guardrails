@@ -64,6 +64,23 @@ def test_with_context():
     )
 
 
+def test_tool_history_cache_keys_distinguish_calls_and_results():
+    user = {"role": "user", "content": "Weather?"}
+    calls = [
+        {"role": "assistant", "content": "", "tool_calls": [{"id": call_id, "name": "weather", "args": {}}]}
+        for call_id in ("call_1", "call_2")
+    ]
+    result = {"role": "tool", "content": "sunny", "tool_call_id": "call_1"}
+    histories = [
+        [user, calls[0]],
+        [user, calls[1]],
+        [user, calls[0], result],
+        [user, calls[0], {**result, "content": "rainy"}],
+        [user, calls[0], {**result, "tool_call_id": "call_2"}],
+    ]
+    assert len({get_history_cache_key(history) for history in histories}) == len(histories)
+
+
 def test_multimodal_content():
     """Test get_history_cache_key with multimodal content (list-based content)."""
     multimodal_messages = [

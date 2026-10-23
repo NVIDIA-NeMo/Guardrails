@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import re
 import textwrap
 from typing import List
@@ -269,11 +270,17 @@ def to_chat_messages(events: List[dict]) -> List[dict]:
     messages = []
     for event in events:
         if event["type"] == "UserMessage":
+            if event.get("is_tool_result"):
+                continue
             # Preserve the original structure when possible to support multimodal content
             content = event["text"]
             messages.append({"role": "user", "content": content})
         elif event["type"] == "StartUtteranceBotAction":
             messages.append({"role": "assistant", "content": event["script"]})
+        elif event["type"] == "BotToolCalls":
+            messages.append({"role": "assistant", "content": None, "tool_calls": event["tool_calls"]})
+        elif event["type"] == "ToolMessage":
+            messages.append(event["message"].copy())
         elif event["type"] == "SystemMessage" and "content" in event:
             # Handle system messages that might contain multimodal content
             messages.append({"role": "system", "content": event["content"]})
@@ -297,6 +304,8 @@ def user_assistant_sequence(events: List[dict]) -> str:
     history_items = []
     for event in events:
         if event["type"] == "UserMessage":
+            if event.get("is_tool_result"):
+                continue
             content = event["text"]
             # Handle multimodal content by extracting text
             if isinstance(content, list):
@@ -317,6 +326,10 @@ def user_assistant_sequence(events: List[dict]) -> str:
                 history_items.append("User: " + str(content))
         elif event["type"] == "StartUtteranceBotAction":
             history_items.append("Assistant: " + event["script"])
+        elif event["type"] == "BotToolCalls":
+            history_items.append("Assistant tool calls: " + json.dumps(event["tool_calls"]))
+        elif event["type"] == "ToolMessage":
+            history_items.append("Tool: " + json.dumps(event["message"]))
 
     return "\n".join(history_items)
 

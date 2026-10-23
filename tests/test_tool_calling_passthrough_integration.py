@@ -13,14 +13,83 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import patch
+import json
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from nemoguardrails import RailsConfig
+from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.context import tool_calls_var
 from nemoguardrails.rails.llm.llmrails import GenerationOptions, GenerationResponse
-from tests.utils import TestChat
+from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
+from tests.utils import FakeLLMModel, TestChat
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cached", [False, True])
+@pytest.mark.parametrize("chat_prompt", [False, True])
+@pytest.mark.parametrize("passthrough", [False, True])
+async def test_tool_round_trip_preserves_history(cached, chat_prompt, passthrough):
+    config = RailsConfig.from_content(
+        yaml_content=f"models: []\npassthrough: {str(passthrough).lower()}\n"
+        + (
+            """
+prompts:
+  - task: general
+    messages:
+      - type: system
+        content: "{{ general_instructions }}"
+      - "{{ history | to_chat_messages }}"
+"""
+            if chat_prompt
+            else ""
+        )
+    )
+    tool_calls = [
+        ToolCall(id=f"call_{city}", function=ToolCallFunction(name="get_weather", arguments={"city": city}))
+        for city in ("Paris", "Berlin")
+    ]
+    model = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(content="", tool_calls=tool_calls),
+            LLMResponse(content="Paris is sunny; Berlin is rainy."),
+            LLMResponse(content="Take an umbrella in Berlin."),
+        ]
+    )
+    model.generate_async = AsyncMock(wraps=model.generate_async)
+    rails = LLMRails(config, llm=model)
+    messages = [{"role": "user", "content": "Compare the weather in Paris and Berlin."}]
+    first = await rails.generate_async(messages=messages)
+    assert first["tool_calls"] == [call.to_dict() for call in tool_calls]
+    results = [
+        {"role": "tool", "tool_call_id": "call_Paris", "name": "get_weather", "content": "Paris: sunny, 22 C"},
+        {"role": "tool", "tool_call_id": "call_Berlin", "name": "get_weather", "content": "Berlin: rainy, 15 C"},
+    ]
+    messages.extend([first, *results])
+    if not cached:
+        rails.events_history_cache.clear()
+
+    second = await rails.generate_async(messages=messages)
+    assert second == {"role": "assistant", "content": "Paris is sunny; Berlin is rainy."}
+    messages.extend([second, {"role": "user", "content": "Should I take an umbrella?"}])
+    if not cached:
+        rails.events_history_cache.clear()
+    await rails.generate_async(messages=messages)
+
+    for call in model.generate_async.await_args_list[1:]:
+        prompt = call.args[0]
+        if isinstance(prompt, str):
+            assert prompt.count(messages[0]["content"]) == 1
+            assert prompt.count("Assistant tool calls:") == 1
+            assert json.dumps(first["tool_calls"]) in prompt
+            for result in results:
+                assert prompt.count(result["content"]) == 1
+                assert json.dumps(result) in prompt
+        else:
+            history = [message.to_dict() for message in prompt if message.role != "system"]
+            assistant = first if passthrough else {"role": "assistant", "tool_calls": first["tool_calls"]}
+            assert history[:4] == [messages[0], assistant, *results]
+    assert model.inference_count == 3
 
 
 class TestToolCallingPassthroughIntegration:

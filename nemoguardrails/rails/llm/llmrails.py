@@ -828,6 +828,7 @@ class LLMRails(BaseGuardrails):
                     # Handle system messages - convert them to SystemMessage events
                     events.append({"type": "SystemMessage", "content": msg["content"]})
                 elif msg["role"] == "tool":
+                    events.append({"type": "ToolMessage", "message": msg.copy()})
                     # For the last tool message, create grouped tool event and synthetic UserMessage
                     if idx == len(messages) - 1:
                         # Find the original user message for response generation
@@ -860,7 +861,7 @@ class LLMRails(BaseGuardrails):
                                 )
 
                             else:
-                                events.append({"type": "UserMessage", "text": user_message})
+                                events.append({"type": "UserMessage", "text": user_message, "is_tool_result": True})
 
         else:
             for idx in range(len(messages)):
