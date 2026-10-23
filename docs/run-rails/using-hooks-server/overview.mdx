@@ -76,7 +76,7 @@ They are separate processes, with separate commands, ports, and purposes, and ne
 | Default address | `0.0.0.0:8000` | `127.0.0.1:8100` |
 | Metrics address, when exported | `0.0.0.0:9464` | `127.0.0.1:9465` |
 
-Neither server exports metrics unless you start it with `--metrics-exporter prometheus`.
+Neither server exports metrics unless you turn on the exporter, with `--metrics-exporter prometheus` or `NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER=prometheus`.
 Both servers answer the same health checks, `GET /v1/health` and `GET /healthz`, and return errors in the same envelope.
 A configuration written for one server doesn't serve the other: the hooks server refuses a `main` model that no rail uses, and the Guardrails API server ignores the `hooks_server` section.
 To guard an application's chat traffic and its agent's tool calls, run both servers, each with its own configuration.

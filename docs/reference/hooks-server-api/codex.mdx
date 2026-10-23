@@ -116,7 +116,8 @@ Every error uses the OpenAI error envelope, with `message`, `type`, `param`, and
 | Status | `code` | When |
 |---|---|---|
 | `422` | `unsupported_hook_event` | `hook_event_name` is an event other than `PreToolUse`. |
-| `422` | `null` | The body isn't a JSON object, or a required field is missing or invalid. `param` names the field. |
+| `422` | `null` | The body isn't JSON, or isn't a JSON object. `param` is `null`. |
+| `422` | `null` | A required field is missing or invalid. `param` names the field. |
 | `500` | `rail_failed` | A per-tool rail failed instead of deciding, for example because its model call failed. |
 | `500` | `null` | The check failed for another reason, or the server hit an unexpected error. |
 | `503` | `queue_full` | The server's admission queue is full. The response carries `Retry-After: 30`. |
