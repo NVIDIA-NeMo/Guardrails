@@ -158,7 +158,7 @@ class TestRedact:
 
     @pytest.mark.parametrize("surface", TOOL_SURFACES)
     def test_blocks_on_a_tool_surface(self, surface):
-        """Defensive: the server promotes a tool-leg REDACT, so the rail should not see one."""
+        """Defensive: the server promotes a REDACT on a tool evaluation, so the rail should not see one."""
         assert outcome_of(surface, "REDACT").decision is RailDecision.BLOCK
 
     @pytest.mark.parametrize("surface", TEXT_SURFACES)

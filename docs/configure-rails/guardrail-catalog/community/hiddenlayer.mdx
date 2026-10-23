@@ -46,10 +46,10 @@ The tool surfaces run on the IORails engine only, and only for the tools you lis
 The `Guardrails` class selects IORails by default and refuses to fall back to LLMRails when `per_tool` rails are configured.
 `LLMRails` and the server stay on the LLMRails engine unless you set `NEMO_GUARDRAILS_IORAILS_ENGINE=1`.
 The input and output flows also run on LLMRails, in Colang 1.0 and Colang 2.x.
-Use IORails for full context: within one IORails `generate_async` or `stream_async` request, or one `check_async` call that names several rail types, HiddenLayer evaluates the response legs of a model call together with its request legs.
-The legs are paired by the `HL-Roundtrip-Id` header, which the rail takes from the round trip in scope.
+Use IORails for full context: within one IORails `generate_async` or `stream_async` request, or one `check_async` call that names several rail types, HiddenLayer evaluates a model call's response evaluations (tool-call checks and the output check) together with its request evaluations (the input check and tool-result checks).
+The evaluations of one model call are paired as a single round-trip by the `HL-Roundtrip-Id` header, which the rail takes from the round trip in scope.
 Open one explicitly with `nemoguardrails.context.roundtrip_id()` when the application knows where a model call starts and ends; the ID is not required to be a UUID, because the rail maps any other value onto one.
-Without a round trip the rail falls back to the request ID, and with neither it sends a fresh ID per check, logs one warning, and the legs of a call are no longer paired.
+Without a round trip the rail falls back to the request ID, and with neither it sends a fresh ID per check, logs one warning, and the evaluations of a call are no longer paired.
 With tracing enabled the request ID comes from the OpenTelemetry trace ID, so concurrent requests under one parent trace share it; open a round trip per model call when those requests must be paired exactly.
 
 ## Sessions

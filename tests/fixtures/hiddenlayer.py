@@ -16,8 +16,8 @@
 """Evaluation responses from the HiddenLayer NeMo-Guardrails routes, as ``(status, headers, body)``.
 
 Each triple is what one route answers: the two verdict headers, and the payload to forward. The
-bodies are OpenAI Chat Completions, so a request leg's response is a request unless the action is
-``BLOCK``, which answers with a chat-completion response carrying the block message.
+bodies are OpenAI Chat Completions, so a request evaluation's response is a request unless the
+action is ``BLOCK``, which answers with a chat-completion response carrying the block message.
 """
 
 from typing import Any, Dict, Tuple
@@ -55,7 +55,7 @@ def response_body(text: str, model: str = MODEL) -> Dict[str, Any]:
 
 
 def blocked_request(model: str = MODEL) -> Dict[str, Any]:
-    """What a request leg gets back on BLOCK: a chat-completion response holding the block message."""
+    """What a request evaluation gets back on BLOCK: a chat-completion response holding the block message."""
     return response_body(BLOCK_MESSAGE, model)
 
 
