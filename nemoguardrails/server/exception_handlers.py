@@ -32,6 +32,7 @@ from nemoguardrails.exceptions import (
     RailTypeNotSupportedError,
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
+    ToolConversationTooLongError,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError, HTTPStatusError
@@ -141,6 +142,11 @@ async def invalid_check_request_error_handler(request: Request, exc: InvalidChec
 async def invalid_state_error_handler(request: Request, exc: InvalidStateError) -> Response:
     log.warning("Invalid state: %s", exc)
     return _error_response(422, str(exc))
+
+
+async def tool_conversation_too_long_error_handler(request: Request, exc: ToolConversationTooLongError) -> Response:
+    log.warning("Tool conversation rejected: %s", exc)
+    return _error_response(422, str(exc), code="tool_conversation_too_long", param="messages")
 
 
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> Response:

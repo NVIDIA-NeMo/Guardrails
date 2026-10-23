@@ -33,6 +33,7 @@ from nemoguardrails.rails import LLMRails
 from nemoguardrails.server import api
 from nemoguardrails.server.api import _format_streaming_response
 from nemoguardrails.server.schemas.openai import GuardrailsChatCompletionRequest
+from nemoguardrails.testing.fake_model import FakeLLMModel
 
 LIVE_TEST_MODE = os.environ.get("LIVE_TEST_MODE") or os.environ.get("TEST_LIVE_MODE")
 
@@ -940,6 +941,73 @@ def test_chat_completion_unsupported_tools_use_error_envelope(passthrough, tool_
         }
     }
     rails.generate_async.assert_not_called()
+
+
+@pytest.mark.parametrize("chat_prompt", [False, True])
+@pytest.mark.parametrize("oversized_field", ["result", "arguments"])
+def test_chat_completion_oversized_tool_conversation_returns_422(chat_prompt, oversized_field, caplog):
+    template = (
+        {"messages": ["{{ history | to_chat_messages }}"]}
+        if chat_prompt
+        else {"content": "{{ history | user_assistant_sequence }}"}
+    )
+    config = RailsConfig.from_content(
+        yaml_content=json.dumps(
+            {
+                "models": [],
+                "passthrough": False,
+                "prompts": [{"task": "general", "models": ["unknown"], "max_length": 1000, **template}],
+            }
+        )
+    )
+    model = FakeLLMModel(responses=["Must not be called"])
+    rails = LLMRails(config, llm=model)
+    sensitive_text = "private-tool-data-" * 150
+    messages = [
+        {"role": "user", "content": "Weather?"},
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": "call_Paris",
+                    "type": "function",
+                    "function": {
+                        "name": "weather",
+                        "arguments": json.dumps(
+                            {"city": sensitive_text if oversized_field == "arguments" else "Paris"}
+                        ),
+                    },
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call_Paris",
+            "content": sensitive_text if oversized_field == "result" else "Sunny",
+        },
+    ]
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={"model": "test-model", "messages": messages, "guardrails": {"config_id": "with_custom_llm"}},
+        )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert set(payload) == {"error"}
+    assert payload["error"] == {
+        "message": payload["error"]["message"],
+        "type": "invalid_request_error",
+        "param": "messages",
+        "code": "tool_conversation_too_long",
+    }
+    assert "max_length of 1000 characters" in payload["error"]["message"]
+    assert "Tool calls and results are not truncated" in payload["error"]["message"]
+    assert "Reduce the conversation or tool-result size" in payload["error"]["message"]
+    assert "private-tool-data" not in response.text
+    assert "private-tool-data" not in caplog.text
+    assert model.inference_count == 0
 
 
 def test_chat_completion_accepts_tool_choice_for_single_call_without_user_messages():

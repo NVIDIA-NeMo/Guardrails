@@ -13,15 +13,155 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.context import tool_calls_var
+from nemoguardrails.exceptions import ToolConversationTooLongError
+from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.llm.types import Task
 from nemoguardrails.rails.llm.llmrails import GenerationOptions, GenerationResponse
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.utils import FakeLLMModel, TestChat
+
+
+def _tool_prompt_config(chat_prompt, max_length):
+    template = (
+        {"messages": [{"type": "system", "content": "Rules"}, "{{ history | to_chat_messages }}"]}
+        if chat_prompt
+        else {"content": "Rules\n{{ history | user_assistant_sequence }}"}
+    )
+    return RailsConfig.from_content(
+        yaml_content=json.dumps(
+            {
+                "models": [],
+                "passthrough": False,
+                "prompts": [{"task": "general", "models": ["unknown"], "max_length": max_length, **template}],
+            }
+        )
+    )
+
+
+@pytest.fixture
+def tool_history():
+    return [
+        {"role": "user", "content": "Weather?"},
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {"id": f"call_{city}", "type": "function", "function": {"name": "weather", "arguments": {"city": city}}}
+                for city in ("Paris", "Berlin")
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_Paris", "content": "Paris: sunny"},
+        {"role": "tool", "tool_call_id": "call_Berlin", "content": "Berlin: rainy"},
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("chat_prompt", [False, True])
+@pytest.mark.parametrize("oversized_field", ["result", "arguments", "history", "call_id"])
+async def test_oversized_tool_history_rejected_before_model_call(chat_prompt, oversized_field, tool_history, caplog):
+    sensitive_text = "private-tool-data-" * 150
+    if oversized_field == "result":
+        tool_history[-1]["content"] = sensitive_text
+    elif oversized_field == "arguments":
+        tool_history[1]["tool_calls"][0]["function"]["arguments"]["city"] = sensitive_text
+    elif oversized_field == "call_id":
+        tool_history[1]["tool_calls"][0]["id"] = sensitive_text
+        tool_history[2]["tool_call_id"] = sensitive_text
+    else:
+        tool_history[0]["content"] = sensitive_text
+    original = copy.deepcopy(tool_history)
+    model = FakeLLMModel(responses=["Must not be called"])
+    rails = LLMRails(_tool_prompt_config(chat_prompt, 1000), llm=model)
+
+    with pytest.raises(ToolConversationTooLongError, match="Tool conversation.*max_length") as error:
+        await rails.generate_async(messages=tool_history)
+
+    assert model.inference_count == 0
+    assert error.value.max_length == 1000
+    assert error.value.actual_length > 1000
+    assert tool_history == original
+    assert sensitive_text not in str(error.value)
+    assert "private-tool-data" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("chat_prompt", [False, True])
+@pytest.mark.parametrize("max_length", [1000, None])
+async def test_tool_history_within_budget_preserves_all_calls_and_results(chat_prompt, max_length, tool_history):
+    model = FakeLLMModel(responses=["Paris is sunny; Berlin is rainy."])
+    model.generate_async = AsyncMock(wraps=model.generate_async)
+    rails = LLMRails(_tool_prompt_config(chat_prompt, max_length), llm=model)
+    if max_length is None:
+        tool_history[-1]["content"] *= 2000
+
+    result = await rails.generate_async(messages=tool_history)
+
+    assert result["content"] == "Paris is sunny; Berlin is rainy."
+    sent = [message.to_dict() for message in model.generate_async.await_args.args[0]]
+    assert sent[-3:] == tool_history[1:]
+    assert model.inference_count == 1
+
+
+@pytest.mark.parametrize("chat_prompt", [False, True])
+def test_tool_prompt_budget_boundary_counts_serialized_messages(chat_prompt, tool_history):
+    tool_history[-1]["content"] = "Berlin: 雨 ☔"
+    expected = (
+        [{"type": "system", "content": "Rules"}, tool_history[0]]
+        if chat_prompt
+        else [{"role": "user", "content": "Rules\nUser: Weather?"}]
+    ) + [{**tool_history[1], "content": None}, *tool_history[2:]]
+    limit = len(json.dumps(expected, ensure_ascii=False))
+    events = [
+        {"type": "UserMessage", "text": "Weather?"},
+        {"type": "BotToolCalls", "tool_calls": tool_history[1]["tool_calls"]},
+        *[{"type": "ToolMessage", "message": message} for message in tool_history[2:]],
+    ]
+    manager = LLMTaskManager(_tool_prompt_config(chat_prompt, limit))
+    assert manager.render_task_prompt(Task.GENERAL, events=events) == expected
+    manager = LLMTaskManager(_tool_prompt_config(chat_prompt, limit - 1))
+    with pytest.raises(ToolConversationTooLongError, match="Tool conversation.*max_length"):
+        manager.render_task_prompt("general", events=events)
+
+
+def test_tool_history_limit_applies_to_sync_generation(tool_history):
+    tool_history[-1]["content"] *= 2000
+    model = FakeLLMModel(responses=["Must not be called"])
+    rails = LLMRails(_tool_prompt_config(False, 1000), llm=model)
+    with pytest.raises(ToolConversationTooLongError, match="Tool conversation.*max_length"):
+        rails.generate(messages=tool_history)
+    assert model.inference_count == 0
+
+
+@pytest.mark.asyncio
+async def test_passthrough_tool_history_does_not_use_general_prompt_limit(tool_history):
+    config = _tool_prompt_config(False, 1)
+    config.passthrough = True
+    tool_history[-1]["content"] *= 2000
+    model = FakeLLMModel(responses=["Done"])
+    model.generate_async = AsyncMock(wraps=model.generate_async)
+    rails = LLMRails(config, llm=model)
+
+    await rails.generate_async(messages=tool_history)
+
+    assert [message.to_dict() for message in model.generate_async.await_args.args[0]] == tool_history
+
+
+@pytest.mark.parametrize("chat_prompt", [False, True])
+def test_text_only_general_prompt_still_trims_history(chat_prompt):
+    manager = LLMTaskManager(_tool_prompt_config(chat_prompt, 50))
+    prompt = manager.render_task_prompt(
+        Task.GENERAL,
+        events=[{"type": "UserMessage", "text": "old history" * 100}, {"type": "UserMessage", "text": "Hi"}],
+    )
+    assert "old history" not in str(prompt)
+    assert "Hi" in str(prompt)
 
 
 @pytest.mark.asyncio

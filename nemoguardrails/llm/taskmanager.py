@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import re
 from ast import literal_eval
@@ -21,6 +22,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from jinja2 import meta
 from jinja2.sandbox import SandboxedEnvironment
 
+from nemoguardrails.exceptions import ToolConversationTooLongError
 from nemoguardrails.llm.filters import (
     co_v2,
     colang,
@@ -53,7 +55,7 @@ from nemoguardrails.llm.output_parsers import (
 )
 from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.types import Task
-from nemoguardrails.rails.llm.config import MessageTemplate, RailsConfig
+from nemoguardrails.rails.llm.config import MessageTemplate, RailsConfig, TaskPrompt
 
 _SINGLE_VAR_PATTERN = re.compile(r"^\{\{\s*(\w+)\s*\}\}$")
 
@@ -284,6 +286,21 @@ class LLMTaskManager:
 
         return len(text)
 
+    def _render_tool_conversation(
+        self, prompt: TaskPrompt, events: List[dict], tool_history_start: int, context: Optional[dict]
+    ) -> List[dict]:
+        if prompt.content:
+            prefix = self._render_string(prompt.content, context=context, events=events[:tool_history_start])
+            messages = [{"role": "user", "content": prefix}, *to_chat_messages(events[tool_history_start:])]
+        else:
+            messages = self._render_messages(prompt.messages or [], context=context, events=events)
+
+        if prompt.max_length is not None:
+            actual_length = len(json.dumps(messages, ensure_ascii=False))
+            if actual_length > prompt.max_length:
+                raise ToolConversationTooLongError(actual_length=actual_length, max_length=prompt.max_length)
+        return messages
+
     def render_task_prompt(
         self,
         task: Union[str, Task],
@@ -306,6 +323,11 @@ class LLMTaskManager:
         force_string_to_message parameter to force the string message to a user message.
         """
         prompt = get_prompt(self.config, task)
+        if task in (Task.GENERAL, Task.GENERAL.value) and events:
+            tool_history_start = next((i for i, event in enumerate(events) if event["type"] == "BotToolCalls"), None)
+            if tool_history_start is not None:
+                return self._render_tool_conversation(prompt, events, tool_history_start, context)
+
         if prompt.content:
             task_prompt = self._render_string(prompt.content, context=context, events=events)
             while prompt.max_length is not None and len(task_prompt) > prompt.max_length:
