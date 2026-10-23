@@ -229,7 +229,11 @@ def test_operation_selection_guards_selected_routes_and_preserves_other_passthro
     text = "BLOCK_INPUT" if blocked_stage == "input" else "question"
     if blocked_stage == "output":
         settings["output"] = "BLOCK_OUTPUT"
-    subject = {"input": text} if operation == "responses" else {"messages": [{"role": "user", "content": text}]}
+    subject = (
+        {"input": text, "store": False}
+        if operation == "responses"
+        else {"messages": [{"role": "user", "content": text}]}
+    )
     response = client.post("/openai/v1/" + operation, json={"stream": streaming, **subject})
     if guarded:
         assert response.status_code == (200 if streaming and blocked_stage == "output" else 400)
@@ -249,7 +253,9 @@ def test_operation_selection_guards_selected_routes_and_preserves_other_passthro
 def test_both_operations_work_through_the_existing_application(proxy, streaming, operation):
     client, requests, bodies, _ = proxy
     subject = (
-        {"input": "question"} if operation == "responses" else {"messages": [{"role": "user", "content": "question"}]}
+        {"input": "question", "store": False}
+        if operation == "responses"
+        else {"messages": [{"role": "user", "content": "question"}]}
     )
     body = json.dumps({"model": "test-model", "stream": streaming, **subject}, indent=2).encode()
     response = client.post(
@@ -267,7 +273,7 @@ def test_both_operations_work_through_the_existing_application(proxy, streaming,
 @pytest.mark.parametrize("streaming", [False, True])
 def test_real_input_rail_blocks_before_dispatch(proxy, streaming):
     client, requests, _, _ = proxy
-    response = client.post("/openai/v1/responses", json={"input": "BLOCK_INPUT", "stream": streaming})
+    response = client.post("/openai/v1/responses", json={"input": "BLOCK_INPUT", "store": False, "stream": streaming})
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "content_blocked"
     assert not requests
@@ -277,7 +283,7 @@ def test_real_input_rail_blocks_before_dispatch(proxy, streaming):
 def test_real_output_rail_withholds_blocked_response_and_stream_snapshots(proxy, streaming):
     client, _, bodies, settings = proxy
     settings["output"] = "BLOCK_OUTPUT"
-    response = client.post("/openai/v1/responses", json={"input": "question", "stream": streaming})
+    response = client.post("/openai/v1/responses", json={"input": "question", "store": False, "stream": streaming})
     assert response.status_code == (200 if streaming else 400)
     assert b"content_blocked" in response.content
     assert b"BLOCK_OUTPUT" not in response.content
@@ -291,7 +297,7 @@ def test_real_output_rail_withholds_blocked_response_and_stream_snapshots(proxy,
 def test_provider_failure_bytes_and_headers_are_not_rewritten(proxy, streaming):
     client, _, bodies, settings = proxy
     settings["status"] = 429
-    response = client.post("/openai/v1/responses", json={"input": "question", "stream": streaming})
+    response = client.post("/openai/v1/responses", json={"input": "question", "store": False, "stream": streaming})
     assert response.status_code == 429
     assert response.content == bodies[0].body
     assert response.headers["x-request-id"] == "synthetic"
@@ -331,7 +337,7 @@ def test_openai_sdk_decodes_native_success_and_proxy_error_events(proxy, blocked
         base_url="https://sdk.test/v1",
         http_client=httpx.Client(transport=httpx.MockTransport(forward)),
     ) as sdk:
-        events = list(sdk.responses.create(model="test-model", input="question", stream=True))
+        events = list(sdk.responses.create(model="test-model", input="question", store=False, stream=True))
     if blocked:
         assert events[-1].type == "error"
         assert events[-1].code == "content_blocked"
@@ -339,3 +345,15 @@ def test_openai_sdk_decodes_native_success_and_proxy_error_events(proxy, blocked
     else:
         assert events[-1].type == "response.completed"
         assert "".join(item.delta for item in events if item.type == "response.output_text.delta") == "answer"
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize(
+    "storage_fields", [{}, {"store": True}, {"store": None}, {"store": 0}, {"store": 0.0}, {"store": "false"}]
+)
+def test_storage_requires_explicit_false_before_upstream_dispatch(proxy, streaming, storage_fields):
+    client, requests, _, _ = proxy
+    response = client.post("/openai/v1/responses", json={"input": "question", "stream": streaming, **storage_fields})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "unsupported_responses_shape"
+    assert not requests

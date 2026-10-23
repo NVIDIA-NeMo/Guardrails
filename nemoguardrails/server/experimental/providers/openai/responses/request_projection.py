@@ -76,7 +76,6 @@ class ResponsesGuardedRequestProjection(PolicyModel, GuardedRequestModel):
             "prompt_cache_retention",
             "safety_identifier",
             "service_tier",
-            "store",
             "stream_options",
             "temperature",
             "top_p",
@@ -85,6 +84,7 @@ class ResponsesGuardedRequestProjection(PolicyModel, GuardedRequestModel):
         ),
     )
     input: Annotated[str, guarded("user", replaceable=False, min_length=1)]
+    store: Annotated[StrictFalse, constrained(reason="core_capability.response_storage")]
     stream: Annotated[StrictBool, constrained()] = False
     background: Annotated[StrictFalse, constrained(reason="core_capability.background_execution")] = False
     context_management: Annotated[None, disabled("core_capability.conversation_state")] = None

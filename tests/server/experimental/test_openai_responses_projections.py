@@ -53,6 +53,7 @@ def test_request_extracts_original_input_without_modifying_provider_fields():
     payload = {
         "model": "test-model",
         "input": "hello",
+        "store": False,
         "reasoning": {"effort": "medium"},
         "text": {"format": {"type": "text"}, "verbosity": "medium"},
     }
@@ -93,12 +94,14 @@ def test_request_extracts_original_input_without_modifying_provider_fields():
 )
 def test_unsupported_requests_fail_closed(updates):
     with pytest.raises(ValidationError):
-        ResponsesGuardedRequest.validate_payload({"input": "hello", **updates})
+        ResponsesGuardedRequest.validate_payload({"input": "hello", "store": False, **updates})
 
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_request_selects_response_mode_from_a_strict_boolean(stream):
-    request = ResponsesGuardedRequest.validate_payload({"input": "hello", "stream": stream, "top_logprobs": 0})
+    request = ResponsesGuardedRequest.validate_payload(
+        {"input": "hello", "store": False, "stream": stream, "top_logprobs": 0}
+    )
     assert request.streams_response is stream
 
 

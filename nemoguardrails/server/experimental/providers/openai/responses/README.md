@@ -19,6 +19,7 @@ for Responses in both directions. A replacement decision fails explicitly.
 
 Request `stream` is a strict boolean, defaulting to false; this boundary rejects
 null rather than coercing it. `background` permits only the boolean false.
+`store` is required and permits only the boolean false in both response modes.
 Disabled fields accept omission or null, not an empty container or a value such
 as `tool_choice: none`. `top_logprobs` permits omission, null, or integer zero.
 Response and event logprobs and annotations must be absent, null, or empty:
@@ -122,32 +123,27 @@ belong to the application/example work, not these declarations.
 
 ### Stored responses and enforcement scope
 
-Request `store` is forwarded unchanged and remains uninspected. OpenAI
-[defaults omitted `store` to true](https://developers.openai.com/api/reference/python/resources/responses/methods/create),
-allowing later API retrieval. An approved streaming prefix can expose the
-response ID before a later output window is blocked. Blocking withholds the
-pending stream content; it does not delete upstream state or guarantee that
-closing the stream cancels provider generation or storage.
+Guarded creation requests must explicitly supply `store: false`. Omission,
+true, null, and non-boolean values are rejected before upstream dispatch.
+OpenAI [defaults omitted `store` to true](https://developers.openai.com/api/reference/python/resources/responses/methods/create),
+so a projection default would not suffice: original request bytes are forwarded
+unchanged, and projection defaults are never inserted into them.
 
-`GET /v1/responses/{response_id}` is an unguarded passthrough route. If the
-provider retained the response and authorizes retrieval, that route can return
-content withheld by the POST output check. This applies even when Responses is
-selected for guarding. The offline storage characterization test models a
-retained response; it does not establish how a live provider stores every
-interrupted foreground stream.
+This constraint prevents requesting retrievable response storage through guarded
+creation. It relies on the provider honoring `store: false`; it is not a guarantee
+about provider logging or data retention. Blocking output cannot undo upstream
+storage, and closing a stream does not guarantee cancellation of generation.
 
-Applications using this proxy as an enforcement boundary must restrict exposed
-routes, including retrieval and other unguarded generation operations, and
-control direct upstream access. Apply that policy before forwarding requests
-with application-owned credentials. Caller-owned upstream credentials may also
-allow callers to bypass the proxy directly. Retrieval restrictions must cover
-existing stored resources as well as newly created responses.
+`GET /v1/responses/{response_id}` remains an unguarded passthrough route, including
+for responses stored before this constraint or created elsewhere. Guarding
+retrieval is follow-up work needed before relaxing the creation constraint;
+other operations exposing stored content also require coverage review.
 
-Applications may additionally require explicit `store: false` when persistent
-responses are unwanted. A projection default does not insert that field into
-forwarded bytes, and disabling storage for new requests does not restrict access
-to existing resources or other passthrough operations. Storage settings alone
-therefore do not provide an application-wide enforcement boundary.
+Applications using the proxy as an enforcement boundary must restrict exposed
+unguarded routes and control direct upstream access. Apply that policy before
+forwarding requests with application-owned credentials. The constraint applies
+only when Responses creation is selected for guarding; storage settings alone
+do not provide an application-wide enforcement boundary.
 
 ## Contract export and verification
 

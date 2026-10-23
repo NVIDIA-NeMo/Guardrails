@@ -144,8 +144,11 @@ request:
       x-nemo-guardrails:
         classification: opaque
     store:
+      const: false
+      type: boolean
       x-nemo-guardrails:
-        classification: opaque
+        classification: constrained
+        reason: core_capability.response_storage
     stream:
       default: false
       type: boolean
@@ -235,6 +238,7 @@ request:
         classification: opaque
   required:
   - input
+  - store
   title: openai.responses.request.text.v1
   type: object
   x-nemo-guardrails:

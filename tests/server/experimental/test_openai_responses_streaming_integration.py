@@ -71,7 +71,9 @@ async def post_stream(chunks, checker, *, failure=None):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=application), base_url="http://proxy.test"
     ) as client:
-        result = await client.post("/v1/responses", json={"model": "test-model", "input": "question", "stream": True})
+        result = await client.post(
+            "/v1/responses", json={"model": "test-model", "input": "question", "store": False, "stream": True}
+        )
     return result, source, dispatches
 
 
@@ -178,39 +180,17 @@ async def test_upstream_failure_closes_owner_and_withholds_pending_text():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("storage_fields", [{}, {"store": True}], ids=["default-storage", "explicit-storage"])
-async def test_stored_response_retrieval_passes_through_after_later_stream_output_is_blocked(storage_fields):
-    response_id = "resp_stored"
-    accepted_prefix = event_bytes("response.created", response={"id": response_id, "output": []}) + event_bytes(
-        "response.output_text.delta", delta="safe prefix "
-    )
-    stored_response = {**response_payload("safe prefix BLOCK_OUTPUT"), "id": response_id, "store": True}
-    stored_wire = json.dumps(stored_response, indent=2).encode()
+async def test_preexisting_stored_response_retrieval_remains_unguarded():
+    stored_wire = json.dumps({**response_payload("BLOCK_OUTPUT"), "store": True}).encode()
     retrieval_stream = ResponseBody(stored_wire)
-    stream = ResponseBody(
-        accepted_prefix
-        + event_bytes("response.output_text.delta", delta="BLOCK_OUTPUT")
-        + event_bytes("response.completed", response=stored_response)
-    )
-    inspector = StaticChecker(
-        ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)),
-        output_decisions=[ContentAllowed(), ContentBlocked("blocked")],
-    )
     requests = []
-    resolutions = []
 
     async def handler(request):
         requests.append(request)
-        if request.method == "POST":
-            assert request.url.path == "/v1/responses"
-            return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=stream)
-        assert request.method == "GET"
-        assert request.url.path == f"/v1/responses/{response_id}"
         return httpx.Response(200, headers={"content-type": "application/json"}, stream=retrieval_stream)
 
-    async def resolve_checker(request, provider_type, provider_instance_id, operation_name):
-        resolutions.append((request.method, operation_name))
-        return inspector
+    async def resolve_checker(*args):
+        raise AssertionError("Retrieval is not a guarded operation")
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as upstream:
         application = FastAPI()
@@ -223,33 +203,11 @@ async def test_stored_response_retrieval_passes_through_after_later_stream_outpu
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=application), base_url="http://proxy.test"
         ) as client:
-            request_wire = json.dumps({"input": "question", "stream": True, **storage_fields}, indent=2).encode()
-            response = await client.post(
-                "/v1/responses", content=request_wire, headers={"content-type": "application/json"}
-            )
-            assert response.status_code == 200
-            assert response.content.startswith(accepted_prefix)
-            assert response_id.encode() in response.content
-            assert b'"code":"content_blocked"' in response.content
-            assert b"BLOCK_OUTPUT" not in response.content
-            assert b"response.completed" not in response.content
-            assert stream.closed
-            assert requests[0].content == request_wire
-            assert inspector.text_calls == [
-                ("input", "question"),
-                ("output", "safe prefix "),
-                ("output", "BLOCK_OUTPUT"),
-            ]
-            calls_before_retrieval = list(inspector.calls)
-            policy_reads_before_retrieval = inspector.policy_reads
-
-            retrieved = await client.get(f"/v1/responses/{response_id}")
+            retrieved = await client.get("/v1/responses/resp_test")
 
     assert retrieved.status_code == 200
     assert retrieved.content == stored_wire
     assert retrieval_stream.closed
-    assert b"BLOCK_OUTPUT" in retrieved.content
-    assert [request.method for request in requests] == ["POST", "GET"]
-    assert resolutions == [("POST", "responses.create")]
-    assert inspector.calls == calls_before_retrieval
-    assert inspector.policy_reads == policy_reads_before_retrieval
+    assert len(requests) == 1
+    assert requests[0].method == "GET"
+    assert requests[0].url.path == "/v1/responses/resp_test"

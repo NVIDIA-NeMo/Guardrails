@@ -89,3 +89,20 @@ def test_stream_export_preserves_all_bound_event_selections_and_missing_text_rul
         "sentinels": {"[DONE]": "done"},
     }
     assert "hooks" not in exported["integration"]
+
+
+@pytest.mark.parametrize(
+    "storage_fields", [{}, {"store": False}, {"store": True}, {"store": None}, {"store": 0}, {"store": "false"}]
+)
+def test_exported_storage_constraint_matches_runtime(storage_fields, export_policy_validator):
+    document = {"input": "question", **storage_fields}
+    validator = export_policy_validator(
+        export_guard_contract(RESPONSES_ENDPOINT)["request"], UnknownContentFieldPolicy.FORBID
+    )
+    accepted = storage_fields == {"store": False} and type(storage_fields.get("store")) is bool
+    assert validator.is_valid(document) is accepted
+    if accepted:
+        RESPONSES_ENDPOINT.guarded_request_model.validate_payload(document)
+    else:
+        with pytest.raises(ValidationError):
+            RESPONSES_ENDPOINT.guarded_request_model.validate_payload(document)
