@@ -140,7 +140,7 @@ curl -N http://127.0.0.1:8000/v1/chat/completions \
 
 curl -sS http://127.0.0.1:8000/v1/responses \
   -H 'Content-Type: application/json' \
-  -d '{"model":"YOUR_DEPLOYED_MODEL","input":"hello"}'
+  -d '{"model":"YOUR_DEPLOYED_MODEL","input":"hello","store":false}'
 
 curl -sS http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
