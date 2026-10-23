@@ -54,7 +54,7 @@ def check(
 |-----------|------|-------------|
 | `messages` | `List[dict]` | List of message dictionaries with `role` and `content` fields |
 | `rail_types` | `Optional[List[RailType]]` | Optional list of rail types to run. When provided, overrides automatic detection based on message roles. |
-| `tools` | `Optional[List[dict]]` | IORails only; `LLMRails` raises `RailTypeNotSupportedError`. The tools a `tool_call` check validates calls against, in the main model's wire format. Only a `tool_call` check reads them, so passing `tools` without `RailType.TOOL_CALL` in `rail_types` raises `InvalidCheckRequestError`. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only). |
+| `tools` | `Optional[List[dict]]` | IORails only; `LLMRails` raises `RailTypeNotSupportedError`. The tools a `tool_call` check validates calls against, as Chat Completions function tools. Only a `tool_call` check reads them, so passing `tools` without `RailType.TOOL_CALL` in `rail_types` raises `InvalidCheckRequestError`. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only). |
 
 **Returns:** `RailsResult` object containing validation results.
 
@@ -132,8 +132,7 @@ A `per_tool` rail on tool calls enforces them too, but only for the calls it che
 A `per_tool` rail checks only the tools it is listed under, so with `per_tool` rails alone, a call to any other tool, declared or not, passes.
 A tool check never calls the main model.
 
-Pass the tools your model was offered in `tools`, in the main model's wire format.
-For the `openai` and `nim` engines, that is the OpenAI Chat Completions tool shape:
+Pass the tools your model was offered in `tools`, in the OpenAI Chat Completions tool shape, whatever the main model's engine:
 
 ```python
 from nemoguardrails import Guardrails, RailsConfig
@@ -174,12 +173,13 @@ Keep the following behavior in mind:
 - `tools` replaces the tools declared in the main model's `parameters.tools`, schemas included; it does not add to them.
   When you omit `tools`, the configured tools are the allowlist.
   `tools=[]` declares no tools, so `tool call validation` blocks every call.
+- A `tools` entry that isn't a Chat Completions function tool, with a `function` object and a non-empty `name`, raises `InvalidCheckRequestError` rather than being dropped.
 - Only a `tool_call` check reads `tools`.
   Passing `tools` to any other check, including one that leaves `rail_types` to automatic detection, raises `InvalidCheckRequestError` rather than ignoring them.
 - A `tool_call` check validates only the last assistant message.
   Earlier calls were validated when they were produced, and a `tool_result` check validates how results link to them.
-- A tool check needs a `main` model, because its engine selects the wire format.
-  Without one, the check raises `RailTypeNotConfiguredError`.
+- A tool check needs no `main` model.
+  It reads the messages and `tools` in the Chat Completions format, whatever the main model's engine.
 - A tool rail type counts as configured when its configuration section lists `flows` or `per_tool` rails: `rails.tool_call` for `tool_call`, and `rails.tool_result` for `tool_result`.
   Otherwise the check raises `RailTypeNotConfiguredError`.
 - When you name several rail types, they run in the order generation runs them: `tool_result`, `input`, `tool_call`, then `output`.
@@ -252,7 +252,7 @@ Switch on `violation_type`, which is a closed set, and never on the `reason` tex
 | `name_mismatch` | Result | The result names a different tool than the call it answers |
 | `malformed_content` | Result | The content is neither a string nor a list of content blocks |
 | `unlinkable_result` | Result | A `per_tool` rail applies, but the result cannot be linked to exactly one call |
-| `extraction_failed` | Either | The messages could not be read in the main model's wire format |
+| `extraction_failed` | Either | The messages could not be read in the Chat Completions format |
 | `rail_failed` | Either | A tool rail raised an error instead of deciding. The check returns the internal-error message |
 | `per_tool_rail` | Either | A `per_tool` rail blocked the call or result. When a `per_tool` rail blocks a call for an undeclared tool or schema-invalid arguments, the violation carries that underlying type instead, such as `tool_not_allowed` or `arguments_invalid`, so a call is categorized the same way whichever rails are configured |
 
@@ -434,7 +434,7 @@ The synchronous `check()` builds a short-lived engine with tracing and metrics d
 
 ### Guardrails Server
 
-The bundled server exposes checks through the `/v1/checks` endpoint, which calls `check_async()` on the engine serving the requested configuration.
+The Guardrails API server (`nemoguardrails server`) exposes checks through the `/v1/checks` endpoint, which calls `check_async()` on the engine serving the requested configuration.
 The server resolves that engine through the top-level `LLMRails` import.
 Setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` runs compatible configurations on `IORails` and the rest on `LLMRails`.
 Requesting a rail type with no configured flows returns HTTP 422.
@@ -444,6 +444,10 @@ On a configuration that `LLMRails` serves, they return HTTP 422.
 The request's top-level `tools` field sets the tools a `tool_call` check validates against.
 On a configuration that `IORails` serves, a request that carries `tools` without `tool_call` in `guardrails.rail_types` returns HTTP 422.
 On a configuration that `LLMRails` serves, a request that carries `tools` also returns HTTP 422.
+A `tools` entry that isn't a Chat Completions function tool returns HTTP 422 as well.
+
+To check a coding agent's tool calls from its own hooks, use the [Guardrails hooks server](/run-guardrailed-inference/using-hooks-server/overview) (`nemoguardrails hooks-server`) instead.
+It's a separate server, which applies a tool policy of its own to each call before it runs the called tool's `per_tool` rails.
 
 The response carries `status`, `content`, and, on a block, `rail`.
 A block on `IORails` also carries `reason`, and a tool rail block also carries `tool_violations`.

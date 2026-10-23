@@ -29,9 +29,11 @@ They run on every request and fail closed: a violation, a parsing error, or a ma
     `LLMRails` supports custom Colang flows in the `rails.tool_call` and
     `rails.tool_result` sections. The built-in structural validation flows
     described on this page require the opt-in, experimental IORails engine. See
-    [Enable the IORails engine](#enable-the-iorails-engine) below. These flows
-    support only the OpenAI Chat Completions wire format (the `openai` and
-    `nim` engines).
+    [Enable the IORails engine](#enable-the-iorails-engine) below. In
+    generation, these flows support only the OpenAI Chat Completions wire
+    format (the `openai` and `nim` engines). A check reads tool calls and
+    tools in that format whatever the `main` model's engine, and needs no
+    `main` model.
 </Warning>
 
 ## How Function Calling Works
@@ -169,7 +171,9 @@ To validate only the model's tool calls, configure `rails.tool_call` and leave `
     silently falls back to `LLMRails`, and none of the IORails tool rails run. A
     typo in a flow name disables the tool rails you configured, with only a log
     warning to signal it. Pass `require_iorails=True` to the `Guardrails`
-    constructor to raise instead of falling back silently.
+    constructor to raise instead of falling back silently. A configuration
+    with `per_tool` rails always raises instead of falling back, and `LLMRails`
+    issues a `UserWarning` when it loads one, because it doesn't run them.
 </Warning>
 
 <Note>
@@ -372,13 +376,22 @@ result_check = await rails.check_async(messages, rail_types=[RailType.TOOL_RESUL
 
 A `tool_call` check validates the tool calls on the last assistant message against `tools`, which replace the tools declared on the main model.
 Only a `tool_call` check reads `tools`, so passing them to any other check raises `InvalidCheckRequestError`, or returns HTTP 422 from the server.
+Each `tools` entry must be a Chat Completions function tool, with a `function` object and a non-empty `name`; any other entry raises `InvalidCheckRequestError` rather than being dropped.
+A tool check reads the messages and `tools` in the Chat Completions format whatever the `main` model's engine, and needs no `main` model.
 The allowlist and argument schemas are enforced for every call by `tool call validation`, and for the calls a `per_tool` rail checks by that rail; `per_tool` rails check only the tools they are listed under.
 A `tool_result` check validates every `tool` message against the calls it answers.
 Both run the global validator and any `per_tool` rails, and neither calls the model.
 A blocked check reports each failing call or result in `tool_violations`, with a `violation_type` to switch on.
 For the full behavior, the violation types, and the engine requirements, refer to [Checking Messages Against Rails: Tool Rails](/run-guardrailed-inference/using-python-apis/check-messages#tool-rails-iorails-only).
 
-The server exposes the same check through `/v1/checks`.
+<Tip>
+
+To check the tool calls of a coding agent such as Claude Code or Codex from the agent's own hooks, use the [Guardrails hooks server](/run-guardrailed-inference/using-hooks-server/overview) (`nemoguardrails hooks-server`).
+It applies a tool policy of its own to each call, then runs the called tool's `per_tool` rails in this check.
+
+</Tip>
+
+The Guardrails API server (`nemoguardrails server`) exposes the same check through `/v1/checks`.
 Run the server with `NEMO_GUARDRAILS_IORAILS_ENGINE=1` so the configuration is served by IORails; on `LLMRails`, the tool rail types return HTTP 422.
 Pass the tools in the request's top-level `tools` field:
 
@@ -421,8 +434,9 @@ IORails streams the text response as it arrives, accumulates the tool-call fragm
 
 ## Limitations
 
-- **Wire format.** The tool-calling rails support only the OpenAI Chat Completions shape, through the `openai` and `nim` engines.
+- **Wire format.** In generation, the tool-calling rails support only the OpenAI Chat Completions shape, through the `openai` and `nim` engines.
   They do not yet support the OpenAI Responses API, Anthropic, Gemini, or Bedrock.
+  A check takes messages and tools in the Chat Completions shape, whatever the `main` model's engine.
 - **Structural result validation.** Tool result validation checks structure and linkage only.
   It does not enforce response schemas or apply content-safety checks to tool results.
 - **Intra-request consistency.** The linkage check verifies consistency within a single request, not cross-turn provenance.

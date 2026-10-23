@@ -476,6 +476,28 @@ navigation:
           - page: Actions Server
             path: run-rails/using-fastapi-server/actions-server.mdx
             slug: actions-server
+      - section: Hooks Server
+        path: run-rails/using-hooks-server/index.mdx
+        slug: using-hooks-server
+        contents:
+          - page: Overview
+            path: run-rails/using-hooks-server/overview.mdx
+            slug: overview
+          - page: Run the Hooks Server
+            path: run-rails/using-hooks-server/run-hooks-server.mdx
+            slug: run-hooks-server
+          - page: Claude Code
+            path: run-rails/using-hooks-server/claude-code.mdx
+            slug: claude-code
+          - page: Codex
+            path: run-rails/using-hooks-server/codex.mdx
+            slug: codex
+          - page: NeMo Relay
+            path: run-rails/using-hooks-server/nemo-relay.mdx
+            slug: nemo-relay
+          - page: Results and Errors
+            path: run-rails/using-hooks-server/results-and-errors.mdx
+            slug: results-and-errors
   - section: Evaluation
     slug: evaluation
     collapsed: open-by-default

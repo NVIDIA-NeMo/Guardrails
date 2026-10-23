@@ -1,0 +1,377 @@
+---
+title: "Run the Hooks Server"
+sidebar-title: "Run the Hooks Server"
+description: "Start the Guardrails hooks server, write its tool policy and per-tool rails, and monitor it with logs, metrics, and traces."
+keywords: ["nemoguardrails hooks-server", "hooks server configuration", "hooks_server", "allowed_tools", "blocked_tools", "allow_unlisted_tools", "per_tool", "hooks server metrics"]
+content:
+  type: "tutorial"
+---
+
+The Guardrails hooks server (`nemoguardrails hooks-server`) loads one guardrails configuration when it starts, and checks every tool call an agent sends it against that configuration's tool policy and per-tool rails.
+This page covers starting the server, writing its configuration, and running it.
+To connect an agent, refer to the [Claude Code](/run-guardrailed-inference/using-hooks-server/claude-code), [Codex](/run-guardrailed-inference/using-hooks-server/codex), or [NeMo Relay](/run-guardrailed-inference/using-hooks-server/nemo-relay) page.
+
+## Start the Server
+
+Install the NVIDIA NeMo Guardrails library with the `server` extra, then start the hooks server with one configuration:
+
+```bash
+pip install "nemoguardrails[server]"
+nemoguardrails hooks-server --config ./hooks-config
+```
+
+| Option | Description |
+|---|---|
+| `--config` | The configuration directory or file. Required, exactly once: one configuration is the whole policy, so the server refuses a second `--config`. |
+| `--host` | The interface to listen on. Default: `127.0.0.1`. |
+| `--port` | The port to listen on. Default: `8100`. |
+| `--metrics-exporter` | Expose the admission-queue metrics on a scrape endpoint. Supported values: `prometheus` and `none`. Default: `none`. Refer to [Metrics](#metrics). |
+| `--metrics-host` | The interface for the scrape endpoint. Default: `127.0.0.1`. |
+| `--metrics-port` | The port for the scrape endpoint. Default: `9465`. |
+
+The hooks server has no options for a chat UI, a path prefix, auto-reload, or a default configuration ID, which belong to the [Guardrails API server](/run-guardrailed-inference/using-fastapi-server/run-guardrails-server).
+For the full option reference, refer to [CLI: hooks-server](/reference/cli#hooks-server).
+
+## Write a Hooks Configuration
+
+A hooks configuration is a `config.yml` with two parts: the tool policy in the top-level `hooks_server` section, and per-tool rails under `rails.tool_call.per_tool`.
+It needs no model:
+
+```yaml
+models: []
+
+hooks_server:
+  allowed_tools:
+    - Bash
+    - Read
+    - Edit
+  allow_unlisted_tools: false
+
+rails:
+  tool_call:
+    per_tool:
+      Bash:
+        - regex check tool call $argument=command
+
+  config:
+    regex_detection:
+      tool_call:
+        Bash:
+          patterns:
+            - '\brm\s+-rf\b'
+```
+
+With this configuration, the hooks server denies a call to any tool other than `Bash`, `Read`, and `Edit`, and denies a `Bash` command that matches the pattern.
+
+For each call, the hooks server applies three checks in order, and the first to deny the call decides:
+
+1. **The call's shape.** A `tool_input` that isn't a JSON object is denied, with the reason `tool call 'Bash' has arguments that aren't a JSON object`.
+1. **The tool policy** decides which tools a call may use and which arguments it may pass.
+   The server applies it itself, and answers a call it denies without running any rail.
+1. **Per-tool rails** check the calls the policy allows, for the tools they're listed under.
+
+The configuration needs a tool policy that can deny a call, per-tool rails, or both, as described in [Startup Checks](#startup-checks).
+
+### The Tool Policy
+
+Three settings in the `hooks_server` section make up the tool policy:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `allowed_tools` | `[]` | The tools a call may use. A name allows any arguments. A `{name, arguments}` entry allows only the listed argument names. |
+| `blocked_tools` | `[]` | The tools a call may not use. A name blocks every call to the tool. A `{name, arguments}` entry blocks a call that passes any of the listed arguments. |
+| `allow_unlisted_tools` | `true` | Whether a call to a tool that `allowed_tools` doesn't name is allowed. |
+
+Set `allow_unlisted_tools: false` to deny every tool you haven't listed, including tools that a later agent release adds.
+Until you do, a name in `allowed_tools` has no effect, because unlisted tools are allowed too.
+A tool with only an argument entry in `blocked_tools` is still unlisted, so `allow_unlisted_tools: false` denies it unless `allowed_tools` names it too.
+
+The following policy allows four tools, allows `search` only with a `query` argument, and denies `Bash` calls that pass `run_in_background`:
+
+```yaml
+hooks_server:
+  allowed_tools:
+    - Bash
+    - Read
+    - Edit
+    - name: search
+      arguments: [query]
+  blocked_tools:
+    - WebFetch
+    - name: Bash
+      arguments: [run_in_background]
+  allow_unlisted_tools: false
+```
+
+The server applies the rules in the following order, and denies a call with the reason of the first rule it breaks:
+
+| Order | The call | Reason |
+|---|---|---|
+| 1 | Names a tool that `blocked_tools` names | `tool call 'WebFetch' is a blocked tool` |
+| 2 | Passes an argument that the tool's `blocked_tools` entry lists | `tool call 'Bash' passes argument 'run_in_background', which is blocked` |
+| 3 | Names a tool that `allowed_tools` doesn't, while `allow_unlisted_tools` is `false` | `tool call 'TodoWrite' is not an allowed tool` |
+| 4 | Passes an argument that the tool's `allowed_tools` entry doesn't list | `tool call 'search' passes 2 arguments its allowed_tools entry doesn't list` |
+
+A reason quotes only names from your configuration and the called tool's name.
+For arguments the agent chose, it gives a count rather than their names.
+
+Set `hooks_server` in one file of the configuration.
+A configuration where more than one file, or a configuration it imports, sets `hooks_server` fails to load, so that no file can widen another file's policy.
+The Guardrails API server and the Python API ignore the `hooks_server` section.
+For the field reference, refer to [Configuration Reference: Hooks Server Tool Policy](/configure-guardrails/configuration-reference#hooks-server-tool-policy).
+
+### Per-Tool Rails
+
+List the rails for each tool under `rails.tool_call.per_tool`, keyed by the tool's name.
+The following rails check a tool call:
+
+- [`regex check tool call`](/configure-guardrails/guardrail-catalog/community/regex) matches regular expressions against the call's arguments, with no model.
+- [`cel check tool call`](/configure-guardrails/guardrail-catalog/cel) evaluates Common Expression Language (CEL) expressions over the call's arguments, with no model.
+- [`tool safety check tool call`](/configure-guardrails/guardrail-catalog/tool-safety-check) asks a judge model whether the call is safe, so the configuration needs that model.
+
+Add `$argument=<name>` to a regular-expression rail or a tool safety check to scope it to one argument, such as `$argument=command` for a shell command or `$argument=file_path` for a file path.
+When a call doesn't pass the argument, a regular-expression rail checks all the call's arguments.
+A CEL rail takes no `$argument=`, and the server refuses to start with one; a CEL expression names the arguments it reads.
+
+The rails for a tool run in the order listed, and the first rail to block the call or to fail decides.
+List a rail that can fail, such as a tool safety check whose judge model can be unreachable, after the rails that can't, such as regular expressions.
+With the judge listed first, a call that a regular expression would deny gets an [error](/run-guardrailed-inference/using-hooks-server/results-and-errors#errors) instead whenever the judge's model call fails.
+With `rails.tool_call.parallel: true`, a tool's rails run at once, and the first to block or fail decides.
+
+A hook carries the agent's call but no tool definitions, and per-tool rails check a call against the tool's definition before they run.
+So the hooks server declares the called tool to the rails itself, from the tool's `allowed_tools` entry:
+
+- A name, or no entry, declares a tool that takes any arguments.
+- A `{name, arguments}` entry declares a tool that takes only the listed arguments.
+
+The declaration exists only so that the rails can run, and isn't the tool's real schema.
+It has one consequence: when a tool has a `{name, arguments}` entry, a rail's `$argument=` must name one of the entry's arguments.
+Otherwise the rail fails on every call to the tool, the server logs `argument 'limit' is not declared in tool 'search' schema`, and every call gets an error.
+
+Tools that a model declares in its `parameters.tools` play no part in a check, as described in [Startup Checks](#startup-checks).
+`rails.tool_call.flows`, such as `tool call validation`, can't deny a call on the hooks server, so the server refuses it.
+The server runs only tool-call rails, and ignores the input, output, and tool-result rails of the configuration without a warning, so leave them out of a hooks configuration.
+
+### Tool Names
+
+The hooks server matches tool names exactly as the agent sends them, in `allowed_tools`, `blocked_tools`, and `per_tool` alike.
+Names are never patterns.
+
+- Claude Code sends its own tool names, such as `Bash`, `Read`, `Write`, and `Edit`.
+- Codex reports shell commands as `Bash` and file edits as `apply_patch`, with the whole patch in the `command` argument.
+- Both agents send MCP tools as `mcp__<server>__<tool>`.
+- NeMo Relay forwards the names of whatever tools it wraps.
+
+The hooks server checks `tool_input` as the agent sends it, and doesn't convert between agents' tool formats.
+A rail for file edits therefore needs `Write` and `Edit` in Claude Code's configuration, and `apply_patch` in Codex's.
+For each agent's tool names and arguments, refer to its page.
+
+### One Server for Each Agent
+
+The hooks server applies its one configuration on every path it serves, and both Claude Code and Codex report shell commands as `Bash`, so a `Bash` entry in one configuration would apply to both agents' calls.
+To check tool calls from more than one agent, run a hooks server for each agent, with that agent's configuration and on its own port:
+
+```bash
+nemoguardrails hooks-server --config examples/configs/agent_hooks/claude_code --port 8100
+nemoguardrails hooks-server --config examples/configs/agent_hooks/codex --port 8101
+```
+
+Point each agent's hook at its own server, replacing port `8100` in the hook settings on the agent's page with that server's port.
+When you run the metrics exporter, give each server its own `--metrics-port` too.
+
+### Example Configurations
+
+The repository includes one example configuration for each agent in [`examples/configs/agent_hooks`](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks).
+Each one allows a starting set of tools, denies every other tool, and blocks a few risky calls with regular expressions, so none needs a model or an API key.
+
+| Example | Allows | Blocks |
+|---|---|---|
+| `claude_code` | `Bash`, `Read`, `Write`, `Edit`, `Glob`, `Grep`, `WebFetch`, `WebSearch` | Destructive `Bash` commands, and `Read`, `Write`, or `Edit` on secrets files such as `.env` |
+| `codex` | `Bash`, `apply_patch`, `update_plan` | Destructive `Bash` commands, and patches that touch secrets files |
+| `nemo_relay` | An application tool, `search`, with only a `query` argument | A search with an empty, missing, or non-string query |
+
+The patterns show the shape of a policy, not a complete one.
+A regular expression is easy to get around, so treat it as one layer of defense.
+
+## Startup Checks
+
+The hooks server checks its configuration before it accepts any request.
+If a check fails, the server exits without serving, so a misconfiguration never surfaces as failed tool calls.
+For every check but the last, it prints a one-line reason and exits with status `1`.
+The server checks the following, in order:
+
+1. **The configuration loads.**
+   The tool policy fails validation when a list names a tool twice, when `allowed_tools` allows a tool that `blocked_tools` blocks by name, when a `{name, arguments}` entry has an empty `arguments` list or names an argument twice, or when the `hooks_server` section or an entry has an unknown key:
+
+    ```text
+    Invalid configuration: hooks_server: Value error, hooks_server.allowed_tools allows tool 'Bash', which hooks_server.blocked_tools blocks by name; remove it from one of the two lists.
+    ```
+
+   The configuration also fails to load when more than one of its files, or a configuration it imports, sets `hooks_server`:
+
+    ```text
+    The hooks_server section is set in more than one file of this config, or of a config it imports; set it in one file only (found again in /path/to/hooks-config/policy.yml).
+    ```
+
+1. **The `IORails` engine can serve the configuration.**
+   The hooks server always runs on `IORails`, the engine that runs tool-call rails, and never falls back to `LLMRails`:
+
+    ```text
+    The hooks server runs on IORails, which can't serve this config: IORails supports Colang 1.0 only; config uses Colang 2.x
+    ```
+
+1. **`rails.tool_call.flows` is empty.**
+   The server declares the called tool itself, so `tool call validation` always finds it and can't deny a call:
+
+    ```text
+    rails.tool_call.flows lists 'tool call validation', which can't deny a call on the hooks server: the server applies its tool policy and declares the called tool itself, so only per-tool rails check a call. Restrict tools with hooks_server.allowed_tools and hooks_server.allow_unlisted_tools: false, and remove the flow.
+    ```
+
+1. **Something can deny a call.**
+   The configuration needs a tool policy that can deny a call, or a per-tool rail:
+
+    ```text
+    The hooks server needs a tool policy in the hooks_server section, or per-tool rails under rails.tool_call.per_tool; this config has neither, so every tool call would be allowed.
+    ```
+
+   A policy of names in `allowed_tools` alone denies nothing while `allow_unlisted_tools` is `true`, so it's refused too, with a message that says to set `allow_unlisted_tools: false`.
+
+1. **The tool policy lets every per-tool rail run.**
+   Per-tool rails on a tool that `blocked_tools` blocks by name, or that `allowed_tools` doesn't list while `allow_unlisted_tools` is `false`, would never run:
+
+    ```text
+    rails.tool_call.per_tool has rails for tool 'Bash', which hooks_server.allowed_tools doesn't list while hooks_server.allow_unlisted_tools is false, so they never run; add it to hooks_server.allowed_tools.
+    ```
+
+1. **A `main` model is one a rail uses.**
+   The hooks server never generates a response, so it refuses a `main` model unless a tool-call rail names it with `$model=main`, as a [tool safety check](/configure-guardrails/guardrail-catalog/tool-safety-check) judge can.
+   A configuration written for the Guardrails API server therefore needs a hooks configuration of its own:
+
+    ```text
+    The config has a `main` model, which the hooks server doesn't use: it checks tool calls and never generates a response, and no tool-call rail names `$model=main`. Remove the `main` model, or give the hooks server a config of its own.
+    ```
+
+   The hooks server ignores the tools a `main` model declares in `parameters.tools`.
+   So that a configuration that relied on them as an allowlist doesn't allow every tool, the server refuses them unless the tool policy can deny a call:
+
+    ```text
+    The `main` model declares tools in parameters.tools, which the hooks server ignores, and the hooks_server section sets no tool policy that can deny a call, so every tool call would be allowed. List the tools in hooks_server.allowed_tools with allow_unlisted_tools: false, or remove parameters.tools.
+    ```
+
+1. **The engine builds, and the metrics exporter starts**, when you request one.
+   For the exporter's messages, refer to [Prometheus and Grafana: Troubleshooting](/observability/metrics/server-prometheus-grafana#troubleshooting).
+1. **The engine starts, and the server binds its port.**
+   An engine that fails to start ends the server with `Application startup failed` and a traceback.
+
+A server that answers its health check has passed every startup check.
+
+The server also logs a warning in the following cases, and starts anyway:
+
+- The `main` model that a rail uses declares tools in `parameters.tools`, which the hooks server ignores.
+- The metrics exporter is running, but the configuration doesn't set `metrics.enabled: true`.
+
+## Health Check
+
+The hooks server answers the same liveness checks as the Guardrails API server, `GET /v1/health` and `GET /healthz`:
+
+```bash
+curl http://localhost:8100/v1/health
+```
+
+```json
+{"status": "pass"}
+```
+
+The response means the process is up and has passed its startup checks.
+The server answers every other path with HTTP `404`, and a hook path called with another method than `POST` with HTTP `405`.
+It has no OpenAPI or docs pages.
+
+## Logs
+
+The hooks server logs one line for each tool call it checks, with the agent's path, the tool name, the agent's call ID, the outcome, the error code, and what decided the call:
+
+```text
+INFO:nemoguardrails.server.hooks.app:Hook check on /v1/hooks/claude-code: event=PreToolUse tool_name='Bash' tool_use_id='toolu_02' outcome=deny code=None rail='regex check tool call'
+```
+
+`rail` names the per-tool rail that blocked or failed, `tool policy` for a call the tool policy denied, or `None` when no rail decided, such as for an allow.
+A check that ends in an error is logged at the `WARNING` level.
+The line never includes the tool's input, which can carry file contents or credentials.
+
+A request the server answers before checking a call gets no such line: a `422` for a malformed request, a `503` when the admission queue is full, or a `500` for an unexpected error.
+The server's error handlers log those in their own format.
+
+## Metrics
+
+The hooks server can expose the `IORails` admission-queue metrics on a Prometheus scrape endpoint, as the Guardrails API server does.
+Set `metrics.enabled: true` in the configuration, then start the server with the exporter:
+
+```bash
+nemoguardrails hooks-server --config ./hooks-config --metrics-exporter prometheus
+```
+
+```bash
+curl -s http://127.0.0.1:9465/metrics | grep guardrails_
+```
+
+The hooks server has its own defaults, so it can export beside the Guardrails API server on one host: the scrape endpoint listens on `127.0.0.1:9465`, and the `service.name` resource attribute is `nemoguardrails-hooks-server`.
+The queue gauges appear as soon as the server starts.
+Only calls that run per-tool rails pass through the admission queue, so a call that the tool policy decides, or a call to a tool with no per-tool rails, doesn't change the metrics.
+
+The exporter reads the same `NEMO_GUARDRAILS_SERVER_METRICS_*` environment variables as the Guardrails API server, and a variable overrides the hooks server's default.
+A variable exported for the Guardrails API server in the same shell therefore also applies to the hooks server, and can turn on its export, move its endpoint off `127.0.0.1`, or make it collide with the other server's port.
+Set the hooks server's exporter with its own flags.
+For the variables and the Prometheus and Grafana setup, refer to [Prometheus and Grafana: The Hooks Server](/observability/metrics/server-prometheus-grafana#the-hooks-server).
+
+## Tracing
+
+To trace the checks, set `tracing.enabled: true` in the configuration and run the server under the OpenTelemetry `opentelemetry-instrument` launcher, which installs the OpenTelemetry SDK:
+
+```bash
+pip install opentelemetry-distro opentelemetry-exporter-otlp
+
+export OTEL_SERVICE_NAME=nemoguardrails-hooks-server
+export OTEL_TRACES_EXPORTER=otlp
+export OTEL_METRICS_EXPORTER=none
+export OTEL_LOGS_EXPORTER=none
+opentelemetry-instrument nemoguardrails hooks-server --config ./hooks-config
+```
+
+Point the exporter at your collector with the standard OpenTelemetry variables, such as `OTEL_EXPORTER_OTLP_ENDPOINT`, or set `OTEL_TRACES_EXPORTER=console` to print spans for a first check.
+
+A call that runs per-tool rails produces one `guardrails.request` span, with a `guardrails.rail` span for each rail that runs and a `guardrails.action` span for each action.
+A call that the tool policy decides, or a call to a tool with no per-tool rails, runs no rail and produces no span; the [log line](#logs) records it.
+For the span attributes, refer to [Span Reference](/observability/tracing/span-reference).
+
+Use either `opentelemetry-instrument` or `--metrics-exporter`, not both.
+The launcher installs a global OpenTelemetry meter provider even with `OTEL_METRICS_EXPORTER=none`, so the built-in exporter then refuses to start.
+
+<Warning>
+
+With content capture on, the spans record each checked call's arguments, which are the agent's `tool_input`.
+A tool input can carry the content of a file the agent writes, or a credential in a shell command.
+Content capture is off by default; leave it off unless your trace backend may store that data.
+For details, refer to [Capturing Prompt and Response Content](/observability/tracing/content-capture).
+
+</Warning>
+
+## Expose the Server
+
+The hooks server has no authentication, like every Guardrails server.
+It listens on `127.0.0.1` by default, so only processes on the same machine can reach it.
+
+To serve agents on other machines, set `--host` to an interface on a private network, and restrict who can reach the port with a firewall or network policy.
+Don't expose the hooks server to the public internet: anyone who can reach it can send it tool calls and learn what the policy allows.
+
+## Apply Configuration Changes
+
+The hooks server loads its configuration when it starts, and has no auto-reload.
+Restart the server to apply a change.
+While it restarts, agents get connection errors, which their hook configuration answers by blocking the call or by running it.
+For how to make each agent block, refer to [Results and Errors: Block a Call When a Check Fails](/run-guardrailed-inference/using-hooks-server/results-and-errors#block-a-call-when-a-check-fails).
+
+## Related Topics
+
+- [Overview of the Guardrails Hooks Server](/run-guardrailed-inference/using-hooks-server/overview)
+- [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling)
+- [CLI: hooks-server](/reference/cli#hooks-server)

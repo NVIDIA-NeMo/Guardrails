@@ -1,0 +1,123 @@
+---
+title: "Hooks Server Results and Errors"
+sidebar-title: "Results and Errors"
+description: "The allow, deny, and error outcomes of the Guardrails hooks server, its deny reasons and error responses, and how to make each agent block a call when a check fails."
+keywords: ["hooks server errors", "permissionDecision", "rail_failed", "unsupported_hook_event", "queue_full", "onFailure", "block on failure", "nemoguardrails hooks-server"]
+content:
+  type: "reference"
+---
+
+Every check the Guardrails hooks server (`nemoguardrails hooks-server`) runs ends in one of three outcomes: allow, deny, or error.
+This page lists what each agent path returns for each outcome, the deny reasons, and the error responses.
+
+## Outcomes
+
+| Outcome | Meaning | `/v1/hooks/claude-code` and `/v1/hooks/codex` | `/v1/hooks/nemo-relay` |
+|---|---|---|---|
+| Allow | The call passed the tool policy and every per-tool rail | `200` with `{}` | `200` with `{"decision": "allow"}` |
+| Deny | The call's shape, the tool policy, or a per-tool rail blocked the call | `200` with `permissionDecision: "deny"` and the reason | `200` with `{"decision": "deny", "reason": ...}` |
+| Error | The check couldn't finish, so the call's safety is unknown | A non-`2xx` status | A non-`2xx` status |
+
+An allow carries no decision.
+The hooks server never returns `permissionDecision: "allow"`, which in Claude Code would skip the permission prompt.
+The agent's own permission rules still apply after an allow.
+
+A deny for Claude Code and Codex has the following shape, with the reason prefixed with `NeMo Guardrails: `, so the agent's model knows what blocked the call:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "NeMo Guardrails: tool call 'WebFetch' is a blocked tool"
+  }
+}
+```
+
+A deny for NeMo Relay carries the reason without a prefix:
+
+```json
+{"decision": "deny", "reason": "tool call 'WebFetch' is a blocked tool"}
+```
+
+The responses carry no other fields.
+Codex marks a hook whose output has a field it doesn't know as failed, and runs the tool.
+
+## Deny Reasons
+
+The reason says what blocked the call:
+
+| Blocked by | Reason |
+|---|---|
+| `tool_input` isn't a JSON object | `tool call 'Bash' has arguments that aren't a JSON object` |
+| `blocked_tools` names the tool | `tool call 'WebFetch' is a blocked tool` |
+| `blocked_tools` lists an argument the call passes | `tool call 'Bash' passes argument 'run_in_background', which is blocked` |
+| `allowed_tools` doesn't name the tool, and `allow_unlisted_tools` is `false` | `tool call 'TodoWrite' is not an allowed tool` |
+| The tool's `allowed_tools` entry doesn't list arguments the call passes | `tool call 'search' passes 2 arguments its allowed_tools entry doesn't list` |
+| A per-tool rail | The rail's name, such as `regex check tool call` |
+
+A reason never quotes an argument's value, or the name of an argument that only the agent chose.
+For the tool policy, refer to [Run the Hooks Server: The Tool Policy](/run-guardrailed-inference/using-hooks-server/run-hooks-server#the-tool-policy).
+
+## Errors
+
+A check that can't finish is an error, not a deny.
+That happens when a per-tool rail fails instead of deciding, for example when a tool safety check can't reach its judge model.
+The tool policy never fails, so a call it denies is a deny even when the tool's rails would fail.
+A tool's per-tool rails run in the order listed, and the first to block or to fail decides, so list a rail that can fail after the rails that can't.
+
+Every error response uses the OpenAI error envelope, the same as the Guardrails API server's:
+
+```json
+{
+  "error": {
+    "message": "rail 'tool safety check tool call' failed: tool safety check tool call error: Connection error.",
+    "type": "server_error",
+    "param": null,
+    "code": "rail_failed"
+  }
+}
+```
+
+| Status | `code` | `param` | When |
+|---|---|---|---|
+| `422` | `null` | `null` | The body isn't JSON, or isn't a JSON object. |
+| `422` | `null` | `hook_event_name` | `hook_event_name` is missing, or isn't a string. |
+| `422` | `unsupported_hook_event` | `hook_event_name` | The path doesn't handle the event, such as `PostToolUse`. |
+| `422` | `null` | The field | A required field is missing or invalid, such as an empty `tool_name`, or the NeMo Relay request carries a field the endpoint doesn't accept. |
+| `500` | `rail_failed` | `null` | A per-tool rail failed, including a rail's model call. |
+| `500` | `null` | `null` | The check failed for another reason, or the server hit an unexpected error. |
+| `503` | `queue_full` | `null` | The server's admission queue is full. The response carries `Retry-After: 30`. |
+
+The `message` names each failing field as `body.<field>: <reason>`, for example `body.tool_use_id: Field required`.
+The agents don't read the error body; it's for logs and for people.
+
+A check has no side effects, so retrying a request is safe.
+After a `503`, wait for the number of seconds in `Retry-After` first.
+
+<Warning>
+
+Register the hooks server on `PreToolUse` only.
+Any other event returns `422 unsupported_hook_event`, and a hook that blocks on failure then blocks the action that event guards.
+
+</Warning>
+
+## Block a Call When a Check Fails
+
+The hooks server answers an error with a non-`2xx` status, and the agent decides what happens to the call.
+Whether an error blocks the call or lets it run is set in the agent's hook configuration, not by the hooks server.
+The same setting decides what happens when the hooks server is down, restarting, or too slow to answer.
+
+| Agent | By default, an error | To block the call on an error |
+|---|---|---|
+| Claude Code | Is a non-blocking error, and the tool runs | Set `onFailure: "block"` on the hook. Refer to [Claude Code: Add the Hook](/run-guardrailed-inference/using-hooks-server/claude-code#add-the-hook). |
+| Codex | Lets the tool run, unless the hook command exits `2`; a hook that times out lets it run too | Pass `curl` the `-f` option and a `--max-time` below the hook's `timeout`, and end the command with `\|\| exit 2`. Refer to [Codex: Add the Hook](/run-guardrailed-inference/using-hooks-server/codex#add-the-hook). |
+| NeMo Relay | Depends on the plugin and the integration | The plugin returns `Err` from the guardrail callback for any failed request, and Relay's Claude Code and Codex integrations block the call on `Err` from Relay 0.10.1. Relay's pi extension lets the call run by default. Refer to [NeMo Relay: Map the Response to the Guardrail Result](/run-guardrailed-inference/using-hooks-server/nemo-relay#map-the-response-to-the-guardrail-result). |
+
+These settings are for `PreToolUse` only.
+On other hook events, a blocking failure means something else: on Claude Code's `Stop` event, for example, it keeps Claude from stopping.
+
+## Related Topics
+
+- [Overview of the Guardrails Hooks Server](/run-guardrailed-inference/using-hooks-server/overview)
+- [Run the Hooks Server](/run-guardrailed-inference/using-hooks-server/run-hooks-server)

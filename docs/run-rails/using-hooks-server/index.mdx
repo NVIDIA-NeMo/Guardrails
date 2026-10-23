@@ -1,0 +1,60 @@
+---
+title: "Use the Guardrails Hooks Server"
+sidebar-title: "Hooks Server"
+description: "Check the tool calls of Claude Code, Codex, and NeMo Relay before they run, with the Guardrails hooks server."
+keywords: ["hooks server", "nemoguardrails hooks-server", "agent hooks", "PreToolUse", "Claude Code", "Codex", "NeMo Relay", "tool calls"]
+content:
+  type: "get_started"
+---
+
+The NVIDIA NeMo Guardrails library includes the Guardrails hooks server (`nemoguardrails hooks-server`), which checks a coding agent's tool calls before the agent runs them.
+The agent's own pre-tool hook sends each call to the hooks server, which applies a tool policy and tool-call rails to it and answers with allow or deny.
+
+The hooks server is a separate process from the [Guardrails API server](/run-guardrailed-inference/using-fastapi-server) (`nemoguardrails server`).
+It serves only the agent hook endpoints, and it never calls a model to generate a response.
+
+<Cards>
+
+<Card title="Overview" href="/run-guardrailed-inference/using-hooks-server/overview">
+
+How the hooks server checks a tool call, how it differs from the Guardrails API server, and a quick start.
+
+<Badge intent="tip" minimal outlined>Concept</Badge>
+</Card>
+
+<Card title="Run the Hooks Server" href="/run-guardrailed-inference/using-hooks-server/run-hooks-server">
+
+Start the server, write its tool policy and rails, and monitor it with logs, metrics, and traces.
+
+<Badge intent="tip" minimal outlined>Tutorial</Badge>
+</Card>
+
+<Card title="Claude Code" href="/run-guardrailed-inference/using-hooks-server/claude-code">
+
+Send every Claude Code tool call to the hooks server with an HTTP hook.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Codex" href="/run-guardrailed-inference/using-hooks-server/codex">
+
+Send every Codex tool call to the hooks server with a command hook.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="NeMo Relay" href="/run-guardrailed-inference/using-hooks-server/nemo-relay">
+
+The endpoint a NeMo Relay plugin's tool guardrail calls.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Results and Errors" href="/run-guardrailed-inference/using-hooks-server/results-and-errors">
+
+What each agent path returns for an allow, a deny, and an error, and how to make an agent block a call when a check fails.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+</Cards>

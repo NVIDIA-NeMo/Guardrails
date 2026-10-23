@@ -244,6 +244,7 @@ In both cases, if no content was produced, IORails omits the output rather than 
   A rail that calls an LLM also records the prompt it built from that input on the call's own `chat <model>` CLIENT span.
   On a `check_async()` call, whose conversation includes the checked response, every rail that runs records that response as the caller sent it.
   On `generate_async()` and `stream_async()`, the protected model's `chat <model>` CLIENT span records its response before an output rail masks it.
+- On the [Guardrails hooks server](/run-guardrailed-inference/using-hooks-server/run-hooks-server#tracing), a check's messages carry the agent's tool call, so the spans record its `tool_input`, which can hold file contents or a credential in a shell command.
 - Use `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false` to force capture off across every service from the environment, regardless of what individual configs request. This is useful as a deployment-wide guardrail for regulated environments.
 - The [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/) recommend against capturing message content by default because of these privacy risks.
 

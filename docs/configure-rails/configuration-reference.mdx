@@ -786,6 +786,38 @@ The top-level `streaming` field is a boolean that is no longer required. Use the
 streaming: false
 ```
 
+### Hooks Server Tool Policy
+
+The top-level `hooks_server` section sets the tool policy of the [Guardrails hooks server](/run-guardrailed-inference/using-hooks-server/overview), which applies it to each tool call before any rail runs.
+Only the hooks server reads it: the Guardrails API server and the Python API ignore it.
+
+```yaml
+hooks_server:
+    allowed_tools:
+        - Bash
+        - name: search
+          arguments: [query]
+    blocked_tools:
+        - WebFetch
+        - name: Bash
+          arguments: [run_in_background]
+    allow_unlisted_tools: false
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `allowed_tools` | `[]` | The tools a call may use. A name allows any arguments; a `{name, arguments}` entry allows only the listed arguments. |
+| `blocked_tools` | `[]` | The tools a call may not use. A name blocks every call; a `{name, arguments}` entry blocks a call that passes any of the listed arguments. |
+| `allow_unlisted_tools` | `true` | Whether a call to a tool that `allowed_tools` doesn't name is allowed. |
+
+The configuration fails to load when a list names a tool twice, when `allowed_tools` allows a tool that `blocked_tools` blocks by name, when a `{name, arguments}` entry has an empty `arguments` list or names an argument twice, or when the section or an entry has an unknown key.
+
+Set `hooks_server` in one file.
+When more than one file of a configuration, or a configuration it imports through `import_paths`, sets it, the configuration fails to load, naming the file where the second section was found.
+Likewise, combining two configurations with `+` raises `ValueError` when both set a `hooks_server` section.
+Keeping the policy in one file means no other file can drop its restrictions or widen its allowlist.
+For how the hooks server applies the policy, refer to [Run the Hooks Server: The Tool Policy](/run-guardrailed-inference/using-hooks-server/run-hooks-server#the-tool-policy).
+
 ### Import Paths
 
 ```yaml
