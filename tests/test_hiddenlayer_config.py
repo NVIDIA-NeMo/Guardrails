@@ -168,8 +168,8 @@ class TestMainModel:
         )
         assert _main_model(config) == ("gpt-5-nano", "openai")
 
-    def test_unknown_without_main_model(self):
-        assert _main_model(RailsConfig.from_content(yaml_content="models: []")) == ("unknown", "unknown")
+    def test_no_placeholder_without_a_main_model(self):
+        assert _main_model(RailsConfig.from_content(yaml_content="models: []")) == (None, None)
 
-    def test_unknown_without_config(self):
-        assert _main_model(None) == ("unknown", "unknown")
+    def test_no_placeholder_without_a_config(self):
+        assert _main_model(None) == (None, None)

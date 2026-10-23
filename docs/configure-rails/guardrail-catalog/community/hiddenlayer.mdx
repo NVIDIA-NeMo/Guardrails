@@ -6,7 +6,9 @@ title: "HiddenLayer AI Runtime Security Integration"
 The NVIDIA NeMo Guardrails library supports using [HiddenLayer AI Runtime Security](https://hiddenlayer.com) to evaluate user input, bot output, tool calls, and tool results.
 Each check sends the content to one of two HiddenLayer routes, and the rail applies the action HiddenLayer returns.
 A check before the model is called, the input check and each tool-result check, goes to `/detection/v2/nemo-guardrails/request-evaluations`; a check of what the model answered, the output check and each tool-call check, goes to `/detection/v2/nemo-guardrails/response-evaluations`.
-Both bodies are OpenAI Chat Completions payloads carrying the current turn only, and the verdict comes back in the `HL-Runtime-Action` and `HL-Runtime-Protection-Mode` response headers.
+Each body carries one check in the shape the library hands a rail, named by a `check` field: a user message, a bot message, a tool call, or a tool result with the call it answers.
+HiddenLayer maps it onto its own interaction model, so the library performs no translation of its own.
+A body carries the current turn only, and the verdict comes back in the `HL-Runtime-Action` and `HL-Runtime-Protection-Mode` response headers.
 
 ## Surfaces
 
@@ -14,8 +16,8 @@ Both bodies are OpenAI Chat Completions payloads carrying the current turn only,
 |---|---|---|
 | `hiddenlayer check input` | `rails.input.flows` | The user message |
 | `hiddenlayer check output` | `rails.output.flows` | The bot message |
-| `hiddenlayer check tool call` | `rails.tool_call.per_tool` | Each tool call the model emits for a listed tool, name and arguments |
-| `hiddenlayer check tool result` | `rails.tool_result.per_tool` | Each tool result for a listed tool, together with the call it answers |
+| `hiddenlayer check tool call` | `rails.tool_call.per_tool` | Each tool call the model emits for a listed tool, with the tool's declaration |
+| `hiddenlayer check tool result` | `rails.tool_result.per_tool` | Each tool result for a listed tool, with the call it answers and the tool's declaration |
 
 The rail maps HiddenLayer's action as follows:
 
@@ -26,7 +28,8 @@ The rail maps HiddenLayer's action as follows:
 | `DETECT` | Allows | Allows |
 | `NONE` | Allows | Allows |
 
-HiddenLayer never returns a redacted body that carries tool calls or tool results, so a policy that redacts, for example, email addresses blocks every tool call or tool result that contains one.
+HiddenLayer never returns a redacted tool call or tool result, so a policy that redacts, for example, email addresses blocks every tool call or tool result that contains one.
+A `BLOCK` returns the check as sent rather than a refusal message: the library renders its own.
 
 ### Protection Mode
 
@@ -47,8 +50,8 @@ The `Guardrails` class selects IORails by default and refuses to fall back to LL
 `LLMRails` and the server stay on the LLMRails engine unless you set `NEMO_GUARDRAILS_IORAILS_ENGINE=1`.
 The input and output flows also run on LLMRails, in Colang 1.0 and Colang 2.x.
 Use IORails for full context: within one IORails `generate_async` or `stream_async` request, or one `check_async` call that names several rail types, HiddenLayer evaluates a model call's response evaluations (tool-call checks and the output check) together with its request evaluations (the input check and tool-result checks).
-The evaluations of one model call are paired as a single round-trip by the `HL-Roundtrip-Id` header, which the rail takes from the round trip in scope.
-Open one explicitly with `nemoguardrails.context.roundtrip_id()` when the application knows where a model call starts and ends; the ID is not required to be a UUID, because the rail maps any other value onto one.
+The evaluations of one model call are paired as a single round-trip by the `HL-Roundtrip-Id` header, which the rail takes from the round trip in scope and sends as it stands.
+Open one explicitly with `nemoguardrails.context.roundtrip_id()` when the application knows where a model call starts and ends; the ID is not required to be a UUID, because HiddenLayer maps any other value onto one.
 Without a round trip the rail falls back to the request ID, and with neither it sends a fresh ID per check, logs one warning, and the evaluations of a call are no longer paired.
 With tracing enabled the request ID comes from the OpenTelemetry trace ID, so concurrent requests under one parent trace share it; open a round trip per model call when those requests must be paired exactly.
 
@@ -64,13 +67,12 @@ with conversation_id(thread_id):
     response = await rails.generate_async(messages=messages)
 ```
 
-The rail then sends the ID in the `HL-Runtime-Session-Id` header on all four surfaces.
-The value is `nemo:<project_id>:<conversation_id>` when a project ID is configured, and `nemo:<conversation_id>` otherwise.
-HiddenLayer resolves session IDs across the whole tenant, so two conversations that share a conversation ID and project share a session.
+The rail then sends the ID in the `HL-Runtime-Session-Id` header on all four surfaces, percent-encoded so that a header can carry any conversation ID.
+HiddenLayer scopes the ID to the tenant, to NeMo Guardrails and to the project, so two conversations that share a conversation ID and project share a session.
 Use a conversation ID that is unique to one conversation, such as a random thread ID.
 
 The session ID is the only source of conversation history: the body of each check carries the current turn only, and HiddenLayer evaluates it against the conversation's recent messages.
-A conversation ID that holds anything a header cannot carry, such as a line break or a non-ASCII character, or that is longer than 2048 bytes, cannot be sent; the rail drops it, logs one warning, and the checks are evaluated without history rather than under a truncated ID that two conversations could share.
+HiddenLayer rejects a conversation ID longer than 2048 bytes once decoded, and the rail applies `fail_open` to the rejection as it does to any other check it could not complete.
 
 Without a conversation ID the rail sends no session ID, HiddenLayer evaluates each check on its own, and it usually records each request as its own session.
 Set `send_session_id: false` to stop sending the ID.
@@ -231,8 +233,8 @@ HiddenLayer limits each tenant to 25,000 requests per minute, and every check al
 
 ## Data Handling
 
-When these rails are active, the library sends HiddenLayer the user message, the bot message, the tool name and arguments of each checked tool call, and each checked tool result with the call it answers.
-Each request also carries the main model name and engine, and the requester ID.
+When these rails are active, the library sends HiddenLayer the user message, the bot message, the name and arguments of each checked tool call, each checked tool result with the call it answers, and the declaration of each checked tool.
+Each request also carries the main model name, where one is configured, and the engine and requester ID in headers.
 When the caller sets a conversation ID and `send_session_id` is on, each request also carries that ID.
 Do not use a conversation ID that contains personal data, such as an email address, or set `send_session_id: false`.
 HiddenLayer stores evaluated interactions under the tenant's retention policy.

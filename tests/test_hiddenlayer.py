@@ -16,7 +16,6 @@
 """Tests for the HiddenLayer rail's actions: auth, retries and the failure policy."""
 
 import logging
-import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -31,10 +30,10 @@ from nemoguardrails.http import HTTPConnectionError, HTTPTimeoutError
 from nemoguardrails.library.hiddenlayer import actions
 from nemoguardrails.library.hiddenlayer._payloads import _REQUEST_PATH, _RESPONSE_PATH, _reset_warnings
 from nemoguardrails.library.hiddenlayer._token import _reset_token_cache
-from nemoguardrails.library.hiddenlayer._verdict import BLOCK_REASON, FAIL_OPEN_REASON, _Sent
+from nemoguardrails.library.hiddenlayer._verdict import BLOCK_REASON, FAIL_OPEN_REASON
 from nemoguardrails.library.hiddenlayer.actions import (
     _evaluate,
-    _input_interaction,
+    _input_check,
     _settings,
     hiddenlayer_evaluate,
     hiddenlayer_evaluate_tool_call,
@@ -57,7 +56,7 @@ from tests.fixtures.hiddenlayer import (
     REDACTED_PII_TEXT,
     TOOL_PROMOTED,
     headers,
-    request_body,
+    input_body,
 )
 from tests.http_utils import RecordedHTTPResponses
 from tests.utils import TestChat
@@ -135,8 +134,8 @@ def _settings_for(**fields):
 
 async def _check_input(client, fail_open: bool = False, **fields):
     settings = _settings_for(fail_open=fail_open, **fields)
-    body = _input_interaction("m", INPUT_TEXT)
-    return await _evaluate("input", "openai", body, _Sent(checked_text=INPUT_TEXT), settings, client)
+    body = _input_check("m", INPUT_TEXT)
+    return await _evaluate("input", "openai", body, INPUT_TEXT, settings, client)
 
 
 def _assert_failure_policy(outcome_or_error, fail_open: bool) -> None:
@@ -321,7 +320,7 @@ class TestFailures:
         """No action is no verdict, so it joins the transport failures rather than being applied."""
         with RecordedHTTPResponses() as responses:
             _token(responses)
-            responses.post(REQUEST_URL, payload=request_body(INPUT_TEXT), headers=headers(action) if action else {})
+            responses.post(REQUEST_URL, payload=input_body(INPUT_TEXT), headers=headers(action) if action else {})
             _assert_failure_policy(await _outcome_or_error(responses.client, fail_open), fail_open)
 
     @pytest.mark.asyncio
@@ -404,7 +403,7 @@ class TestVerdictsAreNeverFailedOpen:
         """The action is valid, so it is a verdict; the rail cannot apply it, so it fails closed."""
         with RecordedHTTPResponses() as responses:
             _token(responses)
-            responses.post(REQUEST_URL, payload=request_body(INPUT_TEXT), headers=headers("REDACT"))
+            responses.post(REQUEST_URL, payload=input_body(INPUT_TEXT), headers=headers("REDACT"))
             outcome = await _check_input(responses.client, fail_open=fail_open)
 
         assert outcome.is_blocked
@@ -431,12 +430,10 @@ class TestRoundtripId:
                     tool_call=call, tool_result=ToolResult(content="1", call_id="call_1"), http_client=client
                 )
 
-        sent = [request.headers["HL-Roundtrip-Id"] for request in _evaluations(client)]
-        assert len(set(sent)) == 1
-        assert uuid.UUID(sent[0]).version == 5
+        assert [request.headers["HL-Roundtrip-Id"] for request in _evaluations(client)] == ["call-7"] * 4
 
     @pytest.mark.asyncio
-    async def test_a_caller_set_uuid_is_sent_verbatim(self):
+    async def test_a_caller_set_id_is_sent_verbatim(self):
         value = "0e4a62af-6dd0-5157-a51f-fd3ef9aa3b9e"
         with RecordedHTTPResponses() as responses:
             _token(responses)
@@ -496,7 +493,7 @@ class TestClientOwnership:
 
 class TestActions:
     @pytest.mark.asyncio
-    async def test_input_posts_a_bare_request_body_and_applies_a_redaction(self, monkeypatch):
+    async def test_input_posts_the_user_message_and_applies_a_redaction(self, monkeypatch):
         monkeypatch.setenv("HIDDENLAYER_PROJECT_ID", "my-project")
         with RecordedHTTPResponses() as responses:
             _token(responses)
@@ -506,10 +503,10 @@ class TestActions:
         assert outcome.transform_text == {"user_message": REDACTED_PII_TEXT}
         evaluation = _evaluations(responses.client)[0]
         assert evaluation.url == REQUEST_URL
-        assert evaluation.json == {"model": "unknown", "messages": [{"role": "user", "content": INPUT_TEXT}]}
+        assert evaluation.json == {"check": "input", "user_message": INPUT_TEXT}
         assert evaluation.headers["HL-Project-Id"] == "my-project"
         assert evaluation.headers["HL-Requester-Id"] == "hiddenlayer-nemo"
-        assert evaluation.headers["HL-Provider-Id"] == "unknown"
+        assert "HL-Provider-Id" not in evaluation.headers
         assert evaluation.headers["Authorization"] == f"Bearer {TOKEN}"
 
     @pytest.mark.asyncio
@@ -522,7 +519,7 @@ class TestActions:
         assert outcome.is_blocked
         evaluation = _evaluations(responses.client)[0]
         assert evaluation.url == RESPONSE_URL
-        assert evaluation.json["object"] == "chat.completion"
+        assert evaluation.json == {"check": "output", "bot_message": "hi"}
 
     @pytest.mark.asyncio
     async def test_unknown_surface_raises(self):
@@ -559,11 +556,10 @@ class TestActions:
 
         assert outcome.decision is RailDecision.ALLOW
         assert _evaluations(responses.client)[0].url == RESPONSE_URL
-        sent_call = _evaluation_bodies(responses.client)[0]["choices"][0]["message"]["tool_calls"][0]
-        assert sent_call == {
-            "id": "call_1",
-            "type": "function",
-            "function": {"name": "run_sql", "arguments": '{"query": "SELECT 1"}'},
+        assert _evaluation_bodies(responses.client)[0] == {
+            "check": "tool_call",
+            "tool_call": {"id": "call_1", "name": "run_sql", "arguments": {"query": "SELECT 1"}},
+            "tool_definition": {"name": "run_sql", "parameters": RUN_SQL_TOOL.arguments_schema},
         }
 
     @pytest.mark.asyncio
@@ -581,9 +577,15 @@ class TestActions:
         assert outcome.metadata["protection_mode"] == "INTEGRATION_LIMITED_PROMOTE"
         evaluation = _evaluations(responses.client)[0]
         assert evaluation.url == REQUEST_URL
-        assert evaluation.json["tools"][0]["function"]["name"] == "run_sql"
-        messages = evaluation.json["messages"]
-        assert messages[0]["tool_calls"][0]["id"] == messages[1]["tool_call_id"] == "call_probe2"
+        assert evaluation.json["tool_definition"]["name"] == "run_sql"
+        # The empty call ID is sent as NeMo held it; HiddenLayer owns the fallback to the result's.
+        assert evaluation.json["tool_call"] == {"id": "", "name": "lookup", "arguments": {"q": "jane"}}
+        assert evaluation.json["tool_result"] == {
+            "content": "SSN 536-90-4399",
+            "is_error": False,
+            "call_id": "call_probe2",
+            "name": "lookup",
+        }
 
 
 REFUSAL = "I'm sorry, I can't respond to that."
@@ -660,7 +662,7 @@ class TestColang1:
             chat >> INPUT_TEXT
             chat << REFUSAL
 
-        assert _evaluation_bodies(responses.client)[0]["messages"][0]["content"] == INPUT_TEXT
+        assert _evaluation_bodies(responses.client)[0]["user_message"] == INPUT_TEXT
 
     def test_input_block_raises_the_rail_exception_when_enabled(self):
         chat = _v1_chat(llm_completions=[], enable_rails_exceptions=True)
@@ -698,7 +700,7 @@ class TestColang1:
             chat << REFUSAL
 
         assert _evaluations(responses.client)[1].url == RESPONSE_URL
-        assert _evaluation_bodies(responses.client)[1]["object"] == "chat.completion"
+        assert _evaluation_bodies(responses.client)[1]["check"] == "output"
 
     def test_output_redact_replaces_the_bot_message(self):
         chat = _v1_chat(llm_completions=[OUTPUT_TEXT])
@@ -710,8 +712,7 @@ class TestColang1:
             chat >> "Hello!"
             chat << OUTPUT_REDACTED
 
-        output_body = _evaluation_bodies(responses.client)[1]
-        assert output_body["choices"][0]["message"]["content"] == OUTPUT_TEXT
+        assert _evaluation_bodies(responses.client)[1]["bot_message"] == OUTPUT_TEXT
 
     def test_missing_credentials_fail_closed(self, monkeypatch):
         monkeypatch.delenv("HIDDENLAYER_CLIENT_SECRET")
@@ -737,7 +738,7 @@ class TestColang2:
             chat >> INPUT_TEXT
             chat << REFUSAL
 
-        assert _evaluation_bodies(responses.client)[1]["choices"][0]["message"]["content"] == REFUSAL
+        assert _evaluation_bodies(responses.client)[1]["bot_message"] == REFUSAL
 
     def test_input_redact_replaces_the_user_message(self):
         chat = self._chat()
@@ -749,7 +750,7 @@ class TestColang2:
             chat >> INPUT_TEXT
             chat << INPUT_REDACTED
 
-        assert _evaluation_bodies(responses.client)[1]["choices"][0]["message"]["content"] == INPUT_REDACTED
+        assert _evaluation_bodies(responses.client)[1]["bot_message"] == INPUT_REDACTED
 
     def test_output_block_refuses(self):
         chat = self._chat()
@@ -896,17 +897,9 @@ class TestSessionId:
         return [request.headers.get("HL-Runtime-Session-Id") for request in _evaluations(client)]
 
     @pytest.mark.asyncio
-    async def test_every_surface_sends_the_conversation_id_scoped_by_project(self):
-        assert await self._session_ids(self._config("project_id: my-project")) == ["nemo:my-project:thread-42"] * 4
-
-    @pytest.mark.asyncio
-    async def test_project_from_the_environment_scopes_the_id(self, monkeypatch):
-        monkeypatch.setenv("HIDDENLAYER_PROJECT_ID", "env-project")
-        assert await self._session_ids(self._config()) == ["nemo:env-project:thread-42"] * 4
-
-    @pytest.mark.asyncio
-    async def test_without_a_project_the_id_is_only_namespaced(self):
-        assert await self._session_ids(self._config()) == ["nemo:thread-42"] * 4
+    async def test_every_surface_sends_the_conversation_id_as_held(self):
+        """HiddenLayer scopes the ID by tenant, integration and project, so the rail sends it bare."""
+        assert await self._session_ids(self._config("project_id: my-project")) == ["thread-42"] * 4
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("conversation", [None, ""], ids=["unset", "empty"])
@@ -914,9 +907,13 @@ class TestSessionId:
         assert await self._session_ids(self._config(), conversation) == [None] * 4
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("conversation", ["thread-42\r\nX-Injected: 1", "thread-42 "], ids=["crlf", "trailing"])
-    async def test_an_id_no_header_can_carry_is_dropped_so_the_checks_still_run(self, conversation):
-        assert await self._session_ids(self._config(), conversation) == [None] * 4
+    @pytest.mark.parametrize(
+        ("conversation", "sent"),
+        [("thread-42\r\nX-Injected: 1", "thread-42%0D%0AX-Injected%3A%201"), ("thread 42 ", "thread%2042%20")],
+        ids=["crlf", "whitespace"],
+    )
+    async def test_an_id_a_header_could_not_carry_is_percent_encoded(self, conversation, sent):
+        assert await self._session_ids(self._config(), conversation) == [sent] * 4
 
     @pytest.mark.asyncio
     async def test_config_field_disables_it_even_when_the_environment_enables_it(self, monkeypatch):
@@ -926,13 +923,13 @@ class TestSessionId:
     @pytest.mark.asyncio
     async def test_config_field_enables_it_even_when_the_environment_disables_it(self, monkeypatch):
         monkeypatch.setenv("HIDDENLAYER_SEND_SESSION_ID", "0")
-        assert await self._session_ids(self._config("send_session_id: true")) == ["nemo:thread-42"] * 4
+        assert await self._session_ids(self._config("send_session_id: true")) == ["thread-42"] * 4
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(("value", "sent"), [("0", False), ("off", False), ("FALSE", False), ("maybe", True)])
     async def test_environment_applies_when_the_field_is_unset(self, monkeypatch, value, sent):
         monkeypatch.setenv("HIDDENLAYER_SEND_SESSION_ID", value)
-        expected = ["nemo:thread-42"] * 4 if sent else [None] * 4
+        expected = ["thread-42"] * 4 if sent else [None] * 4
         assert await self._session_ids(self._config(), "thread-42") == expected
 
     def test_colang1_turns_carry_the_conversation_id(self):
@@ -947,5 +944,5 @@ class TestSessionId:
                 chat << "Paris."
 
         sent = _evaluations(responses.client)
-        assert [r.headers["HL-Runtime-Session-Id"] for r in sent] == ["nemo:thread-42"] * 2
+        assert [r.headers["HL-Runtime-Session-Id"] for r in sent] == ["thread-42"] * 2
         assert len({r.headers["HL-Roundtrip-Id"] for r in sent}) == 1
