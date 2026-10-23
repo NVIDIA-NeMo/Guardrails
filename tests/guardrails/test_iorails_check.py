@@ -21,6 +21,7 @@ is_output_safe to control verdicts.
 """
 
 import asyncio
+import copy
 import logging
 from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1600,3 +1601,114 @@ class TestCheckToolRailConfiguration:
             )
 
         assert result.status == RailStatus.PASSED
+
+
+TEXT_PARTS = [{"type": "text", "text": "Hello"}, {"type": "text", "text": "world"}]
+JOINED_TEXT = "Hello\nworld"
+IMAGE_PART = {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}}
+
+
+class TestCheckTextContentParts:
+    """List content on user and assistant messages reaches the rails as text, instead of skipping them."""
+
+    @pytest.mark.asyncio
+    async def test_user_text_parts_reach_the_input_rails(self, iorails):
+        """A user message of text parts is checked by the input rails as the joined string, which PASSED reports."""
+        _mock_rails(iorails)
+
+        result = await iorails.check_async([{"role": "user", "content": TEXT_PARTS}])
+
+        assert result.status == RailStatus.PASSED
+        assert result.content == JOINED_TEXT
+        iorails.rails_manager.is_input_safe.assert_awaited_once_with([{"role": "user", "content": JOINED_TEXT}])
+
+    @pytest.mark.asyncio
+    async def test_unsafe_user_text_parts_are_blocked(self, iorails):
+        """An unsafe user message sent as text parts is BLOCKED by the input rail rather than passing unchecked."""
+        _mock_rails(iorails, input_result=_unsafe("content safety check input"))
+
+        result = await iorails.check_async([{"role": "user", "content": TEXT_PARTS}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.rail == "content safety check input"
+
+    @pytest.mark.asyncio
+    async def test_assistant_text_parts_reach_the_output_rails(self, iorails):
+        """An assistant message of text parts is checked by the output rails with the joined string as the response."""
+        _mock_rails(iorails)
+
+        result = await iorails.check_async([{"role": "assistant", "content": TEXT_PARTS}])
+
+        assert result.status == RailStatus.PASSED
+        assert result.content == JOINED_TEXT
+        iorails.rails_manager.is_output_safe.assert_awaited_once_with(
+            [{"role": "assistant", "content": JOINED_TEXT}], JOINED_TEXT
+        )
+
+    @pytest.mark.asyncio
+    async def test_unsafe_assistant_text_parts_are_blocked(self, iorails):
+        """An unsafe assistant message sent as text parts is BLOCKED by the output rail, not passed unchecked."""
+        _mock_rails(iorails, output_result=_unsafe("content safety check output"))
+
+        result = await iorails.check_async([{"role": "assistant", "content": TEXT_PARTS}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.rail == "content safety check output"
+
+    @pytest.mark.asyncio
+    async def test_a_non_text_part_raises_without_running_rails(self, iorails):
+        """An image part raises InvalidCheckRequestError and no input or output rail is awaited."""
+        _mock_rails(iorails)
+
+        with pytest.raises(InvalidCheckRequestError):
+            await iorails.check_async([{"role": "user", "content": [*TEXT_PARTS, IMAGE_PART]}])
+
+        iorails.rails_manager.is_input_safe.assert_not_awaited()
+        iorails.rails_manager.is_output_safe.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_a_non_text_part_is_refused_before_queueing(self, iorails):
+        """An image part is refused before the check is queued, so it takes no queue slot."""
+        with patch.object(iorails._generate_async_queue, "submit") as submit:
+            with pytest.raises(InvalidCheckRequestError):
+                await iorails.check_async([{"role": "user", "content": [IMAGE_PART]}])
+
+        submit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_the_callers_messages_are_not_mutated(self, iorails):
+        """Flattening for the rails leaves the caller's message list and dicts as they were."""
+        _mock_rails(iorails)
+        messages = [
+            {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+            {"role": "assistant", "content": [{"type": "text", "text": "Hi"}]},
+        ]
+        original = copy.deepcopy(messages)
+
+        await iorails.check_async(messages)
+
+        assert messages == original
+
+    @pytest.mark.asyncio
+    async def test_tool_list_content_reaches_the_tool_result_rails_unchanged(self, tool_iorails):
+        """A tool message's list content is not flattened, so the tool-result rails see the parts as sent."""
+        parts = [{"type": "text", "text": "18C"}]
+        messages = make_tool_conversation(result_name=None)
+        messages[-1]["content"] = parts
+        tool_iorails.rails_manager.are_tool_results_safe = AsyncMock(return_value=SAFE)
+
+        await tool_iorails.check_async(messages, rail_types=[RailType.TOOL_RESULT])
+
+        tool_iorails.rails_manager.are_tool_results_safe.assert_awaited_once()
+        checked_messages = tool_iorails.rails_manager.are_tool_results_safe.await_args.args[0]
+        assert checked_messages[-1]["content"] == parts
+
+    def test_sync_check_flattens_text_parts(self, iorails_sync):
+        """Sync check() runs the input rails on the joined string, as check_async does."""
+        _mock_rails(iorails_sync)
+
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails_sync):
+            result = iorails_sync.check([{"role": "user", "content": TEXT_PARTS}])
+
+        assert result.status == RailStatus.PASSED
+        assert result.content == JOINED_TEXT

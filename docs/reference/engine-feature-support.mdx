@@ -271,11 +271,15 @@ Reasoning bypasses the output rails on both engines, so output rails check the f
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
-| Multimodal (vision) input and output rails | ✓ | ✗ | LLMRails only |
+| Multimodal (vision) input and output rails | ✓ | ✗ | LLMRails only. IORails supports text content only. |
 
 Multimodal (vision) input and output rails, which run safety checks over image content alongside text, are supported by `LLMRails`.
 
-`IORails` does not run multimodal safety rails over image content on its input and output rails; multimodal configurations route to `LLMRails`.
+`IORails` supports text content only.
+The `Guardrails` wrapper picks an engine from the configured rails and flows, not from whether a model accepts images, so a vision configuration can still be served by `IORails`.
+To check image content, use `LLMRails`.
+On `IORails`, `check()` and `check_async()` raise `InvalidCheckRequestError` for a user or assistant message with a content part other than text, which is HTTP 422 on the `/v1/checks` endpoint.
+A `refusal` part on an assistant message counts as text and is checked like the rest of the message.
 
 ### Observability
 

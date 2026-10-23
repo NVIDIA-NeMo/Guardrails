@@ -52,7 +52,7 @@ def check(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `messages` | `List[dict]` | List of message dictionaries with `role` and `content` fields |
+| `messages` | `List[dict]` | List of message dictionaries with `role` and `content` fields. On `IORails`, a user or assistant `content` may also be a list of text parts, which the rails check joined with newlines. An assistant refusal part counts as text. Any other part, such as an image, raises `InvalidCheckRequestError`. |
 | `rail_types` | `Optional[List[RailType]]` | Optional list of rail types to run. When provided, overrides automatic detection based on message roles. |
 | `tools` | `Optional[List[dict]]` | IORails only; `LLMRails` raises `RailTypeNotSupportedError`. The tools a `tool_call` check validates calls against, in the main model's wire format. Only a `tool_call` check reads them, so passing `tools` without `RailType.TOOL_CALL` in `rail_types` raises `InvalidCheckRequestError`. Refer to [Tool Rails (IORails Only)](#tool-rails-iorails-only). |
 
@@ -438,6 +438,8 @@ The bundled server exposes checks through the `/v1/checks` endpoint, which calls
 The server resolves that engine through the top-level `LLMRails` import.
 Setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` runs compatible configurations on `IORails` and the rest on `LLMRails`.
 Requesting a rail type with no configured flows returns HTTP 422.
+On a configuration that `IORails` serves, a user or assistant message with a content part other than text, such as an image, returns HTTP 422.
+A `refusal` part on an assistant message counts as text, so it does not return HTTP 422.
 
 `guardrails.rail_types` accepts `tool_call` and `tool_result` on a configuration that `IORails` serves.
 On a configuration that `LLMRails` serves, they return HTTP 422.

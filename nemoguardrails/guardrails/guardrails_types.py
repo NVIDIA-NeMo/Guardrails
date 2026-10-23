@@ -22,6 +22,7 @@ from enum import Enum
 from typing import Any, Optional, TypeAlias
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.exceptions import UnreadableContentPartError
 from nemoguardrails.rails.llm.options import MAX_QUOTED_IDENTITY_LENGTH, ToolViolation
 from nemoguardrails.types import LLMResponse, UsageInfo
 
@@ -55,6 +56,58 @@ def rewrite_user_message(messages: LLMMessages, text: str) -> LLMMessages:
     rewritten = list(messages)
     rewritten[index] = {**messages[index], "content": text}
     return rewritten
+
+
+# Part types a message can carry under the OpenAI Chat spec. Only these are named in an error:
+# the type field is caller-supplied, so an unrecognized value is not echoed back.
+_KNOWN_PART_TYPES = frozenset({"text", "refusal", "image_url", "file", "input_audio"})
+
+
+def flatten_text_parts(messages: LLMMessages, roles: tuple[str, ...] = ("user", "assistant")) -> LLMMessages:
+    """Join list content on *roles* into one string; a non-text part raises UnreadableContentPartError."""
+    return [_flattened(message, index, roles) for index, message in enumerate(messages)]
+
+
+def _flattened(message: LLMMessage, index: int, roles: tuple[str, ...]) -> LLMMessage:
+    """*message* with its list content joined into a string, or *message* itself when it needs no flattening."""
+    role = message.get("role")
+    content = message.get("content")
+    if role not in roles or not isinstance(content, list):
+        return message
+    text = "\n".join(_part_text(part, role, index, part_index) for part_index, part in enumerate(content))
+    # A copy, never an edit: the caller's own message dicts reach the engine by identity.
+    return {**message, "content": text}
+
+
+def _part_text(part: Any, role: str, index: int, part_index: int) -> str:
+    """The text one content part contributes to its message."""
+    problem = _unreadable_part_problem(part, role)
+    if problem is not None:
+        raise UnreadableContentPartError(message_index=index, role=role, part_index=part_index, problem=problem)
+    # A text part holds its text under "text", and a refusal part under "refusal".
+    return part[part["type"]]
+
+
+def _unreadable_part_problem(part: Any, role: str) -> Optional[str]:
+    """Why a check cannot read *part* as text, without quoting its content, or None when it can."""
+    if not isinstance(part, dict):
+        return "is not an object"
+    part_type = part.get("type")
+    if not isinstance(part_type, str) or part_type not in _KNOWN_PART_TYPES:
+        return "has an unrecognized type"
+    if part_type not in _readable_part_types(role):
+        return f"has type '{part_type}'"
+    if not isinstance(part.get(part_type), str):
+        return f"has a non-string '{part_type}'"
+    return None
+
+
+def _readable_part_types(role: str) -> tuple[str, ...]:
+    """The part types whose text a check reads on a message with *role*."""
+    # A refusal is model text the end user sees, so it is checked like the assistant's other text.
+    if role == "assistant":
+        return ("text", "refusal")
+    return ("text",)
 
 
 class RailDirection(Enum):
