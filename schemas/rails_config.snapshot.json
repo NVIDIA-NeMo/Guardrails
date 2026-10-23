@@ -654,6 +654,53 @@
       "title": "JailbreakDetectionConfig",
       "type": "object"
     },
+    "LanguageDetectorConfig": {
+      "description": "Configuration for the language detector input rail.",
+      "properties": {
+        "allowed_languages": {
+          "description": "Language codes (fastText) that the user message may be written in. Messages in any other language are blocked. Mutually exclusive with blocked_languages. See https://fasttext.cc/docs/en/language-identification.html for the supported codes.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Languages",
+          "type": "array"
+        },
+        "blocked_languages": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Language codes (fastText) that the user message may not be written in. Messages in any other language are allowed. Mutually exclusive with allowed_languages. Example: ['en', 'es']",
+          "title": "Blocked Languages"
+        },
+        "refusal_messages": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Custom refusal messages per language code, used when a message is blocked. Languages without a message fall back to the built-in defaults, then to English. Example: {'en': 'Sorry, English only.', 'es': 'Lo siento, solo ingl\u00e9s.'}",
+          "title": "Refusal Messages"
+        }
+      },
+      "title": "LanguageDetectorConfig",
+      "type": "object"
+    },
     "LocalHFClassifierConfig": {
       "description": "Configuration for a local HuggingFace Transformers pipeline classifier.",
       "properties": {
@@ -1343,6 +1390,17 @@
         }
       ],
       "description": "Configuration for jailbreak detection."
+    },
+    "language_detector": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LanguageDetectorConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for the language detector rail."
     },
     "pangea": {
       "anyOf": [

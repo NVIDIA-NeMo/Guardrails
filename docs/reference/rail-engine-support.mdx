@@ -37,12 +37,12 @@ The following table summarizes surface support by direction:
 
 | Direction | Surfaces | LLMRails | IORails |
 |---|---:|---:|---:|
-| Input | 33 | 33 | 32 |
+| Input | 34 | 34 | 33 |
 | Output | 36 | 36 | 29 |
 | Retrieval | 11 | 11 | 0 |
 | Tool_call | 3 | 0 | 3 |
 | Tool_result | 3 | 0 | 3 |
-| **Total** | **86** | **80** | **67** |
+| **Total** | **87** | **81** | **68** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
 A configuration that declares one routes to `LLMRails` by default.
@@ -76,6 +76,7 @@ The following table lists the input surfaces:
 | `hf classifier check input` | Hugging Face Classifier | ✓ | ✓ | |
 | `jailbreak detection heuristics` | Jailbreak Detection | ✓ | ✗ | Backend ambiguity, [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285) |
 | `jailbreak detection model` | Jailbreak Detection | ✓ | ✓ | |
+| `language detector check input` | Language Detector | ✓ | ✓ | |
 | `llama guard check input` | Llama Guard | ✓ | ✓ | |
 | `pangea ai guard input` | Pangea AI Guard | ✓ | ✓ | Rewrites `user_message`. Deprecated rail |
 | `policyai moderation on input` | PolicyAI | ✓ | ✓ | |

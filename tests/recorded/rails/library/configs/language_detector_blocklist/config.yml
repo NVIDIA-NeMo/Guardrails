@@ -1,0 +1,10 @@
+models: []
+
+rails:
+  config:
+    language_detector:
+      blocked_languages:
+        - es
+  input:
+    flows:
+      - language detector check input
