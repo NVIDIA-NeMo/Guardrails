@@ -234,3 +234,33 @@ PASSTHROUGH_SANITIZED_HISTORY_CONFIG = RailsConfigSource.from_content(
         $user_message = "The fictional weather station is named MAPLE-4827. Reply exactly: noted"
     """,
 )
+
+WEATHER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get the current weather for a city.",
+        "parameters": {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+            "additionalProperties": False,
+        },
+    },
+}
+WEATHER_TOOL_CHOICE = {"type": "function", "function": {"name": "get_weather"}}
+
+NIM_TOOL_CALL_MODEL = "nvidia/nvidia/nemotron-3-nano-30b-a3b"
+NIM_TOOL_CALL_CONFIG = RailsConfigSource.from_content(
+    name="nim_gateway_tool_calls",
+    yaml_content=f"""
+    models:
+      - type: main
+        engine: nim
+        model: {NIM_TOOL_CALL_MODEL}
+        parameters:
+          base_url: https://inference-api.nvidia.com/v1
+          max_retries: 0
+    passthrough: true
+    """,
+)

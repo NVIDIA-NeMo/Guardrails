@@ -102,6 +102,43 @@ uv run pytest tests/recorded/rails/library --block-network -v
 
 Replay mode installs dummy API keys from `tests/recorded/utils.py`. A cassette miss with `--block-network` is a test failure.
 
+### Completed tool-call streams
+
+`rails/public_api/test_tool_call_streaming.py` records the default framework's
+native tool-call path through `LLMRails.stream_async`. It pins canonical
+`ToolCallChunk` events, single and parallel calls, metadata and usage, text-only
+completion bookkeeping, and a real invalid-model error. Replay also reconstructs
+the calls from the recorded provider fragments and compares their IDs, names,
+and arguments with the public events. Only volatile IDs are normalized in the
+snapshots; the cassettes retain the provider's tool-call IDs.
+
+The OpenAI cases use `OPENAI_API_KEY`. The NIM-engine cases use
+`NVIDIA_INFERENCE_KEY` and an explicit `https://inference-api.nvidia.com/v1`
+base URL with `nvidia/nvidia/nemotron-3-nano-30b-a3b`. They cover the NVIDIA
+gateway's observed `finish_reason: stop` on tool calls; they do not establish
+behavior at the public `integrate.api.nvidia.com` endpoint. Neither path uses
+the optional LangChain integration.
+
+`server/test_tool_call_streaming.py` runs the Guardrails ASGI application with
+a real `LLMRails` backend and configured tools. It validates the returned SSE
+with the OpenAI SDK, including string arguments and `finish_reason: tool_calls`.
+The in-process HTTP request is excluded from VCR, and each test requires exactly
+one provider exchange so replay cannot bypass the application. This checks
+assembled SSE responses, not socket timing or incremental network delivery.
+
+The HTTP request restriction on combining `tools` with `stream`, and rejection
+of tool calls with output rails or dialog buffering, remain deterministic unit
+tests. These recordings do not claim support for those modes.
+
+```bash
+make replay-cassettes \
+  RECORDED_TESTS="tests/recorded/rails/public_api/test_tool_call_streaming.py tests/recorded/server/test_tool_call_streaming.py"
+```
+
+Refresh these files with both `OPENAI_API_KEY` and `NVIDIA_INFERENCE_KEY`, setting
+`RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_INFERENCE_KEY"`. Review changed
+provider payloads before updating snapshots.
+
 ## Refresh
 
 Refresh only in a trusted environment with real provider credentials. The
