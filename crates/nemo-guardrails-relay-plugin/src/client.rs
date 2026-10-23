@@ -27,7 +27,7 @@ use reqwest::{StatusCode, Url};
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
-use crate::config::ChecksConfig;
+use crate::config::NeMoGuardrailsClientConfig;
 
 /// The endpoint's path, relative to the configured base URL.
 pub const HOOK_PATH: &str = "v1/hooks/nemo-relay";
@@ -79,7 +79,7 @@ pub struct HooksClient {
 
 impl HooksClient {
     /// A client for the configured hooks server, which sends the configured headers.
-    pub fn new(config: &ChecksConfig) -> Result<Self, String> {
+    pub fn new(config: &NeMoGuardrailsClientConfig) -> Result<Self, String> {
         let url = config
             .endpoint
             .join(HOOK_PATH)

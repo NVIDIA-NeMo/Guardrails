@@ -19,7 +19,7 @@
 use std::net::TcpListener;
 
 use nemo_guardrails_relay_plugin::client::{CheckFailure, HooksClient, Verdict};
-use nemo_guardrails_relay_plugin::config::ChecksConfig;
+use nemo_guardrails_relay_plugin::config::NeMoGuardrailsClientConfig;
 use reqwest::StatusCode;
 use serde_json::{Value as Json, json};
 use wiremock::matchers::{method, path};
@@ -31,7 +31,8 @@ const HOOK_PATH: &str = "/v1/hooks/nemo-relay";
 fn client(endpoint: &str, config: Json) -> HooksClient {
     let mut config = config.as_object().cloned().expect("config is an object");
     config.insert("endpoint".into(), json!(endpoint));
-    let config = ChecksConfig::from_component_config(&config).expect("config is valid");
+    let config =
+        NeMoGuardrailsClientConfig::from_component_config(&config).expect("config is valid");
     HooksClient::new(&config).expect("client builds")
 }
 

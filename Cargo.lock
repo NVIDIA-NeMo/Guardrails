@@ -1299,6 +1299,7 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 name = "nemo-guardrails-relay-plugin"
 version = "0.1.0"
 dependencies = [
+ "log",
  "nemo-relay",
  "nemo-relay-plugin",
  "reqwest",
