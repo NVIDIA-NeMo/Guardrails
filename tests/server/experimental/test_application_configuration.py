@@ -97,7 +97,11 @@ def config(entries, *providers, **overrides):
 
 
 def request_payload(operation, text="question", streaming=False):
-    subject = {"messages": [{"role": "user", "content": text}]} if operation == "chat_completions" else {"input": text}
+    subject = (
+        {"messages": [{"role": "user", "content": text}]}
+        if operation == "chat_completions"
+        else {"input": text, "store": False}
+    )
     return {"model": "test-model", "stream": streaming, **subject}
 
 
