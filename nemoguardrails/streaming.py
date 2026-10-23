@@ -96,6 +96,7 @@ class StreamingHandler(AsyncIterator):
         self.include_metadata = include_metadata
         self.current_metadata = {}
         self.allow_tool_calls = allow_tool_calls
+        self._producer_task: Optional[asyncio.Task] = None
 
     @property
     def stop(self) -> List[str]:
@@ -116,9 +117,32 @@ class StreamingHandler(AsyncIterator):
     def set_pipe_to(self, another_handler: "StreamingHandler"):
         self.pipe_to = another_handler
 
+    def set_producer_task(self, task: asyncio.Task):
+        self._producer_task = task
+        task.add_done_callback(self._observe_producer)
+
+    def _observe_producer(self, task: asyncio.Task):
+        failed = task.cancelled() or task.exception() is not None
+        self.top_k_nonempty_lines_event.set()
+        if failed or not self.enable_buffer:
+            self.streaming_finished_event.set()
+
+    async def _wait_for_event_or_producer(self, event: asyncio.Event):
+        producer = self._producer_task
+        try:
+            if producer is None or not producer.done():
+                await event.wait()
+            if producer is not None and producer.done():
+                producer.result()
+        except asyncio.CancelledError:
+            if producer is not None:
+                producer.cancel()
+                await asyncio.gather(producer, return_exceptions=True)
+            raise
+
     async def wait(self):
         """Waits until the stream finishes and returns the full completion."""
-        await self.streaming_finished_event.wait()
+        await self._wait_for_event_or_producer(self.streaming_finished_event)
         return self.completion
 
     async def wait_top_k_nonempty_lines(self, k: int):
@@ -128,7 +152,7 @@ class StreamingHandler(AsyncIterator):
         and remove them from the buffer.
         """
         self.k = k
-        await self.top_k_nonempty_lines_event.wait()
+        await self._wait_for_event_or_producer(self.top_k_nonempty_lines_event)
 
         lines = self.buffer.split("\n")
         top_k_lines = []

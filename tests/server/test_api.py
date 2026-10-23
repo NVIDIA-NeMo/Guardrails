@@ -2015,3 +2015,44 @@ async def test_unsupported_tool_stream_emits_error_after_headers_are_sent():
     assert json.loads(frames[0][6:])["choices"][0]["delta"] == {"content": "Already streamed text"}
     assert "Tool calls are not supported" in json.loads(frames[1][6:])["error"]["message"]
     assert frames[2] == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+async def test_single_call_tool_stream_returns_terminal_error(monkeypatch):
+    import asyncio
+
+    from nemoguardrails.testing.fake_model import FakeLLMModel
+    from nemoguardrails.types import LLMResponse, ToolCall
+
+    config = RailsConfig.from_content(
+        config={"models": [], "streaming": True, "rails": {"dialog": {"single_call": {"enabled": True}}}},
+        colang_content='define user express greeting\n  "hello"\ndefine flow\n  user express greeting\n  bot express greeting\n',
+    )
+    rails = LLMRails(
+        config, llm=FakeLLMModel(llm_responses=[LLMResponse(content="", tool_calls=[ToolCall(id="call_1")])])
+    )
+
+    async def get_rails(*args, **kwargs):
+        return rails
+
+    monkeypatch.setattr(api, "_get_rails", get_rails)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=api.app), base_url="http://testserver") as client:
+        response = await asyncio.wait_for(
+            client.post(
+                "/v1/chat/completions",
+                json={
+                    "messages": [{"role": "user", "content": "hello"}],
+                    "stream": True,
+                    "guardrails": {"config_id": "single-call"},
+                    "model": "test-model",
+                },
+            ),
+            timeout=3,
+        )
+    assert response.status_code == 200
+    frames = [line[6:] for line in response.text.splitlines() if line.startswith("data: ")]
+    assert len(frames) == 2
+    assert frames[-1] == "[DONE]"
+    error = json.loads(frames[0])["error"]
+    assert error["message"] == "Tool calls are not supported during buffered dialog generation."
+    assert error["code"] == "generation_failed"

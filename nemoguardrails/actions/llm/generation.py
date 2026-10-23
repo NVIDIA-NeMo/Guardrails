@@ -1419,7 +1419,7 @@ class LLMGenerationActions:
                 # We buffer the content, so we can get a chance to look at the
                 # first k lines.
                 await _streaming_handler.enable_buffering()
-                asyncio.create_task(
+                producer_task = asyncio.create_task(
                     llm_call(
                         generation_llm,
                         prompt,
@@ -1428,6 +1428,7 @@ class LLMGenerationActions:
                         llm_params={"temperature": self.config.lowest_temperature},
                     )
                 )
+                _streaming_handler.set_producer_task(producer_task)
                 result = await _streaming_handler.wait_top_k_nonempty_lines(k=2)
 
                 # We also mark that the message is still being generated

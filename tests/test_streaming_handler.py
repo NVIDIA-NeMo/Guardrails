@@ -907,3 +907,75 @@ async def test_pipe_cannot_bypass_disabled_tool_calls():
     with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails during streaming"):
         await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
     assert target.queue.empty()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("after_prefix", [False, True])
+async def test_buffered_wait_observes_producer_failure(after_prefix):
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+
+    handler = StreamingHandler(enable_buffer=True)
+    release = asyncio.Event()
+    error = StreamingNotSupportedError("buffered tool calls are unsupported")
+
+    async def produce():
+        if after_prefix:
+            await handler.push_chunk('user greeting\nbot greeting\n"Hello')
+        await release.wait()
+        raise error
+
+    producer = asyncio.create_task(produce())
+    handler.set_producer_task(producer)
+    try:
+        if after_prefix:
+            assert await asyncio.wait_for(handler.wait_top_k_nonempty_lines(2), 2) == "user greeting\nbot greeting"
+            assert not producer.done()
+            await handler.disable_buffering()
+            waiting = handler.wait()
+        else:
+            waiting = handler.wait_top_k_nonempty_lines(2)
+        release.set()
+        with pytest.raises(StreamingNotSupportedError) as raised:
+            await asyncio.wait_for(waiting, 2)
+        assert raised.value is error
+    finally:
+        producer.cancel()
+        await asyncio.gather(producer, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_completed_buffered_producer_preserves_short_response():
+    handler = StreamingHandler(enable_buffer=True)
+
+    async def produce():
+        await handler.push_chunk("short response")
+        await handler.finish()
+
+    producer = asyncio.create_task(produce())
+    handler.set_producer_task(producer)
+    assert await asyncio.wait_for(handler.wait_top_k_nonempty_lines(2), 2) == "short response"
+    assert producer.done()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_buffer_wait_cancels_producer():
+    handler = StreamingHandler(enable_buffer=True)
+    started = asyncio.Event()
+    closed = asyncio.Event()
+
+    async def produce():
+        try:
+            started.set()
+            await asyncio.Event().wait()
+        finally:
+            closed.set()
+
+    producer = asyncio.create_task(produce())
+    handler.set_producer_task(producer)
+    waiter = asyncio.create_task(handler.wait_top_k_nonempty_lines(2))
+    await asyncio.wait_for(started.wait(), 2)
+    waiter.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiter
+    assert producer.cancelled()
+    assert closed.is_set()
