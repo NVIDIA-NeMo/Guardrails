@@ -407,6 +407,56 @@ class TestRunningMetricsExporter:
             replacement = start_metrics_exporter(LOOPBACK_EPHEMERAL_SETTINGS)
         assert get_active_metrics_exporter() is replacement
 
+    def test_keeps_the_exporter_until_the_last_holder_exits(self):
+        """When the block that started the exporter exits first, the exporter runs until the block reusing it exits."""
+        starter = running_metrics_exporter(LOOPBACK_EPHEMERAL_SETTINGS)
+        reuser = running_metrics_exporter(LOOPBACK_EPHEMERAL_SETTINGS)
+        exporter = starter.__enter__()
+        assert reuser.__enter__() is exporter
+
+        starter.__exit__(None, None, None)
+        assert get_active_metrics_exporter() is exporter
+
+        reuser.__exit__(None, None, None)
+        assert get_active_metrics_exporter() is None
+
+    def test_stops_the_exporter_when_its_starter_exits_last(self):
+        """When the block reusing the exporter exits first, the exporter stops as the block that started it exits."""
+        with running_metrics_exporter(LOOPBACK_EPHEMERAL_SETTINGS) as exporter:
+            with running_metrics_exporter(LOOPBACK_EPHEMERAL_SETTINGS):
+                pass
+            assert get_active_metrics_exporter() is exporter
+        assert get_active_metrics_exporter() is None
+
+    def test_a_block_without_an_exporter_does_not_hold_one(self):
+        """A block that got no exporter, with export off, doesn't keep running one a later block started."""
+        without_export = running_metrics_exporter(MetricsExporterSettings())
+        assert without_export.__enter__() is None
+
+        with running_metrics_exporter(LOOPBACK_EPHEMERAL_SETTINGS):
+            pass
+        assert get_active_metrics_exporter() is None
+
+        without_export.__exit__(None, None, None)
+        assert get_active_metrics_exporter() is None
+
+    def test_holders_leave_an_exporter_the_cli_started_running(self):
+        """Blocks reusing an exporter started directly, as the CLI does, leave it running as the last of them exits."""
+        started = start_metrics_exporter(LOOPBACK_EPHEMERAL_SETTINGS)
+        with running_metrics_exporter(LOOPBACK_EPHEMERAL_SETTINGS):
+            with running_metrics_exporter(LOOPBACK_EPHEMERAL_SETTINGS):
+                pass
+        assert get_active_metrics_exporter() is started
+
+    def test_resolves_the_settings_from_the_environment_when_given_none(self, caplog):
+        """Given no settings, it asks for the environment's, and warns when the running exporter's differ."""
+        running = start_metrics_exporter(MetricsExporterSettings(MetricsExporter.PROMETHEUS, "127.0.0.1", 0, "other"))
+        with patch.dict("os.environ", LOOPBACK_EPHEMERAL):
+            with caplog.at_level(logging.WARNING, logger=server_metrics.__name__):
+                with running_metrics_exporter() as exporter:
+                    assert exporter is running
+        assert f"already running on {running.url}" in caplog.text
+
 
 class TestServerLifespan:
     def test_lifespan_starts_and_stops_the_exporter(self, tmp_path):
@@ -450,6 +500,24 @@ class TestServerLifespan:
             with TestClient(api.app):
                 assert get_active_metrics_exporter() is running
         assert get_active_metrics_exporter() is running
+
+    def test_lifespan_warns_when_the_running_exporter_has_other_settings(self, tmp_path, caplog):
+        """With the hooks server's exporter running, the lifespan warns that it serves that one instead of its own."""
+        hooks_exporter = start_metrics_exporter(metrics_exporter_settings(LOOPBACK_EPHEMERAL))
+        with patch.dict("os.environ", LOOPBACK_EPHEMERAL), patch.object(api.app, "rails_config_path", str(tmp_path)):
+            with caplog.at_level(logging.WARNING, logger=server_metrics.__name__):
+                with TestClient(api.app):
+                    assert get_active_metrics_exporter() is hooks_exporter
+        assert f"already running on {hooks_exporter.url}" in caplog.text
+
+    def test_lifespan_under_the_cli_does_not_warn(self, tmp_path, caplog):
+        """With the exporter the CLI started from the same environment, the lifespan logs no warning."""
+        with patch.dict("os.environ", LOOPBACK_EPHEMERAL), patch.object(api.app, "rails_config_path", str(tmp_path)):
+            start_metrics_exporter()
+            with caplog.at_level(logging.WARNING, logger=server_metrics.__name__):
+                with TestClient(api.app):
+                    pass
+        assert "already running" not in caplog.text
 
     def test_lifespan_without_exporter_leaves_metrics_untouched(self, tmp_path):
         """Without configuration the lifespan does not start an exporter."""
@@ -595,6 +663,31 @@ class TestHooksServer:
         with TestClient(_hooks_app(HOOKS_METRICS_CONFIG)):
             assert get_active_metrics_exporter() is running
         assert get_active_metrics_exporter() is running
+
+    @pytest.mark.parametrize("first_to_exit", ["main", "hooks"])
+    def test_main_and_hooks_lifespans_in_one_process_share_the_exporter_until_both_exit(self, tmp_path, first_to_exit):
+        """The main server's lifespan starts the exporter, the hooks app's reuses it, and it serves until both exit."""
+        second_to_exit = "hooks" if first_to_exit == "main" else "main"
+        clients = {"main": TestClient(api.app), "hooks": TestClient(_hooks_app(HOOKS_METRICS_CONFIG))}
+        running = []
+        with patch.dict("os.environ", LOOPBACK_EPHEMERAL), patch.object(api.app, "rails_config_path", str(tmp_path)):
+            try:
+                for name in ("main", "hooks"):
+                    clients[name].__enter__()
+                    running.append(name)
+                exporter = get_active_metrics_exporter()
+
+                clients[first_to_exit].__exit__(None, None, None)
+                running.remove(first_to_exit)
+                assert get_active_metrics_exporter() is exporter
+                _scrape(exporter.url)
+
+                clients[second_to_exit].__exit__(None, None, None)
+                running.remove(second_to_exit)
+                assert get_active_metrics_exporter() is None
+            finally:
+                for name in running:
+                    clients[name].__exit__(None, None, None)
 
     def test_lifespan_releases_the_exporter_when_the_engine_fails_to_start(self, monkeypatch):
         """An engine that fails to start, with the exporter already running, fails startup and releases the exporter."""

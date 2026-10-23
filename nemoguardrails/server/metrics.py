@@ -34,8 +34,10 @@ and kept for the life of the process (the SDK shuts it down at interpreter
 exit).  ``start``/``shutdown`` only manage the HTTP listener, which is what
 lets an embedded application or a test client cycle the server lifespan
 repeatedly without losing metrics export.  The listener is process-wide too,
-so a lifespan holds it through :func:`running_metrics_exporter`, which stops
-only a listener that lifespan started.
+so each lifespan holds it through :func:`running_metrics_exporter`: the
+listener stops when the last lifespan holding it exits, if a lifespan started
+it.  One started directly with :func:`start_metrics_exporter`, as the CLIs do,
+is left for its starter to stop.
 
 All OpenTelemetry SDK and Prometheus imports are deferred into
 :func:`_require_otel_sdk` and the functions that use them, so importing this
@@ -45,6 +47,7 @@ module never requires the optional dependencies; they are pulled in by the
 
 import logging
 import os
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
@@ -280,7 +283,9 @@ class PrometheusMetricsExporter:
     Create it through :func:`start_metrics_exporter`; the constructor binds
     the listener so a half-built exporter is never handed out.  Only the HTTP
     listener belongs to this object: the ``MeterProvider`` behind it is
-    process-wide (see :func:`_install_meter_provider`).
+    process-wide (see :func:`_install_meter_provider`).  The object also
+    counts the :func:`running_metrics_exporter` blocks holding the listener,
+    so the last of them can stop it.
     """
 
     def __init__(self, settings: MetricsExporterSettings, installed: _InstalledProvider):
@@ -291,6 +296,8 @@ class PrometheusMetricsExporter:
         self.settings = settings
         self.provider = installed.provider
         self.registry = installed.registry
+        self._holders = 0
+        self._started_by_a_holder = False
         try:
             self._server, self._thread = start_http_server(settings.port, addr=settings.host, registry=self.registry)
         except OSError as e:
@@ -308,6 +315,17 @@ class PrometheusMetricsExporter:
     def url(self) -> str:
         """Scrape URL of the running listener, as a client would dial it."""
         return f"http://{_display_host(self.settings.host)}:{self.port}/metrics"
+
+    def hold(self, started_it: bool) -> None:
+        """Count a :func:`running_metrics_exporter` block in, noting whether it started this listener."""
+        self._holders += 1
+        if started_it:
+            self._started_by_a_holder = True
+
+    def release(self) -> bool:
+        """Count a block out; true when it was the last holder and a holder started this listener."""
+        self._holders -= 1
+        return self._holders == 0 and self._started_by_a_holder
 
     def shutdown(self) -> None:
         """Stop the listener and join its thread.  The provider keeps collecting
@@ -365,28 +383,50 @@ def shutdown_metrics_exporter() -> None:
     log.info("Prometheus metrics endpoint stopped")
 
 
+# Each app's lifespan may run on its own thread, as under TestClient or two embedded uvicorn servers.
+_holders_lock = threading.Lock()
+
+
 @contextmanager
 def running_metrics_exporter(
     settings: Optional[MetricsExporterSettings] = None,
 ) -> Iterator[Optional[PrometheusMetricsExporter]]:
-    """Yield the running exporter, starting one from ``settings`` if none runs; on exit, stop only one it started."""
-    running_before = _active_exporter
-    _warn_if_another_exporter_is_running(running_before, settings)
-    exporter = start_metrics_exporter(settings)
-    # The CLI or another app in the process may own the listener, and still be serving its scrape endpoint.
-    started_here = exporter is not None and exporter is not running_before
+    """Yield the running exporter, starting one if none runs; the last holder to exit stops one a holder started."""
+    if settings is None:
+        settings = MetricsExporterSettings.from_env()
+    with _holders_lock:
+        exporter = _hold_metrics_exporter(settings)
+    if exporter is None:
+        yield None
+        return
     try:
         yield exporter
     finally:
-        if started_here and _active_exporter is exporter:
-            shutdown_metrics_exporter()
+        with _holders_lock:
+            _release_metrics_exporter(exporter)
+
+
+def _hold_metrics_exporter(settings: MetricsExporterSettings) -> Optional[PrometheusMetricsExporter]:
+    """Start or reuse the exporter and count a holder on it; ``None``, uncounted, when export is off and none runs."""
+    running_before = _active_exporter
+    _warn_if_another_exporter_is_running(running_before, settings)
+    exporter = start_metrics_exporter(settings)
+    if exporter is not None:
+        exporter.hold(started_it=exporter is not running_before)
+    return exporter
+
+
+def _release_metrics_exporter(exporter: PrometheusMetricsExporter) -> None:
+    """Count a holder out, and stop the exporter if it was the last, a holder started it, and it still runs."""
+    if exporter.release() and _active_exporter is exporter:
+        shutdown_metrics_exporter()
 
 
 def _warn_if_another_exporter_is_running(
-    running: Optional[PrometheusMetricsExporter], settings: Optional[MetricsExporterSettings]
+    running: Optional[PrometheusMetricsExporter], settings: MetricsExporterSettings
 ) -> None:
     """Warn that the running exporter is served in place of the one ``settings`` ask for, when they differ."""
-    if running is None or settings is None or not settings.enabled:
+    if running is None or not settings.enabled:
         return
     if settings != running.settings:
         log.warning(

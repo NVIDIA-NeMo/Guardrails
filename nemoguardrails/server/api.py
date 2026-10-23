@@ -147,9 +147,10 @@ async def lifespan(app: GuardrailsApp):
     The exporter starts before anything can construct a rails instance so the
     first IORails metric lands on a real MeterProvider (a no-op unless
     NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER is set).  An exporter already
-    running, such as the CLI's, is reused and left to its owner to stop; one
-    this lifespan started is released even when startup fails inside
-    :func:`_server_lifespan`, for example on a malformed challenges.json.
+    running is reused: one started directly, as the CLI does, is left for its
+    starter to stop, and one a lifespan started stops as the last lifespan
+    holding it exits, even when startup fails inside :func:`_server_lifespan`,
+    for example on a malformed challenges.json.
     """
     from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
 
