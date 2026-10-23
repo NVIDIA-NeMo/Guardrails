@@ -39,7 +39,7 @@ def get_history_cache_key(messages: List[dict]) -> str:
                 if any(part.get("type") != "text" for part in msg["content"]):
                     key_items.append(json.dumps(msg["content"], sort_keys=True))
                     continue
-                # For multimodal content, join all text parts
+                # For text-only content lists, join all text parts.
                 text_parts = []
                 for item in msg["content"]:
                     if item.get("type") == "text":

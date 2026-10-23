@@ -35,6 +35,7 @@ pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
 
 
 async def test_non_passthrough_tool_round_trip(openai_api_key, vcr):
+    """Replay a string-prompt tool round trip and verify native roles and result-dependent output."""
     config = load_config(OPENAI_BASELINE_CONFIG)
     config.passthrough = False
     rails = LLMRails(config)
@@ -103,6 +104,7 @@ async def test_non_passthrough_tool_round_trip(openai_api_key, vcr):
 
 
 def _tool(name, properties=None):
+    """Build a function-tool schema with all supplied properties required and no extra properties."""
     properties = properties or {}
     return {
         "type": "function",
@@ -119,6 +121,7 @@ def _tool(name, properties=None):
 
 
 def _assert_exchanges(vcr, count):
+    """Check the recorded request count and require every interaction to be consumed during replay."""
     assert len(vcr.requests) == count
     if vcr.record_mode == "none":
         assert vcr.play_count == count
@@ -126,6 +129,7 @@ def _assert_exchanges(vcr, count):
 
 
 async def test_parallel_tools_with_input_result_and_output_rails(openai_api_key, vcr):
+    """Replay parallel calls with rewritten inputs, sanitized results, and output-rail formatting."""
     rails = LLMRails(load_config(TOOL_ROUND_TRIP_RAILS_CONFIG))
     tools = [_tool("get_paris"), _tool("get_berlin")]
     messages: list[dict] = [{"role": "user", "content": "PRIVATE_USER"}]
@@ -211,6 +215,7 @@ Berlin token: **BERLIN-6912: rainy**\
 
 
 async def test_sequential_dependent_tool_rounds(openai_api_key, vcr):
+    """Replay dependent tool rounds and verify earlier results remain in subsequent provider requests."""
     config = load_config(OPENAI_BASELINE_CONFIG)
     config.passthrough = False
     rails = LLMRails(config)
@@ -299,6 +304,7 @@ ADVICE-6912: bring sunglasses.\
 
 
 async def test_provider_tool_call_rejected_by_rail_is_not_returned(openai_api_key, vcr):
+    """Verify a real recorded provider call is replaced by a refusal when its tool-call rail blocks it."""
     rails = LLMRails(load_config(TOOL_CALL_BLOCK_CONFIG))
     response = await rails.generate_async(
         messages=[{"role": "user", "content": "Get the weather."}],
@@ -314,6 +320,7 @@ async def test_provider_tool_call_rejected_by_rail_is_not_returned(openai_api_ke
 
 
 async def test_tool_followup_invalid_model_raises(openai_api_key, vcr):
+    """Replay a provider 404 on a tool follow-up and verify the library preserves the underlying error."""
     config = load_config(OPENAI_INVALID_MODEL_CONFIG)
     config.passthrough = False
     rails = LLMRails(config)
@@ -344,6 +351,7 @@ async def test_tool_followup_invalid_model_raises(openai_api_key, vcr):
 
 
 async def test_passthrough_retains_sanitized_user_history(openai_api_key, vcr):
+    """Replay two passthrough turns using sanitized history while leaving caller messages unchanged."""
     rails = LLMRails(load_config(PASSTHROUGH_SANITIZED_HISTORY_CONFIG))
     messages = [{"role": "user", "content": "PRIVATE_USER"}]
     first = await rails.generate_async(messages=messages)

@@ -47,6 +47,7 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("passthrough", [False, True])
 async def test_tool_calls_omitted_when_rails_block(passthrough):
+    """Verify rejected provider calls are absent from the returned refusal."""
     test_tool_calls = [
         ToolCall(
             id="call_dangerous",

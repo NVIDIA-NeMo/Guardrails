@@ -145,6 +145,7 @@ async def invalid_state_error_handler(request: Request, exc: InvalidStateError) 
 
 
 async def tool_conversation_too_long_error_handler(request: Request, exc: ToolConversationTooLongError) -> Response:
+    """Return the standard 422 error envelope with a messages parameter and stable size-error code."""
     log.warning("Tool conversation rejected: %s", exc)
     return _error_response(422, str(exc), code="tool_conversation_too_long", param="messages")
 

@@ -262,6 +262,13 @@ def verbose_v1(colang_history: str) -> str:
 
 
 def apply_input_rail_updates(messages: List[dict], events: List[dict]) -> List[dict]:
+    """Copy messages and replace user content with the input-rail event history.
+
+    Align user turns from the end so a message suffix can use a longer cached
+    event history. Retain a placeholder for blocked turns to preserve alignment,
+    and ignore synthetic user events used to resume tool-result generation.
+    The caller's message dictionaries are not modified.
+    """
     user_contents = []
     pending_user_message = False
     for event in events:
@@ -283,6 +290,13 @@ def apply_input_rail_updates(messages: List[dict], events: List[dict]) -> List[d
 
 
 def apply_tool_result_updates(messages: List[dict], events: List[dict]) -> List[dict]:
+    """Copy messages with tool results approved or rewritten by tool-result rails.
+
+    Match results by tool_call_id. Once validation starts, use a blocked-result
+    placeholder until a ToolMessageUpdated event supplies approved content.
+    Results without a validation event retain their content; caller messages
+    are not modified.
+    """
     updates = {}
     for event in events:
         if event["type"] == "StartToolResultRails":
@@ -299,10 +313,12 @@ def apply_tool_result_updates(messages: List[dict], events: List[dict]) -> List[
 
 
 def to_chat_messages(events: List[dict]) -> List[dict]:
-    """Filter that turns an array of events into a sequence of user/assistant messages.
+    """Convert events to chat messages with native assistant tool calls and tool results.
 
     Properly handles multimodal content by preserving the structure when the content
     is in the format of a Message object with potential image_url content.
+    Synthetic user events that resume tool generation are omitted, and tool-result
+    rail updates are applied before returning the messages.
     """
     messages = []
     for event in events:
@@ -337,6 +353,8 @@ def user_assistant_sequence(events: List[dict]) -> str:
        ```
 
     For multimodal content, it extracts text content and indicates if there were images.
+    Tool calls and rail-processed results are serialized as labeled JSON lines;
+    synthetic user events that resume tool generation are omitted.
     """
     history_items = []
     tool_messages = iter(

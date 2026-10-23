@@ -26,6 +26,7 @@ from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 
 
 def assistant_message(response):
+    """Extract the first assistant message from a GenerationResponse or return the plain response."""
     if isinstance(response, GenerationResponse):
         assert isinstance(response.response, list)
         return response.response[0]
@@ -35,6 +36,7 @@ def assistant_message(response):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("options", [None, {"llm_params": {"temperature": 0}}])
 async def test_cached_history_preserves_updated_context_and_accepts_new_context(options):
+    """Preserve evolved context on cache reuse while allowing an explicit new context message to override it."""
     config = RailsConfig.from_content(
         yaml_content="""
 models: []
@@ -55,6 +57,7 @@ define flow return count
     rails = LLMRails(config, llm=FakeLLMModel(responses=["Answer"] * 3))
 
     async def format_counter(counter):
+        """Expose the current rail-context counter as response text."""
         return str(counter)
 
     rails.register_action(format_counter, name="format_counter")
@@ -73,6 +76,7 @@ define flow return count
 @pytest.mark.asyncio
 @pytest.mark.parametrize("safe_options", [None, {"rails": {"input": True}}])
 async def test_cached_history_isolated_from_input_rail_bypass(safe_options):
+    """Prevent a request that bypasses input rails from replacing validated cached history."""
     config = RailsConfig.from_content(
         yaml_content="""
 models: []
@@ -106,6 +110,7 @@ define flow sanitize
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tool_turn", [False, True])
 async def test_passthrough_preserves_sanitized_history_without_mutating_messages(tool_turn):
+    """Keep sanitized history across ordinary and tool turns without modifying caller-owned messages."""
     config = RailsConfig.from_content(
         yaml_content="""
 models: []
@@ -164,6 +169,7 @@ define flow sanitize
 
 @pytest.mark.asyncio
 async def test_passthrough_sanitized_history_stays_aligned_across_blocked_turns():
+    """Retain blocked-turn placeholders so later sanitized user messages stay aligned with their turns."""
     config = RailsConfig.from_content(
         yaml_content="""
 models: []

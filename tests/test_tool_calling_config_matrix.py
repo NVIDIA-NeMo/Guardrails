@@ -25,10 +25,12 @@ from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 
 
 def weather_call():
+    """Create a deterministic Paris weather call for tool-result rail tests."""
     return ToolCall(id="call_weather", function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}))
 
 
 def history_with_result(content="Sunny"):
+    """Build a user request, weather call, and matching tool result with configurable content."""
     return [
         {"role": "user", "content": "Weather?"},
         {"role": "assistant", "content": "", "tool_calls": [weather_call().to_dict()]},
@@ -41,6 +43,7 @@ def history_with_result(content="Sunny"):
 @pytest.mark.parametrize("chat_prompt", [False, True])
 @pytest.mark.parametrize("policy", ["allow", "sanitize", "block", "disabled"])
 async def test_tool_result_rails_control_generation(passthrough, policy, chat_prompt):
+    """Verify allowed, sanitized, blocked, and disabled result policies across prompt and passthrough modes."""
     config = RailsConfig.from_content(
         yaml_content=json.dumps(
             {"models": [], "passthrough": passthrough, "rails": {"tool_result": {"flows": ["check result"]}}}
@@ -90,6 +93,7 @@ define bot refuse result
 @pytest.mark.asyncio
 @pytest.mark.parametrize("passthrough", [False, True])
 async def test_tool_result_rails_validate_each_current_batch_with_resolved_names(passthrough):
+    """Validate each new result once, resolve omitted tool names, and preserve prior sanitized results."""
     config = RailsConfig.from_content(
         yaml_content=json.dumps(
             {"models": [], "passthrough": passthrough, "rails": {"tool_result": {"flows": ["check result"]}}}
@@ -111,6 +115,7 @@ define flow check result
     checked = []
 
     async def check_result(tool_message, tool_name, tool_call_id):
+        """Record the resolved tool identity and return a visibly sanitized result."""
         checked.append((tool_name, tool_call_id))
         return "SAFE " + tool_message
 

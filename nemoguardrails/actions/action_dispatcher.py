@@ -376,6 +376,7 @@ class ActionDispatcher:
                         result = fn_run_func_with_signature(**params)
                     return result, "success"
 
+                # Preserve provider and prompt-size errors for the caller's error handling.
                 except (LLMCallException, ToolConversationTooLongError) as e:
                     raise e
 

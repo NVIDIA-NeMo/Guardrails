@@ -51,6 +51,7 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
 
 @pytest.mark.asyncio
 async def test_tool_calls_omitted_when_rails_block():
+    """Verify rejected provider calls are absent from the returned refusal."""
     test_tool_calls = [
         {
             "name": "dangerous_tool",
@@ -83,10 +84,14 @@ async def test_tool_calls_omitted_when_rails_block():
     )
 
     class MockLLMWithDangerousTools:
+        """Return a tool call with unsafe arguments for the rail-rejection test."""
+
         def invoke(self, messages, **kwargs):
+            """Return the unsafe tool call synchronously."""
             return AIMessage(content="", tool_calls=test_tool_calls)
 
         async def ainvoke(self, messages, **kwargs):
+            """Return the same unsafe tool call through the asynchronous interface."""
             return self.invoke(messages, **kwargs)
 
     rails = RunnableRails(config, llm=MockLLMWithDangerousTools())

@@ -65,6 +65,7 @@ def test_with_context():
 
 
 def test_tool_history_cache_keys_distinguish_calls_and_results():
+    """Give distinct tool calls and results distinct history cache keys."""
     user = {"role": "user", "content": "Weather?"}
     calls = [
         {"role": "assistant", "content": "", "tool_calls": [{"id": call_id, "name": "weather", "args": {}}]}
@@ -401,6 +402,7 @@ def test_get_action_details_no_match(dummy_flows):
 
 @pytest.mark.parametrize("role", ["system", "developer"])
 def test_history_cache_keys_distinguish_instructions(role):
+    """Keep histories with different system or developer instructions in separate cache entries."""
     histories = [
         [{"role": role, "content": text}, {"role": "user", "content": "Hello"}]
         for text in ("First policy", "Second policy")
@@ -409,6 +411,7 @@ def test_history_cache_keys_distinguish_instructions(role):
 
 
 def test_tool_history_cache_key_normalizes_arguments_without_mutating_messages():
+    """Normalize equivalent wire and native tool arguments for caching without rewriting caller data."""
     call = {"id": "call_1", "type": "function", "function": {"name": "weather", "arguments": '{ "city": "Paris" }'}}
     wire = [{"role": "assistant", "content": None, "tool_calls": [call]}]
     native = [
@@ -426,6 +429,7 @@ def test_tool_history_cache_key_normalizes_arguments_without_mutating_messages()
 
 @pytest.mark.parametrize("rail", ["input", "output", "retrieval", "dialog", "tool_call", "tool_result"])
 def test_history_cache_key_separates_rail_policies(rail):
+    """Separate disabled or selected rail policies while treating enabled defaults like omitted options."""
     history = [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "OK"}]
     keys = [
         get_history_cache_key(

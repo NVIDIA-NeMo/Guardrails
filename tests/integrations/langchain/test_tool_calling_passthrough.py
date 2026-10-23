@@ -315,6 +315,7 @@ class TestToolCallingNonPassthrough:
     async def test_get_and_clear_tool_calls_called_correctly_non_passthrough(
         self, config_no_passthrough, mock_llm_with_tool_calls
     ):
+        """Verify non-passthrough generation emits the LangChain provider call as a BotToolCalls event."""
         generation_actions = LLMGenerationActions(
             config=config_no_passthrough,
             llm=LangChainLLMAdapter(mock_llm_with_tool_calls),

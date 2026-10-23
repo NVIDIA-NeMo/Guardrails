@@ -723,6 +723,8 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                 ),
             )
 
+        # Dialog-flow configs (canonical-form user_messages) never surface tool
+        # calls to the request, so reject explicitly.
         has_dialog_flows = bool(llm_rails.config.user_messages)
         if has_dialog_flows:
             raise HTTPException(

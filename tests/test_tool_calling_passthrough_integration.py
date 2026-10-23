@@ -31,6 +31,7 @@ from tests.utils import FakeLLMModel, TestChat
 
 
 def _tool_prompt_config(chat_prompt, max_length):
+    """Build a non-passthrough string or chat prompt with the requested character limit."""
     template = (
         {"messages": [{"type": "system", "content": "Rules"}, "{{ history | to_chat_messages }}"]}
         if chat_prompt
@@ -49,6 +50,7 @@ def _tool_prompt_config(chat_prompt, max_length):
 
 @pytest.fixture
 def tool_history():
+    """Provide a two-city tool exchange with parallel calls and matching results."""
     return [
         {"role": "user", "content": "Weather?"},
         {
@@ -67,6 +69,7 @@ def tool_history():
 @pytest.mark.parametrize("chat_prompt", [False, True])
 @pytest.mark.parametrize("oversized_field", ["result", "arguments", "history", "call_id"])
 async def test_oversized_tool_history_rejected_before_model_call(chat_prompt, oversized_field, tool_history, caplog):
+    """Reject oversized history or tool metadata without mutation, private-data logging, or model invocation."""
     sensitive_text = "private-tool-data-" * 150
     if oversized_field == "result":
         tool_history[-1]["content"] = sensitive_text
@@ -96,6 +99,7 @@ async def test_oversized_tool_history_rejected_before_model_call(chat_prompt, ov
 @pytest.mark.parametrize("chat_prompt", [False, True])
 @pytest.mark.parametrize("max_length", [1000, None])
 async def test_tool_history_within_budget_preserves_all_calls_and_results(chat_prompt, max_length, tool_history):
+    """Preserve complete native exchanges when the prompt fits or its size limit is disabled."""
     model = FakeLLMModel(responses=["Paris is sunny; Berlin is rainy."])
     model.generate_async = AsyncMock(wraps=model.generate_async)
     rails = LLMRails(_tool_prompt_config(chat_prompt, max_length), llm=model)
@@ -112,6 +116,7 @@ async def test_tool_history_within_budget_preserves_all_calls_and_results(chat_p
 
 @pytest.mark.parametrize("chat_prompt", [False, True])
 def test_tool_prompt_budget_boundary_counts_serialized_messages(chat_prompt, tool_history):
+    """Accept the exact serialized character limit and reject one character less for both prompt forms."""
     tool_history[-1]["content"] = "Berlin: 雨 ☔"
     expected = (
         [{"type": "system", "content": "Rules"}, tool_history[0]]
@@ -132,6 +137,7 @@ def test_tool_prompt_budget_boundary_counts_serialized_messages(chat_prompt, too
 
 
 def test_tool_history_limit_applies_to_sync_generation(tool_history):
+    """Propagate oversized-tool-history validation through the synchronous API before invoking the model."""
     tool_history[-1]["content"] *= 2000
     model = FakeLLMModel(responses=["Must not be called"])
     rails = LLMRails(_tool_prompt_config(False, 1000), llm=model)
@@ -142,6 +148,7 @@ def test_tool_history_limit_applies_to_sync_generation(tool_history):
 
 @pytest.mark.asyncio
 async def test_passthrough_tool_history_does_not_use_general_prompt_limit(tool_history):
+    """Keep passthrough generation independent of the unused general prompt size limit."""
     config = _tool_prompt_config(False, 1)
     config.passthrough = True
     tool_history[-1]["content"] *= 2000
@@ -156,6 +163,7 @@ async def test_passthrough_tool_history_does_not_use_general_prompt_limit(tool_h
 
 @pytest.mark.parametrize("chat_prompt", [False, True])
 def test_text_only_general_prompt_still_trims_history(chat_prompt):
+    """Preserve existing oldest-event trimming for general prompts without tool calls."""
     manager = LLMTaskManager(_tool_prompt_config(chat_prompt, 50))
     prompt = manager.render_task_prompt(
         Task.GENERAL,
@@ -170,6 +178,7 @@ def test_text_only_general_prompt_still_trims_history(chat_prompt):
 @pytest.mark.parametrize("chat_prompt", [False, True])
 @pytest.mark.parametrize("passthrough", [False, True])
 async def test_tool_round_trip_preserves_history(cached, chat_prompt, passthrough):
+    """Preserve tool calls, results, and later turns across caching, prompt formats, and passthrough modes."""
     config = RailsConfig.from_content(
         yaml_content=f"models: []\npassthrough: {str(passthrough).lower()}\n"
         + (
@@ -545,7 +554,10 @@ class TestToolCallingPassthroughIntegration:
 
 
 class TestToolCallingNonPassthroughIntegration:
+    """Exercise tool-call response shapes and metadata when passthrough is disabled."""
+
     def setup_method(self):
+        """Create a fresh configuration without dialog flows and with passthrough disabled."""
         self.non_passthrough_config = RailsConfig.from_content(
             colang_content="",
             yaml_content="""
@@ -556,6 +568,7 @@ class TestToolCallingNonPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_tool_calls_work_in_non_passthrough_mode_with_options(self):
+        """Return tool calls on GenerationResponse when generation options are supplied."""
         test_tool_calls = [
             {
                 "name": "get_weather",
@@ -592,6 +605,7 @@ class TestToolCallingNonPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_tool_calls_work_in_non_passthrough_mode_dict_response(self):
+        """Return tool calls on a plain assistant dictionary when generation options are omitted."""
         test_tool_calls = [
             {
                 "name": "get_weather",
@@ -619,6 +633,7 @@ class TestToolCallingNonPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_no_tool_calls_in_non_passthrough_mode(self):
+        """Preserve an ordinary text response when the provider returns no tool calls."""
         with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = None
 
@@ -638,6 +653,7 @@ class TestToolCallingNonPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_empty_tool_calls_in_non_passthrough_mode(self):
+        """Omit the tool_calls key and preserve text when the provider returns an empty call list."""
         with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = []
 
@@ -651,6 +667,7 @@ class TestToolCallingNonPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_tool_calls_with_prompt_mode_non_passthrough(self):
+        """Expose tool metadata alongside an empty string response for prompt-based generation."""
         test_tool_calls = [
             {
                 "name": "search",
@@ -677,6 +694,7 @@ class TestToolCallingNonPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_complex_tool_calls_non_passthrough_integration(self):
+        """Preserve all names, arguments, IDs, and types in a response containing multiple tool calls."""
         complex_tool_calls = [
             {
                 "name": "get_current_weather",
@@ -743,6 +761,7 @@ class TestToolCallingNonPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_tool_calls_integration_preserves_other_response_data_non_passthrough(self):
+        """Keep the GenerationResponse envelope intact when it carries tool calls."""
         test_tool_calls = [
             {
                 "name": "preserve_test",
@@ -777,6 +796,7 @@ class TestToolCallingNonPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_tool_calls_with_real_world_examples_non_passthrough(self):
+        """Preserve weather and arithmetic tool calls together in a non-passthrough response."""
         realistic_tool_calls = [
             {
                 "name": "get_weather",
@@ -827,10 +847,12 @@ class TestToolCallingNonPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_passthrough_config_requirement_non_passthrough(self):
+        """Verify this test class exercises a configuration with passthrough disabled."""
         assert self.non_passthrough_config.passthrough is False
 
     @pytest.mark.asyncio
     async def test_tool_calls_fail_in_dialog_flows_non_passthrough(self):
+        """Verify this configured text response does not acquire tool-call metadata."""
         config = RailsConfig.from_content(
             colang_content="",
             yaml_content="""
@@ -854,6 +876,7 @@ class TestToolCallingNonPassthroughIntegration:
 @pytest.mark.parametrize("options", [False, True])
 @pytest.mark.parametrize("wire_format", [False, True])
 async def test_input_rail_rewrite_survives_cached_tool_round_trip(options, wire_format):
+    """Reuse sanitized history across tool-choice changes and equivalent wire-format call arguments."""
     config = RailsConfig.from_content(
         yaml_content="""
 models: []
@@ -904,6 +927,7 @@ define flow rewrite query
 @pytest.mark.asyncio
 @pytest.mark.parametrize("block", [False, True])
 async def test_cached_history_contains_only_approved_tool_calls(block):
+    """Keep rejected calls out of cached prompts and preserve rail-approved argument rewrites."""
     config = RailsConfig.from_content(
         yaml_content=json.dumps(
             {"models": [], "passthrough": False, "rails": {"tool_call": {"flows": ["check calls"]}}}
@@ -940,6 +964,7 @@ define bot refuse call
     rails = LLMRails(config, llm=model)
 
     async def approve_calls(tool_calls):
+        """Copy the proposed calls and replace the first call arguments with the approved city."""
         approved = copy.deepcopy(tool_calls)
         approved[0]["function"]["arguments"] = {"city": "APPROVED"}
         return approved
@@ -969,6 +994,7 @@ define bot refuse call
 @pytest.mark.asyncio
 @pytest.mark.parametrize("image_position", ["initial", "later"])
 async def test_tool_prompt_budget_discounts_inline_image_data_without_changing_it(tool_history, image_position):
+    """Exclude structured inline image payloads from the size budget while sending their original content."""
     image_content = [
         {"type": "text", "text": "Inspect this image."},
         {"type": "image_url", "image_url": {"url": "data:image/png;base64," + "A" * 20000, "detail": "low"}},
@@ -998,6 +1024,7 @@ async def test_tool_prompt_budget_discounts_inline_image_data_without_changing_i
 @pytest.mark.asyncio
 @pytest.mark.parametrize("oversized_field", ["arguments", "result", "caption"])
 async def test_tool_prompt_budget_counts_text_even_when_it_contains_image_data(tool_history, oversized_field):
+    """Count data URLs fully when they occur as tool arguments, results, or text captions."""
     data_url = "data:image/png;base64," + "A" * 20000
     if oversized_field == "arguments":
         tool_history[1]["tool_calls"][0]["function"]["arguments"]["city"] = data_url

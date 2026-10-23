@@ -33,6 +33,7 @@ pytestmark = [pytest.mark.recorded, pytest.mark.vcr(ignore_hosts=["testserver"])
 
 @pytest_asyncio.fixture(autouse=True)
 async def default_llm_framework():
+    """Select the default provider framework for each test, then close clients and restore the selection."""
     previous = get_default_framework()
     set_default_framework("default")
     try:
@@ -43,6 +44,7 @@ async def default_llm_framework():
 
 
 async def test_non_passthrough_chat_tool_round_trip(openai_api_key, monkeypatch, vcr):
+    """Replay a server tool round trip with a chat prompt and verify the response and provider history."""
     config = load_config(OPENAI_BASELINE_CONFIG)
     config.passthrough = False
     config.prompts = [
@@ -133,6 +135,7 @@ async def test_non_passthrough_chat_tool_round_trip(openai_api_key, monkeypatch,
 
 
 async def test_tool_thread_replays_stored_history(openai_api_key, monkeypatch, vcr):
+    """Replay a server thread continuation and verify stored calls and results reach the provider."""
     from nemoguardrails.server.datastore.memory_store import MemoryStore
 
     config = load_config(OPENAI_BASELINE_CONFIG)
@@ -230,6 +233,7 @@ async def test_tool_thread_replays_stored_history(openai_api_key, monkeypatch, v
 
 
 async def test_tool_followup_provider_error_uses_server_error_envelope(openai_api_key, monkeypatch, vcr):
+    """Replay a failed provider follow-up and verify the server returns its standard error envelope."""
     from tests.recorded.rails.public_api.configs import OPENAI_INVALID_MODEL_CONFIG
 
     config = load_config(OPENAI_INVALID_MODEL_CONFIG)

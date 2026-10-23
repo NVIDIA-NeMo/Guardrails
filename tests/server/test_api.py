@@ -905,6 +905,7 @@ def test_chat_completion_rejects_tools_for_dialog_flow_config():
 )
 @pytest.mark.parametrize("unsupported", ["colang2", "dialog", "streaming"])
 def test_chat_completion_unsupported_tools_use_error_envelope(passthrough, tool_params, unsupported):
+    """Reject unsupported Colang, dialog, and streaming tool requests with 422 before generation."""
     config = RailsConfig.from_content(
         yaml_content="colang_version: '2.x'" if unsupported == "colang2" else "colang_version: '1.0'",
         colang_content='define user greeting\n  "hello"' if unsupported == "dialog" else "",
@@ -946,6 +947,7 @@ def test_chat_completion_unsupported_tools_use_error_envelope(passthrough, tool_
 @pytest.mark.parametrize("chat_prompt", [False, True])
 @pytest.mark.parametrize("oversized_field", ["result", "arguments"])
 def test_chat_completion_oversized_tool_conversation_returns_422(chat_prompt, oversized_field, caplog):
+    """Reject oversized tool prompts with a structured 422 without exposing private data or calling the model."""
     template = (
         {"messages": ["{{ history | to_chat_messages }}"]}
         if chat_prompt
@@ -1888,6 +1890,7 @@ def test_list_models_upstream_missing_data_key():
 
 @pytest.mark.parametrize("passthrough", [False, True])
 def test_chat_completion_tool_call_rail_block_omits_rejected_calls(passthrough):
+    """Return a refusal with a stop finish reason and no rejected tool calls in either passthrough mode."""
     from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 
     config = RailsConfig.from_content(

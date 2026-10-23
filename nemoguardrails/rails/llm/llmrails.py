@@ -844,6 +844,7 @@ class LLMRails(BaseGuardrails):
 
                         if user_message is not None:
                             if self.config.rails.tool_result.flows:
+                                # Do not rerun result rails for earlier batches in the supplied history.
                                 batch_start = idx
                                 while batch_start > 0 and messages[batch_start - 1]["role"] == "tool":
                                     batch_start -= 1

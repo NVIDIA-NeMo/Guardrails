@@ -287,6 +287,12 @@ class LLMTaskManager:
         return len(text)
 
     def _get_tool_conversation_length(self, messages: List[dict]) -> int:
+        """Measure serialized message characters without counting inline image payloads.
+
+        Only base64 image URLs in structured image_url parts receive a placeholder
+        for measurement. Text, tool arguments, result content, and message metadata
+        still count in full. The original messages and image data remain unchanged.
+        """
         sized_messages = []
         for message in messages:
             content = message.get("content")
@@ -306,6 +312,14 @@ class LLMTaskManager:
     def _render_tool_conversation(
         self, prompt: TaskPrompt, events: List[dict], tool_history_start: int, context: Optional[dict]
     ) -> List[dict]:
+        """Render a general prompt while preserving native tool calls and results.
+
+        For a string template, render events before tool_history_start as a user
+        message and append the remaining events as native chat messages. Message
+        templates render the full history through their configured filters.
+        Raise ToolConversationTooLongError if the rendered conversation exceeds
+        max_length; removing individual events could break a tool exchange.
+        """
         if prompt.content:
             prefix = self._render_string(prompt.content, context=context, events=events[:tool_history_start])
             messages = [{"role": "user", "content": prefix}, *to_chat_messages(events[tool_history_start:])]
