@@ -28,10 +28,17 @@ from nemoguardrails.context import conversation_id, roundtrip_id
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
 from nemoguardrails.http import HTTPConnectionError, HTTPTimeoutError
 from nemoguardrails.library.hiddenlayer import actions
-from nemoguardrails.library.hiddenlayer._payloads import _REQUEST_PATH, _RESPONSE_PATH, _reset_warnings
+from nemoguardrails.library.hiddenlayer._payloads import (
+    _REQUEST_PATH,
+    _RESPONSE_PATH,
+    MAX_ROUNDTRIP_ID_BYTES,
+    MAX_SESSION_ID_BYTES,
+    _reset_warnings,
+)
 from nemoguardrails.library.hiddenlayer._token import _reset_token_cache
 from nemoguardrails.library.hiddenlayer._verdict import BLOCK_REASON, FAIL_OPEN_REASON
 from nemoguardrails.library.hiddenlayer.actions import (
+    NOTHING_TO_CHECK_REASON,
     _evaluate,
     _input_check,
     _settings,
@@ -444,6 +451,22 @@ class TestRoundtripId:
         assert _evaluations(responses.client)[0].headers["HL-Roundtrip-Id"] == value
 
     @pytest.mark.asyncio
+    async def test_an_over_long_id_still_pairs_the_evaluations_of_one_call(self):
+        """An ID the header cannot carry costs the pairing at most, never the evaluations."""
+        with RecordedHTTPResponses() as responses:
+            _token(responses)
+            _verdict(responses, INPUT_NONE)
+            _verdict(responses, OUTPUT_NONE, url=RESPONSE_URL)
+            client = responses.client
+            with roundtrip_id("call-" + "7" * MAX_ROUNDTRIP_ID_BYTES):
+                await hiddenlayer_evaluate(surface="input", text="hi", http_client=client)
+                await hiddenlayer_evaluate(surface="output", text="hi", http_client=client)
+
+        sent = [request.headers["HL-Roundtrip-Id"] for request in _evaluations(client)]
+        assert len(set(sent)) == 1
+        assert len(sent[0].encode("utf-8")) <= MAX_ROUNDTRIP_ID_BYTES
+
+    @pytest.mark.asyncio
     async def test_a_retried_evaluation_keeps_its_round_trip_id(self):
         with RecordedHTTPResponses() as responses:
             _token(responses)
@@ -520,6 +543,19 @@ class TestActions:
         evaluation = _evaluations(responses.client)[0]
         assert evaluation.url == RESPONSE_URL
         assert evaluation.json == {"check": "output", "bot_message": "hi"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("surface", ["input", "output"])
+    async def test_an_empty_message_is_allowed_without_calling_hiddenlayer(self, surface):
+        """A check carrying no text is rejected, and there is nothing in it to evaluate."""
+        client = RecordingHTTPClient()
+
+        outcome = await hiddenlayer_evaluate(surface=surface, text="", http_client=client)
+
+        assert outcome.decision is RailDecision.ALLOW
+        assert outcome.reason == NOTHING_TO_CHECK_REASON
+        assert "fail_open" not in outcome.metadata
+        assert client.requests == []
 
     @pytest.mark.asyncio
     async def test_unknown_surface_raises(self):
@@ -914,6 +950,12 @@ class TestSessionId:
     )
     async def test_an_id_a_header_could_not_carry_is_percent_encoded(self, conversation, sent):
         assert await self._session_ids(self._config(), conversation) == [sent] * 4
+
+    @pytest.mark.asyncio
+    async def test_an_over_long_id_is_dropped_so_the_checks_still_run(self):
+        """Losing an over-long conversation ID costs the history, not the evaluation."""
+        over_cap = "thread-" + "4" * MAX_SESSION_ID_BYTES
+        assert await self._session_ids(self._config(), over_cap) == [None] * 4
 
     @pytest.mark.asyncio
     async def test_config_field_disables_it_even_when_the_environment_enables_it(self, monkeypatch):

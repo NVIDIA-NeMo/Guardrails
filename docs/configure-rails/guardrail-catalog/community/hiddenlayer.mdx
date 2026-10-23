@@ -52,6 +52,7 @@ The input and output flows also run on LLMRails, in Colang 1.0 and Colang 2.x.
 Use IORails for full context: within one IORails `generate_async` or `stream_async` request, or one `check_async` call that names several rail types, HiddenLayer evaluates a model call's response evaluations (tool-call checks and the output check) together with its request evaluations (the input check and tool-result checks).
 The evaluations of one model call are paired as a single round-trip by the `HL-Roundtrip-Id` header, which the rail takes from the round trip in scope and sends as it stands.
 Open one explicitly with `nemoguardrails.context.roundtrip_id()` when the application knows where a model call starts and ends; the ID is not required to be a UUID, because HiddenLayer maps any other value onto one.
+An ID longer than 256 bytes cannot be sent, so the rail maps it onto a UUID of its own and logs one warning; the mapping is deterministic, so a model call's checks still pair.
 Without a round trip the rail falls back to the request ID, and with neither it sends a fresh ID per check, logs one warning, and the evaluations of a call are no longer paired.
 With tracing enabled the request ID comes from the OpenTelemetry trace ID, so concurrent requests under one parent trace share it; open a round trip per model call when those requests must be paired exactly.
 
@@ -72,7 +73,7 @@ HiddenLayer scopes the ID to the tenant, to NeMo Guardrails and to the project, 
 Use a conversation ID that is unique to one conversation, such as a random thread ID.
 
 The session ID is the only source of conversation history: the body of each check carries the current turn only, and HiddenLayer evaluates it against the conversation's recent messages.
-HiddenLayer rejects a conversation ID longer than 2048 bytes once decoded, and the rail applies `fail_open` to the rejection as it does to any other check it could not complete.
+A conversation ID longer than 2048 bytes cannot be sent; the rail drops it, logs one warning, and the checks are evaluated without history rather than under a truncated ID that two conversations could share.
 
 Without a conversation ID the rail sends no session ID, HiddenLayer evaluates each check on its own, and it usually records each request as its own session.
 Set `send_session_id: false` to stop sending the ID.
@@ -191,11 +192,13 @@ It does not retry a timeout or HTTP 400, 403, 413, or 422.
 When the call still does not produce a verdict, the rail blocks the request, or allows it when `fail_open` is `true`.
 An allow under `fail_open` logs one warning; HiddenLayer has no record that the library allowed the request.
 
-`fail_open` covers transport failures only.
-An evaluation HiddenLayer itself could not complete does not return an error status: it returns a 200 whose action is the one your HiddenLayer deployment's fail setting chose, `NONE` when it fails open and `BLOCK` when it fails closed, with `HL-Runtime-Protection-Mode: AS_CONFIGURED`.
+`fail_open` covers every call that ends without a verdict, whatever ended it: a timeout, a connection failure, a rejection by the server such as an HTTP 400, 413, or 422, a response that is not valid JSON, and a 200 whose `HL-Runtime-Action` is missing or unrecognized.
+An evaluation HiddenLayer itself could not complete is none of those: it returns a 200 whose action is the one your HiddenLayer deployment's fail setting chose, `NONE` when it fails open and `BLOCK` when it fails closed, with `HL-Runtime-Protection-Mode: AS_CONFIGURED`.
 That is a verdict, so the rail applies it whatever `fail_open` says.
-A 200 whose `HL-Runtime-Action` is missing or unrecognized carries no verdict and is treated as a transport failure.
 A `REDACT` whose body carries no usable redacted text blocks, because the action is valid and the rail cannot carry it out.
+
+A request HiddenLayer would reject is a turn that goes unevaluated, so the rail avoids sending one where it can.
+An empty user or bot message is allowed without a call, because a check carrying no text is rejected and holds nothing to evaluate.
 
 Each request has a 30-second timeout, and each retry waits up to `max_retry_after_seconds`.
 With the defaults, one HTTP call can take up to about 150 seconds, and a check that exhausts the retries on both the token request and the evaluation can take about 5 minutes.

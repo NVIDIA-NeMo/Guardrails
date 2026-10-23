@@ -24,7 +24,10 @@ from nemoguardrails.library.hiddenlayer._payloads import (
     _NO_REQUEST_ID,
     _REQUEST_PATH,
     _RESPONSE_PATH,
+    _ROUNDTRIP_NAMESPACE,
     _SURFACE_PATH,
+    MAX_ROUNDTRIP_ID_BYTES,
+    MAX_SESSION_ID_BYTES,
     _headers,
     _input_check,
     _output_check,
@@ -210,6 +213,36 @@ class TestRoundtripId:
         assert uuid.UUID(first).version == uuid.UUID(second).version == 4
         assert len([r for r in caplog.records if "round-trip" in r.getMessage()]) == 1
 
+    def test_an_id_at_the_cap_is_sent_verbatim(self):
+        value = "x" * MAX_ROUNDTRIP_ID_BYTES
+        with roundtrip_id(value):
+            assert _roundtrip_id() == value
+
+    @pytest.mark.parametrize(
+        "value",
+        ["x" * (MAX_ROUNDTRIP_ID_BYTES + 1), "é" * MAX_ROUNDTRIP_ID_BYTES],
+        ids=["over-cap", "over-cap-in-bytes-only"],
+    )
+    def test_an_over_long_id_is_mapped_onto_a_uuid_rather_than_sent_and_rejected(self, value):
+        with roundtrip_id(value):
+            first, second = _roundtrip_id(), _roundtrip_id()
+        assert first == second
+        assert uuid.UUID(first).version == 5
+        assert first == str(uuid.uuid5(_ROUNDTRIP_NAMESPACE, value))
+
+    def test_two_over_long_ids_do_not_collide(self):
+        with roundtrip_id("a" + "x" * MAX_ROUNDTRIP_ID_BYTES):
+            first = _roundtrip_id()
+        with roundtrip_id("b" + "x" * MAX_ROUNDTRIP_ID_BYTES):
+            second = _roundtrip_id()
+        assert first != second
+
+    def test_the_mapping_is_logged_once_per_process(self, caplog):
+        with caplog.at_level("WARNING"), roundtrip_id("x" * (MAX_ROUNDTRIP_ID_BYTES + 1)):
+            _roundtrip_id()
+            _roundtrip_id()
+        assert len([r for r in caplog.records if "over 256 bytes" in r.getMessage()]) == 1
+
 
 class TestHeaders:
     def test_header_set(self):
@@ -244,6 +277,27 @@ class TestHeaders:
     def test_the_conversation_id_is_percent_encoded_so_a_header_can_carry_it(self, conversation_id, sent):
         headers = _headers("tok", "rt-id", "r", "p", session_id=conversation_id)
         assert headers["HL-Runtime-Session-Id"] == sent
+
+    def test_an_id_at_the_cap_is_sent_whole_however_far_encoding_expands_it(self):
+        """The cap is on the conversation ID, and percent-encoding at most triples it."""
+        at_cap = "/" * MAX_SESSION_ID_BYTES
+        headers = _headers("tok", "rt-id", "r", "p", session_id=at_cap)
+        assert headers["HL-Runtime-Session-Id"] == "%2F" * MAX_SESSION_ID_BYTES
+
+    @pytest.mark.parametrize(
+        "value",
+        ["x" * (MAX_SESSION_ID_BYTES + 1), "é" * MAX_SESSION_ID_BYTES],
+        ids=["over-cap", "over-cap-in-bytes-only"],
+    )
+    def test_an_over_long_conversation_id_is_dropped_rather_than_sent_and_rejected(self, value):
+        """Dropping costs the history; sending it costs the whole evaluation, and truncating could merge sessions."""
+        assert "HL-Runtime-Session-Id" not in _headers("tok", "rt-id", "r", "p", session_id=value)
+
+    def test_the_drop_is_logged_once_per_process(self, caplog):
+        with caplog.at_level("WARNING"):
+            for _ in range(2):
+                _headers("tok", "rt-id", "r", "p", session_id="x" * (MAX_SESSION_ID_BYTES + 1))
+        assert len([r for r in caplog.records if "conversation ID" in r.getMessage()]) == 1
 
     def test_the_conversation_id_is_not_namespaced(self):
         headers = _headers("tok", "rt-id", "r", "p", session_id="1", project_id="my-project")
