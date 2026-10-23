@@ -1,0 +1,259 @@
+{
+  "source": {
+    "document_url": "https://github.com/openai/openai-openapi/blob/df63773f69f542ef875b9f00c3837c25ba5f4f2a/openapi.yaml",
+    "download_url": "https://raw.githubusercontent.com/openai/openai-openapi/df63773f69f542ef875b9f00c3837c25ba5f4f2a/openapi.yaml",
+    "revision": "df63773f69f542ef875b9f00c3837c25ba5f4f2a",
+    "document_version": "2.3.0",
+    "sha256": "f2dae1a9aced09b91310db89edda51bf1e36ecbfb05230c3a50b239c07708469"
+  },
+  "schema_fields": {
+    "CreateResponse": [
+      "background",
+      "context_management",
+      "conversation",
+      "include",
+      "input",
+      "instructions",
+      "max_output_tokens",
+      "max_tool_calls",
+      "metadata",
+      "model",
+      "moderation",
+      "parallel_tool_calls",
+      "previous_response_id",
+      "prompt",
+      "prompt_cache_key",
+      "prompt_cache_options",
+      "prompt_cache_retention",
+      "reasoning",
+      "safety_identifier",
+      "service_tier",
+      "store",
+      "stream",
+      "stream_options",
+      "temperature",
+      "text",
+      "tool_choice",
+      "tools",
+      "top_logprobs",
+      "top_p",
+      "truncation",
+      "user"
+    ],
+    "Response": [
+      "background",
+      "completed_at",
+      "conversation",
+      "created_at",
+      "error",
+      "id",
+      "incomplete_details",
+      "instructions",
+      "max_output_tokens",
+      "max_tool_calls",
+      "metadata",
+      "model",
+      "moderation",
+      "object",
+      "output",
+      "output_text",
+      "parallel_tool_calls",
+      "previous_response_id",
+      "prompt",
+      "prompt_cache_diagnostics",
+      "prompt_cache_key",
+      "prompt_cache_options",
+      "prompt_cache_retention",
+      "reasoning",
+      "safety_identifier",
+      "service_tier",
+      "status",
+      "temperature",
+      "text",
+      "tool_choice",
+      "tools",
+      "top_logprobs",
+      "top_p",
+      "truncation",
+      "usage",
+      "user"
+    ],
+    "Reasoning": [
+      "context",
+      "effort",
+      "generate_summary",
+      "mode",
+      "summary"
+    ],
+    "ResponseTextParam": [
+      "format",
+      "verbosity"
+    ],
+    "ResponseFormatText": [
+      "type"
+    ],
+    "OutputMessage": [
+      "content",
+      "id",
+      "phase",
+      "role",
+      "status",
+      "type"
+    ],
+    "OutputTextContent": [
+      "annotations",
+      "logprobs",
+      "text",
+      "type"
+    ],
+    "ReasoningItem": [
+      "content",
+      "encrypted_content",
+      "id",
+      "status",
+      "summary",
+      "type"
+    ],
+    "ResponseTextDeltaEvent": [
+      "content_index",
+      "delta",
+      "item_id",
+      "logprobs",
+      "output_index",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseTextDoneEvent": [
+      "content_index",
+      "item_id",
+      "logprobs",
+      "output_index",
+      "sequence_number",
+      "text",
+      "type"
+    ],
+    "ResponseContentPartAddedEvent": [
+      "content_index",
+      "item_id",
+      "output_index",
+      "part",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseContentPartDoneEvent": [
+      "content_index",
+      "item_id",
+      "output_index",
+      "part",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseOutputItemAddedEvent": [
+      "item",
+      "output_index",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseOutputItemDoneEvent": [
+      "item",
+      "output_index",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseCreatedEvent": [
+      "response",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseInProgressEvent": [
+      "response",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseQueuedEvent": [
+      "response",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseCompletedEvent": [
+      "response",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseFailedEvent": [
+      "response",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseIncompleteEvent": [
+      "response",
+      "sequence_number",
+      "type"
+    ],
+    "ResponseErrorEvent": [
+      "code",
+      "message",
+      "param",
+      "sequence_number",
+      "type"
+    ]
+  },
+  "text_response_example": {
+    "id": "resp_67ccd2bed1ec8190b14f964abc0542670bb6a6b452d3795b",
+    "object": "response",
+    "created_at": 1741476542,
+    "status": "completed",
+    "completed_at": 1741476543,
+    "error": null,
+    "incomplete_details": null,
+    "instructions": null,
+    "max_output_tokens": null,
+    "model": "gpt-6-astra",
+    "output": [
+      {
+        "type": "message",
+        "id": "msg_67ccd2bf17f0819081ff3bb2cf6508e60bb6a6b452d3795b",
+        "status": "completed",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "In a peaceful grove beneath a silver moon, a unicorn named Lumina discovered a hidden pool that reflected the stars. As she dipped her horn into the water, the pool began to shimmer, revealing a pathway to a magical realm of endless night skies. Filled with wonder, Lumina whispered a wish for all who dream to find their own hidden magic, and as she glanced back, her hoofprints sparkled like stardust.",
+            "annotations": []
+          }
+        ]
+      }
+    ],
+    "parallel_tool_calls": true,
+    "previous_response_id": null,
+    "reasoning": {
+      "effort": null,
+      "summary": null
+    },
+    "store": true,
+    "temperature": 1.0,
+    "text": {
+      "format": {
+        "type": "text"
+      }
+    },
+    "tool_choice": "auto",
+    "tools": [],
+    "top_p": 1.0,
+    "truncation": "disabled",
+    "usage": {
+      "input_tokens": 36,
+      "input_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "output_tokens": 87,
+      "output_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "total_tokens": 123
+    },
+    "user": null,
+    "metadata": {}
+  }
+}

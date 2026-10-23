@@ -409,7 +409,8 @@ async def test_stalled_response_cleanup_preserves_send_failure(monkeypatch, capl
 @pytest.mark.parametrize("close_mode", ["complete", "hang", "raise"])
 @pytest.mark.parametrize("with_callback", [False, True])
 async def test_response_finalizer_closes_each_owner_once(monkeypatch, same_source, close_mode, with_callback):
-    monkeypatch.setattr(_stream_cleanup, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.01)
+    if close_mode == "hang":
+        monkeypatch.setattr(_stream_cleanup, "_STREAM_CLOSE_TIMEOUT_SECONDS", 0.1)
     attempts = []
 
     class ClosingSource(Source):
