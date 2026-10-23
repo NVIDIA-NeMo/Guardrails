@@ -114,13 +114,15 @@ class LLMResponseChunk:
     request_id: Optional[str] = None
     usage: Optional[UsageInfo] = None
     provider_metadata: Optional[Dict[str, Any]] = None
+    tool_call_deltas: Optional[List[ToolCallDelta]] = None
 ```
 
 Follow these conventions so the rest of the pipeline works:
 
 - Yield text deltas in `delta_content` as soon as they arrive.
 - Yield `delta_reasoning` for chain-of-thought tokens emitted before the visible answer (OpenAI reasoning models, NIM `reasoning_content`).
-- Tool-call streaming is incremental on the wire: provider chunks usually carry argument fragments. Accumulate them and emit a single completed `delta_tool_calls` list on the chunk whose `finish_reason == "tool_calls"`. The reference `OpenAIChatModel._finalize_tool_calls` shows the pattern.
+- For incremental tool-call streaming, yield `tool_call_deltas` as fragments arrive. Each `ToolCallDelta` identifies a call by `index`; its optional `id`, `type`, and `ToolCallFunctionDelta` fields preserve the provider fragment. Function names and arguments are strings and can be partial.
+- Also accumulate fragments and provide completed `delta_tool_calls` on successful termination (`tool_calls`, or `stop` for providers that use it). `LLMRails` retains these assembled calls for its final response without emitting them a second time. If your backend only produces completed calls, leave `tool_call_deltas` unset to retain completed-call streaming. The reference `OpenAIChatModel.stream_async` shows both representations.
 - Set `finish_reason` only on the final chunk that carries it. Earlier chunks should leave it `None`.
 - Emit a final usage-only chunk (no `delta_content`, only `usage` and `request_id`) when the provider sends an end-of-stream usage record. The pipeline tolerates either inline or trailing usage.
 
