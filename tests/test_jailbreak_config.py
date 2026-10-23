@@ -63,12 +63,17 @@ class TestJailbreakDetectionConfig:
         # Should use default port 8000
         assert config.nim_base_url == "http://localhost:8000/v1"
 
+    def test_deprecated_field_migration_remote_host_uses_https(self):
+        """Remote deprecated nim_url values should migrate to HTTPS."""
+        config = JailbreakDetectionConfig(nim_url="nim.example.com", nim_port=8443)
+        assert config.nim_base_url == "https://nim.example.com:8443/v1"
+
     def test_no_migration_when_nim_base_url_already_set(self):
         """Test that migration doesn't occur when nim_base_url is already set."""
-        config = JailbreakDetectionConfig(nim_base_url="http://existing:9999/v1", nim_url="localhost", nim_port=8000)
+        config = JailbreakDetectionConfig(nim_base_url="https://existing:9999/v1", nim_url="localhost", nim_port=8000)
 
         # Should not override existing nim_base_url
-        assert config.nim_base_url == "http://existing:9999/v1"
+        assert config.nim_base_url == "https://existing:9999/v1"
 
     def test_embedding_field_deprecated(self):
         """Test that embedding field defaults to None (deprecated)."""
@@ -83,7 +88,7 @@ class TestJailbreakDetectionConfig:
     def test_configuration_with_all_new_fields(self):
         config = JailbreakDetectionConfig(
             server_endpoint="http://legacy:1337/heuristics",
-            nim_base_url="http://nim:8000/v1",
+            nim_base_url="https://nim:8000/v1",
             nim_server_endpoint="custom-classify",
             api_key_env_var="CUSTOM_API_KEY",
             length_per_perplexity_threshold=100.0,
@@ -91,7 +96,7 @@ class TestJailbreakDetectionConfig:
         )
 
         assert config.server_endpoint == "http://legacy:1337/heuristics"
-        assert config.nim_base_url == "http://nim:8000/v1"
+        assert config.nim_base_url == "https://nim:8000/v1"
         assert config.nim_server_endpoint == "custom-classify"
         assert config.api_key_env_var == "CUSTOM_API_KEY"
         assert config.length_per_perplexity_threshold == 100.0
@@ -114,7 +119,7 @@ class TestJailbreakDetectionConfig:
         assert config.prefix_suffix_perplexity_threshold == 1845.65
 
         # deprecated fields should be migrated
-        assert config.nim_base_url == "http://old-nim-host:8888/v1"
+        assert config.nim_base_url == "https://old-nim-host:8888/v1"
 
     def test_empty_configuration(self):
         """Test that completely empty config works with defaults."""
@@ -216,6 +221,16 @@ class TestJailbreakDetectionConfig:
         )
         assert config.nim_base_url == "https://nim.example.com/v1"
         assert config.server_endpoint == "http://localhost:1337/model"
+
+    def test_remote_http_nim_base_url_raises(self):
+        """Remote NIM endpoints must use HTTPS."""
+        with pytest.raises(ValueError, match="must use 'https://' for non-loopback hosts"):
+            JailbreakDetectionConfig(nim_base_url="http://nim.example.com/v1")
+
+    def test_loopback_http_nim_base_url_accepted(self):
+        """Loopback HTTP endpoints should remain valid for local development."""
+        config = JailbreakDetectionConfig(nim_base_url="http://127.0.0.1:8000/v1")
+        assert config.nim_base_url == "http://127.0.0.1:8000/v1"
 
 
 def _make_rails_config(**kwargs):
