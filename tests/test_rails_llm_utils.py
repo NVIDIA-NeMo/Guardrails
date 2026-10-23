@@ -417,3 +417,16 @@ def test_tool_history_cache_key_normalizes_arguments_without_mutating_messages()
     assert call["function"]["arguments"] == '{ "city": "Paris" }'
     call["function"]["arguments"] = "malformed"
     assert get_history_cache_key(wire) != get_history_cache_key(native)
+
+
+@pytest.mark.parametrize("rail", ["input", "output", "retrieval", "dialog", "tool_call", "tool_result"])
+def test_history_cache_key_separates_rail_policies(rail):
+    history = [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "OK"}]
+    keys = [
+        get_history_cache_key(
+            [{"role": "context", "content": {"generation_options": {"rails": {rail: setting}}}}, *history]
+        )
+        for setting in (True, False, ["selected rail"])
+    ]
+    assert len(set(keys)) == 3
+    assert keys[0] == get_history_cache_key(history)

@@ -62,6 +62,10 @@ def get_history_cache_key(messages: List[dict]) -> str:
             key_items.append(json.dumps(msg, sort_keys=True))
         elif msg["role"] == "context":
             context = {key: value for key, value in msg["content"].items() if key != "generation_options"}
+            options = msg["content"].get("generation_options") or {}
+            rail_options = {key: value for key, value in options.get("rails", {}).items() if value is not True}
+            if rail_options:
+                context["generation_options"] = {"rails": rail_options}
             if context:
                 key_items.append(json.dumps(context))
         elif msg["role"] in ("system", "developer"):

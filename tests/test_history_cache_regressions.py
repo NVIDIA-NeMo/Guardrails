@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
@@ -63,3 +65,36 @@ define flow return count
     third = assistant_message(await rails.generate_async(messages=messages, options=options))
     assert third == {"role": "assistant", "content": "11"}
     assert messages[0]["content"] == {"counter": 0}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("safe_options", [None, {"rails": {"input": True}}])
+async def test_cached_history_isolated_from_input_rail_bypass(safe_options):
+    config = RailsConfig.from_content(
+        yaml_content="""
+models: []
+passthrough: false
+rails:
+  input:
+    flows: [sanitize]
+""",
+        colang_content="""
+define flow sanitize
+  if $user_message == "PRIVATE"
+    $user_message = "REDACTED"
+""",
+    )
+    model = FakeLLMModel(responses=["OK", "OK", "Final"])
+    model.generate_async = AsyncMock(wraps=model.generate_async)
+    rails = LLMRails(config, llm=model)
+    messages = [{"role": "user", "content": "PRIVATE"}]
+    first = assistant_message(await rails.generate_async(messages=messages, options=safe_options))
+    bypassed = assistant_message(await rails.generate_async(messages=messages, options={"rails": {"input": False}}))
+    assert first == bypassed
+    assert "PRIVATE" in str(model.generate_async.await_args.args[0])
+    await rails.generate_async(
+        messages=messages + [first, {"role": "user", "content": "Continue"}], options=safe_options
+    )
+    prompt = str(model.generate_async.await_args.args[0])
+    assert "PRIVATE" not in prompt
+    assert "REDACTED" in prompt
