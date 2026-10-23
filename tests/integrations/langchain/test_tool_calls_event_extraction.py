@@ -50,7 +50,7 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
 
 
 @pytest.mark.asyncio
-async def test_tool_calls_preserved_when_rails_block():
+async def test_tool_calls_omitted_when_rails_block():
     test_tool_calls = [
         {
             "name": "dangerous_tool",
@@ -95,9 +95,7 @@ async def test_tool_calls_preserved_when_rails_block():
     rails.rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
     result = await rails.ainvoke(HumanMessage(content="Execute dangerous tool"))
 
-    assert result.tool_calls is not None, "tool_calls should be preserved in final response"
-    assert len(result.tool_calls) == 1
-    assert result.tool_calls[0]["name"] == "dangerous_tool"
+    assert result.tool_calls == []
     assert "cannot execute this tool request" in result.content
 
 
@@ -239,9 +237,7 @@ async def test_complete_fix_integration():
 
     assert "security concerns" in result.content
 
-    assert result.tool_calls is not None, "tool_calls preserved despite being blocked"
-    assert len(result.tool_calls) == 1
-    assert result.tool_calls[0]["name"] == "dangerous_function"
+    assert result.tool_calls == []
 
 
 @pytest.mark.asyncio
@@ -426,9 +422,7 @@ async def test_tool_call_rails_blocking_behavior():
     result = await rails.ainvoke(HumanMessage(content="Execute dangerous command"))
 
     assert "security reasons" in result.content
-    assert result.tool_calls is not None
-    assert result.tool_calls[0]["name"] == "dangerous_exec"
-    assert "rm -rf" in result.tool_calls[0]["args"]["command"]
+    assert result.tool_calls == []
 
 
 @pytest.mark.asyncio
