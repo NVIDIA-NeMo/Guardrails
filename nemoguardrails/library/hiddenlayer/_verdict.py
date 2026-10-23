@@ -15,25 +15,24 @@
 
 """Map a HiddenLayer evaluation response to a RailOutcome.
 
-The verdict is in the response headers; the body is the payload to forward.
+The verdict is in the response headers; the body is the check to forward.
 """
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional, Tuple
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.http.retry import _header
 
 Surface = Literal["input", "output", "tool_call", "tool_result"]
 
-# Where a REDACT is applied on each surface. NeMo has no rewrite channel for tool payloads, and
-# a tool rail returning a transform is refused by the engine, so a tool REDACT blocks instead.
-_SURFACE_TARGET: Dict[Surface, Optional[TransformTarget]] = {
-    "input": TransformTarget.USER_MESSAGE,
-    "output": TransformTarget.BOT_MESSAGE,
-    "tool_call": None,
-    "tool_result": None,
+# Where a REDACT is applied on each surface, and the field the redacted text comes back in. The
+# tool surfaces are absent because NeMo has no rewrite channel for tool payloads, and a tool rail
+# returning a transform is refused by the engine, so a tool REDACT blocks instead.
+_REDACTABLE: Dict[Surface, Tuple[TransformTarget, str]] = {
+    "input": (TransformTarget.USER_MESSAGE, "user_message"),
+    "output": (TransformTarget.BOT_MESSAGE, "bot_message"),
 }
 
 BLOCK_REASON = "Blocked by HiddenLayer AI Runtime Security"
@@ -43,17 +42,6 @@ FAIL_OPEN_REASON = "HiddenLayer AI Runtime Security unavailable; fail_open allow
 _ACTION_HEADER = "HL-Runtime-Action"
 _PROTECTION_MODE_HEADER = "HL-Runtime-Protection-Mode"
 _ALLOW_ACTIONS = frozenset({"DETECT", "NONE"})
-
-
-@dataclass(frozen=True)
-class _Sent:
-    """What the rail sent for evaluation."""
-
-    checked_text: Optional[str] = None
-    call_id: Optional[str] = None
-    tool_name: Optional[str] = None
-    arguments: Union[dict, str, None] = None
-    content: Union[str, list, None] = None
 
 
 @dataclass(frozen=True)
@@ -93,17 +81,7 @@ def _metadata(action: str, headers: Mapping[str, str]) -> Dict[str, Any]:
     return {"action": action, "protection_mode": _protection_mode(headers)}
 
 
-def _redacted_text(surface: Surface, body: Any) -> Any:
-    """The text the redacted payload carries, or None when the body does not hold one."""
-    try:
-        if surface == "input":
-            return body["messages"][-1]["content"]
-        return body["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError):
-        return None
-
-
-def _outcome(surface: Surface, evaluation: _Evaluation, sent: _Sent) -> RailOutcome:
+def _outcome(surface: Surface, evaluation: _Evaluation, checked_text: Optional[str]) -> RailOutcome:
     """Map an evaluation to the rail's outcome on *surface*.
 
     Raises:
@@ -117,19 +95,19 @@ def _outcome(surface: Surface, evaluation: _Evaluation, sent: _Sent) -> RailOutc
 
     if action in _ALLOW_ACTIONS:
         return RailOutcome.allow(metadata=metadata)
-    # A BLOCK body carries HiddenLayer's own refusal; NeMo renders its own through the flows.
     if action == "BLOCK":
         return RailOutcome.block(reason=BLOCK_REASON, metadata=metadata)
     if action != "REDACT":
         raise HiddenLayerActionError(f"HiddenLayer response has an unknown {_ACTION_HEADER}")
 
-    target = _SURFACE_TARGET[surface]
-    if target is None:
+    redactable = _REDACTABLE.get(surface)
+    if redactable is None:
         # HiddenLayer promotes a REDACT on a tool evaluation to BLOCK, so this is the defensive path.
         return RailOutcome.block(reason=BLOCK_REASON, metadata=metadata)
-    text = _redacted_text(surface, evaluation.body)
+    target, field = redactable
+    text = evaluation.body.get(field) if isinstance(evaluation.body, dict) else None
     if not isinstance(text, str):
         raise HiddenLayerVerdictError("HiddenLayer REDACT response has no redacted text")
-    if text == sent.checked_text:
+    if text == checked_text:
         raise HiddenLayerVerdictError("HiddenLayer REDACT response left the text unchanged")
     return RailOutcome.transform([(target, text)], reason=REDACT_REASON, metadata=metadata)

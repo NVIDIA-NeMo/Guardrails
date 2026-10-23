@@ -35,15 +35,12 @@ from nemoguardrails.http import (
 )
 from nemoguardrails.library.hiddenlayer._payloads import (
     _SURFACE_PATH,
-    _call_id,
     _headers,
-    _input_interaction,
-    _output_interaction,
+    _input_check,
+    _output_check,
     _roundtrip_id,
-    _session_header_value,
-    _tool_call_interaction,
-    _tool_name,
-    _tool_result_interaction,
+    _tool_call_check,
+    _tool_result_check,
 )
 from nemoguardrails.library.hiddenlayer._token import (
     REQUEST_TIMEOUT_SECONDS,
@@ -59,7 +56,6 @@ from nemoguardrails.library.hiddenlayer._verdict import (
     Surface,
     _Evaluation,
     _outcome,
-    _Sent,
 )
 from nemoguardrails.library.hiddenlayer.rail_config import (
     DEFAULT_API_URL,
@@ -70,8 +66,6 @@ from nemoguardrails.library.hiddenlayer.rail_config import (
 from nemoguardrails.types import ToolCall
 
 log = logging.getLogger(__name__)
-
-UNKNOWN_MODEL = "unknown"
 
 _RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
 
@@ -138,30 +132,16 @@ def _settings(rail_config: HiddenLayerRailConfig) -> _Settings:
     )
 
 
-def _session_id(settings: _Settings) -> Optional[str]:
-    """The session ID of the current conversation, or None when sending is off or no ID is set.
+def _main_model(config: Optional[RailsConfig]) -> Tuple[Optional[str], Optional[str]]:
+    """Return the ``(model, engine)`` of the main model, or ``(None, None)`` without one.
 
-    HiddenLayer resolves a session ID across the whole tenant, so the ID is namespaced by the
-    integration and the project to keep apart two applications that both name a conversation "1".
-    """
-    conversation_id = get_conversation_id() if settings.send_session_id else None
-    if not conversation_id:
-        return None
-    if settings.project_id:
-        return _session_header_value(f"nemo:{settings.project_id}:{conversation_id}")
-    return _session_header_value(f"nemo:{conversation_id}")
-
-
-def _main_model(config: Optional[RailsConfig]) -> Tuple[str, str]:
-    """Return the ``(model, engine)`` of the main model, or ``("unknown", "unknown")`` without one.
-
-    ``model`` is required on both routes, so it is never left out. ``engine`` is sent as the
-    guarded model's vendor.
+    Both are optional on the routes, and HiddenLayer records an unknown model rather than a
+    placeholder, so neither is invented here. ``engine`` is sent as the guarded model's vendor.
     """
     for model in config.models if config is not None else ():
         if model.type == "main":
-            return model.model or UNKNOWN_MODEL, model.engine or UNKNOWN_MODEL
-    return UNKNOWN_MODEL, UNKNOWN_MODEL
+            return model.model, model.engine
+    return None, None
 
 
 def _credentials() -> Tuple[str, str]:
@@ -202,7 +182,7 @@ async def _request_evaluation(
     client: HTTPClient,
     surface: Surface,
     settings: _Settings,
-    provider: str,
+    provider: Optional[str],
     body: Dict[str, Any],
     client_id: str,
     client_secret: str,
@@ -210,7 +190,8 @@ async def _request_evaluation(
     """Fetch a token, post the evaluation to its route, refresh the token once on a 401, and read the 200."""
     url = f"{settings.api_url}{_SURFACE_PATH[surface]}"
     # Resolved once: a second attempt is the same evaluation of the same model call, not a new one.
-    roundtrip_id, session_id = _roundtrip_id(), _session_id(settings)
+    roundtrip_id = _roundtrip_id()
+    session_id = get_conversation_id() if settings.send_session_id else None
 
     async def token(rejected: Optional[str] = None) -> str:
         return await _with_connection_retry(
@@ -261,9 +242,9 @@ def _failure_text(error: Exception) -> str:
 
 async def _evaluate(
     surface: Surface,
-    provider: str,
+    provider: Optional[str],
     body: Dict[str, Any],
-    sent: _Sent,
+    checked_text: Optional[str],
     settings: _Settings,
     http_client: Optional[HTTPClient],
 ) -> RailOutcome:
@@ -281,7 +262,7 @@ async def _evaluate(
     client = RetryingHTTPClient(http_client if owned_client is None else owned_client, _retry_policy(settings))
     try:
         evaluation = await _request_evaluation(client, surface, settings, provider, body, client_id, client_secret)
-        return _outcome(surface, evaluation, sent)
+        return _outcome(surface, evaluation, checked_text)
     except HiddenLayerVerdictError as error:
         log.warning("HiddenLayer %s check returned an unusable REDACT (%s); blocking.", surface, error)
         return RailOutcome.block(reason=BLOCK_REASON, metadata={"action": "REDACT"})
@@ -327,8 +308,8 @@ async def hiddenlayer_evaluate(
         raise ValueError("surface must be 'input' or 'output'")
     settings = _settings(_rail_config(config))
     model, provider = _main_model(config)
-    body = _input_interaction(model, text) if surface == "input" else _output_interaction(model, text)
-    return await _evaluate(surface, provider, body, _Sent(checked_text=text), settings, http_client)
+    body = _input_check(model, text) if surface == "input" else _output_check(model, text)
+    return await _evaluate(surface, provider, body, text, settings, http_client)
 
 
 @action(name="hiddenlayer_evaluate_tool_call", is_system_action=True)
@@ -344,8 +325,9 @@ async def hiddenlayer_evaluate_tool_call(
 
     Args:
         tool_call: The tool call to check, sent whole (name and arguments).
-        tool_definition: The declared tool, used only by @tool_call_validation to check the
-            call's arguments against its schema before this function runs.
+        tool_definition: The declared tool. Sent so policy rules can read what the model was
+            offered, and used by @tool_call_validation to check the call's arguments against its
+            schema before this function runs.
         config: The active RailsConfig; used to resolve ``rails.config.hiddenlayer`` and the main model.
         http_client: Optional caller-owned HTTP client. The action does not close an injected client.
 
@@ -356,10 +338,8 @@ async def hiddenlayer_evaluate_tool_call(
     """
     settings = _settings(_rail_config(config))
     model, provider = _main_model(config)
-    call_id = _call_id(tool_call)
-    body = _tool_call_interaction(model, tool_call, call_id)
-    sent = _Sent(call_id=call_id, tool_name=_tool_name(tool_call), arguments=tool_call.function.arguments)
-    return await _evaluate("tool_call", provider, body, sent, settings, http_client)
+    body = _tool_call_check(model, tool_call, tool_definition)
+    return await _evaluate("tool_call", provider, body, None, settings, http_client)
 
 
 @action(name="hiddenlayer_evaluate_tool_result", is_system_action=True)
@@ -387,12 +367,5 @@ async def hiddenlayer_evaluate_tool_result(
     """
     settings = _settings(_rail_config(config))
     model, provider = _main_model(config)
-    call_id = _call_id(tool_call, tool_result)
-    body = _tool_result_interaction(model, tool_call, tool_result, call_id, tool_definition)
-    sent = _Sent(
-        call_id=call_id,
-        tool_name=_tool_name(tool_call, tool_result),
-        arguments=tool_call.function.arguments,
-        content=tool_result.content,
-    )
-    return await _evaluate("tool_result", provider, body, sent, settings, http_client)
+    body = _tool_result_check(model, tool_call, tool_result, tool_definition)
+    return await _evaluate("tool_result", provider, body, None, settings, http_client)

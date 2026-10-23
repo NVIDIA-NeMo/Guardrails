@@ -102,11 +102,7 @@ SERVER_ERROR = HTTPResponse(status_code=500, headers={"Content-Type": "text/plai
 
 
 def _surface(request: HTTPRequest) -> str:
-    """The surface an evaluation came from: the route gives the kind, the body which of its two surfaces."""
-    body = request.json
-    if request.url == RESPONSE_URL:
-        return "tool_call" if body["choices"][0]["message"].get("tool_calls") else "output"
-    return "tool_result" if body["messages"][-1]["role"] == "tool" else "input"
+    return request.json["check"]
 
 
 class FakeHiddenLayer:
@@ -134,7 +130,7 @@ class FakeHiddenLayer:
         assert url in (REQUEST_URL, RESPONSE_URL), url
         if self.on_evaluation is not None:
             self.on_evaluation(self.requests[-1])
-        # Allowing the evaluation returns the payload as sent, which is what the contract answers on NONE.
+        # Allowing the evaluation returns the check as sent, which is what the contract answers on NONE.
         verdict = self.verdicts.get(_surface(self.requests[-1]), (200, verdict_headers("NONE"), json))
         if isinstance(verdict, BaseException):
             raise verdict
@@ -266,8 +262,8 @@ class TestToolCall:
 
         assert result["tool_calls"][0]["function"]["name"] == "run_sql"
         assert hl.evaluations[0].url == RESPONSE_URL
-        sent_call = hl.evaluations[0].json["choices"][0]["message"]["tool_calls"][0]
-        assert sent_call["function"] == {"name": "run_sql", "arguments": '{"query": "SELECT 1"}'}
+        sent = hl.evaluations[0].json["tool_call"]
+        assert (sent["name"], sent["arguments"]) == ("run_sql", {"query": "SELECT 1"})
 
     @pytest.mark.asyncio
     async def test_schema_violation_blocks_without_calling_hiddenlayer(self, tool_iorails, hl):
@@ -358,9 +354,9 @@ class TestToolResult:
 
         assert result == {"role": "assistant", "content": "one row"}
         assert hl.evaluations[0].url == REQUEST_URL
-        sent = hl.evaluations[0].json["messages"]
-        assert sent[0]["tool_calls"][0]["id"] == sent[1]["tool_call_id"] == "call_1"
-        assert sent[1]["content"] == "1"
+        sent = hl.evaluations[0].json
+        assert sent["tool_call"]["id"] == sent["tool_result"]["call_id"] == "call_1"
+        assert sent["tool_result"]["content"] == "1"
 
     @pytest.mark.asyncio
     async def test_hiddenlayer_failure_fails_closed(self, tool_iorails, hl):
@@ -477,11 +473,7 @@ class TestSessionId:
             await io_iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
             await io_iorails.check_async([{"role": "user", "content": "hi"}], rail_types=[RailType.INPUT])
 
-        assert self.session_ids(hl) == [
-            ("input", "nemo:thread-42"),
-            ("output", "nemo:thread-42"),
-            ("input", "nemo:thread-42"),
-        ]
+        assert self.session_ids(hl) == [("input", "thread-42"), ("output", "thread-42"), ("input", "thread-42")]
 
     @pytest.mark.asyncio
     async def test_tool_checks_carry_the_conversation_id(self, tool_iorails, hl):
@@ -490,7 +482,7 @@ class TestSessionId:
         with conversation_id("thread-42"):
             await tool_iorails.generate_async(messages=_sql_conversation("1 row"))
 
-        assert self.session_ids(hl) == [("tool_result", "nemo:thread-42"), ("tool_call", "nemo:thread-42")]
+        assert self.session_ids(hl) == [("tool_result", "thread-42"), ("tool_call", "thread-42")]
 
     @pytest.mark.asyncio
     async def test_a_request_without_a_conversation_id_sends_none_after_one_with(self, hl):
@@ -504,7 +496,7 @@ class TestSessionId:
         finally:
             await engine.stop()
 
-        assert [session for _, session in self.session_ids(hl)] == ["nemo:thread-42"] * 2 + [None] * 2
+        assert [session for _, session in self.session_ids(hl)] == ["thread-42"] * 2 + [None] * 2
 
 
 class TestBufferedStreaming:
@@ -536,7 +528,6 @@ class TestBufferedStreaming:
                 received.append(chunk)
 
         assert hl.surfaces() == ["input", "output"]
-        output_body = hl.evaluations[1].json
-        assert output_body["choices"][0]["message"]["content"] == "Hello there, friend."
+        assert hl.evaluations[1].json["bot_message"] == "Hello there, friend."
         assert streamed_before_output_check == [0]
         assert "".join(chunk for chunk in received if isinstance(chunk, str)) == "Hello there, friend."

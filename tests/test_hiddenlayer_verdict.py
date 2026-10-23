@@ -19,7 +19,7 @@ import pytest
 
 from nemoguardrails.actions.rail_outcome import RailDecision, TransformTarget
 from nemoguardrails.library.hiddenlayer._verdict import (
-    _SURFACE_TARGET,
+    _REDACTABLE,
     BLOCK_REASON,
     REDACT_REASON,
     HiddenLayerActionError,
@@ -27,36 +27,32 @@ from nemoguardrails.library.hiddenlayer._verdict import (
     Surface,
     _Evaluation,
     _outcome,
-    _Sent,
 )
 from tests.fixtures.hiddenlayer import (
     BOT_TEXT,
     PII_TEXT,
     REDACTED_BOT_TEXT,
     REDACTED_PII_TEXT,
-    blocked_request,
     headers,
-    request_body,
-    response_body,
+    input_body,
+    output_body,
+    tool_call_body,
+    tool_result_body,
 )
 
 SURFACES = get_args(Surface)
 TEXT_SURFACES = ("input", "output")
 TOOL_SURFACES = ("tool_call", "tool_result")
-SENT = {
-    "input": _Sent(checked_text=PII_TEXT),
-    "output": _Sent(checked_text=BOT_TEXT),
-    "tool_call": _Sent(call_id="call_probe1", tool_name="send_email", arguments={"to": "jane.doe@example.com"}),
-    "tool_result": _Sent(call_id="call_probe2", tool_name="lookup", content="SSN 536-90-4399"),
-}
-# What the route answers for each surface when it carries the payload as sent.
+# The text the rail sent, which a REDACT has to change to be usable.
+CHECKED_TEXT = {"input": PII_TEXT, "output": BOT_TEXT, "tool_call": None, "tool_result": None}
+# What each route answers when it returns the check as sent.
 AS_SENT = {
-    "input": request_body(PII_TEXT),
-    "output": response_body(BOT_TEXT),
-    "tool_call": response_body(BOT_TEXT),
-    "tool_result": request_body(PII_TEXT),
+    "input": input_body(PII_TEXT),
+    "output": output_body(BOT_TEXT),
+    "tool_call": tool_call_body(),
+    "tool_result": tool_result_body(),
 }
-REDACTED = {"input": request_body(REDACTED_PII_TEXT), "output": response_body(REDACTED_BOT_TEXT)}
+REDACTED = {"input": input_body(REDACTED_PII_TEXT), "output": output_body(REDACTED_BOT_TEXT)}
 
 
 def evaluation(action, body, protection_mode="AS_CONFIGURED") -> _Evaluation:
@@ -65,7 +61,7 @@ def evaluation(action, body, protection_mode="AS_CONFIGURED") -> _Evaluation:
 
 def outcome_of(surface, action, body=None, protection_mode="AS_CONFIGURED"):
     body = AS_SENT[surface] if body is None else body
-    return _outcome(surface, evaluation(action, body, protection_mode), SENT[surface])
+    return _outcome(surface, evaluation(action, body, protection_mode), CHECKED_TEXT[surface])
 
 
 class TestAllowActions:
@@ -79,16 +75,16 @@ class TestAllowActions:
 
 class TestBlock:
     @pytest.mark.parametrize("surface", SURFACES)
-    def test_blocks_and_ignores_the_returned_body(self, surface):
-        outcome = outcome_of(surface, "BLOCK", blocked_request())
+    def test_blocks_and_does_not_forward_the_returned_check(self, surface):
+        outcome = outcome_of(surface, "BLOCK")
         assert outcome.decision is RailDecision.BLOCK
         assert outcome.reason == BLOCK_REASON
         assert outcome.metadata == {"action": "BLOCK", "protection_mode": "AS_CONFIGURED"}
 
     @pytest.mark.parametrize("surface", TOOL_SURFACES)
     def test_a_promoted_tool_redaction_blocks(self, surface):
-        """HiddenLayer never returns a redacted body carrying tool calls or results."""
-        outcome = outcome_of(surface, "BLOCK", blocked_request(), "INTEGRATION_LIMITED_PROMOTE")
+        """HiddenLayer never returns a redacted check carrying a tool call or result."""
+        outcome = outcome_of(surface, "BLOCK", protection_mode="INTEGRATION_LIMITED_PROMOTE")
         assert outcome.decision is RailDecision.BLOCK
         assert outcome.metadata["protection_mode"] == "INTEGRATION_LIMITED_PROMOTE"
 
@@ -104,7 +100,7 @@ class TestMonitorMode:
 
     def test_a_block_in_monitor_mode_is_still_a_block(self):
         """The server applies Monitor Mode, so a BLOCK that arrives is one the rail must enforce."""
-        assert outcome_of("input", "BLOCK", blocked_request(), "MONITOR_MODE").decision is RailDecision.BLOCK
+        assert outcome_of("input", "BLOCK", protection_mode="MONITOR_MODE").decision is RailDecision.BLOCK
 
 
 class TestProtectionMode:
@@ -115,14 +111,14 @@ class TestProtectionMode:
 
     def test_a_missing_mode_is_none(self):
         evaluation = _Evaluation(headers={"HL-Runtime-Action": "NONE"}, body=AS_SENT["input"])
-        assert _outcome("input", evaluation, SENT["input"]).metadata["protection_mode"] is None
+        assert _outcome("input", evaluation, PII_TEXT).metadata["protection_mode"] is None
 
     def test_headers_are_read_case_insensitively(self):
         evaluation = _Evaluation(
             headers={"hl-runtime-action": "BLOCK", "HL-RUNTIME-PROTECTION-MODE": "MONITOR_MODE"},
-            body=blocked_request(),
+            body=AS_SENT["input"],
         )
-        outcome = _outcome("input", evaluation, SENT["input"])
+        outcome = _outcome("input", evaluation, PII_TEXT)
         assert outcome.decision is RailDecision.BLOCK
         assert outcome.metadata == {"action": "BLOCK", "protection_mode": "MONITOR_MODE"}
 
@@ -132,7 +128,7 @@ class TestMissingOrUnknownAction:
 
     def test_missing_action_header(self):
         with pytest.raises(HiddenLayerActionError):
-            _outcome("input", _Evaluation(headers={}, body=AS_SENT["input"]), SENT["input"])
+            _outcome("input", _Evaluation(headers={}, body=AS_SENT["input"]), PII_TEXT)
 
     def test_unknown_action(self):
         with pytest.raises(HiddenLayerActionError):
@@ -169,42 +165,29 @@ class TestRedact:
     @pytest.mark.parametrize(
         "body",
         [
-            {"model": "m", "messages": []},
-            {"model": "m", "messages": [{"role": "user"}]},
-            {"model": "m", "messages": [{"role": "user", "content": None}]},
-            {"model": "m"},
+            {"check": "input", "model": "m"},
+            {"check": "input", "model": "m", "user_message": None},
+            {"check": "output", "model": "m", "bot_message": "redacted"},
             "not an object",
         ],
-        ids=["no-messages", "no-content", "null-content", "no-messages-key", "not-an-object"],
+        ids=["no-user-message", "null-user-message", "wrong-check", "not-an-object"],
     )
     def test_a_body_with_no_redacted_text_is_unusable(self, body):
         with pytest.raises(HiddenLayerVerdictError):
             outcome_of("input", "REDACT", body)
 
-    def test_messages_that_do_not_line_up_with_what_was_sent_are_unusable(self):
-        """A REDACT's messages match the sent ones one for one; the last one is the user's."""
-        body = {
-            "model": "m",
-            "messages": [{"role": "user", "content": PII_TEXT}, {"role": "assistant", "content": None}],
-        }
-        with pytest.raises(HiddenLayerVerdictError):
-            outcome_of("input", "REDACT", body)
-
     def test_the_message_never_quotes_the_response(self):
         with pytest.raises(HiddenLayerVerdictError) as error:
-            outcome_of("input", "REDACT", request_body(PII_TEXT))
+            outcome_of("input", "REDACT", input_body(PII_TEXT))
         assert PII_TEXT not in str(error.value)
 
 
-class TestSurfaceTargets:
-    def test_every_surface_is_mapped(self):
-        assert set(_SURFACE_TARGET) == set(SURFACES)
-
-    def test_tool_surfaces_have_no_rewrite_channel(self):
-        assert all(_SURFACE_TARGET[surface] is None for surface in TOOL_SURFACES)
+class TestRedactableSurfaces:
+    def test_only_the_text_surfaces_have_a_rewrite_channel(self):
+        assert set(_REDACTABLE) == set(TEXT_SURFACES)
 
 
 class TestMetadata:
     @pytest.mark.parametrize("surface", SURFACES)
-    def test_carries_the_verdict_and_nothing_from_the_payload(self, surface):
+    def test_carries_the_verdict_and_nothing_from_the_check(self, surface):
         assert set(outcome_of(surface, "NONE").metadata) == {"action", "protection_mode"}
