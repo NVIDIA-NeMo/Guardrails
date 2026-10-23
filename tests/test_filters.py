@@ -13,15 +13,50 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+import json
 import textwrap
 
+import pytest
+
 from nemoguardrails.llm.filters import (
+    apply_tool_result_updates,
     co_v2,
     first_turns,
     last_turns,
     to_chat_messages,
     user_assistant_sequence,
 )
+
+
+@pytest.mark.parametrize("validated_turns", [(True, True), (True, False), (False, True)])
+@pytest.mark.parametrize("suffix_only", [False, True])
+def test_tool_result_updates_match_reused_id_occurrences(validated_turns, suffix_only):
+    """Apply each rail outcome to its own result, including unchecked turns and message suffixes."""
+    messages = []
+    events = []
+    expected = []
+    for content, validated in zip(("Paris", "London"), validated_turns):
+        message = {"role": "tool", "tool_call_id": "call_0", "content": content}
+        messages.append(message)
+        events.append({"type": "ToolMessage", "message": message})
+        if validated:
+            events.extend(
+                [
+                    {"type": "StartToolResultRails", "tool_messages": [message]},
+                    {"type": "ToolMessageUpdated", "tool_call_id": "call_0", "content": "SAFE " + content},
+                    {"type": "ToolResultRailsFinished"},
+                ]
+            )
+        expected.append({**message, "content": "SAFE " + content if validated else content})
+    original = copy.deepcopy((messages, events))
+    selected_messages = messages[-1:] if suffix_only else messages
+    assert apply_tool_result_updates(selected_messages, events) == (expected[-1:] if suffix_only else expected)
+    assert to_chat_messages(events) == expected
+    assert [
+        json.loads(line.removeprefix("Tool: ")) for line in user_assistant_sequence(events).splitlines()
+    ] == expected
+    assert (messages, events) == original
 
 
 def test_co_v2_hides_rail_action_results():

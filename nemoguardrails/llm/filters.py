@@ -292,24 +292,40 @@ def apply_input_rail_updates(messages: List[dict], events: List[dict]) -> List[d
 def apply_tool_result_updates(messages: List[dict], events: List[dict]) -> List[dict]:
     """Copy messages with tool results approved or rewritten by tool-result rails.
 
-    Match results by tool_call_id. Once validation starts, use a blocked-result
-    placeholder until a ToolMessageUpdated event supplies approved content.
-    Results without a validation event retain their content; caller messages
-    are not modified.
+    Track each ToolMessage occurrence separately, since later turns may reuse
+    a tool_call_id. Validation updates only the occurrences in its current batch;
+    unapproved results retain a blocked-result placeholder. Match messages from
+    the end so a prompt suffix can use a longer event history. Unchecked results
+    retain their content, and caller messages and events are not modified.
     """
-    updates = {}
+    updates: dict[str, List[dict]] = {}
+    pending: dict[str, dict] = {}
     for event in events:
-        if event["type"] == "StartToolResultRails":
+        if event["type"] == "ToolMessage":
+            tool_call_id = event["message"].get("tool_call_id", "")
+            updates.setdefault(tool_call_id, []).append({})
+        elif event["type"] == "StartToolResultRails":
+            pending = {}
             for message in event.get("tool_messages", []):
-                updates[message.get("tool_call_id", "")] = "[Tool result blocked by guardrails.]"
+                tool_call_id = message.get("tool_call_id", "")
+                occurrences = updates.get(tool_call_id)
+                if occurrences:
+                    pending[tool_call_id] = occurrences[-1]
+                    pending[tool_call_id]["content"] = "[Tool result blocked by guardrails.]"
         elif event["type"] == "ToolMessageUpdated":
-            updates[event["tool_call_id"]] = event["content"]
-    return [
-        {**message, "content": updates[message.get("tool_call_id", "")]}
-        if message["role"] == "tool" and message.get("tool_call_id", "") in updates
-        else message.copy()
-        for message in messages
-    ]
+            tool_call_id = event["tool_call_id"]
+            if tool_call_id in pending:
+                pending[tool_call_id]["content"] = event["content"]
+        elif event["type"] == "ToolResultRailsFinished":
+            pending = {}
+
+    updated = [message.copy() for message in messages]
+    for message in reversed(updated):
+        if message["role"] == "tool":
+            occurrences = updates.get(message.get("tool_call_id", ""))
+            if occurrences:
+                message.update(occurrences.pop())
+    return updated
 
 
 def to_chat_messages(events: List[dict]) -> List[dict]:

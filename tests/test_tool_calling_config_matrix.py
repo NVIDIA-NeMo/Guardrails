@@ -92,7 +92,8 @@ define bot refuse result
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("passthrough", [False, True])
-async def test_tool_result_rails_validate_each_current_batch_with_resolved_names(passthrough):
+@pytest.mark.parametrize("reuse_call_id", [False, True])
+async def test_tool_result_rails_validate_each_current_batch_with_resolved_names(passthrough, reuse_call_id):
     """Validate each new result once, resolve omitted tool names, and preserve prior sanitized results."""
     config = RailsConfig.from_content(
         yaml_content=json.dumps(
@@ -104,7 +105,10 @@ define flow check result
 """,
     )
     calls = [
-        ToolCall(id=city, function=ToolCallFunction(name="weather_" + city, arguments={}))
+        ToolCall(
+            id="Paris" if reuse_call_id and city == "Rome" else city,
+            function=ToolCallFunction(name="weather_" + city, arguments={}),
+        )
         for city in ("Paris", "Berlin", "Rome")
     ]
     model = FakeLLMModel(
@@ -130,13 +134,91 @@ define flow check result
     first = await rails.generate_async(messages=messages)
     assert messages == original
     assert checked == [("weather_Berlin", "Berlin"), ("weather_Paris", "Paris")]
-    messages.extend([first, {"role": "tool", "tool_call_id": "Rome", "content": "Rome result"}])
+    messages.extend([first, {"role": "tool", "tool_call_id": calls[2].id, "content": "Rome result"}])
     final = await rails.generate_async(messages=messages)
     assert final == {"role": "assistant", "content": "Final answer."}
-    assert checked == [("weather_Berlin", "Berlin"), ("weather_Paris", "Paris"), ("weather_Rome", "Rome")]
+    assert checked == [("weather_Berlin", "Berlin"), ("weather_Paris", "Paris"), ("weather_Rome", calls[2].id)]
     sent = [message.to_dict() for message in model.generate_async.await_args.args[0]]
     assert [(message["tool_call_id"], message["content"]) for message in sent if message["role"] == "tool"] == [
         ("Berlin", "SAFE Berlin result"),
         ("Paris", "SAFE Paris result"),
-        ("Rome", "SAFE Rome result"),
+        (calls[2].id, "SAFE Rome result"),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("passthrough", [False, True])
+@pytest.mark.parametrize("chat_prompt", [False, True])
+@pytest.mark.parametrize("blocked_turn", [None, "Paris", "London"])
+async def test_reused_tool_ids_preserve_each_turn_result(passthrough, chat_prompt, blocked_turn):
+    """Keep sanitized or blocked results attached to their own turns when a provider reuses a call ID."""
+    config = RailsConfig.from_content(
+        yaml_content=json.dumps(
+            {"models": [], "passthrough": passthrough, "rails": {"tool_result": {"flows": ["check result"]}}}
+        ),
+        colang_content="""
+define flow check result
+  if $tool_message == "BLOCK"
+    bot refuse result
+    abort
+  if $tool_message == "Paris: sunny"
+    $tool_message = "SAFE Paris: sunny"
+  if $tool_message == "London: rainy"
+    $tool_message = "SAFE London: rainy"
+
+define bot refuse result
+  "Tool result rejected."
+""",
+    )
+    if chat_prompt:
+        from nemoguardrails.rails.llm.config import TaskPrompt
+
+        config.prompts = [TaskPrompt(task="general", models=["unknown"], messages=["{{ history | to_chat_messages }}"])]
+    calls = [
+        ToolCall(id="call_0", function=ToolCallFunction(name="weather", arguments={"city": city}))
+        for city in ("Paris", "London")
+    ]
+    responses = [] if blocked_turn == "Paris" else [LLMResponse(content="Paris answer")]
+    responses.append(LLMResponse(content="", tool_calls=[calls[1]]))
+    if blocked_turn != "London":
+        responses.append(LLMResponse(content="London answer"))
+    responses.append(LLMResponse(content="Comparison"))
+    model = FakeLLMModel(llm_responses=responses)
+    model.generate_async = AsyncMock(wraps=model.generate_async)
+    rails = LLMRails(config, llm=model)
+    messages = [
+        {"role": "user", "content": "Paris weather?"},
+        {"role": "assistant", "content": "", "tool_calls": [calls[0].to_dict()]},
+        {"role": "tool", "tool_call_id": "call_0", "content": "BLOCK" if blocked_turn == "Paris" else "Paris: sunny"},
+    ]
+    original = copy.deepcopy(messages)
+    first = await rails.generate_async(messages=messages)
+    assert messages == original
+    messages.extend([first, {"role": "user", "content": "London weather?"}])
+    second_call = await rails.generate_async(messages=messages)
+    assert second_call["tool_calls"] == [calls[1].to_dict()]
+    messages.extend(
+        [
+            second_call,
+            {
+                "role": "tool",
+                "tool_call_id": "call_0",
+                "content": "BLOCK" if blocked_turn == "London" else "London: rainy",
+            },
+        ]
+    )
+    original = copy.deepcopy(messages)
+    second = await rails.generate_async(messages=messages)
+    assert messages == original
+    if blocked_turn:
+        assert (first if blocked_turn == "Paris" else second)["content"] == "Tool result rejected."
+    messages.extend([second, {"role": "user", "content": "Compare both results."}])
+    original = copy.deepcopy(messages)
+    await rails.generate_async(messages=messages)
+    assert messages == original
+    sent = [message.to_dict() for message in model.generate_async.await_args.args[0]]
+    assert [message["content"] for message in sent if message["role"] == "tool"] == [
+        "[Tool result blocked by guardrails.]" if blocked_turn == "Paris" else "SAFE Paris: sunny",
+        "[Tool result blocked by guardrails.]" if blocked_turn == "London" else "SAFE London: rainy",
+    ]
+    assert model.inference_count == len(responses)

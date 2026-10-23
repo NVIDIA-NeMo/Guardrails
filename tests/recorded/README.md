@@ -83,6 +83,8 @@ The tool-calling modules under `rails/public_api/` and `server/` record the defa
 
 Deterministic checks in `tests/test_tool_calling_config_matrix.py`, `tests/test_tool_calling_passthrough_integration.py`, and `tests/server/test_api.py` cover both passthrough modes, text/chat prompts, allow/sanitize/block/disabled result rails, every result in successive batches, caller-message immutability, cache reuse across generation options and wire formats, approved call history, prompt-length boundaries, and unsupported server configurations. LangChain tests also require rejected calls to be omitted. Local validation and rail decisions do not need fabricated provider recordings.
 
+Reused tool-call IDs across turns are covered by deterministic tests: each occurrence retains its own sanitized or blocked result. Filter tests also cover unchecked occurrences and message suffixes, so an earlier rail outcome cannot overwrite a later unvalidated result or vice versa.
+
 `tests/test_history_cache_regressions.py` also checks evolving context, explicit context updates, isolation between enabled and bypassed input rails, and sanitized user history across ordinary, tool, and blocked turns. Cache keys distinguish rail policies and multimodal inputs even when their text matches.
 
 ### Commands
