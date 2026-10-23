@@ -329,7 +329,6 @@ async def test_shutdown_is_shielded_and_concurrent_closes_do_not_duplicate_clean
 async def test_repository_retries_real_core_shutdown_after_queue_timeout(tmp_path, monkeypatch):
     """Retain the real engine until interrupted worker cleanup completes."""
 
-    monkeypatch.setattr(_repository, "_SHUTDOWN_TIMEOUT_SECONDS", 0.02)
     repository = GuardrailsRepository((ConfigEntry("policy", config_path(tmp_path)),))
     await repository.startup()
     facade = repository._checkers["policy"]._rails
@@ -352,7 +351,9 @@ async def test_repository_retries_real_core_shutdown_after_queue_timeout(tmp_pat
     try:
         with anyio.fail_after(1):
             await entered.wait()
-            await repository.close()
+            with monkeypatch.context() as failing_close:
+                failing_close.setattr(_repository, "_SHUTDOWN_TIMEOUT_SECONDS", 0.02)
+                await repository.close()
         assert "policy" in repository._checkers
         assert any(not worker.done() for worker in workers)
 
