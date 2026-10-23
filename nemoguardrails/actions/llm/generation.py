@@ -53,6 +53,7 @@ from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.call import llm_call
 from nemoguardrails.llm.completion_parsing import get_multiline_response, strip_quotes
+from nemoguardrails.llm.filters import to_chat_messages
 from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
@@ -627,6 +628,15 @@ class LLMGenerationActions:
                 events=events,
                 context={"relevant_chunks": relevant_chunks},
             )
+            if isinstance(prompt, str):
+                tool_history_start = next((i for i, item in enumerate(events) if item["type"] == "BotToolCalls"), None)
+                if tool_history_start is not None:
+                    prefix = self.llm_task_manager.render_task_prompt(
+                        task=Task.GENERAL,
+                        events=events[:tool_history_start],
+                        context={"relevant_chunks": relevant_chunks},
+                    )
+                    prompt = [{"role": "user", "content": prefix}, *to_chat_messages(events[tool_history_start:])]
 
             generation_options: Optional[GenerationOptions] = generation_options_var.get()
             llm_params = (

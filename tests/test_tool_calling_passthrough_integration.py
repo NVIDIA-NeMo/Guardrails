@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -36,6 +35,7 @@ async def test_tool_round_trip_preserves_history(cached, chat_prompt, passthroug
             """
 prompts:
   - task: general
+    models: [unknown]
     messages:
       - type: system
         content: "{{ general_instructions }}"
@@ -61,6 +61,8 @@ prompts:
     messages = [{"role": "user", "content": "Compare the weather in Paris and Berlin."}]
     first = await rails.generate_async(messages=messages)
     assert first["tool_calls"] == [call.to_dict() for call in tool_calls]
+    if chat_prompt:
+        first.pop("content")
     results = [
         {"role": "tool", "tool_call_id": "call_Paris", "name": "get_weather", "content": "Paris: sunny, 22 C"},
         {"role": "tool", "tool_call_id": "call_Berlin", "name": "get_weather", "content": "Berlin: rainy, 15 C"},
@@ -78,17 +80,15 @@ prompts:
 
     for call in model.generate_async.await_args_list[1:]:
         prompt = call.args[0]
-        if isinstance(prompt, str):
-            assert prompt.count(messages[0]["content"]) == 1
-            assert prompt.count("Assistant tool calls:") == 1
-            assert json.dumps(first["tool_calls"]) in prompt
-            for result in results:
-                assert prompt.count(result["content"]) == 1
-                assert json.dumps(result) in prompt
+        history = [message.to_dict() for message in prompt if message.role != "system"]
+        if not passthrough and not chat_prompt:
+            assert history[0]["content"].count(messages[0]["content"]) == 1
+            assert "helpful AI assistant" in history[0]["content"]
+            assert "Tool:" not in history[0]["content"]
         else:
-            history = [message.to_dict() for message in prompt if message.role != "system"]
-            assistant = first if passthrough else {"role": "assistant", "tool_calls": first["tool_calls"]}
-            assert history[:4] == [messages[0], assistant, *results]
+            assert history[0] == messages[0]
+        assistant = first if passthrough else {"role": "assistant", "tool_calls": first["tool_calls"]}
+        assert history[1:4] == [assistant, *results]
     assert model.inference_count == 3
 
 

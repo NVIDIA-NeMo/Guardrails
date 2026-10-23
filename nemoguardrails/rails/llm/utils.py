@@ -46,7 +46,7 @@ def get_history_cache_key(messages: List[dict]) -> str:
                 # Use the content directly without json.dumps
                 key_items.append(msg["content"])
         elif msg["role"] == "assistant":
-            key_items.append(msg["content"])
+            key_items.append(msg.get("content", ""))
             if msg.get("tool_calls"):
                 key_items.append(json.dumps(msg["tool_calls"], sort_keys=True))
         elif msg["role"] == "tool":
