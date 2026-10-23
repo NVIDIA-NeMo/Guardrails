@@ -655,7 +655,7 @@ class TestHooksServerCommand:
         result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
 
         assert result.exit_code == 1
-        assert "The hooks server needs tool-call rails." in result.output
+        assert "The hooks server needs a tool policy in the hooks_server section, or per-tool rails" in result.output
         mock_start.assert_not_called()
         mock_uvicorn.assert_not_called()
 
