@@ -7,8 +7,8 @@
 #
 # Point Claude Code's `PreToolUse` hook at http://localhost:8100/v1/hooks/claude-code.
 # The server applies its one config on every path it serves. Rails are chosen by the tool name in each call, never by
-# the path, which only picks the request and response format. So this config holds the tools Claude Code calls; the
-# `codex` and `nemo_relay` examples beside it hold theirs. A server for both Claude Code and Codex merges the two.
+# the path, which only picks the request and response format. So this config holds only the tools Claude Code calls.
+# To check Codex too, run a second server with the `codex` example on another `--port`, and point Codex's hook at it.
 # The server only runs tool-call rails. Every rail here is a regex, so no model is called and no API key is needed.
 
 # The server checks tool calls and never generates a response, so the config needs no model.

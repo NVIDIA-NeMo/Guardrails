@@ -8,7 +8,8 @@
 #
 # The plugin's guardrail posts each call's tool name and arguments to http://localhost:8100/v1/hooks/nemo-relay.
 # The server applies its one config on every path it serves. Rails are chosen by the tool name in each call, never by
-# the path, which only picks the request and response format.
+# the path, which only picks the request and response format. So this config holds only the tools NeMo Relay forwards.
+# To check Claude Code's or Codex's own hooks too, run a second server with that agent's example on another `--port`.
 # NeMo Relay forwards the tool names of whatever it wraps. This example is for an application tool, `search`, as in
 # NeMo Relay's "Add a Tool Policy", whose policy rejects a search without a query. Behind NeMo Relay's Claude Code or
 # Codex integration, the tool names are that agent's, so use the `claude_code` or `codex` example's tools and rails.
