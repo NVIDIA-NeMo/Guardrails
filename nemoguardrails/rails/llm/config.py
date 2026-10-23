@@ -18,8 +18,9 @@
 import logging
 import os
 import warnings
+from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Set, Tuple, Union
 
 import yaml
 from pydantic import (
@@ -44,6 +45,9 @@ from nemoguardrails.rails.llm.rails_config_fields import (
     validate_no_config_export_shadowing,
 )
 from nemoguardrails.utils import _get_flow_params, _normalize_flow_id
+
+if TYPE_CHECKING:
+    from nemoguardrails.manifests import RailSurface
 
 log = logging.getLogger(__name__)
 
@@ -1105,6 +1109,40 @@ class RailsConfig(BaseModel):
                 )
         return values
 
+    # An "after" validator, unlike its input/output twins, reads the typed `rails` fields,
+    # so it also covers configs that still use the deprecated `tool_output`/`tool_input` keys.
+    @model_validator(mode="after")
+    def check_model_exists_for_tool_rails(self) -> "RailsConfig":
+        """Make sure we have every model a tool rail's manifest binds, such as the judge named by `$model=`"""
+        from nemoguardrails.manifests import RailDirection, default_rail_catalog, parse_configured_surface
+
+        tool_rail_flows = list(_tool_rail_flows(self.rails))
+        if not tool_rail_flows:
+            return self
+
+        model_types = {model.type for model in self.models}
+        surfaces = default_rail_catalog().surfaces()
+        for tool_rail_flow in tool_rail_flows:
+            try:
+                name, params = parse_configured_surface(tool_rail_flow.flow)
+            except ValueError:
+                # A malformed flow reference isn't a model check's to report; the engine
+                # rejects it as an invalid flow reference when it compiles the rail.
+                continue
+            surface = surfaces.get((RailDirection(tool_rail_flow.direction), name))
+            # An unknown flow is a custom or Colang-defined rail, which declares no model bindings here.
+            if surface is None:
+                continue
+            for model_type in _bound_model_types(surface, params):
+                if model_type in model_types:
+                    continue
+                tool_clause = f" for tool '{tool_rail_flow.tool_name}'" if tool_rail_flow.tool_name is not None else ""
+                available_types = ", ".join(f"'{str(t)}'" for t in sorted(model_types)) if model_types else "none"
+                raise InvalidRailsConfigurationError(
+                    f"{tool_rail_flow.section} flow '{name}'{tool_clause} references model type '{model_type}' that is not defined in the configuration. Detected model types: {available_types}."
+                )
+        return self
+
     @model_validator(mode="before")
     @classmethod
     def check_prompt_exist_for_self_check_rails(cls, values):
@@ -1575,6 +1613,39 @@ def _get_flow_model(flow_text) -> Optional[str]:
 
     _, parameters = parse_configured_surface(flow_text)
     return parameters.get("model")
+
+
+@dataclass(frozen=True)
+class _ToolRailFlow:
+    """A configured tool rail flow, with its section, its direction and, for a per-tool flow, its tool."""
+
+    section: str
+    direction: str
+    tool_name: Optional[str]
+    flow: str
+
+
+def _tool_rail_flows(rails: Rails) -> Iterator[_ToolRailFlow]:
+    """Yield each tool rail flow, global flows before per-tool ones."""
+    # Read the canonical fields: the deprecated `tool_output`/`tool_input` attributes warn when read.
+    sections = (("Tool call", "tool_call", rails.tool_call), ("Tool result", "tool_result", rails.tool_result))
+    for section, direction, tool_rails in sections:
+        for flow in tool_rails.flows:
+            yield _ToolRailFlow(section=section, direction=direction, tool_name=None, flow=flow)
+        for tool_name, flows in tool_rails.per_tool.items():
+            for flow in flows:
+                yield _ToolRailFlow(section=section, direction=direction, tool_name=tool_name, flow=flow)
+
+
+def _bound_model_types(surface: "RailSurface", params: Dict[str, str]) -> Iterator[str]:
+    """Yield the model types *surface* binds for a flow's *params*: baked-in literals and model `$params` it sets."""
+    for binding in surface.bindings:
+        if binding.resource != "model":
+            continue
+        if binding.kind == "literal":
+            yield str(binding.value)
+        elif binding.key in params:
+            yield params[binding.key]
 
 
 def _validate_self_check_rail_prompts(

@@ -45,7 +45,9 @@ To use the tool safety check, you should:
           run_sql: ["tool safety check tool result $model=llama_guard $variant=run_sql_check"]
     ```
 
-    You must define the models in the `models` section of the `config.yml` file before using them here. The `tool safety check tool call` and `tool safety check tool result` flows check the tool call's arguments and the tool result's content, respectively. The `$model` parameter specifies the judge model, matching the content safety check's convention. The `$variant` parameter selects which prompt to render for this invocation, matching self check's `$variant` concept: it lets you reuse one prompt across multiple tools, or give the same tool multiple distinct checks, entirely through config.
+    You must define the models in the `models` section of the `config.yml` file before using them here.
+    If a `$model=` names a model type that you haven't defined in the `models` section, the configuration fails to load with an error that names the flow and, for a `per_tool` flow, the tool.
+    The `tool safety check tool call` and `tool safety check tool result` flows check the tool call's arguments and the tool result's content, respectively. The `$model` parameter specifies the judge model, matching the content safety check's convention. The `$variant` parameter selects which prompt to render for this invocation, matching self check's `$variant` concept: it lets you reuse one prompt across multiple tools, or give the same tool multiple distinct checks, entirely through config.
 
 3. Specify the prompt for each `$model=`/`$variant=` task in the `prompts.yml` file:
 
