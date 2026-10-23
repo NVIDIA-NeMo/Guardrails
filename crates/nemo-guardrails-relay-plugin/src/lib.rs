@@ -25,6 +25,7 @@
 //! `relay-plugin.toml` names. The plugin validates its component configuration (see [`config`])
 //! but doesn't call the service or register any checks yet.
 
+pub mod client;
 pub mod config;
 
 use nemo_relay_plugin::{ConfigDiagnostic, DiagnosticLevel, Json, NativePlugin, PluginContext};
