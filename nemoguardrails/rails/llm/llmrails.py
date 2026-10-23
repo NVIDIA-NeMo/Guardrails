@@ -780,7 +780,7 @@ class LLMRails(BaseGuardrails):
                     events = self.events_history_cache[cache_key].copy()
                     request_context = {"generation_options": None}
                     if messages[0]["role"] == "context":
-                        request_context.update(messages[0]["content"])
+                        request_context["generation_options"] = messages[0]["content"].get("generation_options")
                     events.append({"type": "ContextUpdate", "data": request_context})
                     break
 
