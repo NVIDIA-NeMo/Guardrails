@@ -75,7 +75,10 @@ from nemoguardrails.types import (  # noqa: E402
     Role,
     ToolCall,
     ToolCallChunk,
+    ToolCallDelta,
+    ToolCallDeltaChunk,
     ToolCallFunction,
+    ToolCallFunctionDelta,
     UsageInfo,
 )
 
@@ -94,6 +97,9 @@ __all__ = [
     "Role",
     "ToolCall",
     "ToolCallChunk",
+    "ToolCallDelta",
+    "ToolCallDeltaChunk",
+    "ToolCallFunctionDelta",
     "ToolCallFunction",
     "UsageInfo",
     "get_default_framework",

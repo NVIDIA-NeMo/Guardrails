@@ -19,7 +19,7 @@ import warnings
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
-from nemoguardrails.types import ToolCallChunk
+from nemoguardrails.types import ToolCallChunk, ToolCallDeltaChunk
 from nemoguardrails.utils import new_uuid
 
 log = logging.getLogger(__name__)
@@ -194,12 +194,12 @@ class StreamingHandler(AsyncIterator):
             return element
 
     def _validate_chunk(self, chunk):
-        if isinstance(chunk, ToolCallChunk) and not self.allow_tool_calls:
+        if isinstance(chunk, (ToolCallChunk, ToolCallDeltaChunk)) and not self.allow_tool_calls:
             raise StreamingNotSupportedError("Tool calls are not supported with output rails during streaming.")
 
     async def _process(
         self,
-        chunk: Union[str, ToolCallChunk, _EndOfStream],
+        chunk: Union[str, ToolCallChunk, ToolCallDeltaChunk, _EndOfStream],
         metadata: Optional[Dict[str, Any]] = None,
     ):
         """Process a chunk of text.
@@ -212,7 +212,7 @@ class StreamingHandler(AsyncIterator):
             self.current_metadata.update(metadata)
 
         if self.enable_buffer:
-            if isinstance(chunk, ToolCallChunk):
+            if isinstance(chunk, (ToolCallChunk, ToolCallDeltaChunk)):
                 raise StreamingNotSupportedError("Tool calls are not supported during buffered dialog generation.")
             if isinstance(chunk, str):
                 self.buffer += chunk
@@ -257,7 +257,7 @@ class StreamingHandler(AsyncIterator):
                 # we only want to filter out empty strings that are created during suffix processing,
                 # not ones directly pushed by the user
                 if chunk is not None:
-                    if self.include_metadata and not isinstance(chunk, ToolCallChunk):
+                    if self.include_metadata and not isinstance(chunk, (ToolCallChunk, ToolCallDeltaChunk)):
                         chunk_dict: Dict[str, Any] = {"text": chunk if chunk is not END_OF_STREAM else END_OF_STREAM}
                         if chunk is END_OF_STREAM:
                             metadata = self.current_metadata.copy() if self.current_metadata else {}
@@ -279,13 +279,13 @@ class StreamingHandler(AsyncIterator):
 
     async def push_chunk(
         self,
-        chunk: Union[str, ToolCallChunk, _EndOfStream, None],
+        chunk: Union[str, ToolCallChunk, ToolCallDeltaChunk, _EndOfStream, None],
         metadata: Optional[Dict[str, Any]] = None,
     ):
         """Push text or a structured tool-call event to the stream.
 
         Args:
-            chunk: Text, completed tool calls, None, or the END_OF_STREAM sentinel.
+            chunk: Text, completed tool calls, tool-call deltas, None, or the END_OF_STREAM sentinel.
             metadata: Optional metadata about the generation.
         """
         if chunk is None:
@@ -293,10 +293,12 @@ class StreamingHandler(AsyncIterator):
         elif chunk is END_OF_STREAM:
             # already the correct marker, no conversion needed
             pass
-        elif isinstance(chunk, (str, ToolCallChunk)):
+        elif isinstance(chunk, (str, ToolCallChunk, ToolCallDeltaChunk)):
             pass
         else:
-            raise TypeError(f"StreamingHandler.push_chunk() expects str or ToolCallChunk, got {type(chunk).__name__}")
+            raise TypeError(
+                f"StreamingHandler.push_chunk() expects str, ToolCallChunk, or ToolCallDeltaChunk, got {type(chunk).__name__}"
+            )
 
         if self.streaming_finished_event.is_set():
             log.info(f"{self.uid[0:3]} - CHUNK after finish: {chunk}")
@@ -305,7 +307,7 @@ class StreamingHandler(AsyncIterator):
         if self.include_metadata and metadata:
             self.current_metadata.update(metadata)
 
-        if isinstance(chunk, ToolCallChunk):
+        if isinstance(chunk, (ToolCallChunk, ToolCallDeltaChunk)):
             await self._flush_current_chunk()
             if not self.streaming_finished_event.is_set():
                 await self._process(chunk, metadata)

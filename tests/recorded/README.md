@@ -102,14 +102,15 @@ uv run pytest tests/recorded/rails/library --block-network -v
 
 Replay mode installs dummy API keys from `tests/recorded/utils.py`. A cassette miss with `--block-network` is a test failure.
 
-### Completed tool-call streams
+### Incremental tool-call streams
 
 `rails/public_api/test_tool_call_streaming.py` records the default framework's
 native tool-call path through `LLMRails.stream_async`. It pins canonical
-`ToolCallChunk` events, single and parallel calls, metadata and usage, text-only
+`ToolCallDeltaChunk` events, single and parallel calls, metadata and usage, text-only
 completion bookkeeping, and a real invalid-model error. Replay also reconstructs
 the calls from the recorded provider fragments and compares their IDs, names,
-and arguments with the public events. Only volatile IDs are normalized in the
+and arguments with the public events. It also compares every emitted delta with
+the recorded fragment, preserving missing fields and parallel-call indices. Only volatile IDs are normalized in the
 snapshots; the cassettes retain the provider's tool-call IDs.
 
 The OpenAI cases use `OPENAI_API_KEY`. The NIM-engine cases use
@@ -124,7 +125,11 @@ a real `LLMRails` backend and configured tools. It validates the returned SSE
 with the OpenAI SDK, including string arguments and `finish_reason: tool_calls`.
 The in-process HTTP request is excluded from VCR, and each test requires exactly
 one provider exchange so replay cannot bypass the application. This checks
-assembled SSE responses, not socket timing or incremental network delivery.
+assembled SSE responses, not socket timing. The gated-provider tests in
+`tests/test_incremental_tool_streaming.py` separately prove that the server sends
+a delta before the provider is allowed to finish, and cover interruption,
+cancellation, and unsupported output rails. The incremental experiment reuses
+the original real cassettes unchanged and updates only public-output snapshots.
 
 The HTTP request restriction on combining `tools` with `stream`, and rejection
 of tool calls with output rails or dialog buffering, remain deterministic unit

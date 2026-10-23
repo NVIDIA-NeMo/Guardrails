@@ -34,7 +34,7 @@ from nemoguardrails.logging.verbose import console
 from nemoguardrails.rails.llm.options import (
     GenerationResponse,
 )
-from nemoguardrails.types import ToolCallChunk
+from nemoguardrails.types import ToolCallChunk, ToolCallDeltaChunk
 from nemoguardrails.utils import get_or_create_event_loop, new_event_dict, new_uuid
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -84,7 +84,7 @@ async def _run_chat_v1_0(
                 try:
                     bot_message_list: list[str] = []
                     async for chunk in rails_app.stream_async(messages=history, include_metadata=False):
-                        if isinstance(chunk, ToolCallChunk):
+                        if isinstance(chunk, (ToolCallChunk, ToolCallDeltaChunk)):
                             raise StreamingNotSupportedError("The chat CLI does not support streamed tool calls.")
                         if isinstance(chunk, str) and chunk.startswith('{"error"'):
                             try:

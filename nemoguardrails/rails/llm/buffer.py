@@ -18,7 +18,7 @@ from typing import AsyncGenerator, List, NamedTuple
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.rails.llm.config import OutputRailsStreamingConfig
-from nemoguardrails.types import ToolCallChunk
+from nemoguardrails.types import ToolCallChunk, ToolCallDeltaChunk
 
 __all__ = ["ChunkBatch", "BufferStrategy", "RollingBuffer", "get_buffer_strategy"]
 
@@ -296,7 +296,7 @@ class RollingBuffer(BufferStrategy):
         async for chunk in streaming_handler:
             text = chunk["text"] if isinstance(chunk, dict) else chunk
 
-            if isinstance(text, ToolCallChunk):
+            if isinstance(text, (ToolCallChunk, ToolCallDeltaChunk)):
                 raise StreamingNotSupportedError("Tool calls are not supported with output-rail streaming.")
 
             buffer.append(text)

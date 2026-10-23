@@ -792,9 +792,13 @@ async def test_push_chunk_unsupported_type():
     """Test push_chunk with an unsupported data type."""
 
     streaming_handler = StreamingHandler()
-    with pytest.raises(TypeError, match="StreamingHandler.push_chunk\\(\\) expects str or ToolCallChunk, got int"):
+    with pytest.raises(
+        TypeError, match="StreamingHandler.push_chunk\\(\\) expects str, ToolCallChunk, or ToolCallDeltaChunk, got int"
+    ):
         await streaming_handler.push_chunk(123)
-    with pytest.raises(TypeError, match="StreamingHandler.push_chunk\\(\\) expects str or ToolCallChunk, got list"):
+    with pytest.raises(
+        TypeError, match="StreamingHandler.push_chunk\\(\\) expects str, ToolCallChunk, or ToolCallDeltaChunk, got list"
+    ):
         await streaming_handler.push_chunk([1, 2])
 
 

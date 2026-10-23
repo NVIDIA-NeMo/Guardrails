@@ -78,26 +78,27 @@ async def test_backend_tool_calls_stream_as_openai_sse(
     assert all(event.model == OPENAI_MODEL for event in events)
     choices = [event.choices[0] for event in events]
     tool_choices = [choice for choice in choices if choice.delta.tool_calls]
-    assert len(tool_choices) == 1
-    tool_choice = tool_choices[0]
-    assert tool_choice.finish_reason == "tool_calls"
-    assert tool_choice.delta.content is None
-    calls = tool_choice.delta.tool_calls
-    assert calls is not None
-    assert len(calls) == 1
-    assert calls[0].index == 0
+    assert len(tool_choices) > 1
+    assert all(choice.finish_reason is None for choice in tool_choices)
+    assert all(choice.delta.content is None for choice in tool_choices)
+    calls = [call for choice in tool_choices for call in choice.delta.tool_calls or []]
+    assert all(call.index == 0 for call in calls)
     assert calls[0].id
     assert calls[0].type == "function"
-    assert calls[0].function is not None
-    assert calls[0].function.name == "get_weather"
-    assert calls[0].function.arguments is not None
-    assert json.loads(calls[0].function.arguments) == {"city": "Paris"}
-    assert all(not choice.delta.content for choice in choices[choices.index(tool_choice) + 1 :])
+    assert "".join(call.function.name or "" for call in calls if call.function) == "get_weather"
+    assert json.loads("".join(call.function.arguments or "" for call in calls if call.function)) == {"city": "Paris"}
+    terminal = [choice for choice in choices if choice.finish_reason]
+    assert len(terminal) == 1
+    assert terminal[0].finish_reason == "tool_calls"
+    assert terminal[0].delta.tool_calls is None
+    assert choices.index(terminal[0]) > choices.index(tool_choices[-1])
     normalized = []
+    ids = {}
     for choice in choices:
         data = choice.model_dump(exclude_none=True)
-        for index, call in enumerate(data["delta"].get("tool_calls", [])):
-            call["id"] = f"[TOOL_CALL_{index}]"
+        for call in data["delta"].get("tool_calls", []):
+            if "id" in call:
+                call["id"] = ids.setdefault(call["id"], f"[TOOL_CALL_{len(ids)}]")
         normalized.append(data)
     if record_mode == "none":
         assert_request_payload(
@@ -117,13 +118,18 @@ async def test_backend_tool_calls_stream_as_openai_sse(
                         {
                             "index": 0,
                             "id": "[TOOL_CALL_0]",
-                            "function": {"arguments": '{"city": "Paris"}', "name": "get_weather"},
+                            "function": {"arguments": "", "name": "get_weather"},
                             "type": "function",
                         }
                     ]
                 },
-                "finish_reason": "tool_calls",
                 "index": 0,
-            }
+            },
+            {"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '{"'}}]}, "index": 0},
+            {"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "city"}}]}, "index": 0},
+            {"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '":"'}}]}, "index": 0},
+            {"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "Paris"}}]}, "index": 0},
+            {"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '"}'}}]}, "index": 0},
+            {"delta": {}, "finish_reason": "tool_calls", "index": 0},
         ]
     )

@@ -93,7 +93,7 @@ from nemoguardrails.server.schemas.utils import (
     resolve_tool_calls,
     warn_if_thread_history_invalid_for_tool_use,
 )
-from nemoguardrails.types import ToolCallChunk
+from nemoguardrails.types import ToolCallChunk, ToolCallDeltaChunk
 
 try:
     from chainlit.utils import mount_chainlit as _mount_chainlit
@@ -555,16 +555,16 @@ class ChunkError(BaseModel):
 
 
 async def _prepend_stream_chunk(
-    first_chunk: Union[str, dict, ToolCallChunk],
-    stream_iterator: AsyncIterator[Union[str, dict, ToolCallChunk]],
-) -> AsyncIterator[Union[str, dict, ToolCallChunk]]:
+    first_chunk: Union[str, dict, ToolCallChunk, ToolCallDeltaChunk],
+    stream_iterator: AsyncIterator[Union[str, dict, ToolCallChunk, ToolCallDeltaChunk]],
+) -> AsyncIterator[Union[str, dict, ToolCallChunk, ToolCallDeltaChunk]]:
     yield first_chunk
     async for chunk in stream_iterator:
         yield chunk
 
 
 async def _format_streaming_response(
-    stream_iterator: AsyncIterator[Union[str, dict, ToolCallChunk]], model_name: str
+    stream_iterator: AsyncIterator[Union[str, dict, ToolCallChunk, ToolCallDeltaChunk]], model_name: str
 ) -> AsyncIterator[str]:
     """
     Format streaming chunks from LLMRails.stream_async() as SSE events.
@@ -599,7 +599,7 @@ async def _format_streaming_response(
         yield "data: [DONE]\n\n"
 
 
-def process_chunk(chunk: Any) -> Union[Any, ChunkError, ToolCallChunk]:
+def process_chunk(chunk: Any) -> Union[Any, ChunkError, ToolCallChunk, ToolCallDeltaChunk]:
     """
     Processes a single chunk from the stream.
 
@@ -610,7 +610,7 @@ def process_chunk(chunk: Any) -> Union[Any, ChunkError, ToolCallChunk]:
     Returns:
         A ChunkError instance for terminal errors, or the original text or structured event.
     """
-    if isinstance(chunk, ToolCallChunk):
+    if isinstance(chunk, (ToolCallChunk, ToolCallDeltaChunk)):
         return chunk
 
     # Convert chunk to string for JSON parsing if needed

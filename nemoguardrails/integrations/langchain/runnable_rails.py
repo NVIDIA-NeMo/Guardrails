@@ -36,7 +36,7 @@ from nemoguardrails.integrations.langchain.message_utils import (
 )
 from nemoguardrails.integrations.langchain.utils import async_wrap
 from nemoguardrails.rails.llm.options import GenerationOptions
-from nemoguardrails.types import ToolCallChunk
+from nemoguardrails.types import ToolCallChunk, ToolCallDeltaChunk
 
 logger = logging.getLogger(__name__)
 
@@ -789,7 +789,7 @@ class RunnableRails(Runnable[Input, Output]):
         Returns:
             The formatted streaming chunk (using AIMessageChunk for LangChain compatibility)
         """
-        if isinstance(chunk, ToolCallChunk):
+        if isinstance(chunk, (ToolCallChunk, ToolCallDeltaChunk)):
             raise StreamingNotSupportedError(
                 "RunnableRails does not support streamed tool calls. Use the non-streaming invoke/ainvoke API."
             )

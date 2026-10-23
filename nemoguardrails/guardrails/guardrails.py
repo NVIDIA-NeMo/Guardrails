@@ -39,7 +39,7 @@ from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse, RailsResult, RailType
-from nemoguardrails.types import LLMModel, ToolCallChunk
+from nemoguardrails.types import LLMModel, ToolCallChunk, ToolCallDeltaChunk
 
 log = logging.getLogger(__name__)
 
@@ -231,15 +231,15 @@ class Guardrails(BaseGuardrails):
 
     def stream_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
-    ) -> AsyncIterator[str | dict | ToolCallChunk]:
+    ) -> AsyncIterator[str | dict | ToolCallChunk | ToolCallDeltaChunk]:
         """Generate an LLM response asynchronously with streaming support."""
 
         # TODO: Move prompt/message normalization into IORails when streaming GenerationOptions added
         stream_messages = IORails._convert_to_messages(prompt, messages)
 
         async def _with_startup(
-            iterator: AsyncIterator[str | dict | ToolCallChunk],
-        ) -> AsyncIterator[str | dict | ToolCallChunk]:
+            iterator: AsyncIterator[str | dict | ToolCallChunk | ToolCallDeltaChunk],
+        ) -> AsyncIterator[str | dict | ToolCallChunk | ToolCallDeltaChunk]:
             await self._ensure_started()
             async for chunk in iterator:
                 yield chunk

@@ -26,7 +26,9 @@ from nemoguardrails.types import (
     LLMResponse,
     LLMResponseChunk,
     ToolCall,
+    ToolCallDelta,
     ToolCallFunction,
+    ToolCallFunctionDelta,
     UsageInfo,
 )
 
@@ -132,6 +134,7 @@ class OpenAIChatModel:
         gen = self._client.stream_chat_completion(self._model, messages, **params)
         try:
             async for chunk_response in gen:
+                tool_call_deltas = []
                 chunk_body = chunk_response.body
                 choices = chunk_body.get("choices", [])
                 if choices:
@@ -140,14 +143,31 @@ class OpenAIChatModel:
                     if raw_tool_calls:
                         for tc_delta in raw_tool_calls:
                             idx = tc_delta.get("index", 0)
+                            function = tc_delta.get("function")
+                            tool_call_deltas.append(
+                                ToolCallDelta(
+                                    index=idx,
+                                    id=tc_delta.get("id"),
+                                    type=tc_delta.get("type"),
+                                    function=ToolCallFunctionDelta(
+                                        name=function.get("name"), arguments=function.get("arguments")
+                                    )
+                                    if function is not None
+                                    else None,
+                                )
+                            )
                             if idx not in tool_call_acc:
                                 tool_call_acc[idx] = {
-                                    "id": tc_delta.get("id", ""),
+                                    "id": "",
                                     "type": tc_delta.get("type", "function"),
-                                    "function_name": tc_delta.get("function", {}).get("name", ""),
+                                    "function_name": "",
                                     "arguments_buffer": "",
                                 }
-                            arg_fragment = tc_delta.get("function", {}).get("arguments", "")
+                            tool_call_acc[idx]["id"] += tc_delta.get("id") or ""
+                            tool_call_acc[idx]["function_name"] += (function or {}).get("name") or ""
+                            if tc_delta.get("type"):
+                                tool_call_acc[idx]["type"] = tc_delta["type"]
+                            arg_fragment = (function or {}).get("arguments", "")
                             if arg_fragment:
                                 tool_call_acc[idx]["arguments_buffer"] += arg_fragment
 
@@ -155,6 +175,7 @@ class OpenAIChatModel:
                 if chunk is None:
                     continue
 
+                chunk.tool_call_deltas = tool_call_deltas or None
                 if chunk.finish_reason in ("tool_calls", "stop") and tool_call_acc:
                     chunk.delta_tool_calls = self._finalize_tool_calls(tool_call_acc)
                     tool_call_acc.clear()
