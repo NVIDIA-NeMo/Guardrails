@@ -16,14 +16,24 @@
 //! NeMo Relay native plugin that checks tool calls with a NeMo Guardrails hooks server.
 //!
 //! Relay loads the `cdylib` through the `nemo_relay_register_plugin` symbol that
-//! `relay-plugin.toml` names. The plugin validates its component configuration and registers
-//! no checks yet.
+//! `relay-plugin.toml` names. The plugin registers one tool conditional-execution guardrail,
+//! which posts each tool call to the hooks server: a deny rejects the call, and a check that fails
+//! returns an error, on which Relay also blocks the call.
 
+pub mod cache;
+pub mod client;
 pub mod config;
 
-use nemo_relay_plugin::{ConfigDiagnostic, DiagnosticLevel, Json, NativePlugin, PluginContext};
-use serde_json::Map;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::time::Instant;
 
+use nemo_relay_plugin::{
+    ConfigDiagnostic, DiagnosticLevel, Json, NativePlugin, PluginContext, PluginRuntime,
+};
+use serde_json::{Map, json};
+
+use crate::cache::{CallKey, MAX_VERDICTS, VERDICT_TTL, VerdictCache};
+use crate::client::{CheckFailure, HooksClient, Verdict};
 use crate::config::{ChecksConfig, ConfigError};
 
 /// Plugin kind. It must match `plugin.id` in `relay-plugin.toml`.
@@ -31,6 +41,12 @@ pub const PLUGIN_KIND: &str = "nvidia.nemo_guardrails_checks";
 
 /// Diagnostic code for a component configuration that the plugin rejects.
 pub const INVALID_CONFIG_CODE: &str = "nemo_guardrails_checks.invalid_config";
+
+/// Name of the tool conditional-execution guardrail the plugin registers.
+pub const GUARDRAIL_NAME: &str = "nemo_guardrails_tool_call_check";
+
+/// `event` field of the warning that a failed check logs.
+pub const CHECK_FAILED_EVENT: &str = "nemo_guardrails_check_failed";
 
 /// The NeMo Guardrails checks plugin.
 #[derive(Debug, Default)]
@@ -59,11 +75,89 @@ impl NativePlugin for NemoGuardrailsChecksPlugin {
     fn register(
         &mut self,
         plugin_config: &Map<String, Json>,
-        _ctx: &mut PluginContext<'_>,
+        ctx: &mut PluginContext<'_>,
     ) -> nemo_relay_plugin::Result<()> {
-        ChecksConfig::from_component_config(plugin_config)
+        let config = ChecksConfig::from_component_config(plugin_config)
             .map_err(|error| invalid_config_message(&error))?;
-        Ok(())
+        let check = Arc::new(ToolCallCheck {
+            client: HooksClient::new(&config)?,
+            verdicts: Mutex::new(VerdictCache::new(VERDICT_TTL, MAX_VERDICTS)),
+            runtime: ctx.runtime(),
+        });
+        ctx.register_tool_conditional_execution_guardrail(
+            GUARDRAIL_NAME,
+            config.priority,
+            move |tool_name, tool_input| {
+                let check = Arc::clone(&check);
+                async move { check.run(&tool_name, &tool_input).await }
+            },
+        )
+    }
+}
+
+/// The check that the plugin's guardrail runs on each tool call.
+struct ToolCallCheck {
+    client: HooksClient,
+    verdicts: Mutex<VerdictCache>,
+    runtime: PluginRuntime,
+}
+
+impl ToolCallCheck {
+    /// `None` lets the call run, a reason rejects it, and an error blocks it as a failed check.
+    async fn run(
+        &self,
+        tool_name: &str,
+        tool_input: &Json,
+    ) -> nemo_relay_plugin::Result<Option<String>> {
+        let key = CallKey::new(tool_name, tool_input);
+        let cached = self.verdicts().get(&key, Instant::now());
+        if let Some(verdict) = cached {
+            return Ok(rejection(tool_name, &verdict));
+        }
+        let verdict = self
+            .client
+            .check_tool_call(tool_name, tool_input)
+            .await
+            .map_err(|failure| self.report_failure(tool_name, &failure))?;
+        self.verdicts().insert(key, verdict.clone(), Instant::now());
+        Ok(rejection(tool_name, &verdict))
+    }
+
+    /// The verdict cache. A panic while it was locked leaves it consistent, so it stays usable.
+    fn verdicts(&self) -> MutexGuard<'_, VerdictCache> {
+        self.verdicts.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Logs a warning for the failed check and returns the guardrail's error for it.
+    fn report_failure(&self, tool_name: &str, failure: &CheckFailure) -> String {
+        // From Relay 0.10.1, an error that starts with `HTTP <status>: ` becomes an upstream HTTP
+        // error, so this text must never start that way.
+        let message =
+            format!("NeMo Guardrails check failed for tool call '{tool_name}': {failure}");
+        let fields = json!({
+            "event": CHECK_FAILED_EVENT,
+            "tool_name": tool_name,
+            "status": failure.status.map(|status| status.as_u16()),
+            "error_code": failure.code,
+        });
+        // The call is blocked either way, so a warning the host can't take changes nothing.
+        let _ = self.runtime.warn(PLUGIN_KIND, &message, Some(&fields));
+        message
+    }
+}
+
+/// The guardrail's rejection for a verdict, or `None` when the call may run.
+fn rejection(tool_name: &str, verdict: &Verdict) -> Option<String> {
+    match verdict {
+        Verdict::Allow => None,
+        Verdict::Deny {
+            reason: Some(reason),
+        } => Some(format!(
+            "NeMo Guardrails blocked tool call '{tool_name}': {reason}"
+        )),
+        Verdict::Deny { reason: None } => {
+            Some(format!("NeMo Guardrails blocked tool call '{tool_name}'"))
+        }
     }
 }
 
