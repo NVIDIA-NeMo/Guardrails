@@ -24,6 +24,7 @@ from tests.recorded.cassette import normalize_body
 from tests.recorded.rails.public_api.configs import (
     OPENAI_BASELINE_CONFIG,
     OPENAI_INVALID_MODEL_CONFIG,
+    PASSTHROUGH_SANITIZED_HISTORY_CONFIG,
     TOOL_CALL_BLOCK_CONFIG,
     TOOL_ROUND_TRIP_RAILS_CONFIG,
 )
@@ -340,3 +341,27 @@ async def test_tool_followup_invalid_model_raises(openai_api_key, vcr):
         "assistant",
         "tool",
     ]
+
+
+async def test_passthrough_retains_sanitized_user_history(openai_api_key, vcr):
+    rails = LLMRails(load_config(PASSTHROUGH_SANITIZED_HISTORY_CONFIG))
+    messages = [{"role": "user", "content": "PRIVATE_USER"}]
+    first = await rails.generate_async(messages=messages)
+    assert isinstance(first, dict)
+    assert messages == [{"role": "user", "content": "PRIVATE_USER"}]
+    messages.extend([first, {"role": "user", "content": "What is the fictional weather station named?"}])
+    final = await rails.generate_async(messages=messages)
+    assert isinstance(final, dict)
+    assert "MAPLE-4827" in final["content"]
+    assert messages[0] == {"role": "user", "content": "PRIVATE_USER"}
+    _assert_exchanges(vcr, 2)
+    for request in vcr.requests:
+        sent = json.loads(request.body)["messages"]
+        assert sent[0] == {
+            "role": "user",
+            "content": "The fictional weather station is named MAPLE-4827. Reply exactly: noted",
+        }
+        assert "PRIVATE_USER" not in json.dumps(sent)
+    assert normalize_body({"first": first, "final": final}) == snapshot(
+        {"first": {"role": "assistant", "content": "noted"}, "final": {"role": "assistant", "content": "MAPLE-4827"}}
+    )

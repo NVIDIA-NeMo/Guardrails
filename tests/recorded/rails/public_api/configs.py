@@ -213,3 +213,24 @@ TOOL_CALL_BLOCK_CONFIG = RailsConfigSource.from_content(
       "Tool call rejected."
     """,
 )
+
+PASSTHROUGH_SANITIZED_HISTORY_CONFIG = RailsConfigSource.from_content(
+    name="passthrough_sanitized_history",
+    yaml_content=f"""
+    models:
+      - type: main
+        engine: openai
+        model: {OPENAI_MODEL}
+        parameters:
+          max_retries: 0
+    passthrough: true
+    rails:
+      input:
+        flows: [sanitize history]
+    """,
+    colang_content="""
+    define flow sanitize history
+      if $user_message == "PRIVATE_USER"
+        $user_message = "The fictional weather station is named MAPLE-4827. Reply exactly: noted"
+    """,
+)

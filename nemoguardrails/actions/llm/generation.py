@@ -53,7 +53,7 @@ from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.call import llm_call
 from nemoguardrails.llm.completion_parsing import get_multiline_response, strip_quotes
-from nemoguardrails.llm.filters import apply_tool_result_updates
+from nemoguardrails.llm.filters import apply_input_rail_updates, apply_tool_result_updates
 from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
@@ -577,6 +577,7 @@ class LLMGenerationActions:
                     prompt = event["text"]
                 elif isinstance(raw_prompt, list):
                     prompt = apply_tool_result_updates(raw_prompt, events)
+                    prompt = apply_input_rail_updates(prompt, events)
 
                     # In this case, if the last message is from the user, we replace the text
                     # just in case the input rails may have altered it.

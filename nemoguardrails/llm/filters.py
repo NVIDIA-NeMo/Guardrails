@@ -261,6 +261,27 @@ def verbose_v1(colang_history: str) -> str:
     return "\n".join(lines)
 
 
+def apply_input_rail_updates(messages: List[dict], events: List[dict]) -> List[dict]:
+    user_contents = []
+    pending_user_message = False
+    for event in events:
+        if event["type"] == "UtteranceUserActionFinished":
+            user_contents.append("[User message blocked by guardrails.]")
+            pending_user_message = True
+        elif event["type"] == "UserMessage" and not event.get("is_tool_result"):
+            if pending_user_message:
+                user_contents[-1] = event["text"]
+            else:
+                user_contents.append(event["text"])
+            pending_user_message = False
+    updated = [message.copy() for message in messages]
+    approved_contents = iter(reversed(user_contents))
+    for message in reversed(updated):
+        if message["role"] == "user":
+            message["content"] = next(approved_contents, message["content"])
+    return updated
+
+
 def apply_tool_result_updates(messages: List[dict], events: List[dict]) -> List[dict]:
     updates = {}
     for event in events:

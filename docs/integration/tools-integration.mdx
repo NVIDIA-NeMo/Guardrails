@@ -193,7 +193,7 @@ Configure `rails.tool_result.flows` to validate tool results before the next mod
 
 After all results pass, generation resumes using the approved content. If a flow blocks a result with `abort`, generation stops and returns its refusal without calling the main model. In subsequent turns using the cached event history, unapproved results are replaced by `[Tool result blocked by guardrails.]`. Tool-result rails apply in both passthrough modes; input rails process user messages, and output rails process the generated textual answer. Setting `options.rails.tool_result` to `false` explicitly bypasses tool-result validation for that request.
 
-The library leaves caller-supplied messages unchanged. Sanitized values are retained in the `LLMRails` event history, so the raw input list is not a sanitized transcript. If you reconstruct history independently of that event history, preserve approved content yourself rather than replaying raw results as already validated history.
+The library leaves caller-supplied messages unchanged. Sanitized values are retained in the `LLMRails` event history, so the raw input list is not a sanitized transcript. Passthrough prompts also retain earlier input-rail rewrites from that history; blocked user turns become `[User message blocked by guardrails.]`. If you reconstruct history independently of that event history, preserve approved content yourself rather than replaying raw results as already validated history.
 
 ### Prompt Length for Tool Conversations
 

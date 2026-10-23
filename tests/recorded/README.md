@@ -68,7 +68,7 @@ silently. Name negative tests `test_<surface>_<failure>_<behavior>` with the suf
 
 ### Tool-calling coverage
 
-The tool-calling modules under `rails/public_api/` and `server/` record the default OpenAI-compatible framework with `passthrough: false`, Colang 1.0, and no user-intent definitions. These recordings establish the OpenAI path; they do not establish equivalent behavior for every provider or for streaming.
+The tool-calling modules under `rails/public_api/` and `server/` record the default OpenAI-compatible framework with Colang 1.0 and no user-intent definitions. Tool conversations use `passthrough: false`; an additional ordinary conversation checks sanitized input history with `passthrough: true`. These recordings establish the OpenAI path; they do not establish equivalent behavior for every provider or for streaming.
 
 | Scenario | Recorded contract |
 | --- | --- |
@@ -79,8 +79,11 @@ The tool-calling modules under `rails/public_api/` and `server/` record the defa
 | Tool-call rejection | Provider actually emits a call; the public response contains only the refusal |
 | Server thread history | A result-only follow-up and later user turn recover stored tool calls and results |
 | Provider error on a tool follow-up | Library raises `LLMCallException`; server preserves the current OpenAI-compatible error envelope and HTTP status |
+| Passthrough input sanitization across turns | The provider receives the sanitized earlier user message on both turns, while the caller's history remains unchanged |
 
 Deterministic checks in `tests/test_tool_calling_config_matrix.py`, `tests/test_tool_calling_passthrough_integration.py`, and `tests/server/test_api.py` cover both passthrough modes, text/chat prompts, allow/sanitize/block/disabled result rails, every result in successive batches, caller-message immutability, cache reuse across generation options and wire formats, approved call history, prompt-length boundaries, and unsupported server configurations. LangChain tests also require rejected calls to be omitted. Local validation and rail decisions do not need fabricated provider recordings.
+
+`tests/test_history_cache_regressions.py` also checks evolving context, explicit context updates, isolation between enabled and bypassed input rails, and sanitized user history across ordinary, tool, and blocked turns. Cache keys distinguish rail policies and multimodal inputs even when their text matches.
 
 ### Commands
 

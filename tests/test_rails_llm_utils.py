@@ -95,7 +95,10 @@ def test_multimodal_content():
             ],
         }
     ]
-    assert get_history_cache_key(multimodal_messages) == "What's in this image?"
+    image_key = get_history_cache_key(multimodal_messages)
+    assert image_key != get_history_cache_key([{"role": "user", "content": "What's in this image?"}])
+    multimodal_messages[0]["content"][1]["image_url"]["url"] = "data:image/png;base64,another-image"
+    assert get_history_cache_key(multimodal_messages) != image_key
 
     multi_text_messages = [
         {
@@ -121,7 +124,9 @@ def test_multimodal_content():
             ],
         }
     ]
-    assert get_history_cache_key(mixed_content_messages) == "Hello World"
+    assert get_history_cache_key(mixed_content_messages) != get_history_cache_key(
+        [{"role": "user", "content": "Hello World"}]
+    )
 
     empty_text_messages = [
         {
@@ -135,7 +140,7 @@ def test_multimodal_content():
             ],
         }
     ]
-    assert get_history_cache_key(empty_text_messages) == ""
+    assert get_history_cache_key(empty_text_messages) != get_history_cache_key([{"role": "user", "content": ""}])
 
 
 def test_get_action_details_from_flow_id_exact_match():

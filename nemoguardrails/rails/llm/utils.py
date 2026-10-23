@@ -36,6 +36,9 @@ def get_history_cache_key(messages: List[dict]) -> str:
         if msg["role"] == "user":
             # Check if content is a string or a list (multimodal content)
             if isinstance(msg["content"], list):
+                if any(part.get("type") != "text" for part in msg["content"]):
+                    key_items.append(json.dumps(msg["content"], sort_keys=True))
+                    continue
                 # For multimodal content, join all text parts
                 text_parts = []
                 for item in msg["content"]:
