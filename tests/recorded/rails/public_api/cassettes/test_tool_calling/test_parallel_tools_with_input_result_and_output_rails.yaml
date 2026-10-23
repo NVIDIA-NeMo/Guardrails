@@ -1,0 +1,330 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: system
+        content: Call each requested tool once. After receiving tool results, quote both results exactly.
+      - role: user
+        content: Call get_paris and get_berlin, then quote both weather results exactly.
+      tools:
+      - type: function
+        function:
+          name: get_paris
+          parameters:
+            type: object
+            properties: {}
+            required: []
+            additionalProperties: false
+      - type: function
+        function:
+          name: get_berlin
+          parameters:
+            type: object
+            properties: {}
+            required: []
+            additionalProperties: false
+      tool_choice: required
+      parallel_tool_calls: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: null
+            tool_calls:
+            - id: call_Q7TqZIsJermIKQ1WuAZVsbUM
+              type: function
+              function:
+                name: get_paris
+                arguments: '{}'
+            - id: call_Qx1rJ4AAmpBzrRcnJGkkIvns
+              type: function
+              function:
+                name: get_berlin
+                arguments: '{}'
+            refusal: null
+            annotations: []
+          finish_reason: tool_calls
+        usage:
+          prompt_tokens: 158
+          completion_tokens: 45
+          total_tokens: 203
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: system
+        content: Call each requested tool once. After receiving tool results, quote both results exactly.
+      - role: user
+        content: Call get_paris and get_berlin, then quote both weather results exactly.
+      - role: assistant
+        tool_calls:
+        - id: call_Q7TqZIsJermIKQ1WuAZVsbUM
+          type: function
+          function:
+            name: get_paris
+            arguments: '{}'
+        - id: call_Qx1rJ4AAmpBzrRcnJGkkIvns
+          type: function
+          function:
+            name: get_berlin
+            arguments: '{}'
+      - role: tool
+        content: 'BERLIN-6912: rainy'
+        tool_call_id: call_Qx1rJ4AAmpBzrRcnJGkkIvns
+      - role: tool
+        content: 'PARIS-4827: sunny'
+        tool_call_id: call_Q7TqZIsJermIKQ1WuAZVsbUM
+      tools:
+      - type: function
+        function:
+          name: get_paris
+          parameters:
+            type: object
+            properties: {}
+            required: []
+            additionalProperties: false
+      - type: function
+        function:
+          name: get_berlin
+          parameters:
+            type: object
+            properties: {}
+            required: []
+            additionalProperties: false
+      tool_choice: auto
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: |-
+              Paris weather result: "PARIS-4827: sunny"
+
+              Berlin weather result: "BERLIN-6912: rainy"
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 234
+          completion_tokens: 29
+          total_tokens: 263
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: system
+        content: Call each requested tool once. After receiving tool results, quote both results exactly.
+      - role: user
+        content: Call get_paris and get_berlin, then quote both weather results exactly.
+      - role: assistant
+        tool_calls:
+        - id: call_Q7TqZIsJermIKQ1WuAZVsbUM
+          type: function
+          function:
+            name: get_paris
+            arguments: '{}'
+        - id: call_Qx1rJ4AAmpBzrRcnJGkkIvns
+          type: function
+          function:
+            name: get_berlin
+            arguments: '{}'
+      - role: tool
+        content: 'BERLIN-6912: rainy'
+        tool_call_id: call_Qx1rJ4AAmpBzrRcnJGkkIvns
+      - role: tool
+        content: 'PARIS-4827: sunny'
+        tool_call_id: call_Q7TqZIsJermIKQ1WuAZVsbUM
+      - role: assistant
+        content: |-
+          Checked: Paris weather result: "PARIS-4827: sunny"
+
+          Berlin weather result: "BERLIN-6912: rainy"
+      - role: user
+        content: Repeat both station tokens from earlier results. Do not call any tools.
+      tools:
+      - type: function
+        function:
+          name: get_paris
+          parameters:
+            type: object
+            properties: {}
+            required: []
+            additionalProperties: false
+      - type: function
+        function:
+          name: get_berlin
+          parameters:
+            type: object
+            properties: {}
+            required: []
+            additionalProperties: false
+      tool_choice: auto
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: "Paris token: **PARIS-4827: sunny**  \nBerlin token: **BERLIN-6912: rainy**"
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 286
+          completion_tokens: 28
+          total_tokens: 314
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null

@@ -66,6 +66,24 @@ silently. Name negative tests `test_<surface>_<failure>_<behavior>` with the suf
 
 ## Replay
 
+### Tool-calling coverage
+
+The tool-calling modules under `rails/public_api/` and `server/` record the default OpenAI-compatible framework with `passthrough: false`, Colang 1.0, and no user-intent definitions. These recordings establish the OpenAI path; they do not establish equivalent behavior for every provider or for streaming.
+
+| Scenario | Recorded contract |
+| --- | --- |
+| Default text prompt, one tool | Native assistant/tool roles, matching IDs, result used in the final answer |
+| Custom chat prompt through HTTP | OpenAI argument serialization, tool finish reason, final answer |
+| Parallel tools with input, result, and output rails | Input rewrite, two calls, reversed result order, sanitization, final output processing, later-turn history; `single_call` enabled without intents |
+| Sequential dependent tools | A second tool uses a token returned by the first; both results reach the final answer |
+| Tool-call rejection | Provider actually emits a call; the public response contains only the refusal |
+| Server thread history | A result-only follow-up and later user turn recover stored tool calls and results |
+| Provider error on a tool follow-up | Library raises `LLMCallException`; server preserves the current OpenAI-compatible error envelope and HTTP status |
+
+Deterministic checks in `tests/test_tool_calling_config_matrix.py`, `tests/test_tool_calling_passthrough_integration.py`, and `tests/server/test_api.py` cover both passthrough modes, text/chat prompts, allow/sanitize/block/disabled result rails, every result in successive batches, caller-message immutability, cache reuse across generation options and wire formats, approved call history, prompt-length boundaries, and unsupported server configurations. LangChain tests also require rejected calls to be omitted. Local validation and rail decisions do not need fabricated provider recordings.
+
+### Commands
+
 ```bash
 uv run pytest tests/recorded --block-network -v --durations=10
 ```

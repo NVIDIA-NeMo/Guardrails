@@ -146,3 +146,70 @@ STREAMING_DISABLED_CONFIG = RailsConfigSource.from_content(
         stop
     """,
 )
+
+TOOL_ROUND_TRIP_RAILS_CONFIG = RailsConfigSource.from_content(
+    name="tool_round_trip_rails",
+    yaml_content=f"""
+    models:
+      - type: main
+        engine: openai
+        model: {OPENAI_MODEL}
+        parameters:
+          max_retries: 0
+    passthrough: false
+    rails:
+      input:
+        flows: [rewrite tool question]
+      tool_result:
+        flows: [sanitize weather]
+      output:
+        flows: [mark checked answer]
+      dialog:
+        single_call:
+          enabled: true
+    prompts:
+      - task: general
+        messages:
+          - type: system
+            content: "Call each requested tool once. After receiving tool results, quote both results exactly."
+          - "{{{{ history | to_chat_messages }}}}"
+    """,
+    colang_content="""
+    define flow rewrite tool question
+      if $user_message == "PRIVATE_USER"
+        $user_message = "Call get_paris and get_berlin, then quote both weather results exactly."
+
+    define flow sanitize weather
+      if $tool_name == "get_paris"
+        $tool_message = "PARIS-4827: sunny"
+      if $tool_name == "get_berlin"
+        $tool_message = "BERLIN-6912: rainy"
+
+    define flow mark checked answer
+      $bot_message = "Checked: " + $bot_message
+    """,
+)
+
+TOOL_CALL_BLOCK_CONFIG = RailsConfigSource.from_content(
+    name="tool_call_block",
+    yaml_content=f"""
+    models:
+      - type: main
+        engine: openai
+        model: {OPENAI_MODEL}
+        parameters:
+          max_retries: 0
+    passthrough: false
+    rails:
+      tool_call:
+        flows: [block tool call]
+    """,
+    colang_content="""
+    define flow block tool call
+      bot refuse tool call
+      abort
+
+    define bot refuse tool call
+      "Tool call rejected."
+    """,
+)

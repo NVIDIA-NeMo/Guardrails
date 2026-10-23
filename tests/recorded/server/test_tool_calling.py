@@ -130,3 +130,139 @@ async def test_non_passthrough_chat_tool_round_trip(openai_api_key, monkeypatch,
             },
         }
     )
+
+
+async def test_tool_thread_replays_stored_history(openai_api_key, monkeypatch, vcr):
+    from nemoguardrails.server.datastore.memory_store import MemoryStore
+
+    config = load_config(OPENAI_BASELINE_CONFIG)
+    config.passthrough = False
+    rails = LLMRails(config)
+    store = MemoryStore()
+    monkeypatch.setattr(api, "_get_rails", AsyncMock(return_value=rails))
+    monkeypatch.setattr(api, "datastore", store)
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+            },
+        }
+    ]
+    request = {
+        "model": OPENAI_MODEL,
+        "guardrails": {"config_id": "recorded", "thread_id": "recorded-tool-thread"},
+        "tools": tools,
+    }
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=api.app), base_url="http://testserver") as client:
+        first = await client.post(
+            "/v1/chat/completions",
+            json={
+                **request,
+                "messages": [{"role": "user", "content": "Get the weather, then quote the tool result exactly."}],
+                "tool_choice": "required",
+            },
+        )
+        assert first.status_code == 200
+        first_choice = first.json()["choices"][0]
+        assert first_choice["finish_reason"] == "tool_calls"
+        calls = first_choice["message"]["tool_calls"]
+        assert len(calls) == 1
+        result = {"role": "tool", "tool_call_id": calls[0]["id"], "content": "WX-4827: sunny, 22 C."}
+        second = await client.post(
+            "/v1/chat/completions", json={**request, "messages": [result], "tool_choice": "auto"}
+        )
+        assert second.status_code == 200
+        second_choice = second.json()["choices"][0]
+        assert second_choice["finish_reason"] == "stop"
+        assert "WX-4827" in second_choice["message"]["content"]
+        third = await client.post(
+            "/v1/chat/completions",
+            json={
+                **request,
+                "messages": [
+                    {"role": "user", "content": "Repeat the weather station token from earlier. Do not call tools."}
+                ],
+                "tool_choice": "auto",
+            },
+        )
+        assert third.status_code == 200
+    third_choice = third.json()["choices"][0]
+    assert third_choice["finish_reason"] == "stop"
+    assert "WX-4827" in third_choice["message"]["content"]
+    assert len(vcr.requests) == 3
+    if vcr.record_mode == "none":
+        assert vcr.play_count == 3 and vcr.all_played
+    for wire_request in vcr.requests[1:]:
+        sent = json.loads(wire_request.body)["messages"]
+        assert sent[1]["tool_calls"] == calls
+        assert sent[2] == result
+    stored_json = await store.get("thread-recorded-tool-thread")
+    assert stored_json is not None
+    stored = json.loads(stored_json)
+    assert stored[1]["tool_calls"] == calls
+    assert stored[2] == result
+    assert {"first": first_choice, "second": second_choice, "third": third_choice} == snapshot(
+        {
+            "first": {
+                "finish_reason": "tool_calls",
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "call_SW3DPBL65CwvN4PKyA82S6vQ",
+                            "function": {"arguments": "{}", "name": "get_weather"},
+                            "type": "function",
+                        }
+                    ],
+                },
+            },
+            "second": {
+                "finish_reason": "stop",
+                "index": 0,
+                "message": {"content": "WX-4827: sunny, 22 C.", "role": "assistant"},
+            },
+            "third": {"finish_reason": "stop", "index": 0, "message": {"content": "WX-4827", "role": "assistant"}},
+        }
+    )
+
+
+async def test_tool_followup_provider_error_uses_server_error_envelope(openai_api_key, monkeypatch, vcr):
+    from tests.recorded.rails.public_api.configs import OPENAI_INVALID_MODEL_CONFIG
+
+    config = load_config(OPENAI_INVALID_MODEL_CONFIG)
+    config.passthrough = False
+    rails = LLMRails(config)
+    monkeypatch.setattr(api, "_get_rails", AsyncMock(return_value=rails))
+    messages = [
+        {"role": "user", "content": "Get the weather."},
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {"id": "call_weather", "type": "function", "function": {"name": "get_weather", "arguments": "{}"}}
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_weather", "content": "WX-4827: sunny"},
+    ]
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=api.app), base_url="http://testserver") as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={"model": OPENAI_MODEL, "guardrails": {"config_id": "recorded"}, "messages": messages},
+        )
+    assert response.status_code == 404
+    assert set(response.json()) == {"error"}
+    assert len(vcr.requests) == 1
+    if vcr.record_mode == "none":
+        assert vcr.play_count == 1 and vcr.all_played
+    assert response.json() == snapshot(
+        {
+            "error": {
+                "message": "The model `gpt-nonexistent-test-model` does not exist or you do not have access to it.",
+                "type": "not_found_error",
+                "param": None,
+                "code": "model_not_found",
+            }
+        }
+    )

@@ -18,9 +18,15 @@ import json
 import pytest
 
 from nemoguardrails import LLMRails
+from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.rails.llm.options import GenerationResponse
 from tests.recorded.cassette import normalize_body
-from tests.recorded.rails.public_api.configs import OPENAI_BASELINE_CONFIG
+from tests.recorded.rails.public_api.configs import (
+    OPENAI_BASELINE_CONFIG,
+    OPENAI_INVALID_MODEL_CONFIG,
+    TOOL_CALL_BLOCK_CONFIG,
+    TOOL_ROUND_TRIP_RAILS_CONFIG,
+)
 from tests.recorded.rails_config import load_config
 from tests.recorded.snapshots import snapshot
 
@@ -93,3 +99,244 @@ async def test_non_passthrough_tool_round_trip(openai_api_key, vcr):
             "response": [{"role": "assistant", "content": "Weather station token: WX-4827. Paris: sunny, 22 C."}],
         }
     )
+
+
+def _tool(name, properties=None):
+    properties = properties or {}
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": list(properties),
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
+def _assert_exchanges(vcr, count):
+    assert len(vcr.requests) == count
+    if vcr.record_mode == "none":
+        assert vcr.play_count == count
+        assert vcr.all_played
+
+
+async def test_parallel_tools_with_input_result_and_output_rails(openai_api_key, vcr):
+    rails = LLMRails(load_config(TOOL_ROUND_TRIP_RAILS_CONFIG))
+    tools = [_tool("get_paris"), _tool("get_berlin")]
+    messages: list[dict] = [{"role": "user", "content": "PRIVATE_USER"}]
+    first = await rails.generate_async(
+        messages=messages,
+        options={"llm_params": {"tools": tools, "tool_choice": "required", "parallel_tool_calls": True}},
+    )
+    assert isinstance(first, GenerationResponse)
+    assert isinstance(first.response, list)
+    assert first.tool_calls is not None
+    assert {call["function"]["name"] for call in first.tool_calls} == {"get_paris", "get_berlin"}
+    assert len(first.tool_calls) == 2
+    assert first.response[0]["content"] == ""
+    results = [
+        {"role": "tool", "tool_call_id": call["id"], "content": "UNTRUSTED-" + call["function"]["name"]}
+        for call in reversed(first.tool_calls)
+    ]
+    messages.extend([{**first.response[0], "tool_calls": first.tool_calls}, *results])
+    final = await rails.generate_async(
+        messages=messages, options={"llm_params": {"tools": tools, "tool_choice": "auto"}}
+    )
+    assert isinstance(final, GenerationResponse)
+    assert isinstance(final.response, list)
+    assert not final.tool_calls
+    assert final.response[0]["content"].startswith("Checked: ")
+    assert all(token in final.response[0]["content"] for token in ("PARIS-4827", "BERLIN-6912"))
+    messages.extend(
+        [
+            final.response[0],
+            {"role": "user", "content": "Repeat both station tokens from earlier results. Do not call any tools."},
+        ]
+    )
+    later = await rails.generate_async(
+        messages=messages, options={"llm_params": {"tools": tools, "tool_choice": "auto"}}
+    )
+    assert isinstance(later, GenerationResponse)
+    assert isinstance(later.response, list)
+    assert not later.tool_calls
+    assert all(token in later.response[0]["content"] for token in ("PARIS-4827", "BERLIN-6912"))
+    _assert_exchanges(vcr, 3)
+    for request in vcr.requests:
+        sent = json.loads(request.body)["messages"]
+        assert "PRIVATE_USER" not in json.dumps(sent)
+        assert "UNTRUSTED" not in json.dumps(sent)
+    sent_results = [message for message in json.loads(vcr.requests[1].body)["messages"] if message["role"] == "tool"]
+    assert [message["tool_call_id"] for message in sent_results] == [message["tool_call_id"] for message in results]
+    assert {message["content"] for message in sent_results} == {"PARIS-4827: sunny", "BERLIN-6912: rainy"}
+    assert normalize_body({"calls": first.tool_calls, "answer": final.response, "later": later.response}) == snapshot(
+        {
+            "calls": [
+                {
+                    "id": "call_Q7TqZIsJermIKQ1WuAZVsbUM",
+                    "type": "function",
+                    "function": {"name": "get_paris", "arguments": {}},
+                },
+                {
+                    "id": "call_Qx1rJ4AAmpBzrRcnJGkkIvns",
+                    "type": "function",
+                    "function": {"name": "get_berlin", "arguments": {}},
+                },
+            ],
+            "answer": [
+                {
+                    "role": "assistant",
+                    "content": """\
+Checked: Paris weather result: "PARIS-4827: sunny"
+
+Berlin weather result: "BERLIN-6912: rainy"\
+""",
+                }
+            ],
+            "later": [
+                {
+                    "role": "assistant",
+                    "content": """\
+Checked: Paris token: **PARIS-4827: sunny**  \n\
+Berlin token: **BERLIN-6912: rainy**\
+""",
+                }
+            ],
+        }
+    )
+
+
+async def test_sequential_dependent_tool_rounds(openai_api_key, vcr):
+    config = load_config(OPENAI_BASELINE_CONFIG)
+    config.passthrough = False
+    rails = LLMRails(config)
+    tools = [
+        _tool("get_weather", {"city": {"type": "string", "enum": ["Paris"]}}),
+        _tool("get_advice", {"weather_token": {"type": "string"}}),
+    ]
+    messages: list[dict] = [
+        {
+            "role": "user",
+            "content": "Get the Paris weather, pass its weather_token to get_advice, then quote both tool results exactly.",
+        }
+    ]
+    outputs = []
+    for name, result in [
+        ("get_weather", "Weather weather_token: WX-4827. Paris: sunny."),
+        ("get_advice", "ADVICE-6912: bring sunglasses."),
+    ]:
+        response = await rails.generate_async(
+            messages=messages,
+            options={
+                "llm_params": {
+                    "tools": tools,
+                    "tool_choice": {"type": "function", "function": {"name": name}},
+                    "parallel_tool_calls": False,
+                }
+            },
+        )
+        assert isinstance(response, GenerationResponse)
+        assert isinstance(response.response, list)
+        assert response.tool_calls is not None
+        assert len(response.tool_calls) == 1
+        call = response.tool_calls[0]
+        assert call["function"]["name"] == name
+        if name == "get_advice":
+            assert call["function"]["arguments"] == {"weather_token": "WX-4827"}
+        outputs.append(response.tool_calls)
+        messages.extend(
+            [
+                {**response.response[0], "tool_calls": response.tool_calls},
+                {"role": "tool", "tool_call_id": call["id"], "content": result},
+            ]
+        )
+    final = await rails.generate_async(
+        messages=messages, options={"llm_params": {"tools": tools, "tool_choice": "auto"}}
+    )
+    assert isinstance(final, GenerationResponse)
+    assert isinstance(final.response, list)
+    assert not final.tool_calls
+    assert all(token in final.response[0]["content"] for token in ("WX-4827", "ADVICE-6912"))
+    _assert_exchanges(vcr, 3)
+    sent = json.loads(vcr.requests[-1].body)["messages"]
+    assert [message["role"] for message in sent] == ["user", "assistant", "tool", "assistant", "tool"]
+    assert normalize_body({"calls": outputs, "answer": final.response}) == snapshot(
+        {
+            "calls": [
+                [
+                    {
+                        "id": "call_a7OunQMdySJjyeikWcTAnqWM",
+                        "type": "function",
+                        "function": {"name": "get_weather", "arguments": {"city": "Paris"}},
+                    }
+                ],
+                [
+                    {
+                        "id": "call_1fvEaAd9WrbOhkAU9onz1sVn",
+                        "type": "function",
+                        "function": {"name": "get_advice", "arguments": {"weather_token": "WX-4827"}},
+                    }
+                ],
+            ],
+            "answer": [
+                {
+                    "role": "assistant",
+                    "content": """\
+Weather tool result (quoted exactly):  \n\
+Weather weather_token: WX-4827. Paris: sunny.
+
+Advice tool result (quoted exactly):  \n\
+ADVICE-6912: bring sunglasses.\
+""",
+                }
+            ],
+        }
+    )
+
+
+async def test_provider_tool_call_rejected_by_rail_is_not_returned(openai_api_key, vcr):
+    rails = LLMRails(load_config(TOOL_CALL_BLOCK_CONFIG))
+    response = await rails.generate_async(
+        messages=[{"role": "user", "content": "Get the weather."}],
+        options={"llm_params": {"tools": [_tool("get_weather")], "tool_choice": "required"}},
+    )
+    _assert_exchanges(vcr, 1)
+    provider = json.loads(vcr.responses[0]["body"]["string"])
+    assert provider["choices"][0]["message"]["tool_calls"]
+    assert isinstance(response, GenerationResponse)
+    assert isinstance(response.response, list)
+    assert not response.tool_calls
+    assert normalize_body(response.response) == snapshot([{"role": "assistant", "content": "Tool call rejected."}])
+
+
+async def test_tool_followup_invalid_model_raises(openai_api_key, vcr):
+    config = load_config(OPENAI_INVALID_MODEL_CONFIG)
+    config.passthrough = False
+    rails = LLMRails(config)
+    with pytest.raises(LLMCallException) as error:
+        await rails.generate_async(
+            messages=[
+                {"role": "user", "content": "Get the weather."},
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "call_weather",
+                            "type": "function",
+                            "function": {"name": "get_weather", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "call_weather", "content": "WX-4827: sunny"},
+            ]
+        )
+    assert getattr(error.value.inner_exception, "status_code", None) == 404
+    _assert_exchanges(vcr, 1)
+    assert [message["role"] for message in json.loads(vcr.requests[0].body)["messages"]] == [
+        "user",
+        "assistant",
+        "tool",
+    ]
