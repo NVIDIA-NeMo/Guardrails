@@ -32,6 +32,7 @@ from nemoguardrails.server.experimental._application_manifest import (
     load_manifest,
 )
 from nemoguardrails.server.experimental._configuration import ProxyConfig, resolve_provider
+from nemoguardrails.server.experimental._configuration_error import DeploymentValidationError
 from nemoguardrails.server.experimental.application import create_proxy_application
 from nemoguardrails.server.experimental.provider.payload import validate_payload_projection_contract
 
@@ -48,6 +49,8 @@ def _prepare(path: Path) -> tuple[ProxyConfig, FastAPI]:
         return config, application
     except ManifestError as error:
         typer.echo(str(error), err=True)
+    except DeploymentValidationError as error:
+        typer.echo(f"Invalid application: {error}", err=True)
     except (ValueError, TypeError, OSError, RuntimeError, httpx.InvalidURL):
         typer.echo(
             "Invalid application: check Rails directories, provider URLs, instance IDs and route mounts.", err=True
@@ -82,6 +85,12 @@ def inspect_config(config: ProxyConfig) -> dict:
                             "passthrough_methods": sorted(route.passthrough_methods),
                         }
                         for route in endpoint.operation_paths
+                        if route.route_path == endpoint.route_path
+                    ],
+                    "reserved_route_patterns": [
+                        prefix + route.route_path
+                        for route in endpoint.operation_paths
+                        if route.route_path != endpoint.route_path
                     ],
                     "buffered": True,
                     "streaming": endpoint.stream is not None,
@@ -139,12 +148,22 @@ def serve(
     manifest: Path = typer.Argument(..., help="Deployment-owned YAML file."),
     host: str = typer.Option("127.0.0.1", help="Listen address; non-loopback requires deployment access controls."),
     port: int = typer.Option(8000, min=0, max=65535, help="Listen port; 0 selects a free port."),
+    timeout_graceful_shutdown: int = typer.Option(
+        30, min=1, help="Seconds to drain in-flight requests before cancellation and application cleanup."
+    ),
 ) -> None:
     """Run the existing application with fixed bindings and lifespan ownership."""
     import uvicorn
 
     _, application = _prepare(manifest)
-    uvicorn.run(application, host=host, port=port, access_log=False, proxy_headers=False)
+    uvicorn.run(
+        application,
+        host=host,
+        port=port,
+        access_log=False,
+        proxy_headers=False,
+        timeout_graceful_shutdown=timeout_graceful_shutdown,
+    )
 
 
 def main() -> None:

@@ -79,8 +79,10 @@ URL rules and route composition. It does not read Rails contents, import their
 actions, start engines, contact providers or prove checker compatibility.
 `inspect` returns JSON describing actual bindings and directional profiles,
 including passthrough behavior; it does not claim that particular rails are
-enabled. Upstream credentials, queries and fragments are rejected, and manifest
-diagnostics omit source values/excerpts. Inspection still contains deployment metadata,
+enabled. `routes` lists served guarded paths; `reserved_route_patterns` lists
+additional path patterns reserved to reject unsupported aliases. Upstream
+credentials, queries and fragments are rejected, and manifest diagnostics omit
+source values/excerpts. Inspection still contains deployment metadata,
 including upstream addresses; treat it accordingly.
 
 For editor guidance, emit JSON Schema directly from the manifest model:
@@ -94,6 +96,9 @@ checks such as fixed-ID references and routing still require `validate`.
 There is no separately maintained schema artifact.
 
 `serve` defaults to `127.0.0.1:8000`; `--host` and `--port` override it.
+On shutdown, in-flight requests have 30 seconds to finish before cancellation;
+`--timeout-graceful-shutdown` sets this deadline in seconds. Application resource
+cleanup follows request draining.
 Access logging and forwarded-proxy-header trust are disabled. Provide your own
 inbound access controls before listening beyond loopback. Caller authorization
 headers still follow the existing upstream forwarding rules; this launcher

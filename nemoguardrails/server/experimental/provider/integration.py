@@ -19,6 +19,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, TypeAlias
 
+from nemoguardrails.server.experimental._configuration_error import DeploymentValidationError
 from nemoguardrails.server.experimental._http_paths import _route_shape
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapping
@@ -58,9 +59,9 @@ class ProviderIntegration:
         if not self.provider_type or not self.provider_type.replace("-", "_").isidentifier():
             raise ValueError("The provider type must be a non-empty identifier.")
         if not self.instance_id or not self.instance_id.replace("-", "_").isidentifier():
-            raise ValueError("The provider instance id must be a non-empty identifier.")
+            raise DeploymentValidationError("The provider instance id must be a non-empty identifier.")
         if not isinstance(self.upstream.base_url, str) or not self.upstream.base_url.strip():
-            raise ValueError("The provider upstream base URL must not be empty.")
+            raise DeploymentValidationError("The provider upstream base URL must not be empty.")
         if not self.display_name.strip():
             raise ValueError("The provider display name must not be empty.")
         if not self.endpoints:
@@ -75,9 +76,9 @@ class ProviderIntegration:
         if mount_path and (
             not mount_path.startswith("/") or mount_path.endswith("/") or not mount_path.isascii() or "//" in mount_path
         ):
-            raise ValueError("A provider mount path must be empty or one canonical absolute ASCII path.")
+            raise DeploymentValidationError("A provider mount path must be empty or one canonical absolute ASCII path.")
         if "{" in mount_path or "}" in mount_path:
-            raise ValueError("A provider mount path must not contain dynamic parameters.")
+            raise DeploymentValidationError("A provider mount path must not contain dynamic parameters.")
 
         routes = [
             (method, _route_shape(operation_path.route_path))

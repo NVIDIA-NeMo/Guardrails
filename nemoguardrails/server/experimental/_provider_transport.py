@@ -21,6 +21,7 @@ from typing import cast
 
 import httpx
 
+from nemoguardrails.server.experimental._configuration_error import DeploymentValidationError
 from nemoguardrails.server.experimental._http_kernel import (
     DEFAULT_MAX_RESPONSE_BODY_BYTES,
     BufferedHttpRequest,
@@ -133,16 +134,21 @@ class ProviderTransport:
 
         if not isinstance(http_client, httpx.AsyncClient) and not callable(http_client):
             raise TypeError("The outbound HTTP client must be an httpx.AsyncClient or a callable resolver.")
-        parsed_base_url = httpx.URL(upstream.base_url)
+        try:
+            parsed_base_url = httpx.URL(upstream.base_url)
+        except httpx.InvalidURL:
+            raise DeploymentValidationError(
+                "The outbound base URL must be a valid absolute HTTP or HTTPS URL."
+            ) from None
         if not parsed_base_url.is_absolute_url or parsed_base_url.scheme not in {"http", "https"}:
-            raise ValueError("The outbound base URL must be an absolute HTTP or HTTPS URL.")
+            raise DeploymentValidationError("The outbound base URL must be an absolute HTTP or HTTPS URL.")
         if parsed_base_url.userinfo:
-            raise ValueError("The outbound base URL must not contain credentials.")
+            raise DeploymentValidationError("The outbound base URL must not contain credentials.")
         if parsed_base_url.query or parsed_base_url.fragment:
-            raise ValueError("The outbound base URL must not contain a query or fragment.")
+            raise DeploymentValidationError("The outbound base URL must not contain a query or fragment.")
         normalized_mount = upstream.mount_path.rstrip("/")
         if normalized_mount and (not normalized_mount.startswith("/") or not normalized_mount.isascii()):
-            raise ValueError("The outbound mount path must be an absolute ASCII path.")
+            raise DeploymentValidationError("The outbound mount path must be an absolute ASCII path.")
         if any(
             not isinstance(name, str) or not name or not name.isascii() or name != name.strip().lower()
             for name in control_headers

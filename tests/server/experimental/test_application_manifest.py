@@ -18,6 +18,7 @@
 import asyncio
 import json
 
+import httpx
 import pytest
 import yaml
 from jsonschema import Draft202012Validator
@@ -197,8 +198,16 @@ def test_unknown_keys_rejected_with_coordinates_not_source_values(tmp_path, docu
     assert "SECRET" not in result.output
 
 
-@pytest.mark.parametrize("fault", ["duplicate_mount", "duplicate_id", "missing_directory", "prefix"])
-def test_assembly_validation_is_shared(tmp_path, document, fault):
+@pytest.mark.parametrize(
+    ("fault", "reason"),
+    [
+        ("duplicate_mount", "Provider mount paths must be unique."),
+        ("duplicate_id", "Provider instance ids must be unique."),
+        ("missing_directory", "A Rails config entry does not reference a configuration directory."),
+        ("prefix", "The provider path prefix must be empty or one canonical absolute ASCII path."),
+    ],
+)
+def test_assembly_validation_is_shared(tmp_path, document, fault, reason):
     if fault.startswith("duplicate"):
         document["providers"].append(
             {
@@ -213,8 +222,78 @@ def test_assembly_validation_is_shared(tmp_path, document, fault):
         document["path_prefix"] = "invalid"
     result = runner.invoke(cli.app, ["validate", str(write_manifest(tmp_path, document))])
     assert result.exit_code == 2
-    assert "Invalid application" in result.output
+    assert f"Invalid application: {reason}" in result.output
     assert "SECRET" not in result.output
+
+
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        ({"base_url": "https://user:SECRET@provider.test/v1"}, "must not contain credentials"),
+        ({"base_url": "https://provider.test/v1?api_key=SECRET"}, "must not contain a query or fragment"),
+        ({"base_url": "https://provider.test:SECRET"}, "must be a valid absolute HTTP or HTTPS URL"),
+        ({"instance_id": "SECRET invalid"}, "instance id must be a non-empty identifier"),
+        ({"mount_path": "/SECRET/{dynamic}"}, "mount path must not contain dynamic parameters"),
+    ],
+)
+def test_deployment_errors_explain_the_reason_without_input_values(tmp_path, document, change, reason):
+    document["providers"][0].update(change)
+    result = runner.invoke(cli.app, ["validate", str(write_manifest(tmp_path, document))])
+    assert result.exit_code == 2
+    assert reason in result.output
+    assert "SECRET" not in result.output
+    assert "Traceback" not in result.output
+
+
+def test_mount_shadow_diagnostic_does_not_echo_instance_or_mount(tmp_path, document):
+    document["providers"][0]["instance_id"] = "SECRET_INSTANCE"
+    document["providers"].append({**document["providers"][0], "instance_id": "other", "mount_path": "/SECRET_MOUNT"})
+    result = runner.invoke(cli.app, ["validate", str(write_manifest(tmp_path, document))])
+    assert result.exit_code == 2
+    assert "would shadow a guarded route of another instance" in result.output
+    assert "SECRET" not in result.output
+
+
+@pytest.mark.parametrize("error_type", [ValueError, TypeError, OSError, RuntimeError, httpx.InvalidURL])
+def test_unexpected_assembly_errors_remain_redacted(tmp_path, document, monkeypatch, error_type):
+    def fail(config):
+        raise error_type("SECRET_VALUE")
+
+    monkeypatch.setattr(cli, "create_proxy_application", fail)
+    result = runner.invoke(cli.app, ["validate", str(write_manifest(tmp_path, document))])
+    assert result.exit_code == 2
+    assert "Invalid application: check Rails directories" in result.output
+    assert "SECRET" not in result.output
+    assert "Traceback" not in result.output
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("dialect", [None, "litellm"])
+@pytest.mark.parametrize(("prefix", "mount"), [("", ""), ("/proxy", "/public")])
+async def test_inspection_separates_served_routes_from_rejected_aliases(tmp_path, document, dialect, prefix, mount):
+    document["path_prefix"] = prefix
+    document["providers"][0].update(dialect=dialect, mount_path=mount)
+    path = write_manifest(tmp_path, document)
+    result = runner.invoke(cli.app, ["inspect", str(path)])
+    assert result.exit_code == 0, result.output
+    operations = json.loads(result.output)["providers"][0]["operations"]
+    application = create_proxy_application(load_manifest(path))
+    registered = application.openapi()["paths"]
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application), base_url="http://test") as client:
+        for operation in operations:
+            suffix = "/responses" if operation["operation"] == "responses.create" else "/chat/completions"
+            route = prefix + mount + "/v1" + suffix
+            assert operation["routes"] == [
+                {
+                    "path": route,
+                    "guarded_methods": ["POST"],
+                    "passthrough_methods": ["GET"] if suffix == "/chat/completions" else [],
+                }
+            ]
+            assert "post" in registered[route]
+            assert operation["reserved_route_patterns"] == [prefix + mount + "/{api_version}" + suffix]
+            rejected = await client.post(prefix + mount + "/v2" + suffix, json={})
+            assert rejected.status_code == 422
 
 
 @pytest.mark.parametrize("filename", ["config.yml", "nested/policy.yaml", None], ids=["named", "nested", "empty"])
@@ -289,7 +368,8 @@ def test_schema_is_derived_and_can_validate_the_example(document):
     assert schema["$defs"]["ConfigEntry"]["additionalProperties"] is False
 
 
-def test_serve_uses_existing_assembly_once_and_loopback_defaults(tmp_path, document, monkeypatch):
+@pytest.mark.parametrize("shutdown_timeout", [None, 1])
+def test_serve_uses_existing_assembly_once_and_loopback_defaults(tmp_path, document, monkeypatch, shutdown_timeout):
     import uvicorn
 
     calls = []
@@ -302,13 +382,17 @@ def test_serve_uses_existing_assembly_once_and_loopback_defaults(tmp_path, docum
     observed = {}
     monkeypatch.setattr(cli, "create_proxy_application", create)
     monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: observed.update(app=app, **kwargs))
-    result = runner.invoke(cli.app, ["serve", str(write_manifest(tmp_path, document))])
+    arguments = ["serve", str(write_manifest(tmp_path, document))]
+    if shutdown_timeout is not None:
+        arguments.extend(["--timeout-graceful-shutdown", str(shutdown_timeout)])
+    result = runner.invoke(cli.app, arguments)
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
     assert observed["host"] == "127.0.0.1"
     assert observed["port"] == 8000
     assert observed["access_log"] is False
     assert observed["proxy_headers"] is False
+    assert observed["timeout_graceful_shutdown"] == (30 if shutdown_timeout is None else shutdown_timeout)
     assert not hasattr(observed["app"].state, "proxy_runtime")
 
 
@@ -318,7 +402,15 @@ def test_command_help(command):
 
 
 @pytest.mark.parametrize(
-    "arguments", [[], ["serve"], ["serve", "unused", "--port", "-1"], ["serve", "unused", "--port", "65536"]]
+    "arguments",
+    [
+        [],
+        ["serve"],
+        ["serve", "unused", "--port", "-1"],
+        ["serve", "unused", "--port", "65536"],
+        ["serve", "unused", "--timeout-graceful-shutdown", "0"],
+        ["serve", "unused", "--timeout-graceful-shutdown", "-1"],
+    ],
 )
 def test_invalid_cli_usage(arguments):
     assert runner.invoke(cli.app, arguments).exit_code == 2

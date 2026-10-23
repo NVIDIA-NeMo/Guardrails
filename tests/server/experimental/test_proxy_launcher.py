@@ -148,7 +148,7 @@ async def synthetic_upstream():
 
 
 @asynccontextmanager
-async def launched_proxy(tmp_path, upstream, dialect=None):
+async def launched_proxy(tmp_path, upstream, dialect=None, *, timeout_graceful_shutdown=None):
     """Launch the documented module, wait for readiness, and reap the child."""
     manifest = yaml.safe_load((EXAMPLE / "proxy.yaml").read_text(encoding="utf-8"))
     manifest["rails_configs"][0]["config_path"] = str(EXAMPLE / "rails")
@@ -169,6 +169,9 @@ async def launched_proxy(tmp_path, upstream, dialect=None):
         environment.pop(key, None)
     environment["NEMO_GUARDRAILS_NO_USAGE_STATS"] = "1"
     environment["PYTHONPATH"] = str(ROOT)
+    shutdown_arguments = (
+        [] if timeout_graceful_shutdown is None else ["--timeout-graceful-shutdown", str(timeout_graceful_shutdown)]
+    )
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
@@ -177,6 +180,7 @@ async def launched_proxy(tmp_path, upstream, dialect=None):
         str(path),
         "--port",
         "0",
+        *shutdown_arguments,
         cwd=tmp_path,
         env=environment,
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
@@ -199,7 +203,7 @@ async def launched_proxy(tmp_path, upstream, dialect=None):
                     url = match[1].decode()
                     break
         drain = asyncio.create_task(process.stdout.read())
-        yield url
+        yield url, process
     finally:
         shutdown_timed_out = False
         if drain is None and process.stdout is not None:
@@ -234,7 +238,7 @@ async def launched_proxy(tmp_path, upstream, dialect=None):
 @pytest.mark.parametrize("dialect", [None, "litellm"])
 async def test_localhost_launcher_buffered_streaming_and_blocking(tmp_path, dialect):
     async with synthetic_upstream() as (upstream, requests, _):
-        async with launched_proxy(tmp_path, upstream, dialect) as url:
+        async with launched_proxy(tmp_path, upstream, dialect) as (url, _):
             async with httpx.AsyncClient(base_url=url, trust_env=False, timeout=5) as client:
                 for operation in ("chat_completions", "responses"):
                     route = "/v1/responses" if operation == "responses" else "/v1/chat/completions"
@@ -276,7 +280,7 @@ async def test_localhost_launcher_buffered_streaming_and_blocking(tmp_path, dial
 @pytest.mark.parametrize("operation", ["chat_completions", "responses", "passthrough"])
 async def test_localhost_disconnect_closes_upstream_socket(tmp_path, operation):
     async with synthetic_upstream() as (upstream, requests, disconnected):
-        async with launched_proxy(tmp_path, upstream) as url:
+        async with launched_proxy(tmp_path, upstream) as (url, _):
             async with httpx.AsyncClient(base_url=url, trust_env=False, timeout=5) as client:
                 path = {
                     "chat_completions": "/v1/chat/completions",
@@ -322,3 +326,32 @@ async def test_localhost_disconnect_closes_upstream_socket(tmp_path, operation):
                 allowed = await client.post("/v1/chat/completions", json=request_payload("chat_completions"))
                 assert allowed.status_code == 200
                 assert allowed.json() == chat_response()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["chat_completions", "responses", "passthrough"])
+async def test_shutdown_cancels_active_stream_and_closes_upstream(tmp_path, operation):
+    async with synthetic_upstream() as (upstream, requests, disconnected):
+        async with launched_proxy(tmp_path, upstream, timeout_graceful_shutdown=1) as (url, process):
+            async with httpx.AsyncClient(base_url=url, trust_env=False, timeout=5) as client:
+                path = {
+                    "chat_completions": "/v1/chat/completions",
+                    "responses": "/v1/responses",
+                    "passthrough": "/v1/models",
+                }[operation]
+                passthrough = operation == "passthrough"
+                kwargs = {} if passthrough else {"json": request_payload(operation, "disconnect", True)}
+                async with client.stream("GET" if passthrough else "POST", path, **kwargs) as response:
+                    assert response.status_code == 200
+                    chunks = response.aiter_raw()
+                    assert await anext(chunks)
+                    assert not disconnected.is_set()
+                    assert process.returncode is None
+                    if sys.platform == "win32":
+                        process.send_signal(signal.CTRL_BREAK_EVENT)
+                    else:
+                        process.terminate()
+                    with anyio.fail_after(10):
+                        await process.wait()
+                        await disconnected.wait()
+                assert len(requests) == 1

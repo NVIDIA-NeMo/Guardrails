@@ -21,6 +21,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, FastAPI, routing
 
+from nemoguardrails.server.experimental._configuration_error import DeploymentValidationError
 from nemoguardrails.server.experimental._content_checker import ContentCheckerResolver
 from nemoguardrails.server.experimental._guarded_proxy import create_guarded_http_operation
 from nemoguardrails.server.experimental._http_kernel import (
@@ -66,13 +67,13 @@ class ProviderRoutePlan:
 
 def _validate_provider_plans(plans: Sequence[ProviderRoutePlan]) -> None:
     if not plans:
-        raise ValueError("At least one provider integration is required.")
+        raise DeploymentValidationError("At least one provider integration is required.")
     mount_paths = [plan.mount_path for plan in plans]
     if len(mount_paths) != len(set(mount_paths)):
-        raise ValueError("Provider mount paths must be unique.")
+        raise DeploymentValidationError("Provider mount paths must be unique.")
     instance_ids = [plan.provider.instance_id for plan in plans]
     if len(instance_ids) != len(set(instance_ids)):
-        raise ValueError("Provider instance ids must be unique.")
+        raise DeploymentValidationError("Provider instance ids must be unique.")
 
     operation_ids = [
         f"{plan.provider.instance_id}.{endpoint.operation_name}"
@@ -80,7 +81,7 @@ def _validate_provider_plans(plans: Sequence[ProviderRoutePlan]) -> None:
         for endpoint in plan.provider.endpoints
     ]
     if len(operation_ids) != len(set(operation_ids)):
-        raise ValueError("Guarded endpoint operation identifiers must be globally unique.")
+        raise DeploymentValidationError("Guarded endpoint operation identifiers must be globally unique.")
     routes = [
         (method, _route_shape(operation_path.route_path))
         for plan in plans
@@ -88,15 +89,13 @@ def _validate_provider_plans(plans: Sequence[ProviderRoutePlan]) -> None:
         for method in operation_path.methods | operation_path.passthrough_methods
     ]
     if len(routes) != len(set(routes)):
-        raise ValueError("Guarded endpoint paths must be globally unique after provider mounting.")
+        raise DeploymentValidationError("Guarded endpoint paths must be globally unique after provider mounting.")
     for plan in plans:
         for other in plans:
             if not other.mount_path.startswith(plan.mount_path + "/"):
                 continue
             if plan.ownership.intersects_mount(other.mount_path):
-                raise ValueError(
-                    f"Provider mount {other.mount_path!r} would shadow a guarded route of instance {plan.provider.instance_id!r}."
-                )
+                raise DeploymentValidationError("A provider mount would shadow a guarded route of another instance.")
 
 
 def _registered_http_routes(router: APIRouter | FastAPI, path_prefix: str = "") -> dict[str, set[str]]:
@@ -177,7 +176,7 @@ def include_provider_routes(
     if normalized_prefix and (
         not normalized_prefix.startswith("/") or not normalized_prefix.isascii() or "//" in normalized_prefix
     ):
-        raise ValueError("The provider path prefix must be empty or one canonical absolute ASCII path.")
+        raise DeploymentValidationError("The provider path prefix must be empty or one canonical absolute ASCII path.")
     reserved_routes = _registered_http_routes(application)
     plans = []
     for provider in providers:

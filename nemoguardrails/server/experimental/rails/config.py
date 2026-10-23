@@ -23,6 +23,8 @@ from typing import ClassVar, TypeAlias
 from fastapi import Request
 from pydantic import ConfigDict
 
+from nemoguardrails.server.experimental._configuration_error import DeploymentValidationError
+
 
 @dataclass(frozen=True, slots=True)
 class ConfigEntry:
@@ -56,12 +58,12 @@ def validate_config_entries(entries: Sequence[ConfigEntry]) -> tuple[ConfigEntry
         if not isinstance(entry, ConfigEntry):
             raise TypeError("Rails config entries must be ConfigEntry instances.")
         if not entry.id or entry.id != entry.id.strip():
-            raise ValueError("A Rails config id must be non-empty and trimmed.")
+            raise DeploymentValidationError("A Rails config id must be non-empty and trimmed.")
         if entry.id in ids:
-            raise ValueError(f"Duplicate Rails config id: {entry.id}")
+            raise DeploymentValidationError("Duplicate Rails config id.")
         config_path = entry.config_path.expanduser().resolve()
         if not config_path.is_dir():
-            raise ValueError(f"Rails config '{entry.id}' does not reference a configuration directory.")
+            raise DeploymentValidationError("A Rails config entry does not reference a configuration directory.")
         ids.add(entry.id)
         resolved.append(ConfigEntry(id=entry.id, config_path=config_path))
     return tuple(resolved)
