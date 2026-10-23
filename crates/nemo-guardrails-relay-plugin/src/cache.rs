@@ -16,8 +16,16 @@
 //! Recent verdicts of the hooks server, so that a tool call checked twice costs one request.
 //!
 //! Through Relay 0.10.4, a call that reaches a permission prompt runs the guardrail twice: on
-//! PreToolUse, and again on PermissionRequest. The cache keeps decisions only, never a failed
-//! check, so a failed check is retried on the next call.
+//! PreToolUse, and again on PermissionRequest, with no memory of the first verdict. Each run costs
+//! the hooks server a full rail run, an LLM call for some rails, before the prompt shows. The
+//! cache saves only that second request: without it, a deny on either run still blocks the call.
+//! NeMo Relay #1388 drops the PermissionRequest run from 0.11, so the cache can go once the
+//! plugin requires Relay 0.11.
+//!
+//! The guardrail gets only the tool name and arguments, not Relay's tool call id, so the key can't
+//! tell a second check of one call from the agent making the same call again; the short TTL keeps
+//! that reuse small. The cache keeps decisions only, never a failed check, so a failed check is
+//! retried on the next call.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
