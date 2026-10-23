@@ -18,6 +18,8 @@ import logging
 import warnings
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
+from nemoguardrails.exceptions import StreamingNotSupportedError
+from nemoguardrails.types import ToolCallChunk
 from nemoguardrails.utils import new_uuid
 
 log = logging.getLogger(__name__)
@@ -45,6 +47,7 @@ class StreamingHandler(AsyncIterator):
         enable_buffer: bool = False,
         include_metadata: Optional[bool] = False,
         include_generation_metadata: Optional[bool] = None,
+        allow_tool_calls: bool = True,
     ):
         if include_generation_metadata is not None:
             warnings.warn(
@@ -92,6 +95,7 @@ class StreamingHandler(AsyncIterator):
 
         self.include_metadata = include_metadata
         self.current_metadata = {}
+        self.allow_tool_calls = allow_tool_calls
 
     @property
     def stop(self) -> List[str]:
@@ -166,6 +170,7 @@ class StreamingHandler(AsyncIterator):
                         element["text"] = ""
                         yield element
                         break
+                self._validate_chunk(element)
                 yield element
 
         return generator()
@@ -180,6 +185,7 @@ class StreamingHandler(AsyncIterator):
         if element is END_OF_STREAM:
             raise StopAsyncIteration
 
+        self._validate_chunk(element)
         if isinstance(element, dict):
             if element.get("text") is END_OF_STREAM:
                 raise StopAsyncIteration
@@ -187,9 +193,13 @@ class StreamingHandler(AsyncIterator):
         else:
             return element
 
+    def _validate_chunk(self, chunk):
+        if isinstance(chunk, ToolCallChunk) and not self.allow_tool_calls:
+            raise StreamingNotSupportedError("Tool calls are not supported with output rails during streaming.")
+
     async def _process(
         self,
-        chunk: Union[str, _EndOfStream],
+        chunk: Union[str, ToolCallChunk, _EndOfStream],
         metadata: Optional[Dict[str, Any]] = None,
     ):
         """Process a chunk of text.
@@ -202,6 +212,8 @@ class StreamingHandler(AsyncIterator):
             self.current_metadata.update(metadata)
 
         if self.enable_buffer:
+            if isinstance(chunk, ToolCallChunk):
+                raise StreamingNotSupportedError("Tool calls are not supported during buffered dialog generation.")
             if isinstance(chunk, str):
                 self.buffer += chunk
                 lines = [line.strip() for line in self.buffer.split("\n")]
@@ -231,21 +243,22 @@ class StreamingHandler(AsyncIterator):
                         return
 
             if self.pipe_to:
+                self._validate_chunk(chunk)
                 # only add explicit empty strings, not ones created during processing
                 if chunk is END_OF_STREAM or chunk is not None:
-                    asyncio.create_task(self.pipe_to.push_chunk(chunk))
+                    await self.pipe_to.push_chunk(chunk)
                 if chunk is END_OF_STREAM:
                     self.streaming_finished_event.set()
                     self.top_k_nonempty_lines_event.set()
             else:
-                if self.enable_print and chunk is not None and chunk is not END_OF_STREAM:
+                if self.enable_print and isinstance(chunk, str):
                     print(f"\033[92m{chunk}\033[0m", end="", flush=True)
 
                 # we only want to filter out empty strings that are created during suffix processing,
                 # not ones directly pushed by the user
                 if chunk is not None:
-                    if self.include_metadata:
-                        chunk_dict: Dict[str, Any] = {"text": (chunk if chunk is not END_OF_STREAM else END_OF_STREAM)}
+                    if self.include_metadata and not isinstance(chunk, ToolCallChunk):
+                        chunk_dict: Dict[str, Any] = {"text": chunk if chunk is not END_OF_STREAM else END_OF_STREAM}
                         if chunk is END_OF_STREAM:
                             metadata = self.current_metadata.copy() if self.current_metadata else {}
                             metadata.setdefault("response_metadata", None)
@@ -266,13 +279,13 @@ class StreamingHandler(AsyncIterator):
 
     async def push_chunk(
         self,
-        chunk: Union[str, _EndOfStream, None],
+        chunk: Union[str, ToolCallChunk, _EndOfStream, None],
         metadata: Optional[Dict[str, Any]] = None,
     ):
-        """Push a new string chunk to the stream.
+        """Push text or a structured tool-call event to the stream.
 
         Args:
-            chunk: String chunk to push, None to signal end of stream, or END_OF_STREAM sentinel.
+            chunk: Text, completed tool calls, None, or the END_OF_STREAM sentinel.
             metadata: Optional metadata about the generation.
         """
         if chunk is None:
@@ -280,11 +293,10 @@ class StreamingHandler(AsyncIterator):
         elif chunk is END_OF_STREAM:
             # already the correct marker, no conversion needed
             pass
-        elif isinstance(chunk, str):
-            # empty string is a valid chunk and should be processed normally
+        elif isinstance(chunk, (str, ToolCallChunk)):
             pass
         else:
-            raise TypeError(f"StreamingHandler.push_chunk() expects str, got {type(chunk).__name__}")
+            raise TypeError(f"StreamingHandler.push_chunk() expects str or ToolCallChunk, got {type(chunk).__name__}")
 
         if self.streaming_finished_event.is_set():
             log.info(f"{self.uid[0:3]} - CHUNK after finish: {chunk}")
@@ -292,6 +304,12 @@ class StreamingHandler(AsyncIterator):
 
         if self.include_metadata and metadata:
             self.current_metadata.update(metadata)
+
+        if isinstance(chunk, ToolCallChunk):
+            await self._flush_current_chunk()
+            if not self.streaming_finished_event.is_set():
+                await self._process(chunk, metadata)
+            return
 
         # Process prefix: accumulate until the expected prefix is received, then remove it.
         if self.prefix:
@@ -340,14 +358,17 @@ class StreamingHandler(AsyncIterator):
         else:
             await self._process(chunk, metadata)
 
-    async def finish(self):
-        """Signal end of stream."""
+    async def _flush_current_chunk(self):
         if self.current_chunk:
             if self.suffix and self.current_chunk.endswith(self.suffix):
                 self.current_chunk = self.current_chunk[: -1 * len(self.suffix)]
 
             await self._process(self.current_chunk)
             self.current_chunk = ""
+
+    async def finish(self):
+        """Signal end of stream."""
+        await self._flush_current_chunk()
         await self._process(END_OF_STREAM)
         # We explicitly print a new line here
         if self.enable_print:

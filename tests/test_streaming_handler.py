@@ -792,9 +792,9 @@ async def test_push_chunk_unsupported_type():
     """Test push_chunk with an unsupported data type."""
 
     streaming_handler = StreamingHandler()
-    with pytest.raises(TypeError, match="StreamingHandler.push_chunk\\(\\) expects str, got int"):
+    with pytest.raises(TypeError, match="StreamingHandler.push_chunk\\(\\) expects str or ToolCallChunk, got int"):
         await streaming_handler.push_chunk(123)
-    with pytest.raises(TypeError, match="StreamingHandler.push_chunk\\(\\) expects str, got list"):
+    with pytest.raises(TypeError, match="StreamingHandler.push_chunk\\(\\) expects str or ToolCallChunk, got list"):
         await streaming_handler.push_chunk([1, 2])
 
 
@@ -834,3 +834,72 @@ async def test_finish_with_suffix():
         assert chunks == ["Hello World"]
     finally:
         await consumer.cancel()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("include_metadata", [False, True])
+@pytest.mark.parametrize("piped", [False, True])
+async def test_tool_events_follow_pending_text_without_text_filters(include_metadata, piped):
+    from nemoguardrails.types import ToolCall, ToolCallChunk, ToolCallFunction
+
+    handler = StreamingHandler(include_metadata=include_metadata)
+    consumer = StreamingHandler(include_metadata=include_metadata) if piped else handler
+    if piped:
+        handler.set_pipe_to(consumer)
+    handler.stop = ["User:"]
+    handler.suffix = '"'
+    event = ToolCallChunk([ToolCall(id="call_1", function=ToolCallFunction(name="User:", arguments={"text": '"'}))])
+    await handler.push_chunk('Hello"')
+    await handler.push_chunk(event)
+    await handler.finish()
+    chunks = [chunk async for chunk in consumer]
+    assert chunks[:2] == ([{"text": "Hello"}, event] if include_metadata else ["Hello", event])
+    assert handler.completion == consumer.completion == "Hello"
+
+
+@pytest.mark.asyncio
+async def test_stop_suppresses_subsequent_tool_events():
+    from nemoguardrails.types import ToolCall, ToolCallChunk
+
+    handler = StreamingHandler()
+    handler.stop = ["STOP"]
+    await handler.push_chunk("STOP")
+    await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
+    await handler.finish()
+    assert [chunk async for chunk in handler] == []
+
+
+@pytest.mark.asyncio
+async def test_buffered_dialog_rejects_tool_events():
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+    from nemoguardrails.types import ToolCall, ToolCallChunk
+
+    handler = StreamingHandler(enable_buffer=True)
+    with pytest.raises(StreamingNotSupportedError, match="buffered dialog"):
+        await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
+    assert handler.queue.empty()
+    assert handler.buffer == handler.completion == ""
+
+
+@pytest.mark.asyncio
+async def test_anext_rejects_tool_calls_when_disabled():
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+    from nemoguardrails.types import ToolCall, ToolCallChunk
+
+    handler = StreamingHandler(allow_tool_calls=False)
+    await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails during streaming"):
+        await anext(handler)
+
+
+@pytest.mark.asyncio
+async def test_pipe_cannot_bypass_disabled_tool_calls():
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+    from nemoguardrails.types import ToolCall, ToolCallChunk
+
+    handler = StreamingHandler(allow_tool_calls=False)
+    target = StreamingHandler()
+    handler.set_pipe_to(target)
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails during streaming"):
+        await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
+    assert target.queue.empty()

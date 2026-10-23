@@ -45,7 +45,7 @@ from nemoguardrails.server.schemas.utils import (
     resolve_tool_calls,
     warn_if_thread_history_invalid_for_tool_use,
 )
-from nemoguardrails.tool_call_types import ChunkToolCallDelta, FunctionCallDelta, ToolCallDelta
+from nemoguardrails.types import ToolCall, ToolCallChunk, ToolCallFunction
 
 # ===== Tests for extract_bot_message_from_response =====
 
@@ -287,8 +287,8 @@ def test_create_error_chat_completion_without_config_id():
 
 def test_format_streaming_chunk_with_tool_call_delta():
     """Test formatting a tool call delta chunk."""
-    chunk = ChunkToolCallDelta(
-        tool_calls=[ToolCallDelta(index=0, id="call_1", function=FunctionCallDelta(name="get_weather", arguments="{}"))]
+    chunk = ToolCallChunk(
+        tool_calls=[ToolCall(id="call_1", function=ToolCallFunction(name="get_weather", arguments={}))]
     )
     result = format_streaming_chunk(chunk, model="test_model")
     assert result["object"] == "chat.completion.chunk"
@@ -299,7 +299,7 @@ def test_format_streaming_chunk_with_tool_call_delta():
         ]
     }
     assert result["choices"][0]["index"] == 0
-    assert result["choices"][0]["finish_reason"] is None
+    assert result["choices"][0]["finish_reason"] == "tool_calls"
 
 
 def test_format_streaming_chunk_with_dict():
@@ -330,9 +330,7 @@ def test_format_streaming_chunk_with_json_string():
     result = format_streaming_chunk(chunk, model="test_model", chunk_id="test-id")
     assert result["id"] == "test-id"
     assert result["model"] == "test_model"
-    # Should parse the JSON and add missing fields
-    assert result["custom"] == "data"
-    assert result["value"] == 123
+    assert result["choices"][0]["delta"] == {"content": chunk}
 
 
 def test_format_streaming_chunk_with_none():
@@ -395,8 +393,8 @@ def test_format_streaming_chunk_as_sse_with_empty_string():
 
 def test_format_streaming_chunk_as_sse_with_tool_call_delta():
     """Test formatting a tool call delta chunk as SSE."""
-    chunk = ChunkToolCallDelta(
-        tool_calls=[ToolCallDelta(index=0, id="call_1", function=FunctionCallDelta(name="get_weather", arguments="{}"))]
+    chunk = ToolCallChunk(
+        tool_calls=[ToolCall(id="call_1", function=ToolCallFunction(name="get_weather", arguments={}))]
     )
     result = format_streaming_chunk_as_sse(chunk, model="test_model")
     assert result.startswith("data: ")

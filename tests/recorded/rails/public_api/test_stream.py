@@ -123,7 +123,7 @@ async def test_stream_async_matches_recorded_chat_completion_metadata(
 ):
     rails = LLMRails(load_config(OPENAI_BASELINE_CONFIG), verbose=False)
 
-    chunks = []
+    chunks: list[dict] = []
     async for chunk in rails.stream_async(prompt="Say hello in a few words.", include_metadata=True):
         assert isinstance(chunk, dict)
         chunks.append(chunk)

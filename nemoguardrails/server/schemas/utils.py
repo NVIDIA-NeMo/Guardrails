@@ -37,7 +37,7 @@ from nemoguardrails.server.schemas.openai import (
     GuardrailsDataOutput,
     OpenAIModel,
 )
-from nemoguardrails.tool_call_types import ChunkToolCallDelta
+from nemoguardrails.types import ToolCallChunk
 
 log = logging.getLogger(__name__)
 
@@ -456,90 +456,23 @@ def format_streaming_chunk(
     if chunk_id is None:
         chunk_id = f"chatcmpl-{uuid.uuid4()}"
 
-    # Determine the payload format based on chunk type
-    if isinstance(chunk, ChunkToolCallDelta):
-        return {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": int(time.time()),
-            "model": model,
-            "choices": [
-                {
-                    "delta": {
-                        "tool_calls": [
-                            {
-                                "index": tool_call.index,
-                                "id": tool_call.id,
-                                "type": tool_call.type,
-                                "function": {
-                                    "name": tool_call.function.name,
-                                    "arguments": tool_call.function.arguments,
-                                },
-                            }
-                            for tool_call in chunk.tool_calls
-                        ]
-                    },
-                    "index": 0,
-                    "finish_reason": None,
-                }
-            ],
-        }
+    finish_reason = None
+    if isinstance(chunk, ToolCallChunk):
+        tool_calls = normalize_tool_calls_openai([call.to_dict() for call in chunk.tool_calls])
+        delta = {"tool_calls": [{"index": index, **call.model_dump()} for index, call in enumerate(tool_calls)]}
+        finish_reason = "tool_calls"
     elif isinstance(chunk, dict):
-        return {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": int(time.time()),
-            "model": model,
-            "choices": [
-                {
-                    "delta": chunk,
-                    "index": 0,
-                    "finish_reason": None,
-                }
-            ],
-        }
-    elif isinstance(chunk, str):
-        try:
-            # Try parsing as JSON - if it parses, it might be a pre-formed payload
-            payload = json.loads(chunk)
-            # Ensure it has the required fields
-            if isinstance(payload, dict):
-                if "id" not in payload:
-                    payload["id"] = chunk_id
-                if "model" not in payload:
-                    payload["model"] = model
-                return payload
-        except (json.JSONDecodeError, ValueError):
-            # treat as plain text content token
-            pass
-        return {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": int(time.time()),
-            "model": model,
-            "choices": [
-                {
-                    "delta": {"content": chunk},
-                    "index": 0,
-                    "finish_reason": None,
-                }
-            ],
-        }
+        delta = chunk
     else:
-        # For any other type, treat as plain content
-        return {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": int(time.time()),
-            "model": model,
-            "choices": [
-                {
-                    "delta": {"content": str(chunk)},
-                    "index": 0,
-                    "finish_reason": None,
-                }
-            ],
-        }
+        delta = {"content": str(chunk)}
+
+    return {
+        "id": chunk_id,
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [{"delta": delta, "index": 0, "finish_reason": finish_reason}],
+    }
 
 
 def format_streaming_chunk_as_sse(

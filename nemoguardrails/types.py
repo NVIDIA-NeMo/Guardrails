@@ -40,6 +40,7 @@ __all__ = [
     "LLMResponseChunk",
     "Role",
     "ToolCall",
+    "ToolCallChunk",
     "ToolCallFunction",
     "UsageInfo",
 ]
@@ -73,6 +74,13 @@ class ToolCall:
                 "arguments": self.function.arguments,
             },
         }
+
+
+@dataclass
+class ToolCallChunk:
+    """A structured stream event containing completed tool calls, not argument fragments."""
+
+    tool_calls: List[ToolCall]
 
 
 @dataclass

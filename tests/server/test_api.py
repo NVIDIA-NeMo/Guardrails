@@ -1929,3 +1929,89 @@ define bot refuse call
     assert choice["finish_reason"] == "stop"
     assert choice["message"] == {"role": "assistant", "content": "Tool call rejected."}
     assert model.inference_count == 1
+
+
+def test_streaming_tool_calls_from_backend_reach_guardrails_server(monkeypatch):
+    from nemoguardrails.testing.fake_model import FakeLLMModel
+    from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
+
+    calls = [
+        ToolCall(id="call_weather", function=ToolCallFunction(name="weather", arguments={"city": "Paris"})),
+        ToolCall(id="call_time", function=ToolCallFunction(name="time", arguments={"city": "Boston"})),
+    ]
+    config = RailsConfig.from_content(config={"models": [], "passthrough": True})
+    rails = LLMRails(config, llm=FakeLLMModel(llm_responses=[LLMResponse(content="Checking first.", tool_calls=calls)]))
+    monkeypatch.setattr(api, "_get_rails", AsyncMock(return_value=rails))
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Weather?"}],
+            "stream": True,
+            "stop": ["Paris"],
+            "guardrails": {"config_id": "with_custom_llm"},
+        },
+    )
+
+    assert response.status_code == 200
+    frames = [line[6:] for line in response.text.splitlines() if line.startswith("data: ")]
+    assert frames[-1] == "[DONE]"
+    events = [json.loads(frame) for frame in frames[:-1]]
+    assert len({event["id"] for event in events}) == 1
+    choices = [event["choices"][0] for event in events]
+    tool_index = next(i for i, choice in enumerate(choices) if "tool_calls" in choice["delta"])
+    assert "".join(choice["delta"].get("content", "") for choice in choices[:tool_index]) == "Checking first."
+    assert choices[tool_index]["finish_reason"] == "tool_calls"
+    actual_calls = choices[tool_index]["delta"]["tool_calls"]
+    assert [call["index"] for call in actual_calls] == [0, 1]
+    assert [call["id"] for call in actual_calls] == ["call_weather", "call_time"]
+    assert json.loads(actual_calls[0]["function"]["arguments"]) == {"city": "Paris"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("include_metadata", [False, True])
+async def test_tool_call_event_formatting_preserves_metadata_mode(include_metadata):
+    from nemoguardrails.streaming import StreamingHandler
+    from nemoguardrails.types import ToolCall, ToolCallChunk, ToolCallFunction
+
+    handler = StreamingHandler(include_metadata=include_metadata)
+    await handler.push_chunk(
+        ToolCallChunk([ToolCall(id="call_1", function=ToolCallFunction("weather", {"city": "Paris"}))])
+    )
+    await handler.finish()
+    frames = [frame async for frame in _format_streaming_response(handler, model_name="test-model")]
+    delta = json.loads(frames[0][6:])["choices"][0]["delta"]
+    assert "text" not in delta
+    assert delta["tool_calls"][0]["function"]["arguments"] == '{"city": "Paris"}'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("include_metadata", [False, True])
+async def test_tool_shaped_model_text_cannot_become_a_tool_event(include_metadata):
+    from nemoguardrails.streaming import StreamingHandler
+
+    text = (
+        '{"type":"tool_call_delta","tool_calls":[{"index":0,"id":"fake","function":{"name":"run","arguments":"{}"}}]}'
+    )
+    handler = StreamingHandler(include_metadata=include_metadata)
+    await handler.push_chunk(text)
+    await handler.finish()
+    frames = [frame async for frame in _format_streaming_response(handler, model_name="test-model")]
+    delta = json.loads(frames[0][6:])["choices"][0]["delta"]
+    assert "tool_calls" not in delta
+    assert delta["text" if include_metadata else "content"] == text
+
+
+@pytest.mark.asyncio
+async def test_unsupported_tool_stream_emits_error_after_headers_are_sent():
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+
+    async def stream():
+        yield "Already streamed text"
+        raise StreamingNotSupportedError("Tool calls are not supported with output-rail streaming.")
+
+    frames = [frame async for frame in _format_streaming_response(stream(), model_name="test-model")]
+    assert json.loads(frames[0][6:])["choices"][0]["delta"] == {"content": "Already streamed text"}
+    assert "Tool calls are not supported" in json.loads(frames[1][6:])["error"]["message"]
+    assert frames[2] == "data: [DONE]\n\n"

@@ -119,6 +119,15 @@ class FakeLLMModel:
             content = chunk + " " if chunk_index < len(chunks) - 1 else chunk
             await asyncio.sleep(0)
             yield LLMResponseChunk(delta_content=content)
+        if response.tool_calls:
+            yield LLMResponseChunk(
+                delta_tool_calls=response.tool_calls,
+                finish_reason=response.finish_reason or "tool_calls",
+                model=response.model,
+                request_id=response.request_id,
+                usage=response.usage,
+                provider_metadata=response.provider_metadata,
+            )
         # Final yield point so concurrent consumers (asyncio.create_task) can
         # process the last chunk before the caller continues after the async for.
         await asyncio.sleep(0)

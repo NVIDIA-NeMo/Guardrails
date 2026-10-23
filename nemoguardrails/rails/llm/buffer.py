@@ -16,24 +16,11 @@
 from abc import ABC, abstractmethod
 from typing import AsyncGenerator, List, NamedTuple
 
-from pydantic import ValidationError
-
+from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.rails.llm.config import OutputRailsStreamingConfig
-from nemoguardrails.tool_call_types import ChunkToolCallDelta
+from nemoguardrails.types import ToolCallChunk
 
 __all__ = ["ChunkBatch", "BufferStrategy", "RollingBuffer", "get_buffer_strategy"]
-
-
-def _is_tool_call_delta_chunk(text: str) -> bool:
-    """True when a streamed chunk is a ``ChunkToolCallDelta`` frame.
-    """
-    if '"tool_call_delta"' not in text:
-        return False
-    try:
-        ChunkToolCallDelta.model_validate_json(text)
-        return True
-    except (ValidationError, ValueError):
-        return False
 
 
 class ChunkBatch(NamedTuple):
@@ -309,9 +296,8 @@ class RollingBuffer(BufferStrategy):
         async for chunk in streaming_handler:
             text = chunk["text"] if isinstance(chunk, dict) else chunk
 
-            if isinstance(text, str) and _is_tool_call_delta_chunk(text):
-                yield ChunkBatch(processing_context=[], user_output_chunks=[chunk])
-                continue
+            if isinstance(text, ToolCallChunk):
+                raise StreamingNotSupportedError("Tool calls are not supported with output-rail streaming.")
 
             buffer.append(text)
             total_chunks += 1
