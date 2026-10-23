@@ -851,25 +851,39 @@ class TestToolCallingNonPassthroughIntegration:
         assert self.non_passthrough_config.passthrough is False
 
     @pytest.mark.asyncio
-    async def test_tool_calls_fail_in_dialog_flows_non_passthrough(self):
-        """Verify this configured text response does not acquire tool-call metadata."""
+    @pytest.mark.parametrize("single_call", [False, True])
+    async def test_tool_calls_fail_in_dialog_flows_non_passthrough(self, single_call):
+        """Drop actual provider tool calls in both single-call and multi-call dialog generation."""
         config = RailsConfig.from_content(
-            colang_content="",
-            yaml_content="""
-            models: []
-            passthrough: false
-            dialog:
-                user_messages: true
-                single_call:
-                    enabled: true
+            colang_content="""
+define user ask about weather
+  "What is the weather?"
+
+define flow weather
+  user ask about weather
+  bot report weather
             """,
+            yaml_content=json.dumps(
+                {"models": [], "passthrough": False, "rails": {"dialog": {"single_call": {"enabled": single_call}}}}
+            ),
         )
-        chat = TestChat(config, llm_completions=["I'll check the weather for you."])
-        result = await chat.app.generate_async(messages=[{"role": "user", "content": "What's the weather like?"}])
-        assert isinstance(result, dict)
-        assert "tool_calls" not in result
-        assert result["role"] == "assistant"
-        assert result["content"] == "I'll check the weather for you."
+        assert config.user_messages == {"ask about weather": ["What is the weather?"]}
+        assert config.rails.dialog.single_call.enabled is single_call
+        tool_calls = [
+            ToolCall(id="call_weather", function=ToolCallFunction(name="weather", arguments={"city": "Paris"}))
+        ]
+        completions = (
+            ['  ask about weather\nbot report weather\n  "Weather unavailable."']
+            if single_call
+            else ["ask about weather", '  "Weather unavailable."']
+        )
+        model = FakeLLMModel(
+            llm_responses=[LLMResponse(content=content, tool_calls=tool_calls) for content in completions]
+        )
+        rails = LLMRails(config, llm=model)
+        result = await rails.generate_async(messages=[{"role": "user", "content": "What is the weather in Paris?"}])
+        assert result == {"role": "assistant", "content": "Weather unavailable."}
+        assert model.inference_count == len(completions)
 
 
 @pytest.mark.asyncio
