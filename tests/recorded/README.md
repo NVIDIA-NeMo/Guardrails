@@ -128,7 +128,7 @@ one provider exchange so replay cannot bypass the application. This checks
 assembled SSE responses, not socket timing. The gated-provider tests in
 `tests/test_incremental_tool_streaming.py` separately prove that the server sends
 a delta before the provider is allowed to finish, and cover interruption,
-cancellation, and unsupported output rails. The incremental experiment reuses
+cancellation, and unsupported output rails. Incremental streaming reuses
 the original real cassettes unchanged and updates only public-output snapshots.
 
 The HTTP request restriction on combining `tools` with `stream`, and rejection

@@ -278,7 +278,7 @@ For the non-streaming option and field tables, refer to [Generation Options](/ru
 
 ## Tool Calls in LLMRails Streams
 
-The experimental incremental path in the default OpenAI-compatible backend
+The incremental path in the default OpenAI-compatible backend
 forwards provider fragments as `ToolCallDeltaChunk` events. Each event contains
 `ToolCallDelta` objects with a required call `index` and optional `id`, `type`,
 and `function` fields. The function contains optional `name` and `arguments`
@@ -299,7 +299,7 @@ It does not emit those completed calls again after emitting deltas.
 Backends without incremental support retain `ToolCallChunk`, containing completed
 `ToolCall` objects with dictionary-valued `function.arguments`. The optional
 LangChain adapter retains this completed-call behavior. `IORails` also retains
-its existing assembled-call behavior; this experiment changes `LLMRails`.
+its existing assembled-call behavior; incremental delivery applies to `LLMRails`.
 
 Both event types remain structured objects with `include_metadata=True`; neither
 is wrapped in a text dictionary. They do not contribute to assistant text and are
