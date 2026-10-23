@@ -86,7 +86,9 @@ Apart from parsing a JSON `arguments` string into a dictionary, the library pass
 
 ### Passthrough Mode and Dialog Flows
 
-Tool calls are supported with or without `passthrough` when the guardrails configuration has no user-intent definitions (`user_messages`). Configurations with user-intent definitions drop tool calls and return only the generated text. Enabling `rails.dialog.single_call.enabled` alone does not block tool calls.
+With Colang 1.0, tool calls are supported with or without `passthrough` when the guardrails configuration has no user-intent definitions (`user_messages`). Configurations with user-intent definitions drop tool calls and return only the generated text. Enabling `rails.dialog.single_call.enabled` alone does not block tool calls.
+
+The `/v1/chat/completions` endpoint accepts `tools`, `tool_choice`, and `parallel_tool_calls` only for non-streaming requests with Colang 1.0 configurations without user-intent definitions. Unsupported combinations return HTTP 422 with an OpenAI-compatible `error` object whose `type` is `invalid_request_error`. Colang 2.x configurations do not propagate provider tool calls through this endpoint.
 
 If your configuration does not use dialog flows, using **passthrough mode** is still recommended because:
 

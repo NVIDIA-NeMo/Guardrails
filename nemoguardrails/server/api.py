@@ -711,8 +711,15 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                 ),
             )
 
-        # Dialog-flow configs (canonical-form user_messages) never surface tool
-        # calls to the request, so reject explicitly.
+        if llm_rails.config.colang_version != "1.0":
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "The 'tools', 'tool_choice', and 'parallel_tool_calls' parameters are only "
+                    "supported for Colang 1.0 configurations."
+                ),
+            )
+
         has_dialog_flows = bool(llm_rails.config.user_messages)
         if has_dialog_flows:
             raise HTTPException(

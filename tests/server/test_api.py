@@ -892,6 +892,56 @@ def test_chat_completion_rejects_tools_for_dialog_flow_config():
     assert "dialog flows" in response.json()["error"]["message"].lower()
 
 
+@pytest.mark.parametrize("passthrough", [None, False, True])
+@pytest.mark.parametrize(
+    "tool_params",
+    [
+        {"tools": [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]},
+        {"tool_choice": "auto"},
+        {"parallel_tool_calls": False},
+    ],
+    ids=["tools", "tool_choice", "parallel_tool_calls"],
+)
+@pytest.mark.parametrize("unsupported", ["colang2", "dialog", "streaming"])
+def test_chat_completion_unsupported_tools_use_error_envelope(passthrough, tool_params, unsupported):
+    config = RailsConfig.from_content(
+        yaml_content="colang_version: '2.x'" if unsupported == "colang2" else "colang_version: '1.0'",
+        colang_content='define user greeting\n  "hello"' if unsupported == "dialog" else "",
+    )
+    config.passthrough = passthrough
+    rails = AsyncMock()
+    rails.config = config
+    expected_message = {
+        "colang2": "only supported for Colang 1.0 configurations.",
+        "dialog": "not supported when the guardrails configuration defines dialog flows (user_messages).",
+        "streaming": "only supported for non-streaming requests.",
+    }[unsupported]
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "guardrails": {"config_id": "with_custom_llm"},
+                "stream": unsupported == "streaming",
+                "model": "test-model",
+                **tool_params,
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"] == "application/json"
+    assert response.json() == {
+        "error": {
+            "message": "The 'tools', 'tool_choice', and 'parallel_tool_calls' parameters are " + expected_message,
+            "type": "invalid_request_error",
+            "param": None,
+            "code": None,
+        }
+    }
+    rails.generate_async.assert_not_called()
+
+
 def test_chat_completion_accepts_tool_choice_for_single_call_without_user_messages():
     """``single_call`` enabled with no ``user_messages`` still surfaces tool calls normally."""
     from nemoguardrails.rails.llm.options import GenerationResponse
