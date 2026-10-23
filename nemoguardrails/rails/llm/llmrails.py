@@ -1520,7 +1520,11 @@ class LLMRails(BaseGuardrails):
                 async for chunk in base_iterator:
                     if chunk is not None:
                         yield chunk
-            finally:
+            except BaseException:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                raise
+            else:
                 await task
 
         return wrapped_iterator()

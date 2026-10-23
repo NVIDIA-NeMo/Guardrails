@@ -55,8 +55,12 @@ class GatedProviderStream(httpx.AsyncByteStream):
         self.closed = asyncio.Event()
         self.finish_reason = "tool_calls"
         self.fail = False
+        self.leading_text = None
 
     async def __aiter__(self):
+        if self.leading_text:
+            payload = {"choices": [{"index": 0, "delta": {"content": self.leading_text}, "finish_reason": None}]}
+            yield ("data: " + json.dumps(payload) + "\n\n").encode()
         deltas = [
             [
                 {
@@ -195,9 +199,50 @@ async def test_cancelling_after_first_delta_closes_upstream(provider_stream):
     assert provider_stream.closed.is_set()
 
 
+@pytest.mark.parametrize("cancel_consumer", [False, True])
+async def test_closing_public_stream_closes_stalled_provider(provider_stream, cancel_consumer):
+    rails = LLMRails(
+        RailsConfig.from_content(config={"models": [], "passthrough": True, "streaming": True}),
+        llm=make_model(),
+    )
+    stream = rails.stream_async(prompt="Weather?")
+    consumer = None
+    try:
+        while not isinstance(await asyncio.wait_for(anext(stream), 2), ToolCallDeltaChunk):
+            pass
+        await asyncio.wait_for(provider_stream.paused.wait(), 2)
+        if cancel_consumer:
+            started = asyncio.Event()
+
+            async def consume():
+                started.set()
+                return await anext(stream)
+
+            consumer = asyncio.create_task(consume())
+            await started.wait()
+            consumer.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(consumer, 2)
+        else:
+            await asyncio.wait_for(stream.aclose(), 2)
+        assert provider_stream.closed.is_set()
+        assert not provider_stream.release.is_set()
+        assert not rails._active_tasks
+    finally:
+        provider_stream.release.set()
+        if consumer is not None:
+            consumer.cancel()
+            await asyncio.gather(consumer, return_exceptions=True)
+        await stream.aclose()
+
+
 @pytest.mark.parametrize("rail_type", [None, "output", "tool_call"])
 @pytest.mark.parametrize("passthrough", [False, True])
-async def test_server_sends_delta_before_upstream_finishes(provider_stream, monkeypatch, rail_type, passthrough):
+@pytest.mark.parametrize("text_before_tool", [False, True])
+async def test_server_sends_delta_before_upstream_finishes(
+    provider_stream, monkeypatch, rail_type, passthrough, text_before_tool
+):
+    provider_stream.leading_text = "Checking weather. " if text_before_tool else None
     config = {"models": [], "passthrough": passthrough, "streaming": True}
     if rail_type == "output":
         config["rails"] = {"output": {"flows": ["check output"], "streaming": {"enabled": True, "stream_first": False}}}
@@ -260,12 +305,19 @@ async def test_server_sends_delta_before_upstream_finishes(provider_stream, monk
             await asyncio.wait_for(delivered.wait(), 2)
             assert not task.done()
             assert not provider_stream.release.is_set()
-        provider_stream.release.set()
-        await asyncio.wait_for(task, 5)
+            provider_stream.release.set()
+        done, _ = await asyncio.wait({task}, timeout=5)
+        assert task in done, "The server waited for the provider after rejecting its tool-call fragment"
+        await task
+        assert provider_stream.closed.is_set()
         body = b"".join(message.get("body", b"") for message in sent).decode()
         if rail_type is not None:
+            assert not provider_stream.release.is_set()
             assert not delivered.is_set()
             assert "Tool calls are not supported with output rails or tool-call rails during streaming." in body
+            if text_before_tool and rail_type == "tool_call":
+                assert next(message["status"] for message in sent if message["type"] == "http.response.start") == 200
+                assert body.endswith("data: [DONE]\n\n")
         else:
             frames = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: {")]
             choices = [frame["choices"][0] for frame in frames]
