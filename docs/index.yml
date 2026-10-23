@@ -615,6 +615,9 @@ navigation:
         slug: cli
       - api: Guardrails API Server
         layout:
+          - page: Try the API Locally
+            path: reference/guardrails-api-server/try-it.mdx
+            slug: try-it
           - chatCompletions:
               - endpoint: POST /v1/chat/completions
                 title: Create Chat Completion

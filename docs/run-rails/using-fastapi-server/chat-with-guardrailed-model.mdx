@@ -13,6 +13,9 @@ Use the `/v1/chat/completions` endpoint to send messages and receive guarded res
 The endpoint is compatible with the [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat/create),
 with additional guardrails-specific fields nested under a `guardrails` object.
 
+The examples use the `nemotron-3.5-content-safety` configuration and the `nvidia/nemotron-3.5-lightning-30b-a3b` answer model.
+Follow [Try the API Locally](/reference/guardrails-api-server/try-it) to install the server, set `NVIDIA_API_KEY`, and start this configuration.
+
 ## Basic Request
 
 Send a POST request to the chat completions endpoint.
@@ -23,12 +26,12 @@ Guardrails-specific fields such as `config_id` are nested under the `guardrails`
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [
       {"role": "user", "content": "Hello! What can you do for me?"}
     ],
     "guardrails": {
-      "config_id": "content_safety"
+      "config_id": "nemotron-3.5-content-safety"
     }
   }'
 ```
@@ -42,7 +45,7 @@ The response follows the standard OpenAI `ChatCompletion` format, with an additi
   "id": "chatcmpl-abc123",
   "object": "chat.completion",
   "created": 1700000000,
-  "model": "meta/llama-3.1-8b-instruct",
+  "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
   "choices": [
     {
       "index": 0,
@@ -54,7 +57,7 @@ The response follows the standard OpenAI `ChatCompletion` format, with an additi
     }
   ],
   "guardrails": {
-    "config_id": "content_safety",
+    "config_id": "nemotron-3.5-content-safety",
     "llm_output": null,
     "output_data": null,
     "log": null
@@ -88,13 +91,13 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="meta/llama-3.1-8b-instruct",
+    model="nvidia/nemotron-3.5-lightning-30b-a3b",
     messages=[
         {"role": "user", "content": "Hello! What can you do for me?"}
     ],
     extra_body={
         "guardrails": {
-            "config_id": "content_safety"
+            "config_id": "nemotron-3.5-content-safety"
         }
     }
 )
@@ -110,12 +113,12 @@ import requests
 base_url = "http://localhost:8000"
 
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [
         {"role": "user", "content": "Hello! What can you do for me?"}
     ],
     "guardrails": {
-        "config_id": "content_safety"
+        "config_id": "nemotron-3.5-content-safety"
     }
 })
 
@@ -129,7 +132,7 @@ Use either `config_id` or `config_ids`, but not both — they are mutually exclu
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [
         {"role": "user", "content": "Hello!"}
     ],
@@ -160,7 +163,7 @@ Create reusable *atomic configurations* that you can combine as needed:
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [{"role": "user", "content": "You are stupid."}],
     "guardrails": {
         "config_id": "main"
@@ -174,7 +177,7 @@ print(response.json()["choices"][0]["message"]["content"])
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [{"role": "user", "content": "You are stupid."}],
     "guardrails": {
         "config_ids": ["main", "input_checking"]
@@ -192,7 +195,7 @@ If the server was started with `--default-config-id`, you can omit the `guardrai
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [
         {"role": "user", "content": "Hello!"}
     ]
@@ -204,17 +207,33 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
 Enable streaming to receive partial responses as server-sent events (SSE).
 Each chunk follows the OpenAI streaming format.
 
+The `nemotron-3.5-content-safety` example has output safety checks enabled, so streaming requires an additional configuration step.
+In your configuration's existing `rails.output` block, keep the safety flow and enable output streaming, then restart the server:
+
+```yaml
+rails:
+  output:
+    flows:
+      - content safety check output $model=content_safety
+    streaming:
+      enabled: true
+      stream_first: false
+```
+
+Keep the existing `rails.input` block. With `stream_first: false`, output chunks are checked before they are sent to the client.
+See [Output Rail Streaming](/configure-guardrails/yaml-schema/streaming/output-rail-streaming) for chunk-size and context settings.
+
 ### Using curl
 
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [{"role": "user", "content": "Tell me a story"}],
     "stream": true,
     "guardrails": {
-      "config_id": "content_safety"
+      "config_id": "nemotron-3.5-content-safety"
     }
   }'
 ```
@@ -222,9 +241,9 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 The server sends chunks in SSE format:
 
 ```text
-data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":"Once"},"index":0,"finish_reason":null}]}
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"nvidia/nemotron-3.5-lightning-30b-a3b","choices":[{"delta":{"content":"Once"},"index":0,"finish_reason":null}]}
 
-data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":" upon"},"index":0,"finish_reason":null}]}
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"nvidia/nemotron-3.5-lightning-30b-a3b","choices":[{"delta":{"content":" upon"},"index":0,"finish_reason":null}]}
 
 data: [DONE]
 ```
@@ -240,12 +259,12 @@ client = OpenAI(
 )
 
 stream = client.chat.completions.create(
-    model="meta/llama-3.1-8b-instruct",
+    model="nvidia/nemotron-3.5-lightning-30b-a3b",
     messages=[{"role": "user", "content": "Tell me a story"}],
     stream=True,
     extra_body={
         "guardrails": {
-            "config_id": "content_safety"
+            "config_id": "nemotron-3.5-content-safety"
         }
     }
 )
@@ -263,11 +282,11 @@ import requests
 response = requests.post(
     f"{base_url}/v1/chat/completions",
     json={
-        "model": "meta/llama-3.1-8b-instruct",
+        "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
         "messages": [{"role": "user", "content": "Tell me a story"}],
         "stream": True,
         "guardrails": {
-            "config_id": "content_safety"
+            "config_id": "nemotron-3.5-content-safety"
         }
     },
     stream=True
@@ -292,20 +311,20 @@ The `thread_id` must be between 16 and 255 characters long.
 ```python
 # First message
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [{"role": "user", "content": "My name is Alice."}],
     "guardrails": {
-        "config_id": "content_safety",
+        "config_id": "nemotron-3.5-content-safety",
         "thread_id": "user-session-12345678"
     }
 })
 
 # Follow-up message (server remembers the conversation)
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [{"role": "user", "content": "What is my name?"}],
     "guardrails": {
-        "config_id": "content_safety",
+        "config_id": "nemotron-3.5-content-safety",
         "thread_id": "user-session-12345678"
     }
 })
@@ -350,10 +369,10 @@ Include additional context data in your request using the `context` field inside
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [{"role": "user", "content": "What is my account balance?"}],
     "guardrails": {
-        "config_id": "content_safety",
+        "config_id": "nemotron-3.5-content-safety",
         "context": {
             "user_id": "12345",
             "account_type": "premium"
@@ -368,10 +387,10 @@ Use the `options` field inside the `guardrails` object to control which rails ar
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [{"role": "user", "content": "Hello"}],
     "guardrails": {
-        "config_id": "content_safety",
+        "config_id": "nemotron-3.5-content-safety",
         "options": {
             "rails": {
                 "input": True,
@@ -392,12 +411,12 @@ You can also pass standard OpenAI parameters such as `temperature`, `max_tokens`
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "messages": [{"role": "user", "content": "Hello"}],
     "temperature": 0.7,
     "max_tokens": 256,
     "guardrails": {
-        "config_id": "content_safety"
+        "config_id": "nemotron-3.5-content-safety"
     }
 })
 ```
