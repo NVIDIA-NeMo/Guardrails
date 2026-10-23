@@ -173,7 +173,7 @@ Keep the following behavior in mind:
 - `tools` replaces the tools declared in the main model's `parameters.tools`, schemas included; it does not add to them.
   When you omit `tools`, the configured tools are the allowlist.
   `tools=[]` declares no tools, so `tool call validation` blocks every call.
-- A `tools` entry that isn't a Chat Completions function tool, with a `function` object and a non-empty `name`, raises `InvalidCheckRequestError` rather than being dropped.
+- A `tools` entry that is not a Chat Completions function tool, with a `function` object and a non-empty `name`, raises `InvalidCheckRequestError` rather than being dropped.
 - Only a `tool_call` check reads `tools`.
   Passing `tools` to any other check, including one that leaves `rail_types` to automatic detection, raises `InvalidCheckRequestError` rather than ignoring them.
 - A `tool_call` check validates only the last assistant message.
@@ -444,10 +444,10 @@ On a configuration that `LLMRails` serves, they return HTTP 422.
 The request's top-level `tools` field sets the tools a `tool_call` check validates against.
 On a configuration that `IORails` serves, a request that carries `tools` without `tool_call` in `guardrails.rail_types` returns HTTP 422.
 On a configuration that `LLMRails` serves, a request that carries `tools` also returns HTTP 422.
-A `tools` entry that isn't a Chat Completions function tool returns HTTP 422 as well.
+A `tools` entry that is not a Chat Completions function tool returns HTTP 422 as well.
 
 To check a coding agent's tool calls from its own hooks, use the [Guardrails hooks server](/run-guardrailed-inference/using-hooks-server/overview) (`nemoguardrails hooks-server`) instead.
-It's a separate server, which applies a tool policy of its own to each call before it runs the called tool's `per_tool` rails.
+It is a separate server, which applies a tool policy of its own to each call before it runs the called tool's `per_tool` rails.
 
 The response carries `status`, `content`, and, on a block, `rail`.
 A block on `IORails` also carries `reason`, and a tool rail block also carries `tool_violations`.

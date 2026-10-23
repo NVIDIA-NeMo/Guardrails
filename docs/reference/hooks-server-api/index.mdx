@@ -8,10 +8,12 @@ content:
 ---
 
 The Guardrails hooks server (`nemoguardrails hooks-server`) checks coding agents' tool calls before they run.
-It's a separate server from the [Guardrails API Server](/run-guardrailed-inference/using-fastapi-server), with its own endpoints.
+It is a separate server from the [Guardrails API Server](/run-guardrailed-inference/using-fastapi-server), with its own endpoints.
 For running it and connecting agents, refer to [Use the Guardrails Hooks Server](/run-guardrailed-inference/using-hooks-server).
 
 ## Base URL
+
+The default base URL is:
 
 ```text
 http://localhost:8100
@@ -25,6 +27,8 @@ The hooks server has no authentication.
 Keep it on `127.0.0.1`, or on a private network that restricts who can reach the port.
 
 ## Endpoints
+
+The server exposes the following endpoints:
 
 | Endpoint | Description |
 |---|---|

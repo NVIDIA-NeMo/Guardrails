@@ -161,7 +161,7 @@ With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling
 Both engines support passing model tool calls through to the caller.
 `LLMRails` runs the Colang flows you configure under `rails.tool_call` and `rails.tool_result` through the Colang runtime.
 The built-in `tool call validation` and `tool result validation` validators run on `IORails` only, and so do `per_tool` rails.
-`LLMRails` issues a `UserWarning` when it loads a configuration with `per_tool` rails, because it doesn't run them.
+`LLMRails` issues a `UserWarning` when it loads a configuration with `per_tool` rails, because it does not run them.
 `LLMRails` surfaces tool calls regardless of the `passthrough` setting when the configuration has no user-intent definitions (`user_messages`).
 Configurations with user-intent definitions drop tool calls and return only the generated text.
 

@@ -26,7 +26,7 @@ GET http://localhost:8100/v1/health
 Shallow liveness check.
 Returns `200` while the server process is running and able to serve requests.
 The hooks server checks its configuration before it accepts any request, so a server that answers has passed its startup checks.
-The check doesn't call any model a rail uses.
+The check does not call any model a rail uses.
 
 This is the same health check as the [Guardrails API Server's](/reference/guardrails-api-server/health/get-health), on the hooks server's address.
 

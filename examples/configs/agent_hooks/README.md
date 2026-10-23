@@ -6,7 +6,7 @@ For the full guide, refer to [Use the Guardrails Hooks Server](./../../../docs/r
 
 There is one configuration for each agent:
 
-| Folder | Agent | Hook path | Minimum agent version |
+| Folder | Agent | Hook Path | Minimum Agent Version |
 | --- | --- | --- | --- |
 | `claude_code` | Claude Code | `/v1/hooks/claude-code` | 2.1.295, for `onFailure: "block"` |
 | `codex` | Codex | `/v1/hooks/codex` | 0.124.0; from 0.129.0, Codex runs a hook only after you trust it |
@@ -14,7 +14,8 @@ There is one configuration for each agent:
 
 Each `config.yml` has `models: []`, a `hooks_server` section that lists the agent's tools with `allow_unlisted_tools: false`, and regular-expression rails under `rails.tool_call.per_tool`.
 None calls a model, so none needs an API key.
-The patterns show the shape of a policy, not a complete one: a regular expression is easy to get around, so treat it as one layer of defense.
+The patterns illustrate a policy structure and do not provide complete protection.
+Regular expressions can be bypassed, so combine them with the agent's permission settings and sandboxing.
 
 ## Run an Example
 
@@ -45,7 +46,7 @@ To point the agent's hook at the server, follow the agent's page: [Claude Code](
 ## One Server for Each Agent
 
 A hooks server applies its one configuration to every call, whichever agent path it arrives on, and both Claude Code and Codex report shell commands as `Bash`.
-So don't merge these configurations: run one server for each agent, each on its own port:
+So do not merge these configurations: run one server for each agent, each on its own port:
 
 ```bash
 nemoguardrails hooks-server --config examples/configs/agent_hooks/claude_code --port 8100

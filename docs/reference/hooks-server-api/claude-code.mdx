@@ -54,7 +54,7 @@ POST http://localhost:8100/v1/hooks/claude-code
 Checks the tool call in a Claude Code `PreToolUse` hook input, and answers in Claude Code's hook output format.
 The hooks server applies its tool policy, then the called tool's per-tool rails.
 An allowed call gets an empty object, so Claude Code continues with its own permission flow; a denied call gets a deny decision with the reason.
-A check that can't finish returns an error status, which Claude Code treats as a failed hook.
+A check that cannot finish returns an error status, which Claude Code treats as a failed hook.
 
 The request examples come from the [Claude Code example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/claude_code).
 For setting up the hook, refer to [Check Claude Code Tool Calls with the Hooks Server](/run-guardrailed-inference/using-hooks-server/claude-code).
@@ -76,7 +76,7 @@ The tool policy and per-tool rails match it exactly. Must not be empty.
 
 <ParamField path="tool_input" type="any" required={true}>
 The tool call's arguments.
-A value that isn't a JSON object is denied.
+A value that is not a JSON object is denied.
 </ParamField>
 
 <ParamField path="tool_use_id" type="string" required={true}>
@@ -109,11 +109,12 @@ For the reasons, refer to [Deny Reasons](/run-guardrailed-inference/using-hooks-
 ## Errors
 
 Every error uses the OpenAI error envelope, with `message`, `type`, `param`, and `code` in an `error` object.
+The endpoint can return the following errors:
 
 | Status | `code` | When |
 |---|---|---|
 | `422` | `unsupported_hook_event` | `hook_event_name` is an event other than `PreToolUse`. |
-| `422` | `null` | The body isn't JSON, or isn't a JSON object. `param` is `null`. |
+| `422` | `null` | The body is not JSON, or is not a JSON object. `param` is `null`. |
 | `422` | `null` | A required field is missing or invalid. `param` names the field. |
 | `500` | `rail_failed` | A per-tool rail failed instead of deciding, for example because its model call failed. |
 | `500` | `null` | The check failed for another reason, or the server hit an unexpected error. |

@@ -54,7 +54,7 @@ POST http://localhost:8100/v1/hooks/codex
 Checks the tool call in a Codex `PreToolUse` hook input, and answers in Codex's hook output format.
 The hooks server applies its tool policy, then the called tool's per-tool rails.
 An allowed call gets an empty object, so Codex runs the tool under its own approval settings; a denied call gets a deny decision with the reason.
-A check that can't finish returns an error status.
+A check that cannot finish returns an error status.
 
 Codex has no HTTP hook type, so a command hook sends the hook input with `curl` and prints the response for Codex to read.
 Run `curl` with `-f` and end the command with `|| exit 2`, so that an error status blocks the call.
@@ -78,7 +78,7 @@ The tool policy and per-tool rails match it exactly. Must not be empty.
 
 <ParamField path="tool_input" type="any" required={true}>
 The tool call's arguments, such as `{"command": "..."}` for `Bash`, or the whole patch in `command` for `apply_patch`.
-A value that isn't a JSON object is denied.
+A value that is not a JSON object is denied.
 </ParamField>
 
 <ParamField path="tool_use_id" type="string" required={true}>
@@ -89,7 +89,7 @@ Codex's ID for the tool call, which the server logs.
 
 An allowed call returns `200` with an empty object, `{}`, which carries no decision.
 A denied call returns `200` with the following object.
-The response carries no other fields, because Codex treats output with a field it doesn't know as a failed hook, and runs the tool.
+The response carries no other fields, because Codex treats output with a field it does not know as a failed hook, and runs the tool.
 
 <ParamField path="hookSpecificOutput" type="object" required={true}>
 The deny decision.
@@ -112,11 +112,12 @@ For the reasons, refer to [Deny Reasons](/run-guardrailed-inference/using-hooks-
 ## Errors
 
 Every error uses the OpenAI error envelope, with `message`, `type`, `param`, and `code` in an `error` object.
+The endpoint can return the following errors:
 
 | Status | `code` | When |
 |---|---|---|
 | `422` | `unsupported_hook_event` | `hook_event_name` is an event other than `PreToolUse`. |
-| `422` | `null` | The body isn't JSON, or isn't a JSON object. `param` is `null`. |
+| `422` | `null` | The body is not JSON, or is not a JSON object. `param` is `null`. |
 | `422` | `null` | A required field is missing or invalid. `param` names the field. |
 | `500` | `rail_failed` | A per-tool rail failed instead of deciding, for example because its model call failed. |
 | `500` | `null` | The check failed for another reason, or the server hit an unexpected error. |

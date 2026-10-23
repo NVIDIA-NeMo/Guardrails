@@ -13,6 +13,8 @@ When the hooks server denies a call, Codex blocks it and shows the reason to its
 
 ## Prerequisites
 
+Before you configure the hook, meet the following prerequisites:
+
 - Codex 0.124.0 or later, the first release with hooks enabled by default, configured in `config.toml`, and run for `apply_patch` and MCP tools.
 - A running hooks server.
   To start one with the [Codex example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/codex), run the following command from a clone of the repository:
@@ -53,7 +55,7 @@ So the command turns every failure into exit code `2`:
 
 Set `timeout`, in seconds, to how long your slowest rail can take, and `--max-time` a few seconds below it.
 A rail that calls a model, such as a tool safety check, takes longer than a regular expression.
-Leave the hook synchronous: an `async` hook can't block a call.
+Leave the hook synchronous: an `async` hook cannot block a call.
 
 ## Trust the Hook
 
@@ -62,14 +64,14 @@ Until you do, Codex skips the hook, and every tool call runs unchecked.
 Follow [Review and trust hooks](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks) in the Codex documentation.
 
 For automated tests only, Codex 0.131.0 and later accept `--dangerously-bypass-hook-trust`, which runs hooks without the review.
-Don't use it for real sessions.
+Do not use it for real sessions.
 
 ## Deploy the Hook with Managed Settings
 
 Anyone who can edit a user's `config.toml` can remove the hook, point it at another server, or drop `|| exit 2`.
 To enforce the hook for every user, install it as a managed hook in `requirements.toml`:
 
-- Codex trusts hooks in `requirements.toml` by policy, and users can't disable them.
+- Codex trusts hooks in `requirements.toml` by policy, and users cannot disable them.
 - Pin `[features].hooks = true` in `requirements.toml` too, so the hook runs even for users who turned hooks off.
 - `allow_managed_hooks_only = true`, from Codex 0.131.0, makes Codex ignore hooks from user, project, and session configuration.
 
@@ -108,16 +110,18 @@ Send a tool call through the same command, the way Codex does, and check the out
 
 The hooks server matches tool names exactly as Codex sends them:
 
-| Tool | Name in the hook | The argument to check |
+| Tool | Name in the Hook | Argument to Check |
 |---|---|---|
 | Shell commands | `Bash` | `command` |
 | File edits, creation, and deletion | `apply_patch` | `command`, which holds the whole patch, including `*** Add File:`, `*** Update File:`, `*** Delete File:`, and `*** Move to:` headers |
-| Plan updates | `update_plan` | |
-| MCP tools | `mcp__<server>__<tool>` | The tool's own arguments |
+| Plan updates | `update_plan` | No per-tool argument check in the example configuration |
+| Model Context Protocol (MCP) tools | `mcp__<server>__<tool>` | The tool's own arguments |
 
 Codex reports file edits as `apply_patch` even when a hook's matcher names `Edit` or `Write`.
 To check the files a patch touches, match the file headers in the patch text, as the example configuration does.
-From Codex 0.135.0, every local function tool reaches the hook, so with `allow_unlisted_tools: false`, list each one you use in `allowed_tools`.
+From Codex 0.135.0, hooks cover most local function tools, so with `allow_unlisted_tools: false`, list each one you use in `allowed_tools`.
+Some specialized tool paths can bypass hooks.
+Sending input to an existing command with `write_stdin` does not run `PreToolUse` again.
 
 Hosted tools that run on the model provider's side, such as web search, never reach the hook.
 For the full list, refer to [Tool coverage](https://learn.chatgpt.com/docs/hooks#tool-coverage) in the Codex documentation.

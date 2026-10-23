@@ -200,9 +200,10 @@ A useful alert rule is any sustained non-zero rejection rate: it means the serve
 
 ## The Hooks Server
 
-The [Guardrails hooks server](/run-guardrailed-inference/using-hooks-server/overview) (`nemoguardrails hooks-server`) exports the same three metrics, with the same flags and environment variables, but with defaults of its own, so it can export beside the Guardrails API server on one host:
+The [Guardrails hooks server](/run-guardrailed-inference/using-hooks-server/overview) (`nemoguardrails hooks-server`) exports the same three metrics with the same flags and environment variables.
+The following defaults let both servers export metrics on the same host:
 
-| Setting | Guardrails API server default | Hooks server default |
+| Setting | Guardrails API Server Default | Hooks Server Default |
 |---|---|---|
 | Listen interface | `0.0.0.0` | `127.0.0.1` |
 | Listen port | `9464` | `9465` |
@@ -212,16 +213,18 @@ The hooks server also differs from the Guardrails API server in the following wa
 
 - It always runs on `IORails`, so it needs no `NEMO_GUARDRAILS_IORAILS_ENGINE`.
 - It serves one configuration, which must set `metrics.enabled: true`.
-  When the exporter runs and the configuration doesn't set it, the server logs a warning at startup, and the scrape endpoint shows no `guardrails_` series.
+  When the exporter runs and the configuration does not set it, the server logs a warning at startup, and the scrape endpoint shows no `guardrails_` series.
 - Its engine starts with the server, so the queue gauges appear before the first request.
 - Only calls that run per-tool rails pass through the admission queue.
-  A call that the tool policy decides, or a call to a tool with no per-tool rails, doesn't change the metrics.
+  A call that the tool policy decides, or a call to a tool with no per-tool rails, does not change the metrics.
 
 Start it with the exporter:
 
 ```bash
 nemoguardrails hooks-server --config ./hooks-config --metrics-exporter prometheus
 ```
+
+Check the scrape endpoint with the following command:
 
 ```bash
 curl -s http://127.0.0.1:9465/metrics | grep guardrails_

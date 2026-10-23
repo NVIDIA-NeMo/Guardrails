@@ -13,6 +13,8 @@ When the hooks server denies a call, Claude Code cancels it and shows the reason
 
 ## Prerequisites
 
+Before you configure the hook, meet the following prerequisites:
+
 - Claude Code 2.1.295 or later, the first release with `onFailure: "block"`, which makes a failed check block the call.
 - A running hooks server.
   To start one with the [Claude Code example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/claude_code), run the following command from a clone of the repository:
@@ -46,6 +48,8 @@ Add an `http` hook on `PreToolUse` to a Claude Code settings file:
 }
 ```
 
+The hook settings have the following effects:
+
 - The hook has no `matcher`, so Claude Code runs it for every tool.
 - `onFailure: "block"` blocks the call when the hook fails: an error status from the hooks server, a refused connection, or no answer within `timeout`.
   Without it, Claude Code treats a failure as a non-blocking error and runs the tool.
@@ -57,7 +61,7 @@ If the hooks server runs on another port, for example because you [run one serve
 
 Choose the settings file by who the hook should cover:
 
-| Settings file | Applies to |
+| Settings File | Applies To |
 |---|---|
 | `~/.claude/settings.json` | You, in every project |
 | `.claude/settings.json` in a project | Everyone who works in the project, through version control |
@@ -78,23 +82,24 @@ If your organization sets it, add the hooks server's URL:
 }
 ```
 
-Otherwise Claude Code doesn't run the hook, and no tool call reaches the hooks server.
+Otherwise Claude Code does not run the hook, and no tool call reaches the hooks server.
 
 ## Deploy the Hook with Managed Settings
 
 Anyone who can edit a user's or a project's settings can remove the hook, point it at another server, or drop `onFailure: "block"`.
 To enforce the hook for every user, add it to Claude Code's managed settings, such as `managed-settings.json`:
 
-- Settings in other files can't remove a managed hook, and a user's `disableAllHooks` can't turn it off.
-- `"allowManagedHooksOnly": true` in managed settings stops every hook that doesn't come from managed settings.
+- Settings in other files cannot remove a managed hook, and a user's `disableAllHooks` cannot turn it off.
+- `"allowManagedHooksOnly": true` in managed settings stops every hook that does not come from managed settings.
 
-For the file locations on each operating system, and for MDM and server-managed delivery, refer to [managed settings](https://code.claude.com/docs/en/managed-settings) in the Claude Code documentation.
+For file locations and deployment through mobile device management (MDM) or server-managed settings, refer to [managed settings](https://code.claude.com/docs/en/managed-settings) in the Claude Code documentation.
 
 ## Verify the Hook
 
 1. In Claude Code, type `/hooks` and check that the `PreToolUse` HTTP hook is listed.
-1. Ask Claude to run a command that your configuration blocks.
-   With the example configuration, ask it to run `git push --force origin main`.
+1. Ask Claude to run `echo 'rm -rf /tmp/guardrails-hook-check'`.
+   The example configuration blocks the command because its text matches the `rm -rf` pattern.
+   If the hook is missing or misconfigured, the command only prints text.
    Claude Code cancels the call, and Claude reports the reason, `NeMo Guardrails: regex check tool call`.
 1. Stop the hooks server and ask Claude to run any command.
    With `onFailure: "block"`, Claude Code blocks the call because the hook fails.
@@ -104,7 +109,9 @@ The hooks server [logs one line for each tool call it checks](/run-guardrailed-i
 
 ## What Claude Code Does with Each Outcome
 
-| Hooks server answers | Claude Code |
+Claude Code handles each hooks server response as follows:
+
+| Hooks Server Response | Claude Code Behavior |
 |---|---|
 | Allow: `200` with `{}` | Has no decision from the hook, so it continues with its normal permission flow, which can still prompt you |
 | Deny: `200` with `permissionDecision: "deny"` | Cancels the call, and shows the reason to Claude |
@@ -117,22 +124,23 @@ Your permission rules keep applying to every call the hooks server allows.
 
 The hooks server matches tool names exactly as Claude Code sends them:
 
-| Tool | Name in the hook | The argument to check |
+| Tool | Name in the Hook | Argument to Check |
 |---|---|---|
 | Shell commands | `Bash` | `command` |
 | Read, create, and edit files | `Read`, `Write`, `Edit` | `file_path`, always an absolute path, with backslash separators on Windows |
 | Search files | `Glob`, `Grep` | `pattern` |
 | Web access | `WebFetch`, `WebSearch` | `url` for `WebFetch`, `query` for `WebSearch` |
-| MCP tools | `mcp__<server>__<tool>` | The tool's own arguments |
+| Model Context Protocol (MCP) tools | `mcp__<server>__<tool>` | The tool's own arguments |
 
 An MCP tool from a plugin is named `mcp__plugin_<plugin>_<server>__<tool>`.
 Claude Code also sends an `mcp_server` field with MCP calls, which says where the server's definition came from.
-The hooks server doesn't read it, so it identifies an MCP server only by the tool name's prefix.
+The hooks server does not read it, so it identifies an MCP server only by the tool name's prefix.
 
 Some tool uses never reach the hook:
 
 - Files you reference with `@` in a prompt are added without a tool call, so no `PreToolUse` hook runs for them, including a check on `Read`.
-  Set `CLAUDE_CODE_DISABLE_FILE_MENTIONS=1` in user or managed settings to make Claude read referenced files with its tools instead, so the hook checks them.
+  In Claude Code 2.1.299 or later, set `CLAUDE_CODE_DISABLE_FILE_MENTIONS=1` in user or managed settings to disable this automatic insertion.
+  Claude then receives the paths with a note to read them using file tools, which run the hook.
 - `EndConversation` calls skip hooks.
 
 ## Request and Response

@@ -29,7 +29,9 @@ To use the Python API or the Guardrails API server, you need to install the NeMo
 Both the Python API and the Guardrails API server are production-ready approaches for integrating guardrails into your application.
 The Guardrails hooks server is for coding agents, which you connect through their hook settings rather than your own code.
 
-| You want to | Use |
+Choose an interface based on the following tasks:
+
+| Task | Interface |
 |---|---|
 | Call guardrails from Python code in your application | The Python API |
 | Send chat requests or checks over HTTP, from any language | The Guardrails API server (`nemoguardrails server`) |
@@ -83,7 +85,7 @@ nemoguardrails hooks-server --config examples/configs/agent_hooks/claude_code
 
 This approach is best for:
 
-- Coding agents whose code you don't control, and that can call out only from a hook.
+- Coding agents whose code you do not control, and that can call out only from a hook.
 - Blocking risky tools, arguments, or commands, such as a force push or a read of a secrets file, before the agent runs them.
 
 ---

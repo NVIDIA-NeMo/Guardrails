@@ -68,7 +68,7 @@ The tool policy and per-tool rails match it exactly. Must not be empty.
 
 <ParamField path="tool_input" type="any" required={true}>
 The tool's arguments, as NeMo Relay passes them to the guardrail.
-A value that isn't a JSON object is denied.
+A value that is not a JSON object is denied.
 </ParamField>
 
 ## Response
@@ -89,11 +89,12 @@ For the reasons, refer to [Deny Reasons](/run-guardrailed-inference/using-hooks-
 
 Every error uses the OpenAI error envelope, with `message`, `type`, `param`, and `code` in an `error` object.
 Map every error status to the guardrail callback's `Err`, never to `Ok(None)`.
+The endpoint can return the following errors:
 
 | Status | `code` | When |
 |---|---|---|
 | `422` | `unsupported_hook_event` | `hook_event_name` is an event other than `NemoRelayToolConditionalExecutionGuardrail`. |
-| `422` | `null` | The body isn't JSON, or isn't a JSON object. `param` is `null`. |
+| `422` | `null` | The body is not JSON, or is not a JSON object. `param` is `null`. |
 | `422` | `null` | A required field is missing or invalid, or the body has another field. `param` names the field. |
 | `500` | `rail_failed` | A per-tool rail failed instead of deciding, for example because its model call failed. |
 | `500` | `null` | The check failed for another reason, or the server hit an unexpected error. |
