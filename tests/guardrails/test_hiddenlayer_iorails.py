@@ -102,7 +102,7 @@ SERVER_ERROR = HTTPResponse(status_code=500, headers={"Content-Type": "text/plai
 
 
 def _surface(request: HTTPRequest) -> str:
-    """The surface a leg came from: the route gives the leg, the body which of its two surfaces."""
+    """The surface an evaluation came from: the route gives the kind, the body which of its two surfaces."""
     body = request.json
     if request.url == RESPONSE_URL:
         return "tool_call" if body["choices"][0]["message"].get("tool_calls") else "output"
@@ -134,7 +134,7 @@ class FakeHiddenLayer:
         assert url in (REQUEST_URL, RESPONSE_URL), url
         if self.on_evaluation is not None:
             self.on_evaluation(self.requests[-1])
-        # Allowing the leg returns the payload as sent, which is what the contract answers on NONE.
+        # Allowing the evaluation returns the payload as sent, which is what the contract answers on NONE.
         verdict = self.verdicts.get(_surface(self.requests[-1]), (200, verdict_headers("NONE"), json))
         if isinstance(verdict, BaseException):
             raise verdict

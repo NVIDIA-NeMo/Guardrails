@@ -125,7 +125,7 @@ def _outcome(surface: Surface, evaluation: _Evaluation, sent: _Sent) -> RailOutc
 
     target = _SURFACE_TARGET[surface]
     if target is None:
-        # HiddenLayer promotes a tool-leg REDACT to BLOCK, so this is the defensive path.
+        # HiddenLayer promotes a REDACT on a tool evaluation to BLOCK, so this is the defensive path.
         return RailOutcome.block(reason=BLOCK_REASON, metadata=metadata)
     text = _redacted_text(surface, evaluation.body)
     if not isinstance(text, str):

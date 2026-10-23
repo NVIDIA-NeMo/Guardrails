@@ -72,7 +72,7 @@ def fresh_warnings():
 
 
 class TestRoutes:
-    """The route carries the leg, so each surface is pinned to one by name."""
+    """The route carries the kind of evaluation, so each surface is pinned to one by name."""
 
     @pytest.mark.parametrize(
         ("surface", "path"),

@@ -207,9 +207,9 @@ async def _request_evaluation(
     client_id: str,
     client_secret: str,
 ) -> _Evaluation:
-    """Fetch a token, post the leg to its route, refresh the token once on a 401, and read the 200."""
+    """Fetch a token, post the evaluation to its route, refresh the token once on a 401, and read the 200."""
     url = f"{settings.api_url}{_SURFACE_PATH[surface]}"
-    # Resolved once: a second attempt is the same leg of the same model call, not a new one.
+    # Resolved once: a second attempt is the same evaluation of the same model call, not a new one.
     roundtrip_id, session_id = _roundtrip_id(), _session_id(settings)
 
     async def token(rejected: Optional[str] = None) -> str:

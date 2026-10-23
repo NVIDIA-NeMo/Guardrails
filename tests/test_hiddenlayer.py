@@ -414,7 +414,7 @@ class TestVerdictsAreNeverFailedOpen:
 
 class TestRoundtripId:
     @pytest.mark.asyncio
-    async def test_every_leg_of_one_round_trip_shares_the_id(self):
+    async def test_every_evaluation_of_one_round_trip_shares_the_id(self):
         call = ToolCall(id="call_1", function=ToolCallFunction(name="run_sql", arguments={"query": "SELECT 1"}))
         with RecordedHTTPResponses() as responses:
             _token(responses)
@@ -447,7 +447,7 @@ class TestRoundtripId:
         assert _evaluations(responses.client)[0].headers["HL-Roundtrip-Id"] == value
 
     @pytest.mark.asyncio
-    async def test_a_retried_leg_keeps_its_round_trip_id(self):
+    async def test_a_retried_evaluation_keeps_its_round_trip_id(self):
         with RecordedHTTPResponses() as responses:
             _token(responses)
             responses.post(REQUEST_URL, status=503, body="")

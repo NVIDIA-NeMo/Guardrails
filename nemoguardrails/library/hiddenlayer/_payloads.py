@@ -15,12 +15,12 @@
 
 """Request bodies, headers and routes for the HiddenLayer NeMo-Guardrails evaluation API.
 
-Each guarded model call is evaluated in legs that share one ``HL-Roundtrip-Id``. Request legs
-(the input check and tool-result checks) go to ``request-evaluations`` and carry an OpenAI
-chat-completion request; response legs (tool-call checks and the output check) go to
-``response-evaluations`` and carry a chat-completion response. Both routes read the body as
-OpenAI Chat Completions whatever the model, and each body holds the current turn only:
-conversation history reaches HiddenLayer through ``HL-Runtime-Session-Id``.
+Each guarded model call is evaluated as a single round-trip under one ``HL-Roundtrip-Id``: its
+request evaluations (the input check and tool-result checks) go to ``request-evaluations`` and
+carry an OpenAI chat-completion request, and its response evaluations (tool-call checks and the
+output check) go to ``response-evaluations`` and carry a chat-completion response. Both routes
+read the body as OpenAI Chat Completions whatever the model, and each body holds the current turn
+only: conversation history reaches HiddenLayer through ``HL-Runtime-Session-Id``.
 """
 
 import json
@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 _REQUEST_PATH = "/detection/v2/nemo-guardrails/request-evaluations"
 _RESPONSE_PATH = "/detection/v2/nemo-guardrails/response-evaluations"
 
-# The route carries the leg, not the body.
+# The route carries the kind of evaluation, not the body.
 _SURFACE_PATH: Dict[Surface, str] = {
     "input": _REQUEST_PATH,
     "tool_result": _REQUEST_PATH,
@@ -164,7 +164,7 @@ def _tool_result_interaction(
     call_id: str,
     tool_definition: Optional[Tool] = None,
 ) -> Dict[str, Any]:
-    """A request leg holding the answered call and its result."""
+    """A request evaluation holding the answered call and its result."""
     tool_name = _tool_name(tool_call, tool_result)
     body: Dict[str, Any] = {
         "model": model,
@@ -179,11 +179,12 @@ def _tool_result_interaction(
 
 
 def _roundtrip_id() -> str:
-    """The UUID identifying the model call this leg belongs to.
+    """The UUID identifying the model call this evaluation belongs to.
 
     ``HL-Roundtrip-Id`` must be a UUID, while the round-trip ID a caller sets is any string, so a
     value that is not already a UUID is mapped onto one. With no round trip and no request ID the
-    legs of one model call cannot be paired, which costs the response legs their request context.
+    evaluations of one model call cannot be paired, which costs the response evaluations their
+    request context.
     """
     value = get_roundtrip_id()
     if value is None:
