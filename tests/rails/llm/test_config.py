@@ -244,113 +244,87 @@ def test_hooks_server_argument_entry_in_blocked_tools_beside_an_allowed_name_loa
     assert config.hooks_server.blocked_tools == [ToolEntry(name="Bash", arguments=["dangerouslyDisableSandbox"])]
 
 
-@pytest.mark.parametrize("strict_first", [True, False], ids=["strict-first", "strict-last"])
-def test_merged_configs_deny_unlisted_hooks_server_tools_when_either_does(strict_first):
-    """Adding two configs keeps hooks_server.allow_unlisted_tools false when either sets it, whichever comes last."""
-    strict = _hooks_server_config({"allowed_tools": ["Read"], "allow_unlisted_tools": False})
-    loose = _hooks_server_config({})
-
-    merged = strict + loose if strict_first else loose + strict
-
-    assert (merged.hooks_server.allowed_tools, merged.hooks_server.allow_unlisted_tools) == (["Read"], False)
-
-
 STRICT_HOOKS_SERVER = {"blocked_tools": ["WebFetch"], "allow_unlisted_tools": False}
-LOOSE_HOOKS_SERVER = {"allowed_tools": ["Read"]}
+SECTION_SET_TWICE = "The hooks_server section is set in more than one file of this config"
 
 
-def _joined_hooks_server(first: dict, second: dict) -> HooksServerConfig:
-    """The hooks_server section a config joins from *first* and then *second*, as two config files are joined."""
-    config = RailsConfig.from_content(
-        config={"models": [], "hooks_server": first}, yaml_content=yaml.safe_dump({"hooks_server": second})
-    )
-    return config.hooks_server
+def _config_dir(path, content: dict):
+    """A config directory at *path* holding *content* as its `config.yml`."""
+    path.mkdir()
+    (path / "config.yml").write_text(yaml.safe_dump(content))
+    return path
 
 
 @pytest.mark.parametrize("strict_first", [True, False], ids=["strict-first", "strict-last"])
-def test_joined_hooks_server_sections_keep_every_restriction(strict_first):
-    """Joining two files' hooks_server sections keeps both files' lists, and denies unlisted tools if either does."""
-    first, second = (
-        (STRICT_HOOKS_SERVER, LOOSE_HOOKS_SERVER) if strict_first else (LOOSE_HOOKS_SERVER, STRICT_HOOKS_SERVER)
-    )
+def test_added_configs_keep_the_one_hooks_server_section_either_sets(strict_first):
+    """Adding a config without a hooks_server section to one with it keeps that section, whichever comes first."""
+    strict = _hooks_server_config(STRICT_HOOKS_SERVER)
+    plain = RailsConfig.from_content(config={"models": []})
 
-    joined = _joined_hooks_server(first, second)
+    merged = strict + plain if strict_first else plain + strict
 
-    assert (joined.allowed_tools, joined.blocked_tools, joined.allow_unlisted_tools) == (["Read"], ["WebFetch"], False)
-
-
-def test_joined_hooks_server_sections_list_a_tool_both_name_once():
-    """A tool both files' sections name the same way is listed once in the joined section."""
-    joined = _joined_hooks_server({"allowed_tools": ["Read", "Bash"]}, {"allowed_tools": ["Bash"]})
-
-    assert joined.allowed_tools == ["Read", "Bash"]
+    assert merged.hooks_server == strict.hooks_server
 
 
-def test_joined_hooks_server_sections_that_contradict_are_refused():
-    """A tool one file allows and another blocks by name fails validation once the sections are joined."""
-    with pytest.raises(
-        ValidationError, match="hooks_server.allowed_tools allows tool 'Bash', which hooks_server.blocked_tools"
-    ):
-        _joined_hooks_server({"allowed_tools": ["Bash"]}, {"blocked_tools": ["Bash"]})
+def test_added_configs_that_both_set_hooks_server_are_refused():
+    """Adding two configs that both set a hooks_server section fails, rather than widening either's allowlist."""
+    only_read = _hooks_server_config({"allowed_tools": ["Read"], "allow_unlisted_tools": False})
+    only_bash = _hooks_server_config({"allowed_tools": ["Bash"], "allow_unlisted_tools": False})
+
+    with pytest.raises(ValueError, match="Both configs set a hooks_server section"):
+        only_read + only_bash
 
 
-@pytest.mark.parametrize("deny_first", [True, False], ids=["deny-first", "deny-last"])
-def test_joined_hooks_server_sections_deny_unlisted_tools_when_either_does(deny_first):
-    """When both files set allow_unlisted_tools, the joined section denies unlisted tools if either file does."""
-    first, second = ({"allow_unlisted_tools": False}, {"allow_unlisted_tools": True})
+def test_hooks_server_section_set_in_two_files_of_a_directory_is_refused(tmp_path):
+    """A config directory where two files set hooks_server fails to load, naming whichever file is found second."""
+    _config_dir(tmp_path / "config", {"models": [], "hooks_server": STRICT_HOOKS_SERVER})
+    (tmp_path / "config" / "extra.yml").write_text(yaml.safe_dump({"hooks_server": {"allowed_tools": ["Read"]}}))
 
-    joined = _joined_hooks_server(first, second) if deny_first else _joined_hooks_server(second, first)
+    with pytest.raises(ValueError, match=SECTION_SET_TWICE) as error:
+        RailsConfig.from_path(str(tmp_path / "config"))
 
-    assert joined.allow_unlisted_tools is False
-
-
-@pytest.mark.parametrize(
-    ("first", "second", "location"),
-    [
-        ({"allow_unlisted_tools": "sometimes"}, {"allow_unlisted_tools": True}, r"hooks_server\.allow_unlisted_tools"),
-        ({"allowed_tools": ["Read"]}, {"allowed_tools": "Bash"}, r"hooks_server\.allowed_tools"),
-        ({"allowed_tools": ["Read"]}, ["Bash"], r"hooks_server\n"),
-    ],
-    ids=["setting-not-a-boolean", "list-not-a-list", "section-not-a-mapping"],
-)
-def test_joined_hooks_server_section_with_an_invalid_part_is_refused(first, second, location):
-    """A part of either file's hooks_server section that has the wrong type still fails validation after the join."""
-    with pytest.raises(ValidationError, match=location):
-        _joined_hooks_server(first, second)
-
-
-def test_hooks_server_sections_in_one_directory_keep_every_restriction(tmp_path):
-    """Two files in one config directory join their hooks_server sections, whichever loads first."""
-    (tmp_path / "config.yml").write_text(yaml.safe_dump({"models": [], "hooks_server": STRICT_HOOKS_SERVER}))
-    (tmp_path / "extra.yml").write_text(yaml.safe_dump({"hooks_server": LOOSE_HOOKS_SERVER}))
-
-    hooks_server = RailsConfig.from_path(str(tmp_path)).hooks_server
-
-    assert (hooks_server.allowed_tools, hooks_server.blocked_tools, hooks_server.allow_unlisted_tools) == (
-        ["Read"],
-        ["WebFetch"],
-        False,
+    assert any(
+        f"found again in {tmp_path / 'config' / name}" in str(error.value) for name in ("config.yml", "extra.yml")
     )
 
 
-def test_imported_hooks_server_section_keeps_every_restriction(tmp_path):
-    """A config that imports another joins the imported hooks_server section with its own."""
-    shared = tmp_path / "shared"
-    shared.mkdir()
-    (shared / "config.yml").write_text(yaml.safe_dump({"hooks_server": STRICT_HOOKS_SERVER}))
-    local = tmp_path / "local"
-    local.mkdir()
-    (local / "config.yml").write_text(
-        yaml.safe_dump({"models": [], "import_paths": [str(shared)], "hooks_server": LOOSE_HOOKS_SERVER})
+def test_hooks_server_section_set_in_a_config_and_its_import_is_refused(tmp_path):
+    """A config that sets hooks_server and imports a config that sets it too fails to load, naming the import."""
+    shared = _config_dir(tmp_path / "shared", {"hooks_server": STRICT_HOOKS_SERVER})
+    local = _config_dir(
+        tmp_path / "local",
+        {"models": [], "import_paths": [str(shared)], "hooks_server": {"allowed_tools": ["Read"]}},
     )
 
-    hooks_server = RailsConfig.from_path(str(local)).hooks_server
+    with pytest.raises(ValueError, match=SECTION_SET_TWICE) as error:
+        RailsConfig.from_path(str(local))
 
-    assert (hooks_server.allowed_tools, hooks_server.blocked_tools, hooks_server.allow_unlisted_tools) == (
-        ["Read"],
-        ["WebFetch"],
-        False,
-    )
+    assert f"found again in {shared}" in str(error.value)
+
+
+def test_hooks_server_section_set_in_both_contents_is_refused():
+    """from_content() with a hooks_server section in both the config dict and the YAML content fails to load."""
+    with pytest.raises(ValueError, match=SECTION_SET_TWICE):
+        RailsConfig.from_content(
+            config={"models": [], "hooks_server": STRICT_HOOKS_SERVER},
+            yaml_content=yaml.safe_dump({"hooks_server": {"allowed_tools": ["Read"]}}),
+        )
+
+
+def test_hooks_server_section_in_one_file_of_a_directory_loads_as_written(tmp_path):
+    """A hooks_server section in one file of a config directory loads as written beside the other files."""
+    config_dir = _config_dir(tmp_path / "config", {"models": []})
+    (config_dir / "policy.yml").write_text(yaml.safe_dump({"hooks_server": STRICT_HOOKS_SERVER}))
+
+    assert RailsConfig.from_path(str(config_dir)).hooks_server == HooksServerConfig(**STRICT_HOOKS_SERVER)
+
+
+def test_hooks_server_section_only_in_an_imported_config_loads_as_written(tmp_path):
+    """A hooks_server section set only in a config that another imports loads as written."""
+    shared = _config_dir(tmp_path / "shared", {"hooks_server": STRICT_HOOKS_SERVER})
+    local = _config_dir(tmp_path / "local", {"models": [], "import_paths": [str(shared)]})
+
+    assert RailsConfig.from_path(str(local)).hooks_server == HooksServerConfig(**STRICT_HOOKS_SERVER)
 
 
 @pytest.mark.parametrize(

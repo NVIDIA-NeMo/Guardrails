@@ -82,7 +82,8 @@ def check_hooks_config(config: RailsConfig) -> None:
 
 def _check_no_global_tool_call_rails(config: RailsConfig) -> None:
     """Raise when rails.tool_call.flows lists a rail, which can't deny a call the tool policy allows."""
-    # IORails' one global tool-call rail checks a call against the offered tools, and the server offers the called tool.
+    # IORails' one global tool-call rail checks a call against the tools a check passes, and the server passes the
+    # called tool, so the rail always finds it.
     if config.rails.tool_call.flows:
         raise HooksConfigError(
             f"rails.tool_call.flows lists '{config.rails.tool_call.flows[0]}', which can't deny a call on the hooks "

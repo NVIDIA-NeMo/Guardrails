@@ -57,9 +57,10 @@ def check_messages(call: ToolInvocation) -> list[dict]:
 
 
 def check_tools(call: ToolInvocation, policy: ToolPolicy) -> list[dict]:
-    """The tool *call* names, as the one tool `check_async()` takes in `tools`, with the arguments *policy* allows."""
-    # A hook carries no list of the agent's tools, but an agent calls only tools it has, so the called tool was offered.
-    # The server has already applied the policy; the declaration gives the per-tool rails the arguments it allows.
+    """A compatibility declaration of the tool *call* names, as `check_async()` takes `tools`, for per-tool rails."""
+    # Per-tool rails run behind `@tool_call_validation`, which needs the called tool declared, and a hook carries no list
+    # of the agent's tools. This declaration only meets that prerequisite: it isn't evidence that the agent offered the
+    # tool, nor the tool's real schema, only the arguments the policy, applied before this, allows.
     arguments = policy.allowed_arguments(call.name)
     if arguments is None:
         # `{"type": "object"}` alone would declare a tool that takes no arguments.

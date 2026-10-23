@@ -543,6 +543,18 @@ class TestHooksServerCommand:
         assert "exactly one --config" in result.output
         mock_uvicorn.assert_not_called()
 
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_a_config_that_sets_hooks_server_twice(self, mock_uvicorn, tmp_path):
+        """A config with two files that set hooks_server exits 1 with the loader's message, before binding."""
+        config = self._config_dir(tmp_path, HOOKS_CONFIG_YML + "hooks_server:\n  blocked_tools: [WebFetch]\n")
+        (tmp_path / "extra.yml").write_text("hooks_server:\n  allowed_tools: [Read]\n")
+
+        result = runner.invoke(app, ["hooks-server", f"--config={config}"])
+
+        assert result.exit_code == 1
+        assert "The hooks_server section is set in more than one file of this config" in result.output
+        mock_uvicorn.assert_not_called()
+
     def test_hooks_server_without_the_server_extra_prints_the_install_hint(self, tmp_path, monkeypatch):
         """Without the `server` extra's packages, the command exits 1 with the install hint."""
         monkeypatch.setitem(sys.modules, "uvicorn", None)

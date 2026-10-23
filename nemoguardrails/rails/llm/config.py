@@ -26,8 +26,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    TypeAdapter,
-    ValidationError,
     field_validator,
     model_validator,
 )
@@ -734,8 +732,8 @@ def merge_two_dicts(dict_1: dict, dict_2: dict, ignore_keys: Set[str]) -> None:
                 dict_1[key] = value
 
 
-def _join_config(dest_config: dict, additional_config: dict):
-    """Helper to join two configuration."""
+def _join_config(dest_config: dict, additional_config: dict, source: Optional[str] = None):
+    """Helper to join two configuration; *source* names where *additional_config* was read from, for errors."""
 
     dest_config["user_messages"] = {
         **dest_config.get("user_messages", {}),
@@ -767,9 +765,14 @@ def _join_config(dest_config: dict, additional_config: dict):
     }
 
     if "hooks_server" in additional_config:
-        dest_config["hooks_server"] = _join_hooks_server_sections(
-            dest_config.get("hooks_server"), additional_config["hooks_server"]
-        )
+        # Replacing one section with another would drop restrictions, and joining them would widen the allowlists.
+        if "hooks_server" in dest_config:
+            found_again = f" (found again in {source})" if source else ""
+            raise ValueError(
+                "The hooks_server section is set in more than one file of this config, or of a config it imports; "
+                f"set it in one file only{found_again}."
+            )
+        dest_config["hooks_server"] = additional_config["hooks_server"]
 
     dest_config["embedding_search_provider"] = dest_config.get(
         "embedding_search_provider", {}
@@ -824,48 +827,6 @@ def _join_config(dest_config: dict, additional_config: dict):
 
     # Reads all the other fields and merges them with the custom_data field
     merge_two_dicts(dest_config.get("custom_data", {}), additional_config, ignore_fields)
-
-
-def _join_hooks_server_sections(dest: Any, additional: Any) -> Any:
-    """The hooks_server section two config files set between them: both files' lists, and the stricter setting."""
-    # Joined rather than replaced, as `RailsConfig +` joins them, so a later file can't drop an earlier one's restrictions.
-    if dest is None:
-        return additional
-    if not isinstance(dest, dict) or not isinstance(additional, dict):
-        # Not a section on one side: keep that side, so validation refuses it.
-        return additional if isinstance(dest, dict) else dest
-    joined = {**dest, **additional}
-    for key in ("allowed_tools", "blocked_tools"):
-        if key in dest and key in additional:
-            joined[key] = _joined_tool_list(dest[key], additional[key])
-    if "allow_unlisted_tools" in dest and "allow_unlisted_tools" in additional:
-        joined["allow_unlisted_tools"] = _stricter_allow_unlisted(
-            dest["allow_unlisted_tools"], additional["allow_unlisted_tools"]
-        )
-    return joined
-
-
-def _joined_tool_list(first: Any, second: Any) -> Any:
-    """Both tool lists, each entry once, or whichever of the two isn't a list, so validation refuses it."""
-    if isinstance(first, list) and isinstance(second, list):
-        return _unique_list_concat(first, second)
-    return second if isinstance(first, list) else first
-
-
-def _stricter_allow_unlisted(first: Any, second: Any) -> Any:
-    """`false` if either value denies unlisted tools, or whichever value isn't a boolean, so validation refuses it."""
-    parsed = [_as_bool(value) for value in (first, second)]
-    if None in parsed:
-        return (first, second)[parsed.index(None)]
-    return all(parsed)
-
-
-def _as_bool(value: Any) -> Optional[bool]:
-    """*value* as the boolean a config field would read it as, or None when it isn't one."""
-    try:
-        return TypeAdapter(bool).validate_python(value)
-    except ValidationError:
-        return None
 
 
 def _load_path(
@@ -923,7 +884,7 @@ def _load_path(
                 elif file.endswith(".co"):
                     colang_files.append((file, full_path))
 
-                _join_config(raw_config, _raw_config)
+                _join_config(raw_config, _raw_config, source=full_path)
 
     # If it's just a .co file, we append it as is to the config.
     elif config_path.endswith(".co"):
@@ -975,7 +936,7 @@ def _load_imported_paths(raw_config: dict, colang_files: List[Tuple[str, str]]):
             _raw_config, _colang_files = _load_path(actual_path)
 
             # Join them.
-            _join_config(raw_config, _raw_config)
+            _join_config(raw_config, _raw_config, source=actual_path)
             colang_files.extend(_colang_files)
 
             # And mark the path as imported.
@@ -1631,11 +1592,19 @@ def _join_rails_configs(base_rails_config: RailsConfig, updated_rails_config: Ra
     if base_rails_config.actions_server_url != updated_rails_config.actions_server_url:
         raise ValueError("Both config files should have the same actions_server_url")
 
+    # A section can't be told apart from an unset one after validation, so "set" means "not the default".
+    hooks_servers = [
+        config.hooks_server
+        for config in (base_rails_config, updated_rails_config)
+        if config.hooks_server != HooksServerConfig()
+    ]
+    if len(hooks_servers) > 1:
+        raise ValueError("Both configs set a hooks_server section, which only one of them may set")
+
     combined_rails_config_dict = _join_dict(base_rails_config.model_dump(), updated_rails_config.model_dump())
-    # Every dump carries the default `true`, so the later config would always win; the merged policy is the stricter.
-    combined_rails_config_dict["hooks_server"]["allow_unlisted_tools"] = (
-        base_rails_config.hooks_server.allow_unlisted_tools and updated_rails_config.hooks_server.allow_unlisted_tools
-    )
+    if hooks_servers:
+        # Every dump carries the section's defaults, which the join would mix into the set section.
+        combined_rails_config_dict["hooks_server"] = hooks_servers[0].model_dump()
     # filter out empty strings to avoid leading/trailing commas
     config_paths = [
         base_rails_config.model_dump()["config_path"] or "",
