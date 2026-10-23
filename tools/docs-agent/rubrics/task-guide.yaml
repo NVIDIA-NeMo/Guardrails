@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+id: task-guide-v0.1
+document_type: task-guide
+pass_threshold: 90
+allow_conditional_pass: false
+dimensions:
+  technical_accuracy:
+    weight: 30
+    criteria:
+      - All technical claims match approved sources.
+      - Names, values, versions, and behaviors are exact.
+  completeness:
+    weight: 20
+    criteria:
+      - Required sections and brief topics are present.
+      - Prerequisites and limitations are explicit.
+  task_success:
+    weight: 20
+    criteria:
+      - Steps are ordered and executable.
+      - Expected results and recovery guidance are usable.
+  source_grounding:
+    weight: 15
+    criteria:
+      - Consequential claims have traceable approved evidence.
+      - Conflicts follow the repository source priority.
+  clarity:
+    weight: 10
+    criteria:
+      - Readers can scan, understand, and complete the task.
+      - Information appears in the expected semantic section.
+  style_compliance:
+    weight: 5
+    criteria:
+      - The document follows explicit repository rules.
+hard_gates:
+  - critical_factual_errors
+  - unsupported_critical_claims
+  - broken_required_examples
+  - missing_mandatory_content
+  - security_compliance_violations
+  - invalid_required_artifacts
