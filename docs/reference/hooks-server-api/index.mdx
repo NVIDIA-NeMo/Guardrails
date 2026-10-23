@@ -1,0 +1,83 @@
+---
+title: "Hooks Server API"
+sidebar-title: "Hooks Server API"
+description: "API reference for the Guardrails hooks server, nemoguardrails hooks-server: the agent hook endpoints and the health checks."
+keywords: ["hooks server API", "nemoguardrails hooks-server", "/v1/hooks", "PreToolUse", "API reference"]
+content:
+  type: "reference"
+---
+
+The Guardrails hooks server (`nemoguardrails hooks-server`) checks coding agents' tool calls before they run.
+It's a separate server from the [Guardrails API Server](/run-guardrailed-inference/using-fastapi-server), with its own endpoints.
+For running it and connecting agents, refer to [Use the Guardrails Hooks Server](/run-guardrailed-inference/using-hooks-server).
+
+## Base URL
+
+```text
+http://localhost:8100
+```
+
+The server listens on `127.0.0.1:8100` by default. Set `--host` and `--port` to change it.
+
+## Authentication
+
+The hooks server has no authentication.
+Keep it on `127.0.0.1`, or on a private network that restricts who can reach the port.
+
+## Endpoints
+
+| Endpoint | Description |
+|---|---|
+| [`POST /v1/hooks/claude-code`](/reference/hooks-server-api/claude-code) | Check a tool call from a Claude Code `PreToolUse` hook |
+| [`POST /v1/hooks/codex`](/reference/hooks-server-api/codex) | Check a tool call from a Codex `PreToolUse` hook |
+| [`POST /v1/hooks/nemo-relay`](/reference/hooks-server-api/nemo-relay) | Check a tool call from a NeMo Relay tool conditional-execution guardrail |
+| [`GET /v1/health`](/reference/hooks-server-api/get-health) | Liveness health check |
+| [`GET /healthz`](/reference/hooks-server-api/get-healthz) | Liveness health check (alias) |
+
+Every other path returns `404`, and the server serves no OpenAPI document or docs pages.
+
+Each hook endpoint applies the same configuration: the path selects only the agent's request and response format.
+The server reads the request body as JSON whatever its `Content-Type` header says.
+
+## Outcomes
+
+A hook endpoint answers each check with one of three outcomes:
+
+| Outcome | Status | Body |
+|---|---|---|
+| Allow | `200` | `{}` for Claude Code and Codex; `{"decision": "allow"}` for NeMo Relay |
+| Deny | `200` | The agent's deny shape, with the reason |
+| Error | `422`, `500`, or `503` | The OpenAI error envelope |
+
+## Errors
+
+Every error response uses the OpenAI error envelope, the same as the Guardrails API Server's:
+
+```json
+{
+  "error": {
+    "message": "rail 'tool safety check tool call' failed: tool safety check tool call error: Connection error.",
+    "type": "server_error",
+    "param": null,
+    "code": "rail_failed"
+  }
+}
+```
+
+<ParamField path="error.message" type="string" required={true}>
+A human-readable message. For a request that fails validation, it names each failing field as `body.<field>: <reason>`.
+</ParamField>
+
+<ParamField path="error.type" type="string" required={true}>
+The OpenAI error category for the status: `invalid_request_error` for `422`, and `server_error` for `500` and `503`.
+</ParamField>
+
+<ParamField path="error.param" type="string or null" required={true}>
+The request field the error relates to, such as `hook_event_name`, or `null`.
+</ParamField>
+
+<ParamField path="error.code" type="string or null" required={true}>
+`unsupported_hook_event`, `rail_failed`, `queue_full`, or `null`.
+</ParamField>
+
+For when each error occurs, refer to [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors#errors).

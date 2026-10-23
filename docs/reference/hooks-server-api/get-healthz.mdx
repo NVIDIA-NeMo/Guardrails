@@ -1,0 +1,35 @@
+---
+title: "Health Check (Alias)"
+sidebar-title: "Health Check (Alias)"
+description: "API reference for GET /healthz, the Kubernetes-style alias of the Guardrails hooks server's liveness health check."
+keywords: ["GET /healthz", "hooks server health check", "liveness", "Kubernetes", "nemoguardrails hooks-server"]
+content:
+  type: "reference"
+---
+
+<Aside>
+
+```bash title="Request"
+curl http://localhost:8100/healthz
+```
+
+```json title="200"
+{"status": "pass"}
+```
+
+</Aside>
+
+```text
+GET http://localhost:8100/healthz
+```
+
+Kubernetes-style alias for [`GET /v1/health`](/reference/hooks-server-api/get-health).
+Returns the same shallow liveness response.
+
+## Response
+
+Returns `200` with the `application/health+json` media type.
+
+<ParamField path="status" type="string" required={true}>
+Always `pass`.
+</ParamField>

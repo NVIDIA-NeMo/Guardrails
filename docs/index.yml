@@ -667,6 +667,25 @@ navigation:
               - endpoint: GET /
                 title: Get Server Health or Chat UI
                 slug: get-root
+      - section: Hooks Server API
+        path: reference/hooks-server-api/index.mdx
+        slug: hooks-server-api
+        contents:
+          - page: Check a Claude Code Tool Call
+            path: reference/hooks-server-api/claude-code.mdx
+            slug: claude-code
+          - page: Check a Codex Tool Call
+            path: reference/hooks-server-api/codex.mdx
+            slug: codex
+          - page: Check a NeMo Relay Tool Call
+            path: reference/hooks-server-api/nemo-relay.mdx
+            slug: nemo-relay
+          - page: Health Check
+            path: reference/hooks-server-api/get-health.mdx
+            slug: get-health
+          - page: Health Check (Alias)
+            path: reference/hooks-server-api/get-healthz.mdx
+            slug: get-healthz
       - page: Migrating to 0.22
         path: migration/0.22.mdx
         slug: 0-22
