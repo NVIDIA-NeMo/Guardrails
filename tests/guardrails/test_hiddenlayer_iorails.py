@@ -391,6 +391,29 @@ def _request_ids_differ_under_one_parent() -> bool:
     return first != second
 
 
+class TestEmptyText:
+    """A check carrying no text is rejected, and a rejected check is a turn nothing evaluated."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("content", ["", None, []], ids=["empty", "none", "no-parts"])
+    async def test_a_user_turn_with_no_text_is_not_sent_for_evaluation(self, io_iorails, hl, content):
+        _inject_json_response(io_iorails, _text_payload("hello there"))
+
+        result = await io_iorails.generate_async(messages=[{"role": "user", "content": content}])
+
+        assert result == {"role": "assistant", "content": "hello there"}
+        assert hl.surfaces() == ["output"]
+
+    @pytest.mark.asyncio
+    async def test_a_bot_turn_with_no_text_is_not_sent_for_evaluation(self, io_iorails, hl):
+        _inject_json_response(io_iorails, _text_payload(""))
+
+        result = await io_iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+
+        assert result == {"role": "assistant", "content": ""}
+        assert hl.surfaces() == ["input"]
+
+
 class TestRoundtripPairing:
     @pytest.mark.asyncio
     async def test_input_and_output_share_one_roundtrip_id_in_generate(self, io_iorails, hl):

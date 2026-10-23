@@ -25,7 +25,7 @@ round-trip under one ``HL-Roundtrip-Id``, and conversation history reaches Hidde
 
 import logging
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 from urllib.parse import quote
 
 from nemoguardrails.context import get_roundtrip_id
@@ -46,14 +46,26 @@ _SURFACE_PATH: Dict[Surface, str] = {
     "tool_call": _RESPONSE_PATH,
 }
 
+MAX_ROUNDTRIP_ID_BYTES = 256
+MAX_SESSION_ID_BYTES = 2048
+
+# Generated once; changing it changes every roundtrip ID derived from an over-long one.
+_ROUNDTRIP_NAMESPACE = uuid.UUID("19c5a9b4-eaa2-4f26-9ca7-ad76963cb8be")
 _NO_REQUEST_ID = "no-req-id"
 
-_warned_without_roundtrip = False
+_warned: Set[str] = set()
+
+
+def _warn_once(key: str, message: str, *args: Any) -> None:
+    """Log *message* the first time *key* is reported, and never again in this process."""
+    if key in _warned:
+        return
+    _warned.add(key)
+    log.warning(message, *args)
 
 
 def _reset_warnings() -> None:
-    global _warned_without_roundtrip
-    _warned_without_roundtrip = False
+    _warned.clear()
 
 
 def _named(**fields: Any) -> Dict[str, Any]:
@@ -117,20 +129,47 @@ def _tool_result_check(
 def _roundtrip_id() -> str:
     """The ID of the model call this evaluation belongs to, sent as the framework holds it.
 
-    With no round trip and no request ID the evaluations of one model call cannot be paired, which
-    costs the response evaluations their request context.
+    An ID over ``MAX_ROUNDTRIP_ID_BYTES`` is rejected, so it is mapped onto a UUID instead: the
+    mapping is deterministic, so every check of one model call still pairs, and the evaluations
+    still happen. With no round trip and no request ID they cannot be paired at all, which costs
+    the response evaluations their request context.
     """
-    global _warned_without_roundtrip
     roundtrip_id = get_roundtrip_id() or get_request_id()
-    if roundtrip_id != _NO_REQUEST_ID:
-        return roundtrip_id
-    if not _warned_without_roundtrip:
-        _warned_without_roundtrip = True
-        log.warning(
+    if roundtrip_id == _NO_REQUEST_ID:
+        _warn_once(
+            "roundtrip",
             "No HiddenLayer round-trip ID is in scope; each check is evaluated on its own. "
-            "Open one with nemoguardrails.context.roundtrip_id() to pair a model call's checks."
+            "Open one with nemoguardrails.context.roundtrip_id() to pair a model call's checks.",
         )
-    return str(uuid.uuid4())
+        return str(uuid.uuid4())
+    if len(roundtrip_id.encode("utf-8")) > MAX_ROUNDTRIP_ID_BYTES:
+        _warn_once(
+            "roundtrip-size",
+            "The round-trip ID is over %s bytes, so these checks are paired under a UUID derived from it.",
+            MAX_ROUNDTRIP_ID_BYTES,
+        )
+        return str(uuid.uuid5(_ROUNDTRIP_NAMESPACE, roundtrip_id))
+    return roundtrip_id
+
+
+def _session_header_value(session_id: Optional[str]) -> Optional[str]:
+    """The session ID to send, or None when there is none to send or it cannot be sent.
+
+    A conversation ID is any string and a header value is ASCII, so the ID is percent-encoded.
+    One over ``MAX_SESSION_ID_BYTES`` is rejected, and is dropped rather than truncated:
+    truncating can map two conversations onto one session and merge their histories, while
+    dropping degrades to the "no history" the contract already allows and keeps the checks running.
+    """
+    if not session_id:
+        return None
+    if len(session_id.encode("utf-8")) > MAX_SESSION_ID_BYTES:
+        _warn_once(
+            "session",
+            "The conversation ID is over %s bytes, so HiddenLayer evaluates these checks without session history.",
+            MAX_SESSION_ID_BYTES,
+        )
+        return None
+    return quote(session_id, safe="")
 
 
 def _headers(
@@ -150,9 +189,9 @@ def _headers(
     }
     if provider_id:
         headers["HL-Provider-Id"] = provider_id
-    if session_id:
-        # Percent-encoded because a conversation ID is any string and a header value is ASCII.
-        headers["HL-Runtime-Session-Id"] = quote(session_id, safe="")
+    session_value = _session_header_value(session_id)
+    if session_value:
+        headers["HL-Runtime-Session-Id"] = session_value
     if project_id:
         headers["HL-Project-Id"] = project_id
     return headers

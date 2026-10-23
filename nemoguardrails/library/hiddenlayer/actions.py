@@ -69,6 +69,8 @@ log = logging.getLogger(__name__)
 
 _RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
 
+NOTHING_TO_CHECK_REASON = "No text to check; HiddenLayer was not called"
+
 _T = TypeVar("_T")
 
 
@@ -301,11 +303,14 @@ async def hiddenlayer_evaluate(
 
     Returns:
         BLOCK on a HiddenLayer BLOCK, TRANSFORM with HiddenLayer's redacted text on a REDACT,
-        otherwise ALLOW. Outcomes allowed because HiddenLayer could not be reached include
-        ``fail_open=True`` in their metadata.
+        otherwise ALLOW. An empty message is allowed without a call, because a check carrying no
+        text is rejected and there is nothing in it to evaluate. Outcomes allowed because
+        HiddenLayer could not be reached include ``fail_open=True`` in their metadata.
     """
     if surface not in ("input", "output"):
         raise ValueError("surface must be 'input' or 'output'")
+    if not text:
+        return RailOutcome.allow(reason=NOTHING_TO_CHECK_REASON)
     settings = _settings(_rail_config(config))
     model, provider = _main_model(config)
     body = _input_check(model, text) if surface == "input" else _output_check(model, text)
