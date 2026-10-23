@@ -15,12 +15,12 @@
 
 """Tests for tool call rails (Phase 2) functionality."""
 
-from unittest.mock import patch
-
 import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.testing.fake_model import FakeLLMModel
+from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.utils import TestChat
 
 
@@ -51,15 +51,10 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
 
 @pytest.mark.asyncio
 async def test_tool_call_rails_basic():
-    """Test basic tool call rails functionality."""
+    """Allow a normalized provider call through a tool-call validation rail."""
 
     test_tool_calls = [
-        {
-            "name": "allowed_tool",
-            "args": {"param": "safe_value"},
-            "id": "call_safe",
-            "type": "tool_call",
-        }
+        ToolCall(id="call_safe", function=ToolCallFunction(name="allowed_tool", arguments={"param": "safe_value"}))
     ]
 
     # Config with tool call rails
@@ -85,19 +80,17 @@ async def test_tool_call_rails_basic():
         """,
     )
 
-    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
-        mock_get_clear.return_value = test_tool_calls
+    model = FakeLLMModel(llm_responses=[LLMResponse(content="", tool_calls=test_tool_calls)])
+    chat = TestChat(config, llm=model)
 
-        chat = TestChat(config, llm_completions=[""])
+    chat.app.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+    chat.app.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
 
-        chat.app.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
-        chat.app.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
+    result = await chat.app.generate_async(messages=[{"role": "user", "content": "Use allowed tool"}])
 
-        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Use allowed tool"}])
-
-        # Tool should be allowed through
-        assert result["tool_calls"] is not None
-        assert result["tool_calls"][0]["name"] == "allowed_tool"
+    # Tool should be allowed through
+    assert result["tool_calls"] == [call.to_dict() for call in test_tool_calls]
+    assert model.inference_count == 1
 
 
 @pytest.mark.asyncio
@@ -162,15 +155,10 @@ async def test_tool_call_rails_blocking():
 
 @pytest.mark.asyncio
 async def test_multiple_tool_call_rails():
-    """Test multiple tool call rails working together."""
+    """Preserve a normalized provider call through consecutive tool-call validation rails."""
 
     test_tool_calls = [
-        {
-            "name": "test_tool",
-            "args": {"param": "safe"},
-            "id": "call_test",
-            "type": "tool_call",
-        }
+        ToolCall(id="call_test", function=ToolCallFunction(name="test_tool", arguments={"param": "safe"}))
     ]
 
     config = RailsConfig.from_content(
@@ -204,15 +192,13 @@ async def test_multiple_tool_call_rails():
         """,
     )
 
-    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
-        mock_get_clear.return_value = test_tool_calls
+    model = FakeLLMModel(llm_responses=[LLMResponse(content="", tool_calls=test_tool_calls)])
+    chat = TestChat(config, llm=model)
 
-        chat = TestChat(config, llm_completions=[""])
+    chat.app.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+    chat.app.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
 
-        chat.app.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
-        chat.app.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
+    result = await chat.app.generate_async(messages=[{"role": "user", "content": "Use test tool"}])
 
-        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Use test tool"}])
-
-        assert result["tool_calls"] is not None
-        assert result["tool_calls"][0]["name"] == "test_tool"
+    assert result["tool_calls"] == [call.to_dict() for call in test_tool_calls]
+    assert model.inference_count == 1
