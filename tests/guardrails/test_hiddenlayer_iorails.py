@@ -98,6 +98,8 @@ BUFFERED_STREAMING_CONFIG = {
 }
 
 MESSAGES = [{"role": "user", "content": "run a query"}]
+IMAGE_PART = {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}
+MULTIMODAL_CONTENT = [{"type": "text", "text": "What is in this image?"}, IMAGE_PART]
 SERVER_ERROR = HTTPResponse(status_code=500, headers={"Content-Type": "text/plain"}, content=b"upstream failed")
 
 
@@ -412,6 +414,20 @@ class TestEmptyText:
 
         assert result == {"role": "assistant", "content": ""}
         assert hl.surfaces() == ["input"]
+
+
+class TestMultimodalContent:
+    """A user turn whose content is a list of parts reaches HiddenLayer as the framework holds it."""
+
+    @pytest.mark.asyncio
+    async def test_generate_sends_the_parts_the_framework_holds(self, io_iorails, hl):
+        _inject_json_response(io_iorails, _text_payload("a cat"))
+
+        result = await io_iorails.generate_async(messages=[{"role": "user", "content": MULTIMODAL_CONTENT}])
+
+        assert result == {"role": "assistant", "content": "a cat"}
+        assert hl.surfaces() == ["input", "output"]
+        assert hl.evaluations[0].json["user_message"] == MULTIMODAL_CONTENT
 
 
 class TestRoundtripPairing:
