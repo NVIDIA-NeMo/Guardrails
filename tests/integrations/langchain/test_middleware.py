@@ -1769,16 +1769,32 @@ class TestToolRailsConstruction:
         assert projection.tracing.enabled is True
         assert projection.rails.model_fields_set == {"config", "tool_call", "tool_result"}
 
-    def test_no_main_model_raises(self):
+    def test_no_main_model_constructs(self):
+        """Tool checks read tool calls as Chat Completions, so they need no `main` model."""
         yaml_content = TOOL_RAILS_YAML.replace("  - type: main\n", "  - type: content_safety\n", 1)
 
-        with pytest.raises(ValueError, match="need a `main` model"):
-            GuardrailsMiddleware(config_yaml=yaml_content)
+        with patch("nemoguardrails.integrations.langchain.middleware.LLMRails"):
+            middleware = GuardrailsMiddleware(config_yaml=yaml_content)
 
-    def test_main_model_engine_iorails_cannot_build_raises(self):
+        assert [model.type for model in middleware._tool_rails._config.models] == ["content_safety"]
+
+    def test_main_model_engine_iorails_cannot_build_is_left_out_of_the_tool_engine(self):
         yaml_content = TOOL_RAILS_YAML.replace("engine: openai", "engine: anthropic", 1)
 
-        with pytest.raises(ValueError, match="got engine 'anthropic'.*enable_tool_rails=False"):
+        with patch("nemoguardrails.integrations.langchain.middleware.LLMRails"):
+            middleware = GuardrailsMiddleware(config_yaml=yaml_content)
+
+        assert middleware._tool_rails._config.models == []
+
+    def test_a_tool_rail_that_needs_the_main_model_raises(self):
+        """The one tool rail that does read a model names it, and IORails reports the config has none."""
+        yaml_content = TOOL_RAILS_YAML.replace(
+            "      run_sql: [regex check tool result]",
+            "      run_sql: [tool safety check tool result $model=main]",
+            1,
+        ).replace("  - type: main\n", "  - type: content_safety\n", 1)
+
+        with pytest.raises(ValueError, match="cannot run on IORails.*enable_tool_rails=False"):
             GuardrailsMiddleware(config_yaml=yaml_content)
 
     def test_main_model_with_base_url_constructs(self):
@@ -1896,6 +1912,18 @@ class TestToolRailsEventLoops:
 
         assert middleware._tool_rails._engines == {}
         assert engine._started is False
+
+    @pytest.mark.asyncio
+    async def test_a_config_with_no_main_model_still_blocks_a_tool_call(self):
+        """Nothing on the tool check path reads the `main` model, so the rails run without one."""
+        yaml_content = TOOL_RAILS_YAML.replace("  - type: main\n", "  - type: content_safety\n", 1)
+        middleware = GuardrailsMiddleware(config_yaml=yaml_content)
+        handler = AsyncMock(return_value=_tool_message())
+
+        outcome = await middleware.awrap_tool_call(_tool_request(_tool_call({"query": "DROP TABLE x"})), handler)
+
+        assert (outcome.status, outcome.content) == ("error", middleware.blocked_tool_call_message)
+        handler.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_sync_hook_inside_a_running_loop_returns_a_verdict(self, caplog):

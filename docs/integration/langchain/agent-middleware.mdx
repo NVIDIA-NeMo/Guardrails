@@ -170,7 +170,7 @@ For the available rails, refer to [Tool Calling Rails](/configure-guardrails/gua
 
 <Warning>
     Tool rails are on by default (`enable_tool_rails=True`). A config that already has `rails.tool_call` or `rails.tool_result` sections, which earlier versions of the middleware ignored, now runs them in the middleware.
-    If those sections hold custom Colang flows written for `LLMRails`, or the config's `main` model cannot serve tool rails, the constructor raises `ValueError` instead of running the agent without them.
+    If those sections hold custom Colang flows written for `LLMRails`, the constructor raises `ValueError` instead of running the agent without them.
     Pass `enable_tool_rails=False` to keep the earlier behavior.
 </Warning>
 
@@ -205,9 +205,9 @@ rails:
 ### How the Middleware Runs Tool Rails
 
 - Tool rails run on the IORails engine. The middleware builds it from the `models`, `rails.config`, `rails.tool_call` and `rails.tool_result` sections of your config, while input and output rails keep running on `LLMRails`. Configs whose input or output rails use custom Colang flows or Colang 2.x can still use tool rails.
-- The config needs a `main` model with the `openai` or `nim` engine, or a `parameters.base_url`. IORails uses it only to read tool calls in the OpenAI Chat Completions format; tool rails never call it. Your agent can use any LangChain chat model.
-- Other models that IORails cannot build, such as a `FastEmbed` embeddings model, are left out of the tool rails engine.
-- The constructor raises `ValueError` when the config has no `main` model, its `main` model uses another engine without a `base_url`, or IORails cannot serve the tool rails. Pass `enable_tool_rails=False` to run the middleware without tool rails.
+- The config needs no `main` model. Tool calls are read in the OpenAI Chat Completions format whatever the config's models are, and your agent can use any LangChain chat model.
+- Models that IORails cannot build, such as a `FastEmbed` embeddings model or a `main` model whose engine is neither `openai` nor `nim` and has no `parameters.base_url`, are left out of the tool rails engine.
+- The constructor raises `ValueError` when IORails cannot serve the tool rails, for example a custom Colang flow or an LLM-judged rail naming a model the tool rails engine does not have. Pass `enable_tool_rails=False` to run the middleware without tool rails.
 - Prompts, tracing, and the other top-level settings of your config also apply to the tool rails engine, so LLM-judged tool rails such as `tool safety check tool result` find their prompts.
 - The tool call check sends the call with the tool's schema, so `tool call validation` and per-tool schema checks see the agent's real tool definition. The tool result check sends only that call and its result, not the conversation history.
 

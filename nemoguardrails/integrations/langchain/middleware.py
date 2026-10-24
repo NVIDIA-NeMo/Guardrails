@@ -74,26 +74,16 @@ def _tool_rails_config(config: RailsConfig) -> RailsConfig:
     top-level settings carry over.
 
     Raises:
-        ValueError: If the config has no ``main`` model, its ``main`` model is one IORails
-            cannot build, or IORails cannot serve the projected tool rails.
+        ValueError: If IORails cannot serve the projected tool rails.
     """
-    main = next((model for model in config.models if model.type == "main"), None)
-    if main is None:
-        raise ValueError(
-            f"Tool rails need a `main` model; IORails reads tool calls in its wire format. {_DISABLE_TOOL_RAILS_HINT}"
-        )
-    if not _iorails_can_build(main):
-        raise ValueError(
-            f"Tool rails need a `main` model with engine {sorted(_ENGINE_BASE_URLS)} or a "
-            f"`parameters.base_url`; got engine '{main.engine}'. {_DISABLE_TOOL_RAILS_HINT}"
-        )
-
     rail_sections = ("config", RailType.TOOL_CALL.value, RailType.TOOL_RESULT.value)
     projection = config.model_copy(
         deep=True,
         update={
             # IORails builds a client for every model and raises on one it cannot build,
-            # such as a FastEmbed embeddings model the input rails use.
+            # such as a FastEmbed embeddings model the input rails use. A `main` model it
+            # cannot build goes too: tool checks read tool calls as Chat Completions whatever
+            # the `main` model is, and a rail that does need one is reported below.
             "models": [model for model in config.models if _iorails_can_build(model)],
             "rails": Rails(**{section: getattr(config.rails, section) for section in rail_sections}),
             "flows": [],
