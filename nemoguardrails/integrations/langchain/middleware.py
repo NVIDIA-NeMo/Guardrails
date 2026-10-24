@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Dict, Iterator, List, Optional
 
 from langchain.agents.middleware.types import AgentMiddleware, AgentState, PrivateStateAttr, hook_config
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langgraph.config import get_config
 from typing_extensions import NotRequired
 
 if TYPE_CHECKING:
@@ -46,10 +47,18 @@ def _thread_id(runtime: Any) -> Optional[str]:
     """The LangGraph thread ID of the running graph, or None outside a checkpointed run."""
     thread_id = getattr(getattr(runtime, "execution_info", None), "thread_id", None)
     if thread_id is None:
-        config = getattr(runtime, "config", None)
-        configurable = config.get("configurable") if isinstance(config, dict) else None
-        thread_id = configurable.get("thread_id") if isinstance(configurable, dict) else None
+        thread_id = _thread_id_from_run_config()
     return None if thread_id is None else str(thread_id)
+
+
+def _thread_id_from_run_config() -> Optional[str]:
+    """The thread ID of the LangGraph run in progress, or None when there is no run."""
+    try:
+        config = get_config()
+    except RuntimeError:
+        return None
+    configurable = config.get("configurable") if isinstance(config, dict) else None
+    return configurable.get("thread_id") if isinstance(configurable, dict) else None
 
 
 @contextmanager

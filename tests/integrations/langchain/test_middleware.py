@@ -25,6 +25,10 @@ from langchain_core.messages import (
     ToolMessage,
 )
 from langchain_core.messages.tool import ToolCall
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import StateGraph
+from langgraph.runtime import Runtime
+from typing_extensions import TypedDict
 
 from nemoguardrails.context import conversation_id, get_conversation_id, get_roundtrip_id, roundtrip_id
 from nemoguardrails.integrations.langchain.exceptions import GuardrailViolation
@@ -1578,6 +1582,10 @@ class TestModifiedStatus:
         assert modified.tool_calls[0]["id"] == "tc-1"
 
 
+class _GraphState(TypedDict):
+    ran: bool
+
+
 class TestConversationId:
     @staticmethod
     def _recording_middleware(mock_rails_factory, seen: list):
@@ -1592,18 +1600,34 @@ class TestConversationId:
         await middleware.abefore_model({"messages": [HumanMessage(content="hi")]}, runtime)
         await middleware.aafter_model({"messages": [HumanMessage(content="hi"), AIMessage(content="yo")]}, runtime)
 
+    @staticmethod
+    async def _run_node_on_a_thread(node):
+        graph = StateGraph(_GraphState)
+        graph.add_node("node", node)
+        graph.set_entry_point("node")
+        graph.set_finish_point("node")
+        compiled = graph.compile(checkpointer=InMemorySaver())
+        await compiled.ainvoke({"ran": False}, {"configurable": {"thread_id": "thread-7"}})
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "runtime",
+        "runtime_of_the_checks",
         [
-            SimpleNamespace(execution_info=SimpleNamespace(thread_id="thread-7")),
-            SimpleNamespace(execution_info=None, config={"configurable": {"thread_id": "thread-7"}}),
+            lambda runtime: runtime,
+            lambda runtime: Runtime(context=None),
         ],
-        ids=["execution_info", "config"],
+        ids=["the_runtime_of_the_node", "a_runtime_without_execution_info"],
     )
-    async def test_input_and_output_checks_see_the_thread_id(self, mock_rails_factory, runtime):
+    async def test_input_and_output_checks_see_the_thread_id(self, mock_rails_factory, runtime_of_the_checks):
+        """The thread of the running graph names the conversation, whatever the runtime carries."""
         seen = []
-        await self._run_model_hooks(self._recording_middleware(mock_rails_factory, seen), runtime)
+        middleware = self._recording_middleware(mock_rails_factory, seen)
+
+        async def node(state, runtime):
+            await self._run_model_hooks(middleware, runtime_of_the_checks(runtime))
+            return {"ran": True}
+
+        await self._run_node_on_a_thread(node)
 
         assert seen == ["thread-7", "thread-7"]
         assert get_conversation_id() is None
