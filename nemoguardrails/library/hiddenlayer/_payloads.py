@@ -24,6 +24,7 @@ round-trip under one ``HL-Roundtrip-Id``, and conversation history reaches Hidde
 """
 
 import logging
+import re
 import uuid
 from typing import Any, Dict, Optional, Set
 from urllib.parse import quote
@@ -49,7 +50,10 @@ _SURFACE_PATH: Dict[Surface, str] = {
 MAX_ROUNDTRIP_ID_BYTES = 256
 MAX_SESSION_ID_BYTES = 2048
 
-# Generated once; changing it changes every roundtrip ID derived from an over-long one.
+# Everything a header value cannot carry: non-ASCII, control characters (NUL, CR, LF) and DEL.
+_UNSENDABLE_IN_HEADER = re.compile(r"[^\t\x20-\x7e]")
+
+# Generated once; changing it changes every roundtrip ID derived from an unsendable one.
 _ROUNDTRIP_NAMESPACE = uuid.UUID("19c5a9b4-eaa2-4f26-9ca7-ad76963cb8be")
 _NO_REQUEST_ID = "no-req-id"
 
@@ -126,10 +130,29 @@ def _tool_result_check(
     )
 
 
+def _is_nil_uuid(value: str) -> bool:
+    """Whether *value* is the nil UUID in any of the forms a UUID parser accepts."""
+    try:
+        return uuid.UUID(value).int == 0
+    except ValueError:
+        return False
+
+
+def _unsendable_as_held(roundtrip_id: str) -> Optional[str]:
+    """Why *roundtrip_id* cannot be sent as the framework holds it, or None when it can."""
+    if len(roundtrip_id.encode("utf-8")) > MAX_ROUNDTRIP_ID_BYTES:
+        return f"over {MAX_ROUNDTRIP_ID_BYTES} bytes"
+    if _UNSENDABLE_IN_HEADER.search(roundtrip_id):
+        return "not sendable in a header"
+    if _is_nil_uuid(roundtrip_id):
+        return "the nil UUID, which names no round trip"
+    return None
+
+
 def _roundtrip_id() -> str:
     """The ID of the model call this evaluation belongs to, sent as the framework holds it.
 
-    An ID over ``MAX_ROUNDTRIP_ID_BYTES`` is rejected, so it is mapped onto a UUID instead: the
+    An ID the header cannot carry or the server rejects is mapped onto a UUID instead: the
     mapping is deterministic, so every check of one model call still pairs, and the evaluations
     still happen. With no round trip and no request ID they cannot be paired at all, which costs
     the response evaluations their request context.
@@ -142,11 +165,12 @@ def _roundtrip_id() -> str:
             "Open one with nemoguardrails.context.roundtrip_id() to pair a model call's checks.",
         )
         return str(uuid.uuid4())
-    if len(roundtrip_id.encode("utf-8")) > MAX_ROUNDTRIP_ID_BYTES:
+    unsendable = _unsendable_as_held(roundtrip_id)
+    if unsendable is not None:
         _warn_once(
-            "roundtrip-size",
-            "The round-trip ID is over %s bytes, so these checks are paired under a UUID derived from it.",
-            MAX_ROUNDTRIP_ID_BYTES,
+            f"roundtrip-{unsendable}",
+            "The round-trip ID is %s, so these checks are paired under a UUID derived from it.",
+            unsendable,
         )
         return str(uuid.uuid5(_ROUNDTRIP_NAMESPACE, roundtrip_id))
     return roundtrip_id

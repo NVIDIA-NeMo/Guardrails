@@ -230,6 +230,23 @@ class TestRoundtripId:
         assert uuid.UUID(first).version == 5
         assert first == str(uuid.uuid5(_ROUNDTRIP_NAMESPACE, value))
 
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "00000000-0000-0000-0000-000000000000",
+            "{00000000-0000-0000-0000-000000000000}",
+            "call-\u00e9\u2014\u4f60\u597d",
+            "call-\n7",
+        ],
+        ids=["nil-uuid", "nil-uuid-braced", "non-ascii", "control-character"],
+    )
+    def test_an_id_the_header_or_the_server_rejects_is_mapped_onto_a_uuid(self, value):
+        with roundtrip_id(value):
+            first, second = _roundtrip_id(), _roundtrip_id()
+        assert first == second == str(uuid.uuid5(_ROUNDTRIP_NAMESPACE, value))
+        assert uuid.UUID(first).int != 0
+        first.encode("ascii")
+
     def test_two_over_long_ids_do_not_collide(self):
         with roundtrip_id("a" + "x" * MAX_ROUNDTRIP_ID_BYTES):
             first = _roundtrip_id()
