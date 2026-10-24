@@ -214,7 +214,7 @@ rails:
 ### Blocked Tool Calls and Results
 
 - A blocked tool call is not executed. The tool receives no call, and the model receives a tool message with `blocked_tool_call_message` and `status="error"`.
-- A blocked tool result keeps its `tool_call_id`, `name` and `id`. Its content becomes `blocked_tool_result_message`, its `status` becomes `"error"`, and its `artifact` is dropped. The tool already ran, so blocking a result does not undo its side effects; use a tool call rail for that.
+- A blocked tool result keeps its `tool_call_id`, `name` and `id`. Its content becomes `blocked_tool_result_message`, its `status` becomes `"error"`, and its `artifact` is dropped. The middleware returns that message on its own and drops the rest of the tool's return, as described in [Tools That Return Commands](#tools-that-return-commands). The tool already ran, so blocking a result does not undo its side effects; use a tool call rail for that.
 - The model never sees the rail's reason, which the middleware logs at `WARNING`.
 - With `raise_on_violation=True`, the middleware raises `GuardrailViolation` with `rail_type` set to `"tool_call"` or `"tool_result"` instead.
 - If a check fails with an error, the middleware blocks the call or result in the same way.
@@ -234,14 +234,15 @@ The check then returns `MODIFIED` with the rewritten conversation in `RailsResul
 A tool can return a `ToolMessage`, a `Command` that carries messages, or a list of `Command` and `ToolMessage` objects.
 The middleware checks every message the tool adds to the conversation:
 
-- The tool message that answers the call is checked by the tool result rails. When it is blocked or rewritten, only its content changes and the return keeps its shape. A tool message the tool returned as a dict comes back as a `ToolMessage`.
+- The tool message that answers the call is checked by the tool result rails. When it is rewritten, only its content changes and the return keeps its shape. A tool message the tool returned as a dict comes back as a `ToolMessage`.
+- When that message is blocked, the middleware returns it alone and drops everything else the tool returned, including the `Command`'s other state updates, its `goto` and its `Send` arguments: the rail judged the result unsafe, and they can carry the same content into the graph.
 - A message the tool re-emits from the conversation history passes only if it is unchanged, and the middleware emits the original message from the agent state in its place. Handoff tools that copy the conversation forward keep working.
 - A `RemoveMessage` passes.
 - Any other message, such as a new `AIMessage` or a new tool message for another call, cannot be checked. The middleware then replaces the whole return with one blocked tool message, which drops the `Command`'s state update and `goto`.
 
 The middleware finds these messages in a list `update`, and under the `messages` key, or the state key that holds the conversation such as a `ToolNode`'s custom `messages_key`, in a dict `update` and in the arguments of the `Send` objects in `goto`.
 A `Send` whose argument is neither a dict nor a list, such as a state object, cannot be checked and is blocked in the same way.
-The middleware does not check other `update` or `Send` argument keys, or other `Command` fields.
+The middleware does not check other `update` or `Send` argument keys, or other `Command` fields; a result that passes or is rewritten carries them on unchanged.
 
 ### Event Loops and Sync Calls
 

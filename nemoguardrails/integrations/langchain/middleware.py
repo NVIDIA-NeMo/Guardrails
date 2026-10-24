@@ -417,7 +417,7 @@ def _review_tool_result(request: ToolCallRequest, result: Any) -> _ToolResultRev
 def _replace_terminator(review: _ToolResultReview, **fields: Any) -> Any:
     """Rebuild the reviewed return with *fields* set on the checked tool message and its artifact dropped.
 
-    The artifact holds the tool's raw output, which a withheld or rewritten result must not carry on.
+    The artifact holds the tool's raw output, which a rewritten result must not carry on.
     A tool message the tool returned as a dict comes back as a ``ToolMessage``, so no dict form,
     such as a serialized message's ``kwargs``, carries the original content on.
     """
@@ -726,8 +726,15 @@ class GuardrailsMiddleware(AgentMiddleware):
             status="error",
         )
 
-    def _withhold_tool_result(self, review: _ToolResultReview) -> Any:
-        return _replace_terminator(review, content=self.blocked_tool_result_message, status="error")
+    def _withhold_tool_result(self, review: _ToolResultReview) -> ToolMessage:
+        """The blocked tool message alone, so nothing else the tool returned reaches the graph.
+
+        A ``Command``'s other state updates, its ``goto`` and its ``Send`` arguments are dropped
+        with it: the rail judged this result unsafe, and they can carry the same content on.
+        """
+        return review.terminator.model_copy(
+            update={"content": self.blocked_tool_result_message, "status": "error", "artifact": None}
+        )
 
     def _review_tool_result(self, request: ToolCallRequest, result: Any) -> _ToolResultReview:
         """Review a tool's return; one that adds unvetted messages is replaced by one blocked tool message."""

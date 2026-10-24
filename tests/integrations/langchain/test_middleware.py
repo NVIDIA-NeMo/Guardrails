@@ -2235,7 +2235,7 @@ def _poisoned_returns():
 class TestToolResultReturnShapes:
     @pytest.mark.parametrize("shape", list(_poisoned_returns()))
     @pytest.mark.asyncio
-    async def test_block_replaces_the_poisoned_content_and_keeps_a_valid_shape(self, shape):
+    async def test_block_replaces_every_shape_with_the_blocked_tool_message(self, shape):
         tool_return = _poisoned_returns()[shape]
         middleware = _tool_middleware()
         middleware._tool_rails.check_async = AsyncMock(
@@ -2244,10 +2244,9 @@ class TestToolResultReturnShapes:
 
         outcome = await middleware.awrap_tool_call(_tool_request(), AsyncMock(return_value=tool_return))
 
-        assert type(outcome) is type(tool_return)
+        assert isinstance(outcome, ToolMessage)
         assert POISON not in str(outcome)
-        [terminator] = convert_to_messages(_flatten(outcome))
-        assert (terminator.content, terminator.status) == (middleware.blocked_tool_result_message, "error")
+        assert (outcome.content, outcome.status) == (middleware.blocked_tool_result_message, "error")
         normalized = ToolNode([run_sql])._normalize_tool_response(outcome, _tool_call(), "dict")
         assert POISON not in str(normalized)
 
@@ -2273,9 +2272,8 @@ class TestToolResultReturnShapes:
 
         outcome = await middleware.awrap_tool_call(_tool_request(), AsyncMock(return_value=_poisoned_returns()[shape]))
 
-        [entry] = outcome.update["messages"]
-        assert isinstance(entry, ToolMessage)
-        assert (entry.content, entry.status, entry.tool_call_id, entry.name, entry.id, entry.artifact) == (
+        assert isinstance(outcome, ToolMessage)
+        assert (outcome.content, outcome.status, outcome.tool_call_id, outcome.name, outcome.id, outcome.artifact) == (
             middleware.blocked_tool_result_message,
             "error",
             "call_1",
@@ -2473,8 +2471,8 @@ class TestToolResultMessagePolicy:
 
         messages, rail_type = middleware._tool_rails.check_async.await_args_list[1].args
         assert (rail_type, messages[1]["content"]) == (RailType.TOOL_RESULT, POISON)
-        [entry] = outcome.update["chat"]
-        assert entry.content == middleware.blocked_tool_result_message
+        assert isinstance(outcome, ToolMessage)
+        assert outcome.content == middleware.blocked_tool_result_message
         assert POISON not in str(outcome)
 
     @pytest.mark.asyncio
@@ -2492,8 +2490,8 @@ class TestToolResultMessagePolicy:
 
         messages, rail_type = middleware._tool_rails.check_async.await_args_list[1].args
         assert (rail_type, messages[1]["content"]) == (RailType.TOOL_RESULT, POISON)
-        [entry] = outcome.update["chat"]
-        assert entry.content == middleware.blocked_tool_result_message
+        assert isinstance(outcome, ToolMessage)
+        assert outcome.content == middleware.blocked_tool_result_message
         assert POISON not in str(outcome)
 
     @pytest.mark.asyncio
@@ -2529,10 +2527,31 @@ class TestToolResultMessagePolicy:
             _tool_request(state={"messages": history}), AsyncMock(return_value=tool_return)
         )
 
-        [send] = outcome.goto
-        assert send.node == "model"
-        assert send.arg["messages"][:2] == history
-        assert send.arg["messages"][2].content == middleware.blocked_tool_result_message
+        messages, rail_type = middleware._tool_rails.check_async.await_args_list[1].args
+        assert (rail_type, messages[1]["content"]) == (RailType.TOOL_RESULT, POISON)
+        assert isinstance(outcome, ToolMessage)
+        assert outcome.content == middleware.blocked_tool_result_message
+        assert POISON not in str(outcome)
+
+    @pytest.mark.asyncio
+    async def test_block_drops_the_other_update_keys_and_the_goto(self):
+        """The blocked content can sit in another update key or a Send argument, which the rail never vetted."""
+        history = _history()
+        tool_return = Command(
+            update={"messages": [*history, _tool_message(POISON)], "page_text": POISON},
+            goto=[Send("summarizer", {"page_text": POISON})],
+        )
+        middleware = _tool_middleware()
+        middleware._tool_rails.check_async = AsyncMock(
+            side_effect=[RailsResult(status=RailStatus.PASSED, content=""), _blocked(rail="regex check tool result")]
+        )
+
+        outcome = await middleware.awrap_tool_call(
+            _tool_request(state={"messages": history}), AsyncMock(return_value=tool_return)
+        )
+
+        assert isinstance(outcome, ToolMessage)
+        assert (outcome.content, outcome.status) == (middleware.blocked_tool_result_message, "error")
         assert POISON not in str(outcome)
 
     @pytest.mark.parametrize(
