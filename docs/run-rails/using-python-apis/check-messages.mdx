@@ -4,7 +4,7 @@
 title: "Checking Messages Against Rails"
 sidebar-title: "Check Messages"
 description: "Validate messages against input, output, and tool rails using check_async and check methods on the LLMRails and IORails engines."
-keywords: ["check_async", "check", "RailsResult", "RailStatus", "RailType", "input rails", "output rails", "tool rails", "ToolViolation", "validation", "IORails", "LLMRails"]
+keywords: ["check_async", "check", "RailsResult", "RailStatus", "RailType", "input rails", "output rails", "tool rails", "ToolViolation", "validation", "IORails", "LLMRails", "conversation_id"]
 content:
   type: "reference"
 ---
@@ -334,6 +334,51 @@ result = await rails.check_async([
 ```
 
 For more information about context variables, refer to [Core Classes: Passing Context](/run-guardrailed-inference/using-python-apis/core-classes#passing-context).
+
+### Setting a Conversation ID
+
+To tell rails which conversation a call belongs to, wrap the call in `conversation_id()` from `nemoguardrails.context`.
+Every rail and action that runs for a call made inside the block sees the ID.
+This works on both engines and for `check_async()`, `check()`, `generate_async()`, and `stream_async()`.
+The ID is not added to the messages and is not sent to the main model.
+
+```python
+from nemoguardrails.context import conversation_id
+
+with conversation_id("thread-42"):
+    result = await rails.check_async([
+        {"role": "user", "content": "I need help with my account"}
+    ])
+```
+
+The previous ID is restored when the block exits, and concurrent requests each see only the ID they were made with.
+Use an ID that identifies one conversation, such as a chat thread ID.
+The server sets the ID from the `thread_id` of a [chat completion request](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model#conversation-threads), unless the application that runs the server already set one.
+A rail that reports checks to an external service can send the ID so that the service groups the checks of one conversation; the rail's catalog page describes whether it does.
+For how a custom action reads the ID, refer to [Action Parameters: Reading the Conversation ID](/configure-guardrails/actions/action-parameters#reading-the-conversation-id).
+
+### Setting a Round-Trip ID
+
+A round trip is one model call: the request leg that checks what goes to the model and the response leg that checks what comes back.
+Both legs report under the same round-trip ID, which lets a rail that reports to an external service pair them.
+`generate_async()`, `stream_async()`, and `check_async()` open a round trip and mint an ID for it, so a caller that runs a whole model call through one of them has nothing to set.
+
+Set the ID yourself with `roundtrip_id()` from `nemoguardrails.context` when the application knows where a model call starts and ends and NeMo Guardrails cannot:
+an agent framework runs the checks of one call as separate `check_async()` calls, each of which would otherwise open a round trip of its own.
+
+```python
+from nemoguardrails.context import roundtrip_id
+from nemoguardrails.rails.llm.options import RailType
+
+with roundtrip_id(call_id):
+    checked = await rails.check_async(messages, rail_types=[RailType.INPUT])
+    # ... call the model ...
+    await rails.check_async(messages + [response], rail_types=[RailType.OUTPUT])
+```
+
+An ID you set is never overwritten, and the previous one is restored when the block exits.
+NeMo Guardrails does not interpret the ID; a rail that requires a particular format converts it.
+An action reads the ID with `get_roundtrip_id()`.
 
 ### Checking on the IORails Engine
 
