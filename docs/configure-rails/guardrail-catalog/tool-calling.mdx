@@ -340,6 +340,57 @@ The OpenAI tool message has none, so the rail identifies the tool from the resul
     the request, since which policy applies can no longer be verified.
 </Warning>
 
+## Rewrite Tool Results
+
+A `per_tool` rail under `rails.tool_result` can rewrite the tool result it checks, for example to mask personal data or strip an indirect prompt injection before the model reads it.
+The rail's action returns a transform outcome with `TransformTarget.TOOL_RESULT`, and its manifest surface declares `transform_target=TransformTarget.TOOL_RESULT` so IORails schedules it as a rewriting rail.
+For the outcome API, refer to [Rail Outcomes](/configure-guardrails/actions/rail-outcomes).
+
+IORails applies the rewrite as follows:
+
+- The rewritten text replaces the whole `content` of the `tool` message the rail checked, and every other field and message is kept as sent.
+  Your application's own message list is not modified.
+- Rewriting rails run first for each tool, and each later rail for that result reads the latest content.
+  A rewrite that a later rail undoes, by returning the original content, counts as no rewrite.
+- Tool-result rails run before the input rails, so the input rails, the main model, the output rails, and the generation log all read the rewritten result, on `generate_async()` and `stream_async()` alike.
+- Tool-result content that is a list of text parts becomes the single rewritten string.
+  The OpenAI Chat Completions tool message carries only text parts, so this loses the part boundaries, not any other modality.
+- IORails keeps no state between requests, so each request rewrites every tool result in the conversation it carries, including results from earlier turns.
+  The number of rail runs grows with the length of the conversation, and a rewriter that does not return the same text every time changes earlier turns, which defeats provider prompt caching.
+  Your application keeps the original results.
+- A rail behind the rewrite can still block the request.
+  With content capture on, the request span records the rewritten result in either case.
+  The rewriting rail's own span records the result it received, before the rewrite.
+
+A rewriting `per_tool` rail turns `parallel` off for both `tool_call` and `tool_result` in the whole configuration, with a warning if `parallel` was set, because concurrent rails cannot pass a rewrite to each other.
+A rail that returns a rewrite while running in parallel raises an error, and so does a tool-result rail that rewrites anything other than `tool_result`.
+
+A check reports a tool-result rewrite as `MODIFIED` and returns the rewritten conversation in `messages`; refer to [Checking Messages Against Rails](/run-guardrailed-inference/using-python-apis/check-messages#which-content-is-reported).
+
+## Rewrite Tool Calls
+
+A `per_tool` rail under `rails.tool_call` can rewrite the arguments of the tool call it checks, for example to mask personal data before your application runs the tool.
+The rail's action returns a transform outcome with `TransformTarget.TOOL_CALL`, and its manifest surface declares `transform_target=TransformTarget.TOOL_CALL`.
+The text is the JSON object of the complete arguments, even for a rail bound to a single argument with `$argument=`.
+
+IORails applies the rewrite as follows:
+
+- Only the call's arguments change.
+  Its `id`, `type`, and function name are not part of the text, so a rewrite cannot change them: the name selects the tool's rails, and the id links the result that comes back.
+- Text that is not a JSON object, such as invalid JSON, an array, or a string, blocks the call with `malformed_arguments`.
+- Rewriting rails run first for each tool, and each later rail for that call reads the latest arguments.
+  A rewrite that a later rail undoes, by returning the original arguments, counts as no rewrite.
+- The rails ahead of a rewrite checked the original arguments, so IORails checks the final arguments against the declared tool again.
+  A rewrite that breaks the schema, for example a mask that no longer matches a `pattern`, blocks with the validator's violation (`arguments_invalid` or `unexpected_arguments`) and names the rewriting rail.
+  A rewritten call to a tool the request does not declare blocks with `tool_not_allowed`.
+- `generate_async()` returns the rewritten arguments in both return shapes: a JSON string in the assistant message's `tool_calls`, and an object in `GenerationResponse.tool_calls`.
+  `stream_async()` sends them on its terminal tool-call chunk.
+- A rail behind the rewrite can still block the call.
+  With content capture on, a check's request span and a stream's recorded output carry the rewritten arguments.
+  The rewriting rail's own span and the main model's `chat` span record the arguments before the rewrite.
+
+A check reports a tool-call rewrite as `MODIFIED` and returns the conversation with the rewritten arguments in `messages`.
+
 ## Control Rails per Request
 
 Use `options.rails` to enable or disable each tool rail for a single request.
@@ -358,6 +409,7 @@ response = await rails.generate_async(
 ## Check Tool Calls and Results Without Generation
 
 An agent harness that calls its own model can use the same rails to validate tool traffic without IORails generating a response.
+For LangChain agents built with `create_agent`, `GuardrailsMiddleware` runs these checks on every tool call and tool result for you; refer to [Agent Middleware: Tool Rails](/integration-with-third-party-libraries/langchain/agent-middleware#tool-rails).
 Run a check with `RailType.TOOL_CALL` on the conversation that ends in the model's tool calls, and with `RailType.TOOL_RESULT` after appending the tool results:
 
 ```python

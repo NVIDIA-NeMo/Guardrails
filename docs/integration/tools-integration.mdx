@@ -352,6 +352,8 @@ print(f"Final response: {result['content']}")
 
 Use tool-result rails to validate or sanitize tool results before the model receives them, and output rails to validate the generated answer.
 
+On the IORails engine, [tool result rails](/configure-guardrails/guardrail-catalog/tool-calling) check tool results directly. For LangChain agents built with `create_agent`, [`GuardrailsMiddleware`](/integration-with-third-party-libraries/langchain/agent-middleware#tool-rails) runs them on every tool result.
+
 ## Tool Security: Unsafe Content in Tool Results
 
 ### The Problem: Tool Results Bypass Input Rails

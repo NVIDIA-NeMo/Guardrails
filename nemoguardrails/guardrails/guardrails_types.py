@@ -23,7 +23,7 @@ from typing import Any, Optional, TypeAlias
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.rails.llm.options import MAX_QUOTED_IDENTITY_LENGTH, ToolViolation
-from nemoguardrails.types import LLMResponse, UsageInfo
+from nemoguardrails.types import LLMResponse, ToolCall, UsageInfo
 
 # LLMMessage can contain role/content, plus optional tool_calls / tool_call_id / name; content may be None
 LLMMessage: TypeAlias = dict[str, Any]
@@ -104,8 +104,11 @@ class RailResult:
     ``RailOutcome`` has no concept of, because it belongs to running *many* rails:
     which one blocked (``triggered_rail``), which tool calls or results it blocked
     (``tool_violations``), what every rail did (``records``), what the rails ahead
-    of a block rewrote the checked text to (``rewrite_before_block``), and whether a rail
-    free to rewrite that text never decided on it (``rewrite_pending``).
+    of a block rewrote the checked text to (``rewrite_before_block``), whether a rail
+    free to rewrite that text never decided on it (``rewrite_pending``), the
+    conversation with the tool calls or results the rails rewrote (``messages``, or
+    ``messages_before_block`` when a later rail blocked), and the tool calls the rails
+    rewrote (``tool_calls``, or ``tool_calls_before_block``).
 
     ``records`` carries the per-rail execution records for every rail that ran in this
     check (not just the blocking one), so IORails can synthesize a ``GenerationLog``.
@@ -127,6 +130,13 @@ class RailResult:
     # Capture data too: a configured mask that failed, blocked, never ran or was switched off
     # left the text as sent, so a record of the request must withhold it rather than trust a mask.
     rewrite_pending: bool = field(default=False, compare=False)
+    # Set only when a tool rail rewrote something; index-aligned with the messages checked.
+    messages: LLMMessages | None = None
+    # The tool-rail counterpart of ``rewrite_before_block``.
+    messages_before_block: LLMMessages | None = field(default=None, compare=False)
+    # Set only when a tool rail rewrote a call; position-aligned with the calls checked.
+    tool_calls: tuple[ToolCall, ...] | None = None
+    tool_calls_before_block: tuple[ToolCall, ...] | None = field(default=None, compare=False)
     __hash__ = None
 
     @property
@@ -170,9 +180,10 @@ class RailResult:
         reason: str | None = None,
         metadata: Mapping[str, Any] | None = None,
         records: tuple[RailCallRecord, ...] = (),
+        messages: LLMMessages | None = None,
     ) -> "RailResult":
         """A result that lets the content through."""
-        return cls(RailOutcome.allow(reason=reason, metadata=metadata), records=records)
+        return cls(RailOutcome.allow(reason=reason, metadata=metadata), records=records, messages=messages)
 
     @classmethod
     def block(
@@ -183,6 +194,7 @@ class RailResult:
         triggered_rail: str | None = None,
         tool_violations: tuple[ToolViolation, ...] = (),
         records: tuple[RailCallRecord, ...] = (),
+        rewrite_pending: bool = False,
     ) -> "RailResult":
         """A result that stops the content. Only a block names a triggering rail or tool violations."""
         return cls(
@@ -190,6 +202,7 @@ class RailResult:
             triggered_rail=triggered_rail,
             tool_violations=tool_violations,
             records=records,
+            rewrite_pending=rewrite_pending,
         )
 
 

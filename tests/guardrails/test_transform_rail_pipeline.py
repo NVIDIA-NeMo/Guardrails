@@ -769,6 +769,11 @@ def _has_captured_input(exporter: InMemorySpanExporter) -> bool:
     return GuardrailsAttributes.REQUEST_INPUT in _request_span(exporter).attributes
 
 
+def _has_captured_output(exporter: InMemorySpanExporter) -> bool:
+    """Whether the request span recorded any output at all."""
+    return GuardrailsAttributes.REQUEST_OUTPUT in _request_span(exporter).attributes
+
+
 @pytest.mark.asyncio
 class TestAFailedMaskKeepsTheInputOffTheRequestSpan:
     """The masking rail's endpoint fails, and the request span records no input rather than the unmasked message."""

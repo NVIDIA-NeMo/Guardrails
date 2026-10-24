@@ -105,7 +105,7 @@ Legend: ✓ supported · ✗ not supported · ◐ partial (see notes).
 | Retrieval (RAG and knowledge base) rails | ✓ | ✗ | LLMRails only |
 | Execution rails (custom actions) | ✓ | ✗ | LLMRails only |
 | Tool rails | ✓ | ✓ | IORails validates tool calls and tool results. Refer to [Tool Calling](#tool-calling). |
-| Transform (mask, redact, sanitize) rails | ✓ | ✓ | IORails applies them on `user_message` and `bot_message` only |
+| Transform (mask, redact, sanitize) rails | ✓ | ✓ | IORails applies them on `user_message`, `bot_message`, and, from `per_tool` rails, tool results and tool-call arguments |
 
 `LLMRails` runs every rail direction through the Colang runtime: input, output, dialog, retrieval, and execution (custom action) rails.
 Input and output rails wrap the model call, dialog rails drive multi-turn conversation flows, retrieval rails guard a knowledge base, and execution rails run custom Python actions.
