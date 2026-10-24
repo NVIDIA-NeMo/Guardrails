@@ -560,3 +560,15 @@ class TestTheRequestSpanWithholdsACallTheMaskNeverReached:
 
         assert result.status.value == "blocked"
         assert _has_captured_input(span_exporter) is False
+
+    async def test_a_turn_the_extractor_cannot_read_withholds_the_checked_conversation(self, span_exporter):
+        """A legacy ``function_call`` fails extraction for the whole message, so no mask decided on any call on it."""
+        messages = assistant_weather_call(RAW_ARGUMENTS)
+        messages[-1] = {**messages[-1], "function_call": {"name": "get_weather", "arguments": "{}"}}
+        async with capturing_tool_transform_iorails(
+            ToolTransformRails(), tool_call_transform_config(capture=True), span_exporter
+        ) as engine:
+            result = await engine.check_async(messages, rail_types=[RailType.TOOL_CALL])
+
+        assert result.status.value == "blocked"
+        assert _has_captured_input(span_exporter) is False

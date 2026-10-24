@@ -813,14 +813,16 @@ class RailsManager:
         The messages and the tools in *llm_params* are read as Chat Completions, the format of the APIs a check
         takes them from, whatever the ``main`` model is, so a check needs no model.
         """
+        # No mask can have decided on calls nobody could extract, so every return ahead of the per-tool
+        # checks leaves any configured one unrun, and the request withholds the arguments from its record.
+        masks_unrun = bool(self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL])
         if not self._any_tool_call_rail_enabled(enabled):
-            masks = self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL]
-            return RailResult(RailOutcome.allow(), rewrite_pending=bool(masks))
+            return RailResult(RailOutcome.allow(), rewrite_pending=masks_unrun)
         try:
             extracted = _latest_tool_calls_openai(messages)
         except ToolCallExtractionError as e:
             log.warning("[%s] tool call extraction failed; blocking: %s", get_request_id(), e)
-            return _blocked_before_rails(_extraction_violation(e))
+            return _blocked_before_rails(_extraction_violation(e), rewrite_pending=masks_unrun)
         except Exception as e:
             # Only a ToolCallExtractionError is written to omit argument text, so this one stays in the log.
             log.warning("[%s] tool call extraction failed unexpectedly; blocking: %s", get_request_id(), e)
@@ -829,7 +831,8 @@ class RailsManager:
                     kind="tool_call",
                     violation_type=ToolViolationType.EXTRACTION_FAILED,
                     reason="tool call extraction failed",
-                )
+                ),
+                rewrite_pending=masks_unrun,
             )
         if any(isinstance(entry, ToolCallExtractionError) for entry in extracted):
             return await self._blocked_with_every_call_violation(extracted, messages, llm_params, enabled=enabled)
