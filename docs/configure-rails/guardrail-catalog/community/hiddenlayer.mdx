@@ -52,7 +52,7 @@ The input and output flows also run on LLMRails, in Colang 1.0 and Colang 2.x.
 Use IORails for full context: within one IORails `generate_async` or `stream_async` request, or one `check_async` call that names several rail types, HiddenLayer evaluates a model call's response evaluations (tool-call checks and the output check) together with its request evaluations (the input check and tool-result checks).
 The evaluations of one model call are paired as a single round-trip by the `HL-Roundtrip-Id` header, which the rail takes from the round trip in scope and sends as it stands.
 Open one explicitly with `nemoguardrails.context.roundtrip_id()` when the application knows where a model call starts and ends; the ID is not required to be a UUID, because HiddenLayer maps any other value onto one.
-An ID longer than 256 bytes cannot be sent, so the rail maps it onto a UUID of its own and logs one warning; the mapping is deterministic, so a model call's checks still pair.
+An ID that cannot be sent as it stands is mapped onto a UUID of its own, with one warning logged; the mapping is deterministic, so a model call's checks still pair. That covers an ID longer than 256 bytes, one carrying characters a header cannot, and the nil UUID, which names no round trip.
 Without a round trip the rail falls back to the request ID, and with neither it sends a fresh ID per check, logs one warning, and the evaluations of a call are no longer paired.
 With tracing enabled the request ID comes from the OpenTelemetry trace ID, so concurrent requests under one parent trace share it; open a round trip per model call when those requests must be paired exactly.
 

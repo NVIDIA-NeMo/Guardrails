@@ -18,7 +18,9 @@
 import logging
 from pathlib import Path
 from typing import Optional
+from uuid import UUID
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
@@ -26,7 +28,7 @@ from nemoguardrails import Guardrails, RailsConfig
 from nemoguardrails.actions.rail_outcome import RailDecision
 from nemoguardrails.context import conversation_id, roundtrip_id
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
-from nemoguardrails.http import HTTPConnectionError, HTTPTimeoutError
+from nemoguardrails.http import HTTPConnectionError, HTTPTimeoutError, create_http_client
 from nemoguardrails.library.hiddenlayer import actions
 from nemoguardrails.library.hiddenlayer._payloads import (
     _REQUEST_PATH,
@@ -465,6 +467,48 @@ class TestRoundtripId:
         sent = [request.headers["HL-Roundtrip-Id"] for request in _evaluations(client)]
         assert len(set(sent)) == 1
         assert len(sent[0].encode("utf-8")) <= MAX_ROUNDTRIP_ID_BYTES
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "value",
+        ["00000000-0000-0000-0000-000000000000", "00000000000000000000000000000000", "call-\u00e9\u2014\u4f60\u597d"],
+        ids=["nil-uuid", "nil-uuid-unhyphenated", "non-ascii"],
+    )
+    async def test_an_id_that_cannot_be_sent_as_held_still_pairs_the_evaluations_of_one_call(self, value):
+        """An ID the header cannot carry, or the server will not take, costs the pairing at most."""
+        with RecordedHTTPResponses() as responses:
+            _token(responses)
+            _verdict(responses, INPUT_NONE)
+            _verdict(responses, OUTPUT_NONE, url=RESPONSE_URL)
+            client = responses.client
+            with roundtrip_id(value):
+                await hiddenlayer_evaluate(surface="input", text="hi", http_client=client)
+                await hiddenlayer_evaluate(surface="output", text="hi", http_client=client)
+
+        sent = [request.headers["HL-Roundtrip-Id"] for request in _evaluations(client)]
+        assert len(set(sent)) == 1
+        sent[0].encode("ascii")
+        assert UUID(sent[0]).int != 0
+
+    @pytest.mark.asyncio
+    async def test_a_non_ascii_id_leaves_the_client_through_real_httpx(self):
+        """httpx encodes a header as ASCII, so an ID it cannot encode would never reach HiddenLayer."""
+        seen: list[Optional[str]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.headers.get("HL-Roundtrip-Id"))
+            if request.url.path.endswith("/oauth2/token"):
+                return httpx.Response(200, json={"access_token": TOKEN, "expires_in": 3600})
+            return httpx.Response(200, headers=headers("NONE"), json=input_body(INPUT_TEXT))
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as httpx_client:
+            client = create_http_client(httpx_client=httpx_client)
+            with roundtrip_id("call-\u00e9\u2014\u4f60\u597d"):
+                outcome = await hiddenlayer_evaluate(surface="input", text=INPUT_TEXT, http_client=client)
+
+        assert outcome.decision is RailDecision.ALLOW
+        assert "fail_open" not in outcome.metadata
+        assert UUID(seen[-1]).int != 0
 
     @pytest.mark.asyncio
     async def test_a_retried_evaluation_keeps_its_round_trip_id(self):
