@@ -112,6 +112,26 @@ class TestOnIORails:
         assert sorted(seen) == [("input", "c-1"), ("llm", "c-1")]
 
     @pytest.mark.asyncio
+    async def test_a_stream_keeps_the_id_it_was_created_with(self):
+        """The consumer of a stream is not always the caller that created it."""
+        seen = []
+        input_only = {**NEMOGUARDS_CONFIG, "rails": {**NEMOGUARDS_CONFIG["rails"], "output": {"flows": []}}}
+
+        async def stream(*args, **kwargs):
+            seen.append(("llm", get_conversation_id()))
+            yield LLMResponseChunk(delta_content="Hello")
+
+        async with started_iorails(input_only) as engine:
+            _wire(engine, seen)
+            engine.engine_registry.stream_model_call = stream
+            with conversation_id("c-1"):
+                chunks = engine.stream_async(messages=USER)
+            [chunk async for chunk in chunks]
+
+        assert sorted(seen) == [("input", "c-1"), ("llm", "c-1")]
+        assert get_conversation_id() is None
+
+    @pytest.mark.asyncio
     async def test_the_first_requests_id_does_not_reach_later_requests(self):
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
             engine = IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))

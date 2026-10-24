@@ -14,8 +14,9 @@
 # limitations under the License.
 
 import contextvars
-from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Union
+import uuid
+from contextlib import ExitStack, contextmanager
+from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, Iterator, List, Optional, TypeVar, Union
 
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.options import GenerationOptions
@@ -93,3 +94,93 @@ def conversation_id(value: Optional[str]) -> Iterator[None]:
 def get_conversation_id() -> Optional[str]:
     """The conversation ID of the current request, or ``None`` when the caller set none."""
     return conversation_id_var.get()
+
+
+# The ID of the model call the current request belongs to. One model call has a request leg and
+# a response leg, and both carry the same ID. Set it with ``roundtrip_id()``; rails and actions
+# read it with ``get_roundtrip_id()``.
+roundtrip_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("roundtrip_id", default=None)
+
+
+@contextmanager
+def roundtrip_id(value: Optional[str]) -> Iterator[None]:
+    """Set the round-trip ID that rails and actions see for requests made inside the block.
+
+    Use it when the application knows where a model call starts and ends, which the engine
+    cannot always tell: an agent framework runs the input and output checks of one call as two
+    separate requests. NeMo Guardrails does not interpret the ID. ``None`` clears it inside the
+    block, and the previous value is restored on exit.
+
+    Example::
+
+        with roundtrip_id(call_id):
+            result = await rails.check_async(messages, rail_types=[RailType.INPUT])
+    """
+    token = roundtrip_id_var.set(value)
+    try:
+        yield
+    finally:
+        roundtrip_id_var.reset(token)
+
+
+@contextmanager
+def new_roundtrip_id() -> Iterator[str]:
+    """Open a round trip, minting an ID unless the caller already set one.
+
+    Yields the ID in force inside the block.
+    """
+    current = ensure_roundtrip_id()
+    with roundtrip_id(current):
+        yield current
+
+
+def ensure_roundtrip_id() -> str:
+    """The round-trip ID in force, or a newly minted one when the caller set none.
+
+    Unlike :func:`new_roundtrip_id` this leaves the context variable alone, for a caller that
+    applies the ID to something other than a block — a stream applies it to each pull.
+    """
+    return roundtrip_id_var.get() or str(uuid.uuid4())
+
+
+def get_roundtrip_id() -> Optional[str]:
+    """The round-trip ID of the current request, or ``None`` outside any round trip."""
+    return roundtrip_id_var.get()
+
+
+_Chunk = TypeVar("_Chunk")
+
+
+async def stream_with_request_ids(
+    chunks: AsyncIterator[_Chunk],
+    conversation: Optional[str],
+    roundtrip: Optional[str],
+) -> AsyncIterator[_Chunk]:
+    """Yield from *chunks* with the IDs of the request that created the stream applied.
+
+    An async generator has no context of its own: it resumes in the context of whoever pulls
+    the next chunk, which for a response body is not the caller that created the stream. The
+    IDs are therefore re-applied around each pull rather than held across the yields, which
+    would both leak them into the consumer's context and fail to restore it (``reset()``
+    raises when the context that resumed the generator is not the one that set the variable).
+
+    An ID the creating caller did not have is left alone rather than cleared, so a consumer
+    that sets one around the drain still has it.
+    """
+    iterator = chunks.__aiter__()
+    try:
+        while True:
+            with ExitStack() as ids:
+                if conversation is not None:
+                    ids.enter_context(conversation_id(conversation))
+                if roundtrip is not None:
+                    ids.enter_context(roundtrip_id(roundtrip))
+                try:
+                    chunk = await iterator.__anext__()
+                except StopAsyncIteration:
+                    return
+            yield chunk
+    finally:
+        aclose = getattr(iterator, "aclose", None)
+        if aclose is not None:
+            await aclose()

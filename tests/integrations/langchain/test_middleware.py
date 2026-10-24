@@ -15,7 +15,7 @@
 
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import (
@@ -26,7 +26,7 @@ from langchain_core.messages import (
 )
 from langchain_core.messages.tool import ToolCall
 
-from nemoguardrails.context import conversation_id, get_conversation_id
+from nemoguardrails.context import conversation_id, get_conversation_id, get_roundtrip_id, roundtrip_id
 from nemoguardrails.integrations.langchain.exceptions import GuardrailViolation
 from nemoguardrails.integrations.langchain.middleware import (
     GuardrailsMiddleware,
@@ -34,6 +34,9 @@ from nemoguardrails.integrations.langchain.middleware import (
     OutputRailsMiddleware,
 )
 from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType
+
+# A hook that leaves the messages alone still reports the round trip it opened.
+ROUND_TRIP_ONLY = {"guardrails_roundtrip_id": ANY, "guardrails_roundtrip_call": ANY}
 
 
 @pytest.fixture
@@ -130,7 +133,7 @@ class TestMiddlewareWithCreateAgent:
         state = {"messages": [HumanMessage(content="Hello, can you help me?")]}
         result = await middleware.abefore_model(state, None)
 
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
         mock_rails.check_async.assert_called_once()
         assert mock_rails.check_async.call_args.kwargs["rail_types"] == [RailType.INPUT]
 
@@ -214,7 +217,7 @@ class TestMiddlewareWithCreateAgent:
         }
 
         input_result = await middleware.abefore_model(state, None)
-        assert input_result is None
+        assert input_result == ROUND_TRIP_ONLY
 
         state["messages"].append(AIMessage(content="Here is an example: print('Hello')"))
         output_result = await middleware.aafter_model(state, None)
@@ -284,7 +287,7 @@ class TestToolMessageHandling:
         }
 
         result = await middleware.abefore_model(state, None)
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
     @pytest.mark.asyncio
     async def test_multiple_tool_calls(self, mock_rails_factory):
@@ -342,10 +345,10 @@ class TestMultipleMiddlewareComposition:
         state = {"messages": [HumanMessage(content="Hello")]}
 
         result1 = await middleware1.abefore_model(state, None)
-        assert result1 is None
+        assert result1 == ROUND_TRIP_ONLY
 
         result2 = await middleware2.abefore_model(state, None)
-        assert result2 is None
+        assert result2 == ROUND_TRIP_ONLY
 
         mock_rails1.check_async.assert_called_once()
         mock_rails2.check_async.assert_called_once()
@@ -373,7 +376,7 @@ class TestMultipleMiddlewareComposition:
         await logging_mw.abefore_model(state, None)
         result = await middleware.abefore_model(state, None)
 
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
         assert "before" in logging_mw.calls
         mock_rails.check_async.assert_called_once()
 
@@ -401,7 +404,7 @@ class TestMultipleMiddlewareComposition:
         state = {"messages": [HumanMessage(content="Hello")]}
 
         input_result = await input_middleware.abefore_model(state, None)
-        assert input_result is None
+        assert input_result == ROUND_TRIP_ONLY
         mock_rails_input.check_async.assert_called_once()
 
         state["messages"].append(AIMessage(content="Hi there!"))
@@ -425,7 +428,7 @@ class TestMultipleMiddlewareComposition:
         assert "jump_to" in result_block
 
         result_pass = await middleware_pass.abefore_model(state, None)
-        assert result_pass is None
+        assert result_pass == ROUND_TRIP_ONLY
 
     @pytest.mark.asyncio
     async def test_middleware_state_isolation(self, mock_rails_factory):
@@ -456,7 +459,7 @@ class TestSyncMethods:
         state = {"messages": [HumanMessage(content="Hello")]}
         result = middleware.before_model(state, None)
 
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
     def test_before_model_sync_block(self, mock_rails_factory):
         mock_rails = mock_rails_factory(status=RailStatus.BLOCKED, rail="sync_guard", content="blocked")
@@ -513,6 +516,8 @@ class TestSyncMethods:
 
         async_result = asyncio.run(run_async())
 
+        # A round trip is per model call, so the two IDs differ by design.
+        assert sync_result.pop("guardrails_roundtrip_id") != async_result.pop("guardrails_roundtrip_id")
         assert sync_result == async_result
 
     def test_before_model_sync_no_rails(self, mock_rails_factory):
@@ -523,7 +528,7 @@ class TestSyncMethods:
         state = {"messages": [HumanMessage(content="Hello")]}
         result = middleware.before_model(state, None)
 
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
         mock_rails.check_async.assert_not_called()
 
     def test_after_model_sync_no_rails(self, mock_rails_factory):
@@ -855,7 +860,7 @@ class TestRailsCheckBehavior:
         state = {"messages": [HumanMessage(content="Test")]}
         result = await middleware.abefore_model(state, None)
 
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
     @pytest.mark.asyncio
     async def test_rails_status_blocked(self, mock_rails_factory):
@@ -985,7 +990,7 @@ class TestApplyToInputOutputConfigurations:
         state = {"messages": [HumanMessage(content="Test")]}
         result = await middleware.abefore_model(state, None)
 
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
         mock_rails.check_async.assert_not_called()
 
     @pytest.mark.asyncio
@@ -1024,7 +1029,7 @@ class TestApplyToInputOutputConfigurations:
 
         state = {"messages": [HumanMessage(content="Hello")]}
         input_result = await middleware.abefore_model(state, None)
-        assert input_result is None
+        assert input_result == ROUND_TRIP_ONLY
 
         state["messages"].append(AIMessage(content="Hi"))
         output_result = await middleware.aafter_model(state, None)
@@ -1070,7 +1075,7 @@ class TestApplyToInputOutputConfigurations:
         state = {"messages": [HumanMessage(content="Hello")]}
 
         input_result = await middleware.abefore_model(state, None)
-        assert input_result is None
+        assert input_result == ROUND_TRIP_ONLY
         mock_rails.check_async.assert_not_called()
 
 
@@ -1618,3 +1623,53 @@ class TestConversationId:
             await self._run_model_hooks(self._recording_middleware(mock_rails_factory, seen), runtime)
 
         assert seen == ["app-conversation", "app-conversation"]
+
+
+class TestRoundtripId:
+    @staticmethod
+    def _recording_middleware(mock_rails_factory, seen: list):
+        async def check(messages, rail_types):
+            seen.append(get_roundtrip_id())
+            return RailsResult(status=RailStatus.PASSED, content=messages[-1]["content"])
+
+        return create_middleware_with_rails(mock_rails_factory(check_side_effect=check))
+
+    @staticmethod
+    async def _run_model_call(middleware, state):
+        """One model call: the before-model hook, the model, then the after-model hook."""
+        state.update(await middleware.abefore_model(state, None) or {})
+        state["messages"] = state["messages"] + [AIMessage(content="yo")]
+        state.update(await middleware.aafter_model(state, None) or {})
+        return state
+
+    @pytest.mark.asyncio
+    async def test_both_legs_of_one_model_call_share_the_id(self, mock_rails_factory):
+        seen = []
+        middleware = self._recording_middleware(mock_rails_factory, seen)
+
+        await self._run_model_call(middleware, {"messages": [HumanMessage(content="hi")]})
+
+        assert len(seen) == 2
+        assert seen[0] == seen[1] is not None
+        assert get_roundtrip_id() is None
+
+    @pytest.mark.asyncio
+    async def test_each_model_call_gets_its_own_id(self, mock_rails_factory):
+        seen = []
+        middleware = self._recording_middleware(mock_rails_factory, seen)
+
+        state = await self._run_model_call(middleware, {"messages": [HumanMessage(content="hi")]})
+        state["messages"] = state["messages"] + [HumanMessage(content="and again")]
+        await self._run_model_call(middleware, state)
+
+        assert len(set(seen)) == 2
+
+    @pytest.mark.asyncio
+    async def test_an_id_the_application_set_is_kept(self, mock_rails_factory):
+        seen = []
+        middleware = self._recording_middleware(mock_rails_factory, seen)
+
+        with roundtrip_id("r-1"):
+            await self._run_model_call(middleware, {"messages": [HumanMessage(content="hi")]})
+
+        assert seen == ["r-1", "r-1"]

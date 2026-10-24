@@ -563,29 +563,6 @@ async def _prepend_stream_chunk(
         yield chunk
 
 
-async def _in_conversation(
-    conversation: str,
-    stream_iterator: AsyncIterator[Union[str, dict]],
-) -> AsyncIterator[Union[str, dict]]:
-    """Advance *stream_iterator* with *conversation* as the conversation ID.
-
-    Rails that run while a chunk is pulled, such as streaming output rails, run in the
-    context of whoever pulls it, which for the response body is not the request handler.
-    """
-    try:
-        while True:
-            with conversation_id(conversation):
-                try:
-                    chunk = await anext(stream_iterator)
-                except StopAsyncIteration:
-                    return
-            yield chunk
-    finally:
-        close = getattr(stream_iterator, "aclose", None)
-        if callable(close):
-            await close()
-
-
 async def _format_streaming_response(
     stream_iterator: AsyncIterator[Union[str, dict, ToolCallChunk, ToolCallDeltaChunk]], model_name: str
 ) -> AsyncIterator[str]:
@@ -823,13 +800,13 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
 
     if body.stream:
         # Use stream_async for streaming with output rails support
+        # The engine captures the conversation ID when the stream is created, so the rails
+        # that run while a chunk is pulled see it too.
         with conversation_id(thread_conversation) if thread_conversation else nullcontext():
             stream_iterator = llm_rails.stream_async(
                 messages=messages,
                 options=generation_options,
             )
-        if thread_conversation:
-            stream_iterator = _in_conversation(thread_conversation, stream_iterator)
 
         try:
             first_chunk = await anext(stream_iterator)

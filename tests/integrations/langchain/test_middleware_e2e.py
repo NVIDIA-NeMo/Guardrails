@@ -13,12 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import ANY
+
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from nemoguardrails.integrations.langchain.exceptions import GuardrailViolation
 from nemoguardrails.integrations.langchain.middleware import GuardrailsMiddleware
 from nemoguardrails.rails.llm.options import RailStatus
+
+# A hook that leaves the messages alone still reports the round trip it opened.
+ROUND_TRIP_ONLY = {"guardrails_roundtrip_id": ANY, "guardrails_roundtrip_call": ANY}
 
 INPUT_OUTPUT_COLANG = """
 define flow input rail
@@ -148,7 +153,7 @@ class TestE2EInputRails:
         state = {"messages": [HumanMessage(content="Hello, how are you?")]}
         result = await middleware.abefore_model(state, None)
 
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
     @pytest.mark.asyncio
     async def test_input_blocked_by_keyword(self, input_output_config):
@@ -191,7 +196,7 @@ class TestE2EInputRails:
         state = {"messages": [HumanMessage(content="What is the weather today?")]}
         result = await middleware.abefore_model(state, None)
 
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
 
 class TestE2EOutputRails:
@@ -278,7 +283,7 @@ class TestE2EInputOutputCombined:
 
         state = {"messages": [HumanMessage(content="Hello there!")]}
         input_result = await middleware.abefore_model(state, None)
-        assert input_result is None
+        assert input_result == ROUND_TRIP_ONLY
 
         state["messages"].append(AIMessage(content="Hi! How can I assist you?"))
         output_result = await middleware.aafter_model(state, None)
@@ -301,7 +306,7 @@ class TestE2EInputOutputCombined:
 
         state = {"messages": [HumanMessage(content="Tell me something")]}
         input_result = await middleware.abefore_model(state, None)
-        assert input_result is None
+        assert input_result == ROUND_TRIP_ONLY
 
         state["messages"].append(AIMessage(content="block output"))
         output_result = await middleware.aafter_model(state, None)
@@ -316,26 +321,26 @@ class TestE2EMultiTurnConversation:
         middleware = GuardrailsMiddleware(config_path=input_output_config)
 
         state = {"messages": [HumanMessage(content="Hi!")]}
-        assert await middleware.abefore_model(state, None) is None
+        assert await middleware.abefore_model(state, None) == ROUND_TRIP_ONLY
 
         state["messages"].append(AIMessage(content="Hello! How can I help?"))
         assert await middleware.aafter_model(state, None) is None
 
         state["messages"].append(HumanMessage(content="What is 2+2?"))
-        assert await middleware.abefore_model(state, None) is None
+        assert await middleware.abefore_model(state, None) == ROUND_TRIP_ONLY
 
         state["messages"].append(AIMessage(content="2+2 equals 4"))
         assert await middleware.aafter_model(state, None) is None
 
         state["messages"].append(HumanMessage(content="Thank you!"))
-        assert await middleware.abefore_model(state, None) is None
+        assert await middleware.abefore_model(state, None) == ROUND_TRIP_ONLY
 
     @pytest.mark.asyncio
     async def test_multi_turn_blocked_midway(self, input_output_config):
         middleware = GuardrailsMiddleware(config_path=input_output_config, raise_on_violation=False)
 
         state = {"messages": [HumanMessage(content="Hello")]}
-        assert await middleware.abefore_model(state, None) is None
+        assert await middleware.abefore_model(state, None) == ROUND_TRIP_ONLY
 
         state["messages"].append(AIMessage(content="Hi!"))
         assert await middleware.aafter_model(state, None) is None
@@ -356,7 +361,7 @@ class TestE2EMultiTurnConversation:
             ]
         }
         result = await middleware.abefore_model(state, None)
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
 
 class TestE2ESecurityScenarios:
@@ -416,7 +421,7 @@ class TestE2ESecurityScenarios:
         middleware = GuardrailsMiddleware(config_path=keyword_filter_config)
 
         state = {"messages": [HumanMessage(content="What is the weather today?")]}
-        assert await middleware.abefore_model(state, None) is None
+        assert await middleware.abefore_model(state, None) == ROUND_TRIP_ONLY
 
         state["messages"].append(AIMessage(content="It's sunny and 72 degrees."))
         assert await middleware.aafter_model(state, None) is None
@@ -433,7 +438,7 @@ class TestE2EMiddlewareConfiguration:
 
         state = {"messages": [HumanMessage(content="block input")]}
         result = await middleware.abefore_model(state, None)
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
         state = {
             "messages": [
@@ -510,7 +515,7 @@ class TestE2EEdgeCases:
 
         state = {"messages": []}
         result = await middleware.abefore_model(state, None)
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
     @pytest.mark.asyncio
     async def test_only_system_message(self, input_output_config):
@@ -518,7 +523,7 @@ class TestE2EEdgeCases:
 
         state = {"messages": [SystemMessage(content="You are helpful")]}
         result = await middleware.abefore_model(state, None)
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
     @pytest.mark.asyncio
     async def test_long_conversation_history(self, input_output_config):
@@ -532,7 +537,7 @@ class TestE2EEdgeCases:
 
         state = {"messages": messages}
         result = await middleware.abefore_model(state, None)
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
     @pytest.mark.asyncio
     async def test_special_characters_in_message(self, input_output_config):
@@ -540,7 +545,7 @@ class TestE2EEdgeCases:
 
         state = {"messages": [HumanMessage(content="Hello! @#$%^&*() 你好 مرحبا 🎉")]}
         result = await middleware.abefore_model(state, None)
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
 
     @pytest.mark.asyncio
     async def test_multiline_message(self, input_output_config):
@@ -548,4 +553,4 @@ class TestE2EEdgeCases:
 
         state = {"messages": [HumanMessage(content="Line 1\nLine 2\nLine 3\n\nParagraph 2")]}
         result = await middleware.abefore_model(state, None)
-        assert result is None
+        assert result == ROUND_TRIP_ONLY
