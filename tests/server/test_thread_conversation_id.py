@@ -24,7 +24,8 @@ import pytest
 pytest.importorskip("openai", reason="openai is required for server tests")
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.context import conversation_id, get_conversation_id, stream_with_request_ids
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.context import conversation_id, ensure_roundtrip_id, get_conversation_id, stream_with_request_ids
 from nemoguardrails.server import api
 from nemoguardrails.server.datastore.memory_store import MemoryStore
 from tests.utils import TestChat
@@ -55,11 +56,11 @@ CONFIG = RailsConfig.from_content(
 def _rails(seen: list, completions: int = 1, entered=None):
     chat = TestChat(CONFIG, llm_completions=["Hello there, how are you today?"] * completions, streaming=True)
 
-    async def record_conversation(stage: str):
+    async def record_conversation(stage: str, **_):
         if entered is not None and stage == "input":
             await entered()
         seen.append((stage, get_conversation_id()))
-        return True
+        return RailOutcome.allow()
 
     chat.app.register_action(record_conversation, "record_conversation")
     return chat.app
@@ -84,7 +85,7 @@ class _LazyStreamRails:
 
         # Both engines capture the conversation of the request that created the stream, so
         # the rails that run while a chunk is pulled see it wherever the body is drained.
-        return stream_with_request_ids(stream(), conversation=get_conversation_id(), roundtrip=None)
+        return stream_with_request_ids(stream(), conversation=get_conversation_id(), roundtrip=ensure_roundtrip_id())
 
 
 def _payload(thread_id=None, stream=False):
@@ -192,8 +193,9 @@ async def test_concurrent_requests_each_see_their_own_thread(serve, stream):
 
     await asyncio.gather(_post(_payload(FIRST, stream=stream)), _post(_payload(SECOND, stream=stream)))
 
+    # A streaming output rail runs once per chunk, so each thread appears more than once.
     for stage in ("input", "output"):
-        assert sorted(conversation for s, conversation in seen if s == stage) == [FIRST, SECOND]
+        assert sorted({conversation for s, conversation in seen if s == stage}) == [FIRST, SECOND]
 
 
 @pytest.mark.asyncio
