@@ -36,7 +36,7 @@ running it later moves the lines your findings cite.
 ```bash
 uv run --locked pre-commit run --files <the PR's changed files>
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
-make test TEST="tests/rails/llm/test_config.py tests/test_runtime_flow_gate_equivalence.py"
+make test TEST="tests/rails/llm/test_config.py tests/test_rails_config.py tests/test_runtime_flow_gate_equivalence.py"
 make test TEST="tests/guardrails/test_compiled_rail.py tests/guardrails/test_guardrails.py tests/guardrails/test_rails_manager.py"
 make test TEST="tests/llm/test_call_import_graph.py tests/telemetry/test_usage_reporting.py"
 make test TEST=tests/http/test_library_boundary.py
@@ -55,7 +55,7 @@ gates do not encode.
 Most rail PRs leave `pyproject.toml` untouched, since a rail's optional
 vendor package is declared in the manifest rather than in packaging. A
 diff there is not automatically wrong: rail-scoped extras exist (`sdd`,
-`gcp`, `jailbreak`, `multilingual`) and `RailRequirements.extras` is a
+`gcp`, `jailbreak`, `multilingual`, `cel`) and `RailRequirements.extras` is a
 first-class field, so a PR adding one must justify the extra and declare it
 (exemplar: `nemoguardrails/library/sensitive_data_detection/rail.py`). An
 undeclared or unjustified dependency change is the finding.
@@ -72,8 +72,12 @@ confirm the applicable items are present before judging quality:
 - For a flow-bearing rail, both-dialect unit tests: block path under Colang 1
   AND under `colang_version: "2.x"`. A v2 flow file with no v2 test is
   unexecuted code; inbound PRs have shipped v2 files that parse but cannot run.
-- For an executable provider-backed rail, a flow-level test of the action
-  raising (vendor down, fail-closed).
+- For tool-only rails, IORails integration tests instead of Colang files and
+  dialect tests: allow/block, argument scoping when supported, and errors.
+  `cel` and `tool_safety_check` declare tool surfaces with empty flow-file lists.
+- For an executable provider-backed rail, an engine-level test of the action
+  raising (vendor down, fail-closed), through Colang where applicable and
+  through IORails for tool-only rails.
 - A recorded entry under `tests/recorded/rails/library/`, mandatory per
   `nemoguardrails/library/README.md`. Provider-backed rails cover allow,
   block, and one recordable provider error. Pure-Python rails cover applicable
@@ -92,15 +96,19 @@ Each item names the check, where to look, and what "wrong" looks like.
    request layer actually transmits and what the vendor's own documentation
    says about retention. `sends_user_text`/`sends_bot_text` must match the
    surfaces' bindings, including `sends_retrieved_chunks` for a retrieval
-   surface; `remote_services` must be non-empty for any HTTP
-   rail; `data_retention` must be stated if the vendor states one. A
+   surface and `sends_tool_call_text`/`sends_tool_result_text` for tool data
+   sent to a remote judge or vendor; `remote_services` must be non-empty for
+   any HTTP rail; `data_retention` must be stated if the vendor states one. A
    defaults-only `RailPrivacy()` on a vendor rail is almost always wrong.
 2. **Requirements honesty.** Every env var the code reads
    (`os.environ`/`os.getenv`) appears in `RailRequirements.env_vars`; every
    lazily imported package appears in `optional_dependencies` (and in
    `extras` when the package already ships in a nemoguardrails extra); the
    docs `pip install` line matches the declaration and carries the version
-   bound, which `RailRequirements` cannot express.
+   bound, which `RailRequirements` cannot express. Named model selections use
+   `Binding.model_param(...)` or `Binding.model(...)`, not ordinary surface or
+   literal bindings: the model resource drives IORails compilation checks and
+   `RailsConfig` validation for global and per-tool model references.
 3. **Retry semantics.** For HTTP rails: a rail-owned `RetryPolicy` in one
    named module-level place, either a constant or a single config-derived
    builder, never inline at the call site; POST retries only via explicit
@@ -122,8 +130,12 @@ Each item names the check, where to look, and what "wrong" looks like.
 4. **Fail-closed behavior, tested not asserted.** Vendor errors, timeouts,
    and malformed payloads must surface as typed errors or blocks, never a
    silent allow. For an executable provider-backed rail, there must be a
-   flow-level test of the action raising; a summary or comment claiming
-   fail-closed without a test is a finding.
+   test of the action raising through each supported engine; a summary or
+   comment claiming fail-closed without a test is a finding. IORails maps
+   ordinary action exceptions to `RailOutcome.failure` but propagates
+   status-bearing `LLMCallException` and `ModelEngineError`. Verify the
+   relevant public behavior rather than expecting every error to raise or
+   every error to become a refusal.
 5. **Dialect coverage.** For flow-bearing rails, the flow-files gate checks
    structure; behavior needs tests. Both dialects' block path must be exercised
    end to end in the UNIT suite (`colang_version: "2.x"` variant present?), and a per-rail
@@ -131,9 +143,9 @@ Each item names the check, where to look, and what "wrong" looks like.
    same provider traffic. Public-API v2 recordings remain valid when the
    runtime changes the calls, and IORails parity may reuse a sibling cassette
    or deliberately run a deterministic no-cassette case. If any surface declares
-   a `transform_target`, the transform path also needs a Colang 2 behavior
-   test; the flow-gate harness is Colang 1 only, so a v2 transform can be
-   entirely unexecuted while the block-path tests pass. Every
+   a `transform_target` and exposes Colang flows, the transform path also needs
+   a Colang 2 behavior test; the flow-gate harness is Colang 1 only, so a v2
+   transform can be entirely unexecuted while the block-path tests pass. Every
    `enable_rails_exceptions` branch must be either tested or absent. Check
    `flows.co` and `flows.v1.co` against the four equivalence items in
    add-library-rail Step 3 (same flow names, same action and bindings per
@@ -156,6 +168,9 @@ Each item names the check, where to look, and what "wrong" looks like.
    may inject `RecordingHTTPClient` (from `nemoguardrails.testing`) through
    `register_action_param`. IORails does not support arbitrary action-param
    registration; its compiled rail receives the engine-managed HTTP client.
+   Its other injected dependencies are `events`, `config`, `llm_task_manager`,
+   `llm`, `llms`, and `model_caches`; it does not inject `context` or `kb`.
+   Request data must arrive through explicit context bindings.
    Recorded suite entries follow the
    `recorded-tests` skill (vcr-structured, or non-vcr with a defensible
    reason). Nothing enforces that split, so read every suite test in the
@@ -196,9 +211,11 @@ Each item names the check, where to look, and what "wrong" looks like.
     do not merge unverifiable cassettes as recorded truth.
 12. **Conformance drift (a green suite can hide this).** The conformance
     gates pass if a contributor made them pass the WRONG way, so diff the
-    generic infrastructure, not just the rail. Reject any change to
+    generic infrastructure, not just the rail. Reject weakened checks in
     `test_builtin_rail_manifests.py`, `test_builtin_rail_conformance.py`, or
     `test_library_flow_files.py` unless the PR's purpose is the gate itself.
+    Extending an applicable pinned inventory, such as the set of model-bound
+    surfaces, is required; changing the rule to admit an invalid rail is not.
     Reject a new entry in `LEGACY_UNMANIFESTED_PACKAGES` or
     `NON_PORTABLE_DECLARED_FLOWS` unless it carries an explicit, reviewed
     design rationale (a new rail should satisfy the contract, not join the

@@ -28,7 +28,14 @@ named below; apply the current contracts in this guide to everything else.
 | --- | --- | --- |
 | Pure Python (no network, no model) | `nemoguardrails/library/regex/` | none |
 | HTTP / vendor API | `nemoguardrails/library/hf_classifier/backends.py` for client composition; `nemoguardrails/library/clavata/` for request/error layering | optional `request.py` and `errs.py` |
-| Model-backed (LLM judge) | `nemoguardrails/library/content_safety/` | none; model bound via `Binding.surface_param("model_name", "model")` |
+| Model-backed (LLM judge) | `nemoguardrails/library/content_safety/` | none; configurable model bound via `Binding.model_param("model_name", "model")` |
+
+Use `Binding.model(...)` for a model type fixed by the manifest, as in
+`nemoguardrails/library/llama_guard/rail.py`. Both model constructors set
+`resource="model"`; ordinary `surface_param` and `literal` bindings do not.
+IORails uses that resource to reject unconfigured models before execution.
+`RailsConfig` also validates model bindings on global and per-tool rails, so
+using an ordinary binding for a model would bypass that validation.
 
 For an HTTP rail, pick the layout by complexity: `clavata/` factors its vendor
 client into `request.py` for a multi-endpoint API, while
@@ -90,6 +97,12 @@ Config-only manifests such as `factchecking` legitimately omit actions and
 flows. Their manifest, config schema, docs, and tests must still describe and
 exercise the configuration they contribute.
 
+Tool-only rails such as `cel` and `tool_safety_check` are executable through
+IORails without Colang files. They declare `TOOL_CALL`/`TOOL_RESULT` surfaces
+and `RailFlows(files=(), v1_files=(), flow_names=(...))`. Use their IORails
+integration tests instead of adding Colang files or both-dialect tests for
+surfaces LLMRails cannot execute.
+
 Bundled data files (e.g. `injection_detection/yara_rules/*.yara`) are allowed
 when the rail needs them.
 
@@ -122,16 +135,20 @@ Copy the shape from `nemoguardrails/library/regex/rail.py`:
   the files to parse. A config-only rail with no flow files omits it
   (`nemoguardrails/library/factchecking/rail.py`), and the gate skips such
   manifests rather than failing them.
-- `RailSpec.surfaces`: one `RailSurface` per flow entry point, with `name`,
-  `direction` (input/output/retrieval), the action, and `bindings`
-  (`Binding.context(...)` for `user_message`/`bot_message`/`relevant_chunks`,
-  `Binding.literal(...)` for fixed params, `Binding.surface_param(...)` for
-  values the user passes in the flow name). Every surface's action must be in
+- `RailSpec.surfaces`: one `RailSurface` per entry point, with `name`,
+  `direction` (input/output/retrieval/tool_call/tool_result), the action, and
+  `bindings`. Use `Binding.context(...)` for message, retrieval, or tool data;
+  `Binding.literal(...)` for fixed non-model params; `Binding.surface_param(...)`
+  for configurable non-model params; and `Binding.model(...)` or
+  `Binding.model_param(...)` for model types. IORails supplies the context keys
+  `user_message`, `bot_message`, `tool_call`, `tool_result`, and
+  `tool_definition`; required retrieval-context bindings are unsupported there.
+  Every surface's action must be in
   `actions.refs`, and every binding's `action_param` must be a real parameter
   of the action. A transform surface must also set `transform_target`.
 - `RailSpec.config_schema`: a `RailConfigSchema` with `key` plus a
-  `ConfigSpecRef` to `rail_config:build_config_spec`. Optional: 12 shipped
-  rails have no configurable options and omit both this and `rail_config.py`.
+  `ConfigSpecRef` to `rail_config:build_config_spec`. Rails without configurable
+  options omit both this and `rail_config.py`.
 - `RailRequirements`: declare `env_vars` (e.g.
   `EnvVar(name="CLAVATA_API_KEY", required=True)`), `services`
   (`ServiceRequirement(name=...)`), `models`
@@ -142,6 +159,8 @@ Copy the shape from `nemoguardrails/library/regex/rail.py`:
   each appears here and in the docs install line.
 - `RailPrivacy`: `sends_user_text`, `sends_bot_text`, and
   `sends_retrieved_chunks` must match the surfaces' bindings;
+  `sends_tool_call_text` and `sends_tool_result_text` cover tool data sent to
+  a remote judge or vendor;
   `remote_services` must be non-empty for any rail that makes an HTTP call;
   `data_retention` must be stated whenever the vendor states one, here and
   not only in the docs page. A defaults-only `RailPrivacy()` on a vendor rail
@@ -168,27 +187,32 @@ async def my_rail_check(source: str, text: str, config: RailsConfig, **kwargs) -
 ```
 
 The signature is the injection contract. IORails supplies its fixed request
-dependencies by name: `events`, `context`, `config`, `llm_task_manager`,
+dependencies by name: `events`, `config`, `llm_task_manager`,
 `llm`, `llms`, `model_caches`, and `http_client`. It does not support
 `register_action()` or `register_action_param()`. LLMRails additionally
-supplies `kb` and application-registered action parameters; a per-action
+supplies `context`, `kb`, and application-registered action parameters; a per-action
 `<action_name>_llm` registration overrides `llm` there. Unit tests that use
 `TestChat` exercise this LLMRails registration path when they inject an HTTP
 double. Anything else an action needs must come from a manifest `Binding`: in
 the example above, `source` is not injected, it is
 `Binding.literal("source", "input")` in `rail.py`, and `text` is
 `Binding.context("text", "user_message")`.
+IORails resolves explicit context bindings, but does not inject the entire
+`context` dictionary. Bind every message or tool value the action needs rather
+than relying on an LLMRails-only `context` fallback.
 
 `config` is the whole `RailsConfig`, not your section. Read your own
 settings at `config.rails.config.<config_schema key>` and handle `None`
 (exemplar: `nemoguardrails/library/regex/actions.py`).
 
-`is_system_action=True` is not automatic and is not cosmetic for LLMRails. It
-defaults to `False`, omits the action's start and finish events from rendered
-prompt history, and keeps the action local when an actions server is
-configured. IORails invokes manifest actions locally and does not use that
-dispatch flag, but library actions must remain safe under both engines. Set it
-on every executable rail action. No gate checks this.
+The `is_system_action` flag defaults to `False`. Setting it to `True`, as in
+the example above, omits the action's start and finish events from LLMRails'
+rendered prompt history and keeps it local when an actions server is configured.
+The `content_safety`, `clavata`, and `injection_detection` exemplars do not set
+it; copy their scoped patterns rather than assuming their dispatch choice is
+the template's. Choose the flag deliberately for a new action, and preserve an
+existing action's dispatch contract unless the task changes it. IORails invokes
+manifest actions locally and does not use this flag. No gate checks the choice.
 
 The seam here is **actions decide, flows present**: the action returns a
 neutral verdict (allow/block/transform plus evidence in `metadata`), and the
@@ -367,13 +391,13 @@ different answers.
 users and tooling read.
 
 **Whether to add a named extra.** `pyproject.toml` defines rail-scoped
-extras (`sdd`, `gcp`, `jailbreak`, `multilingual`), so `pip install
+extras (`sdd`, `gcp`, `jailbreak`, `multilingual`, `cel`), so `pip install
 nemoguardrails[<extra>]` is an established install path and adding one for
 your rail is legitimate. If you add an extra: mirror it into the `all` extra
 in the same commit, since nothing tests that mirror; declare it as
 `extras=("<name>",)` alongside `optional_dependencies`; and use it as the
 docs install line. Note the tree is inconsistent here, so do not infer the
-rule from the nearest rail: only `sensitive_data_detection` declares
+rule from the nearest rail: `sensitive_data_detection` and `cel` declare
 `extras=`, while `injection_detection` and `gcp_moderate_text` declare
 `optional_dependencies` alone even though `jailbreak` and `gcp` exist for
 them.
@@ -443,24 +467,31 @@ the rail's declared actions, flows, surfaces, and provider usage.
    calls, or retention claims; verify those manually. Run the gates first;
    they catch most wiring mistakes. If a config change moves the schema, regenerate the
    snapshot with `scripts/generate_rails_config_schema_snapshot.py` and
-   review the diff. Never edit a generic gate or add your rail to an
+   review the diff. Never weaken a generic check or add your rail to an
    exception list (`LEGACY_UNMANIFESTED_PACKAGES`,
    `NON_PORTABLE_DECLARED_FLOWS`) to get green; fix the manifest.
 
-   **Pinned contracts you must update deliberately.** Current `develop` has
-   several exact expectations in addition to the discovery gates. Add only
-   entries that match the rail's archetype; do not loosen the assertions:
+   **Pinned contracts you must update deliberately.** The catalog tests also
+   pin inventories of model bindings, retrieval inputs, and other shipped
+   contracts. Extend applicable expected inventories without weakening their
+   assertions. This differs from changing a generic check or adding an exception
+   to admit an invalid rail. Other exact expectations include:
+   - `tests/rails/llm/test_builtin_rail_manifests.py`: include new model-resource
+     surfaces in `test_model_dependent_surfaces_declare_model_bindings` and
+     extend applicable pinned binding contracts.
    - `tests/rails/llm/test_config.py`: config key and exported model, when the
      rail contributes typed configuration.
-   - `tests/test_runtime_flow_gate_equivalence.py`: one case per manifest
-     surface, including transforms.
+   - `tests/test_runtime_flow_gate_equivalence.py`: one case per
+     LLMRails-supported manifest surface, including transforms; tool-call and
+     tool-result surfaces are excluded.
    - `tests/guardrails/test_compiled_rail.py`: update the pinned servable or
      refused surface inventory for each input/output surface.
-   - `tests/guardrails/test_guardrails.py`: add each IORails-admitted surface
-     to `ADMITTED_SURFACES`; an unsupported surface instead needs an explicit,
-     reviewed refusal reason.
-   - `tests/guardrails/test_rails_manager.py`: add each IORails-served action
-     that accepts `http_client` to `_HTTP_CLIENT_SURFACE_NAMES`.
+   - `tests/guardrails/test_guardrails.py`: add each IORails-admitted input/output
+     surface to `ADMITTED_SURFACES`; an unsupported surface instead needs an
+     explicit, reviewed refusal reason. That inventory excludes tool surfaces.
+   - `tests/guardrails/test_rails_manager.py`: verify that compiled rails borrow
+     the runtime-owned HTTP client. This is a shared-client contract, not a
+     per-surface registry to populate.
    - `docs/telemetry.mdx`, checked by
      `tests/telemetry/test_usage_reporting.py`: add the manifest's normalized
      built-in feature identifier.
@@ -469,6 +500,12 @@ the rail's declared actions, flows, surfaces, and provider usage.
    action modules automatically and rejects library actions that import
    Colang. A green subset is not proof that the relevant cases ran: inspect
    skips for missing optional dependencies.
+
+   For tool surfaces, exercise `RailsConfig.from_content` with both global
+   `flows` and `per_tool` configurations. Model bindings must reject missing
+   configured model types, including literal model selections; optional bindings
+   may remain unset. See `TestToolRailModelReferences` in
+   `tests/test_rails_config.py` for the current validation contract.
 2. **Unit tests** in `tests/test_<rail>*.py`:
    - `TestChat` end-to-end for flow behavior, `FakeLLMModel` for
      deterministic main-model output.
@@ -486,10 +523,16 @@ the rail's declared actions, flows, surfaces, and provider usage.
      `nemoguardrails/testing/http.py`, re-exported from
      `nemoguardrails.testing`). Secrets via `monkeypatch`. Unit tests
      must never reach live services.
-   - For an executable provider-backed rail, include one flow-level test of
+   - For an executable provider-backed rail, include one engine-level test of
      what happens when the action RAISES (vendor down): fail-closed is a claim
      about the runtime, not your code, so test it rather than asserting it in
-     a summary. Config-only rails have no action-error path.
+     a summary. Use a Colang flow test for LLMRails and an IORails integration
+     test for a tool-only rail. IORails converts ordinary action exceptions to
+     `RailOutcome.failure`; status-bearing `LLMCallException` and
+     `ModelEngineError` propagate. Test both paths when applicable; see
+     `tests/guardrails/test_compiled_rail.py` and
+     `tests/guardrails/test_tool_safety_check_iorails.py`. Config-only rails have
+     no action-error path.
    - Cover EVERY error branch the action can take, not just one. With a
      mocked transport synthetic errors are cheap and deterministic, so this
      is where exhaustive error coverage belongs. Use `RecordingHTTPClient`,
@@ -512,19 +555,26 @@ the rail's declared actions, flows, surfaces, and provider usage.
      plus the `enable_rails_exceptions` variant wherever the flow has that
      branch. The flow-files gate checks structure only; dialect behavior
      needs these tests.
-   - Transform surfaces need both-dialect behavior tests too. If the manifest
-     declares any surface with a `transform_target`, add a
+   - Colang-exposed transform surfaces need both-dialect behavior tests too.
+     If the manifest declares such a surface with a `transform_target`, add a
      `colang_version: "2.x"` test asserting the transformed context variable
      reaches the downstream flow, not just the Colang 1 version. The
      flow-gate equivalence harness builds Colang 1 configs only, so a
      transform surface can otherwise ship with its Colang 2 path never
      executed while still satisfying the block-path minimum above.
+   - Tool-only rails need IORails allow/block and error-path integration tests,
+     covering the bound tool call, result, definition, and any argument scope.
+     See `tests/guardrails/test_per_tool_cel_rails_iorails.py` and
+     `tests/guardrails/test_tool_safety_check_iorails.py`. Both-dialect
+     requirements apply only to surfaces with Colang flows.
 3. **Recorded e2e suite** in `tests/recorded/rails/library/`: add a config
    dir under `configs/<name>/`, a constant in `configs.py`, and a
-   `test_<rail>.py` covering the applicable public contract using
-   `check_rails`, `generate_with_fake_main`, and
-   `stream_with_fake_main` from `helpers.py`, with `assert_rails_result` +
-   `snapshot`. Provider-backed rails cover allow, block, and one recordable
+   `test_<rail>.py` covering the applicable public contract. For LLMRails use
+   `check_rails`, `generate_with_fake_main`, or `stream_with_fake_main` from
+   `helpers.py`; for IORails use `check_iorails`, as in
+   `tests/recorded/rails/library/test_tool_safety_check.py`. Assert the result
+   with `assert_rails_result` and `snapshot`.
+   Provider-backed rails cover allow, block, and one recordable
    provider-error. Pure-Python rails cover their applicable allow/block or
    transform behavior and have no provider-error requirement. Config-only
    manifests cover the public configuration contract they contribute. The
@@ -609,7 +659,7 @@ Run until green, in this order (cheapest first):
 
 ```bash
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
-make test TEST="tests/rails/llm/test_config.py tests/test_runtime_flow_gate_equivalence.py"
+make test TEST="tests/rails/llm/test_config.py tests/test_rails_config.py tests/test_runtime_flow_gate_equivalence.py"
 make test TEST="tests/guardrails/test_compiled_rail.py tests/guardrails/test_guardrails.py tests/guardrails/test_rails_manager.py"
 make test TEST="tests/llm/test_call_import_graph.py tests/telemetry/test_usage_reporting.py"
 make test TEST=tests/http/test_library_boundary.py

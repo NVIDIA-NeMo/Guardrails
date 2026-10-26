@@ -21,10 +21,12 @@ or docs against env vars, optional imports, outbound calls, or retention
 claims. When a generic check fails, the fix is almost always in your rail, not
 the test:
 
-- Do NOT edit the generic gates to make your rail pass:
+- Do NOT weaken the generic gates to make your rail pass:
   `tests/rails/llm/test_builtin_rail_manifests.py`,
   `tests/rails/llm/test_builtin_rail_conformance.py`,
   `tests/rails/llm/test_library_flow_files.py`.
+  Extend applicable pinned inventories, such as model-bound surfaces, while
+  preserving the checks themselves.
 - Do NOT add your rail to a hardcoded exception list
   (`LEGACY_UNMANIFESTED_PACKAGES`, `NON_PORTABLE_DECLARED_FLOWS`, or similar).
   Those name pre-existing exceptions; a new rail should satisfy the current
@@ -50,11 +52,12 @@ Each new rail under `nemoguardrails/library/<name>/` provides:
 2. Every executable action via `ActionRef`; typed config via `ConfigSpecRef`
    when configurable. Config-only manifests may omit actions and flows.
 3. For flow-bearing rails, public flows and both Colang dialect files
-   (`flows.co`, `flows.v1.co`).
+   (`flows.co`, `flows.v1.co`). Tool-only rails use IORails tests and declare
+   empty flow-file lists instead.
 4. Portable surfaces with direction, bindings, and transform target for each
    exposed flow.
 5. Requirements: env vars, services, models, and truthful `RailPrivacy`
-   (including `data_retention` when the vendor states one).
+   (including tool-call/result text and `data_retention` when applicable).
 6. Optional third-party imports kept inside execution-time code, loaded lazily.
 7. Focused tests for applicable behavior and failure modes, plus a recorded
    e2e entry. Provider-backed rails cover allow, block, and a recordable
@@ -64,6 +67,9 @@ Library actions must stay importable without Colang. Import model-call helpers
 from `nemoguardrails.llm.call`, not the compatibility module under
 `nemoguardrails.actions.llm.utils`. IORails supplies only its fixed request
 dependencies; arbitrary `register_action_param()` injection is LLMRails-only.
+IORails does not inject `context` or `kb`; bind request values explicitly.
+Use `Binding.model_param(...)` or `Binding.model(...)` for named model
+selections so compilation and tool-rail config validation can check them.
 
 HTTP rails accept an injected `HTTPClient`, preserve its ownership, and apply
 rail retry policy with `ensure_retrying_http_client` from
@@ -92,7 +98,7 @@ drift:
 
 ```bash
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
-make test TEST="tests/rails/llm/test_config.py tests/test_runtime_flow_gate_equivalence.py"
+make test TEST="tests/rails/llm/test_config.py tests/test_rails_config.py tests/test_runtime_flow_gate_equivalence.py"
 make test TEST="tests/guardrails/test_compiled_rail.py tests/guardrails/test_guardrails.py tests/guardrails/test_rails_manager.py"
 make test TEST="tests/llm/test_call_import_graph.py tests/telemetry/test_usage_reporting.py tests/http/test_library_boundary.py"
 ```

@@ -82,9 +82,14 @@ Prefer mechanisms in this order:
 3. **Fake cassette** (`@pytest.mark.fake_cassette`) only as a last resort, for a synthetic
    response that must flow through the full pipeline and cannot be reproduced by 1 or 2.
 
-Observed behavior these tests pin: a failing model call (main *or* a rail's own model)
-propagates as `LLMCallException` — a safety-model failure does not let content through
-silently. Name negative tests `test_<surface>_<failure>_<behavior>` with the suffixes
+Recorded provider HTTP errors propagate rather than becoming policy refusals.
+Calls through `llm_call` raise `LLMCallException` on LLMRails and IORails;
+IORails direct model-engine calls can raise `ModelEngineError`. IORails converts
+ordinary rail-action errors without an upstream HTTP status to a blocking
+failed outcome; those synthetic failures belong in unit tests. See
+`rails/library/test_iorails_parity.py` for the recorded
+safety-model 404 and vendor-error blocking contracts. Name negative tests
+`test_<surface>_<failure>_<behavior>` with the suffixes
 `_raises` / `_fails_closed` / `_invalid_*` so they are greppable
 (`pytest -k "raises or invalid"`), and co-locate each with its happy-path sibling module.
 

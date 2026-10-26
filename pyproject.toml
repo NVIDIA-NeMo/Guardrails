@@ -169,6 +169,7 @@ module-name = "nemoguardrails"
 source-exclude = [
   "/nemoguardrails/AGENTS.md",
   "/nemoguardrails/CLAUDE.md",
+  "/nemoguardrails/library/AGENTS.md",
 ]
 
 # Directories in which to run ty type-checking

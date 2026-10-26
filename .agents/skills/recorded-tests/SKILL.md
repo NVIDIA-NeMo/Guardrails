@@ -204,9 +204,11 @@ Belongs in `tests/recorded/`:
   them honestly.
 - A content-safety rail whose checker model is a real provider call, pinning
   what the rail blocks. The block decision depends on the real model output.
-- An invalid model name producing the provider's real 404, pinning that a
-  failing safety model fails closed with `LLMCallException`. The error body
-  is provider-shaped and refreshable.
+- An invalid model name producing the provider's real 404, pinning the
+  status-bearing `LLMCallException` on LLMRails and IORails. The error body is
+  provider-shaped and refreshable. IORails converts ordinary action errors
+  without an upstream HTTP status to a blocking failed outcome instead;
+  synthetic error-path tests belong in `tests/`.
 
 Belongs in `tests/` instead:
 
