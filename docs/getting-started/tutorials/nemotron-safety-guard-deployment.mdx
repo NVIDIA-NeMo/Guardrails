@@ -58,7 +58,7 @@ Follow these steps to prepare the guardrails configuration.
 
    The `chat_template_kwargs` parameters control the model's server-side chat template:
    - `enable_thinking: false`: disables the reasoning trace for lower latency. Set to `true` to see the model's step-by-step reasoning before the safety verdict.
-   - `request_categories: "/categories"`: instructs the model to classify against the full 24-category safety taxonomy. Omitting this causes the model to default to `/no_categories`, which suppresses the `Safety Categories` field in the response.
+   - `request_categories: "/categories"`: instructs the model to include the `Safety Categories` field in the response. Omitting this causes the model to default to `/no_categories`, which suppresses that field. The 24-category taxonomy is applied regardless.
 
    For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
 

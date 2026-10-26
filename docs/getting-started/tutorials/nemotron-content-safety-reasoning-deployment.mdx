@@ -13,7 +13,7 @@ By following this tutorial, you learn how to toggle reasoning on and off with a 
 
 ## Prerequisites
 
-- The NeMo Guardrails library [installed](/get-started/installation-guide) with the `nvidia` extra.
+- The NVIDIA NeMo Guardrails library [installed](/get-started/installation-guide).
 - A personal NVIDIA API key generated on [build.nvidia.com](https://build.nvidia.com/).
 
 ## Configure Guardrails
@@ -53,7 +53,7 @@ Follow these steps to prepare the guardrails configuration.
 
    Setting `enable_thinking: true` instructs the model to emit a `<think>…</think>` block containing its reasoning trace before the safety verdict. Set it to `false` for lower-latency classification without traces.
 
-   The `request_categories: "/categories"` parameter instructs the model to classify against the full 24-category safety taxonomy. Omitting this causes the model to default to `/no_categories`, which suppresses the `Safety Categories` field in the response.
+   The `request_categories: "/categories"` parameter instructs the model to include the `Safety Categories` field in the response. Omitting this causes the model to default to `/no_categories`, which suppresses that field. The 24-category taxonomy is applied regardless.
 
    For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
 
