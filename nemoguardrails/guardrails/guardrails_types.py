@@ -180,10 +180,9 @@ class RailResult:
         reason: str | None = None,
         metadata: Mapping[str, Any] | None = None,
         records: tuple[RailCallRecord, ...] = (),
-        messages: LLMMessages | None = None,
     ) -> "RailResult":
         """A result that lets the content through."""
-        return cls(RailOutcome.allow(reason=reason, metadata=metadata), records=records, messages=messages)
+        return cls(RailOutcome.allow(reason=reason, metadata=metadata), records=records)
 
     @classmethod
     def block(

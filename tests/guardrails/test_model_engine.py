@@ -45,6 +45,7 @@ from nemoguardrails.guardrails.model_engine import (
     ModelEngineError,
     _parse_chat_completion,
     _parse_chat_completion_chunk,
+    _rewrite_latest_tool_calls_openai,
 )
 from nemoguardrails.guardrails.tool_schema import ToolCallExtractionError, Toolset
 from nemoguardrails.llm.call import llm_call
@@ -3085,12 +3086,7 @@ class TestRewriteToolResults:
 
 
 class TestRewriteLatestToolCalls:
-    """``rewrite_latest_tool_calls`` writes a rail's rewritten arguments back onto the last assistant message."""
-
-    @pytest.fixture
-    def engine(self) -> ModelEngine:
-        """An OpenAI-engine ModelEngine; rewriting needs no started client."""
-        return ModelEngine(_make_model(engine="openai"))
+    """``_rewrite_latest_tool_calls_openai`` writes a rail's rewritten arguments back onto the last assistant message."""
 
     @staticmethod
     def _two_call_turn() -> list[dict]:
@@ -3106,11 +3102,11 @@ class TestRewriteLatestToolCalls:
             },
         ]
 
-    def test_the_arguments_are_written_as_the_wire_json_string(self, engine):
+    def test_the_arguments_are_written_as_the_wire_json_string(self):
         """The wire carries arguments as a JSON string, so the rewrite does too, and nothing else on the call moves."""
         messages = self._two_call_turn()
 
-        rewritten = engine.rewrite_latest_tool_calls(messages, {1: {"q": "<REDACTED>"}})
+        rewritten = _rewrite_latest_tool_calls_openai(messages, {1: {"q": "<REDACTED>"}})
 
         calls = rewritten[1]["tool_calls"]
         assert calls[0] == messages[1]["tool_calls"][0]
@@ -3123,13 +3119,13 @@ class TestRewriteLatestToolCalls:
         assert len(rewritten) == len(messages)
         assert rewritten[0] is messages[0]
 
-    def test_the_callers_list_message_and_calls_are_untouched(self, engine):
+    def test_the_callers_list_message_and_calls_are_untouched(self):
         messages = self._two_call_turn()
         snapshot = copy.deepcopy(messages)
         assistant = messages[1]
         raw_calls = assistant["tool_calls"]
 
-        rewritten = engine.rewrite_latest_tool_calls(messages, {0: {"q": "masked"}})
+        rewritten = _rewrite_latest_tool_calls_openai(messages, {0: {"q": "masked"}})
 
         assert messages == snapshot
         assert messages[1] is assistant
@@ -3138,35 +3134,35 @@ class TestRewriteLatestToolCalls:
         assert rewritten[1]["tool_calls"] is not raw_calls
         assert rewritten[1]["tool_calls"][1] is raw_calls[1]
 
-    def test_the_last_assistant_message_is_rewritten_even_when_a_tool_message_follows(self, engine):
+    def test_the_last_assistant_message_is_rewritten_even_when_a_tool_message_follows(self):
         """A full-turn check ends with the tool result, so the calls are found where extraction found them."""
         messages = make_tool_conversation()
 
-        rewritten = engine.rewrite_latest_tool_calls(messages, {0: {"city": "<CITY>"}})
+        rewritten = _rewrite_latest_tool_calls_openai(messages, {0: {"city": "<CITY>"}})
 
         assert rewritten[1]["tool_calls"][0]["function"]["arguments"] == '{"city": "<CITY>"}'
         assert rewritten[2] is messages[2]
 
-    def test_only_the_latest_assistant_message_is_rewritten(self, engine):
+    def test_only_the_latest_assistant_message_is_rewritten(self):
         earlier = self._two_call_turn()[1]
         messages = [*self._two_call_turn(), {"role": "tool", "tool_call_id": "c1", "content": "r"}, dict(earlier)]
 
-        rewritten = engine.rewrite_latest_tool_calls(messages, {0: {"q": "masked"}})
+        rewritten = _rewrite_latest_tool_calls_openai(messages, {0: {"q": "masked"}})
 
         assert rewritten[1] is messages[1]
         assert rewritten[3]["tool_calls"][0]["function"]["arguments"] == '{"q": "masked"}'
 
     @pytest.mark.parametrize("position", [2, -1], ids=["past-the-end", "negative"])
-    def test_a_position_with_no_call_raises(self, engine, position):
+    def test_a_position_with_no_call_raises(self, position):
         with pytest.raises(ValueError, match="no tool call at position"):
-            engine.rewrite_latest_tool_calls(self._two_call_turn(), {position: {}})
+            _rewrite_latest_tool_calls_openai(self._two_call_turn(), {position: {}})
 
-    def test_a_call_without_a_function_object_raises(self, engine):
+    def test_a_call_without_a_function_object_raises(self):
         messages = self._two_call_turn()
         messages[1] = {**messages[1], "tool_calls": [{"id": "c1", "type": "function"}]}
 
         with pytest.raises(ValueError, match="no tool call at position 0"):
-            engine.rewrite_latest_tool_calls(messages, {0: {}})
+            _rewrite_latest_tool_calls_openai(messages, {0: {}})
 
     @pytest.mark.parametrize(
         "messages",
@@ -3176,16 +3172,9 @@ class TestRewriteLatestToolCalls:
         ],
         ids=["no-assistant", "no-calls"],
     )
-    def test_a_conversation_without_latest_calls_raises(self, engine, messages):
+    def test_a_conversation_without_latest_calls_raises(self, messages):
         with pytest.raises(ValueError):
-            engine.rewrite_latest_tool_calls(messages, {0: {}})
-
-    def test_nim_uses_the_same_shape(self):
-        engine = ModelEngine(_make_model(engine="nim"))
-
-        rewritten = engine.rewrite_latest_tool_calls(self._two_call_turn(), {0: {"q": "masked"}})
-
-        assert rewritten[1]["tool_calls"][0]["function"]["arguments"] == '{"q": "masked"}'
+            _rewrite_latest_tool_calls_openai(messages, {0: {}})
 
 
 class TestExtractLatestToolCalls:

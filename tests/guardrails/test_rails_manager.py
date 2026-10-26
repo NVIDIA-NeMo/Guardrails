@@ -37,7 +37,6 @@ from nemoguardrails.guardrails.rails_manager import (
     PER_TOOL_RAILS_MAX_CONCURRENCY,
     RailsManager,
     _checked_text,
-    _PerToolCheck,
     _rail_call_record,
     _rail_result,
     _refuse_concurrent_rewrite,
@@ -48,7 +47,6 @@ from nemoguardrails.guardrails.rails_manager import (
     _tool_rail_result,
     _transforms_first,
 )
-from nemoguardrails.guardrails.tool_schema import ToolResult
 from nemoguardrails.http.retry import RetryingHTTPClient
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -1833,17 +1831,6 @@ class TestPerToolRailsThatRewrite:
         assert result == RailResult.allow()
         assert result.messages is None
 
-    async def test_a_rewrite_that_cannot_be_written_back_blocks(self):
-        """A rewrite with no tool message to land on blocks, inside the fail-closed envelope, rather than raising."""
-        mgr = self._manager({MASK_FLOW: rewriting_stub("<REDACTED>", SurfaceDirection.TOOL_RESULT)}, [MASK_FLOW])
-        mgr.engine_registry.rewrite_tool_results = MagicMock(side_effect=ValueError("no message at index 2"))
-
-        result = await mgr.are_tool_results_safe(make_tool_conversation())
-
-        assert result.is_safe is False
-        assert result.reason == "a rail rewrote a tool result this request does not have"
-        assert result.messages is None
-
     async def test_a_rewrite_of_a_variable_tool_results_do_not_have_raises(self):
         """An action naming none of its direction's payload contradicts its manifest, and fails loudly."""
         mgr = self._manager(
@@ -1861,21 +1848,6 @@ class TestPerToolRailsThatRewrite:
 
         with pytest.raises(NotImplementedError, match="in parallel"):
             await mgr.are_tool_results_safe(make_tool_conversation())
-
-    async def test_a_rewrite_of_a_result_with_no_position_blocks(self):
-        """A result extraction left without a message index has nowhere to take a rewrite, so it blocks."""
-        mgr = self._manager({MASK_FLOW: rewriting_stub("<REDACTED>", SurfaceDirection.TOOL_RESULT)}, [MASK_FLOW])
-        call = ToolCall(id="call_1", function=ToolCallFunction(name="get_weather", arguments={}))
-        check = _PerToolCheck(
-            "0:mask", MASK_FLOW, tool_call=call, tool_result=ToolResult(call_id="call_1", content="18C")
-        )
-
-        result, rewritten, _ = await mgr._run_per_tool_rails_sequential([check], SurfaceDirection.TOOL_RESULT)
-
-        assert result.is_safe is False
-        assert result.reason == "a rail rewrote a tool result this request does not have"
-        assert result.triggered_rail == MASK_FLOW
-        assert rewritten == {}
 
     async def test_the_global_validator_still_refuses_a_rewrite(self):
         """The global tool result validator has nowhere to apply a rewrite, so it still raises."""
@@ -2215,8 +2187,6 @@ class TestLatestToolCallsThatRewrite:
         assert result.messages is None
 
     async def test_a_rewrite_that_cannot_be_written_back_blocks(self):
-        # A check reads the turn as Chat Completions with no model, so the write-back is the module-level
-        # rewriter rather than an engine from the registry.
         mgr = self._manager({CALL_MASK_FLOW: _masking_query()}, [CALL_MASK_FLOW])
 
         with patch(

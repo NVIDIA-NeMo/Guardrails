@@ -272,19 +272,6 @@ class EngineRegistry:
         engine = self._get_engine(model_type, ModelEngine)
         return engine.rewrite_tool_results(messages, rewrites)
 
-    def rewrite_latest_tool_calls(
-        self, model_type: str, messages: list[dict], rewrites: Mapping[int, dict]
-    ) -> list[dict]:
-        """Return *messages* with the latest tool calls at the keys of *rewrites* given those arguments by the named model engine.
-
-        Raises:
-            KeyError: If no engine is registered with the given name.
-            TypeError: If the named engine is not a ModelEngine.
-            ValueError: If a key is not the position of a tool call on the last assistant message.
-        """
-        engine = self._get_engine(model_type, ModelEngine)
-        return engine.rewrite_latest_tool_calls(messages, rewrites)
-
     async def __aenter__(self):
         """Async context manager entry: start all engine clients."""
         await self.start()

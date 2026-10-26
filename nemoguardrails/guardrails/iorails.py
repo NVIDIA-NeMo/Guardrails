@@ -63,8 +63,8 @@ from nemoguardrails.guardrails.guardrails_types import (
     serialize_prompt,
     truncate,
 )
-from nemoguardrails.guardrails.model_engine import _parse_tools_openai
-from nemoguardrails.guardrails.rails_manager import RailsManager
+from nemoguardrails.guardrails.model_engine import _latest_assistant_message, _parse_tools_openai
+from nemoguardrails.guardrails.rails_manager import RailsManager, _carries_tool_result
 from nemoguardrails.guardrails.telemetry import (
     are_metrics_enabled,
     get_tracer,
@@ -674,7 +674,7 @@ def _rewritten_bot_message(result: RailResult) -> Optional[str]:
     return result.outcome.transform_text.get(TransformTarget.BOT_MESSAGE.value)
 
 
-# A direction whose rails may mask the text they check: the user turn, the response, or a tool result.
+# A direction whose rails may mask the text they check: the user turn, the response, a tool call or a tool result.
 _MaskedDirection = Union[RailDirection, SurfaceDirection]
 
 # The directions whose masks guard text the request's input messages carry.
@@ -703,7 +703,7 @@ class _TurnConversation:
         else:
             self.masks_pending.discard(direction)
 
-    def withhold(self, direction: _MaskedDirection) -> None:
+    def withhold(self, direction: RailDirection) -> None:
         """Keep *direction*'s text off the span, whatever its own masks decide on it later."""
         self.masks_pending.add(direction)
 
@@ -713,19 +713,12 @@ def _carries_text_to_mask(messages: LLMMessages, direction: _MaskedDirection) ->
     if direction is RailDirection.INPUT:
         return current_user_turn_index(messages) is not None
     if direction is SurfaceDirection.TOOL_RESULT:
-        return any(message.get("role") == "tool" for message in messages)
+        return _carries_tool_result(messages)
     if direction is SurfaceDirection.TOOL_CALL:
         # Only the latest assistant turn's calls are checked, as only the latest user turn is.
-        return bool(_latest_assistant_message(messages).get("tool_calls"))
+        latest = _latest_assistant_message(messages)
+        return bool(latest and latest.get("tool_calls"))
     return bool(_get_last_content_by_role(messages, "assistant"))
-
-
-def _latest_assistant_message(messages: LLMMessages) -> dict:
-    """The last assistant message of *messages*, or an empty one when it holds none."""
-    for message in reversed(messages):
-        if message.get("role") == "assistant":
-            return message
-    return {}
 
 
 def _generation_input_for_capture(conversation: _TurnConversation) -> Optional[LLMMessages]:

@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any, Literal, Optional, TypeVar, Union, cast
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
+from nemoguardrails.guardrails.compiled_rail import _REWRITABLE_TARGET as _SURFACE_REWRITABLE_TARGET
 from nemoguardrails.guardrails.compiled_rail import CompiledRail, RailDependencies, compile_rail
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
@@ -104,18 +105,6 @@ _REWRITABLE_TARGET = {
     RailDirection.OUTPUT: TransformTarget.BOT_MESSAGE,
 }
 
-# The tool payload each per-tool direction's rails may rewrite. Keyed apart from the map above,
-# whose logging directions have no tool members.
-_TOOL_REWRITABLE_TARGET = {
-    SurfaceDirection.TOOL_RESULT: TransformTarget.TOOL_RESULT,
-    SurfaceDirection.TOOL_CALL: TransformTarget.TOOL_CALL,
-}
-
-_UNPLACEABLE_TOOL_REWRITE_REASON = {
-    SurfaceDirection.TOOL_RESULT: "a rail rewrote a tool result this request does not have",
-    SurfaceDirection.TOOL_CALL: "a rail rewrote a tool call this request does not have",
-}
-
 
 def _rewriting_flows(
     rails: Mapping[tuple[RailDirection, str], CompiledRail],
@@ -170,7 +159,7 @@ def _tool_rail_result(outcome: RailOutcome, flow: str) -> RailResult:
 
 
 def _blocked_before_rails(
-    violation: ToolViolation, records: tuple[RailCallRecord, ...] = (), *, rewrite_pending: bool = False
+    violation: ToolViolation, records: tuple[RailCallRecord, ...] = (), *, rewrite_pending: bool
 ) -> RailResult:
     """A block the manager makes itself, before any tool rail runs, stating the violation's reason."""
     return RailResult.block(
@@ -284,12 +273,12 @@ def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -
 
 def _rewritten_tool_text(outcome: RailOutcome, direction: SurfaceDirection, flow: str) -> str:
     """Return what a per-tool rail rewrote its direction's tool payload to, ignoring any other variable it named."""
-    target = _TOOL_REWRITABLE_TARGET.get(direction)
+    target = _SURFACE_REWRITABLE_TARGET[direction]
     rewrites = outcome.transform_text
-    if target is None or target.value not in rewrites:
-        allowed = f"; it may rewrite {target.value!r}" if target is not None else ""
+    if target.value not in rewrites:
         raise NotImplementedError(
-            f"{flow!r} rewrote {sorted(rewrites)}, which a {direction.value} rail cannot apply{allowed}"
+            f"{flow!r} rewrote {sorted(rewrites)}, which a {direction.value} rail cannot apply; "
+            f"it may rewrite {target.value!r}"
         )
     return rewrites[target.value]
 
@@ -473,6 +462,13 @@ def _with_rewritten_calls(
         else:
             return replace(verdict, tool_calls=final)
     return replace(verdict, tool_calls_before_block=final)
+
+
+def _with_rewritten_messages(verdict: RailResult, messages: list[dict]) -> RailResult:
+    """Attach the conversation the tool rails rewrote: the allow's messages, or a block's record."""
+    if verdict.is_safe:
+        return replace(verdict, messages=messages)
+    return replace(verdict, messages_before_block=messages)
 
 
 def _rewritten_call_arguments(
@@ -842,31 +838,26 @@ class RailsManager:
         result = await self.are_tool_calls_safe(tool_calls, llm_params, enabled=enabled, model_type=None)
         # Extraction is one entry per wire call, so a call's position here is its position on the message.
         return self._with_rewritten_latest_calls(
-            result, _rewritten_call_arguments(result, tool_calls, range(len(tool_calls))), messages, None
+            result, _rewritten_call_arguments(result, tool_calls, range(len(tool_calls))), messages
         )
 
+    @staticmethod
     def _with_rewritten_latest_calls(
-        self, verdict: RailResult, rewrites: Mapping[int, dict], messages: list[dict], model_type: Optional[str]
+        verdict: RailResult, rewrites: Mapping[int, dict], messages: list[dict]
     ) -> RailResult:
         """Attach the conversation with the rewritten calls written back: the allow's messages, or a block's record."""
         if not rewrites:
             return verdict
         try:
-            rewritten_messages = (
-                _rewrite_latest_tool_calls_openai(messages, rewrites)
-                if model_type is None
-                else self.engine_registry.rewrite_latest_tool_calls(model_type, messages, rewrites)
-            )
+            rewritten_messages = _rewrite_latest_tool_calls_openai(messages, rewrites)
         except ValueError as e:
-            reason = _UNPLACEABLE_TOOL_REWRITE_REASON[SurfaceDirection.TOOL_CALL]
+            reason = "a rail rewrote a tool call this request does not have"
             log.error("[%s] %s: %s", get_request_id(), reason, e)
             # The mask decided, but its text never reached the conversation, which still holds the call as sent.
             if not verdict.is_safe:
                 return replace(verdict, rewrite_pending=True)
             return RailResult.block(reason=reason, records=verdict.records, rewrite_pending=True)
-        if verdict.is_safe:
-            return replace(verdict, messages=rewritten_messages)
-        return replace(verdict, messages_before_block=rewritten_messages)
+        return _with_rewritten_messages(verdict, rewritten_messages)
 
     async def _blocked_with_every_call_violation(
         self,
@@ -901,13 +892,13 @@ class RailsManager:
         else:
             outcome = RailOutcome.block(reason=violations[0].reason)
         # No mask can have decided on a call nobody could parse, so any configured one is still owed a decision.
-        masks_unrun = rails_result.rewrite_pending or bool(self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL])
+        masks_unrun = bool(self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL])
         # No triggered_rail: the block is the manager's, as for any call it cannot parse.
         blocked = RailResult(
             outcome, tool_violations=tuple(violations), records=rails_result.records, rewrite_pending=masks_unrun
         )
         rewrites = _rewritten_call_arguments(rails_result, [call for _, call in parsed], positions)
-        return self._with_rewritten_latest_calls(blocked, rewrites, messages, None)
+        return self._with_rewritten_latest_calls(blocked, rewrites, messages)
 
     async def are_tool_results_safe(
         self,
@@ -1058,23 +1049,12 @@ class RailsManager:
         rewrites = {index: text for index, text in texts.items() if text != originals.get(index)}
         if not rewrites:
             return verdict
-        try:
-            rewritten_messages = (
-                _rewrite_tool_results_openai(messages, rewrites)
-                if model_type is None
-                else self.engine_registry.rewrite_tool_results(model_type, messages, rewrites)
-            )
-        except ValueError as e:
-            reason = _UNPLACEABLE_TOOL_REWRITE_REASON[SurfaceDirection.TOOL_RESULT]
-            log.error("[%s] %s: %s", get_request_id(), reason, e)
-            # The mask decided, but its text never reached the conversation, which still holds the result as sent.
-            if not verdict.is_safe:
-                return replace(verdict, rewrite_pending=True)
-            # Blocking keeps a misbehaving rail inside the fail-closed envelope, as an input rewrite does.
-            return RailResult.block(reason=reason, records=verdict.records, rewrite_pending=True)
-        if verdict.is_safe:
-            return replace(verdict, messages=rewritten_messages)
-        return replace(verdict, messages_before_block=rewritten_messages)
+        rewritten_messages = (
+            _rewrite_tool_results_openai(messages, rewrites)
+            if model_type is None
+            else self.engine_registry.rewrite_tool_results(model_type, messages, rewrites)
+        )
+        return _with_rewritten_messages(verdict, rewritten_messages)
 
     def _flows_to_run(
         self, direction: RailDirection, configured: list[str], enabled: Union[bool, list[str]]
@@ -1369,13 +1349,7 @@ class RailsManager:
                 decided.add(check.key)
                 continue
             text = _rewritten_tool_text(result.outcome, direction, check.flow)
-            if check.index is None or (direction is SurfaceDirection.TOOL_RESULT and tool_result is None):
-                reason = _UNPLACEABLE_TOOL_REWRITE_REASON[direction]
-                log.error("[%s] %s flow %s: %s", req_id, direction.value, check.flow, reason)
-                blocked = RailResult.block(
-                    reason=reason, triggered_rail=_get_flow_name(check.flow) or check.flow, records=tuple(collected)
-                )
-                return blocked, rewritten, decided
+            assert check.index is not None
             if direction is SurfaceDirection.TOOL_CALL:
                 arguments = _rewritten_arguments(text)
                 if arguments is None:

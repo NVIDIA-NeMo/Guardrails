@@ -29,6 +29,7 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailResult, serialize_prompt
 from nemoguardrails.guardrails.iorails import IORails, _activated_rail
 from nemoguardrails.rails.llm.options import GenerationResponse
@@ -147,7 +148,9 @@ class TestToolResultRewritesInTheLog:
         raw = make_tool_conversation(content="reported by ada@example.com")
         masked = [*raw[:-1], {**raw[-1], "content": "reported by <EMAIL>"}]
         _stub_pipeline(iorails)
-        iorails.rails_manager.are_tool_results_safe = AsyncMock(return_value=RailResult.allow(messages=masked))
+        iorails.rails_manager.are_tool_results_safe = AsyncMock(
+            return_value=RailResult(RailOutcome.allow(), messages=masked)
+        )
 
         result = await iorails.generate_async(messages=raw, options={"log": {"llm_calls": True}})
 
