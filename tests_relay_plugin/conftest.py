@@ -32,6 +32,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
+from mock_judge import MockJudge
 from nemo_relay import Json, plugin
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +45,9 @@ SYSTEM_PLUGINS_TOML = Path("/etc/nemo-relay/plugins.toml")
 VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
 SERVE_SCRIPT = Path(__file__).with_name("serve.py")
 EXAMPLE_CONFIG = REPO_ROOT / "examples" / "configs" / "agent_hooks" / "nemo_relay"
+DETERMINISTIC_CONFIG = Path(__file__).with_name("configs") / "deterministic"
+JUDGE_CONFIG_TEMPLATE = Path(__file__).with_name("configs") / "llm_judge" / "config.yml"
+JUDGE_URL_PLACEHOLDER = "http://judge.invalid"
 # The server imports Guardrails before it answers, which takes seconds, and longer on a busy machine.
 SERVER_START_TIMEOUT_SECONDS = 60
 SERVER_STOP_TIMEOUT_SECONDS = 10
@@ -129,6 +133,47 @@ def example_hooks_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[s
     """The URL of a hooks server for Guardrails' NeMo Relay example config."""
     with _running_hooks_server(EXAMPLE_CONFIG, tmp_path_factory.mktemp("example_hooks_server")) as url:
         yield url
+
+
+@pytest.fixture(scope="session")
+def deterministic_hooks_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+    """The URL of a hooks server for configs/deterministic, whose tool policy and regex rail call no model."""
+    with _running_hooks_server(DETERMINISTIC_CONFIG, tmp_path_factory.mktemp("deterministic_hooks_server")) as url:
+        yield url
+
+
+@pytest.fixture(scope="session")
+def mock_judge_server() -> Iterator[MockJudge]:
+    """The mock judge model, serving on a thread of the test process for the whole session."""
+    judge = MockJudge()
+    judge.start()
+    yield judge
+    judge.stop()
+
+
+@pytest.fixture
+def judge(mock_judge_server: MockJudge) -> Iterator[MockJudge]:
+    """The mock judge, with no failure set and no prompts at the start of the test, and no request hanging after it."""
+    mock_judge_server.reset()
+    yield mock_judge_server
+    mock_judge_server.reset()
+
+
+@pytest.fixture(scope="session")
+def judge_hooks_server(mock_judge_server: MockJudge, tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+    """The URL of a hooks server for configs/llm_judge, with its judge rail calling the mock judge."""
+    template = JUDGE_CONFIG_TEMPLATE.read_text()
+    assert template.count(JUDGE_URL_PLACEHOLDER) == 1
+    config = tmp_path_factory.mktemp("llm_judge")
+    (config / "config.yml").write_text(template.replace(JUDGE_URL_PLACEHOLDER, mock_judge_server.base_url))
+    with _running_hooks_server(config, tmp_path_factory.mktemp("judge_hooks_server")) as url:
+        yield url
+
+
+@pytest.fixture(params=["deterministic_hooks_server", "judge_hooks_server"], ids=["deterministic", "llm_judge"])
+def policy_hooks_server(request: pytest.FixtureRequest) -> str:
+    """The URL of each hooks server whose config has configs/deterministic's tool policy and regex rail."""
+    return request.getfixturevalue(request.param)
 
 
 @contextmanager
