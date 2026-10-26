@@ -52,7 +52,7 @@ def _thread_id(runtime: Any) -> Optional[str]:
 
 
 def _thread_id_from_run_config() -> Optional[str]:
-    """The thread ID of the LangGraph run in progress, or None when there is no run."""
+    """The thread ID of the LangGraph run in progress, or None when the run config cannot be read."""
     try:
         config = get_config()
     except RuntimeError:

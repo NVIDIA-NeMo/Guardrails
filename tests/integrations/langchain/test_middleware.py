@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio
+import sys
 from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
@@ -1601,25 +1602,38 @@ class TestConversationId:
         await middleware.aafter_model({"messages": [HumanMessage(content="hi"), AIMessage(content="yo")]}, runtime)
 
     @staticmethod
-    async def _run_node_on_a_thread(node):
+    def _graph_of_one_node(node):
         graph = StateGraph(_GraphState)
         graph.add_node("node", node)
         graph.set_entry_point("node")
         graph.set_finish_point("node")
-        compiled = graph.compile(checkpointer=InMemorySaver())
-        await compiled.ainvoke({"ran": False}, {"configurable": {"thread_id": "thread-7"}})
+        return graph.compile(checkpointer=InMemorySaver())
+
+    @classmethod
+    async def _run_node_on_a_thread(cls, node):
+        await cls._graph_of_one_node(node).ainvoke({"ran": False}, {"configurable": {"thread_id": "thread-7"}})
+
+    @classmethod
+    def _run_sync_node_on_a_thread(cls, node):
+        cls._graph_of_one_node(node).invoke({"ran": False}, {"configurable": {"thread_id": "thread-7"}})
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "runtime_of_the_checks",
+        ("runtime_of_the_checks", "expected_conversation_id"),
         [
-            lambda runtime: runtime,
-            lambda runtime: Runtime(context=None),
+            (lambda runtime: runtime, "thread-7"),
+            (lambda runtime: Runtime(context=None), "thread-7" if sys.version_info >= (3, 11) else None),
         ],
         ids=["the_runtime_of_the_node", "a_runtime_without_execution_info"],
     )
-    async def test_input_and_output_checks_see_the_thread_id(self, mock_rails_factory, runtime_of_the_checks):
-        """The thread of the running graph names the conversation, whatever the runtime carries."""
+    async def test_input_and_output_checks_see_the_thread_id(
+        self, mock_rails_factory, runtime_of_the_checks, expected_conversation_id
+    ):
+        """The thread of the running graph names the conversation.
+
+        A runtime that does not carry the thread ID leaves the run config as the only source of it,
+        and LangGraph reaches an async node with the run config only on Python 3.11 and later.
+        """
         seen = []
         middleware = self._recording_middleware(mock_rails_factory, seen)
 
@@ -1629,8 +1643,24 @@ class TestConversationId:
 
         await self._run_node_on_a_thread(node)
 
-        assert seen == ["thread-7", "thread-7"]
+        assert seen == [expected_conversation_id, expected_conversation_id]
         assert get_conversation_id() is None
+
+    def test_the_sync_checks_see_the_thread_id(self, mock_rails_factory):
+        """A sync run reaches its node with the run config on every supported Python."""
+        seen = []
+        middleware = self._recording_middleware(mock_rails_factory, seen)
+
+        def node(state, runtime):
+            middleware.before_model({"messages": [HumanMessage(content="hi")]}, Runtime(context=None))
+            middleware.after_model(
+                {"messages": [HumanMessage(content="hi"), AIMessage(content="yo")]}, Runtime(context=None)
+            )
+            return {"ran": True}
+
+        self._run_sync_node_on_a_thread(node)
+
+        assert seen == ["thread-7", "thread-7"]
 
     @pytest.mark.asyncio
     async def test_no_conversation_id_without_a_thread(self, mock_rails_factory):
