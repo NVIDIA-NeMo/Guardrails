@@ -567,7 +567,7 @@ def load_vlguard(n: int, mode: str = "instruction", images_dir: Optional[str] = 
         image_path = str(img_base / image_rel) if image_rel else None
         if image_path and not Path(image_path).exists():
             missing_images += 1
-            image_path = None
+            continue  # skip: label describes an image+text input; text-only would measure the wrong task
 
         for entry in row.get("instr-resp", []):
             if is_safe:
@@ -617,7 +617,9 @@ def load_vlguard(n: int, mode: str = "instruction", images_dir: Optional[str] = 
                     )
 
     if missing_images:
-        print(f"  Warning: {missing_images} images not found in {img_base} — those samples run text-only")
+        print(
+            f"  Warning: {missing_images} images not found in {img_base} — those rows excluded (text-only would skew scores)"
+        )
     safe_n = sum(1 for s in samples if s.ground_truth == "safe")
     unsafe_n = sum(1 for s in samples if s.ground_truth == "unsafe")
     with_image = sum(1 for s in samples if s.extra.get("image_path"))
