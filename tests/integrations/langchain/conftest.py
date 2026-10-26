@@ -35,3 +35,9 @@ def _restore_langchain_provider_registries():
     _chat_providers.update(chat_providers)
     _llm_providers.clear()
     _llm_providers.update(llm_providers)
+
+
+@pytest.fixture
+def openai_key(monkeypatch):
+    """LLMRails builds the main model client at construction; it is never called."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")

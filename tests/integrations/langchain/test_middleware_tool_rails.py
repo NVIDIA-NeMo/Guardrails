@@ -219,12 +219,6 @@ def _reset_executed():
 
 
 @pytest.fixture
-def openai_key(monkeypatch):
-    """LLMRails builds the main model client at construction; no model is called."""
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-
-
-@pytest.fixture
 def middleware(openai_key):
     return GuardrailsMiddleware(config_yaml=TOOL_RAILS_YAML)
 

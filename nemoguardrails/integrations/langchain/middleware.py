@@ -166,9 +166,9 @@ class _ToolResultReview:
     """
 
     result: Any
+    message_keys: Tuple[str, ...]
     terminator: Optional[ToolMessage] = None
     terminator_entry: Any = field(default=None, repr=False)
-    message_keys: Tuple[str, ...] = ("messages",)
 
 
 class _UnusableRewrite(Exception):
@@ -303,7 +303,7 @@ def _map_command(command: Command, transform: Callable[[Any], Any], keys: Tuple[
     return replace(command, update=mapped_update, goto=goto)
 
 
-def _map_tool_result(result: Any, transform: Callable[[Any], Any], keys: Tuple[str, ...] = ("messages",)) -> Any:
+def _map_tool_result(result: Any, transform: Callable[[Any], Any], keys: Tuple[str, ...]) -> Any:
     """Rebuild a tool's return with *transform* applied to every message it adds to the conversation.
 
     Accepts the returns LangGraph's ``ToolNode`` accepts: a ``ToolMessage``, a ``Command``, or a
@@ -404,14 +404,14 @@ def _review_tool_result(request: ToolCallRequest, result: Any) -> _ToolResultRev
     return review
 
 
-def _replace_terminator(review: _ToolResultReview, **fields: Any) -> Any:
-    """Rebuild the reviewed return with *fields* set on the checked tool message and its artifact dropped.
+def _replace_terminator(review: _ToolResultReview, content: str) -> Any:
+    """Rebuild the reviewed return with *content* on the checked tool message and its artifact dropped.
 
     The artifact holds the tool's raw output, which a rewritten result must not carry on.
     A tool message the tool returned as a dict comes back as a ``ToolMessage``, so no dict form,
     such as a serialized message's ``kwargs``, carries the original content on.
     """
-    replacement = review.terminator.model_copy(update={**fields, "artifact": None})
+    replacement = review.terminator.model_copy(update={"content": content, "artifact": None})
     entry = review.terminator_entry
     return _map_tool_result(
         review.result, lambda message: replacement if message is entry else message, review.message_keys
@@ -455,7 +455,6 @@ class GuardrailsMiddleware(AgentMiddleware):
         self.blocked_output_message = blocked_output_message
         self.enable_input_rails = enable_input_rails
         self.enable_output_rails = enable_output_rails
-        self.enable_tool_rails = enable_tool_rails
         self.blocked_tool_call_message = blocked_tool_call_message
         self.blocked_tool_result_message = blocked_tool_result_message
 
@@ -741,7 +740,8 @@ class GuardrailsMiddleware(AgentMiddleware):
                     tool_call_id=request.tool_call["id"],
                     name=request.tool_call["name"],
                     status="error",
-                )
+                ),
+                message_keys=(),
             )
 
     async def awrap_tool_call(

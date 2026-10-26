@@ -1690,12 +1690,6 @@ def _flatten(result):
     return messages
 
 
-@pytest.fixture
-def openai_key(monkeypatch):
-    """LLMRails builds the main model client at construction; it is never called."""
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-
-
 @pytest.mark.usefixtures("openai_key")
 class TestToolRailsConstruction:
     def test_tool_rails_parameter_defaults(self):
@@ -1797,7 +1791,7 @@ class TestToolRailsConstruction:
         with pytest.raises(ValueError, match="cannot run on IORails.*enable_tool_rails=False"):
             GuardrailsMiddleware(config_yaml=yaml_content)
 
-    def test_main_model_with_base_url_constructs(self):
+    def test_main_model_with_base_url_is_kept_for_the_tool_engine(self):
         yaml_content = TOOL_RAILS_YAML.replace(
             "engine: openai", "engine: anthropic\n    parameters:\n      base_url: http://localhost:8000/v1", 1
         )
@@ -1805,7 +1799,7 @@ class TestToolRailsConstruction:
         with patch("nemoguardrails.integrations.langchain.middleware.LLMRails"):
             middleware = GuardrailsMiddleware(config_yaml=yaml_content)
 
-        assert middleware._tool_rails is not None
+        assert [model.type for model in middleware._tool_rails._config.models] == ["main"]
 
     def test_unservable_tool_rails_raise(self):
         yaml_content = TOOL_RAILS_YAML + "  tool_result:\n    flows: [some custom flow]\n"
@@ -2189,28 +2183,6 @@ class TestToolResultHook:
 
         assert outcome.content == middleware.blocked_tool_result_message
 
-    @pytest.mark.parametrize("hook", ["tool_call", "tool_result"])
-    @pytest.mark.asyncio
-    async def test_tool_check_modified_rewrites_are_applied(self, hook):
-        """A rail rewrite on a tool payload is applied: the tool runs the rewritten call, the model reads the rewritten result."""
-        middleware = _tool_middleware()
-        middleware._tool_rails.check_async = AsyncMock(
-            side_effect=[_call_rewrite(MASKED_ARGS), PASSED]
-            if hook == "tool_call"
-            else [PASSED, _result_rewrite(MASKED_RESULT)]
-        )
-        handler = AsyncMock(return_value=_tool_message(RAW_RESULT))
-
-        outcome = await middleware.awrap_tool_call(_tool_request(_tool_call(RAW_ARGS)), handler)
-
-        [executed] = handler.await_args.args
-        if hook == "tool_call":
-            assert executed.tool_call == {**_tool_call(RAW_ARGS), "args": MASKED_ARGS}
-            assert outcome.content == RAW_RESULT
-        else:
-            assert executed.tool_call == _tool_call(RAW_ARGS)
-            assert (outcome.content, outcome.status) == (MASKED_RESULT, "success")
-
     def test_sync_hook_withholds_through_the_sync_check(self):
         middleware = _tool_middleware()
         middleware._tool_rails.check = MagicMock(
@@ -2274,9 +2246,14 @@ class TestToolResultReturnShapes:
 
         assert isinstance(outcome, ToolMessage)
         assert POISON not in str(outcome)
-        assert (outcome.content, outcome.status) == (middleware.blocked_tool_result_message, "error")
-        normalized = ToolNode([run_sql])._normalize_tool_response(outcome, _tool_call(), "dict")
-        assert POISON not in str(normalized)
+        assert (outcome.content, outcome.status, outcome.tool_call_id, outcome.name, outcome.id, outcome.artifact) == (
+            middleware.blocked_tool_result_message,
+            "error",
+            "call_1",
+            "run_sql",
+            "tm-1",
+            None,
+        )
 
     @pytest.mark.parametrize("shape", list(_poisoned_returns()))
     @pytest.mark.asyncio
@@ -2288,27 +2265,6 @@ class TestToolResultReturnShapes:
         messages, rail_type = middleware._tool_rails.check_async.await_args_list[1].args
         assert rail_type == RailType.TOOL_RESULT
         assert messages[1]["content"] == POISON
-
-    @pytest.mark.parametrize("shape", ["command-dict-message", "command-serialized-message"])
-    @pytest.mark.asyncio
-    async def test_dict_terminator_is_withheld_as_a_tool_message(self, shape):
-        """A dict can carry the content in more than one place, as a serialized message's kwargs do."""
-        middleware = _tool_middleware()
-        middleware._tool_rails.check_async = AsyncMock(
-            side_effect=[RailsResult(status=RailStatus.PASSED, content=""), _blocked(rail="regex check tool result")]
-        )
-
-        outcome = await middleware.awrap_tool_call(_tool_request(), AsyncMock(return_value=_poisoned_returns()[shape]))
-
-        assert isinstance(outcome, ToolMessage)
-        assert (outcome.content, outcome.status, outcome.tool_call_id, outcome.name, outcome.id, outcome.artifact) == (
-            middleware.blocked_tool_result_message,
-            "error",
-            "call_1",
-            "run_sql",
-            "tm-1",
-            None,
-        )
 
 
 def _history():
@@ -2643,7 +2599,7 @@ class TestToolRewrites:
         await middleware.awrap_tool_call(request, handler)
 
         [executed] = handler.await_args.args
-        assert executed.tool_call["args"] == MASKED_ARGS
+        assert executed.tool_call == {**request.tool_call, "args": MASKED_ARGS}
         assert (executed.tool, executed.state) == (request.tool, request.state)
         assert request.tool_call["args"] == RAW_ARGS
         result_messages, _ = middleware._tool_rails.check_async.await_args_list[1].args
