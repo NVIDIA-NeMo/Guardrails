@@ -1017,6 +1017,10 @@ def print_comparison(
         f"  Agreement: {agree}/{total} ({agreement_rate:.1%}){f'  ({skipped} errored pairs skipped)' if skipped else ''}"
     )
 
+    if not valid_pairs:
+        print("  Inconclusive — all pairs errored; check endpoint and API key.")
+        return
+
     disagreements = [(i, s, d, g) for i, s, d, g in valid_pairs if d.is_safe != g.is_safe]
     if disagreements:
         print(f"\n  Disagreements ({len(disagreements)}):")
