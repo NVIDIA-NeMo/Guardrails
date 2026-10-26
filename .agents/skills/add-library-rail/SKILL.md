@@ -16,44 +16,38 @@ you when they are wrong: privacy honesty, retry semantics, fail-closed
 behavior, telemetry content-freeness, docs accuracy, and cassette provenance
 need the rail-specific tests you write plus a reviewer's judgment.
 
-The workflow is: start from the closest maintained pattern, adapt it, run the
-gates until green, then write the behavioral and recorded end-to-end coverage
-the gates cannot stand in for. Shipped rails span several generations of the
-architecture, so an exemplar is authoritative only for the specific pattern
-named below; apply the current contracts in this guide to everything else.
+Read the cited implementation and its tests at the current checkout before
+adapting an example. An exemplar illustrates the named pattern; its other
+choices may predate the current contracts. Runtime definitions own the current
+fields and injection rules, and tests own pinned inventories. Do not copy those
+inventories into this guide.
+
+When editing this guidance, run
+`make test TEST=tests/test_rail_skill_references.py`. It checks
+literal repository paths and Python references written as
+`path/to/module.py::ClassName::method_name` without importing optional providers.
+It cannot verify behavioral claims; review those against the cited code.
 
 ## Step 1: Pick the archetype and exemplar
 
-| Archetype | Exemplar to copy | Extra files beyond the core set |
+| Archetype | Starting point and scope | Extra files beyond the core set |
 | --- | --- | --- |
 | Pure Python (no network, no model) | `nemoguardrails/library/regex/` | none |
 | HTTP / vendor API | `nemoguardrails/library/hf_classifier/backends.py` for client composition; `nemoguardrails/library/clavata/` for request/error layering | optional `request.py` and `errs.py` |
 | Model-backed (LLM judge) | `nemoguardrails/library/content_safety/` | none; configurable model bound via `Binding.model_param("model_name", "model")` |
 
-Use `Binding.model(...)` for a model type fixed by the manifest, as in
-`nemoguardrails/library/llama_guard/rail.py`. Both model constructors set
+Use `Binding.model(...)` for a model type fixed by the manifest. Read
+`nemoguardrails/manifests/manifest.py::Binding::model` and
+`nemoguardrails/manifests/manifest.py::Binding::model_param`. Both constructors set
 `resource="model"`; ordinary `surface_param` and `literal` bindings do not.
 IORails uses that resource to reject unconfigured models before execution.
 `RailsConfig` also validates model bindings on global and per-tool rails, so
 using an ordinary binding for a model would bypass that validation.
 
-For an HTTP rail, pick the layout by complexity: `clavata/` factors its vendor
-client into `request.py` for a multi-endpoint API, while
-`nemoguardrails/library/f5/` inlines a single `http_call` in `actions.py` and
-returns `RailOutcome` directly. Use those layouts and their behavior-test
-shapes, but use `hf_classifier/backends.py` for current retry/instrumentation
-composition. Do not copy F5's deterministic retry random source or Clavata's
-payload-bearing exception strings; both predate the current resilience and
-telemetry contracts in Step 4.
-
-Use Clavata's separation between request handling, typed vendor errors, and
-response-model tests; `tests/test_clavata_models.py` is a solid example of
-validating a vendor payload shape. Rewrite error messages so they identify the
-operation and status without response bodies, validation input, or arbitrary
-nested exception text. Its rail-behavior coverage is NOT exemplary. Copy
-`tests/test_f5_guardrails.py` and
-`tests/recorded/rails/library/test_f5_guardrails.py` for the behavior test
-shape, applying the archetype conditions in Step 6.
+For HTTP rails, split out a request helper when the vendor API's complexity
+warrants it. Before adapting code, check retry randomness, error redaction, and
+client ownership against Step 4. Existing implementations may not satisfy every
+new-contribution rule. Choose behavioral tests by the applicable cases in Step 6.
 
 For a model-backed rail, the model call is not `http_call`. Use the shared
 generation surface, in this fixed order (exemplar:
@@ -140,9 +134,9 @@ Copy the shape from `nemoguardrails/library/regex/rail.py`:
   `bindings`. Use `Binding.context(...)` for message, retrieval, or tool data;
   `Binding.literal(...)` for fixed non-model params; `Binding.surface_param(...)`
   for configurable non-model params; and `Binding.model(...)` or
-  `Binding.model_param(...)` for model types. IORails supplies the context keys
-  `user_message`, `bot_message`, `tool_call`, `tool_result`, and
-  `tool_definition`; required retrieval-context bindings are unsupported there.
+  `Binding.model_param(...)` for model types. Read the currently supported
+  context keys in `nemoguardrails/guardrails/compiled_rail.py::_CONTEXT_KEYS`;
+  do not assume LLMRails context is available on IORails.
   Every surface's action must be in
   `actions.refs`, and every binding's `action_param` must be a real parameter
   of the action. A transform surface must also set `transform_target`.
@@ -186,15 +180,13 @@ async def my_rail_check(source: str, text: str, config: RailsConfig, **kwargs) -
     return RailOutcome.allow()
 ```
 
-The signature is the injection contract. IORails supplies its fixed request
-dependencies by name: `events`, `config`, `llm_task_manager`,
-`llm`, `llms`, `model_caches`, and `http_client`. It does not support
-`register_action()` or `register_action_param()`. LLMRails additionally
-supplies `context`, `kb`, and application-registered action parameters; a per-action
-`<action_name>_llm` registration overrides `llm` there. Unit tests that use
-`TestChat` exercise this LLMRails registration path when they inject an HTTP
-double. Anything else an action needs must come from a manifest `Binding`: in
-the example above, `source` is not injected, it is
+The signature is the injection contract. For IORails, read the runtime-owned
+dependencies in
+`nemoguardrails/guardrails/compiled_rail.py::CompiledRail::_request_dependencies`.
+Application-registered parameters and per-action `<action_name>_llm` overrides
+are LLMRails features; `TestChat` exercises that registration path. Anything
+outside IORails' dependency builder must come from a manifest `Binding`: in
+the example above, `source` is supplied by
 `Binding.literal("source", "input")` in `rail.py`, and `text` is
 `Binding.context("text", "user_message")`.
 IORails resolves explicit context bindings, but does not inject the entire
@@ -205,14 +197,13 @@ than relying on an LLMRails-only `context` fallback.
 settings at `config.rails.config.<config_schema key>` and handle `None`
 (exemplar: `nemoguardrails/library/regex/actions.py`).
 
-The `is_system_action` flag defaults to `False`. Setting it to `True`, as in
-the example above, omits the action's start and finish events from LLMRails'
-rendered prompt history and keeps it local when an actions server is configured.
-The `content_safety`, `clavata`, and `injection_detection` exemplars do not set
-it; copy their scoped patterns rather than assuming their dispatch choice is
-the template's. Choose the flag deliberately for a new action, and preserve an
-existing action's dispatch contract unless the task changes it. IORails invokes
-manifest actions locally and does not use this flag. No gate checks the choice.
+Choose `is_system_action` deliberately; read the decorator's current default in
+`nemoguardrails/actions/actions.py::action`. Setting it to `True`, as in the
+template, omits the action's start and finish events from LLMRails' rendered
+prompt history and keeps it local when an actions server is configured. Check
+the chosen exemplar's decorator rather than assuming it matches the template.
+Preserve an existing action's dispatch contract unless the task changes it.
+IORails invokes manifest actions locally and does not use this flag.
 
 The seam here is **actions decide, flows present**: the action returns a
 neutral verdict (allow/block/transform plus evidence in `metadata`), and the
@@ -390,17 +381,11 @@ different answers.
 `RailRequirements.optional_dependencies`, whatever else you do. This is what
 users and tooling read.
 
-**Whether to add a named extra.** `pyproject.toml` defines rail-scoped
-extras (`sdd`, `gcp`, `jailbreak`, `multilingual`, `cel`), so `pip install
-nemoguardrails[<extra>]` is an established install path and adding one for
-your rail is legitimate. If you add an extra: mirror it into the `all` extra
-in the same commit, since nothing tests that mirror; declare it as
-`extras=("<name>",)` alongside `optional_dependencies`; and use it as the
-docs install line. Note the tree is inconsistent here, so do not infer the
-rule from the nearest rail: `sensitive_data_detection` and `cel` declare
-`extras=`, while `injection_detection` and `gcp_moderate_text` declare
-`optional_dependencies` alone even though `jailbreak` and `gcp` exist for
-them.
+**Whether to add a named extra.** Inspect `[project.optional-dependencies]`
+in `pyproject.toml` for an existing user install path. If you add an extra,
+include it in `all`, declare `extras=("<name>",)` alongside the manifest's
+`optional_dependencies`, and use it in the docs install line. Check those
+declarations directly; neighboring rails can have incomplete declarations.
 
 **Whether CI can run your tests.** Separate from both of the above. If your
 unit test module imports the vendor package at top level, add it to the
@@ -426,12 +411,10 @@ skipped test suite is not a passing one.
 requirements=RailRequirements(optional_dependencies=("yara-python",)),
 ```
 
-  `optional_dependencies` is a tuple of PyPI distribution names
-  (`Tuple[str, ...]`, `nemoguardrails/manifests/manifest.py`).
-  `RailRequirements` accepts only `extras`, `env_vars`, `services`, `models`,
-  and `optional_dependencies`, and it is declared `extra="forbid"`, so any
-  other key fails at manifest construction. Version bounds are not
-  expressible here; state them in the docs page `pip install` line. Set
+  `optional_dependencies` contains PyPI distribution names. Read the accepted
+  fields in `nemoguardrails/manifests/manifest.py::RailRequirements` before
+  extending the declaration; unknown fields fail at manifest construction.
+  Version bounds are not expressible here; state them in the docs install line. Set
   `extras=("<extra>",)` alongside it when the rail has a named extra
   (exemplar: `nemoguardrails/library/sensitive_data_detection/rail.py`,
   which declares both).
@@ -471,30 +454,15 @@ the rail's declared actions, flows, surfaces, and provider usage.
    exception list (`LEGACY_UNMANIFESTED_PACKAGES`,
    `NON_PORTABLE_DECLARED_FLOWS`) to get green; fix the manifest.
 
-   **Pinned contracts you must update deliberately.** The catalog tests also
-   pin inventories of model bindings, retrieval inputs, and other shipped
-   contracts. Extend applicable expected inventories without weakening their
-   assertions. This differs from changing a generic check or adding an exception
-   to admit an invalid rail. Other exact expectations include:
-   - `tests/rails/llm/test_builtin_rail_manifests.py`: include new model-resource
-     surfaces in `test_model_dependent_surfaces_declare_model_bindings` and
-     extend applicable pinned binding contracts.
-   - `tests/rails/llm/test_config.py`: config key and exported model, when the
-     rail contributes typed configuration.
-   - `tests/test_runtime_flow_gate_equivalence.py`: one case per
-     LLMRails-supported manifest surface, including transforms; tool-call and
-     tool-result surfaces are excluded.
-   - `tests/guardrails/test_compiled_rail.py`: update the pinned servable or
-     refused surface inventory for each input/output surface.
-   - `tests/guardrails/test_guardrails.py`: add each IORails-admitted input/output
-     surface to `ADMITTED_SURFACES`; an unsupported surface instead needs an
-     explicit, reviewed refusal reason. That inventory excludes tool surfaces.
-   - `tests/guardrails/test_rails_manager.py`: verify that compiled rails borrow
-     the runtime-owned HTTP client. This is a shared-client contract, not a
-     per-surface registry to populate.
-   - `docs/telemetry.mdx`, checked by
-     `tests/telemetry/test_usage_reporting.py`: add the manifest's normalized
-     built-in feature identifier.
+   **Pinned contracts you must update deliberately.** Run the verification
+   suites below and inspect their current expected inventories. Extend
+   applicable cases without weakening the rules. Useful entry points are
+   `tests/rails/llm/test_builtin_rail_manifests.py::test_model_dependent_surfaces_declare_model_bindings`,
+   `tests/test_runtime_flow_gate_equivalence.py::test_manifest_surfaces_have_flow_gate_equivalence_coverage`,
+   and
+   `tests/guardrails/test_guardrails.py::TestScopeGateCharacterization::test_the_admitted_surfaces_are_exactly_the_pinned_set`.
+   Other suites in the loop cover config exports, HTTP ownership, and telemetry;
+   update `docs/telemetry.mdx` when adding a built-in feature identifier.
 
    Also run `tests/llm/test_call_import_graph.py`; it discovers manifest
    action modules automatically and rejects library actions that import
@@ -648,16 +616,16 @@ conformance gate flags the drift. Update the mirrored artifacts together:
 | Configuration changes | Update the typed config model, regenerate `schemas/rails_config.snapshot.json`, and review the schema diff. |
 | Dependency or service changes | Update manifest `optional_dependencies`, `extras`, env vars, services, models, and privacy declarations. |
 
-Then re-run the catalog gates from Step 6; they are the mechanical check that
-the mirrored copies still agree. `nemoguardrails/library/AGENTS.md` carries
-the same matrix as an always-loaded tripwire; its last row is scoped to
-services and models, while the row above covers dependencies as well.
+Then re-run the catalog gates from Step 6 to check the mirrored artifacts.
+This section owns the change checklist; `nemoguardrails/library/AGENTS.md`
+points here rather than maintaining a second copy.
 
 ## Final verification loop
 
 Run until green, in this order (cheapest first):
 
 ```bash
+make test TEST=tests/test_rail_skill_references.py
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
 make test TEST="tests/rails/llm/test_config.py tests/test_rails_config.py tests/test_runtime_flow_gate_equivalence.py"
 make test TEST="tests/guardrails/test_compiled_rail.py tests/guardrails/test_guardrails.py tests/guardrails/test_rails_manager.py"

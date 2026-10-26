@@ -6,14 +6,9 @@ Guidance for agents editing files under `tests/recorded/`.
   cassettes, snapshots). The `recorded-tests` skill under `.agents/skills/`
   owns the placement decision procedure, including the real-provider-request
   criterion. Do not restate either here.
-- The suite intentionally mixes vcr and non-vcr tests. Marker form follows
-  whether tests are async and whether every test in the module needs VCR:
-  - async rail tests carry `pytestmark = [pytest.mark.recorded,
-    pytest.mark.asyncio]` (`rails/library/test_regex.py`,
-    `rails/library/test_injection.py`);
-  - the synchronous cassette meta-tests in this directory carry
-    `pytestmark = [pytest.mark.recorded]` alone;
-  - `test_cassette_provenance.py` carries no `pytestmark` at all.
+- The suite intentionally mixes vcr and non-vcr tests. Follow the README's
+  marker rules and the skill's exception criteria; suite-infrastructure tests
+  are not templates for provider replay tests.
 - Nothing enforces that split. `conftest.py` has no marker-inspecting
   fixture and `pytest.ini` registers no marker for the exception, so a
   misplaced deterministic test collects and passes here silently. Apply the

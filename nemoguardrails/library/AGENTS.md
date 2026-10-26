@@ -78,31 +78,9 @@ rail retry policy with `ensure_retrying_http_client` from
 retry policy takes precedence. Error and telemetry text must not contain
 checked content, request or response bodies, query strings, or credentials.
 
-## Changing an existing rail: know the blast radius
+## Changing and validating a rail
 
-Manifests deliberately mirror facts that also live in code, Colang, docs, and
-config. When you change one side, update the other or a gate will catch the
-drift:
-
-| Change | Required updates |
-| --- | --- |
-| Implementation only | Focused action tests; the manifest usually stays. |
-| Python module or symbol moves | Update the manifest's `ActionRef.target`. |
-| Decorated action name changes | Update `ActionRef.name`, Colang 1 `execute` calls, Colang 2 `CamelCaseAction` calls, and surface references. Treat as a public compatibility change. |
-| Parameters change | Update surface bindings and flow arguments; every `Binding.action_param` must still exist in the signature. |
-| Return contract | Surface actions must still annotate and return `RailOutcome`. |
-| Configuration changes | Update the typed config model, regenerate `schemas/rails_config.snapshot.json`, and review the schema diff. |
-| Service or model changes | Update manifest services, models, env vars, and privacy declarations. |
-
-## Validate
-
-```bash
-make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
-make test TEST="tests/rails/llm/test_config.py tests/test_rails_config.py tests/test_runtime_flow_gate_equivalence.py"
-make test TEST="tests/guardrails/test_compiled_rail.py tests/guardrails/test_guardrails.py tests/guardrails/test_rails_manager.py"
-make test TEST="tests/llm/test_call_import_graph.py tests/telemetry/test_usage_reporting.py tests/http/test_library_boundary.py"
-```
-
-Regenerate the schema snapshot with
-`scripts/generate_rails_config_schema_snapshot.py` whenever the projected
-config changes, and run the rail's recorded suite with `--block-network`.
+Treat action names, bindings, and configuration as public contracts. Update
+their implementation, manifest, flows, tests, and docs together. The change
+matrix and verification loop in `.agents/skills/add-library-rail/SKILL.md` own
+the detailed checklist; use them for new and existing rails.

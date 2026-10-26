@@ -35,6 +35,7 @@ running it later moves the lines your findings cite.
 
 ```bash
 uv run --locked pre-commit run --files <the PR's changed files>
+make test TEST=tests/test_rail_skill_references.py
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
 make test TEST="tests/rails/llm/test_config.py tests/test_rails_config.py tests/test_runtime_flow_gate_equivalence.py"
 make test TEST="tests/guardrails/test_compiled_rail.py tests/guardrails/test_guardrails.py tests/guardrails/test_rails_manager.py"
@@ -52,13 +53,10 @@ skips, especially optional vendor dependencies and IORails cases; a skipped
 PR path is not a completed dimension. Spend judgment attention on what the
 gates do not encode.
 
-Most rail PRs leave `pyproject.toml` untouched, since a rail's optional
-vendor package is declared in the manifest rather than in packaging. A
-diff there is not automatically wrong: rail-scoped extras exist (`sdd`,
-`gcp`, `jailbreak`, `multilingual`, `cel`) and `RailRequirements.extras` is a
-first-class field, so a PR adding one must justify the extra and declare it
-(exemplar: `nemoguardrails/library/sensitive_data_detection/rail.py`). An
-undeclared or unjustified dependency change is the finding.
+Check packaging diffs against the current optional extras in `pyproject.toml`
+and `nemoguardrails/manifests/manifest.py::RailRequirements`. A justified new
+extra is valid; adding an optional vendor package to the default install path
+is not. The authoring skill's dependency section owns the install checklist.
 
 ## Step 1b: New-rail completeness (presence, not quality)
 
@@ -168,9 +166,9 @@ Each item names the check, where to look, and what "wrong" looks like.
    may inject `RecordingHTTPClient` (from `nemoguardrails.testing`) through
    `register_action_param`. IORails does not support arbitrary action-param
    registration; its compiled rail receives the engine-managed HTTP client.
-   Its other injected dependencies are `events`, `config`, `llm_task_manager`,
-   `llm`, `llms`, and `model_caches`; it does not inject `context` or `kb`.
-   Request data must arrive through explicit context bindings.
+   Compare the action's signature with
+   `nemoguardrails/guardrails/compiled_rail.py::CompiledRail::_request_dependencies`
+   and its manifest bindings instead of assuming LLMRails injection is portable.
    Recorded suite entries follow the
    `recorded-tests` skill (vcr-structured, or non-vcr with a defensible
    reason). Nothing enforces that split, so read every suite test in the
