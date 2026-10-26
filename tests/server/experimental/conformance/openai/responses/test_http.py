@@ -19,6 +19,7 @@ import pytest
 
 from tests.server.experimental.conformance.openai.responses.support import (
     ENDPOINTS,
+    INSPECTION_MODES,
     INVENTORY,
     UNINSPECTED,
     events,
@@ -31,9 +32,12 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.block_network(allowed_hosts=[r"^1
 
 @pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
-async def test_unmodified_native_recording_passes_the_same_probe_path(stream, endpoint):
+@pytest.mark.parametrize("inspect_input,inspect_output", INSPECTION_MODES)
+async def test_unmodified_native_recording_passes_the_same_probe_path(stream, endpoint, inspect_input, inspect_output):
     request, body = recording(stream)
-    response, checker, sent = await injected_response(request, body, endpoint=endpoint)
+    response, checker, sent = await injected_response(
+        request, body, endpoint=endpoint, inspect_input=inspect_input, inspect_output=inspect_output
+    )
     assert len(sent) == 1
     assert json.loads(sent[0].content) == request
     if stream:
@@ -44,7 +48,14 @@ async def test_unmodified_native_recording_passes_the_same_probe_path(stream, en
         text = message["content"][0]["text"]
     assert response.status_code == 200
     assert response.content == body
-    assert checker.text_calls == [("input", request["input"]), ("output", text)]
+    expected = [("input", request["input"])] if inspect_input else []
+    if inspect_output:
+        expected.append(("output", text))
+    assert checker.text_calls == expected
+    for kind, check in checker.calls:
+        if kind == "output":
+            assert check.input_message.role == "user"
+            assert check.input_message.content == request["input"]
 
 
 async def test_native_observations_distinguish_metadata_from_gateway_annotations():
@@ -99,8 +110,10 @@ async def test_native_observations_distinguish_metadata_from_gateway_annotations
     ],
 )
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
-@pytest.mark.parametrize("inspect", [False, True], ids=["relay", "inspected"])
-async def test_synthetic_buffered_content_mutations_of_native_recording_fail_closed(path, value, endpoint, inspect):
+@pytest.mark.parametrize("inspect_input,inspect_output", INSPECTION_MODES)
+async def test_synthetic_buffered_content_mutations_of_native_recording_fail_closed(
+    path, value, endpoint, inspect_input, inspect_output
+):
     request, body = recording(False)
     payload = json.loads(body)
     assert [item["type"] for item in payload["output"]] == ["reasoning", "message"]
@@ -109,23 +122,27 @@ async def test_synthetic_buffered_content_mutations_of_native_recording_fail_clo
         node = node[part]
     node[path[-1]] = value
     mutated = json.dumps(payload).encode()
-    response, checker, sent = await injected_response(request, mutated, endpoint=endpoint, inspect=inspect)
+    response, checker, sent = await injected_response(
+        request, mutated, endpoint=endpoint, inspect_input=inspect_input, inspect_output=inspect_output
+    )
     assert len(sent) == 1
-    if not inspect:
+    if not inspect_output:
         assert response.status_code == 200
         assert response.content == mutated
-        assert checker.calls == []
+        assert checker.text_calls == ([("input", request["input"])] if inspect_input else [])
         return
     assert response.status_code == 502
     assert response.json()["error"]["code"] == "unsupported_responses_response_shape"
     assert UNINSPECTED not in response.text
-    assert checker.text_calls == [("input", request["input"])]
+    assert checker.text_calls == ([("input", request["input"])] if inspect_input else [])
 
 
 @pytest.mark.parametrize("probe", ["reasoning-summary", "done-text", "completed-text", "unreviewed-delta"])
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
-@pytest.mark.parametrize("inspect", [False, True], ids=["relay", "inspected"])
-async def test_synthetic_stream_mutations_of_native_recording_cannot_escape_as_metadata(probe, endpoint, inspect):
+@pytest.mark.parametrize("inspect_input,inspect_output", INSPECTION_MODES)
+async def test_synthetic_stream_mutations_of_native_recording_cannot_escape_as_metadata(
+    probe, endpoint, inspect_input, inspect_output
+):
     request, body = recording(True)
     payloads = [json.loads(event.data) for event in await events(body)]
     if probe == "reasoning-summary":
@@ -149,19 +166,21 @@ async def test_synthetic_stream_mutations_of_native_recording_cannot_escape_as_m
         b"event: " + payload["type"].encode() + b"\ndata: " + json.dumps(payload).encode() + b"\n\n"
         for payload in payloads
     )
-    response, checker, sent = await injected_response(request, mutated, endpoint=endpoint, inspect=inspect)
+    response, checker, sent = await injected_response(
+        request, mutated, endpoint=endpoint, inspect_input=inspect_input, inspect_output=inspect_output
+    )
     assert len(sent) == 1
-    if not inspect:
+    if not inspect_output:
         assert response.status_code == 200
         assert response.content == mutated
-        assert checker.calls == []
+        assert checker.text_calls == ([("input", request["input"])] if inspect_input else [])
         return
     assert response.status_code == 200
     (error,) = await events(response.content)
     assert error.event_type == b"error"
     assert json.loads(error.data)["code"] == "unsupported_responses_response_shape"
     assert UNINSPECTED not in response.text
-    assert checker.text_calls == [("input", request["input"])]
+    assert checker.text_calls == ([("input", request["input"])] if inspect_input else [])
 
 
 @pytest.mark.parametrize(
@@ -181,11 +200,13 @@ async def test_synthetic_stream_mutations_of_native_recording_cannot_escape_as_m
 )
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
 @pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])
-@pytest.mark.parametrize("inspect", [False, True], ids=["relay", "inspected"])
-async def test_request_content_rejected_before_dispatch(updates, endpoint, stream, inspect):
+@pytest.mark.parametrize("inspect_input,inspect_output", INSPECTION_MODES)
+async def test_request_content_rejected_before_dispatch(updates, endpoint, stream, inspect_input, inspect_output):
     request, body = recording(stream)
     request.update(updates)
-    response, checker, sent = await injected_response(request, body, endpoint=endpoint, inspect=inspect)
+    response, checker, sent = await injected_response(
+        request, body, endpoint=endpoint, inspect_input=inspect_input, inspect_output=inspect_output
+    )
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "unsupported_responses_shape"
     assert sent == []

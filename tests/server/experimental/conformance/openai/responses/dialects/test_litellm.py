@@ -22,6 +22,7 @@ from nemoguardrails.server.experimental.providers.openai.dialects.litellm.respon
 from nemoguardrails.server.experimental.providers.openai.responses.endpoint import RESPONSES_ENDPOINT
 from tests.server.experimental.conformance.openai.responses.support import (
     ENDPOINTS,
+    INSPECTION_MODES,
     UNINSPECTED,
     assert_rejected,
     events,
@@ -52,14 +53,18 @@ def test_dialect_adds_only_event_model_metadata_to_the_bound_models():
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
 @pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])
-@pytest.mark.parametrize("inspect", [False, True], ids=["relay", "inspected"])
-async def test_gateway_recording_requires_dialect_only_for_annotated_events(endpoint, stream, inspect):
+@pytest.mark.parametrize("inspect_input,inspect_output", INSPECTION_MODES)
+async def test_gateway_recording_requires_dialect_only_for_annotated_events(
+    endpoint, stream, inspect_input, inspect_output
+):
     request, body = recording(stream, gateway=True)
-    response, checker, sent = await injected_response(request, body, endpoint=endpoint, inspect=inspect)
+    response, checker, sent = await injected_response(
+        request, body, endpoint=endpoint, inspect_input=inspect_input, inspect_output=inspect_output
+    )
     assert len(sent) == 1
     assert json.loads(sent[0].content) == request
-    if stream and inspect and endpoint is RESPONSES_ENDPOINT:
-        await assert_rejected(response, checker, request)
+    if stream and inspect_output and endpoint is RESPONSES_ENDPOINT:
+        await assert_rejected(response, checker, request, inspect_input=inspect_input)
         return
     assert response.status_code == 200
     assert response.content == body
@@ -70,10 +75,13 @@ async def test_gateway_recording_requires_dialect_only_for_annotated_events(endp
     else:
         message = next(item for item in json.loads(body)["output"] if item["type"] == "message")
         text = message["content"][0]["text"]
-    assert checker.text_calls == ([("input", request["input"]), ("output", text)] if inspect else [])
+    expected = [("input", request["input"])] if inspect_input else []
+    if inspect_output:
+        expected.append(("output", text))
+    assert checker.text_calls == expected
 
 
-@pytest.mark.parametrize("inspect", [False, True], ids=["relay", "inspected"])
+@pytest.mark.parametrize("inspect_input,inspect_output", INSPECTION_MODES)
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -84,28 +92,35 @@ async def test_gateway_recording_requires_dialect_only_for_annotated_events(endp
         ("future_content", UNINSPECTED),
     ],
 )
-async def test_event_annotation_does_not_authorize_other_containers(field, value, inspect):
+async def test_event_annotation_does_not_authorize_other_containers(field, value, inspect_input, inspect_output):
     request, body = recording(True, gateway=True)
     payloads = [json.loads(event.data) for event in await events(body) if event.data not in (None, b"[DONE]")]
     for payload in payloads:
         payload[field] = value
     mutated = sse_bytes(payloads)
     response, checker, sent = await injected_response(
-        request, mutated, endpoint=LITELLM_RESPONSES_ENDPOINT, inspect=inspect
+        request,
+        mutated,
+        endpoint=LITELLM_RESPONSES_ENDPOINT,
+        inspect_input=inspect_input,
+        inspect_output=inspect_output,
     )
     assert len(sent) == 1
-    if not inspect or field == "model":
+    if not inspect_output or field == "model":
         assert response.status_code == 200
         assert response.content == mutated
         expected = "".join(p["delta"] for p in payloads if p["type"] == "response.output_text.delta")
-        assert checker.text_calls == ([("input", request["input"]), ("output", expected)] if inspect else [])
+        expected_calls = [("input", request["input"])] if inspect_input else []
+        if inspect_output:
+            expected_calls.append(("output", expected))
+        assert checker.text_calls == expected_calls
     else:
-        await assert_rejected(response, checker, request)
+        await assert_rejected(response, checker, request, inspect_input=inspect_input)
 
 
-@pytest.mark.parametrize("inspect", [False, True], ids=["relay", "inspected"])
-@pytest.mark.parametrize("probe", ["reasoning-summary", "completed-text", "nested-error"])
-async def test_gateway_metadata_cannot_hide_new_text_or_change_error_shape(probe, inspect):
+@pytest.mark.parametrize("inspect_input,inspect_output", INSPECTION_MODES)
+@pytest.mark.parametrize("probe", ["reasoning-summary", "completed-text", "nested-error", "nested-error-after-text"])
+async def test_gateway_metadata_cannot_hide_new_text_or_change_error_shape(probe, inspect_input, inspect_output):
     request, body = recording(True, gateway=True)
     payloads = [json.loads(event.data) for event in await events(body) if event.data not in (None, b"[DONE]")]
     if probe == "reasoning-summary":
@@ -118,17 +133,31 @@ async def test_gateway_metadata_cannot_hide_new_text_or_change_error_shape(probe
         message = next(item for item in target["response"]["output"] if item["type"] == "message")
         message["content"][0]["text"] = UNINSPECTED
     else:
-        payloads = [
+        if probe == "nested-error-after-text":
+            delta_index = next(
+                i for i, payload in enumerate(payloads) if payload["type"] == "response.output_text.delta"
+            )
+            payloads = payloads[: delta_index + 1]
+            assert payloads[-1]["delta"]
+        else:
+            payloads = []
+        payloads.append(
             {"type": "error", "model": request["model"], "error": {"message": UNINSPECTED, "code": "provider_error"}}
-        ]
+        )
     mutated = sse_bytes(payloads)
     response, checker, sent = await injected_response(
-        request, mutated, endpoint=LITELLM_RESPONSES_ENDPOINT, inspect=inspect
+        request,
+        mutated,
+        endpoint=LITELLM_RESPONSES_ENDPOINT,
+        inspect_input=inspect_input,
+        inspect_output=inspect_output,
     )
     assert len(sent) == 1
-    if inspect:
-        await assert_rejected(response, checker, request)
+    if inspect_output:
+        await assert_rejected(response, checker, request, inspect_input=inspect_input)
+        if probe == "nested-error-after-text":
+            assert sse_bytes([payloads[-2]]) not in response.content
     else:
         assert response.status_code == 200
         assert response.content == mutated
-        assert checker.calls == []
+        assert checker.text_calls == ([("input", request["input"])] if inspect_input else [])

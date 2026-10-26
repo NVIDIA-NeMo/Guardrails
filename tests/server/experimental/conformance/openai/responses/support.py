@@ -34,6 +34,12 @@ INVENTORY = json.loads(INVENTORY_PATH.read_text(encoding="utf-8"))
 RECORDINGS = ROOT / "tests/recorded/server/experimental/openai/cassettes"
 UNINSPECTED = "synthetic uninspected probe text"
 ENDPOINTS = [pytest.param(RESPONSES_ENDPOINT, id="openai"), pytest.param(LITELLM_RESPONSES_ENDPOINT, id="litellm")]
+INSPECTION_MODES = [
+    pytest.param(False, False, id="relay"),
+    pytest.param(True, False, id="input-only"),
+    pytest.param(False, True, id="output-only"),
+    pytest.param(True, True, id="input-and-output"),
+]
 
 
 def recording(stream, *, gateway=False):
@@ -66,7 +72,7 @@ def sse_bytes(payloads):
     )
 
 
-async def injected_response(request, body, *, endpoint=RESPONSES_ENDPOINT, inspect=True):
+async def injected_response(request, body, *, endpoint=RESPONSES_ENDPOINT, inspect_input=True, inspect_output=True):
     sent = []
 
     async def upstream(outbound):
@@ -78,7 +84,9 @@ async def injected_response(request, body, *, endpoint=RESPONSES_ENDPOINT, inspe
         )
 
     checker = StaticChecker(
-        ContentInspectionPolicy(inspect, inspect, StreamBufferingPolicy(100, 0) if inspect else None)
+        ContentInspectionPolicy(
+            inspect_input, inspect_output, StreamBufferingPolicy(100, 0) if inspect_output else None
+        )
     )
     dispatches = []
     async with responses_proxy(
@@ -89,8 +97,8 @@ async def injected_response(request, body, *, endpoint=RESPONSES_ENDPOINT, inspe
     return response, checker, sent
 
 
-async def assert_rejected(response, checker, request):
-    assert checker.text_calls == [("input", request["input"])]
+async def assert_rejected(response, checker, request, *, inspect_input=True):
+    assert checker.text_calls == ([("input", request["input"])] if inspect_input else [])
     assert UNINSPECTED not in response.text
     if request["stream"]:
         assert response.status_code == 200
