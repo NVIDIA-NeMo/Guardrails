@@ -718,17 +718,6 @@ def _rewrite_latest_tool_calls_openai(messages: LLMMessages, rewrites: Mapping[i
     return rewritten
 
 
-def _rewrite_latest_tool_calls_nim(messages: LLMMessages, rewrites: Mapping[int, dict]) -> LLMMessages:
-    """Rewrite NIM's latest tool calls. NIM uses the OpenAI Chat Completions shape."""
-    return _rewrite_latest_tool_calls_openai(messages, rewrites)
-
-
-_LATEST_TOOL_CALL_REWRITERS = {
-    "openai": _rewrite_latest_tool_calls_openai,
-    "nim": _rewrite_latest_tool_calls_nim,
-}
-
-
 class ModelEngineError(Exception):
     """Raised when a model engine call fails."""
 
@@ -1549,15 +1538,4 @@ class ModelEngine(BaseEngine):
             ValueError: If a key is not the position of a tool result in *messages*.
         """
         rewriter = _TOOL_RESULT_REWRITERS.get(self.model_config.engine, _rewrite_tool_results_openai)
-        return rewriter(messages, rewrites)
-
-    def rewrite_latest_tool_calls(self, messages: LLMMessages, rewrites: Mapping[int, dict]) -> LLMMessages:
-        """Return *messages* with the latest tool calls at the keys of *rewrites* given those arguments.
-
-        The inverse of ``extract_latest_tool_calls``: keys are the positions it assigned.
-
-        Raises:
-            ValueError: If a key is not the position of a tool call on the last assistant message.
-        """
-        rewriter = _LATEST_TOOL_CALL_REWRITERS.get(self.model_config.engine, _rewrite_latest_tool_calls_openai)
         return rewriter(messages, rewrites)

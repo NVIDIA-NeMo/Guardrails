@@ -160,8 +160,10 @@ class TestRailResult:
         """An allow that rewrote a tool result differs from one that did not, so a lost rewrite fails equality."""
         rewritten = [{"role": "tool", "tool_call_id": "call_1", "content": "<SSN>"}]
 
-        assert RailResult.allow(messages=rewritten) != RailResult.allow()
-        assert RailResult.allow(messages=rewritten) == RailResult.allow(messages=list(rewritten))
+        assert RailResult(RailOutcome.allow(), messages=rewritten) != RailResult.allow()
+        assert RailResult(RailOutcome.allow(), messages=rewritten) == RailResult(
+            RailOutcome.allow(), messages=list(rewritten)
+        )
 
     def test_rewritten_messages_default_to_none(self):
         """A rail that rewrote nothing leaves the field unset, so no caller rebinds its messages."""
