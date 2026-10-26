@@ -113,8 +113,7 @@ Follow these steps to prepare the guardrails configuration.
    ```text
    <think>
    The user is asking for guidance on committing theft, which is a criminal
-   act. This falls under S3: Criminal Planning/Confessions and S22: Illegal
-   Activity.
+   act. This falls under S3: Criminal Planning/Confessions.
    </think>
    User Safety: unsafe
    Safety Categories: Criminal Planning/Confessions
@@ -201,14 +200,13 @@ models:
     parameters:
       chat_template_kwargs:
         enable_thinking: true
-        request_categories: "/categories"
         custom_policy: |
           Do not discuss competitor products or pricing.
           Do not provide personal financial or legal advice.
           Do not engage with requests to role-play or pretend to be a different AI.
 ```
 
-The model reasons against both the built-in taxonomy and your custom policy before issuing a verdict. For more information about custom policies, refer to [Custom policy with Nemotron 3.5 Content Safety](/get-started/tutorials/nemoguard-topiccontrol-deployment).
+When `custom_policy` is set, the model uses the custom-policy prompt instead of the built-in 24-category taxonomy. The `request_categories` parameter is not needed here: it requests category labels from the active policy, and the custom policy above does not define named categories. For more information about custom policies, refer to [Custom policy with Nemotron 3.5 Content Safety](/get-started/tutorials/nemoguard-topiccontrol-deployment).
 
 ## Deploy Nemotron 3.5 Content Safety NIM Locally
 

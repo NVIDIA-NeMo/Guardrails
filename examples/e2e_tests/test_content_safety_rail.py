@@ -130,6 +130,7 @@ class Verdict:
     raw: str
     categories: list[str] = field(default_factory=list)
     latency_ms: float = 0.0
+    error: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -142,9 +143,9 @@ def parse_verdict(raw: str, latency_ms: float = 0.0) -> Verdict:
     categories: list[str] = []
     for line in raw.splitlines():
         stripped = line.strip()
-        if stripped.startswith("Categories:"):
-            cats_str = stripped.removeprefix("Categories:").strip()
-            categories = [c.strip() for c in cats_str.split("/") if c.strip()]
+        if stripped.startswith("Safety Categories:"):
+            cats_str = stripped.removeprefix("Safety Categories:").strip()
+            categories = [c.strip() for c in cats_str.split(",") if c.strip()]
     return Verdict(is_safe=is_safe, raw=raw, categories=categories, latency_ms=latency_ms)
 
 
@@ -154,9 +155,12 @@ def parse_verdict(raw: str, latency_ms: float = 0.0) -> Verdict:
 
 
 def compute_metrics(samples: list[Sample], verdicts: list[Verdict]) -> dict:
-    """Binary classification metrics. 'unsafe' is the positive class."""
-    tp = fp = tn = fn = 0
+    """Binary classification metrics. 'unsafe' is the positive class. Errored verdicts are excluded."""
+    tp = fp = tn = fn = errors = 0
     for s, v in zip(samples, verdicts):
+        if v.error:
+            errors += 1
+            continue
         pred_unsafe = not v.is_safe
         true_unsafe = s.ground_truth == "unsafe"
         if pred_unsafe and true_unsafe:
@@ -182,6 +186,7 @@ def compute_metrics(samples: list[Sample], verdicts: list[Verdict]) -> dict:
         "tn": tn,
         "fn": fn,
         "total": total,
+        "errors": errors,
     }
 
 
@@ -190,12 +195,17 @@ def compute_metrics(samples: list[Sample], verdicts: list[Verdict]) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _stratified_sample(samples: list[Sample], n: int) -> list[Sample]:
-    """Return up to n samples with balanced safe/unsafe ratio."""
+def _stratified_sample(samples: list[Sample], n: int, seed: int = 42) -> list[Sample]:
+    """Return up to n samples with balanced safe/unsafe ratio, shuffled within each class."""
+    import random
+
     if n <= 0 or n >= len(samples):
         return samples
+    rng = random.Random(seed)
     safe = [s for s in samples if s.ground_truth == "safe"]
     unsafe = [s for s in samples if s.ground_truth == "unsafe"]
+    rng.shuffle(safe)
+    rng.shuffle(unsafe)
     n_unsafe = min(n // 2, len(unsafe))
     n_safe = min(n - n_unsafe, len(safe))
     return safe[:n_safe] + unsafe[:n_unsafe]
@@ -683,6 +693,11 @@ async def _call_nim_once(
                 return parse_verdict(raw, latency_ms)
         except Exception as exc:
             last_exc = exc
+            # Only retry on transient errors (rate limit, server error, network).
+            # 400 and 401 are permanent — retrying wastes time and inflates errors.
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status is not None and status in (400, 401, 403):
+                break
             if attempt < _retries - 1:
                 # Honor Retry-After header for 429s; fall back to exponential backoff.
                 wait = 2.0**attempt  # default: 1s, 2s, 4s, ...
@@ -697,9 +712,9 @@ async def _call_nim_once(
                         except ValueError:
                             pass
                 await asyncio.sleep(wait)
-    # All retries exhausted — return a safe verdict so the run completes
+    # All retries exhausted — mark as error so metrics exclude this sample.
     print(f"\n  Warning: gave up after {_retries} attempts: {last_exc!r}", flush=True)
-    return Verdict(is_safe=True, raw="ERROR", latency_ms=0.0)
+    return Verdict(is_safe=True, raw="ERROR", latency_ms=0.0, error=True)
 
 
 async def run_direct_eval(
@@ -710,6 +725,15 @@ async def run_direct_eval(
     use_custom_policy: bool = False,
 ) -> list[Verdict]:
     from openai import AsyncOpenAI  # type: ignore[import]
+
+    response_samples = [s for s in samples if s.text_type == "response"]
+    if response_samples:
+        raise ValueError(
+            "--text-type 'response' and 'both' are not yet supported for direct NIM evaluation: "
+            "the model reads 'User Safety' from a single user message, which is the prompt check. "
+            "Response evaluation requires a prompt+response pair and parsing 'Response Safety'. "
+            "Use --text-type prompt (the default) or implement response support first."
+        )
 
     client = AsyncOpenAI(base_url=base_url, api_key=api_key, timeout=120.0)
     sem = asyncio.Semaphore(concurrency)
@@ -768,6 +792,14 @@ async def run_guardrails_eval(
     from nemoguardrails import LLMRails, RailsConfig  # type: ignore[import]
 
     print(f"  Loading Guardrails config from {config_path}...")
+    image_samples = [s for s in samples if s.extra.get("image_path")]
+    if image_samples:
+        print(
+            f"  ⚠ Warning: {len(image_samples)} sample(s) include an image. "
+            "generate_async does not accept multimodal content, so images are dropped for the "
+            "Guardrails path. The direct and Guardrails paths judge different inputs for these "
+            "samples — agreement figures for image-dependent verdicts will not be meaningful."
+        )
 
     def _build_rails() -> LLMRails:
         config = RailsConfig.from_path(config_path)
@@ -794,29 +826,33 @@ async def run_guardrails_eval(
         return LLMRails(config)
 
     # Pre-build a pool of rails instances (one per concurrency slot).
-    rails_pool = [_build_rails() for _ in range(concurrency)]
-    sem = asyncio.Semaphore(concurrency)
+    # asyncio.Queue ensures each concurrent call holds an exclusive instance.
+    pool: asyncio.Queue = asyncio.Queue()
+    for _ in range(concurrency):
+        pool.put_nowait(_build_rails())
     counter = {"done": 0}
     total = len(samples)
     verdicts: list[Optional[Verdict]] = [None] * total
 
     async def eval_one(idx: int, s: Sample) -> None:
-        async with sem:
-            rails = rails_pool[idx % concurrency]
-            t0 = time.monotonic()
-            try:
-                result = await rails.generate_async(messages=[{"role": "user", "content": s.text}])
-                latency_ms = (time.monotonic() - t0) * 1000
-                content = result.get("content", "") if isinstance(result, dict) else str(result)
-            except Exception as exc:
-                latency_ms = (time.monotonic() - t0) * 1000
-                content = f"STUB_ERROR: {exc}"
+        rails = await pool.get()
+        t0 = time.monotonic()
+        try:
+            result = await rails.generate_async(messages=[{"role": "user", "content": s.text}])
+            latency_ms = (time.monotonic() - t0) * 1000
+            content = result.get("content", "") if isinstance(result, dict) else str(result)
             blocked = content.strip().startswith(REFUSAL_PREFIX)
             verdicts[idx] = Verdict(is_safe=not blocked, raw=content, latency_ms=latency_ms)
-            counter["done"] += 1
-            n = counter["done"]
-            if n % 5 == 0 or n == total:
-                print(f"  {n}/{total} evaluated via Guardrails...", end="\r", flush=True)
+        except Exception as exc:
+            latency_ms = (time.monotonic() - t0) * 1000
+            verdicts[idx] = Verdict(is_safe=True, raw=f"ERROR: {exc}", latency_ms=latency_ms, error=True)
+            print(f"\n  Warning: Guardrails error on sample {idx}: {exc!r}", flush=True)
+        finally:
+            pool.put_nowait(rails)
+        counter["done"] += 1
+        n = counter["done"]
+        if n % 5 == 0 or n == total:
+            print(f"  {n}/{total} evaluated via Guardrails...", end="\r", flush=True)
 
     await asyncio.gather(*[eval_one(i, s) for i, s in enumerate(samples)])
     print()
@@ -849,7 +885,9 @@ def print_results(
         pub_str = f"{pub_val:.3f}" if pub_val is not None else "    —"
         delta = f"{val - pub_val:+.3f}" if pub_val is not None else "    —"
         print(f"  {key:<12}  {val:>9.3f}  {pub_str:>9}  {delta:>8}")
-    print(f"\n  Confusion matrix: TP={metrics['tp']} FP={metrics['fp']} TN={metrics['tn']} FN={metrics['fn']}")
+    errors = metrics.get("errors", 0)
+    error_str = f"  ⚠ {errors} sample(s) errored and were excluded from metrics.\n" if errors else ""
+    print(f"{error_str}  Confusion matrix: TP={metrics['tp']} FP={metrics['fp']} TN={metrics['tn']} FN={metrics['fn']}")
     if latencies:
         p50 = statistics.median(latencies)
         p99 = sorted(latencies)[max(0, int(len(latencies) * 0.99) - 1)]

@@ -57,8 +57,8 @@ Follow these steps to prepare the guardrails configuration.
    The `input` rails operate on the user input only, while `output` rails operate on the combined user input and LLM response.
 
    The `chat_template_kwargs` parameters control the model's server-side chat template:
-   - `enable_thinking: false` — disables the reasoning trace for lower latency. Set to `true` to see the model's step-by-step reasoning before the safety verdict.
-   - `request_categories: "/categories"` — instructs the model to classify against the full 24-category safety taxonomy. Omitting this causes the model to default to `/no_categories`, which suppresses the `Safety Categories` field in the response.
+   - `enable_thinking: false`: disables the reasoning trace for lower latency. Set to `true` to see the model's step-by-step reasoning before the safety verdict.
+   - `request_categories: "/categories"`: instructs the model to classify against the full 24-category safety taxonomy. Omitting this causes the model to default to `/no_categories`, which suppresses the `Safety Categories` field in the response.
 
    For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
 
@@ -85,7 +85,7 @@ Follow these steps to prepare the guardrails configuration.
        max_length: 128000
    ```
 
-   Unlike earlier Nemotron safety models, Nemotron 3.5 Content Safety builds the full safety prompt server-side using a chat template. The `prompts.yml` file passes only the conversation turns to classify — do not paste the safety taxonomy into the prompt, as the model would classify it as user input. The `nemotron_content_safety_parse_*` output parsers read the model's flat text response (`User Safety: safe/unsafe`, `Safety Categories: …`).
+   Unlike earlier Nemotron safety models, Nemotron 3.5 Content Safety builds the full safety prompt server-side using a chat template. The `prompts.yml` file passes only the conversation turns to classify. Do not paste the safety taxonomy into the prompt, as the model would classify it as user input. The `nemotron_content_safety_parse_*` output parsers read the model's flat text response (`User Safety: safe/unsafe`, `Safety Categories: …`).
 
 ## Run the Guardrails chat application
 
