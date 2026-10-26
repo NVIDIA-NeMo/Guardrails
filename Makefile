@@ -1,5 +1,5 @@
 .PHONY: help install
-.PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile test-hooks-agents record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
+.PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile test-hooks-agents test-relay-plugin record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
 .PHONY: test-docs-scripts docs-fern-node-dependencies docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-openapi docs-fern-generate-references docs-fern-generate-sdk docs-fern-fix-empty-links docs-fern-publish-staging docs-fern-publish-public
 .PHONY: pre-commit pre-commit-install
 
@@ -30,6 +30,13 @@ UNIT_TEST_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY -u NVIDIA_INFERENCE_KEY
 # as for `make test`, and find the agents through HOOKS_AGENTS_DIR.
 HOOKS_AGENTS_TESTS ?= tests_hooks_agents
 HOOKS_AGENTS_DIR ?= .cache/hooks_agents
+
+# The NeMo Relay plugin's end-to-end tests run in their own Python 3.11 environment, hash-pinned and without Guardrails,
+# while the hooks servers they start run from .venv. --no-config skips [tool.uv]'s exclude-newer window, which would
+# filter out the pinned nemo-relay, and UV_LOCKED only draws a warning from a run without a project.
+RELAY_PLUGIN_TESTS ?= tests_relay_plugin
+RELAY_PLUGIN_PYTEST ?= env -u UV_LOCKED uv run --no-config --no-project --python 3.11 \
+	--with-requirements $(RELAY_PLUGIN_TESTS)/requirements.txt pytest
 
 FASTEMBED_CACHE ?= .cache/fastembed
 FASTEMBED_MODEL ?= sentence-transformers/all-MiniLM-L6-v2
@@ -65,6 +72,11 @@ test-hooks-agents:
 	uv pip sync --target $(HOOKS_AGENTS_DIR) --require-hashes $(HOOKS_AGENTS_TESTS)/requirements.txt
 	HOOKS_AGENTS_DIR=$(abspath $(HOOKS_AGENTS_DIR)) $(UNIT_TEST_ENV) $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) \
 		$(or $(TEST),$(HOOKS_AGENTS_TESTS))
+
+# The sync is the one `uv run` makes for the other targets, which a run without a project skips.
+test-relay-plugin:
+	uv sync --inexact
+	$(RELAY_PLUGIN_PYTEST) $(ARGS) $(or $(TEST),$(RELAY_PLUGIN_TESTS))
 
 record-cassettes: check-record-test-env
 	$(PYTEST) $(RECORDED_TESTS) --record-mode=$(RECORDED_RECORD_MODE) -m "not fake_cassette"
@@ -151,6 +163,7 @@ help:
 		'  make test-parallel [TEST=path] [WORKERS=auto] [ARGS="-q --tb=short"]' \
 		'  make test-watch [TEST=path]' \
 		'  make test-hooks-agents [TEST=tests_hooks_agents/...] [WORKERS=auto] [ARGS="-v"]' \
+		'  make test-relay-plugin [TEST=tests_relay_plugin/...] [ARGS="-v"]' \
 		'  make record-cassettes [RECORDED_TESTS=tests/recorded] [RECORDED_RECORD_MODE=once] [RECORDED_SNAPSHOT_MODE=create] [RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_API_KEY"]' \
 		'  make rewrite-cassettes [RECORDED_TESTS=tests/recorded] [RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_API_KEY"]' \
 		'  make replay-cassettes [RECORDED_TESTS=tests/recorded]' \
@@ -168,6 +181,7 @@ help:
 		'  test-coverage         Run pytest with coverage' \
 		'  test-profile          Run pytest with profiling' \
 		'  test-hooks-agents     Run the hooks-server tests with real Claude Code and Codex (Linux, macOS)' \
+		'  test-relay-plugin     Run the NeMo Relay plugin end-to-end tests (needs a Rust toolchain)' \
 		'  record-cassettes      Record missing or selected cassettes, fill snapshots, and verify replay' \
 		'  rewrite-cassettes     Rewrite selected cassettes, fill snapshots, and verify replay' \
 		'  replay-cassettes      Verify selected cassettes offline without recording' \
