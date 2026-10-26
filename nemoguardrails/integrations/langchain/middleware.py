@@ -57,8 +57,7 @@ def _thread_id_from_run_config() -> Optional[str]:
         config = get_config()
     except RuntimeError:
         return None
-    configurable = config.get("configurable") if isinstance(config, dict) else None
-    return configurable.get("thread_id") if isinstance(configurable, dict) else None
+    return config.get("configurable", {}).get("thread_id")
 
 
 @contextmanager
@@ -91,9 +90,7 @@ def _roundtrip_id_for_call(state: AgentState, call: int) -> Optional[str]:
     if get_roundtrip_id() is not None:
         return None
     if state.get("guardrails_roundtrip_call") == call:
-        opened = state.get("guardrails_roundtrip_id")
-        if opened:
-            return opened
+        return state.get("guardrails_roundtrip_id")
     return str(uuid.uuid4())
 
 

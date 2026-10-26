@@ -24,7 +24,7 @@ import pytest
 pytest.importorskip("openai", reason="openai is required for server tests")
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.context import conversation_id, get_conversation_id, stream_with_request_ids
+from nemoguardrails.context import conversation_id, ensure_roundtrip_id, get_conversation_id, stream_with_request_ids
 from nemoguardrails.server import api
 from nemoguardrails.server.datastore.memory_store import MemoryStore
 from tests.utils import TestChat
@@ -84,7 +84,7 @@ class _LazyStreamRails:
 
         # Both engines capture the conversation of the request that created the stream, so
         # the rails that run while a chunk is pulled see it wherever the body is drained.
-        return stream_with_request_ids(stream(), conversation=get_conversation_id(), roundtrip=None)
+        return stream_with_request_ids(stream(), conversation=get_conversation_id(), roundtrip=ensure_roundtrip_id())
 
 
 def _payload(thread_id=None, stream=False):

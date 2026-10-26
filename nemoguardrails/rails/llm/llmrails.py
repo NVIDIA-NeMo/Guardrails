@@ -1012,11 +1012,12 @@ class LLMRails(BaseGuardrails):
 
     async def _generate_async(
         self,
-        prompt: Optional[str] = None,
-        messages: Optional[List[dict]] = None,
-        options: Optional[Union[dict, GenerationOptions]] = None,
-        state: Optional[Union[dict, State]] = None,
-        streaming_handler: Optional[StreamingHandler] = None,
+        *,
+        prompt: Optional[str],
+        messages: Optional[List[dict]],
+        options: Optional[Union[dict, GenerationOptions]],
+        state: Optional[Union[dict, State]],
+        streaming_handler: Optional[StreamingHandler],
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         # convert options to gen_options of type GenerationOptions
         gen_options: Optional[GenerationOptions] = None

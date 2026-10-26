@@ -154,7 +154,7 @@ _Chunk = TypeVar("_Chunk")
 async def stream_with_request_ids(
     chunks: AsyncIterator[_Chunk],
     conversation: Optional[str],
-    roundtrip: Optional[str],
+    roundtrip: str,
 ) -> AsyncIterator[_Chunk]:
     """Yield from *chunks* with the IDs of the request that created the stream applied.
 
@@ -164,8 +164,8 @@ async def stream_with_request_ids(
     would both leak them into the consumer's context and fail to restore it (``reset()``
     raises when the context that resumed the generator is not the one that set the variable).
 
-    An ID the creating caller did not have is left alone rather than cleared, so a consumer
-    that sets one around the drain still has it.
+    A conversation ID the creating caller did not have is left alone rather than cleared, so a
+    consumer that sets one around the drain still has it.
     """
     iterator = chunks.__aiter__()
     try:
@@ -173,8 +173,7 @@ async def stream_with_request_ids(
             with ExitStack() as ids:
                 if conversation is not None:
                     ids.enter_context(conversation_id(conversation))
-                if roundtrip is not None:
-                    ids.enter_context(roundtrip_id(roundtrip))
+                ids.enter_context(roundtrip_id(roundtrip))
                 try:
                     chunk = await iterator.__anext__()
                 except StopAsyncIteration:
