@@ -1,10 +1,10 @@
 # The whole environment of the NeMo Relay plugin's end-to-end tests. Guardrails isn't in it: nemo-relay needs
 # Python 3.11 or later and a newer langchain than uv.lock pins, so the hooks servers run from the repository's .venv.
 # requirements.txt pins these with hashes. Compile it from the repository root, which applies the repository's
-# 7-day exclude-newer window to every package except nemo-relay, pinned exactly here:
+# 7-day exclude-newer window to every package except nemo-relay, pinned exactly here; `make test-relay-plugin` exempts
+# it the same way:
 #
-#   uv pip compile --universal --python-version 3.11 --generate-hashes \
-#     --exclude-newer-package nemo-relay=2026-10-21T00:00:00Z \
+#   uv pip compile --universal --python-version 3.11 --generate-hashes --exclude-newer-package nemo-relay=false \
 #     tests_relay_plugin/requirements.in -o tests_relay_plugin/requirements.txt
 nemo-relay[langchain]==0.10.4
 pytest

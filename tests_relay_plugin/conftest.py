@@ -15,14 +15,13 @@
 
 """Fixtures that load the built NeMo Relay plugin into Relay's Python plugin host, on Linux or macOS."""
 
-# The suite runs in its own environment, without Guardrails installed (see requirements.in). From the repository root,
-# `make test-relay-plugin` syncs .venv and runs it, or directly:
-#
-#   uv run --no-config --no-project --python 3.11 --with-requirements tests_relay_plugin/requirements.txt \
-#     pytest tests_relay_plugin
+# The suite runs in its own environment, without Guardrails installed (see requirements.in), and the hooks servers from
+# the repository's .venv. `make test-relay-plugin` syncs .venv and runs the suite; RELAY_PLUGIN_PYTEST in the Makefile
+# is the command it runs.
 
 import asyncio
 import json
+import shutil
 import socket
 import subprocess
 import sys
@@ -75,6 +74,8 @@ def plugin_manifest(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 def _build_library() -> Path:
     """Builds the plugin library in release, and returns the path Cargo reports for it."""
+    if shutil.which("cargo") is None:
+        pytest.fail("cargo isn't on PATH. Install the Rust toolchain with rustup, which reads rust-toolchain.toml.")
     result = subprocess.run(
         [
             *("cargo", "build", "--release", "--locked", "-p", "nemo-guardrails-relay-plugin"),
@@ -180,7 +181,7 @@ def policy_hooks_server(request: pytest.FixtureRequest) -> str:
 def _running_hooks_server(config: Path, log_dir: Path) -> Iterator[str]:
     """Serves *config* from a child process of the repository's .venv, and yields its URL once its health check passes."""
     if not VENV_PYTHON.exists():
-        pytest.fail(f"{VENV_PYTHON} doesn't exist. From the repository root, run: uv sync --group dev --extra server")
+        pytest.fail(f"{VENV_PYTHON} doesn't exist. From the repository root, run: uv sync")
     log_path = log_dir / "server.log"
     with socket.create_server(("127.0.0.1", 0)) as listener, log_path.open("w") as log:
         host, port = listener.getsockname()

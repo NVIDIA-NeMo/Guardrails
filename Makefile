@@ -32,11 +32,12 @@ HOOKS_AGENTS_TESTS ?= tests_hooks_agents
 HOOKS_AGENTS_DIR ?= .cache/hooks_agents
 
 # The NeMo Relay plugin's end-to-end tests run in their own Python 3.11 environment, hash-pinned and without Guardrails,
-# while the hooks servers they start run from .venv. --no-config skips [tool.uv]'s exclude-newer window, which would
-# filter out the pinned nemo-relay, and UV_LOCKED only draws a warning from a run without a project.
+# while the hooks servers they start run from .venv. --isolated keeps a .venv on the same Python from sitting under that
+# environment, and nemo-relay is exempt from [tool.uv]'s exclude-newer window, which would filter out a recent pin.
+# Live provider keys are unset as for `make test`, and UV_LOCKED only draws a warning from a run without a project.
 RELAY_PLUGIN_TESTS ?= tests_relay_plugin
-RELAY_PLUGIN_PYTEST ?= env -u UV_LOCKED uv run --no-config --no-project --python 3.11 \
-	--with-requirements $(RELAY_PLUGIN_TESTS)/requirements.txt pytest
+RELAY_PLUGIN_PYTEST ?= $(UNIT_TEST_ENV) env -u UV_LOCKED uv run --isolated --no-project --python 3.11 \
+	--exclude-newer-package nemo-relay=false --with-requirements $(RELAY_PLUGIN_TESTS)/requirements.txt pytest
 
 FASTEMBED_CACHE ?= .cache/fastembed
 FASTEMBED_MODEL ?= sentence-transformers/all-MiniLM-L6-v2
