@@ -139,6 +139,7 @@ class Verdict:
 
 
 def parse_verdict(raw: str, latency_ms: float = 0.0) -> Verdict:
+    has_verdict = "User Safety:" in raw
     is_safe = "User Safety: safe" in raw
     categories: list[str] = []
     for line in raw.splitlines():
@@ -146,7 +147,8 @@ def parse_verdict(raw: str, latency_ms: float = 0.0) -> Verdict:
         if stripped.startswith("Safety Categories:"):
             cats_str = stripped.removeprefix("Safety Categories:").strip()
             categories = [c.strip() for c in cats_str.split(",") if c.strip()]
-    return Verdict(is_safe=is_safe, raw=raw, categories=categories, latency_ms=latency_ms)
+    # No verdict line → truncated/malformed response; mark as error so metrics skip it.
+    return Verdict(is_safe=is_safe, raw=raw, categories=categories, latency_ms=latency_ms, error=not has_verdict)
 
 
 # ---------------------------------------------------------------------------
@@ -678,11 +680,13 @@ async def _call_nim_once(
         kwargs = {"custom_policy": custom_policy}
     else:
         kwargs = {"enable_thinking": False, "request_categories": "/categories"}
-    content = _build_content(text, image_path)
     last_exc: Exception = RuntimeError("no attempts made")
     for attempt in range(_retries):
         try:
             async with sem:
+                # Build (and base64-encode) the content after acquiring the semaphore so that
+                # only `concurrency` images are held in memory at once.
+                content = _build_content(text, image_path)
                 t0 = time.monotonic()
                 resp = await client.chat.completions.create(
                     model=MODEL_ID,
@@ -698,7 +702,7 @@ async def _call_nim_once(
             # Only retry on transient errors (rate limit, server error, network).
             # 400 and 401 are permanent — retrying wastes time and inflates errors.
             status = getattr(getattr(exc, "response", None), "status_code", None)
-            if status is not None and status in (400, 401, 403):
+            if status is not None and status in (400, 401, 403, 404, 413):
                 break
             if attempt < _retries - 1:
                 # Honor Retry-After header for 429s; fall back to exponential backoff.
@@ -996,20 +1000,24 @@ def print_comparison(
     direct_verdicts: list[Verdict],
     guardrails_verdicts: list[Verdict],
 ) -> None:
-    agree = sum(1 for d, g in zip(direct_verdicts, guardrails_verdicts) if d.is_safe == g.is_safe)
-    total = len(samples)
+    valid_pairs = [
+        (i, s, d, g)
+        for i, (s, d, g) in enumerate(zip(samples, direct_verdicts, guardrails_verdicts))
+        if not d.error and not g.error
+    ]
+    skipped = len(samples) - len(valid_pairs)
+    agree = sum(1 for _, _, d, g in valid_pairs if d.is_safe == g.is_safe)
+    total = len(valid_pairs)
     agreement_rate = agree / total if total else 0.0
 
     print(f"\n{'=' * 62}")
     print("  DIRECT vs. GUARDRAILS VERDICT AGREEMENT")
     print(f"{'=' * 62}")
-    print(f"  Agreement: {agree}/{total} ({agreement_rate:.1%})")
+    print(
+        f"  Agreement: {agree}/{total} ({agreement_rate:.1%}){f'  ({skipped} errored pairs skipped)' if skipped else ''}"
+    )
 
-    disagreements = [
-        (i, s, d, g)
-        for i, (s, d, g) in enumerate(zip(samples, direct_verdicts, guardrails_verdicts))
-        if d.is_safe != g.is_safe
-    ]
+    disagreements = [(i, s, d, g) for i, s, d, g in valid_pairs if d.is_safe != g.is_safe]
     if disagreements:
         print(f"\n  Disagreements ({len(disagreements)}):")
         for idx, s, d, g in disagreements[:10]:
@@ -1131,6 +1139,13 @@ async def main() -> None:
 
     if base_url == REMOTE_BASE_URL and api_key == "placeholder":
         sys.exit("NVIDIA_API_KEY environment variable required for remote NIM")
+
+    if args.text_type != "prompt":
+        sys.exit(
+            f"--text-type '{args.text_type}' is not yet supported: direct NIM evaluation sends each "
+            "sample as a single user message and reads 'User Safety:', which is the prompt check. "
+            "Use --text-type prompt (the default)."
+        )
 
     # Load dataset
     loader = DATASET_LOADERS[args.dataset]
