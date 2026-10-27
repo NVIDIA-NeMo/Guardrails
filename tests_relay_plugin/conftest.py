@@ -16,11 +16,12 @@
 """Fixtures that load the built NeMo Relay plugin into Relay's Python plugin host, on Linux or macOS."""
 
 # The suite runs in its own environment, without Guardrails installed (see requirements.in), and the hooks servers from
-# the repository's .venv. `make test-relay-plugin` syncs .venv and runs the suite; RELAY_PLUGIN_PYTEST in the Makefile
-# is the command it runs.
+# the repository's .venv. `make test-relay-plugin` syncs .venv and the suite's environment, .venv-relay-plugin, then
+# runs the suite.
 
 import asyncio
 import json
+import os
 import shutil
 import socket
 import subprocess
@@ -32,7 +33,7 @@ from pathlib import Path
 
 import pytest
 from mock_judge import MockJudge
-from nemo_relay import Json, plugin
+from nemo_relay import plugin
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CRATE_DIR = REPO_ROOT / "crates" / "nemo-guardrails-relay-plugin"
@@ -40,8 +41,11 @@ LIBRARY_TARGET = "nemo_guardrails_relay_plugin"
 LIBRARY_SUFFIX = ".dylib" if sys.platform == "darwin" else ".so"
 # Relay merges this file over the plugins.toml a host passes, so it could load or reconfigure plugins in the tests.
 SYSTEM_PLUGINS_TOML = Path("/etc/nemo-relay/plugins.toml")
+# The address the hooks servers listen on, and the refused endpoint's.
+LOOPBACK_HOST = "127.0.0.1"
 
-VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
+# The environment `uv sync` syncs: UV_PROJECT_ENVIRONMENT when it's set, which uv resolves against the repository root.
+VENV_PYTHON = REPO_ROOT / (os.environ.get("UV_PROJECT_ENVIRONMENT") or ".venv") / "bin" / "python"
 SERVE_SCRIPT = Path(__file__).with_name("serve.py")
 EXAMPLE_CONFIG = REPO_ROOT / "examples" / "configs" / "agent_hooks" / "nemo_relay"
 DETERMINISTIC_CONFIG = Path(__file__).with_name("configs") / "deterministic"
@@ -51,7 +55,22 @@ JUDGE_URL_PLACEHOLDER = "http://judge.invalid"
 SERVER_START_TIMEOUT_SECONDS = 60
 SERVER_STOP_TIMEOUT_SECONDS = 10
 
-Activate = Callable[[dict[str, Json]], plugin.PluginHostActivation]
+# The component config values that _write_plugins_toml can write: TOML has no null, and its tables take other syntax.
+ComponentValue = str | int | bool
+Activate = Callable[[dict[str, ComponentValue]], plugin.PluginHostActivation]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _loopback_bypasses_proxies() -> Iterator[None]:
+    """Sends the test process's requests to LOOPBACK_HOST directly, whatever proxy its environment sets."""
+    # The health check (urllib) and the plugin's HTTP client (reqwest) both take HTTP_PROXY from the environment, and
+    # neither skips it for a loopback address on its own. The hooks servers start with an environment of their own.
+    entries = [entry.strip() for name in ("NO_PROXY", "no_proxy") for entry in os.environ.get(name, "").split(",")]
+    no_proxy = ",".join(dict.fromkeys([LOOPBACK_HOST, *filter(None, entries)]))
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("NO_PROXY", no_proxy)
+        patch.setenv("no_proxy", no_proxy)
+        yield
 
 
 @pytest.fixture(scope="session")
@@ -104,8 +123,10 @@ def relay_plugin(plugin_manifest: Path, tmp_path: Path) -> Iterator[Activate]:
     """Activates the plugin in Relay's plugin host with a component config, and closes the host at teardown."""
     activations: list[plugin.PluginHostActivation] = []
 
-    def activate(config: dict[str, Json]) -> plugin.PluginHostActivation:
-        """A fresh plugin host that loads only the plugin, with *config* as its component config."""
+    def activate(config: dict[str, ComponentValue]) -> plugin.PluginHostActivation:
+        """A fresh plugin host that loads only the plugin, with *config* as its component config; once per test."""
+        if activations:
+            pytest.fail("A test activates the plugin once: a process holds one Relay plugin host at a time.")
         plugins_toml = _write_plugins_toml(tmp_path / "plugins.toml", plugin_manifest, config)
         activation = asyncio.run(plugin.initialize(plugin.PluginConfig(), plugins_toml))
         activations.append(activation)
@@ -118,13 +139,18 @@ def relay_plugin(plugin_manifest: Path, tmp_path: Path) -> Iterator[Activate]:
         asyncio.run(activation.close())
 
 
-def _write_plugins_toml(path: Path, manifest: Path, config: dict[str, Json]) -> Path:
-    """Writes a plugins.toml that loads the bundle, with a component config of scalar values."""
-    # A JSON string, number or boolean is also valid TOML, as Relay's own host tests write them.
-    entries = ", ".join(f"{key} = {json.dumps(value)}" for key, value in config.items())
+def _write_plugins_toml(path: Path, manifest: Path, config: dict[str, ComponentValue]) -> Path:
+    """Writes a plugins.toml that loads the bundle, with a component config of strings, integers and booleans."""
+    unwritable = sorted(key for key, value in config.items() if not isinstance(value, (str, int, bool)))
+    if unwritable:
+        raise TypeError(f"plugins.toml is written with strings, integers and booleans only, so not {unwritable}")
+    # A JSON string, integer or boolean is also TOML, as Relay's own host tests write them, once characters past U+FFFF
+    # are written as they are: JSON escapes them as UTF-16 surrogate pairs, which TOML rejects.
+    entries = ", ".join(f"{json.dumps(key)} = {json.dumps(value, ensure_ascii=False)}" for key, value in config.items())
     path.write_text(
         'version = 1\n\n[plugins.policy.defaults]\nstartup = "required"\nattestation = "integrity_only"\n\n'
-        f"[[plugins.dynamic]]\nmanifest = {json.dumps(str(manifest))}\nconfig = {{ {entries} }}\n"
+        f"[[plugins.dynamic]]\nmanifest = {json.dumps(str(manifest))}\nconfig = {{ {entries} }}\n",
+        encoding="utf-8",
     )
     return path
 
@@ -183,7 +209,7 @@ def _running_hooks_server(config: Path, log_dir: Path) -> Iterator[str]:
     if not VENV_PYTHON.exists():
         pytest.fail(f"{VENV_PYTHON} doesn't exist. From the repository root, run: uv sync")
     log_path = log_dir / "server.log"
-    with socket.create_server(("127.0.0.1", 0)) as listener, log_path.open("w") as log:
+    with socket.create_server((LOOPBACK_HOST, 0)) as listener, log_path.open("w") as log:
         host, port = listener.getsockname()
         server = subprocess.Popen(
             [str(VENV_PYTHON), str(SERVE_SCRIPT), "--config", str(config), "--fd", str(listener.fileno())],
@@ -227,6 +253,6 @@ def refused_endpoint() -> str:
     """The URL of a local port that was just free, so it refuses connections unless another process takes it."""
     # A port held by a socket that doesn't listen isn't refused on macOS: the connection times out instead.
     with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
+        probe.bind((LOOPBACK_HOST, 0))
         host, port = probe.getsockname()
     return f"http://{host}:{port}"

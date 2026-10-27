@@ -23,7 +23,6 @@ from nemo_relay import Json, ToolExecutionResult, tools
 
 # Long enough that a check reaches the judge well before it, which the timeout case then confirms.
 CHECK_TIMEOUT_MILLIS = 1000
-JUDGE_ARRIVAL_TIMEOUT_SECONDS = 10
 
 
 class RecordingTool:
@@ -215,7 +214,8 @@ def test_check_timeout_blocks_the_call(relay_plugin, judge_hooks_server, judge):
         f"request timed out after {CHECK_TIMEOUT_MILLIS} ms"
     )
     assert tool.runs == []
-    assert judge.hanging.wait(JUDGE_ARRIVAL_TIMEOUT_SECONDS), "the check never reached the judge"
+    # The call returned once the timeout passed, so a judge hanging by then was reached before it.
+    assert judge.hanging.is_set(), "the check timed out before it reached the judge"
 
 
 def test_every_call_is_checked(relay_plugin, judge_hooks_server, judge):
@@ -227,6 +227,21 @@ def test_every_call_is_checked(relay_plugin, judge_hooks_server, judge):
     call_tool("fetch_url", {"url": "https://docs.example/twice"}, tool)
 
     assert tool.runs == [{"url": "https://docs.example/twice"}] * 2
+    assert len(judge.prompts) == 2
+
+
+def test_failed_check_leaves_no_state(relay_plugin, judge_hooks_server, judge):
+    """After a failed check, the same call asks the judge again, and runs once the judge answers."""
+    relay_plugin({"endpoint": judge_hooks_server})
+    judge.failure = JudgeFailure.SERVER_ERROR
+    tool = RecordingTool()
+
+    with pytest.raises(RuntimeError):
+        call_tool("fetch_url", {"url": "https://docs.example/retry"}, tool)
+    judge.failure = None
+    call_tool("fetch_url", {"url": "https://docs.example/retry"}, tool)
+
+    assert tool.runs == [{"url": "https://docs.example/retry"}]
     assert len(judge.prompts) == 2
 
 

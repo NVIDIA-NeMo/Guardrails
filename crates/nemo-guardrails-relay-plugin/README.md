@@ -72,7 +72,7 @@ None of these tests needs a running NeMo Guardrails service.
 `.cargo/config.toml` sets `NEMO_RELAY_TEST_SKIP_IMPLICIT_CONFIG=1`, so that the host tests ignore a machine-wide `/etc/nemo-relay/plugins.toml`.
 
 The end-to-end tests in `tests_relay_plugin/`, at the repository root, load the release library into Relay's Python plugin host and check calls against a real NeMo Guardrails service: managed tool calls, and a LangChain agent through Relay's middleware.
-They start the service from the repository's `.venv`, as a hooks server for each of their configurations, and run in their own Python 3.11 environment, hash-pinned in `tests_relay_plugin/requirements.txt`, without Guardrails installed.
+They start the service from the repository's `.venv`, as a hooks server for each of their configurations, and run in their own Python 3.11 environment without Guardrails, `.venv-relay-plugin`, installed from the hash-pinned `tests_relay_plugin/requirements.txt`.
 They run on Linux and macOS, need the Rust toolchain, and aren't part of `make test`.
 From the repository root:
 

@@ -46,6 +46,8 @@ class MockJudge:
         # Set when a request starts to hang, so a test can tell the judge was reached.
         self.hanging = threading.Event()
         self._release = threading.Event()
+        # reset() swaps the state below on the test's thread while requests read it on the server's threads.
+        self._lock = threading.Lock()
         self._server = _JudgeServer(self)
         self._thread = threading.Thread(target=self._server.serve_forever, name="mock-judge", daemon=True)
 
@@ -67,19 +69,20 @@ class MockJudge:
 
     def reset(self) -> None:
         """Releases any hanging request, then forgets the failure and the prompts, for the next test."""
-        self._release.set()
-        self._release = threading.Event()
-        self.hanging = threading.Event()
-        self.failure = None
-        self.prompts = []
+        with self._lock:
+            self._release.set()
+            self._release = threading.Event()
+            self.hanging = threading.Event()
+            self.failure = None
+            self.prompts = []
 
     def answer(self, prompt: str) -> tuple[int, dict]:
         """The status and body that answer *prompt*, after any hang ends."""
-        self.prompts.append(prompt)
-        failure = self.failure
+        with self._lock:
+            self.prompts.append(prompt)
+            failure, hanging, release = self.failure, self.hanging, self._release
         if failure is JudgeFailure.HANG:
-            release = self._release
-            self.hanging.set()
+            hanging.set()
             release.wait()
         if failure is JudgeFailure.SERVER_ERROR:
             return 500, {"error": {"message": SERVER_ERROR_MESSAGE, "type": "server_error"}}
