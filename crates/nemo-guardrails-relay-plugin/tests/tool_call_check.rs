@@ -38,7 +38,7 @@ use common::{Bundle, HOST};
 /// The log target of the plugin's records, as the host emits them.
 const LOG_TARGET: &str = "nemo_relay.plugin.native.nvidia.nemo_guardrails";
 
-/// The hooks server's answer to a call it fails on a rail.
+/// The service's answer to a call it fails on a rail.
 const RAIL_FAILED_MESSAGE: &str =
     "Rail 'tool safety check' failed: the judge model can't be reached";
 
@@ -59,7 +59,7 @@ async fn allowed_call_runs_the_tool() {
     assert_eq!(received(&server).await, 1);
 }
 
-/// A denied call is rejected with the server's reason, or with none when the server gives none,
+/// A denied call is rejected with the service's reason, or with none when the service gives none,
 /// and the tool never runs.
 #[tokio::test]
 async fn denied_call_is_rejected_with_the_server_reason() {
@@ -142,7 +142,7 @@ async fn every_call_is_checked() {
 }
 
 /// A failed check logs one warning with its event, status and error code, with or without an
-/// answer from the server, and never a header value or the tool's arguments.
+/// answer from the service, and never a header value or the tool's arguments.
 #[tokio::test]
 async fn failed_check_logs_a_warning() {
     let _host = HOST.lock().await;
@@ -217,7 +217,7 @@ async fn run_search(runs: &Arc<AtomicUsize>) -> Result<ToolExecutionResult, Flow
     .await
 }
 
-/// A stand-in hooks server that gives every check the same answer.
+/// A stand-in service that gives every check the same answer.
 async fn hooks_server(response: ResponseTemplate) -> MockServer {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
@@ -233,7 +233,7 @@ fn decision(body: Json) -> ResponseTemplate {
     ResponseTemplate::new(200).set_body_json(body)
 }
 
-/// The hooks server's answer when a rail fails instead of deciding.
+/// The service's answer when a rail fails instead of deciding.
 fn rail_failed() -> ResponseTemplate {
     ResponseTemplate::new(500).set_body_json(json!({
         "error": {
@@ -245,7 +245,7 @@ fn rail_failed() -> ResponseTemplate {
     }))
 }
 
-/// How many checks the server received.
+/// How many checks the service received.
 async fn received(server: &MockServer) -> usize {
     server
         .received_requests()

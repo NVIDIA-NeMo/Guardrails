@@ -13,9 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Client for the `/v1/hooks/nemo-relay` endpoint of a NeMo Guardrails hooks server.
+//! Client for the `/v1/hooks/nemo-relay` endpoint of the NeMo Guardrails service, a hooks server.
 //!
-//! The endpoint's contract is the hooks server's code in `nemoguardrails/server/hooks/`: the
+//! The endpoint's contract is the service's code in `nemoguardrails/server/hooks/`: the
 //! request model in `schemas.py`, the decision in `adapters.py`, and the error statuses in `app.py`.
 
 use std::fmt;
@@ -38,7 +38,7 @@ pub const HOOK_EVENT_NAME: &str = "NemoRelayToolConditionalExecutionGuardrail";
 /// Longest server message that a failure repeats.
 const MAX_SERVER_MESSAGE_CHARS: usize = 512;
 
-/// The hooks server's decision on a tool call, as a 200 answer carries it.
+/// The service's decision on a tool call, as a 200 answer carries it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(tag = "decision", rename_all = "lowercase")]
 pub enum Verdict {
@@ -46,7 +46,7 @@ pub enum Verdict {
     Allow,
     /// The call must not run.
     Deny {
-        /// The server's reason, unless it gave none or an empty one.
+        /// The service's reason, unless it gave none or an empty one.
         #[serde(default, deserialize_with = "non_empty")]
         reason: Option<String>,
     },
@@ -64,7 +64,7 @@ fn non_empty<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<String
 pub enum CheckFailure {
     /// No complete answer arrived: the request timed out or couldn't be sent.
     Unanswered { detail: String },
-    /// The server answered, but not with a decision.
+    /// The service answered, but not with a decision.
     Answered {
         /// The answer's status.
         status: StatusCode,
@@ -75,7 +75,7 @@ pub enum CheckFailure {
 }
 
 impl CheckFailure {
-    /// The status the server answered with, when it answered.
+    /// The status the service answered with, when it answered.
     pub fn status(&self) -> Option<StatusCode> {
         match self {
             Self::Unanswered { .. } => None,
@@ -83,7 +83,7 @@ impl CheckFailure {
         }
     }
 
-    /// The `error.code` of the server's answer, when it gave one.
+    /// The `error.code` of the service's answer, when it gave one.
     pub fn code(&self) -> Option<&str> {
         match self {
             Self::Unanswered { .. } => None,
@@ -107,7 +107,7 @@ impl fmt::Display for CheckFailure {
 
 impl std::error::Error for CheckFailure {}
 
-/// Posts tool calls to one hooks server.
+/// Posts tool calls to the NeMo Guardrails service.
 #[derive(Debug, Clone)]
 pub struct HooksClient {
     http: reqwest::Client,
@@ -116,16 +116,16 @@ pub struct HooksClient {
 }
 
 impl HooksClient {
-    /// A client for the configured hooks server, which sends the configured headers.
+    /// A client for the configured service, which sends the configured headers.
     pub fn new(config: &NeMoGuardrailsClientConfig) -> Result<Self, String> {
         let url = config
             .endpoint
             .join(HOOK_PATH)
-            .map_err(|error| format!("cannot build the hooks server URL: {error}"))?;
+            .map_err(|error| format!("cannot build the service URL: {error}"))?;
         let http = reqwest::Client::builder()
             .default_headers(config.headers.clone())
             .timeout(config.timeout)
-            // A hooks server never redirects, and following one would send the headers elsewhere.
+            // The service never redirects, and following one would send the headers elsewhere.
             .redirect(Policy::none())
             .build()
             .map_err(|error| format!("cannot build the HTTP client: {error}"))?;
@@ -136,7 +136,7 @@ impl HooksClient {
         })
     }
 
-    /// Asks the hooks server whether the tool call may run.
+    /// Asks the service whether the tool call may run.
     pub async fn check_tool_call(
         &self,
         tool_name: &str,
@@ -220,7 +220,7 @@ struct ErrorBody {
 }
 
 impl ErrorBody {
-    /// Reads the OpenAI error envelope the hooks server sends, or the `detail` of another server.
+    /// Reads the OpenAI error envelope the service sends, or the `detail` of another server.
     fn parse(payload: &[u8]) -> Self {
         let Ok(body) = serde_json::from_slice::<Json>(payload) else {
             return Self::default();
@@ -238,33 +238,33 @@ impl ErrorBody {
     }
 }
 
-/// The likely cause of an error the hooks server answers with, keyed on its status and code.
+/// The likely cause of an error the service answers with, keyed on its status and code.
 fn hint(status: StatusCode, code: Option<&str>, retry_after: Option<&str>) -> Option<String> {
     match (status.as_u16(), code) {
         (404, _) => Some(
-            "the endpoint isn't a NeMo Guardrails hooks server; start one with \
+            "the endpoint isn't a NeMo Guardrails service; start one with \
              `nemoguardrails hooks-server --config <path>`, which listens on port 8100 by default"
                 .into(),
         ),
         (422, None | Some("unsupported_hook_event")) => Some(
-            "the hooks server rejected the plugin's request; report it as a plugin bug, with the \
-             server's Guardrails version"
+            "the service rejected the plugin's request; report it as a plugin bug, with the \
+             service's Guardrails version"
                 .into(),
         ),
         (500, Some("rail_failed")) => Some(
             "a rail failed instead of deciding, such as a judge model that can't be reached".into(),
         ),
-        (500, None) => Some("the hooks server couldn't finish the check; see its log".into()),
+        (500, None) => Some("the service couldn't finish the check; see its log".into()),
         (503, Some("queue_full")) => Some(at_capacity_hint(retry_after)),
         _ => None,
     }
 }
 
-/// The hint for a full admission queue, with the wait the server asks for when it gives one.
+/// The hint for a full admission queue, with the wait the service asks for when it gives one.
 fn at_capacity_hint(retry_after: Option<&str>) -> String {
     match retry_after {
-        Some(retry_after) => format!("the hooks server is at capacity; Retry-After: {retry_after}"),
-        None => "the hooks server is at capacity".into(),
+        Some(retry_after) => format!("the service is at capacity; Retry-After: {retry_after}"),
+        None => "the service is at capacity".into(),
     }
 }
 

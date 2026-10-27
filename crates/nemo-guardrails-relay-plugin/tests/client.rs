@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Checks the hooks client against a mock hooks server: the request it sends, and how it reads
-//! each answer that the hooks server's code (`nemoguardrails/server/hooks/`) can give.
+//! Checks the hooks client against a mock NeMo Guardrails service: the request it sends, and how
+//! it reads each answer that the service's code (`nemoguardrails/server/hooks/`) can give.
 
 use std::net::TcpListener;
 
@@ -27,7 +27,7 @@ use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
 const HOOK_PATH: &str = "/v1/hooks/nemo-relay";
 
-/// A client for the hooks server at `endpoint`, with the other config fields in `config`.
+/// A client for the service at `endpoint`, with the other config fields in `config`.
 fn client(endpoint: &str, config: Json) -> HooksClient {
     let mut config = config.as_object().cloned().expect("config is an object");
     config.insert("endpoint".into(), json!(endpoint));
@@ -36,7 +36,7 @@ fn client(endpoint: &str, config: Json) -> HooksClient {
     HooksClient::new(&config).expect("client builds")
 }
 
-/// A mock hooks server that answers every check with `response`.
+/// A mock service that answers every check with `response`.
 async fn hooks_server(response: ResponseTemplate) -> MockServer {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
@@ -47,7 +47,7 @@ async fn hooks_server(response: ResponseTemplate) -> MockServer {
     server
 }
 
-/// Checks a `search` call with a mock hooks server that answers with `response`.
+/// Checks a `search` call with a mock service that answers with `response`.
 async fn check_search(response: ResponseTemplate) -> Result<Verdict, CheckFailure> {
     let server = hooks_server(response).await;
     client(&server.uri(), json!({}))
@@ -55,12 +55,12 @@ async fn check_search(response: ResponseTemplate) -> Result<Verdict, CheckFailur
         .await
 }
 
-/// The hooks server's answer for an allowed call.
+/// The service's answer for an allowed call.
 fn allow() -> ResponseTemplate {
     ResponseTemplate::new(200).set_body_json(json!({"decision": "allow"}))
 }
 
-/// An error answer in the OpenAI envelope that the hooks server renders every error with.
+/// An error answer in the OpenAI envelope that the service renders every error with.
 fn envelope(
     status: u16,
     message: &str,
@@ -73,7 +73,7 @@ fn envelope(
     }))
 }
 
-/// The requests the mock hooks server received.
+/// The requests the mock service received.
 async fn received(server: &MockServer) -> Vec<Request> {
     server
         .received_requests()
@@ -101,7 +101,7 @@ async fn allow_decision_allows_the_call() {
     assert_eq!(check_search(allow()).await, Ok(Verdict::Allow));
 }
 
-/// A deny decision denies the call with the server's reason.
+/// A deny decision denies the call with the service's reason.
 #[tokio::test]
 async fn deny_decision_carries_the_server_reason() {
     let response = ResponseTemplate::new(200)
@@ -133,7 +133,7 @@ async fn deny_decision_without_a_reason_still_denies() {
     }
 }
 
-/// Fields that the decision doesn't define are ignored, so the hooks server can add some.
+/// Fields that the decision doesn't define are ignored, so the service can add some.
 #[tokio::test]
 async fn unknown_response_fields_are_ignored() {
     for (body, verdict) in [
@@ -229,8 +229,8 @@ async fn configured_headers_are_sent() {
     }
 }
 
-/// Each error the hooks server answers with fails the check, reporting the status, the
-/// `error.code`, the server's message, and a hint at the likely cause.
+/// Each error the service answers with fails the check, reporting the status, the
+/// `error.code`, the service's message, and a hint at the likely cause.
 #[tokio::test]
 async fn hooks_server_errors_fail_with_status_code_message_and_hint() {
     for (response, status, code, detail) in [
@@ -245,8 +245,8 @@ async fn hooks_server_errors_fail_with_status_code_message_and_hint() {
             422,
             None,
             "server returned HTTP 422 Unprocessable Entity: body.session_id: Extra inputs are not \
-             permitted (the hooks server rejected the plugin's request; report it as a plugin bug, \
-             with the server's Guardrails version)",
+             permitted (the service rejected the plugin's request; report it as a plugin bug, \
+             with the service's Guardrails version)",
         ),
         (
             envelope(
@@ -261,8 +261,8 @@ async fn hooks_server_errors_fail_with_status_code_message_and_hint() {
             Some("unsupported_hook_event"),
             "server returned HTTP 422 Unprocessable Entity (unsupported_hook_event): \
              hook_event_name 'Other' is not handled on /v1/hooks/nemo-relay; send \
-             NemoRelayToolConditionalExecutionGuardrail (the hooks server rejected the plugin's \
-             request; report it as a plugin bug, with the server's Guardrails version)",
+             NemoRelayToolConditionalExecutionGuardrail (the service rejected the plugin's \
+             request; report it as a plugin bug, with the service's Guardrails version)",
         ),
         (
             envelope(
@@ -288,8 +288,8 @@ async fn hooks_server_errors_fail_with_status_code_message_and_hint() {
             ),
             500,
             None,
-            "server returned HTTP 500 Internal Server Error: Internal server error (the hooks \
-             server couldn't finish the check; see its log)",
+            "server returned HTTP 500 Internal Server Error: Internal server error (the service \
+             couldn't finish the check; see its log)",
         ),
         (
             envelope(
@@ -303,7 +303,7 @@ async fn hooks_server_errors_fail_with_status_code_message_and_hint() {
             503,
             Some("queue_full"),
             "server returned HTTP 503 Service Unavailable (queue_full): IORails admission queue \
-             is full. Please retry later. (the hooks server is at capacity; Retry-After: 30)",
+             is full. Please retry later. (the service is at capacity; Retry-After: 30)",
         ),
         (
             envelope(
@@ -316,14 +316,14 @@ async fn hooks_server_errors_fail_with_status_code_message_and_hint() {
             503,
             Some("queue_full"),
             "server returned HTTP 503 Service Unavailable (queue_full): IORails admission queue \
-             is full. Please retry later. (the hooks server is at capacity)",
+             is full. Please retry later. (the service is at capacity)",
         ),
         (
             envelope(404, "Not Found", "not_found_error", Json::Null, Json::Null),
             404,
             None,
             "server returned HTTP 404 Not Found: Not Found (the endpoint isn't a NeMo Guardrails \
-             hooks server; start one with `nemoguardrails hooks-server --config <path>`, which \
+             service; start one with `nemoguardrails hooks-server --config <path>`, which \
              listens on port 8100 by default)",
         ),
         (
@@ -331,7 +331,7 @@ async fn hooks_server_errors_fail_with_status_code_message_and_hint() {
             404,
             None,
             "server returned HTTP 404 Not Found: Not Found (the endpoint isn't a NeMo Guardrails \
-             hooks server; start one with `nemoguardrails hooks-server --config <path>`, which \
+             service; start one with `nemoguardrails hooks-server --config <path>`, which \
              listens on port 8100 by default)",
         ),
         (
@@ -369,7 +369,7 @@ async fn long_server_message_is_cut() {
     assert_eq!(
         failure.detail(),
         format!(
-            "server returned HTTP 500 Internal Server Error: {} (the hooks server couldn't finish \
+            "server returned HTTP 500 Internal Server Error: {} (the service couldn't finish \
              the check; see its log)",
             "é".repeat(512)
         )
@@ -445,7 +445,7 @@ async fn redirect_fails_the_check_without_being_followed() {
     );
 }
 
-/// A server that never answers fails the check once the configured time limit passes.
+/// A service that never answers fails the check once the configured time limit passes.
 #[tokio::test]
 async fn unanswered_check_times_out_at_the_configured_limit() {
     let (silent, endpoint) = silent_endpoint();
@@ -464,7 +464,7 @@ async fn unanswered_check_times_out_at_the_configured_limit() {
     drop(silent);
 }
 
-/// A server that refuses the connection fails the check with the transport error and its causes.
+/// A service that refuses the connection fails the check with the transport error and its causes.
 #[tokio::test]
 async fn unreachable_server_fails_with_the_transport_error() {
     let endpoint = refusing_endpoint();

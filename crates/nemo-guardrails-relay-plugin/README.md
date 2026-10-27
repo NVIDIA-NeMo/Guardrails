@@ -16,7 +16,7 @@ It runs on the tool calls Relay manages: calls through the Relay SDK and its Lan
 - An allow lets the call run.
 - A deny rejects the call with `NeMo Guardrails blocked tool call '<tool>': <reason>`, or with the text ending at the tool name when the service gives no reason.
 - A failed check returns the error `NeMo Guardrails check failed for tool call '<tool>': <detail>`.
-  The detail gives the HTTP status, the service's `error.code` and message, and a hint for the hooks server's known errors, or says that the request timed out or couldn't be sent.
+  The detail gives the HTTP status, the service's `error.code` and message, and a hint for the service's known errors, or says that the request timed out or couldn't be sent.
 - The plugin doesn't retry a failed check, not even when the service answers 503 with `Retry-After`.
 
 A managed call gets the rejection or the error from Relay as is.
