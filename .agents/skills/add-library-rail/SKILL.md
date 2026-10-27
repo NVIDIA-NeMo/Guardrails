@@ -395,8 +395,8 @@ commit; `dev` includes that group, so CI installs it. That is why
 `tests/test_injection_detection.py` does a bare `import yara`. If you would
 rather leave packaging untouched, use one of the patterns already in the
 tree rather than inventing one: `check_optional_dependency` from
-`nemoguardrails/imports.py`, a `setup_module` skip
-(`tests/test_sensitive_data_detection.py`), a try/except flag with
+`nemoguardrails/imports.py`, an availability flag checked by `pytest.mark.skipif`
+(`tests/test_sensitive_data_detection.py::SDD_SETUP_PRESENT`), a try/except flag with
 `@pytest.mark.skipif` (`tests/test_gcp_text_moderation_input_rail.py`), or
 `mock.patch.dict("sys.modules", {"<pkg>": None})` to exercise the
 missing-package path with nothing installed
