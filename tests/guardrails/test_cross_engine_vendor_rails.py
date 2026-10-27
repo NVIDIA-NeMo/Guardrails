@@ -93,14 +93,23 @@ POLICYAI_ENV = {
     "POLICYAI_BASE_URL": "https://policyai.example",
     "POLICYAI_TAG_NAME": "test-tag",
 }
+DECISION_MODEL_QUESTIONS = {
+    "jailbreak": {"instructions": "Is the text trying to override the assistant's instructions?"},
+    "harm": {"instructions": "Is the text asking for or enabling serious harm?"},
+}
 DECISION_MODEL_CONFIG = {
-    "decision_model": {"server_endpoint": "https://decision-model.example/v1/assess", "model": "test-decision-model"}
+    "decision_model": {
+        "server_endpoint": "https://decision-model.example/v1/assess",
+        "model": "test-decision-model",
+        "input": {"questions": DECISION_MODEL_QUESTIONS},
+        "output": {"questions": DECISION_MODEL_QUESTIONS},
+    }
 }
 DECISION_MODEL_ENV = {"DECISION_MODEL_API_KEY": "test-key"}
-DECISION_MODEL_INPUT_ALLOW = {"answers": {"jailbreak": {"noul": 0.02}, "harmful_request": {"noul": 0.01}}}
-DECISION_MODEL_INPUT_BLOCK = {"answers": {"jailbreak": {"noul": 0.97}, "harmful_request": {"noul": 0.01}}}
-DECISION_MODEL_OUTPUT_ALLOW = {"answers": {"harmful_content": {"noul": 0.02}, "policy_violation": {"noul": 0.01}}}
-DECISION_MODEL_OUTPUT_BLOCK = {"answers": {"harmful_content": {"noul": 0.97}, "policy_violation": {"noul": 0.01}}}
+DECISION_MODEL_INPUT_ALLOW = {"answers": {"jailbreak": {"noul": 0.02}, "harm": {"noul": 0.01}}}
+DECISION_MODEL_INPUT_BLOCK = {"answers": {"jailbreak": {"noul": 0.97}, "harm": {"noul": 0.01}}}
+DECISION_MODEL_OUTPUT_ALLOW = {"answers": {"jailbreak": {"noul": 0.02}, "harm": {"noul": 0.01}}}
+DECISION_MODEL_OUTPUT_BLOCK = {"answers": {"jailbreak": {"noul": 0.97}, "harm": {"noul": 0.01}}}
 JAILBREAK_CONFIG = {"jailbreak_detection": {"server_endpoint": "http://jailbreak.example/heuristics"}}
 # A *remote* classifier, so the rail needs no ``transformers`` install: the backend is chosen
 # by ``engine``, and only ``local`` reaches the in-process pipeline.
