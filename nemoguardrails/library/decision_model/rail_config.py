@@ -15,12 +15,21 @@
 
 """Configuration for the decision model rail."""
 
+import re
 import warnings
 from typing import Dict, Optional
 
 from pydantic import ConfigDict, field_validator, model_validator
 
 from nemoguardrails.manifests.config_schema import Field, RailConfigBaseModel, RailConfigSpec, rail_field
+
+# HTTPS for any host, or plain HTTP for an exact loopback host (a prefix match would also accept
+# values such as ``http://localhost.attacker.example``).
+_SERVER_ENDPOINT_PATTERN = re.compile(
+    r"https://[^\s/?#]+(?:[/?#]\S*)?"
+    r"|http://(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?(?:[/?#]\S*)?",
+    re.IGNORECASE,
+)
 
 
 class DecisionModelQuestion(RailConfigBaseModel):
@@ -89,6 +98,18 @@ class DecisionModelConfig(RailConfigBaseModel):
         if not value.strip():
             raise ValueError("value must not be blank")
         return value
+
+    @field_validator("server_endpoint")
+    @classmethod
+    def _check_server_endpoint(cls, value: str) -> str:
+        """Require HTTPS so the API key and screened text are not sent in the clear.
+
+        Plain HTTP is accepted only for exact loopback hosts, to allow local development.
+        """
+        endpoint = value.strip()
+        if not _SERVER_ENDPOINT_PATTERN.fullmatch(endpoint):
+            raise ValueError("server_endpoint must be an absolute https:// URL, or an http:// URL for localhost")
+        return endpoint
 
     @model_validator(mode="after")
     def _warn_disabled_screening(self) -> "DecisionModelConfig":
