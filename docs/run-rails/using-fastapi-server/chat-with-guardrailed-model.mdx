@@ -312,6 +312,9 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
 # The assistant remembers "Alice"
 ```
 
+Rails and actions that run for the request see the `thread_id` as the conversation ID that `get_conversation_id()` returns.
+For more information, refer to [Checking Messages Against Rails: Setting a Conversation ID](/run-guardrailed-inference/using-python-apis/check-messages#setting-a-conversation-id).
+
 <Note>
 The `thread_id` is currently not implemented in the NeMo Guardrails microservices.
 </Note>

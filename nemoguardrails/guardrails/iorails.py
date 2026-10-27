@@ -32,6 +32,12 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
+from nemoguardrails.context import (
+    ensure_roundtrip_id,
+    get_conversation_id,
+    new_roundtrip_id,
+    stream_with_request_ids,
+)
 from nemoguardrails.exceptions import (
     InvalidCheckRequestError,
     NonStreamingWorkQueueFullError,
@@ -1177,7 +1183,9 @@ class IORails(BaseGuardrails):
         conversation = _TurnConversation(
             messages=messages, masks_pending=self._masks_awaiting(messages, (RailDirection.INPUT,))
         )
-        with traced_request(tracer) as (request_span, req_id):
+        # One call covers the request and the response leg of one model call, so the round
+        # trip is the call. A caller that has already opened one keeps its ID.
+        with new_roundtrip_id(), traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
                 result = await self._do_generate(
@@ -1648,7 +1656,8 @@ class IORails(BaseGuardrails):
             messages=messages,
             masks_pending=self._masks_awaiting(messages, (RailDirection.INPUT, RailDirection.OUTPUT)),
         )
-        with traced_request(tracer) as (request_span, req_id):
+        # A check is one leg of a model call; the caller pairs the legs by setting its own ID.
+        with new_roundtrip_id(), traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
                 result = await self._do_check(messages, rail_types, req_id, tools=tools, conversation=conversation)
@@ -2167,7 +2176,13 @@ class IORails(BaseGuardrails):
                 finally:
                     self._stream_semaphore.release()
 
-        return _wrapped_iterator()
+        # The stream is pulled by whoever consumes the iterator, in a context that is not
+        # this one, so the IDs of the request are captured here and restored for each pull.
+        return stream_with_request_ids(
+            _wrapped_iterator(),
+            conversation=get_conversation_id(),
+            roundtrip=ensure_roundtrip_id(),
+        )
 
     async def _run_output_rails_in_streaming(
         self,
