@@ -1,4 +1,3 @@
 tests/server/experimental/conformance/openai/chat_completions/fixtures/pinned.openapi.yaml text eol=lf
 tests/server/experimental/conformance/openai/responses/fixtures/source_inventory.json text eol=lf
 Cargo.lock linguist-generated=true
-
