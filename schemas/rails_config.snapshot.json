@@ -269,11 +269,18 @@
       "description": "Configuration for the decision model rail.",
       "properties": {
         "api_key_env_var": {
-          "default": "DECISION_MODEL_API_KEY",
-          "description": "Environment variable containing the API key, sent as a bearer token.",
-          "minLength": 1,
-          "title": "Api Key Env Var",
-          "type": "string"
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Environment variable containing the API key, sent as a bearer token. Optional: when unset, requests are sent without an Authorization header. Requires an https:// server_endpoint when set.",
+          "title": "Api Key Env Var"
         },
         "fail_open": {
           "default": false,
@@ -315,6 +322,12 @@
           "exclusiveMinimum": 0,
           "title": "Timeout",
           "type": "number"
+        },
+        "verify_ssl": {
+          "default": true,
+          "description": "Verify the endpoint's TLS certificate. Set to false only for self-signed or internal certificates you trust.",
+          "title": "Verify Ssl",
+          "type": "boolean"
         }
       },
       "required": [

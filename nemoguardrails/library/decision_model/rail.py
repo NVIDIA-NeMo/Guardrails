@@ -72,7 +72,7 @@ RAIL = RailManifest(
                 EnvVar(
                     name="DECISION_MODEL_API_KEY",
                     required=False,
-                    description="Bearer token used when api_key_env_var selects this variable (the default).",
+                    description="Bearer token, read only when rails.config.decision_model.api_key_env_var names this variable. Authentication is optional.",
                 ),
             ),
             services=(ServiceRequirement(name="Configured decision model endpoint", required=True),),
