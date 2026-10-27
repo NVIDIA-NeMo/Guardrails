@@ -149,6 +149,19 @@ The deadline cannot preempt blocking synchronous work or force a resolver that
 suppresses cancellation to stop. Preloading removes request-time engine
 initialization; it does not make external policy selection free of latency.
 
+## Checking engine
+
+The catalog uses the server's `NEMO_GUARDRAILS_IORAILS_ENGINE` environment switch.
+LLMRails is the default. Set the variable to `1`, `true`, or `yes` before Python
+starts to prefer IORails for compatible configurations, with the same LLMRails
+fallback as the server. Each checker's actual engine is logged at INFO level
+during startup. See [engine comparison](application.md#choose-the-checking-engine)
+for launch commands. Engine choice is process-wide and independent of trusted
+request-time configuration selection.
+
+The proxy accepts Colang 1.0 input/output checking configurations. Selecting
+LLMRails does not enable dialog orchestration, retrieval or tool inspection.
+
 ## Lifecycle
 
 Config IDs and directory paths are validated and fixed during application
@@ -187,6 +200,11 @@ Configuration file loading and parsing run in a worker thread, so filesystem
 work does not block the event loop. Engine construction and startup remain on
 the application loop, before serving; arbitrary engine constructors are not
 assumed to be thread-safe or non-blocking.
+
+Plain LLMRails initializes during construction and exposes no asynchronous
+startup or shutdown hook. The repository invokes these hooks when the selected
+backend supplies them, including the IORails wrapper. This selection does not
+add resource-cleanup capabilities to plain LLMRails or to custom actions.
 
 The application lifespan starts, publishes, and closes `ServerRuntime`. The
 runtime owns checker initialization and exposes whether engine cleanup remains

@@ -82,7 +82,7 @@ async def startup_owner(monkeypatch, failure, cleanup):
         facades.append(facade)
         return facade
 
-    monkeypatch.setattr(_repository, "Guardrails", create_facade)
+    monkeypatch.setattr(_repository, "LLMRails", create_facade)
     try:
         yield probe, facades
     finally:

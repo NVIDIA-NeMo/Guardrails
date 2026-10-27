@@ -42,8 +42,6 @@ class _LegacyGuardrails(Protocol):
         rail_types: list[RailType] | None = None,
     ) -> RailsResult: ...
 
-    async def shutdown(self) -> None: ...
-
 
 def _message_document(message: GuardedMessage) -> dict[str, str]:
     return {"role": message.role, "content": message.content}
@@ -123,4 +121,7 @@ class LegacyGuardrailsChecker:
         return _decision(result)
 
     async def close(self) -> None:
-        await self._rails.shutdown()
+        """Close managed engines; plain LLMRails exposes no shutdown hook."""
+        shutdown = getattr(self._rails, "shutdown", None)
+        if shutdown is not None:
+            await shutdown()

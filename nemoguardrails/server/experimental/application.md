@@ -104,6 +104,29 @@ inbound access controls before listening beyond loopback. Caller authorization
 headers still follow the existing upstream forwarding rules; this launcher
 does not store provider keys or introduce service authentication.
 
+### Choose the checking engine
+
+The proxy uses the same `NEMO_GUARDRAILS_IORAILS_ENGINE` switch as the Guardrails
+server. An unset variable, `0`, or `false` selects LLMRails. Setting `1`, `true`,
+or `yes` selects the `Guardrails` wrapper, which uses IORails for compatible
+configurations and falls back to LLMRails otherwise. Values are case-insensitive.
+Set the variable before starting Python; changing it requires a process restart.
+
+Run the same manifest with either selection to compare input/output checking:
+
+```bash
+NEMO_GUARDRAILS_IORAILS_ENGINE=0 uv run --locked python -m nemoguardrails.server.experimental serve proxy.yaml
+NEMO_GUARDRAILS_IORAILS_ENGINE=1 uv run --locked python -m nemoguardrails.server.experimental serve proxy.yaml
+```
+
+Run one command at a time with the same upstream, Rails configuration and
+streaming window settings. At INFO level, startup logs the actual engine for
+each checker, including configurations that fall back to LLMRails. Confirm this
+selection before comparing results. Engine selection changes the implementation
+of the checks; provider generation, bindings and byte forwarding stay the same.
+The proxy's checking path requires Colang 1.0 and retains its existing supported
+input/output scope.
+
 ### Requests and blocking
 
 The [example Rails configuration](examples/basic/rails/config.yml) blocks common

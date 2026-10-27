@@ -302,7 +302,7 @@ def test_validation_and_inspection_do_not_load_rails_or_create_owners(tmp_path, 
         pytest.fail("structural commands must not enter runtime construction or load Rails")
 
     monkeypatch.setattr(_repository.RailsConfig, "from_path", forbidden)
-    monkeypatch.setattr(_repository, "Guardrails", forbidden)
+    monkeypatch.setattr(_repository, "LLMRails", forbidden)
     monkeypatch.setattr(_application.ServerRuntime, "create", forbidden)
     source = tmp_path / "rails/config.yml"
     if filename is None:
@@ -419,6 +419,7 @@ def test_invalid_cli_usage(arguments):
 @pytest.mark.asyncio
 async def test_partial_catalog_startup_closes_real_core_workers_and_http_owners(tmp_path, document, monkeypatch):
     """A later parse failure must roll back the already-started real core."""
+    from nemoguardrails import Guardrails
     from nemoguardrails.guardrails.iorails import IORails
     from nemoguardrails.server.experimental._runtime import ServerRuntime
 
@@ -434,6 +435,7 @@ async def test_partial_catalog_startup_closes_real_core_workers_and_http_owners(
     workers = []
     actual_create = ServerRuntime.create
     actual_start = IORails.start
+    monkeypatch.setattr(_repository, "LLMRails", Guardrails)
 
     def create(cls, *args, **kwargs):
         runtime = actual_create(*args, **kwargs)

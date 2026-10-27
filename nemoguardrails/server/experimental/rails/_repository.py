@@ -21,8 +21,12 @@ from collections.abc import Sequence
 
 import anyio
 
-from nemoguardrails import Guardrails, RailsConfig
-from nemoguardrails.server.experimental._content_checker import ContentChecker, validate_content_checker
+from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.server.experimental._content_checker import (
+    ContentChecker,
+    UnsupportedContentCheckerConfiguration,
+    validate_content_checker,
+)
 from nemoguardrails.server.experimental.rails._adapter import LegacyGuardrailsChecker
 from nemoguardrails.server.experimental.rails.config import ConfigEntry, validate_config_entries
 
@@ -64,10 +68,16 @@ class GuardrailsRepository:
                     return
                 for config_id, path in self._config_paths.items():
                     config = await asyncio.to_thread(RailsConfig.from_path, str(path))
-                    rails = Guardrails(config=config, require_iorails=True)
+                    if config.colang_version != "1.0":
+                        raise UnsupportedContentCheckerConfiguration("Proxy content checks require Colang 1.0.")
+                    rails = LLMRails(config=config)
                     self._checkers[config_id] = LegacyGuardrailsChecker(rails)
                     validate_content_checker(self._checkers[config_id])
-                    await rails.startup()
+                    startup = getattr(rails, "startup", None)
+                    if startup is not None:
+                        await startup()
+                    engine = getattr(rails, "rails_engine", rails)
+                    log.info("Initialized proxy checker using %s.", type(engine).__name__)
                 self._ready = True
         except BaseException:
             await self.close()
