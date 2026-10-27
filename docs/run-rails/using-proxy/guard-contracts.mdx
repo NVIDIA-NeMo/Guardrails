@@ -114,16 +114,15 @@ standard export format.
 
 Compare the request and response fields and stream declarations with the previous
 export. Pay particular attention to new opaque fields: their values bypass text
-inspection. Verify allowed and rejected exchanges against the deployed upstream,
-including streaming completion and failures.
+inspection.
 
-Use the export alongside runtime tests. Stateful stream hooks, custom Python
-validation, transport behavior, and cleanup are implemented in code. Generic
-JSON Schema tools also omit guard-specific semantics; the
+The export describes declared field policies and stream events. Stateful stream
+hooks, custom Python validation, transport behavior, and cleanup remain in code.
+Generic JSON Schema tools also omit guard-specific semantics; the
 [format reference](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/README.md#validation-and-stability)
 records the exact limitations.
 
-When coverage changes, update the Python declarations, test the boundary, and
+When coverage changes, update the Python declarations and
 regenerate the contract from the endpoint. The
 [policy customization walkthrough](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings)
 shows request restrictions, buffered and streaming metadata extensions, and

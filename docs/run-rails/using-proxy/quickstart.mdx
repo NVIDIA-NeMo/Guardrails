@@ -262,8 +262,7 @@ with OpenAI(base_url="http://127.0.0.1:8000/v1", max_retries=0) as client:
 
 Expect HTTP 400 and error code `content_blocked`. The same input rule applies
 to Responses. Output checks are also enabled: matching assistant text is
-withheld, or its pending stream window is blocked. Asking a model to generate
-an address is not a deterministic output-blocking test.
+withheld, or its pending stream window is blocked.
 
 Regex checks illustrate configuration and ordering; they are not comprehensive
 PII protection. Choose supported Rails checks for your application. Stop the

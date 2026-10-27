@@ -105,8 +105,7 @@ Run `uvicorn embedded_app:application`
 from the repository root. This exposes the proxy beneath `/guarded`. Coordinate
 parent authentication,
 route ownership, startup failure, and shutdown with your application's other
-resources. An in-process ASGI transport can test wiring; socket/disconnect
-behavior needs network-level tests too.
+resources.
 
 ### Local application routes
 
@@ -138,9 +137,9 @@ and add inbound authentication middleware separately when exposing the service.
 ## Extend provider coverage
 
 The composition model separates provider field policy from reusable checking
-and HTTP execution. For a complete example,
-[customize request and response policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings),
-verify their rejection boundaries, and export the bound contract. For a new endpoint:
+and HTTP execution. For a complete example, see
+[customize request and response policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings).
+For a new endpoint:
 
 1. Declare the provider payload shapes and guarded, constrained, and opaque
    fields in typed projections.
@@ -150,8 +149,8 @@ verify their rejection boundaries, and export the bound contract. For a new endp
    hooks for ordering, completion, and error framing.
 4. Compose the endpoint with provider error handling and trusted instance
    settings. Supply explicit integrations to the application factory.
-5. Verify accepted/rejected exchanges, original-byte preservation, and the
-   [exported contract](/run-guardrailed-inference/using-proxy/guard-contracts) for representable declarations.
+5. Export the bound endpoint's
+   [guard contract](/run-guardrailed-inference/using-proxy/guard-contracts) to review its field policies and stream declarations.
 
 For direct composition, bypass the built-in `ProxyConfig` selection while using
 the same factory. This can also replace `proxy_app.py`; keep the copied Rails directory and

@@ -91,8 +91,7 @@ for release and cleanup ordering.
 
 Exercise disconnect behavior through the actual ingress using a stream long
 enough to interrupt. Start the request with `curl -N`, interrupt it, and observe
-the upstream connection and proxy cleanup diagnostics. An in-process ASGI test
-cannot establish how sockets, ingress buffering, and disconnect propagation behave.
+the upstream connection and proxy cleanup diagnostics.
 
 These warning messages identify different cleanup owners:
 
@@ -113,5 +112,5 @@ Check resource behavior after repeated disconnects and shutdown, including open
 connections and tasks owned by your transport or checking services. Keep network
 read/idle timeouts separate from cleanup budgets; changing the manifest's
 `timeout` is not a cleanup fix. Follow the [transport ownership reference](/run-guardrailed-inference/using-proxy/advanced/http-transport#constraints-and-ownership)
-and [lifecycle validation requirements](/run-guardrailed-inference/using-proxy/deployment#streaming-and-resource-ownership)
+and [shutdown behavior](/run-guardrailed-inference/using-proxy/deployment#streaming-and-resource-ownership)
 when investigating a resource leak.

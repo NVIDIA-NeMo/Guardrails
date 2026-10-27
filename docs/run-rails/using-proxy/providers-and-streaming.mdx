@@ -23,12 +23,6 @@ native binding. The LiteLLM dialect accepts specific gateway field variations
 without requiring the LiteLLM SDK. Check the dialect's coverage against your
 deployed model route, including whether it uses a native or bridged API.
 
-The examples use OpenAI `gpt-6-luna`. Minimal text requests have also been
-verified with `gpt-6.1-sol` and `gpt-5.4-mini` in both operations, buffered and
-streaming, with input and output regex Rails enabled. This verifies those
-exchanges through the native binding; it does not extend the content coverage
-below to the models' other capabilities.
-
 ## Coverage of the shipped profiles
 
 These restrictions describe the current built-in bindings. Check them when
@@ -76,26 +70,21 @@ Python SDK keyword `reasoning_effort="low"`. For Responses, use
 `reasoning={"effort": "low"}`. Keep the supported single-text request shape and
 explicit `store: false` for Responses.
 
-The following efforts passed live native-binding checks with regex input/output
-Rails, in both buffered and streaming modes:
+Use the field names for the selected operation:
 
-| Model | Chat Completions | Responses |
+| Control | Chat Completions | Responses |
 | --- | --- | --- |
-| `gpt-6-luna` | `none`, `low`, `medium`, `high`, `xhigh` | `none`, `low`, `medium`, `high`, `xhigh`, `max` |
-| `gpt-6.1-sol` | `low`, `medium`, `high`, `xhigh` | `low`, `medium`, `high`, `xhigh`, `max` |
+| Reasoning effort | `reasoning_effort` | `reasoning.effort` |
+| Output token budget | `max_completion_tokens` | `max_output_tokens` |
+| Response verbosity | `verbosity` | `text.verbosity` |
 
-In those checks, OpenAI rejected `max` for Chat Completions on both models and
-`none` for `gpt-6.1-sol` on either operation. The proxy preserved the original
-HTTP 400 responses. Acceptance by a guard contract does not establish that a
-particular model/operation supports the value. Consult the
+The proxy forwards allowed generation controls unchanged. They configure the
+upstream model, not Rails, and do not expand the content the proxy inspects.
+Supported values and combinations, including `temperature` and `top_p`, depend
+on the provider and model. Acceptance by the guard contract does not guarantee
+that the upstream supports a parameter. Consult the provider's
 [model parameter guidance](https://developers.openai.com/api/docs/guides/latest-model)
-and verify the deployed endpoint when changing controls.
-
-For `gpt-6-luna`, the combination `temperature: 0.2`, `top_p: 0.9` passed with
-effort `none` and was rejected by OpenAI with effort `medium`. Explicit low
-verbosity also passed: use `verbosity: "low"` for Chat or
-`text: {"verbosity": "low"}` for Responses. These controls are forwarded
-unchanged; they do not configure Rails or expand inspected content.
+for your selected model.
 
 Responses reasoning `summary`, `generate_summary`, `context` and `mode` remain
 disabled for non-null values in the current binding. Requests for reasoning
@@ -131,14 +120,13 @@ accepts different metadata. Their allowances are operation-specific.
 By default, unknown fields and case aliases of declared fields are rejected.
 To restrict request values or allow reviewed response metadata,
 [customize the binding policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings)
-and test buffered and streaming boundaries. The
+for buffered and streaming responses. The
 [contract reference](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/README.md#object-and-stream-metadata)
 describes lower-level unknown-field overrides and their limits.
 
-Reviewed source revisions describe the field-policy baseline, not the version
-running at your gateway. Verify each deployed model route, its protocol/build
-and native versus bridged operation support. One successful route or archived
-exchange does not establish compatibility with every backend or release.
+Reviewed source revisions describe the field-policy baseline. Select the binding
+for your gateway's protocol and version, including whether the operation uses a
+native or bridged API. Compatibility can vary between model routes.
 
 ## Streaming windows
 

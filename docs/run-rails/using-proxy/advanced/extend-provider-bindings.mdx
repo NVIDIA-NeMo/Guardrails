@@ -111,8 +111,8 @@ class CustomGuardedResponse(CustomResponseProjection):
 ```
 
 This allows the root-level name `gateway_trace_id` without requiring it or
-constraining its value. First verify that your gateway uses it only for diagnostic
-metadata. Assistant text at `choices[0].message.content` remains the checked
+constraining its value. Use this allowance only for diagnostic metadata.
+Assistant text at `choices[0].message.content` remains the checked
 subject, and other unknown root fields remain rejected.
 
 Rebuilding the text location and payload contract binds the full inherited and
@@ -195,15 +195,13 @@ app = create_proxy_application(
 Replace `https://gateway.example/v1` with your gateway's API base, then run
 `uvicorn custom_app:app --host 127.0.0.1 --port 8000` from that directory. Send
 the [quickstart requests](/run-guardrailed-inference/using-proxy/quickstart#send-a-buffered-request)
-using your gateway's model ID and authorization header. Verify both response
-modes against its actual wire format. Ordinary OpenAI does not return the
-example's `gateway_trace_id`, although the field is optional. The proxy needs no
-gateway SDK; any configured detector services retain their own dependencies and
-credentials.
+using your gateway's model ID and authorization header. The endpoint accepts the
+optional `gateway_trace_id` in both response modes; ordinary OpenAI does not
+return that field. The proxy needs no gateway SDK; any configured detector
+services retain their own dependencies and credentials.
 
-Verify allow/block outcomes with real Rails in both modes. When output checks
-are disabled, successful upstream response bodies pass through without these
-response-policy checks.
+When output checks are disabled, successful upstream response bodies pass through
+without these response-policy checks.
 
 ## Export and review your customized guard contract
 
@@ -219,8 +217,8 @@ python -m nemoguardrails.server.experimental.provider.contract_export \
 
 The export includes the restricted request values and opaque metadata allowance
 in both buffered and streaming policies. `--check` fails when the file differs
-from the current export. Regenerate it after changing the Python declaration,
-review the diff, and verify the accepted and rejected payloads through your application.
+from the current export. Regenerate it after changing the Python declaration
+and review the diff.
 
 The Python bindings remain authoritative. The export does not configure the
 proxy, enable additional content handling, or serialize arbitrary Python
