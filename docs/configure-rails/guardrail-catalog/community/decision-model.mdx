@@ -47,11 +47,43 @@ rails:
       - decision model check output
 ```
 
-You can enable either direction independently. The manifest-backed input/output engine and Colang 1.0 discover the rail automatically. For Colang 2.x, import the module and call its flows from your input or output rails:
+You can enable either direction independently. The manifest-backed input/output engine and Colang 1.0 discover the rail automatically.
+
+### Colang 2.x
+
+For Colang 2.x, import the module and call its flows from your own `input rails` and `output rails` flows.
+
+In `config.yml`, set `colang_version: 2.x`, add your main `models` entry, and keep the `rails.config.decision_model` block shown above. Then add a Colang file such as `main.co`:
 
 ```text
+import core
+import llm
+import guardrails
 import nemoguardrails.library.decision_model
+
+flow input rails $input_text
+  decision model check input
+
+flow output rails $output_text
+  decision model check output
+
+flow main
+  activate llm continuation
 ```
+
+Define only the flow for each direction you want to screen. When both are defined, a refusal message produced by the input rail is itself checked by the output rail, which adds one request. The `rails.config.decision_model.<direction>.questions` block must also be set for that direction, or the check is skipped with a warning.
+
+To verify the setup, export the API key and send a message that one of your input questions should flag:
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+
+rails = LLMRails(RailsConfig.from_path("./config"))
+response = rails.generate(messages=[{"role": "user", "content": "<a message your question should flag>"}])
+print(response["content"])
+```
+
+A blocked message returns `I'm sorry, I can't respond to that.`
 
 The rail treats the configured model as an external decision model. Configure your application's main model separately. The endpoint and model have no vendor-specific defaults.
 
