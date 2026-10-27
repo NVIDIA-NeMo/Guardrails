@@ -24,7 +24,7 @@ use std::time::Duration;
 use reqwest::header::{CONTENT_TYPE, RETRY_AFTER};
 use reqwest::redirect::Policy;
 use reqwest::{StatusCode, Url};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_json::{Value as Json, json};
 
 use crate::config::NeMoGuardrailsClientConfig;
@@ -38,16 +38,24 @@ pub const HOOK_EVENT_NAME: &str = "NemoRelayToolConditionalExecutionGuardrail";
 /// Longest server message that a failure repeats.
 const MAX_SERVER_MESSAGE_CHARS: usize = 512;
 
-/// The hooks server's decision on a tool call.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The hooks server's decision on a tool call, as a 200 answer carries it.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(tag = "decision", rename_all = "lowercase")]
 pub enum Verdict {
     /// The call may run.
     Allow,
     /// The call must not run.
     Deny {
         /// The server's reason, unless it gave none or an empty one.
+        #[serde(default, deserialize_with = "non_empty")]
         reason: Option<String>,
     },
+}
+
+/// Reads an optional string, taking an empty one as none.
+fn non_empty<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
+    let text = Option::<String>::deserialize(deserializer)?;
+    Ok(text.filter(|text| !text.is_empty()))
 }
 
 /// A check that ended without a decision. Each `detail` says what went wrong, and never contains
@@ -175,29 +183,12 @@ impl HooksClient {
     }
 }
 
-/// A decision as the endpoint answers it with a 200.
-#[derive(Deserialize)]
-#[serde(tag = "decision", rename_all = "lowercase")]
-enum Decision {
-    Allow,
-    Deny {
-        #[serde(default)]
-        reason: Option<String>,
-    },
-}
-
 /// The verdict a 200 answer carries, or a failure when it carries none.
 fn decision(payload: &[u8]) -> Result<Verdict, CheckFailure> {
-    let decision = serde_json::from_slice(payload).map_err(|error| CheckFailure::Answered {
+    serde_json::from_slice(payload).map_err(|error| CheckFailure::Answered {
         status: StatusCode::OK,
         code: None,
         detail: format!("unexpected response: {error}"),
-    })?;
-    Ok(match decision {
-        Decision::Allow => Verdict::Allow,
-        Decision::Deny { reason } => Verdict::Deny {
-            reason: reason.filter(|reason| !reason.is_empty()),
-        },
     })
 }
 
