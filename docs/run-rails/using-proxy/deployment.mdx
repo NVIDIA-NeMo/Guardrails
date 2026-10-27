@@ -93,7 +93,7 @@ uninspected even when the operation is selected.
 ## Health and readiness
 
 Your application or deployment owns liveness, readiness and access controls.
-The experimental launcher does not install `/health`, `/ready` or a metrics
+The launcher does not install `/health`, `/ready` or a metrics
 endpoint. Register [local routers](/run-guardrailed-inference/using-proxy/python-integration#local-application-routes)
 before provider catch-alls, or expose probes on the embedding parent.
 

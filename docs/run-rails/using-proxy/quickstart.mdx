@@ -7,7 +7,7 @@ content:
 ---
 
 Put input and output checks in front of OpenAI Chat Completions and Responses.
-This guide uses the NVIDIA NeMo Guardrails library's experimental proxy, native
+This guide uses the NVIDIA NeMo Guardrails library's proxy, native
 OpenAI bindings and bundled regex Rails configuration. The regex checks run
 without a detector model or service; accepted generation requests go to OpenAI.
 
@@ -38,7 +38,7 @@ cd proxy-example
 ```
 
 A separate proxy distribution is not required. An older library release may
-not include this experimental module. The `server` extra includes the OpenAI
+not include this module. The `server` extra includes the OpenAI
 Python SDK used in the Python request examples.
 
 ## Connect to OpenAI

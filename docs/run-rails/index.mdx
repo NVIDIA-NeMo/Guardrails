@@ -35,7 +35,7 @@ Choose an interface based on the following tasks:
 |---|---|
 | Call guardrails from Python code in your application | The Python API |
 | Send chat requests or checks over HTTP, from any language | The Guardrails API server (`nemoguardrails server`) |
-| Check supported existing provider HTTP exchanges while preserving accepted JSON/SSE bytes | The experimental proxy (`python -m nemoguardrails.server.experimental`) |
+| Check supported existing provider HTTP exchanges while preserving accepted JSON/SSE bytes | The Guardrails proxy (`python -m nemoguardrails.server.experimental`) |
 | Check a coding agent's tool calls before they run, from the agent's own hooks | The Guardrails hooks server (`nemoguardrails hooks-server`) |
 
 ### Python API for Edge and Embedded Applications
@@ -75,9 +75,9 @@ This approach is best for:
 - Networked systems where multiple clients need access to guardrails.
 - Non-Python clients such as JavaScript, Go, and Java that communicate through HTTP.
 
-### Experimental Proxy for Existing Provider Exchanges
+### Guardrails Proxy for Existing Provider Exchanges
 
-Use the [experimental proxy](/run-guardrailed-inference/using-proxy) when your
+Use the [Guardrails proxy](/run-guardrailed-inference/using-proxy) when your
 application already calls a model service over HTTP and needs input/output
 checks around supported Chat Completions or Responses traffic. It forwards
 generation to the configured upstream and uses separate Rails configurations
@@ -124,7 +124,7 @@ Expose guardrails through an HTTP API using the Guardrails API server.
 <Badge intent="tip" minimal outlined>Get Started</Badge>
 </Card>
 
-<Card title="Experimental Proxy" href="/run-guardrailed-inference/using-proxy">
+<Card title="Guardrails Proxy" href="/run-guardrailed-inference/using-proxy">
 
 Apply input/output checks around supported provider JSON and SSE exchanges.
 
