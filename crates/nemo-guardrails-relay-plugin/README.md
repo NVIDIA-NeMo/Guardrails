@@ -25,10 +25,9 @@ So the plugin also logs each failed check as a warning, under the log target `ne
 Its message is the error text, and its fields are `event` (`nemo_guardrails_check_failed`), `tool_name`, `status` and `error_code`.
 The plugin puts no header value and none of the tool's arguments into the error text or the warning.
 
-The plugin keeps each decision for 10 seconds, keyed by the tool name and arguments, and answers an identical call in that time without a request.
-Through Relay 0.10.4, a call that reaches a permission prompt runs the guardrail twice, on PreToolUse and right after on PermissionRequest, so the second run costs no request.
-An identical call that the agent makes later reaches the service again.
-The plugin keeps up to 1024 decisions, and never a failed check, so the next identical call after a failure asks the service again.
+The plugin checks every call; it keeps no earlier decisions.
+Through Relay 0.10.4, a call that reaches a permission prompt runs the guardrail twice, on PreToolUse and right after on PermissionRequest, so it costs two requests to the service, and two runs of any LLM judge.
+Relay 0.11 runs the guardrail once.
 
 ## Compatibility
 

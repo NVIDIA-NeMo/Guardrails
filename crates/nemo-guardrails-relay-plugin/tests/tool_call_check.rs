@@ -117,10 +117,10 @@ async fn failed_check_blocks_the_call_with_an_internal_error() {
     assert_eq!(runs.load(Ordering::SeqCst), 0);
 }
 
-/// Checking the same call again, as PreToolUse and then PermissionRequest do, reuses the first
-/// decision, while a call with other arguments is checked anew.
+/// Every call is checked, including an identical one right after, as PreToolUse and then
+/// PermissionRequest make through Relay 0.10.4.
 #[tokio::test]
-async fn repeated_call_reuses_the_decision() {
+async fn every_call_is_checked() {
     let _host = HOST.lock().await;
 
     for response in [
@@ -136,42 +136,9 @@ async fn repeated_call_reuses_the_decision() {
         let second = tool_conditional_execution("search", &arguments).await;
 
         assert_eq!(format!("{first:?}"), format!("{second:?}"), "{response}");
-        assert_eq!(received(&server).await, 1, "{response}");
-
-        let other = json!({"query": "news", "limit": 3});
-        let _ = tool_conditional_execution("search", &other).await;
         assert_eq!(received(&server).await, 2, "{response}");
         drop(plugin);
     }
-}
-
-/// A failed check isn't reused: the next identical call asks the server again.
-#[tokio::test]
-async fn failed_check_is_retried_on_the_next_call() {
-    let _host = HOST.lock().await;
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/v1/hooks/nemo-relay"))
-        .respond_with(queue_full())
-        .up_to_n_times(1)
-        .with_priority(1)
-        .mount(&server)
-        .await;
-    Mock::given(method("POST"))
-        .and(path("/v1/hooks/nemo-relay"))
-        .respond_with(decision(json!({"decision": "allow"})))
-        .mount(&server)
-        .await;
-    let bundle = Bundle::new();
-    let _plugin = activate(&bundle, json!({"endpoint": server.uri()})).await;
-    let arguments = json!({"query": "weather"});
-
-    let first = tool_conditional_execution("search", &arguments).await;
-    let second = tool_conditional_execution("search", &arguments).await;
-
-    assert!(matches!(first, Err(FlowError::Internal(_))), "{first:?}");
-    assert!(second.is_ok(), "{second:?}");
-    assert_eq!(received(&server).await, 2);
 }
 
 /// A failed check logs one warning with its event, status and error code, with or without an
@@ -276,20 +243,6 @@ fn rail_failed() -> ResponseTemplate {
             "code": "rail_failed"
         }
     }))
-}
-
-/// The hooks server's answer when its admission queue is full.
-fn queue_full() -> ResponseTemplate {
-    ResponseTemplate::new(503)
-        .insert_header("retry-after", "30")
-        .set_body_json(json!({
-            "error": {
-                "message": "The hooks server is at capacity",
-                "type": "server_error",
-                "param": null,
-                "code": "queue_full"
-            }
-        }))
 }
 
 /// How many checks the server received.

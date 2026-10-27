@@ -26,19 +26,16 @@
 //! which posts each tool call to the service: a deny rejects the call, and a check that fails
 //! returns an error, on which Relay also blocks the call.
 
-pub mod cache;
 pub mod client;
 pub mod config;
 
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use std::time::Instant;
+use std::sync::Arc;
 
 use nemo_relay_plugin::{
     ConfigDiagnostic, DiagnosticLevel, Json, NativePlugin, PluginContext, PluginRuntime,
 };
 use serde_json::{Map, json};
 
-use crate::cache::{CallKey, MAX_VERDICTS, VERDICT_TTL, VerdictCache};
 use crate::client::{CheckFailure, HooksClient, Verdict};
 use crate::config::{ConfigError, NeMoGuardrailsClientConfig};
 
@@ -87,7 +84,6 @@ impl NativePlugin for NeMoGuardrailsClientPlugin {
             .map_err(|error| invalid_config_message(&error))?;
         let check = Arc::new(ToolCallCheck {
             client: HooksClient::new(&config)?,
-            verdicts: Mutex::new(VerdictCache::new(VERDICT_TTL, MAX_VERDICTS)),
             runtime: ctx.runtime(),
         });
         ctx.register_tool_conditional_execution_guardrail(
@@ -104,7 +100,6 @@ impl NativePlugin for NeMoGuardrailsClientPlugin {
 /// The check that the plugin's guardrail runs on each tool call.
 struct ToolCallCheck {
     client: HooksClient,
-    verdicts: Mutex<VerdictCache>,
     runtime: PluginRuntime,
 }
 
@@ -115,23 +110,12 @@ impl ToolCallCheck {
         tool_name: &str,
         tool_input: &Json,
     ) -> nemo_relay_plugin::Result<Option<String>> {
-        let key = CallKey::new(tool_name, tool_input);
-        let cached = self.verdicts().get(&key, Instant::now());
-        if let Some(verdict) = cached {
-            return Ok(rejection(tool_name, &verdict));
-        }
         let verdict = self
             .client
             .check_tool_call(tool_name, tool_input)
             .await
             .map_err(|failure| self.report_failure(tool_name, &failure))?;
-        self.verdicts().insert(key, verdict.clone(), Instant::now());
         Ok(rejection(tool_name, &verdict))
-    }
-
-    /// The verdict cache. A panic while it was locked leaves it consistent, so it stays usable.
-    fn verdicts(&self) -> MutexGuard<'_, VerdictCache> {
-        self.verdicts.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Logs a warning for the failed check and returns the guardrail's error for it.
