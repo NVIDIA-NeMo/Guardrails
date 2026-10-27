@@ -24,6 +24,7 @@ from nemoguardrails import RailsConfig
 @pytest.mark.parametrize("options", ["{}", "{questions: {}}"])
 @pytest.mark.parametrize("fail_open", [False, True])
 def test_empty_questions_warn_when_loading_yaml(direction, options, fail_open):
+    other_direction = "output" if direction == "input" else "input"
     with pytest.warns(UserWarning, match=f"Decision model {direction} screening is disabled") as recorded:
         config = RailsConfig.from_content(
             yaml_content=f"""
@@ -35,6 +36,10 @@ rails:
       model: test-decision-model
       fail_open: {str(fail_open).lower()}
       {direction}: {options}
+      {other_direction}:
+        questions:
+          custom:
+            instructions: Is the text harmful?
 """
         )
 
@@ -43,7 +48,6 @@ rails:
     assert len(messages) == 1
     assert f"rails.config.decision_model.{direction}.questions" in messages[0]
     assert "even when fail_open is false" in messages[0]
-    other_direction = "output" if direction == "input" else "input"
     assert getattr(config.rails.config.decision_model, other_direction).questions
 
 
@@ -68,10 +72,21 @@ rails:
     assert any("Decision model output screening is disabled" in message for message in messages)
 
 
+def test_omitted_questions_warn_for_both_directions():
+    with pytest.warns(UserWarning) as recorded:
+        config = RailsConfig.from_content(
+            yaml_content="models: []\nrails:\n  config:\n    decision_model:\n      server_endpoint: https://decision-model.example/v1/assess\n      model: test-decision-model"
+        )
+
+    assert config.rails.config.decision_model.input.questions == {}
+    assert config.rails.config.decision_model.output.questions == {}
+    messages = [str(item.message) for item in recorded if item.category is UserWarning]
+    assert len(messages) == 2
+
+
 @pytest.mark.parametrize(
     "yaml_content",
     [
-        "models: []\nrails:\n  config:\n    decision_model:\n      server_endpoint: https://decision-model.example/v1/assess\n      model: test-decision-model",
         """
 models: []
 rails:
