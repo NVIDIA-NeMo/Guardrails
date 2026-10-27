@@ -50,20 +50,50 @@ pub enum Verdict {
     },
 }
 
-/// A check that ended without a decision.
+/// A check that ended without a decision. Each `detail` says what went wrong, and never contains
+/// a header value or the tool's arguments.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckFailure {
+pub enum CheckFailure {
+    /// No complete answer arrived: the request timed out or couldn't be sent.
+    Unanswered { detail: String },
+    /// The server answered, but not with a decision.
+    Answered {
+        /// The answer's status.
+        status: StatusCode,
+        /// The `error.code` of the answer, when it gave one.
+        code: Option<String>,
+        detail: String,
+    },
+}
+
+impl CheckFailure {
     /// The status the server answered with, when it answered.
-    pub status: Option<StatusCode>,
+    pub fn status(&self) -> Option<StatusCode> {
+        match self {
+            Self::Unanswered { .. } => None,
+            Self::Answered { status, .. } => Some(*status),
+        }
+    }
+
     /// The `error.code` of the server's answer, when it gave one.
-    pub code: Option<String>,
-    /// What went wrong. It never contains a header value or the tool's arguments.
-    pub detail: String,
+    pub fn code(&self) -> Option<&str> {
+        match self {
+            Self::Unanswered { .. } => None,
+            Self::Answered { code, .. } => code.as_deref(),
+        }
+    }
+
+    /// What went wrong.
+    pub fn detail(&self) -> &str {
+        match self {
+            Self::Unanswered { detail } | Self::Answered { detail, .. } => detail,
+        }
+    }
 }
 
 impl fmt::Display for CheckFailure {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.detail)
+        formatter.write_str(self.detail())
     }
 }
 
@@ -141,11 +171,7 @@ impl HooksClient {
         } else {
             error_chain(error)
         };
-        CheckFailure {
-            status: None,
-            code: None,
-            detail,
-        }
+        CheckFailure::Unanswered { detail }
     }
 }
 
@@ -162,8 +188,8 @@ enum Decision {
 
 /// The verdict a 200 answer carries, or a failure when it carries none.
 fn decision(payload: &[u8]) -> Result<Verdict, CheckFailure> {
-    let decision = serde_json::from_slice(payload).map_err(|error| CheckFailure {
-        status: Some(StatusCode::OK),
+    let decision = serde_json::from_slice(payload).map_err(|error| CheckFailure::Answered {
+        status: StatusCode::OK,
         code: None,
         detail: format!("unexpected response: {error}"),
     })?;
@@ -188,8 +214,8 @@ fn status_failure(status: StatusCode, retry_after: Option<&str>, payload: &[u8])
     if let Some(hint) = hint(status, error.code.as_deref(), retry_after) {
         detail.push_str(&format!(" ({hint})"));
     }
-    CheckFailure {
-        status: Some(status),
+    CheckFailure::Answered {
+        status,
         code: error.code,
         detail,
     }

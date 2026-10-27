@@ -347,8 +347,8 @@ async fn hooks_server_errors_fail_with_status_code_message_and_hint() {
 
         assert_eq!(
             failure,
-            CheckFailure {
-                status: Some(StatusCode::from_u16(status).expect("valid status")),
+            CheckFailure::Answered {
+                status: StatusCode::from_u16(status).expect("valid status"),
                 code: code.map(Into::into),
                 detail: detail.into(),
             }
@@ -367,7 +367,7 @@ async fn long_server_message_is_cut() {
         .expect_err("an error status fails the check");
 
     assert_eq!(
-        failure.detail,
+        failure.detail(),
         format!(
             "server returned HTTP 500 Internal Server Error: {} (the hooks server couldn't finish \
              the check; see its log)",
@@ -396,12 +396,12 @@ async fn unexpected_200_answer_fails_the_check() {
             .await
             .expect_err("an unexpected answer fails the check");
 
-        assert_eq!(failure.status, Some(StatusCode::OK), "{body}");
-        assert_eq!(failure.code, None, "{body}");
+        assert_eq!(failure.status(), Some(StatusCode::OK), "{body}");
+        assert_eq!(failure.code(), None, "{body}");
         assert!(
-            failure.detail.starts_with("unexpected response: ") && failure.detail.contains(error),
-            "{body}: {}",
-            failure.detail
+            failure.detail().starts_with("unexpected response: ")
+                && failure.detail().contains(error),
+            "{body}: {failure}"
         );
     }
 }
@@ -413,7 +413,7 @@ async fn other_success_status_fails_the_check() {
         .await
         .expect_err("a 204 fails the check");
 
-    assert_eq!(failure.detail, "server returned HTTP 204 No Content");
+    assert_eq!(failure.detail(), "server returned HTTP 204 No Content");
 }
 
 /// A redirect fails the check instead of being followed, so the configured headers never reach
@@ -440,7 +440,7 @@ async fn redirect_fails_the_check_without_being_followed() {
         .expect_err("a redirect fails the check");
 
     assert_eq!(
-        failure.detail,
+        failure.detail(),
         "server returned HTTP 307 Temporary Redirect"
     );
 }
@@ -457,9 +457,7 @@ async fn unanswered_check_times_out_at_the_configured_limit() {
 
     assert_eq!(
         failure,
-        CheckFailure {
-            status: None,
-            code: None,
+        CheckFailure::Unanswered {
             detail: "request timed out after 100 ms".into(),
         }
     );
@@ -476,14 +474,10 @@ async fn unreachable_server_fails_with_the_transport_error() {
         .await
         .expect_err("an unreachable server fails the check");
 
-    assert_eq!(failure.status, None);
-    assert_eq!(failure.code, None);
     assert!(
-        failure.detail.starts_with(&format!(
-            "error sending request for url ({endpoint}{HOOK_PATH}): "
-        )),
-        "{}",
-        failure.detail
+        matches!(&failure, CheckFailure::Unanswered { detail }
+            if detail.starts_with(&format!("error sending request for url ({endpoint}{HOOK_PATH}): "))),
+        "{failure:?}"
     );
 }
 

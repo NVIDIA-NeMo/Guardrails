@@ -127,8 +127,8 @@ impl ToolCallCheck {
         let fields = json!({
             "event": CHECK_FAILED_EVENT,
             "tool_name": tool_name,
-            "status": failure.status.map(|status| status.as_u16()),
-            "error_code": failure.code,
+            "status": failure.status().map(|status| status.as_u16()),
+            "error_code": failure.code(),
         });
         // The call is blocked either way, so a warning the host can't take changes nothing.
         let _ = self.runtime.warn(PLUGIN_KIND, &message, Some(&fields));
