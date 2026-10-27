@@ -1,6 +1,6 @@
 ---
 title: "HTTP Transport Customization"
-description: "Inject outbound HTTP behavior, route model aliases, tune shared pools and preserve streaming ownership."
+description: "Inject outbound HTTP behavior, route model aliases, tune shared pools, and preserve streaming ownership."
 content:
   type: "how_to"
 ---
@@ -15,7 +15,7 @@ define the accepted payloads, and Rails still supplies the checks. This hook
 applies to the proxy's outgoing provider requests; Rails models and checking
 services use their own clients.
 
-## Inject a transport
+## Inject a Transport
 
 Pass an `http_transport_factory` to the application factory. This is a function
 that creates the transport when the application starts. The proxy shares it
@@ -46,7 +46,7 @@ app = create_proxy_application(
 ```
 
 Choose limits for your workload and upstream capacity. These limits apply to
-the whole application; see [connection-pool capacity](#connection-pool-capacity)
+the whole application; refer to [connection-pool capacity](#connection-pool-capacity)
 for how concurrent streams share connections. The factory must create a new
 transport for each application lifespan.
 
@@ -55,7 +55,7 @@ its returned content follows output inspection when enabled. It receives a
 complete outbound HTTP request, not the Rails resolver's context object.
 If it handles several logical hosts or protocols, dispatch them explicitly.
 
-## Route model aliases
+## Route Model Aliases
 
 Use a model alias when clients should send a name such as `public-model` while
 your application chooses the provider model and destination. A routing transport
@@ -108,7 +108,7 @@ JSON reads to 1 MiB by default (`max_json_body_bytes`). Oversized JSON receives
 HTTP 413 before network dispatch. The transport hook does not itself implement
 model balancing, retries, or another provider's dialect.
 
-The example removes caller `Authorization`, `api-key`, `x-api-key` and `Cookie`
+The example removes caller `Authorization`, `api-key`, `x-api-key`, and `Cookie`
 headers and supplies the destination's bearer credential. Review any additional
 credential headers used by your environment. Model translation changes request
 serialization and removes stale body signatures; this is an explicit exception
@@ -127,9 +127,9 @@ take destination URLs or Rails paths from an untrusted request.
 
 The runtime owns closing the returned transport. Your transport owns any network
 transport it creates and must implement cooperative, repeatable cleanup and the
-required streaming behavior. See [constraints and ownership](#constraints-and-ownership).
+required streaming behavior. Refer to [constraints and ownership](#constraints-and-ownership).
 
-## Connection-pool capacity
+## Connection-Pool Capacity
 
 The default pool is shared across provider instances within one application
 lifespan. Each server worker has its own runtime and pool. Without an explicit
@@ -151,7 +151,7 @@ provide fairness or isolate providers from each other's traffic.
 Custom transports own their pool configuration. The factory creates a fresh
 transport for each application lifespan; the runtime owns and closes it.
 
-## Forwarding and caller isolation
+## Forwarding and Caller Isolation
 
 `ProviderTransport` builds outbound requests before the HTTPX transport sees
 them. It removes hop-by-hop headers and the integration's declared control
@@ -188,7 +188,7 @@ Only guarded operations with output inspection request identity encoding;
 pass-through traffic and uninspected guarded output preserve the caller's
 `Accept-Encoding` value.
 
-## Manage lifecycle and failures
+## Manage Lifecycle and Failures
 
 The factory is invoked once per application lifespan and must return a new
 `httpx.AsyncBaseTransport`. The runtime owns closing it through the shared HTTP
@@ -198,13 +198,15 @@ creation, the application attempts to close the transport while propagating
 the original error. Rails startup failure also triggers HTTP cleanup.
 
 HTTP cleanup has a shielded five-second cooperative budget, separately from
-response cleanup, read timeouts and the launcher's request-drain deadline.
+response cleanup, read timeouts, and the launcher's request-drain deadline.
 Failures are logged without masking the primary error. Blocking or
 cancellation-suppressing custom code cannot be forcibly stopped by this budget.
 Expected network failures before response handoff use provider error mapping;
 cancellation and programming errors are not rewritten as network failures.
 
-## Constraints and ownership
+## Constraints and Ownership
+
+Follow these constraints when implementing a custom transport:
 
 - The transport is application-wide and sees requests for every configured provider.
 - A multi-provider transport must dispatch using logical hosts, paths, or other server-controlled metadata.
@@ -214,6 +216,6 @@ cancellation and programming errors are not rewritten as network failures.
 - Dispatch owns each response until handoff; the returned response then owns cleanup, including failure before iteration. Cooperative cleanup attempts are shielded and bounded, and failures are logged without replacing the primary outcome. Closing must tolerate retries; a timeout does not establish that resources were freed.
 - Response cleanup budgets are separate from transport read timeouts and application shutdown.
 - `httpx.ASGITransport` buffers ASGI responses and is not the production choice for guarded streaming.
-- Dynamic destinations must come from trusted configuration; arbitrary client-provided URLs would introduce SSRF risk.
+- Dynamic destinations must come from trusted configuration. Arbitrary client-provided URLs can enable server-side request forgery (SSRF).
 - Cross-origin routing must apply the credential belonging to the selected origin.
 - Keep Rails checks and provider field validation in the proxy pipeline; the transport implements egress policy.

@@ -33,7 +33,7 @@ support. Declaring their contents opaque would let them pass unchecked. This
 walkthrough keeps those restrictions in place.
 </Warning>
 
-## Restrict an existing request field
+## Restrict an Existing Request Field
 
 Use the installed library environment from the
 [quickstart](/run-guardrailed-inference/using-proxy/quickstart). Create
@@ -89,10 +89,10 @@ The override accepts omission, null, or one of the three declared values. Other
 values are rejected before upstream dispatch. The inherited `stream` selector
 still chooses buffered or streaming output; the same request restriction applies
 to both. All other request restrictions, including the single user-text message
-and disabled tools, remain in effect. Your upstream/model must also support the
-values you allow; a binding does not add provider support.
+and disabled tools, remain in effect. Your upstream provider and model must also
+support the values you allow. A binding does not add provider support.
 
-## Allow custom buffered response metadata
+## Allow Custom Buffered Response Metadata
 
 Append this code to `custom_binding.py`:
 
@@ -121,7 +121,7 @@ subject, and other unknown root fields remain rejected.
 Rebuilding the text location and payload contract binds the full inherited and
 customized model declarations. An exported YAML file alone cannot change them.
 
-## Allow the metadata on streamed chunks
+## Allow the Metadata on Streamed Chunks
 
 Streaming has its own payload model and classifier. Append the following to
 `custom_binding.py` to allow the same root-level metadata on Chat chunks:
@@ -171,7 +171,7 @@ and `[DONE]` retain their existing roles. The unchanged OpenAI lifecycle hooks
 still enforce completion and ordering. Reuse them only when your gateway follows
 those protocol semantics; other event formats need corresponding rules and hooks.
 
-## Select the customized endpoint
+## Select the Customized Endpoint
 
 After copying `proxy-example` as described in the quickstart, create
 `custom_app.py` beside `custom_binding.py`:
@@ -211,7 +211,7 @@ services retain their own dependencies and credentials.
 When output checks are disabled, successful upstream response bodies pass through
 without these response-policy checks.
 
-## Export and review your customized guard contract
+## Export and Review Your Customized Guard Contract
 
 Export from the endpoint selected by your application, using only a trusted
 local Python reference:
@@ -230,7 +230,7 @@ and review the diff.
 
 The Python bindings remain authoritative. The export does not configure the
 proxy, enable additional content handling, or serialize arbitrary Python
-validators, stateful stream hooks, or transport behavior. See
+validators, stateful stream hooks, or transport behavior. Refer to
 [guard contracts](/run-guardrailed-inference/using-proxy/guard-contracts) for the
 format's limits and the
 [Chat reference](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/chat_completions/README.md)

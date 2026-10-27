@@ -57,7 +57,7 @@ The [contract guide](../../../contracts/README.md) defines the document format;
 the [OpenAI source reference](../../../contracts/openai/README.md) records
 provider provenance. Neither is loaded by the models or bindings.
 
-## Guarded boundary
+## Guarded Boundary
 
 | Area | Single-text boundary |
 | --- | --- |
@@ -69,7 +69,7 @@ provider provenance. Neither is loaded by the models or bindings.
 | Opaque data | Reviewed provider-owned metadata and controls, not additional guarded subjects. |
 | Closed objects | The request, its user message, the buffered response, and its choice and assistant message reject members outside OpenAI's fields. The user message, choice, and assistant message are configurable: only trusted configuration may allow unknown members there. Fields specific to compatible servers belong to their own reviewed extensions. |
 
-This request boundary does not accept conversation histories, system/developer
+This request boundary does not accept conversation histories, system or developer
 messages alongside the user message, or multimodal content blocks. Disabled
 fields are null-only: a non-null value does not become acceptable merely because
 it requests plain text or no tools. A few unsupported features are constrained

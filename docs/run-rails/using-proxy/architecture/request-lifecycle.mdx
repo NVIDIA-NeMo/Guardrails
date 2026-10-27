@@ -11,7 +11,7 @@ and inspection coverage. This page follows guarded operations through execution.
 The buffered example enables input and output checks; the streaming examples
 enable output inspection with buffering before release.
 
-## Buffered requests
+## Buffered Requests
 
 The sequence is scoped to one buffered provider operation. The binding validates
 provider shapes and locates selected text. The runtime selects a preloaded
@@ -66,12 +66,12 @@ outcomes rather than rewriting provider content.
 Input checks run only when configured; guarded request validation still applies
 when input checks are disabled. With output inspection disabled, the response
 bypasses output projections. HTTP limits and forwarding rules still apply to
-the selected path; see [configuration](/run-guardrailed-inference/using-proxy/configuration#set-limits).
+the selected path; refer to [configuration](/run-guardrailed-inference/using-proxy/configuration#set-limits).
 
-For an executable example of byte preservation and input/output checking, see
+For an executable example of byte preservation and input and output checking, see
 the [Chat integration tests](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/tests/server/experimental/test_openai_chat_integration.py).
 
-## Caller-visible outcomes
+## Caller-Visible Outcomes
 
 For the shipped OpenAI bindings, the following outcomes describe the proxy's
 error mapping. HTTP statuses below apply before downstream response headers
@@ -89,7 +89,7 @@ is not part of the current adapter.
 
 </Warning>
 
-| Outcome | Caller sees | Inference and content release |
+| Outcome | Caller Sees | Inference and Content Release |
 | --- | --- | --- |
 | Input check blocks | HTTP 400, `content_blocked` | No inference call. |
 | Buffered output check blocks | HTTP 400, `content_blocked` | Inference ran; its answer is withheld. |
@@ -105,7 +105,7 @@ assert blocked and replacement outcomes. Provider-shaped errors describe a wire
 format; applications must still handle these proxy-specific codes. In particular,
 an HTTP success status alone does not establish that a stream completed.
 
-## Streaming inspection
+## Streaming Inspection
 
 Streaming uses the same prepared input and input check. With output inspection
 enabled, the proxy parses server-sent event (SSE) boundaries, classifies provider
@@ -116,7 +116,7 @@ Request-local hooks enforce provider ordering, completion, and error framing.
 The example uses `chunk_size: 2` and `context_size: 1`. Each numbered delta is a
 nonempty provider text delta. Sizes count deltas, not tokens, bytes, or all SSE
 events. Rectangles represent pending data or processing steps; the diamond
-is a check decision. Solid arrows show processing/release; the dotted arrow carries retained
+is a check decision. Solid arrows show processing and release; the dotted arrow carries retained
 text context into the next check.
 
 ```mermaid
@@ -154,11 +154,11 @@ Output inspection requires streaming checks to be enabled and
 `stream_first: false`. Provider hooks enforce declared terminal behavior: Chat
 uses its reviewed completion handling and `[DONE]`; Responses requires a native
 terminal event. A truncated event fails without releasing its unfinished bytes.
-See [providers and streaming](/run-guardrailed-inference/using-proxy/providers-and-streaming) for binding-specific
+Refer to [providers and streaming](/run-guardrailed-inference/using-proxy/providers-and-streaming) for binding-specific
 coverage and settings, and the [streaming tests](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/tests/server/experimental/test_guarded_stream.py)
 for release ordering and withheld content.
 
-## Streaming errors and cleanup
+## Streaming Errors and Cleanup
 
 This state view is scoped to an output-inspected stream. Arrows are lifecycle
 transitions, not data dependencies. Rounded boxes are states, and the filled
@@ -179,8 +179,8 @@ stateDiagram-v2
     Preparing --> HttpError: Request, checker, or upstream rejection
     Preparing --> Streaming: Headers accepted, send downstream headers
     Streaming --> Streaming: Allow and release window
-    Streaming --> StreamError: Block or processing/upstream failure
-    Streaming --> Cleanup: Complete or disconnect/cancel
+    Streaming --> StreamError: Block, processing failure, or upstream failure
+    Streaming --> Cleanup: Completion, disconnect, or cancellation
     HttpError --> PreCleanup: Close any acquired owner
     PreCleanup --> Finished: Attempts finish or time out
     StreamError --> Cleanup: Stop release
@@ -193,7 +193,7 @@ acquired upstream owner. Accepting upstream response headers does not validate
 SSE events: event parsing and protocol checks run during body iteration, after
 downstream headers are sent. A malformed first event therefore produces a
 streaming error after header commitment. Processing failures in the state view
-include check failures, protocol drift, and event/pending-byte limit violations.
+include check failures, protocol drift, and event-size or pending-byte limit violations.
 Normal completion requires valid terminal behavior and approval of any final
 partial window.
 
@@ -217,4 +217,4 @@ Follow [streaming HTTP ownership](https://github.com/NVIDIA-NeMo/Guardrails/blob
 the [streaming kernel](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/_guarded_stream.py), and their
 [HTTP tests](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/tests/server/experimental/test_streaming_http.py) and
 [kernel tests](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/tests/server/experimental/test_guarded_stream.py). For application-wide
-owners, see [framework state ownership](/run-guardrailed-inference/using-proxy/architecture/framework-internals#state-and-resource-ownership).
+owners, refer to [framework state ownership](/run-guardrailed-inference/using-proxy/architecture/framework-internals#state-and-resource-ownership).

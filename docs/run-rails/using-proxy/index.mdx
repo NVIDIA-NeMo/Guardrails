@@ -7,9 +7,9 @@ content:
 ---
 
 Run the NVIDIA NeMo Guardrails library at the boundary between your clients and
-model services. Provider bindings select the content to inspect; Rails supplies
-the checks. Accepted provider JSON and SSE bytes are forwarded without rebuilding
-them from the validation models.
+model services. Provider bindings select the content to inspect, and Rails supplies
+the checks. The proxy forwards accepted provider JSON and server-sent event (SSE)
+bytes without rebuilding them from the validation models.
 
 <Note>
 
@@ -21,23 +21,23 @@ applications with different commands and configuration contracts.
 
 </Note>
 
-## Start here
+## Start Here
 
-[Run the proxy](/run-guardrailed-inference/using-proxy/quickstart), send a request, and see input blocked before
+[Run the proxy](/run-guardrailed-inference/using-proxy/quickstart), send a request, and verify that input is blocked before
 inference using the bundled example. Then choose your next task:
 
 <Cards>
 
 <Card title="Quickstart" href="/run-guardrailed-inference/using-proxy/quickstart">
-Start with OpenAI, then call the proxy from Shell or Python.
+Start with OpenAI, then call the proxy from a shell or Python.
 </Card>
 
 <Card title="Guard Contracts" href="/run-guardrailed-inference/using-proxy/guard-contracts">
-Review which content is guarded, constrained or opaque.
+Review which content is guarded, constrained, or opaque.
 </Card>
 
 <Card title="Configuration" href="/run-guardrailed-inference/using-proxy/configuration">
-Select upstreams, operation bindings and Rails configurations.
+Select upstreams, operation bindings, and Rails configurations.
 </Card>
 
 <Card title="Python Integration" href="/run-guardrailed-inference/using-proxy/python-integration">
@@ -45,11 +45,11 @@ Construct an application or embed it in an ASGI host.
 </Card>
 
 <Card title="Deployment" href="/run-guardrailed-inference/using-proxy/deployment">
-Plan replicas, access controls, readiness and shutdown.
+Plan replicas, access controls, readiness, and shutdown.
 </Card>
 
 <Card title="Troubleshooting" href="/run-guardrailed-inference/using-proxy/troubleshooting">
-Diagnose startup, request, streaming and cleanup failures.
+Diagnose startup, request, streaming, and cleanup failures.
 </Card>
 
 </Cards>
@@ -61,18 +61,20 @@ for accepted shapes and window settings, or read the
 The architecture section also covers the [request lifecycle](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle)
 and [framework internals](/run-guardrailed-inference/using-proxy/architecture/framework-internals).
 
-## Advanced configuration
+## Advanced Configuration
 
-Use these guides for detailed customization, resource ownership and boundary review:
+Use these guides for detailed customization, resource ownership, and boundary review:
 
 | Task | Guide |
 | --- | --- |
 | Select Rails from trusted request context | [Rails configuration resolution](/run-guardrailed-inference/using-proxy/advanced/configuration-resolution) |
 | Customize outbound HTTP or route model aliases | [HTTP transport customization](/run-guardrailed-inference/using-proxy/advanced/http-transport) |
-| Configure several mounts, upstreams and policies | [Multiple provider instances](/run-guardrailed-inference/using-proxy/advanced/multiple-provider-instances) |
+| Configure several mounts, upstreams, and policies | [Multiple provider instances](/run-guardrailed-inference/using-proxy/advanced/multiple-provider-instances) |
 | Customize request values and response metadata, then export the contract | [Request and response policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings) |
 
-## How the pieces fit
+## How the Pieces Fit
+
+The following components define routing, inspection, and resource ownership:
 
 | Piece | Responsibility |
 | --- | --- |

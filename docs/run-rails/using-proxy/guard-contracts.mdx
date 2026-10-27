@@ -11,9 +11,11 @@ which content reaches checks, which shapes are restricted, and which fields
 remain provider-owned metadata. Use it to review coverage or evaluate a provider
 change without reconstructing the boundary from implementation details.
 
-## Three different configurations
+## Three Different Configurations
 
-| Artifact | What you use it for |
+Use these artifacts for distinct configuration and review tasks:
+
+| Artifact | Purpose |
 | --- | --- |
 | Proxy manifest or Python application config | Select upstreams, operations, dialects, and Rails configurations. |
 | Rails configuration | Define the checks that run on selected content. |
@@ -23,7 +25,9 @@ Typed Python projections, bindings, and endpoint declarations are authoritative.
 The contract is exported from those bound declarations. The running proxy does
 not load it to create policy, and changing the YAML does not change execution.
 
-## Read the field policy
+## Read the Field Policy
+
+The contract classifies fields by how the binding handles them:
 
 | Classification | Meaning | Example |
 | --- | --- | --- |
@@ -62,13 +66,15 @@ x-nemo-guardrails:
 
 These are excerpts from an exported binding, not a complete editable contract.
 
-## Inspect a contract
+## Inspect a Contract
 
 The package includes bound exports for
 [native Chat](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/openai/_generated/chat-completions.guard.yaml),
 [native Responses](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/openai/_generated/responses.guard.yaml),
 [LiteLLM Chat](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/openai/_generated/litellm-chat-completions.guard.yaml),
 and [LiteLLM Responses](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/openai/_generated/litellm-responses.guard.yaml).
+
+Each export includes the following sections:
 
 | Section | Describes |
 | --- | --- |
@@ -82,7 +88,7 @@ Read these versions separately: the format revision identifies the document
 format, the provider revision identifies its source baseline, and the capability
 profile identifies supported content handling. Rails selects the checks.
 
-## Export from an endpoint
+## Export From an Endpoint
 
 From the repository root, export the actual bound endpoint:
 
@@ -110,7 +116,7 @@ represent faithfully, such as unsupported custom stream validators, rather
 than silently omitting them. Runtime bindings can have behavior beyond the
 standard export format.
 
-## Review a change
+## Review a Change
 
 Compare the request and response fields and stream declarations with the previous
 export. Pay particular attention to new opaque fields: their values bypass text

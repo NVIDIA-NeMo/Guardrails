@@ -11,9 +11,11 @@ It identifies request and response text, accounts for other fields, and describe
 stream events. You choose that binding independently of the upstream URL and
 the Rails configuration that checks its content.
 
-## Built-in operation bindings
+## Built-In Operation Bindings
 
-| Operation | Native binding | LiteLLM dialect | Buffered | Streaming |
+The built-in bindings support buffered JSON and server-sent events (SSE):
+
+| Operation | Native Binding | LiteLLM Dialect | Buffered | Streaming |
 | --- | --- | --- | --- | --- |
 | Chat Completions | OpenAI | Explicit `dialect: litellm` | JSON | SSE |
 | Responses | OpenAI | Explicit `dialect: litellm` | JSON | SSE |
@@ -23,7 +25,7 @@ native binding. The LiteLLM dialect accepts specific gateway field variations
 without requiring the LiteLLM SDK. Check the dialect's coverage against your
 deployed model route, including whether it uses a native or bridged API.
 
-## Coverage of the shipped profiles
+## Coverage of the Shipped Profiles
 
 These restrictions describe the current built-in bindings. Check them when
 connecting an application; do not treat the operation name as coverage of its
@@ -31,7 +33,7 @@ entire upstream API.
 
 | Area | Chat Completions | Responses |
 | --- | --- | --- |
-| Input | Exactly one `user` message with a nonempty string `content`. | One nonempty `input` string, foreground execution and explicit boolean `store: false`. |
+| Input | Exactly one `user` message with a nonempty string `content`. | One nonempty `input` string, foreground execution, and explicit boolean `store: false`. |
 | Buffered output | One assistant choice; string content, or empty/null message content with no other generated content. | One assistant message with one nonempty output-text part, optionally alongside reasoning metadata without plaintext reasoning. |
 | Streamed text | At most one choice, index zero, with assistant content deltas. | Supported output-text delta events and consistent text snapshots for one assistant target. |
 | Additional content | Conversation histories, additional roles, tools, audio, images, separate reasoning text, and token logprobs are not supported as guarded content in these profiles. | Input arrays/history, instructions, tools, background execution, plaintext reasoning summaries, citations, and token logprobs are not supported as guarded content in these profiles. |
@@ -50,13 +52,13 @@ For exact accepted fields and nullability, consult the
 [Responses boundary](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/responses/README.md#supported-content),
 and [bound exports](/run-guardrailed-inference/using-proxy/guard-contracts#inspect-a-contract).
 
-### Responses storage and retrieval
+### Responses Storage and Retrieval
 
 Every guarded Responses creation request must include `"store": false`, in
-buffered and streaming modes. Omitted, true, null or non-boolean values reject
+buffered and streaming modes. Omitted, `true`, `null`, or non-boolean values reject
 before dispatch. The proxy forwards the original body; projection defaults do
 not insert this field. Input-item arrays, additional `instructions`, stored
-conversation references and background execution remain unsupported.
+conversation references, and background execution remain unsupported.
 
 The creation constraint relies on the provider honoring `store: false`; it is
 not a guarantee about provider logging or data retention. Blocking output cannot
@@ -65,13 +67,13 @@ passthrough, including for responses created elsewhere or previously stored.
 Restrict exposed unguarded routes and direct upstream access before using the
 proxy as a policy boundary, especially with application-owned credentials.
 
-## Generation parameters
+## Generation Parameters
 
 The proxy forwards supported generation parameters to the upstream service.
 Available parameters and values depend on your provider and model. Configure
 input and output checks separately in Rails.
 
-## Capability profiles
+## Capability Profiles
 
 A capability profile names the content-handling capability a binding requires.
 It gives the binding and execution pipeline a shared, versioned description of
@@ -87,7 +89,7 @@ Use `python -m nemoguardrails.server.experimental inspect proxy.yaml` to see the
 The current manifest has no profile selector. Editing a guard-contract export,
 changing Rails, or renaming a profile does not enable new content handling.
 
-## Dialects and unknown fields
+## Dialects and Unknown Fields
 
 Select a dialect that matches your upstream's fields. The LiteLLM
 [Chat dialect](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/dialects/litellm/README.md)
@@ -106,7 +108,7 @@ Reviewed source revisions describe the field-policy baseline. Select the binding
 for your gateway's protocol and version, including whether the operation uses a
 native or bridged API. Compatibility can vary between model routes.
 
-## Streaming windows
+## Streaming Windows
 
 When output inspection is enabled, the proxy accumulates text deltas, checks a
 window, and releases its approved bytes in provider order. It does not reconstruct
@@ -140,7 +142,7 @@ that text. Finite context can also miss sufficiently long or fragmented
 patterns. For whole-answer inspection before any text is returned, use buffered
 output; the selected detector's own limitations still apply.
 
-## Completion and errors
+## Completion and Errors
 
 Chat uses its completion/error handling and `[DONE]` sentinel. Responses requires
 a native terminal event; an optional `[DONE]` is not a replacement for it. Responses
@@ -155,16 +157,16 @@ A truncated guarded SSE event fails rather than releasing its unfinished bytes.
 Response parsing, framing, and completion checks apply to inspected streams;
 they are not a full validator of every provider field or lifecycle transition.
 
-## Disabled checks and pass-through
+## Disabled Checks and Pass-Through
 
 Disabling output inspection relays response bytes without output projections or
 stream classification. Guarded request validation still applies. Selecting an
-operation does not enable input or output checks absent from its Rails config.
+operation does not enable input or output checks absent from its Rails configuration.
 
-Unselected operations may pass through inside the provider mount without content
+Unselected operations can pass through inside the provider mount without content
 inspection. Unsupported content on a checked guarded operation does not retry
 as pass-through. Route restrictions and enabled checks should both be part of
 your deployment review.
 
-For field-policy meaning, see [guard contracts](/run-guardrailed-inference/using-proxy/guard-contracts). For extending
-bindings, see [Python integration](/run-guardrailed-inference/using-proxy/python-integration#extend-provider-coverage).
+For field-policy meaning, refer to [guard contracts](/run-guardrailed-inference/using-proxy/guard-contracts). For extending
+bindings, refer to [Python integration](/run-guardrailed-inference/using-proxy/python-integration#extend-provider-coverage).

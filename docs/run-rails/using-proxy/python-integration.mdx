@@ -10,7 +10,7 @@ Use Python when your deployment needs dynamic Rails selection, explicit provider
 bindings, or a custom HTTP transport. The Python interface and YAML launcher
 use the same route assembly and resource owners.
 
-## Create an application
+## Create an Application
 
 Each recipe below is a separate application. After copying the
 [quickstart example](/run-guardrailed-inference/using-proxy/quickstart), return to the repository root and save
@@ -63,16 +63,18 @@ another directory. YAML paths instead resolve against the manifest location.
 Application construction validates configuration and routes; lifespan startup
 initializes Rails and network owners.
 
-## Choose advanced customization
+## Choose Advanced Customization
+
+Choose a customization guide for your application requirements:
 
 | Task | Guide |
 | --- | --- |
 | Select preloaded Rails using trusted request or operation context | [Rails configuration resolution](/run-guardrailed-inference/using-proxy/advanced/configuration-resolution) |
 | Inject outbound HTTP, tune connection pools, or route model aliases | [HTTP transport customization](/run-guardrailed-inference/using-proxy/advanced/http-transport) |
-| Compose several mounts, upstreams and policies | [Multiple provider instances and routing](/run-guardrailed-inference/using-proxy/advanced/multiple-provider-instances) |
-| Customize request restrictions and buffered/streaming metadata | [Request and response policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings) |
+| Compose several mounts, upstreams, and policies | [Multiple provider instances and routing](/run-guardrailed-inference/using-proxy/advanced/multiple-provider-instances) |
+| Customize request restrictions and buffered and streaming metadata | [Request and response policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings) |
 
-## Lifespan and embedding
+## Lifespan and Embedding
 
 The factory returns a FastAPI application. When embedding it, run its lifespan
 from the actual parent application's lifespan, rather than assuming that a mount
@@ -107,7 +109,7 @@ parent authentication,
 route ownership, startup failure, and shutdown with your application's other
 resources.
 
-### Local application routes
+### Local Application Routes
 
 To serve a local health endpoint, define its router before constructing the
 proxy, then pass it to the factory:
@@ -131,13 +133,13 @@ app = create_proxy_application(config, local_routers=(local,))
 `GET /health` is local and unsupported methods are reserved from forwarding.
 Adding routes after factory construction can hide them behind a provider
 catch-all. Choose paths outside guarded operations. This static response is
-liveness only: implement readiness and drain signaling in your host/deployment,
+liveness only: implement readiness and drain signaling in your host or deployment,
 and add inbound authentication middleware separately when exposing the service.
 
-## Extend provider coverage
+## Extend Provider Coverage
 
 The composition model separates provider field policy from reusable checking
-and HTTP execution. For a complete example, see
+and HTTP execution. For a complete example, refer to
 [customize request and response policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings).
 For a new endpoint:
 

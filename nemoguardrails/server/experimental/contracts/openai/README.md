@@ -1,11 +1,11 @@
-# OpenAI provider sources
+# OpenAI Provider Sources
 
 The native bindings and Python policies define runtime coverage. Use the
 [Chat boundary](../../providers/openai/chat_completions/README.md#guarded-boundary)
 and [Responses boundary](../../providers/openai/responses/README.md#supported-content)
 for the detailed implementation references. The published
 [provider guide](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-proxy/providers-and-streaming)
-summarizes supported requests, output and streaming.
+summarizes supported requests, output, and streaming.
 
 ## Provider provenance
 
