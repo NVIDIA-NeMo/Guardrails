@@ -114,6 +114,8 @@ async def test_alias_selects_trusted_origin_and_rewrites_model_and_credential(mo
     assert upstream.headers["authorization"] == "Bearer destination-a"
     assert all(name not in upstream.headers for name in ("api-key", "x-api-key", "cookie"))
     assert "content-digest" not in upstream.headers
+    assert upstream.headers["content-length"] == str(len(upstream.content))
+    assert "transfer-encoding" not in upstream.headers
 
 
 @pytest.mark.asyncio
@@ -247,6 +249,65 @@ async def test_non_json_upload_reaches_network_before_its_body_is_consumed(monke
     assert response.status_code == 200
     assert response.content == b"uploaded"
     assert bodies == [b"first chunk", b"second chunk"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,headers,chunks,expected_length,expected_encoding",
+    [
+        ("POST", {"Content-Length": "6"}, (b"abc", b"def"), "6", None),
+        ("POST", {"Content-Length": "0"}, (), "0", None),
+        ("GET", {"Content-Length": "0"}, (), "0", None),
+        ("GET", {}, (), None, None),
+        ("HEAD", {}, (), None, None),
+        ("POST", {}, (b"abc", b"def"), None, "chunked"),
+    ],
+)
+async def test_routed_passthrough_preserves_request_framing(
+    monkeypatch, method, headers, chunks, expected_length, expected_encoding
+):
+    monkeypatch.setenv("PROVIDER_B_KEY", "destination-b")
+    received = []
+    reads = 0
+    calls = []
+
+    async def upload():
+        nonlocal reads
+        for chunk in chunks:
+            reads += 1
+            yield chunk
+
+    class UploadTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            calls.append(request)
+            assert reads == 0
+            assert request.url.raw_path == b"/openai/v1/files"
+            assert request.headers["host"] == "provider-b.example"
+            assert request.headers.get("content-length") == expected_length
+            assert request.headers.get("transfer-encoding") == expected_encoding
+            assert isinstance(request.stream, httpx.AsyncByteStream)
+            async for chunk in request.stream:
+                if chunk:
+                    received.append(chunk)
+            return httpx.Response(204, stream=httpx.ByteStream(b""))
+
+    transport = ModelRoutingTransport(routes(), {}, default_model="canonical-b", network_transport=UploadTransport())
+    application = create_proxy_application(
+        providers=(create_openai_chat_integration(base_url="http://model-router.internal/v1"),),
+        http_transport_factory=lambda: transport,
+    )
+    async with application.router.lifespan_context(application):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application), base_url="http://proxy") as client:
+            response = await client.request(
+                method,
+                "/v1/files",
+                content=upload() if chunks else b"",
+                headers={"content-type": "application/octet-stream", **headers},
+            )
+
+    assert response.status_code == 204
+    assert len(calls) == 1
+    assert received == list(chunks)
 
 
 @pytest.mark.asyncio

@@ -135,6 +135,7 @@ class ModelRoutingTransport(httpx.AsyncBaseTransport):
             payload["model"] = route.upstream_model
             body = json.dumps(payload, separators=(",", ":")).encode()
 
+        # Passing an existing stream as content would make HTTPX encode it again.
         routed_request = httpx.Request(
             method=request.method,
             url=self._upstream_url(route.base_url, request.url),
@@ -144,9 +145,11 @@ class ModelRoutingTransport(httpx.AsyncBaseTransport):
                 body_buffered=original_body is not None,
                 api_key=api_key,
             ),
-            content=body,
+            content=body if original_body is not None else None,
+            stream=request.stream if original_body is None else None,
             extensions=request.extensions,
         )
+        routed_request.headers.setdefault("host", routed_request.url.netloc.decode("ascii"))
         return await self._network_transport.handle_async_request(routed_request)
 
     async def aclose(self) -> None:
@@ -186,11 +189,12 @@ class ModelRoutingTransport(httpx.AsyncBaseTransport):
         """Use destination credentials and rebuild framing for buffered JSON."""
 
         result = httpx.Headers(headers)
-        for name in ("host", "content-length", "authorization", "api-key", "x-api-key", "cookie"):
+        for name in ("host", "authorization", "api-key", "x-api-key", "cookie"):
             result.pop(name, None)
         if api_key is not None:
             result["authorization"] = f"Bearer {api_key}"
         if body_buffered:
+            result.pop("content-length", None)
             result.pop("transfer-encoding", None)
         if body_modified:
             for name in ("content-digest", "content-md5", "digest", "signature", "signature-input"):
