@@ -996,6 +996,42 @@ def test_connection_fields_reject_blank_values(field, value):
         _rails_config({field: value})
 
 
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://decision-model.example/v1/assess",
+        "HTTPS://decision-model.example:8443/v1/assess?x=1",
+        "http://localhost:8000/v1/assess",
+        "http://127.0.0.1/v1/assess",
+        "http://[::1]:8000/v1/assess",
+    ],
+)
+def test_server_endpoint_accepts_https_and_loopback_http(endpoint):
+    assert _rails_config({"server_endpoint": endpoint}).rails.config.decision_model.server_endpoint == endpoint
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "decision-model.example/v1/assess",
+        "http://decision-model.example/v1/assess",
+        "http://localhost.attacker.example/v1/assess",
+        "http://127.0.0.1.attacker.example/v1/assess",
+        "ftp://decision-model.example/v1/assess",
+        "https://",
+        "https:///v1/assess",
+    ],
+)
+def test_server_endpoint_rejects_insecure_or_malformed_urls(endpoint):
+    with pytest.raises(ValidationError, match="server_endpoint"):
+        _rails_config({"server_endpoint": endpoint})
+
+
+def test_server_endpoint_is_stripped():
+    config = _rails_config({"server_endpoint": f"  {ENDPOINT}  "})
+    assert config.rails.config.decision_model.server_endpoint == ENDPOINT
+
+
 def test_unconfigured_rail_has_no_vendor_defaults():
     config = RailsConfig.from_content(config={"models": []})
     assert config.rails.config.decision_model is None
