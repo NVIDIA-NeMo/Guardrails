@@ -23,8 +23,16 @@ from nemoguardrails.http import (
     HTTPClientError,
     HTTPResponseDecodeError,
     HTTPTimeoutError,
+    HTTPTLSConfig,
+    create_http_client,
     http_call,
 )
+
+AUTH_FAILURE_STATUS_CODES = frozenset({401, 403})
+
+
+class DecisionModelAuthError(ValueError):
+    """The decision model rejected the credentials (HTTP 401 or 403)."""
 
 
 @dataclass(frozen=True)
@@ -38,9 +46,10 @@ async def decision_model_request(
     questions: Dict[str, str],
     server_endpoint: str,
     model: str,
-    api_key: str,
+    api_key: Optional[str],
     http_client: Optional[HTTPClient] = None,
     timeout: float = 10.0,
+    verify_ssl: bool = True,
 ) -> DecisionModelAssessment:
     """Ask the decision model a batch of yes/no (Noul) questions about ``text``.
 
@@ -51,14 +60,18 @@ async def decision_model_request(
         questions: Mapping of question id to the yes/no question instructions.
         server_endpoint: The assessment endpoint URL.
         model: The decision model identifier.
-        api_key: The API key, sent as a bearer token.
-        http_client: Optional shared HTTP client.
+        api_key: The API key, sent as a bearer token. When ``None``, no Authorization header is sent.
+        http_client: Optional shared HTTP client. Ignored when ``verify_ssl`` is false, because the
+            shared client verifies certificates.
         timeout: Per-request timeout in seconds.
+        verify_ssl: Verify the endpoint's TLS certificate. When false, the request uses its own
+            client with verification disabled.
 
     Returns:
         Per-question probabilities (0-1) and the resolved model identifier, when supplied.
 
     Raises:
+        DecisionModelAuthError: If the service answers 401 or 403.
         ValueError: If the call fails, times out, or the response is malformed.
             Messages never include the request text.
     """
@@ -67,23 +80,31 @@ async def decision_model_request(
         "model": model,
         "questions": {qid: {"type": "noul", "instructions": instructions} for qid, instructions in questions.items()},
     }
-    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
 
     try:
         response = await http_call(
-            http_client,
+            http_client if verify_ssl else None,
             "POST",
             server_endpoint,
             json=payload,
             headers=headers,
             timeout=timeout,
             raise_for_status=False,
+            factory=lambda: create_http_client(timeout=timeout, tls=HTTPTLSConfig(verify=verify_ssl)),
         )
     except HTTPTimeoutError as err:
         raise ValueError(f"Decision model call timed out after {timeout} seconds.") from err
     except HTTPClientError as err:
         raise ValueError(f"Decision model call failed: {type(err).__name__}") from err
 
+    if response.status_code in AUTH_FAILURE_STATUS_CODES:
+        raise DecisionModelAuthError(
+            f"Decision model authentication failed (HTTP {response.status_code}); "
+            "check the API key and api_key_env_var."
+        )
     if response.status_code != 200:
         # Deliberately omit the response body: it can echo request content.
         raise ValueError(f"Decision model call failed with status code {response.status_code}.")

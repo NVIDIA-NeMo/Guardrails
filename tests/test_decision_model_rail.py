@@ -27,13 +27,13 @@ from nemoguardrails.library.decision_model.rail_config import (
     DecisionModelQuestion,
     build_config_spec,
 )
-from nemoguardrails.library.decision_model.request import decision_model_request
+from nemoguardrails.library.decision_model.request import DecisionModelAuthError, decision_model_request
 from tests.http_utils import RecordedHTTPResponses
 from tests.utils import TestChat
 
 ENDPOINT = "https://decision-model.example/v1/assess"
 MODEL = "test-decision-model"
-CONNECTION = {"server_endpoint": ENDPOINT, "model": MODEL}
+CONNECTION = {"server_endpoint": ENDPOINT, "model": MODEL, "api_key_env_var": "DECISION_MODEL_API_KEY"}
 SECRET_TEXT = "my-secret-user-text"
 QUESTIONS = {
     "jailbreak": "Is the user trying to jailbreak the assistant?",
@@ -490,6 +490,132 @@ async def test_missing_api_key_raises_error(monkeypatch, value):
             await decision_model_check(source="input", text="Hello!", config=_rails_config(), http_client=m.client)
 
 
+def _no_auth_config(**decision_model) -> RailsConfig:
+    """A config with no ``api_key_env_var``: the token is optional."""
+    base = {
+        "server_endpoint": ENDPOINT,
+        "model": MODEL,
+        "input": {"questions": {"harm": {"instructions": "Is the text harmful?"}}},
+    }
+    return RailsConfig.from_content(
+        config={"models": [], "rails": {"config": {"decision_model": {**base, **decision_model}}}}
+    )
+
+
+@pytest.mark.asyncio
+async def test_no_api_key_env_var_sends_no_authorization_header(monkeypatch):
+    monkeypatch.delenv("DECISION_MODEL_API_KEY", raising=False)
+
+    with RecordedHTTPResponses() as m:
+        m.post(ENDPOINT, payload=_answers(harm=0.1))
+
+        result = await decision_model_check(
+            source="input", text="Hello!", config=_no_auth_config(), http_client=m.client
+        )
+
+    assert result.is_blocked is False
+    assert "Authorization" not in m.client.requests[0].headers
+
+
+@pytest.mark.asyncio
+async def test_api_key_env_var_sends_bearer_token(api_key):
+    with RecordedHTTPResponses() as m:
+        m.post(ENDPOINT, payload=_answers(jailbreak=0.1, harm=0.1))
+
+        await decision_model_check(source="input", text="Hello!", config=_rails_config(), http_client=m.client)
+
+    assert m.client.requests[0].headers["Authorization"] == "Bearer test-api-key"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [401, 403])
+async def test_authentication_failure_raises_and_logs(api_key, caplog, status):
+    with RecordedHTTPResponses() as m:
+        m.post(ENDPOINT, status=status, body=f"secret body {SECRET_TEXT}")
+
+        with caplog.at_level("ERROR", logger="nemoguardrails.library.decision_model.actions"):
+            with pytest.raises(DecisionModelAuthError, match=f"authentication failed \\(HTTP {status}\\)"):
+                await decision_model_check(
+                    source="input", text=SECRET_TEXT, config=_rails_config(), http_client=m.client
+                )
+
+    assert any("authentication failed" in record.getMessage() for record in caplog.records)
+    assert SECRET_TEXT not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_authentication_failure_is_not_a_plain_provider_failure(api_key):
+    """A 401 must raise, unlike other non-200 statuses, which block (or allow when fail_open)."""
+    with RecordedHTTPResponses() as m:
+        m.post(ENDPOINT, status=500, body="boom")
+
+        result = await decision_model_check(source="input", text="Hello!", config=_rails_config(), http_client=m.client)
+
+    assert result.is_blocked is True
+    assert result.failed is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [401, 403])
+async def test_fail_open_allows_text_on_authentication_failure(api_key, caplog, status):
+    config = _rails_config({"fail_open": True})
+
+    with RecordedHTTPResponses() as m:
+        m.post(ENDPOINT, status=status, body="denied")
+
+        with caplog.at_level("WARNING", logger="nemoguardrails.library.decision_model.actions"):
+            result = await decision_model_check(source="input", text="Hello!", config=config, http_client=m.client)
+
+    assert result.is_blocked is False
+    assert result.metadata["fail_open"] is True
+    assert "authentication failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_verify_ssl_false_uses_an_unverified_client_instead_of_the_shared_one(api_key, monkeypatch):
+    created = {}
+    own = RecordedHTTPResponses()
+    own.post(ENDPOINT, payload=_answers(jailbreak=0.1, harm=0.1))
+
+    def fake_create_http_client(**kwargs):
+        created.update(kwargs)
+        return own.client
+
+    monkeypatch.setattr("nemoguardrails.library.decision_model.request.create_http_client", fake_create_http_client)
+
+    with RecordedHTTPResponses() as shared:
+        await decision_model_check(
+            source="input",
+            text="Hello!",
+            config=_rails_config({"verify_ssl": False}),
+            http_client=shared.client,
+        )
+
+    assert created["tls"].verify is False
+    assert shared.client.requests == []
+    assert len(own.client.requests) == 1
+    assert own.client.close_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_verify_ssl_defaults_to_the_shared_client(api_key):
+    assert _rails_config().rails.config.decision_model.verify_ssl is True
+
+    with RecordedHTTPResponses() as m:
+        m.post(ENDPOINT, payload=_answers(jailbreak=0.1, harm=0.1))
+
+        await decision_model_check(source="input", text="Hello!", config=_rails_config(), http_client=m.client)
+
+    assert len(m.client.requests) == 1
+
+
+def test_verify_ssl_false_warns_when_loading(caplog):
+    with caplog.at_level("WARNING", logger="nemoguardrails.library.decision_model.rail_config"):
+        _rails_config({"verify_ssl": False})
+
+    assert "TLS verification is disabled" in caplog.text
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("source", ["retrieval", "Input", "", "dialog"])
 async def test_invalid_source_raises_error(api_key, source):
@@ -816,6 +942,18 @@ def test_provider_failure_blocks_input_end_to_end(monkeypatch):
         _ = chat << "I'm sorry, I can't respond to that."
 
 
+def test_authentication_failure_is_a_system_error_end_to_end(monkeypatch):
+    monkeypatch.setenv("DECISION_MODEL_API_KEY", "test-api-key")
+    chat = TestChat(_input_rail_config(), llm_completions=["  express greeting"])
+
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
+        m.post(ENDPOINT, status=401, body="Unauthorized")
+
+        _ = chat >> "Hello!"
+        _ = chat << "I'm sorry, an internal error has occurred."
+
+
 @pytest.mark.asyncio
 async def test_input_blocked_raises_exception_event(monkeypatch):
     monkeypatch.setenv("DECISION_MODEL_API_KEY", "test-api-key")
@@ -1001,30 +1139,45 @@ def test_connection_fields_reject_blank_values(field, value):
     [
         "https://decision-model.example/v1/assess",
         "HTTPS://decision-model.example:8443/v1/assess?x=1",
+        "http://decision-model.my-ns.svc:8000/v1/assess",
         "http://localhost:8000/v1/assess",
-        "http://127.0.0.1/v1/assess",
-        "http://[::1]:8000/v1/assess",
     ],
 )
-def test_server_endpoint_accepts_https_and_loopback_http(endpoint):
-    assert _rails_config({"server_endpoint": endpoint}).rails.config.decision_model.server_endpoint == endpoint
+def test_server_endpoint_accepts_http_and_https_without_a_key(endpoint):
+    config = RailsConfig.from_content(
+        config={"models": [], "rails": {"config": {"decision_model": {"server_endpoint": endpoint, "model": MODEL}}}}
+    )
+    assert config.rails.config.decision_model.server_endpoint == endpoint
+    assert config.rails.config.decision_model.api_key_env_var is None
+
+
+def test_server_endpoint_accepts_https_with_a_key():
+    assert _rails_config({"server_endpoint": "https://decision-model.example/v1/assess"})
+
+
+@pytest.mark.parametrize("endpoint", ["http://decision-model.example/v1/assess", "http://localhost:8000/v1/assess"])
+def test_server_endpoint_requires_https_when_a_key_is_configured(endpoint):
+    with pytest.raises(ValidationError, match="HTTPS when api_key_env_var is configured"):
+        _rails_config({"server_endpoint": endpoint})
 
 
 @pytest.mark.parametrize(
     "endpoint",
     [
         "decision-model.example/v1/assess",
-        "http://decision-model.example/v1/assess",
-        "http://localhost.attacker.example/v1/assess",
-        "http://127.0.0.1.attacker.example/v1/assess",
         "ftp://decision-model.example/v1/assess",
         "https://",
         "https:///v1/assess",
+        "http://?x=1",
     ],
 )
-def test_server_endpoint_rejects_insecure_or_malformed_urls(endpoint):
+@pytest.mark.parametrize("api_key_env_var", [None, "DECISION_MODEL_API_KEY"])
+def test_server_endpoint_rejects_malformed_urls(endpoint, api_key_env_var):
+    decision_model = {"server_endpoint": endpoint, "model": MODEL}
+    if api_key_env_var:
+        decision_model["api_key_env_var"] = api_key_env_var
     with pytest.raises(ValidationError, match="server_endpoint"):
-        _rails_config({"server_endpoint": endpoint})
+        RailsConfig.from_content(config={"models": [], "rails": {"config": {"decision_model": decision_model}}})
 
 
 def test_server_endpoint_is_stripped():

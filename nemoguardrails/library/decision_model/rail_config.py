@@ -15,7 +15,7 @@
 
 """Configuration for the decision model rail."""
 
-import re
+import logging
 import warnings
 from typing import Dict, Optional
 
@@ -23,13 +23,7 @@ from pydantic import ConfigDict, field_validator, model_validator
 
 from nemoguardrails.manifests.config_schema import Field, RailConfigBaseModel, RailConfigSpec, rail_field
 
-# HTTPS for any host, or plain HTTP for an exact loopback host (a prefix match would also accept
-# values such as ``http://localhost.attacker.example``).
-_SERVER_ENDPOINT_PATTERN = re.compile(
-    r"https://[^\s/?#]+(?:[/?#]\S*)?"
-    r"|http://(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?(?:[/?#]\S*)?",
-    re.IGNORECASE,
-)
+log = logging.getLogger(__name__)
 
 
 class DecisionModelQuestion(RailConfigBaseModel):
@@ -67,10 +61,14 @@ class DecisionModelConfig(RailConfigBaseModel):
 
     server_endpoint: str = Field(min_length=1, description="The decision model assessment endpoint URL.")
     model: str = Field(min_length=1, description="The decision model identifier. Pin a version for reproducibility.")
-    api_key_env_var: str = Field(
-        default="DECISION_MODEL_API_KEY",
+    api_key_env_var: Optional[str] = Field(
+        default=None,
         min_length=1,
-        description="Environment variable containing the API key, sent as a bearer token.",
+        description=(
+            "Environment variable containing the API key, sent as a bearer token. "
+            "Optional: when unset, requests are sent without an Authorization header. "
+            "Requires an https:// server_endpoint when set."
+        ),
     )
     threshold: float = Field(
         default=0.5,
@@ -79,6 +77,13 @@ class DecisionModelConfig(RailConfigBaseModel):
         description="Default probability at or above which a question blocks the text.",
     )
     timeout: float = Field(default=10.0, gt=0, description="Per-request timeout in seconds.")
+    verify_ssl: bool = Field(
+        default=True,
+        description=(
+            "Verify the endpoint's TLS certificate. Set to false only for self-signed or "
+            "internal certificates you trust."
+        ),
+    )
     fail_open: bool = Field(
         default=False,
         description="If true, allow the text when the decision model cannot be reached. Default is to fail closed and block.",
@@ -94,22 +99,28 @@ class DecisionModelConfig(RailConfigBaseModel):
 
     @field_validator("server_endpoint", "model", "api_key_env_var")
     @classmethod
-    def _check_nonblank(cls, value: str) -> str:
-        if not value.strip():
+    def _check_nonblank(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and not value.strip():
             raise ValueError("value must not be blank")
         return value
 
-    @field_validator("server_endpoint")
-    @classmethod
-    def _check_server_endpoint(cls, value: str) -> str:
-        """Require HTTPS so the API key and screened text are not sent in the clear.
+    @model_validator(mode="after")
+    def _check_server_endpoint(self) -> "DecisionModelConfig":
+        """Require an http(s) URL, and https when an API key is configured.
 
-        Plain HTTP is accepted only for exact loopback hosts, to allow local development.
+        Plain HTTP is allowed without a key so in-cluster and local endpoints work; a bearer
+        token is never sent over it.
         """
-        endpoint = value.strip()
-        if not _SERVER_ENDPOINT_PATTERN.fullmatch(endpoint):
-            raise ValueError("server_endpoint must be an absolute https:// URL, or an http:// URL for localhost")
-        return endpoint
+        self.server_endpoint = self.server_endpoint.strip()
+        if not self.server_endpoint.lower().startswith(("http://", "https://")):
+            raise ValueError(f"server_endpoint must start with 'http://' or 'https://', got '{self.server_endpoint}'")
+        if self.server_endpoint.split("://", 1)[1][:1] in ("", "/", "?", "#"):
+            raise ValueError(f"server_endpoint must include a host, got '{self.server_endpoint}'")
+        if self.api_key_env_var and not self.server_endpoint.lower().startswith("https://"):
+            raise ValueError("server_endpoint must use HTTPS when api_key_env_var is configured")
+        if not self.verify_ssl:
+            log.warning("Decision model: TLS verification is disabled (verify_ssl is false).")
+        return self
 
     @model_validator(mode="after")
     def _warn_disabled_screening(self) -> "DecisionModelConfig":

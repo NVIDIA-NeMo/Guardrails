@@ -101,6 +101,7 @@ DECISION_MODEL_CONFIG = {
     "decision_model": {
         "server_endpoint": "https://decision-model.example/v1/assess",
         "model": "test-decision-model",
+        "api_key_env_var": "DECISION_MODEL_API_KEY",
         "input": {"questions": DECISION_MODEL_QUESTIONS},
         "output": {"questions": DECISION_MODEL_QUESTIONS},
     }
