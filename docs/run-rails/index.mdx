@@ -77,11 +77,12 @@ This approach is best for:
 
 ### Guardrails Proxy for Existing Provider Exchanges
 
+The Guardrails proxy is experimental.
+
 Use the [Guardrails proxy](/run-guardrailed-inference/using-proxy) when your
-application already calls a model service over HTTP and needs input/output
-checks around supported Chat Completions or Responses traffic. It forwards
-generation to the configured upstream and uses separate Rails configurations
-for checking.
+application already calls a model service over HTTP. The proxy checks inputs
+and outputs for supported Chat Completions or Responses traffic using separate
+Rails configurations, and forwards generation to the configured upstream.
 
 The current bindings support one user text input and one assistant text target;
 they do not cover arbitrary conversation histories, tools or multimodal content.

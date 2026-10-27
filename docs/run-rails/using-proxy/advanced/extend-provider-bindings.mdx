@@ -196,8 +196,13 @@ app = create_proxy_application(
 ```
 
 Replace `https://gateway.example/v1` with your gateway's API base, then run
-`uvicorn custom_app:app --host 127.0.0.1 --port 8000` from that directory. Send
-the [quickstart requests](/run-guardrailed-inference/using-proxy/quickstart#send-a-buffered-request)
+`uvicorn custom_app:app --host 127.0.0.1 --port 8000` from that directory.
+This app guards only Chat Completions. Responses requests pass through without
+Rails checks.
+
+Send the quickstart's
+[buffered Chat Completions request](/run-guardrailed-inference/using-proxy/quickstart#chat-completions)
+or [streaming Chat Completions request](/run-guardrailed-inference/using-proxy/quickstart#stream-chat-completions)
 using your gateway's model ID and authorization header. The endpoint accepts the
 optional `gateway_trace_id` in both response modes; ordinary OpenAI does not
 return that field. The proxy needs no gateway SDK; any configured detector
