@@ -98,15 +98,26 @@ email-address input blocks before dispatch through either mount.
 
 ## Keep one public route
 
-An inbound gateway can route by trusted application policy and rewrite a public
-path to the selected provider mount:
+Clients can keep using `/v1/chat/completions` while an inbound gateway chooses
+the Rails policy and forwards each request to the corresponding proxy mount:
 
-```text
-client /v1/chat/completions
-  → gateway
-    → proxy /standard/v1/chat/completions → OpenAI, standard policy
-    → proxy /strict/v1/chat/completions → OpenAI, strict policy
+```mermaid
+flowchart LR
+    Client["Client"] --> Gateway{"Gateway selects policy"}
+    subgraph Proxy["Guardrails proxy"]
+        Standard["/standard<br/>Standard policy"]
+        Strict["/strict<br/>Strict policy"]
+    end
+    Gateway -->|"Standard"| Standard
+    Gateway -->|"Strict"| Strict
+    Standard --> OpenAI["OpenAI"]
+    Strict --> OpenAI
 ```
+
+Each request follows one branch. The gateway rewrites the path to
+`/standard/v1/chat/completions` or `/strict/v1/chat/completions`; both proxy
+instances forward allowed requests to OpenAI. Your gateway supplies the
+selection rule, such as a policy based on the authenticated caller.
 
 Alternatively, each destination can have a separate proxy deployment exposing
 `/v1/chat/completions`. The gateway chooses the deployment, then optionally

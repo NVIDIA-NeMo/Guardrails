@@ -28,9 +28,9 @@ infrastructure.
 
 ## Start with one upstream
 
-```text
-client → proxy /v1/chat/completions → upstream /v1/chat/completions
-```
+The client sends a request to the proxy's `/v1/chat/completions` route. The proxy
+applies its configured checks and forwards allowed requests to the upstream's
+`/v1/chat/completions` route.
 
 The [quickstart](/run-guardrailed-inference/using-proxy/quickstart) uses this topology. A provider instance has one
 initial `base_url`, a set of operation bindings, and a selected Rails config.
@@ -45,8 +45,11 @@ inbound gateway or a trusted application transport.
 
 ## Put the proxy in front of a model gateway
 
-```text
-client → guarded proxy → inference gateway → model services
+```mermaid
+flowchart LR
+    Client["Client"] --> Proxy["Guardrails proxy"]
+    Proxy --> Gateway["Inference gateway"]
+    Gateway --> Models["Model services"]
 ```
 
 Configure the gateway URL and explicit dialect. Let the gateway own its model
