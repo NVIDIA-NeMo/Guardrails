@@ -6,9 +6,12 @@ content:
   type: "how_to"
 ---
 
-Use a custom Python binding when your application needs stricter request values
-or your gateway adds reviewed metadata to an otherwise supported provider
-protocol. This guide restricts `reasoning_effort` and allows a diagnostic
+Each provider binding defines which fields and values the proxy accepts and
+which text reaches Rails checks. Use the built-in binding for its documented
+request and response shapes. Customize it in Python when you need stricter
+request values or your gateway adds metadata that the binding rejects.
+
+This guide restricts `reasoning_effort` and allows a diagnostic
 `gateway_trace_id` on buffered Chat Completions responses and streamed chunks.
 Assistant text remains guarded; the metadata value is opaque and is not checked.
 

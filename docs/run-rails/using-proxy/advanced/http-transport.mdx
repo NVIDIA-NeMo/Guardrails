@@ -5,16 +5,25 @@ content:
   type: "how_to"
 ---
 
+The HTTP transport sends requests from the proxy to the upstream model service.
+The default transport handles ordinary HTTP and HTTPS connections. Set
+`base_url` to choose an upstream; use a custom transport when you need different
+connection settings, custom TLS, or routing based on the requested model.
+
+A transport changes how requests reach the upstream. Provider bindings still
+define the accepted payloads, and Rails still supplies the checks. This hook
+applies to the proxy's outgoing provider requests; Rails models and checking
+services use their own clients.
+
 ## Inject a transport
 
-Supply an `http_transport_factory` returning a new `httpx.AsyncBaseTransport`
-for each application lifespan. The shared HTTP client uses it for all configured
-provider instances. Use it for controlled egress, custom TLS, fault injection,
-recording, or application-owned destination routing.
+Pass an `http_transport_factory` to the application factory. This is a function
+that creates the transport when the application starts. The proxy shares it
+across provider instances and closes it during shutdown.
 
 Complete the [Python setup](/run-guardrailed-inference/using-proxy/python-integration#create-an-application),
-then replace `proxy_app.py` with this recipe to simulate an upstream unavailable
-response. It imports the fixed-policy configuration from `proxy_config.py`:
+then replace `proxy_app.py` with the following example. It increases the shared
+connection limit to 200 for applications handling more concurrent requests:
 
 ```python
 import httpx
@@ -23,50 +32,39 @@ from nemoguardrails.server.experimental.application import create_proxy_applicat
 
 from proxy_config import config
 
-
-def unavailable(request: httpx.Request) -> httpx.Response:
-    return httpx.Response(
-        503,
-        headers={"content-type": "application/json"},
-        stream=httpx.ByteStream(b'{"error":{"message":"Upstream unavailable"}}'),
-        request=request,
-    )
-
-
 app = create_proxy_application(
     config,
-    http_transport_factory=lambda: httpx.MockTransport(unavailable),
+    http_transport_factory=lambda: httpx.AsyncHTTPTransport(
+        limits=httpx.Limits(
+            max_connections=200,
+            max_keepalive_connections=40,
+            keepalive_expiry=5.0,
+        ),
+        trust_env=False,
+    ),
 )
 ```
 
-The unread async response body matters: the proxy consumes upstream response
-bytes through HTTPX's raw streaming interface. A synthetic response constructed
-with `json=...` is already consumed and is not interchangeable here.
+Choose limits for your workload and upstream capacity. These limits apply to
+the whole application; see [connection-pool capacity](#connection-pool-capacity)
+for how concurrent streams share connections. The factory must create a new
+transport for each application lifespan.
 
 For guarded operations, the transport is reached after input inspection and
 its returned content follows output inspection when enabled. It receives a
 complete outbound HTTP request, not the Rails resolver's context object.
 If it handles several logical hosts or protocols, dispatch them explicitly.
 
-The [model-routing example](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/examples/model_routing_transport.py)
-selects trusted destinations from model aliases. It preserves non-JSON upload
-streams and encoded URL suffixes, replaces the logical base path, and limits
-JSON reads to 1 MiB by default (`max_json_body_bytes`). Oversized JSON receives
-HTTP 413 before network dispatch. The logical `model-router.internal` URL below
-is a dispatch label handled by the injected transport, not a service to deploy.
-Select destinations and credentials from trusted
-configuration. The transport hook does not itself implement model balancing,
-retry semantics, or another provider's dialect.
-
-It customizes provider generation, not the separate clients used by configured
-Rails models or checking services.
-
 ## Route model aliases
 
-For one fixed upstream, set `base_url` directly. When your application needs
-model-to-destination routing, use a trusted table in a transport. This complete
-Chat-only recipe uses the bundled example implementation; save it as
-`routed_app.py` beside `proxy_config.py`. It maps `public-model` to the same
+Use a model alias when clients should send a name such as `public-model` while
+your application chooses the provider model and destination. A routing transport
+looks up that name in a trusted table and supplies the destination's credentials.
+Every destination must support the instance's selected binding and dialect.
+
+This Chat-only recipe uses the bundled
+[model-routing example](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/examples/model_routing_transport.py).
+Save it as `routed_app.py` beside `proxy_config.py`. It maps `public-model` to the same
 OpenAI model used in the quickstart:
 
 ```python
@@ -103,6 +101,13 @@ secret management, start
 without contacting a provider. Requests without a model use the explicit default
 destination; their bodies do not acquire a model field.
 
+The logical `model-router.internal` URL is a routing label handled by the
+transport, not a service to deploy. The example preserves non-JSON upload
+streams and encoded URL suffixes, replaces the logical base path, and limits
+JSON reads to 1 MiB by default (`max_json_body_bytes`). Oversized JSON receives
+HTTP 413 before network dispatch. The transport hook does not itself implement
+model balancing, retries, or another provider's dialect.
+
 The example removes caller `Authorization`, `api-key`, `x-api-key` and `Cookie`
 headers and supplies the destination's bearer credential. Review any additional
 credential headers used by your environment. Model translation changes request
@@ -137,29 +142,10 @@ use the available connections and make requests to another provider wait. Pool
 acquisition uses the application's configured request `timeout`; exhaustion
 surfaces through the existing upstream-failure mapping.
 
-Using `config` from `proxy_config.py`, configure the shared pool through the factory:
-
-```python
-import httpx
-
-from nemoguardrails.server.experimental.application import create_proxy_application
-from proxy_config import config
-
-application = create_proxy_application(
-    config,
-    http_transport_factory=lambda: httpx.AsyncHTTPTransport(
-        limits=httpx.Limits(
-            max_connections=200,
-            max_keepalive_connections=40,
-            keepalive_expiry=5.0,
-        ),
-        trust_env=False,
-    ),
-)
-```
-
-These are aggregate connection limits, not per-provider quotas. Size them for
-expected concurrent streams and upstream capacity. Raising the limit does not
+Set connection limits on the transport as shown in
+[the factory example](#inject-a-transport). These are aggregate limits, not
+per-provider quotas. Size them for expected concurrent streams and upstream
+capacity. Raising the limit does not
 provide fairness or isolate providers from each other's traffic.
 
 Custom transports own their pool configuration. The factory creates a fresh

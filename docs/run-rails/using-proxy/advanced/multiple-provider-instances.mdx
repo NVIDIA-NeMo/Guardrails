@@ -5,6 +5,16 @@ content:
   type: "how_to"
 ---
 
+A provider instance defines how the proxy handles requests under one local path:
+where to send them, which provider binding to use, and which Rails configuration
+to apply. Configure multiple instances when different paths need different
+upstreams or policies. The instances can use the same provider and run in one
+application.
+
+The example below exposes OpenAI at `/standard` and `/strict`, with different
+Rails policies for each path. For one upstream and one policy, use the
+[single-instance configuration](/run-guardrailed-inference/using-proxy/configuration#declare-a-deployment).
+
 ## Mount multiple provider instances
 
 Copy the [quickstart example](/run-guardrailed-inference/using-proxy/quickstart)

@@ -5,19 +5,26 @@ content:
   type: "how_to"
 ---
 
-Use a trusted Python resolver when Rails selection depends on the operation or
-authenticated request context. Declare the catalog at application construction;
-the resolver returns a registered ID, never a filesystem path.
+Each request uses one Rails configuration for its input and output checks. Set
+a fixed `rails_config_id` when every request to a provider instance should use
+the same policy.
+
+Use a Python resolver when the choice depends on the operation or authenticated
+user. A resolver is a function the proxy calls for each request to choose a
+configuration. The application loads the named configurations at startup; the
+resolver chooses one of their IDs rather than loading configuration files.
+
+The example below uses the standard policy for Chat Completions and a stricter
+policy for Responses, through the same provider instance.
 
 ## Select a configuration
 
-YAML requires a fixed Rails ID per provider. Python also supports a trusted
-callback. Complete the [Python setup](/run-guardrailed-inference/using-proxy/python-integration#create-an-application),
+YAML requires a fixed Rails ID per provider. To select one with a Python
+function, complete the [Python setup](/run-guardrailed-inference/using-proxy/python-integration#create-an-application),
 then replace `proxy_app.py` with the complete recipe below and provide both
 Rails directories. Create `proxy-example/strict-rails` using the
 [different-policy setup](/run-guardrailed-inference/using-proxy/advanced/multiple-provider-instances#configure-different-rails-policies).
-This recipe keeps the OpenAI upstream and client setup from the quickstart and
-selects policy using the server-supplied operation identity:
+This recipe keeps the OpenAI upstream and client setup from the quickstart:
 
 ```python
 from pathlib import Path
