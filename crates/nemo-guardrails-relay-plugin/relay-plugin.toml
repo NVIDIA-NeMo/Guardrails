@@ -1,9 +1,9 @@
 manifest_version = 1
-description = "Checks tool calls with a NeMo Guardrails hooks server."
+description = "Calls the NeMo Guardrails service to check each tool call that Relay manages."
 
 [plugin]
-id = "nvidia.nemo_guardrails_checks"
-name = "NeMo Guardrails checks"
+id = "nvidia.nemo_guardrails"
+name = "NVIDIA NeMo Guardrails Plugin"
 kind = "rust_dynamic"
 
 [compat]

@@ -13,30 +13,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! NeMo Relay native plugin that checks tool calls with a NeMo Guardrails hooks server.
+//! The NVIDIA NeMo Guardrails plugin for NeMo Relay, a client of the NeMo Guardrails service.
+//!
+//! The plugin runs inside a Relay process (a gateway, a daemon worker, or an app that embeds
+//! Relay) and holds no rails of its own. It calls the NeMo Guardrails service, a hooks server
+//! started with `nemoguardrails hooks-server`, whose configuration holds the rails and decides
+//! each tool call. The plugin's part is to send Relay's tool calls to the service and turn its
+//! answers into Relay's results.
 //!
 //! Relay loads the `cdylib` through the `nemo_relay_register_plugin` symbol that
-//! `relay-plugin.toml` names. The plugin validates its component configuration and registers
-//! no checks yet.
+//! `relay-plugin.toml` names. The plugin validates its component configuration (see [`config`])
+//! but doesn't call the service or register any checks yet.
 
 pub mod config;
 
 use nemo_relay_plugin::{ConfigDiagnostic, DiagnosticLevel, Json, NativePlugin, PluginContext};
 use serde_json::Map;
 
-use crate::config::{ChecksConfig, ConfigError};
+use crate::config::{ConfigError, NeMoGuardrailsClientConfig};
 
 /// Plugin kind. It must match `plugin.id` in `relay-plugin.toml`.
-pub const PLUGIN_KIND: &str = "nvidia.nemo_guardrails_checks";
+pub const PLUGIN_KIND: &str = "nvidia.nemo_guardrails";
 
 /// Diagnostic code for a component configuration that the plugin rejects.
-pub const INVALID_CONFIG_CODE: &str = "nemo_guardrails_checks.invalid_config";
+pub const INVALID_CONFIG_CODE: &str = "nemo_guardrails.invalid_config";
 
-/// The NeMo Guardrails checks plugin.
+/// The NVIDIA NeMo Guardrails plugin: Relay's client of the NeMo Guardrails service.
 #[derive(Debug, Default)]
-pub struct NemoGuardrailsChecksPlugin;
+pub struct NeMoGuardrailsClientPlugin;
 
-impl NativePlugin for NemoGuardrailsChecksPlugin {
+impl NativePlugin for NeMoGuardrailsClientPlugin {
     fn plugin_kind(&self) -> &str {
         PLUGIN_KIND
     }
@@ -50,7 +56,7 @@ impl NativePlugin for NemoGuardrailsChecksPlugin {
             .executor_config_for_component(plugin_config)
             .err()
             .map(executor_diagnostic);
-        let config = ChecksConfig::from_component_config(plugin_config)
+        let config = NeMoGuardrailsClientConfig::from_component_config(plugin_config)
             .err()
             .map(|error| invalid_config_diagnostic(&error));
         executor.into_iter().chain(config).collect()
@@ -61,7 +67,7 @@ impl NativePlugin for NemoGuardrailsChecksPlugin {
         plugin_config: &Map<String, Json>,
         _ctx: &mut PluginContext<'_>,
     ) -> nemo_relay_plugin::Result<()> {
-        ChecksConfig::from_component_config(plugin_config)
+        NeMoGuardrailsClientConfig::from_component_config(plugin_config)
             .map_err(|error| invalid_config_message(&error))?;
         Ok(())
     }
@@ -91,12 +97,12 @@ fn invalid_config_diagnostic(error: &ConfigError) -> ConfigDiagnostic {
 
 /// The message that both `validate` and `register` give for an invalid component config.
 fn invalid_config_message(error: &ConfigError) -> String {
-    format!("invalid NeMo Guardrails checks config: {error}")
+    format!("invalid NeMo Guardrails plugin config: {error}")
 }
 
 nemo_relay_plugin::nemo_relay_plugin!(
     nemo_relay_register_plugin,
-    NemoGuardrailsChecksPlugin::default
+    NeMoGuardrailsClientPlugin::default
 );
 
 #[cfg(test)]
@@ -107,7 +113,7 @@ mod tests {
 
     /// Validates a JSON component config as Relay does.
     fn validate(config: Json) -> Vec<ConfigDiagnostic> {
-        NemoGuardrailsChecksPlugin.validate(config.as_object().expect("config is an object"))
+        NeMoGuardrailsClientPlugin.validate(config.as_object().expect("config is an object"))
     }
 
     /// A valid config with an executor override produces no diagnostics.
@@ -133,7 +139,7 @@ mod tests {
                 code: INVALID_CONFIG_CODE.into(),
                 component: Some(PLUGIN_KIND.into()),
                 field: Some("endpoint".into()),
-                message: "invalid NeMo Guardrails checks config: endpoint must use http or https"
+                message: "invalid NeMo Guardrails plugin config: endpoint must use http or https"
                     .into(),
             }]
         );

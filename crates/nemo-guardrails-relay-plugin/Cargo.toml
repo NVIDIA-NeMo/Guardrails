@@ -1,7 +1,7 @@
 [package]
 name = "nemo-guardrails-relay-plugin"
 version = "0.1.0"
-description = "NeMo Relay plugin that checks tool calls with a NeMo Guardrails hooks server"
+description = "NeMo Relay plugin that checks tool calls as a client of the NeMo Guardrails service"
 authors = ["NVIDIA Corporation"]
 edition = "2024"
 license = "Apache-2.0"

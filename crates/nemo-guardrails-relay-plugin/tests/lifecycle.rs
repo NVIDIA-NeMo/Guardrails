@@ -15,6 +15,8 @@
 
 //! Loads the built plugin library into a real NeMo Relay host, through the crate's own manifest
 //! and config schema.
+//!
+//! No NeMo Guardrails service is needed: loading and validating the plugin makes no calls to it.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -28,7 +30,7 @@ use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 use tokio::sync::Mutex;
 
-const PLUGIN_ID: &str = "nvidia.nemo_guardrails_checks";
+const PLUGIN_ID: &str = "nvidia.nemo_guardrails";
 const LIBRARY_STEM: &str = "nemo_guardrails_relay_plugin";
 
 /// Relay allows one plugin host per process, so the tests take turns.
@@ -77,7 +79,8 @@ async fn schema_rejects_config_without_endpoint() {
     assert!(!list_plugin_kinds().contains(&PLUGIN_ID.to_owned()));
 }
 
-/// The manifest's config schema rejects a field it doesn't declare, such as `config_id`.
+/// The manifest's config schema rejects a field it doesn't declare, such as `config_id`: the
+/// NeMo Guardrails service serves one configuration, so the plugin can't pick one.
 #[tokio::test]
 async fn schema_rejects_unknown_field() {
     let _host = HOST.lock().await;
@@ -154,7 +157,7 @@ async fn plugin_rejects_endpoints_the_schema_allows() {
         let error = initialize_error(bundle.plugins_toml(json!({"endpoint": endpoint}))).await;
 
         assert!(
-            error.contains(&format!("invalid NeMo Guardrails checks config: {message}")),
+            error.contains(&format!("invalid NeMo Guardrails plugin config: {message}")),
             "{endpoint}: {error}"
         );
         assert!(!error.contains("secret"), "{endpoint}: {error}");
@@ -188,7 +191,7 @@ async fn plugin_rejects_mistyped_headers_without_quoting_them() {
         .await;
 
         assert!(
-            error.contains(&format!("invalid NeMo Guardrails checks config: {message}")),
+            error.contains(&format!("invalid NeMo Guardrails plugin config: {message}")),
             "{error}"
         );
         assert!(!error.contains(value), "{error}");

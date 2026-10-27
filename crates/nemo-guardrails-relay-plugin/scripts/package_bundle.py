@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Materialize the NeMo Relay plugin bundle from a compiled cdylib."""
+"""Materialize the NVIDIA NeMo Guardrails plugin's bundle from a compiled cdylib."""
 
 from __future__ import annotations
 

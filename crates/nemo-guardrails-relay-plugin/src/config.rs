@@ -13,7 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Component configuration, read from the plugin's entry in `plugins.toml`.
+//! The plugin's component configuration, read from its entry in `plugins.toml`.
+//!
+//! The plugin is a client of the NeMo Guardrails service, so most of its configuration says how
+//! to reach that service: where it is, which headers to send and how long to wait. The rails
+//! themselves are configured in the service, not here.
 
 use std::fmt;
 use std::time::Duration;
@@ -24,7 +28,7 @@ use serde::Deserialize;
 use serde::de::IgnoredAny;
 use serde_json::{Map, Value as Json};
 
-/// Default per-check timeout.
+/// Default time limit for one call to the NeMo Guardrails service.
 ///
 /// It stays under the 30-second limit that Relay's CLI hooks allow, leaving time for the hook's own
 /// round trip, so a slow check fails in the plugin rather than in hook delivery.
@@ -44,15 +48,16 @@ const CLIENT_OWNED_HEADERS: [&str; 10] = [
     "upgrade",
 ];
 
-/// A validated component configuration.
+/// The plugin's validated configuration.
 #[derive(Debug, Clone)]
-pub struct ChecksConfig {
-    /// Base URL of the NeMo Guardrails hooks server. Its path ends in `/`, so joining a relative
-    /// path keeps a proxy's path prefix.
+pub struct NeMoGuardrailsClientConfig {
+    /// Base URL of the NeMo Guardrails service, a hooks server started with
+    /// `nemoguardrails hooks-server`. Its path ends in `/`, so joining a relative path keeps a
+    /// proxy's path prefix.
     pub endpoint: Url,
-    /// Headers sent with every check, with their values marked sensitive.
+    /// Headers sent with every call to the service, with their values marked sensitive.
     pub headers: HeaderMap,
-    /// Time limit for one check.
+    /// Time limit for one call to the service.
     pub timeout: Duration,
     /// Tool conditional-execution guardrail priority. Lower values run earlier.
     pub priority: i32,
@@ -111,7 +116,7 @@ impl Default for RawConfig {
     }
 }
 
-impl ChecksConfig {
+impl NeMoGuardrailsClientConfig {
     /// Parses and validates one component config, ignoring the SDK's `executor` key.
     pub fn from_component_config(config: &Map<String, Json>) -> Result<Self, ConfigError> {
         let raw = RawConfig::deserialize(config).map_err(|error| ConfigError {
@@ -202,7 +207,7 @@ fn header_map(headers: &Json) -> Result<HeaderMap, ConfigError> {
     Ok(header_map)
 }
 
-/// The per-check timeout, which must be greater than zero.
+/// The time limit for one call to the service, which must be greater than zero.
 fn parse_timeout(timeout_millis: u64) -> Result<Duration, ConfigError> {
     if timeout_millis == 0 {
         return Err(ConfigError::new(
@@ -220,8 +225,10 @@ mod tests {
     use super::*;
 
     /// Parses a JSON component config as the plugin does.
-    fn parse(config: Json) -> Result<ChecksConfig, ConfigError> {
-        ChecksConfig::from_component_config(config.as_object().expect("config is an object"))
+    fn parse(config: Json) -> Result<NeMoGuardrailsClientConfig, ConfigError> {
+        NeMoGuardrailsClientConfig::from_component_config(
+            config.as_object().expect("config is an object"),
+        )
     }
 
     /// The error a JSON component config is rejected with.
