@@ -42,6 +42,9 @@ example, accounting metadata is different from another assistant text channel.
 Empty or null values have field-specific rules; an empty container is not
 universally interchangeable with null.
 
+For Responses, non-null `reasoning.summary`, `reasoning.generate_summary`,
+`reasoning.context`, and `reasoning.mode` values are rejected before dispatch.
+
 For exact accepted fields and nullability, consult the
 [Chat boundary](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/chat_completions/README.md#guarded-boundary),
 [Responses boundary](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/responses/README.md#supported-content),
@@ -62,36 +65,11 @@ passthrough, including for responses created elsewhere or previously stored.
 Restrict exposed unguarded routes and direct upstream access before using the
 proxy as a policy boundary, especially with application-owned credentials.
 
-## Set reasoning and generation controls
+## Generation parameters
 
-For Chat Completions, use the request's `reasoning_effort` field, such as the
-Python SDK keyword `reasoning_effort="low"`. For Responses, use
-`reasoning: {"effort": "low"}`, or the SDK keyword
-`reasoning={"effort": "low"}`. Keep the supported single-text request shape and
-explicit `store: false` for Responses.
-
-Use the field names for the selected operation:
-
-| Control | Chat Completions | Responses |
-| --- | --- | --- |
-| Reasoning effort | `reasoning_effort` | `reasoning.effort` |
-| Output token budget | `max_completion_tokens` | `max_output_tokens` |
-| Response verbosity | `verbosity` | `text.verbosity` |
-
-The proxy forwards allowed generation controls unchanged. They configure the
-upstream model, not Rails, and do not expand the content the proxy inspects.
-Supported values and combinations, including `temperature` and `top_p`, depend
-on the provider and model. Acceptance by the guard contract does not guarantee
-that the upstream supports a parameter. Consult the provider's
-[model parameter guidance](https://developers.openai.com/api/docs/guides/latest-model)
-for your selected model.
-
-Responses reasoning `summary`, `generate_summary`, `context` and `mode` remain
-disabled for non-null values in the current binding. Requests for reasoning
-summaries or pro mode fail with HTTP 422 before dispatch. Increasing reasoning
-effort does not enable a separately inspected reasoning-text channel. Leave
-enough token budget for both reasoning and final text; budget exhaustion is
-different from an unsupported parameter or a policy block.
+The proxy forwards supported generation parameters to the upstream service.
+Available parameters and values depend on your provider and model. Configure
+input and output checks separately in Rails.
 
 ## Capability profiles
 
