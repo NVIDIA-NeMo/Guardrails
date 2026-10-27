@@ -66,6 +66,24 @@ async fn valid_config_activates_and_closes() {
     assert!(!list_plugin_kinds().contains(&PLUGIN_ID.to_owned()));
 }
 
+/// An endpoint whose scheme is in capitals activates the plugin, which reads the scheme as a URL
+/// parser does.
+#[tokio::test]
+async fn uppercase_scheme_activates() {
+    let _host = HOST.lock().await;
+    let bundle = Bundle::new();
+
+    let mut activation = initialize(
+        PluginConfig::default(),
+        Some(bundle.plugins_toml(json!({"endpoint": "HTTPS://127.0.0.1:8100"}))),
+    )
+    .await
+    .expect("an endpoint with an uppercase scheme should activate the plugin");
+    assert!(list_plugin_kinds().contains(&PLUGIN_ID.to_owned()));
+
+    activation.close().expect("the host should close");
+}
+
 /// The manifest's config schema rejects a config without `endpoint` before the plugin runs.
 #[tokio::test]
 async fn schema_rejects_config_without_endpoint() {
@@ -145,12 +163,21 @@ fn manifest_refuses_relay_hosts_before_0_10_1() {
 async fn plugin_rejects_endpoints_the_schema_allows() {
     let _host = HOST.lock().await;
 
-    // The schema leaves credentials to the plugin, because Relay's schema errors quote the value.
+    // The schema leaves the scheme and credentials to the plugin, because Relay's schema errors
+    // quote the value: a scheme pattern would quote a URL such as HTTPS://user:secret@host.
     for (endpoint, message) in [
         ("http://exa mple.com", "endpoint is not a valid URL"),
         (
             "https://user:secret@gw.example.com",
             "endpoint must not contain a username or password",
+        ),
+        (
+            "HTTPS://user:secret@gw.example.com",
+            "endpoint must not contain a username or password",
+        ),
+        (
+            "ftp://user:secret@gw.example.com",
+            "endpoint must use http or https",
         ),
     ] {
         let bundle = Bundle::new();

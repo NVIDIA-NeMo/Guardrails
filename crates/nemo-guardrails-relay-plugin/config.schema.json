@@ -8,8 +8,7 @@
   "properties": {
     "endpoint": {
       "type": "string",
-      "pattern": "^https?://",
-      "description": "Base URL of the NeMo Guardrails service (its hooks server), such as http://127.0.0.1:8100. It must not contain a username or password: send credentials in headers."
+      "description": "Base URL of the NeMo Guardrails service (its hooks server), using http or https, such as http://127.0.0.1:8100. It must not contain a username or password: send credentials in headers. The plugin rather than this schema checks the URL, because a schema error would quote it."
     },
     "headers": {
       "default": {},
