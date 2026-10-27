@@ -24,7 +24,7 @@ from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.http import HTTPClient
 from nemoguardrails.library.decision_model.rail_config import DecisionModelConfig
-from nemoguardrails.library.decision_model.request import decision_model_request
+from nemoguardrails.library.decision_model.request import DecisionModelAuthError, decision_model_request
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +62,9 @@ async def decision_model_check(
     Raises:
         ValueError: If ``source`` is invalid, the rail is unconfigured, or its configured
             API-key environment variable is unset. These are configuration errors.
+        DecisionModelAuthError: If the service rejects the credentials (HTTP 401 or 403) and
+            ``fail_open`` is false. The engine reports this as a system error rather than a
+            refusal, because the fix is the credentials, not the text.
     """
     if source not in VALID_SOURCES:
         raise ValueError(
@@ -77,9 +80,11 @@ async def decision_model_check(
     if not questions or not (text or "").strip():
         return RailOutcome.allow(metadata={"scores": {}, "triggered": []})
 
-    api_key = os.environ.get(decision_model_config.api_key_env_var) or None
-    if api_key is None:
-        raise ValueError(f"{decision_model_config.api_key_env_var} environment variable not set.")
+    api_key = None
+    if decision_model_config.api_key_env_var:
+        api_key = os.environ.get(decision_model_config.api_key_env_var) or None
+        if api_key is None:
+            raise ValueError(f"{decision_model_config.api_key_env_var} environment variable not set.")
 
     try:
         assessment = await decision_model_request(
@@ -90,7 +95,14 @@ async def decision_model_check(
             api_key,
             http_client=http_client,
             timeout=decision_model_config.timeout,
+            verify_ssl=decision_model_config.verify_ssl,
         )
+    except DecisionModelAuthError as err:
+        log.error("%s", err)
+        if decision_model_config.fail_open:
+            log.warning("fail_open is enabled; allowing text despite the authentication failure.")
+            return _failure_outcome(True, str(err))
+        raise
     except ValueError as err:
         log.warning(
             "Decision model assessment failed (%s); %s.",
