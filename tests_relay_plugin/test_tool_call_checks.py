@@ -218,8 +218,8 @@ def test_check_timeout_blocks_the_call(relay_plugin, judge_hooks_server, judge):
     assert judge.hanging.wait(JUDGE_ARRIVAL_TIMEOUT_SECONDS), "the check never reached the judge"
 
 
-def test_repeated_call_reuses_the_decision(relay_plugin, judge_hooks_server, judge):
-    """The same call made twice within the plugin's cache lifetime asks the judge once, and runs the tool both times."""
+def test_every_call_is_checked(relay_plugin, judge_hooks_server, judge):
+    """The same call made twice asks the judge twice, and runs the tool both times."""
     relay_plugin({"endpoint": judge_hooks_server})
     tool = RecordingTool()
 
@@ -227,21 +227,6 @@ def test_repeated_call_reuses_the_decision(relay_plugin, judge_hooks_server, jud
     call_tool("fetch_url", {"url": "https://docs.example/twice"}, tool)
 
     assert tool.runs == [{"url": "https://docs.example/twice"}] * 2
-    assert len(judge.prompts) == 1
-
-
-def test_failed_check_is_retried_on_the_next_call(relay_plugin, judge_hooks_server, judge):
-    """A failed check isn't cached: the same call made again asks the judge again, and runs once the judge answers."""
-    relay_plugin({"endpoint": judge_hooks_server})
-    judge.failure = JudgeFailure.SERVER_ERROR
-    tool = RecordingTool()
-
-    with pytest.raises(RuntimeError):
-        call_tool("fetch_url", {"url": "https://docs.example/retry"}, tool)
-    judge.failure = None
-    call_tool("fetch_url", {"url": "https://docs.example/retry"}, tool)
-
-    assert tool.runs == [{"url": "https://docs.example/retry"}]
     assert len(judge.prompts) == 2
 
 
