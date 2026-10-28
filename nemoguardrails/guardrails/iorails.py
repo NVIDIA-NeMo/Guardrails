@@ -592,6 +592,9 @@ def _blocked_message(result: RailResult) -> str:
     """The text a blocked turn returns, which says whether the rail broke or fired."""
     if result.failed:
         return INTERNAL_ERROR_MESSAGE
+    refusal_message = result.outcome.metadata.get("refusal_message")
+    if isinstance(refusal_message, str) and refusal_message:
+        return refusal_message
     return REFUSAL_MESSAGE
 
 

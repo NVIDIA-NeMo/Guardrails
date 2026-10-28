@@ -136,6 +136,9 @@ navigation:
           - page: LLM Self-Check
             path: configure-rails/guardrail-catalog/self-check.mdx
             slug: self-check
+          - page: Language Detector
+            path: configure-rails/guardrail-catalog/language-detector.mdx
+            slug: language-detector
           - section: Third-Party APIs
             path: configure-rails/guardrail-catalog/third-party.mdx
             slug: third-party

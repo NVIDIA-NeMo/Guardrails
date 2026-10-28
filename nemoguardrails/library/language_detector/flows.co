@@ -1,0 +1,19 @@
+flow language detector check input
+  """Block user messages that are not written in the allowed languages."""
+  $response = await LanguageDetectorCheckInputAction()
+
+  global $allowed
+  $allowed = not $response.is_blocked
+  global $user_language
+  $user_language = $response.metadata["language"]
+
+  if not $allowed
+    if $system.config.enable_rails_exceptions
+      send LanguageDetectorRailException(message="Language not allowed. The user's message was blocked by the 'language detector check input' flow.")
+    else
+      $refusal_message = $response.metadata["refusal_message"]
+      if $refusal_message
+        bot say $refusal_message
+      else
+        bot refuse to respond
+    abort

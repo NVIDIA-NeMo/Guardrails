@@ -32,6 +32,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.compiled_rail import RailCompilationError, RailDependencies, compile_rail
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
@@ -143,6 +144,50 @@ class TestLocalRailsAgreeAcrossEngines:
         config = RailsConfig.from_content(config=_local_config(rail))
 
         assert IORails.unsupported_reason(config, llm=None) is None
+
+
+@pytest.mark.asyncio
+async def test_iorails_returns_custom_language_detector_refusal():
+    """A compiled language detector rail's configured refusal reaches IORails callers."""
+    custom_refusal = "Solo inglés, por favor."
+    config_dict = _local_config(
+        LocalRail(
+            rail_id="language_detector_input",
+            flow="language detector check input",
+            direction="input",
+            rails_config={
+                "language_detector": {
+                    "allowed_languages": ["en"],
+                    "refusal_messages": {"es": custom_refusal},
+                }
+            },
+        )
+    )
+
+    config = RailsConfig.from_content(config=config_dict)
+    with patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"}):
+        guardrails = Guardrails(config, use_iorails=True, require_iorails=True)
+        with patch("nemoguardrails.library.language_detector.actions.detect_language", return_value="es"):
+            async with guardrails:
+                iorails = guardrails.rails_engine
+                assert isinstance(iorails, IORails)
+                main = iorails.engine_registry._engines["main"]
+                assert isinstance(main, ModelEngine)
+                main.chat_completion = AsyncMock(return_value=LLMResponse(content="unused"))
+                response = await guardrails.generate_async(messages=[{"role": "user", "content": "Hola"}])
+
+    assert isinstance(response, dict)
+    assert response["content"] == custom_refusal
+
+
+def test_missing_fast_langdetect():
+    with patch("nemoguardrails.guardrails.compiled_rail._is_installed", return_value=False):
+        with pytest.raises(RailCompilationError, match="fast-langdetect.*'multilingual' extra"):
+            compile_rail(
+                "language detector check input",
+                SurfaceDirection.INPUT,
+                RailDependencies(llms={"main": None}, llm_task_manager=None, config=None),
+            )
 
 
 SENSITIVE_DATA_CONFIG = {"sensitive_data_detection": {"input": {"entities": ["PERSON"]}}}

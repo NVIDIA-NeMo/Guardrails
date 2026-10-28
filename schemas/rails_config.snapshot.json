@@ -654,6 +654,80 @@
       "title": "JailbreakDetectionConfig",
       "type": "object"
     },
+    "LanguageDetectorConfig": {
+      "description": "Configuration for the language detector input rail.",
+      "properties": {
+        "allowed_languages": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Language codes (fastText) that the user message may be written in. Messages in any other language are blocked. Mutually exclusive with blocked_languages. See https://fasttext.cc/docs/en/language-identification.html for the supported codes.",
+          "title": "Allowed Languages"
+        },
+        "blocked_languages": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Language codes (fastText) that the user message may not be written in. Messages in any other language are allowed. Mutually exclusive with allowed_languages. Example: ['en', 'es']",
+          "title": "Blocked Languages"
+        },
+        "fail_open": {
+          "default": false,
+          "description": "If True, allow the message when language detection fails, regardless of the language list. If False, block the message when language detection fails.",
+          "title": "Fail Open",
+          "type": "boolean"
+        },
+        "num_characters_for_prediction": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 80,
+          "description": "The number of characters to use for language detection.The first $N characters will be used, and any subsequent characters will not be considered in the prediction.Defaults to 80 - longer windows will be more robust ",
+          "title": "Num Characters For Prediction"
+        },
+        "refusal_messages": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Custom refusal messages per language code, used when a message is blocked. Languages without a message fall back to the built-in defaults, then to English. Example: {'en': 'Sorry, English only.', 'es': 'Lo siento, solo ingl\u00e9s.'}",
+          "title": "Refusal Messages"
+        }
+      },
+      "title": "LanguageDetectorConfig",
+      "type": "object"
+    },
     "LocalHFClassifierConfig": {
       "description": "Configuration for a local HuggingFace Transformers pipeline classifier.",
       "properties": {
@@ -1343,6 +1417,17 @@
         }
       ],
       "description": "Configuration for jailbreak detection."
+    },
+    "language_detector": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LanguageDetectorConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for the language detector rail."
     },
     "pangea": {
       "anyOf": [

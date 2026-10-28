@@ -1,0 +1,20 @@
+define bot refuse to respond
+  "I'm sorry, I can't respond to that."
+
+define subflow language detector check input
+  """Block user messages that are not written in the allowed languages."""
+  $response = execute language_detector_check_input
+
+  $allowed = not $response.is_blocked
+  $user_language = $response.metadata["language"]
+
+  if not $allowed
+    if $config.enable_rails_exceptions
+      create event LanguageDetectorRailException(message="Language not allowed. The user's message was blocked by the 'language detector check input' flow.")
+    else
+      $refusal_message = $response.metadata["refusal_message"]
+      if $refusal_message
+        bot $refusal_message
+      else
+        bot refuse to respond
+    stop

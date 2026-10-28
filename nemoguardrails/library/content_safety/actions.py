@@ -14,11 +14,21 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict, FrozenSet, Optional, cast
+from typing import Any, Dict, Optional, cast
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.library.utils.language_detection import (
+    DEFAULT_REFUSAL_MESSAGES,  # noqa: F401  (re-exported for backward compatibility)
+    SUPPORTED_LANGUAGES,
+)
+from nemoguardrails.library.utils.language_detection import (
+    detect_language as _detect_language,
+)
+from nemoguardrails.library.utils.language_detection import (
+    get_refusal_message as _get_refusal_message,
+)
 from nemoguardrails.llm.cache import CacheInterface
 from nemoguardrails.llm.cache.utils import (
     CacheEntry,
@@ -224,47 +234,6 @@ async def content_safety_check_output(
         log.debug(f"Content safety output result cached for model '{model_name}'")
 
     return final_result
-
-
-SUPPORTED_LANGUAGES: FrozenSet[str] = frozenset({"en", "es", "zh", "de", "fr", "hi", "ja", "ar", "th"})
-
-DEFAULT_REFUSAL_MESSAGES: Dict[str, str] = {
-    "en": "I'm sorry, I can't respond to that.",
-    "es": "Lo siento, no puedo responder a eso.",
-    "zh": "抱歉，我无法回应。",
-    "de": "Es tut mir leid, darauf kann ich nicht antworten.",
-    "fr": "Je suis désolé, je ne peux pas répondre à cela.",
-    "hi": "मुझे खेद है, मैं इसका जवाब नहीं दे सकता।",
-    "ja": "申し訳ありませんが、それには回答できません。",
-    "ar": "عذراً، لا أستطيع الرد على ذلك.",
-    "th": "ขออภัย ฉันไม่สามารถตอบได้",
-}
-
-
-def _detect_language(text: str) -> Optional[str]:
-    try:
-        from fast_langdetect import detect
-
-        result = detect(text, k=1)
-        if result and len(result) > 0:
-            return cast(Optional[str], result[0].get("lang"))
-        return None
-    except ImportError:
-        log.warning("fast-langdetect not installed, skipping")
-        return None
-    except Exception as e:
-        log.warning(f"fast-langdetect detection failed: {e}")
-        return None
-
-
-def _get_refusal_message(lang: str, custom_messages: Optional[Dict[str, str]]) -> str:
-    if custom_messages and lang in custom_messages:
-        return custom_messages[lang]
-    if lang in DEFAULT_REFUSAL_MESSAGES:
-        return DEFAULT_REFUSAL_MESSAGES[lang]
-    if custom_messages and "en" in custom_messages:
-        return custom_messages["en"]
-    return DEFAULT_REFUSAL_MESSAGES["en"]
 
 
 @action()

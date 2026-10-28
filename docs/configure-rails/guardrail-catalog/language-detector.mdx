@@ -1,0 +1,107 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Language Detector"
+sidebar-title: "Language Detector"
+description: "Reference for the language detector input rail that blocks user messages written in languages outside the allowed set."
+content:
+  type: "Reference"
+---
+
+The language detector rail is an input guardrail that blocks user messages written in languages outside a configured allowlist.
+Language detection runs locally through [fastText language identification](https://fasttext.cc/docs/en/language-identification.html), which is provided via the `"nemoguardrails[multilingual]"` optional extra.
+
+When a message is blocked, the bot responds with a refusal message in the user's own language whenever one is available, falling back either to a user-configured refusal message or to an English-language refusal.
+
+## Prerequisites
+The language detector rail relies on the `multilingual` extra. To install, run `pip install "nemoguardrails[multilingual]"`.
+
+## Configuration
+
+The rail supports two mutually exclusive modes. `allowed_languages` is an allowlist: only messages written in the listed languages are let through. `blocked_languages` is a blocklist: messages in the listed languages are blocked and everything else is allowed. If neither `allowed_languages` or `blocked_languages` are set, the default configuration will only allow English.
+
+Both settings accept the language codes supported by the fastText language identification model (for example `en`, `es`, `de`, `fr`, `zh`, `ja`, `ko`; see the [full list of 176 codes](https://fasttext.cc/docs/en/language-identification.html)).
+
+```yaml
+rails:
+  config:
+    language_detector:
+      allowed_languages:
+        - en
+        - es
+```
+
+Or, to block specific languages and allow the rest:
+
+```yaml
+rails:
+  config:
+    language_detector:
+      blocked_languages:
+        - es
+        - de
+```
+
+You cannot combine both `allowed_languages` and `blocked_languages`, you may only specify one.
+
+If the language detector returns no language (for example, for empty input or when detection is unavailable or errors), use `fail_open` to control the rail behavior.
+The default value is `false` which blocks the message; set it to `true` to allow the message.
+
+```yaml
+rails:
+  config:
+    language_detector:
+      allowed_languages: [en, es]
+      fail_open: true
+```
+
+You can customize the refusal messages used when a message is blocked. When the language detector identifies a disallowed language, it will look for a matching refusal message
+from `refusal_messages`.  Languages without a custom message use the built-in defaults (English, Spanish, Chinese, German, French, Hindi, Japanese, Arabic, and Thai); languages without a custom or default message will fall back to an English refusal.
+
+```yaml
+rails:
+  config:
+    language_detector:
+      allowed_languages:
+        - en
+      refusal_messages:
+        de: "Es tut mir leid, ich kann nur auf englische Prompts antworten."
+        es: "Lo siento, solo puedo responder a prompts en inglés."
+```
+
+By default, fast-langdetect only considers the first 80 characters in a message, which maximizes prediction accuracy.
+You can manually tune this by setting `num_characters_for_prediction`:
+
+```yaml
+rails:
+  config:
+    language_detector:
+      allowed_languages:
+        - en
+      num_characters_for_prediction: 1024
+```
+
+However, fast-langdetect advises that values larger or smaller than 80 will reduce accuracy.
+
+## Usage
+To use the language detector as an input rail, include the `language detector check input` flow in the input rails section of the `config.yml` file:
+
+```yaml
+rails:
+  input:
+    flows:
+      - language detector check input
+```
+
+For Colang 2.x configurations using flow-based rails, call the flow from your `input rails` flow instead:
+
+```colang
+import guardrails
+import nemoguardrails.library.language_detector
+
+flow input rails $input_text
+  language detector check input
+```
+
+## Limitations
+- Language detection is heuristic. Very short or mixed-language messages may be misidentified.
