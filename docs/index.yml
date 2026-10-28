@@ -179,6 +179,9 @@ navigation:
               - page: HuggingFace Classifier
                 path: configure-rails/guardrail-catalog/community/hf-classifier.mdx
                 slug: hf-classifier
+              - page: Decision Model
+                path: configure-rails/guardrail-catalog/community/decision-model.mdx
+                slug: decision-model
               - page: Llama Guard
                 path: configure-rails/guardrail-catalog/community/llama-guard.mdx
                 slug: llama-guard

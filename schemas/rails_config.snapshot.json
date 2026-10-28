@@ -264,6 +264,126 @@
       "title": "CrowdStrikeAIDRRailConfig",
       "type": "object"
     },
+    "DecisionModelConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for the decision model rail.",
+      "properties": {
+        "api_key_env_var": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Environment variable containing the API key, sent as a bearer token. Optional: when unset, requests are sent without an Authorization header. Requires an https:// server_endpoint when set.",
+          "title": "Api Key Env Var"
+        },
+        "fail_open": {
+          "default": false,
+          "description": "If true, allow the text when the decision model cannot be reached. Default is to fail closed and block.",
+          "title": "Fail Open",
+          "type": "boolean"
+        },
+        "input": {
+          "$ref": "#/$defs/DecisionModelOptions",
+          "description": "Questions asked about the user input."
+        },
+        "model": {
+          "description": "The decision model identifier. Pin a version for reproducibility.",
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "output": {
+          "$ref": "#/$defs/DecisionModelOptions",
+          "description": "Questions asked about the bot output."
+        },
+        "server_endpoint": {
+          "description": "The decision model assessment endpoint URL.",
+          "minLength": 1,
+          "title": "Server Endpoint",
+          "type": "string"
+        },
+        "threshold": {
+          "default": 0.5,
+          "description": "Default probability at or above which a question blocks the text.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Threshold",
+          "type": "number"
+        },
+        "timeout": {
+          "default": 10.0,
+          "description": "Per-request timeout in seconds.",
+          "exclusiveMinimum": 0,
+          "title": "Timeout",
+          "type": "number"
+        },
+        "verify_ssl": {
+          "default": true,
+          "description": "Verify the endpoint's TLS certificate. Set to false only for self-signed or internal certificates you trust.",
+          "title": "Verify Ssl",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "server_endpoint",
+        "model"
+      ],
+      "title": "DecisionModelConfig",
+      "type": "object"
+    },
+    "DecisionModelOptions": {
+      "additionalProperties": false,
+      "description": "Per-direction (input / output) options for the decision model.",
+      "properties": {
+        "questions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DecisionModelQuestion"
+          },
+          "description": "Noul questions to ask about the text, keyed by an identifier. The text is blocked if any answer probability reaches its threshold.",
+          "title": "Questions",
+          "type": "object"
+        }
+      },
+      "title": "DecisionModelOptions",
+      "type": "object"
+    },
+    "DecisionModelQuestion": {
+      "additionalProperties": false,
+      "description": "A single Noul (yes/no) question asked of the decision model about the text.",
+      "properties": {
+        "instructions": {
+          "description": "The yes/no question to ask the decision model about the text.",
+          "title": "Instructions",
+          "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Per-question block threshold in [0, 1]. Falls back to the rail-level threshold when unset.",
+          "title": "Threshold"
+        }
+      },
+      "required": [
+        "instructions"
+      ],
+      "title": "DecisionModelQuestion",
+      "type": "object"
+    },
     "F5GuardrailsRailConfig": {
       "description": "Configuration for the F5 Guardrails integration.\n\nNote: The API key is intentionally not part of this config. It is a secret\nand must be provided via the F5_GUARDRAILS_API_KEY environment variable.",
       "properties": {
@@ -1242,6 +1362,18 @@
         }
       ],
       "description": "Configuration for CrowdStrike AIDR."
+    },
+    "decision_model": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DecisionModelConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Configuration for the decision model rail."
     },
     "f5": {
       "anyOf": [
