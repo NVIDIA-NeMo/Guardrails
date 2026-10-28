@@ -17,7 +17,7 @@
 
 import asyncio
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from nemoguardrails.guardrails._lifecycle import rollback_startup
@@ -260,6 +260,17 @@ class EngineRegistry:
         """Strictly parse the last assistant message's tool calls with the named model engine."""
         engine = self._get_engine(model_type, ModelEngine)
         return engine.extract_latest_tool_calls(messages)
+
+    def rewrite_tool_results(self, model_type: str, messages: list[dict], rewrites: Mapping[int, str]) -> list[dict]:
+        """Return *messages* with the tool results at the keys of *rewrites* rewritten by the named model engine.
+
+        Raises:
+            KeyError: If no engine is registered with the given name.
+            TypeError: If the named engine is not a ModelEngine.
+            ValueError: If a key is not the position of a tool result in *messages*.
+        """
+        engine = self._get_engine(model_type, ModelEngine)
+        return engine.rewrite_tool_results(messages, rewrites)
 
     async def __aenter__(self):
         """Async context manager entry: start all engine clients."""

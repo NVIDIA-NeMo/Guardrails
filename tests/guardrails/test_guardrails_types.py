@@ -32,6 +32,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     rewrite_user_message,
     truncate,
 )
+from nemoguardrails.types import ToolCall, ToolCallFunction
 
 
 class TestRailResult:
@@ -154,6 +155,43 @@ class TestRailResult:
         pending = RailResult(RailOutcome.allow(), rewrite_pending=True)
 
         assert pending == RailResult.allow()
+
+    def test_rewritten_messages_are_part_of_the_verdict(self):
+        """An allow that rewrote a tool result differs from one that did not, so a lost rewrite fails equality."""
+        rewritten = [{"role": "tool", "tool_call_id": "call_1", "content": "<SSN>"}]
+
+        assert RailResult(RailOutcome.allow(), messages=rewritten) != RailResult.allow()
+        assert RailResult(RailOutcome.allow(), messages=rewritten) == RailResult(
+            RailOutcome.allow(), messages=list(rewritten)
+        )
+
+    def test_rewritten_messages_default_to_none(self):
+        """A rail that rewrote nothing leaves the field unset, so no caller rebinds its messages."""
+        assert RailResult.allow().messages is None
+        assert RailResult.block(reason="blocked").messages_before_block is None
+
+    def test_messages_rewritten_before_a_block_stay_out_of_equality(self):
+        """What tool rails rewrote ahead of a block is capture data, as ``rewrite_before_block`` is."""
+        kept = RailResult(
+            RailOutcome.block(reason="blocked"),
+            messages_before_block=[{"role": "tool", "tool_call_id": "call_1", "content": "<SSN>"}],
+        )
+
+        assert kept == RailResult.block(reason="blocked")
+
+    def test_rewritten_tool_calls_are_part_of_the_verdict(self):
+        """An allow that rewrote a tool call differs from one that did not, so a lost rewrite fails equality."""
+        call = ToolCall(id="call_1", function=ToolCallFunction(name="run_sql", arguments={"query": "<REDACTED>"}))
+
+        assert RailResult(RailOutcome.allow(), tool_calls=(call,)) != RailResult.allow()
+        assert RailResult.allow().tool_calls is None
+
+    def test_tool_calls_rewritten_before_a_block_stay_out_of_equality(self):
+        call = ToolCall(id="call_1", function=ToolCallFunction(name="run_sql", arguments={"query": "<REDACTED>"}))
+
+        kept = RailResult(RailOutcome.block(reason="blocked"), tool_calls_before_block=(call,))
+
+        assert kept == RailResult.block(reason="blocked")
 
     def test_is_unhashable_and_says_so(self):
         """The wrapped outcome is unhashable, and the error names this type rather than leaking from inside."""

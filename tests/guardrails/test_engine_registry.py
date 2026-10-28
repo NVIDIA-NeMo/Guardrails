@@ -1415,6 +1415,19 @@ class TestEngineRegistryToolDelegation:
         calls = manager.extract_latest_tool_calls("main", messages)
         assert [(c.id, c.function.name, c.function.arguments) for c in calls] == [("c1", "get_weather", {"city": "X"})]
 
+    def test_rewrite_tool_results_delegates_to_model_engine(self, manager):
+        """The registry writes rewritten tool results back through the named model engine."""
+        messages = [{"role": "user", "content": "hi"}, {"role": "tool", "tool_call_id": "c1", "content": "18C"}]
+        rewritten = manager.rewrite_tool_results("main", messages, {1: "masked"})
+        assert rewritten == [
+            {"role": "user", "content": "hi"},
+            {"role": "tool", "tool_call_id": "c1", "content": "masked"},
+        ]
+
+    def test_rewrite_tool_results_unknown_engine_raises_keyerror(self, manager):
+        with pytest.raises(KeyError):
+            manager.rewrite_tool_results("nonexistent", [], {})
+
     def test_extract_latest_tool_calls_unknown_engine_raises_keyerror(self, manager):
         """An unconfigured model type raises KeyError rather than guessing a wire format."""
         with pytest.raises(KeyError):
