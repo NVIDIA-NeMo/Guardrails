@@ -198,7 +198,7 @@ class LLMSpan(BaseSpan):
 
     span_kind: SpanKind = SpanKind.CLIENT
     provider_name: str = Field(description="LLM provider name (e.g., openai, anthropic)")
-    request_model: str = Field(description="Model requested (e.g., gpt-4)")
+    request_model: str = Field(description="Model requested (e.g., gpt-6-luna)")
     response_model: str = Field(description="Model that responded (usually same as request_model)")
     operation_name: str = Field(description="Operation name (e.g., chat.completions, embeddings)")
 

@@ -134,7 +134,7 @@ class State(TypedDict):
 
 def create_basic_agent():
     # Initialize components
-    llm = ChatOpenAI(model="gpt-4o")
+    llm = ChatOpenAI(model="gpt-6-luna")
 
     config = RailsConfig.from_path(config_path)
     guardrails = RunnableRails(config=config, passthrough=True, verbose=True)
@@ -239,7 +239,8 @@ Create a tool calling graph with guardrails using the tools defined in the previ
 from langgraph.prebuilt import ToolNode, tools_condition
 
 def create_tool_calling_agent():
-    llm = ChatOpenAI(model="gpt-4o")
+    # gpt-6-luna accepts function tools in Chat Completions only with reasoning_effort="none".
+    llm = ChatOpenAI(model="gpt-6-luna", reasoning_effort="none")
     tools = [search_knowledge, multiply]
     llm_with_tools = llm.bind_tools(tools)
 
@@ -324,7 +325,7 @@ class ConversationState(TypedDict):
     conversation_id: str
 
 def create_stateful_agent():
-    llm = ChatOpenAI(model="gpt-4o")
+    llm = ChatOpenAI(model="gpt-6-luna")
 
     config = RailsConfig.from_path(config_path)
     guardrails = RunnableRails(config=config, passthrough=True, verbose=True)
@@ -380,7 +381,7 @@ class MultiAgentState(TypedDict):
     task_type: str
 
 def create_multi_agent_system():
-    llm = ChatOpenAI(model="gpt-4o")
+    llm = ChatOpenAI(model="gpt-6-luna")
 
     config = RailsConfig.from_path(config_path)
     guardrails = RunnableRails(config=config, passthrough=True, verbose=True)
