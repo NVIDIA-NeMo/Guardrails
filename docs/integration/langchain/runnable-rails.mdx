@@ -374,7 +374,8 @@ def calculator(expression: str) -> str:
         return f"Error: {e}"
 
 tools = [calculator]
-model = ChatOpenAI(model="gpt-5").bind_tools(tools)
+# gpt-6-luna accepts function tools in Chat Completions only with reasoning_effort="none".
+model = ChatOpenAI(model="gpt-6-luna", reasoning_effort="none").bind_tools(tools)
 config = RailsConfig.from_path("path/to/config")
 guardrails = RunnableRails(config=config, passthrough=True)
 guarded_model = guardrails | model
