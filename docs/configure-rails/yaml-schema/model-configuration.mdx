@@ -280,10 +280,11 @@ models:
     engine: openai
     model: gpt-6-luna
     parameters:
-      temperature: 0.7
       max_tokens: 1000
-      top_p: 0.9
+      reasoning_effort: low
 ```
+
+OpenAI reasoning models, such as `gpt-6-luna`, reject `top_p` and any `temperature` other than the default. For these models, the built-in client drops `temperature` and `stop` and sends `max_tokens` as `max_completion_tokens`.
 
 Common parameters vary by provider. For built-in engines, see the OpenAI-compatible client options. For LangChain engines, refer to the corresponding LangChain provider documentation.
 
