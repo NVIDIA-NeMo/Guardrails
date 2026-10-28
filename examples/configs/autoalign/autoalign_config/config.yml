@@ -2,8 +2,6 @@ models:
   - type: main
     engine: openai
     model: gpt-6-luna
-    parameters:
-      temperature: 0.0
 rails:
     config:
         autoalign:
