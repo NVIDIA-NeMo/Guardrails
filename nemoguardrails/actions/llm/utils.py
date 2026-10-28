@@ -438,10 +438,52 @@ def get_first_bot_intent(strings: List[str]) -> Optional[str]:
     return None
 
 
+def _normalize_action_quotes(action: str) -> str:
+    """Normalize generated curly string delimiters, preserving quoted content."""
+    if "“" not in action:
+        return action
+    result = []
+    delimiter = None
+    curly_depth = 0
+    escaped = False
+    for char in action:
+        if escaped:
+            result.append(char)
+            escaped = False
+            continue
+        if char == "\\" and delimiter is not None:
+            result.append(char)
+            escaped = True
+            continue
+        if delimiter == "“":
+            if char == "“":
+                curly_depth += 1
+            elif char == "”":
+                curly_depth -= 1
+                if curly_depth == 0:
+                    delimiter = None
+                    result.append('"')
+                    continue
+            elif char == '"':
+                result.append('\\"')
+                continue
+        elif delimiter is not None:
+            if char == delimiter:
+                delimiter = None
+        elif char in ('"', "'", "“"):
+            delimiter = char
+            if char == "“":
+                curly_depth = 1
+                result.append('"')
+                continue
+        result.append(char)
+    return "".join(result)
+
+
 def _has_unclosed_quote(s: str) -> bool:
     """Check if a string has an unclosed double quote (ignoring escaped quotes)."""
     # Strip escaped backslashes first so that \\" is not misread as \" (escaped quote).
-    return s.replace("\\\\", "").replace('\\"', "").count('"') % 2 == 1
+    return _normalize_action_quotes(s).replace("\\\\", "").replace('\\"', "").count('"') % 2 == 1
 
 
 _MAX_QUOTE_CONTINUATION_LINES = 50
@@ -458,7 +500,7 @@ def get_first_bot_action(strings: List[str]) -> Optional[str]:
         if action and _has_unclosed_quote(action):
             if continuation_lines >= _MAX_QUOTE_CONTINUATION_LINES:
                 # Safety bound: stop collecting to avoid absorbing all input.
-                return action
+                return _normalize_action_quotes(action)
             action += "\\n" + string
             continuation_lines += 1
             if not _has_unclosed_quote(action):
@@ -467,7 +509,7 @@ def get_first_bot_action(strings: List[str]) -> Optional[str]:
         if string.startswith("bot action: "):
             if action != "":
                 action += "\n"
-            action += string.replace("bot action: ", "")
+            action += string.removeprefix("bot action: ")
             action_started = True
         elif (string.startswith("  and") or string.startswith("  or")) and action_started:
             action = action + string
@@ -475,8 +517,8 @@ def get_first_bot_action(strings: List[str]) -> Optional[str]:
             action_started = False
             continue
         elif action != "":
-            return action
-    return action
+            return _normalize_action_quotes(action)
+    return _normalize_action_quotes(action)
 
 
 def escape_flow_name(name: str) -> str:
