@@ -84,7 +84,7 @@ def create_guardrails_config():
                 {
                     "type": "main",
                     "engine": "openai",
-                    "model": "gpt-4o",
+                    "model": "gpt-6-luna",
                 }
             ],
             "tracing": {"enabled": True, "adapters": [{"name": "OpenTelemetry"}]},

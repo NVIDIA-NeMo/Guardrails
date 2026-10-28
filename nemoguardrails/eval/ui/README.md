@@ -33,7 +33,7 @@ You can use any LLM supported by NeMo Guardrails.
 models:
   - type: llm-judge
     engine: openai
-    model: gpt-4
+    model: gpt-6-luna
 
   - type: llm-judge
     engine: nvidia_ai_endpoints

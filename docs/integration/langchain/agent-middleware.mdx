@@ -68,7 +68,8 @@ def get_weather(city: str) -> str:
     return f"Sunny, 72F in {city}"
 
 guardrails = GuardrailsMiddleware(config_path="./config")
-model = ChatOpenAI(model="gpt-4o")
+# gpt-6-luna accepts function tools in Chat Completions only with reasoning_effort="none".
+model = ChatOpenAI(model="gpt-6-luna", reasoning_effort="none")
 
 agent = create_agent(model, tools=[get_weather], middleware=[guardrails])
 
@@ -107,7 +108,7 @@ Create a configuration directory with the standard NeMo Guardrails structure. Fo
 models:
   - type: main
     engine: openai
-    model: gpt-4o
+    model: gpt-6-luna
 
 rails:
   input:
@@ -175,7 +176,8 @@ def search_database(query: str) -> str:
     return f"Results for '{query}': Employee John Doe, Department Engineering"
 
 guardrails = GuardrailsMiddleware(config_path="./config")
-model = ChatOpenAI(model="gpt-4o")
+# gpt-6-luna accepts function tools in Chat Completions only with reasoning_effort="none".
+model = ChatOpenAI(model="gpt-6-luna", reasoning_effort="none")
 
 agent = create_agent(model, tools=[search_database], middleware=[guardrails])
 
@@ -260,7 +262,8 @@ Use LangGraph's `InMemorySaver` to maintain conversation state across multiple i
 from langgraph.checkpoint.memory import InMemorySaver
 
 guardrails = GuardrailsMiddleware(config_path="./config")
-model = ChatOpenAI(model="gpt-4o")
+# gpt-6-luna accepts function tools in Chat Completions only with reasoning_effort="none".
+model = ChatOpenAI(model="gpt-6-luna", reasoning_effort="none")
 
 agent = create_agent(
     model,

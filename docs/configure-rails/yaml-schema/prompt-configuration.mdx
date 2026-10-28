@@ -95,8 +95,7 @@ Override prompts for specific models:
 prompts:
   - task: generate_user_intent
     models:
-      - openai/gpt-4o
-      - openai/gpt-4
+      - openai/gpt-6-luna
     max_length: 3000
     output_parser: user_intent
     content: |
@@ -114,7 +113,7 @@ Use the `mode` attribute to define multiple prompt versions for the same task an
 models:
   - type: main
     engine: openai
-    model: gpt-3.5-turbo
+    model: gpt-6-luna
 
 prompting_mode: "compact"  # Default is "standard"
 ```
@@ -125,13 +124,13 @@ prompting_mode: "compact"  # Default is "standard"
 prompts:
   - task: generate_user_intent
     models:
-      - openai/gpt-3.5-turbo
+      - openai/gpt-6-luna
     content: |
       Default prompt with full context including {{ history }}
 
   - task: generate_user_intent
     models:
-      - openai/gpt-3.5-turbo
+      - openai/gpt-6-luna
     mode: compact
     content: |
       Smaller prompt with reduced few-shot examples

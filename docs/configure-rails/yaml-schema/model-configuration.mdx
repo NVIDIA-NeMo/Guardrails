@@ -77,7 +77,7 @@ The following example shows how to configure the OpenAI model as the main applic
 models:
   - type: main
     engine: openai
-    model: gpt-4o
+    model: gpt-6-luna
 ```
 
 ### OpenAI Responses API
@@ -90,7 +90,7 @@ The NVIDIA NeMo Guardrails library supports this option through the LangChain fr
 models:
   - type: main
     engine: openai
-    model: gpt-4o
+    model: gpt-6-luna
     parameters:
       use_responses_api: true
 ```
@@ -128,7 +128,7 @@ The following example shows how to configure the Azure OpenAI model as the main 
 models:
   - type: main
     engine: azure
-    model: gpt-4
+    model: gpt-6-luna
     parameters:
       azure_endpoint: https://my-resource.openai.azure.com/
       azure_deployment: my-gpt4-deployment
@@ -278,7 +278,7 @@ Pass additional parameters to the underlying LLM client. For engines served by t
 models:
   - type: main
     engine: openai
-    model: gpt-4
+    model: gpt-6-luna
     parameters:
       temperature: 0.7
       max_tokens: 1000

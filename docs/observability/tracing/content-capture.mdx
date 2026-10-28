@@ -110,7 +110,7 @@ This example enables content capture, runs a single request, and prints the resu
     models:
       - type: main
         engine: openai
-        model: gpt-4o-mini
+        model: gpt-6-luna
 
     tracing:
       enabled: true
@@ -141,15 +141,15 @@ This example enables content capture, runs a single request, and prints the resu
     python content_capture_example.py
     ```
 
-    The `chat gpt-4o-mini` CLIENT span carries the captured prompt and response as span events (the default format), and the `guardrails.request` SERVER span carries the caller-facing input and output. The following output is trimmed for clarity:
+    The `chat gpt-6-luna` CLIENT span carries the captured prompt and response as span events (the default format), and the `guardrails.request` SERVER span carries the caller-facing input and output. The following output is trimmed for clarity:
 
     ```json
     {
-      "name": "chat gpt-4o-mini",
+      "name": "chat gpt-6-luna",
       "kind": "SpanKind.CLIENT",
       "attributes": {
         "gen_ai.operation.name": "chat",
-        "gen_ai.request.model": "gpt-4o-mini"
+        "gen_ai.request.model": "gpt-6-luna"
       },
       "events": [
         {"name": "gen_ai.user.message", "attributes": {"role": "user", "content": "Hello!"}},
@@ -197,14 +197,14 @@ To emit the JSON-attribute form instead of the default events, set the variable 
 export OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 ```
 
-When you set this variable, the `chat gpt-4o-mini` span carries JSON-encoded attributes instead of events:
+When you set this variable, the `chat gpt-6-luna` span carries JSON-encoded attributes instead of events:
 
 ```json
 {
-  "name": "chat gpt-4o-mini",
+  "name": "chat gpt-6-luna",
   "kind": "SpanKind.CLIENT",
   "attributes": {
-    "gen_ai.request.model": "gpt-4o-mini",
+    "gen_ai.request.model": "gpt-6-luna",
     "gen_ai.input.messages": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"Hello!\"}]}]",
     "gen_ai.output.messages": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"Hello! How can I help you today?\"}]}]"
   }

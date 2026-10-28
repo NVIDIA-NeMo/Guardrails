@@ -1,7 +1,7 @@
 models:
   - type: main
     engine: openai
-    model: gpt-3.5-turbo-instruct
+    model: gpt-6-luna
 
   # Sample for running the model as a locally downloaded NIM
   # If you want to use NVIDIA AI Endpoints, change the model config accordingly
