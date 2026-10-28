@@ -73,7 +73,7 @@ This example sends image requests and tests safety checks on a handgun image. Th
         src="../../../examples/configs/content_safety_vision/demo.py"
         language="python"
         title="demo.py"
-        lines="20-21"
+        lines="20-22"
     />
 
 1. Load the configuration.
@@ -82,7 +82,20 @@ This example sends image requests and tests safety checks on a handgun image. Th
         src="../../../examples/configs/content_safety_vision/demo.py"
         language="python"
         title="demo.py"
-        lines="25-29"
+        lines="27-31"
+    />
+
+1. Fetch the image as base64.
+
+    The hosted NIM endpoint fetches image URLs server-side. Some image hosts
+    (including Wikimedia) block non-browser HTTP clients with a 403. To avoid
+    this, download the image locally and pass it as a base64 data URL instead.
+
+    <Code
+        src="../../../examples/configs/content_safety_vision/demo.py"
+        language="python"
+        title="demo.py"
+        lines="37-43"
     />
 
 1. Send a safe image reasoning request.
@@ -91,7 +104,7 @@ This example sends image requests and tests safety checks on a handgun image. Th
         src="../../../examples/configs/content_safety_vision/demo.py"
         language="python"
         title="demo.py"
-        lines="33-49"
+        lines="47-63"
     />
 
 1. Send an unsafe request.
@@ -100,7 +113,7 @@ This example sends image requests and tests safety checks on a handgun image. Th
         src="../../../examples/configs/content_safety_vision/demo.py"
         language="python"
         title="demo.py"
-        lines="53-69"
+        lines="67-83"
     />
 
 ## Use Base64-Encoded Images
