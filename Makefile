@@ -1,5 +1,5 @@
 .PHONY: help install
-.PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
+.PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile test-hooks-agents record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
 .PHONY: test-docs-scripts docs-fern-node-dependencies docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-openapi docs-fern-generate-references docs-fern-generate-sdk docs-fern-fix-empty-links docs-fern-publish-staging docs-fern-publish-public
 .PHONY: pre-commit pre-commit-install
 
@@ -23,6 +23,13 @@ RECORDED_REPLAY_ENV ?= env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_pro
 # These targets assume a Unix-like shell for env -u; use bash, Git Bash, or WSL on Windows.
 UNIT_TEST_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY -u NVIDIA_INFERENCE_KEY \
 	-u LIVE_TEST -u LIVE_TEST_MODE -u TEST_LIVE_MODE
+
+# The hooks-server tests that run Claude Code and Codex take both agents from their published wheels, installed into a
+# directory of their own rather than .venv, so neither is a Guardrails dependency. `uv pip sync` makes the directory
+# match requirements.txt and checks every wheel against its hash. The tests run in .venv, with live provider keys unset
+# as for `make test`, and find the agents through HOOKS_AGENTS_DIR.
+HOOKS_AGENTS_TESTS ?= tests_hooks_agents
+HOOKS_AGENTS_DIR ?= .cache/hooks_agents
 
 FASTEMBED_CACHE ?= .cache/fastembed
 FASTEMBED_MODEL ?= sentence-transformers/all-MiniLM-L6-v2
@@ -53,6 +60,11 @@ test-coverage:
 
 test-profile:
 	$(PYTEST) -vv --profile-svg $(ARGS) $(TEST)
+
+test-hooks-agents:
+	uv pip sync --target $(HOOKS_AGENTS_DIR) --require-hashes $(HOOKS_AGENTS_TESTS)/requirements.txt
+	HOOKS_AGENTS_DIR=$(abspath $(HOOKS_AGENTS_DIR)) $(UNIT_TEST_ENV) $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) \
+		$(or $(TEST),$(HOOKS_AGENTS_TESTS))
 
 record-cassettes: check-record-test-env
 	$(PYTEST) $(RECORDED_TESTS) --record-mode=$(RECORDED_RECORD_MODE) -m "not fake_cassette"
@@ -138,6 +150,7 @@ help:
 		'  make test-benchmark [ARGS="-q"]' \
 		'  make test-parallel [TEST=path] [WORKERS=auto] [ARGS="-q --tb=short"]' \
 		'  make test-watch [TEST=path]' \
+		'  make test-hooks-agents [TEST=tests_hooks_agents/...] [WORKERS=auto] [ARGS="-v"]' \
 		'  make record-cassettes [RECORDED_TESTS=tests/recorded] [RECORDED_RECORD_MODE=once] [RECORDED_SNAPSHOT_MODE=create] [RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_API_KEY"]' \
 		'  make rewrite-cassettes [RECORDED_TESTS=tests/recorded] [RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_API_KEY"]' \
 		'  make replay-cassettes [RECORDED_TESTS=tests/recorded]' \
@@ -154,6 +167,7 @@ help:
 		'  test-watch            Run pytest in watch mode' \
 		'  test-coverage         Run pytest with coverage' \
 		'  test-profile          Run pytest with profiling' \
+		'  test-hooks-agents     Run the hooks-server tests with real Claude Code and Codex (Linux, macOS)' \
 		'  record-cassettes      Record missing or selected cassettes, fill snapshots, and verify replay' \
 		'  rewrite-cassettes     Rewrite selected cassettes, fill snapshots, and verify replay' \
 		'  replay-cassettes      Verify selected cassettes offline without recording' \

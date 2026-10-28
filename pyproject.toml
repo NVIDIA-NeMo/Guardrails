@@ -148,13 +148,6 @@ test_integration = [
   "langchain-openai>=0.1.0",
   "langchain-nvidia-ai-endpoints>=0.2.0",
 ]
-# Claude Code and Codex, as their published Python wheels bundle them, for the hooks server tests that run the real
-# agents (tests/server/hooks_agents). Outside `dev`, since the binaries are large; exact pins, so each agent release
-# reaches those tests as its own bump.
-agent_hooks = [
-  "claude-agent-sdk==0.2.168",
-  "openai-codex-cli-bin==0.163.0",
-]
 dev = [
   "pre-commit>=3.1.1",
   {include-group = "test"},

@@ -20,11 +20,11 @@ from pathlib import Path
 import pytest
 
 from nemoguardrails import RailsConfig
-from tests.server.hooks_agents.agents import TOOL_RAN_FILE, Agent
+from tests_hooks_agents.agents import TOOL_RAN_FILE, Agent
 
 pytestmark = pytest.mark.slow
 
-EXAMPLE_CONFIGS = Path(__file__).resolve().parents[3] / "examples" / "configs" / "agent_hooks"
+EXAMPLE_CONFIGS = Path(__file__).resolve().parents[1] / "examples" / "configs" / "agent_hooks"
 
 ALLOWED_COMMAND = f"echo hello > {TOOL_RAN_FILE}"
 # The example configs' Bash rail matches `rm -rf`, which only echoing it keeps harmless, if the agent runs it anyway.

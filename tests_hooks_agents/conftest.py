@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Fixtures that run Claude Code and Codex against a hooks server, each agent from its package in `agent_hooks`."""
+"""Fixtures that run Claude Code and Codex against a hooks server, each agent from its published wheel."""
 
-# The agents come from the `agent_hooks` dependency group, outside `dev`, so the tests skip unless it is installed:
-#
-#   uv sync --group dev --group agent_hooks
+# Neither agent is a Guardrails dependency: `make test-hooks-agents` installs both wheels, pinned with hashes in
+# requirements.txt, into a directory of their own (AGENTS_DIR), then runs this suite in .venv. The suite sits outside
+# pytest.ini's testpaths, so `make test` doesn't collect it.
 #
 # Each agent runs with its own home directory and only PATH from this process's environment. Managed settings still
 # apply to Claude Code: an `allowedHttpHookUrls` that doesn't allow localhost would stop its hook from running.
@@ -25,6 +25,7 @@
 # The hooks' URLs say `localhost`, as the docs' do, while every server here listens on 127.0.0.1 only, as the hooks
 # server does by default; so an agent that didn't fall back from ::1 would fail these tests.
 
+import os
 import socket
 import sys
 import threading
@@ -38,27 +39,30 @@ import uvicorn
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.server.hooks.app import create_hooks_app
-from tests.server.hooks_agents.agents import Agent, ClaudeCode, Codex
+from tests_hooks_agents.agents import Agent, ClaudeCode, Codex
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+# Where `make test-hooks-agents` installs the agents' wheels: HOOKS_AGENTS_DIR when it's set, against the repository root.
+AGENTS_DIR = REPO_ROOT / (os.environ.get("HOOKS_AGENTS_DIR") or ".cache/hooks_agents")
 
 # Engine startup runs before the server answers, so its first health check can wait in the socket's backlog.
 SERVER_START_TIMEOUT_SECONDS = 60
 # How long a stopping server may wait for open connections, and then for its thread.
 SERVER_STOP_TIMEOUT_SECONDS = 5
 
-SKIP_REASON = "the agent_hooks dependency group isn't installed: uv sync --group dev --group agent_hooks"
-
 
 @pytest.fixture(params=[ClaudeCode.name, Codex.name])
 def agent(request: pytest.FixtureRequest, tmp_path: Path) -> Agent:
-    """Each agent, from its package, working in the test's own directory."""
+    """Each agent, from its wheel in AGENTS_DIR, working in the test's own directory."""
     if sys.platform == "win32":
         pytest.skip("the docs' hooks and the scripted command need a POSIX shell")
+    if not AGENTS_DIR.is_dir():
+        pytest.fail(f"{AGENTS_DIR} doesn't exist. From the repository root, run: make test-hooks-agents")
+    # Both paths are the packages' own, not public: the SDK runs its bundled binary itself, and Codex's path is the one
+    # its package's bundled_codex_path() returns. Neither package is on this process's import path.
     if request.param == ClaudeCode.name:
-        claude_agent_sdk = pytest.importorskip("claude_agent_sdk", reason=SKIP_REASON)
-        # The SDK runs this bundled binary itself; the path is the SDK's, not public.
-        return ClaudeCode(Path(claude_agent_sdk.__file__).parent / "_bundled" / "claude", tmp_path)
-    codex_cli_bin = pytest.importorskip("codex_cli_bin", reason=SKIP_REASON)
-    return Codex(codex_cli_bin.bundled_codex_path(), tmp_path)
+        return ClaudeCode(AGENTS_DIR / "claude_agent_sdk" / "_bundled" / "claude", tmp_path)
+    return Codex(AGENTS_DIR / "codex_cli_bin" / "bin" / "codex", tmp_path)
 
 
 @pytest.fixture
