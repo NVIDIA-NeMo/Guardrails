@@ -106,8 +106,10 @@ def _serve(server: uvicorn.Server, listener: socket.socket) -> None:
 
 def _check_health(url: str) -> None:
     """Fails the test unless the hooks server at *url* answers its health check in time."""
+    # No proxy handler: urllib otherwise sends even a loopback request to the environment's HTTP_PROXY.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
-        with urllib.request.urlopen(f"{url}/v1/health", timeout=SERVER_START_TIMEOUT_SECONDS):
+        with opener.open(f"{url}/v1/health", timeout=SERVER_START_TIMEOUT_SECONDS):
             pass
     except OSError as error:
         pytest.fail(f"The hooks server at {url} didn't pass its health check: {error}")
