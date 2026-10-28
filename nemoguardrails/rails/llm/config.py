@@ -1093,7 +1093,7 @@ class RailsConfig(BaseModel):
         description="The lowest temperature that should be used for the LLM.",
     )
 
-    # This should only be enabled for highly capable LLMs i.e. gpt-6-luna or similar.
+    # This should only be enabled for highly capable LLMs that reliably follow the multi-line output format.
     enable_multi_step_generation: Optional[bool] = Field(
         default=False,
         description="Whether to enable multi-step generation for the LLM.",
