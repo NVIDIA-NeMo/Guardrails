@@ -148,7 +148,7 @@ The following table describes the surface fields:
 | `direction` | Selects `input`, `output`, or `retrieval`. |
 | `action` | References an action declared in the same manifest. |
 | `bindings` | Maps runtime values and configured parameters to action parameters. |
-| `transform_target` | Declares the conversation value a transform surface rewrites. |
+| `transform_target` | Declares the conversation value a transform surface rewrites. IORails accepts `user_message` on an `input` surface, `bot_message` on an `output` surface, `tool_result` on a `tool_result` surface, and `tool_call` on a `tool_call` surface, and refuses any other pairing when it compiles the rail. |
 
 Use binding constructors to identify where each action argument comes from:
 

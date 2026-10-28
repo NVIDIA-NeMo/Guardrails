@@ -29,13 +29,15 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 
-from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailResult
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailResult, serialize_prompt
 from nemoguardrails.guardrails.iorails import IORails, _activated_rail
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMResponse, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.rail_stubs import rail_failure
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
+from tests.guardrails.tool_helpers import make_tool_conversation
 
 _USER = [{"role": "user", "content": "hi"}]
 
@@ -135,6 +137,27 @@ class TestLlmCallsAndStats:
 
         totals = sorted(call.total_tokens for call in result.log.llm_calls)
         assert totals == [149, 770, 870]
+
+
+class TestToolResultRewritesInTheLog:
+    """The main call's logged prompt is built from the conversation the model read."""
+
+    @pytest.mark.asyncio
+    async def test_the_main_call_prompt_carries_the_rewritten_tool_result(self, iorails):
+        """A tool-result rail's mask reaches the generation record, so the log does not undo it."""
+        raw = make_tool_conversation(content="reported by ada@example.com")
+        masked = [*raw[:-1], {**raw[-1], "content": "reported by <EMAIL>"}]
+        _stub_pipeline(iorails)
+        iorails.rails_manager.are_tool_results_safe = AsyncMock(
+            return_value=RailResult(RailOutcome.allow(), messages=masked)
+        )
+
+        result = await iorails.generate_async(messages=raw, options={"log": {"llm_calls": True}})
+
+        (main_call,) = result.log.llm_calls
+        assert main_call.prompt == serialize_prompt(masked)
+        assert "ada@example.com" not in main_call.prompt
+        assert iorails.engine_registry.model_call.call_args.args[1] == masked
 
 
 class TestActivatedRails:

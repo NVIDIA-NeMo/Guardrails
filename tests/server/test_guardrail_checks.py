@@ -205,6 +205,54 @@ def test_result_violation_index_skips_the_prepended_context():
     assert [violation["index"] for violation in resp.json()["tool_violations"]] == [2, 0]
 
 
+_TOOL_CONVERSATION = [
+    {"role": "user", "content": "weather?"},
+    {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": "{}"}}],
+    },
+    {"role": "tool", "tool_call_id": "call_1", "content": "18C, <EMAIL>"},
+]
+
+
+def _tool_rewrite(messages: list[dict]) -> RailsResult:
+    """A check whose only change was a tool-result rewrite, carrying the conversation as the rails left it."""
+    return RailsResult(status=RailStatus.MODIFIED, content="weather?", messages=messages)
+
+
+def test_rewritten_messages_returned_on_a_tool_rewrite():
+    """The rewritten conversation reaches the response alongside MODIFIED."""
+    data = _checked(_tool_rewrite(_TOOL_CONVERSATION))
+
+    assert data["status"] == "modified"
+    assert data["messages"] == _TOOL_CONVERSATION
+
+
+def test_rewritten_messages_skip_the_prepended_context():
+    """The engine saw the context message first; the caller gets back only the messages it sent."""
+    mock = _mock_rails(_tool_rewrite([{"role": "context", "content": {"topic": "weather"}}, *_TOOL_CONVERSATION]))
+
+    with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
+        resp = _post(_check_body({"context": {"topic": "weather"}}))
+
+    assert resp.json()["messages"] == _TOOL_CONVERSATION
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        RailsResult(status=RailStatus.PASSED, content="ok"),
+        RailsResult(status=RailStatus.MODIFIED, content="masked"),
+        RailsResult(status=RailStatus.BLOCKED, content="I'm sorry, I can't help with that.", rail="self check input"),
+    ],
+    ids=["passed", "content-modified", "blocked"],
+)
+def test_messages_absent_without_a_tool_rewrite(result):
+    """Only a tool rewrite sets messages, so every other response keeps today's shape."""
+    assert "messages" not in _checked(result)
+
+
 # --- Config resolution ---
 
 

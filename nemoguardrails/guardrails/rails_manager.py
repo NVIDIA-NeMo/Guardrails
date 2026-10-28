@@ -16,15 +16,17 @@
 """Rails manager for IORails: runs input/output checks through compiled, manifest-driven rails."""
 
 import asyncio
+import json
 import logging
 import warnings
 from collections.abc import Coroutine, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, Literal, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, TypeVar, Union, cast
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
+from nemoguardrails.guardrails.compiled_rail import _REWRITABLE_TARGET as _SURFACE_REWRITABLE_TARGET
 from nemoguardrails.guardrails.compiled_rail import CompiledRail, RailDependencies, compile_rail
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
@@ -35,12 +37,15 @@ from nemoguardrails.guardrails.guardrails_types import (
     display_reason,
     get_request_id,
     last_user_content,
+    quoted_identity,
     rewrite_user_message,
 )
 from nemoguardrails.guardrails.model_engine import (
     _extract_tool_exchanges_openai,
     _latest_tool_calls_openai,
     _parse_tools_openai,
+    _rewrite_latest_tool_calls_openai,
+    _rewrite_tool_results_openai,
 )
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, reported_violations, violations_outcome
@@ -53,7 +58,9 @@ from nemoguardrails.guardrails.tool_schema import (
     ToolExchange,
     ToolResult,
     Toolset,
+    _schema_gate_block,
     schema_gate_violation,
+    validate_arguments,
 )
 from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -121,6 +128,15 @@ class _PerToolCheck:
     index: Optional[int] = None
 
 
+@dataclass(frozen=True)
+class _ToolRewrite:
+    """A tool call and its result as the per-tool rails last rewrote them, and the rail that did."""
+
+    flow: str
+    tool_call: ToolCall
+    tool_result: Optional[ToolResult] = None
+
+
 def _transforms_first(rewriting: Sequence[str], flows: Sequence[str]) -> list[str]:
     """Order rails that may rewrite ahead of rails that only judge, so a mask reaches the check."""
     ordered = list(rewriting)
@@ -142,9 +158,21 @@ def _tool_rail_result(outcome: RailOutcome, flow: str) -> RailResult:
     return RailResult(outcome)
 
 
-def _blocked_before_rails(violation: ToolViolation, records: tuple[RailCallRecord, ...] = ()) -> RailResult:
+def _blocked_before_rails(
+    violation: ToolViolation, records: tuple[RailCallRecord, ...] = (), *, rewrite_pending: bool
+) -> RailResult:
     """A block the manager makes itself, before any tool rail runs, stating the violation's reason."""
-    return RailResult.block(reason=violation.reason, tool_violations=(violation,), records=records)
+    return RailResult.block(
+        reason=violation.reason,
+        tool_violations=(violation,),
+        records=records,
+        rewrite_pending=rewrite_pending,
+    )
+
+
+def _carries_tool_result(messages: list[dict]) -> bool:
+    """Whether *messages* carry a tool result, read from the role so no extraction is needed."""
+    return any(isinstance(message, dict) and message.get("role") == "tool" for message in messages)
 
 
 def _extraction_violation(error: ToolCallExtractionError) -> ToolViolation:
@@ -241,6 +269,63 @@ def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -
             f"it may rewrite {target.value!r}"
         )
     return rewrites[target.value]
+
+
+def _rewritten_tool_text(outcome: RailOutcome, direction: SurfaceDirection, flow: str) -> str:
+    """Return what a per-tool rail rewrote its direction's tool payload to, ignoring any other variable it named."""
+    target = _SURFACE_REWRITABLE_TARGET[direction]
+    rewrites = outcome.transform_text
+    if target.value not in rewrites:
+        raise NotImplementedError(
+            f"{flow!r} rewrote {sorted(rewrites)}, which a {direction.value} rail cannot apply; "
+            f"it may rewrite {target.value!r}"
+        )
+    return rewrites[target.value]
+
+
+def _rewritten_arguments(text: str) -> Optional[dict]:
+    """The arguments object a tool-call rewrite's text holds, or None when it holds no JSON object."""
+    try:
+        arguments = json.loads(text)
+    except ValueError:
+        return None
+    return arguments if isinstance(arguments, dict) else None
+
+
+def _same_arguments(a: dict, b: dict) -> bool:
+    """Whether two arguments objects serialize alike, so ``1`` and ``true`` count as different values."""
+    return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+
+
+def _with_arguments(tool_call: ToolCall, arguments: dict) -> ToolCall:
+    """A copy of *tool_call* with only its arguments replaced; id, type and name cannot change."""
+    return replace(tool_call, function=replace(tool_call.function, arguments=arguments))
+
+
+def _rewritten_call_block(
+    violation: ArgumentsViolation,
+    flow: str,
+    tool_call: ToolCall,
+    index: Optional[int],
+    records: tuple[RailCallRecord, ...],
+) -> RailResult:
+    """A block on a tool call that *flow* rewrote into something the call cannot carry, reported against it."""
+    blocked = RailResult(_schema_gate_block(violation), triggered_rail=_get_flow_name(flow) or flow, records=records)
+    return replace(
+        blocked, tool_violations=(_per_tool_violation(blocked, SurfaceDirection.TOOL_CALL, tool_call, index),)
+    )
+
+
+def _rewritten_call_violation(tool_call: ToolCall, tool_definition: Optional[Tool]) -> Optional[ArgumentsViolation]:
+    """Why a rewritten call's arguments fail its tool's declaration, or None when they pass."""
+    # Rails ahead of the rewrite judged the original arguments, so the final ones are checked again.
+    if tool_definition is None:
+        name = tool_call.function.name or tool_call.type
+        return ArgumentsViolation(
+            violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+            reason=f"tool call '{quoted_identity(name)}' is not an allowed tool",
+        )
+    return validate_arguments(tool_definition, tool_call.function.arguments)
 
 
 def _refuse_concurrent_rewrite(result: RailResult, flow: str) -> None:
@@ -345,6 +430,59 @@ def _rail_call_record(
     return _merge_llm_call_info(record, calls[-1])
 
 
+def _with_rewritten_calls(
+    verdict: RailResult, tool_calls: Sequence[ToolCall], rewritten: Mapping[int, _ToolRewrite], toolset: Toolset
+) -> RailResult:
+    """Attach the calls as the per-tool rails rewrote them, after checking them against their tools again.
+
+    An allow carries them as ``tool_calls``; a block keeps them for the record as ``tool_calls_before_block``.
+    """
+    # A rewrite a later rail undid is no rewrite, as for input and output.
+    changed = {
+        index: rewrite
+        for index, rewrite in rewritten.items()
+        if not _same_arguments(rewrite.tool_call.function.arguments, tool_calls[index].function.arguments)
+    }
+    if not changed:
+        return verdict
+    final = tuple(changed[index].tool_call if index in changed else call for index, call in enumerate(tool_calls))
+    if verdict.is_safe:
+        for index, rewrite in sorted(changed.items()):
+            name = rewrite.tool_call.function.name or rewrite.tool_call.type
+            violation = _rewritten_call_violation(rewrite.tool_call, toolset.get(name))
+            if violation is not None:
+                log.info(
+                    "[%s] the rewritten arguments of tool call %d fail its tool: %s",
+                    get_request_id(),
+                    index,
+                    violation.reason,
+                )
+                verdict = _rewritten_call_block(violation, rewrite.flow, rewrite.tool_call, index, verdict.records)
+                break
+        else:
+            return replace(verdict, tool_calls=final)
+    return replace(verdict, tool_calls_before_block=final)
+
+
+def _with_rewritten_messages(verdict: RailResult, messages: list[dict]) -> RailResult:
+    """Attach the conversation the tool rails rewrote: the allow's messages, or a block's record."""
+    if verdict.is_safe:
+        return replace(verdict, messages=messages)
+    return replace(verdict, messages_before_block=messages)
+
+
+def _rewritten_call_arguments(
+    result: RailResult, tool_calls: Sequence[ToolCall], positions: Sequence[int]
+) -> dict[int, dict]:
+    """The rewritten arguments of each call *result* rewrote, keyed by the call's position on the message."""
+    final = result.tool_calls if result.is_safe else result.tool_calls_before_block
+    if final is None:
+        return {}
+    return {
+        positions[index]: call.function.arguments for index, call in enumerate(final) if call is not tool_calls[index]
+    }
+
+
 class RailsManager:
     """Compiles a manifest-driven rail per configured flow and runs them sequentially or in parallel."""
 
@@ -421,8 +559,8 @@ class RailsManager:
             for flow in unique_flows:
                 self._per_tool_rails[(direction, flow)] = compile_rail(flow, direction, deps)
 
-        # No tool rail rewrites today; this mirrors the input/output rewrite check above so a
-        # future rewriting tool rail is caught the same way instead of corrupted by concurrency.
+        # Mirrors the input/output rewrite check above, for the same reason: concurrent rails
+        # cannot carry a rewrite.
         self.per_tool_transform_flows: dict[SurfaceDirection, tuple[str, ...]] = {
             direction: tuple(
                 flow
@@ -575,8 +713,11 @@ class RailsManager:
         """
         if not tool_calls:
             return RailResult.allow()
+        # Every return ahead of the per-tool checks leaves each mask configured for a call this
+        # request carries unrun, so it says so and the request withholds the arguments from its record.
+        masks_unrun = bool(self._configured_call_masks(tool_calls))
         if not self._any_tool_call_rail_enabled(enabled):
-            return RailResult.allow()
+            return RailResult(RailOutcome.allow(), rewrite_pending=masks_unrun)
 
         active = self._enabled_flows(list(self._tool_call_actions), enabled)
         global_result = RailResult.allow()
@@ -589,27 +730,35 @@ class RailsManager:
                     kind="tool_call",
                     violation_type=ToolViolationType.INVALID_TOOLSET,
                     reason=_tool_parsing_failure_reason(e),
-                )
+                ),
+                rewrite_pending=masks_unrun,
             )
 
         if active:
             rails = {flow: self._run_tool_call_rail(flow, tool_calls, toolset) for flow in active}
             global_result = await self._run_tool_rails_sequential(rails, RailDirection.OUTPUT)
             if not global_result.is_safe:
-                return global_result
+                return replace(global_result, rewrite_pending=masks_unrun)
 
         checks: list[_PerToolCheck] = []
+        # Keyed as the checks are, so a mask the toggle dropped is still counted as owing a decision.
+        expected_masks: set[str] = set()
         for index, tool_call in enumerate(tool_calls):
             tool_name = tool_call.function.name or tool_call.type
             tool_definition = toolset.get(tool_name)
-            for flow in self._enabled_flows(self.per_tool_call_flows.get(tool_name, []), enabled):
+            configured = self.per_tool_call_flows.get(tool_name, [])
+            masking = self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL]
+            expected_masks.update(f"{index}:{flow}" for flow in configured if flow in masking)
+            flows = self._enabled_flows(configured, enabled)
+            rewriting = tuple(f for f in flows if f in masking)
+            for flow in _transforms_first(rewriting, flows):
                 checks.append(
                     _PerToolCheck(
                         f"{index}:{flow}", flow, tool_call=tool_call, tool_definition=tool_definition, index=index
                     )
                 )
         if not checks:
-            return global_result
+            return replace(global_result, rewrite_pending=bool(expected_masks))
 
         if self.tool_call_parallel:
             rails = {
@@ -626,12 +775,20 @@ class RailsManager:
             per_tool_result = await self._run_rails_parallel(
                 rails, RailDirection.OUTPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
             )
+            # A configured mask turns the tool directions sequential, so there is none to wait on here.
+            rewritten: dict[int, _ToolRewrite] = {}
+            decided: set[str] = set()
         else:
-            per_tool_result = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_CALL)
+            per_tool_result, rewritten, decided = await self._run_per_tool_rails_sequential(
+                checks, SurfaceDirection.TOOL_CALL
+            )
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
-        if not per_tool_result.is_safe:
-            return replace(per_tool_result, records=combined_records)
-        return RailResult.allow(records=combined_records)
+        if per_tool_result.is_safe:
+            verdict = RailResult.allow(records=combined_records)
+        else:
+            verdict = replace(per_tool_result, records=combined_records)
+        verdict = replace(verdict, rewrite_pending=bool(expected_masks - decided))
+        return _with_rewritten_calls(verdict, tool_calls, rewritten, toolset)
 
     def _offered_tools(self, model_type: Optional[str], llm_params: Optional[dict]) -> Toolset:
         """The tools *llm_params* offers, in *model_type*'s wire format, or as Chat Completions when it's None."""
@@ -652,13 +809,16 @@ class RailsManager:
         The messages and the tools in *llm_params* are read as Chat Completions, the format of the APIs a check
         takes them from, whatever the ``main`` model is, so a check needs no model.
         """
+        # No mask can have decided on calls nobody could extract, so every return ahead of the per-tool
+        # checks leaves any configured one unrun, and the request withholds the arguments from its record.
+        masks_unrun = bool(self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL])
         if not self._any_tool_call_rail_enabled(enabled):
-            return RailResult.allow()
+            return RailResult(RailOutcome.allow(), rewrite_pending=masks_unrun)
         try:
             extracted = _latest_tool_calls_openai(messages)
         except ToolCallExtractionError as e:
             log.warning("[%s] tool call extraction failed; blocking: %s", get_request_id(), e)
-            return _blocked_before_rails(_extraction_violation(e))
+            return _blocked_before_rails(_extraction_violation(e), rewrite_pending=masks_unrun)
         except Exception as e:
             # Only a ToolCallExtractionError is written to omit argument text, so this one stays in the log.
             log.warning("[%s] tool call extraction failed unexpectedly; blocking: %s", get_request_id(), e)
@@ -667,18 +827,42 @@ class RailsManager:
                     kind="tool_call",
                     violation_type=ToolViolationType.EXTRACTION_FAILED,
                     reason="tool call extraction failed",
-                )
+                ),
+                rewrite_pending=masks_unrun,
             )
         if any(isinstance(entry, ToolCallExtractionError) for entry in extracted):
-            return await self._blocked_with_every_call_violation(extracted, llm_params, enabled=enabled)
+            return await self._blocked_with_every_call_violation(extracted, messages, llm_params, enabled=enabled)
         tool_calls = [entry for entry in extracted if isinstance(entry, ToolCall)]
         if not tool_calls:
             log.debug("[%s] the latest assistant message carries no tool calls", get_request_id())
-        return await self.are_tool_calls_safe(tool_calls, llm_params, enabled=enabled, model_type=None)
+        result = await self.are_tool_calls_safe(tool_calls, llm_params, enabled=enabled, model_type=None)
+        # Extraction is one entry per wire call, so a call's position here is its position on the message.
+        return self._with_rewritten_latest_calls(
+            result, _rewritten_call_arguments(result, tool_calls, range(len(tool_calls))), messages
+        )
+
+    @staticmethod
+    def _with_rewritten_latest_calls(
+        verdict: RailResult, rewrites: Mapping[int, dict], messages: list[dict]
+    ) -> RailResult:
+        """Attach the conversation with the rewritten calls written back: the allow's messages, or a block's record."""
+        if not rewrites:
+            return verdict
+        try:
+            rewritten_messages = _rewrite_latest_tool_calls_openai(messages, rewrites)
+        except ValueError as e:
+            reason = "a rail rewrote a tool call this request does not have"
+            log.error("[%s] %s: %s", get_request_id(), reason, e)
+            # The mask decided, but its text never reached the conversation, which still holds the call as sent.
+            if not verdict.is_safe:
+                return replace(verdict, rewrite_pending=True)
+            return RailResult.block(reason=reason, records=verdict.records, rewrite_pending=True)
+        return _with_rewritten_messages(verdict, rewritten_messages)
 
     async def _blocked_with_every_call_violation(
         self,
         extracted: list[LatestToolCall],
+        messages: list[dict],
         llm_params: Optional[dict],
         *,
         enabled: Union[bool, list[str]],
@@ -707,8 +891,14 @@ class RailsManager:
             outcome = RailOutcome.failure(reason=client_reason(rails_result))
         else:
             outcome = RailOutcome.block(reason=violations[0].reason)
+        # No mask can have decided on a call nobody could parse, so any configured one is still owed a decision.
+        masks_unrun = bool(self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL])
         # No triggered_rail: the block is the manager's, as for any call it cannot parse.
-        return RailResult(outcome, tool_violations=tuple(violations), records=rails_result.records)
+        blocked = RailResult(
+            outcome, tool_violations=tuple(violations), records=rails_result.records, rewrite_pending=masks_unrun
+        )
+        rewrites = _rewritten_call_arguments(rails_result, [call for _, call in parsed], positions)
+        return self._with_rewritten_latest_calls(blocked, rewrites, messages)
 
     async def are_tool_results_safe(
         self,
@@ -731,8 +921,13 @@ class RailsManager:
         enabled_per_tool_flows = {
             flow for flows in self.per_tool_result_flows.values() for flow in self._enabled_flows(flows, enabled)
         }
+        # Every return ahead of the per-tool checks leaves each configured mask unrun on a result
+        # this request carries, so it says so and the request withholds the text from its record.
+        masks_unrun = bool(self.per_tool_transform_flows[SurfaceDirection.TOOL_RESULT]) and _carries_tool_result(
+            messages
+        )
         if not active and not enabled_per_tool_flows:
-            return RailResult.allow()
+            return RailResult(RailOutcome.allow(), rewrite_pending=masks_unrun)
         try:
             exchanges = (
                 _extract_tool_exchanges_openai(messages)
@@ -747,25 +942,28 @@ class RailsManager:
                     kind="tool_result",
                     violation_type=ToolViolationType.EXTRACTION_FAILED,
                     reason="tool exchange extraction failed",
-                )
+                ),
+                rewrite_pending=masks_unrun,
             )
         if not any(exchange.results for exchange in exchanges):
-            return RailResult.allow()
+            return RailResult(RailOutcome.allow(), rewrite_pending=masks_unrun)
 
         global_result = RailResult.allow()
         if active:
             rails = {flow: self._run_tool_result_rail(flow, exchanges) for flow in active}
             global_result = await self._run_tool_rails_sequential(rails, RailDirection.INPUT)
             if not global_result.is_safe:
-                return global_result
+                return replace(global_result, rewrite_pending=masks_unrun)
 
         if not enabled_per_tool_flows:
             # No per-tool policy needs this result's identity; don't override a global rail
             # that may tolerate an orphan/unresolved result.
-            return global_result
+            return replace(global_result, rewrite_pending=masks_unrun)
 
         result_items = [(exchange, tool_result) for exchange in exchanges for tool_result in exchange.results]
         checks: list[_PerToolCheck] = []
+        # Keyed as the checks are, so a mask the toggle dropped is still counted as owing a decision.
+        expected_masks: set[str] = set()
         for index, (exchange, tool_result) in enumerate(result_items):
             matched_call = self._resolve_tool_call_for_result(exchange, tool_result)
             if matched_call is None:
@@ -781,9 +979,15 @@ class RailsManager:
                         index=tool_result.message_index,
                     ),
                     records=global_result.records,
+                    rewrite_pending=masks_unrun,
                 )
             tool_name = matched_call.function.name or matched_call.type
-            for flow in self._enabled_flows(self.per_tool_result_flows.get(tool_name, []), enabled):
+            configured = self.per_tool_result_flows.get(tool_name, [])
+            masking = self.per_tool_transform_flows[SurfaceDirection.TOOL_RESULT]
+            expected_masks.update(f"{index}:{flow}" for flow in configured if flow in masking)
+            flows = self._enabled_flows(configured, enabled)
+            rewriting = tuple(f for f in flows if f in masking)
+            for flow in _transforms_first(rewriting, flows):
                 checks.append(
                     _PerToolCheck(
                         f"{index}:{flow}",
@@ -794,7 +998,7 @@ class RailsManager:
                     )
                 )
         if not checks:
-            return global_result
+            return replace(global_result, rewrite_pending=bool(expected_masks))
 
         if self.tool_result_parallel:
             rails = {
@@ -811,12 +1015,46 @@ class RailsManager:
             per_tool_result = await self._run_rails_parallel(
                 rails, RailDirection.INPUT, max_concurrency=PER_TOOL_RAILS_MAX_CONCURRENCY
             )
+            # A configured mask turns the tool directions sequential, so there is none to wait on here.
+            rewritten: dict[int, _ToolRewrite] = {}
+            decided: set[str] = set()
         else:
-            per_tool_result = await self._run_per_tool_rails_sequential(checks, SurfaceDirection.TOOL_RESULT)
+            per_tool_result, rewritten, decided = await self._run_per_tool_rails_sequential(
+                checks, SurfaceDirection.TOOL_RESULT
+            )
         combined_records = tuple(global_result.records) + tuple(per_tool_result.records)
-        if not per_tool_result.is_safe:
-            return replace(per_tool_result, records=combined_records)
-        return RailResult.allow(records=combined_records)
+        if per_tool_result.is_safe:
+            verdict = RailResult.allow(records=combined_records)
+        else:
+            verdict = replace(per_tool_result, records=combined_records)
+        verdict = replace(verdict, rewrite_pending=bool(expected_masks - decided))
+        return self._with_rewritten_results(verdict, checks, rewritten, messages, model_type)
+
+    def _with_rewritten_results(
+        self,
+        verdict: RailResult,
+        checks: Sequence[_PerToolCheck],
+        rewritten: Mapping[int, _ToolRewrite],
+        messages: list[dict],
+        model_type: Optional[str],
+    ) -> RailResult:
+        """Attach the conversation as the per-tool rails rewrote it: the allow's messages, or a block's record."""
+        originals = {check.index: check.tool_result.content for check in checks if check.tool_result is not None}
+        texts = {
+            index: cast(str, rewrite.tool_result.content)
+            for index, rewrite in rewritten.items()
+            if rewrite.tool_result is not None
+        }
+        # A rewrite a later rail undid is no rewrite, as for input and output.
+        rewrites = {index: text for index, text in texts.items() if text != originals.get(index)}
+        if not rewrites:
+            return verdict
+        rewritten_messages = (
+            _rewrite_tool_results_openai(messages, rewrites)
+            if model_type is None
+            else self.engine_registry.rewrite_tool_results(model_type, messages, rewrites)
+        )
+        return _with_rewritten_messages(verdict, rewritten_messages)
 
     def _flows_to_run(
         self, direction: RailDirection, configured: list[str], enabled: Union[bool, list[str]]
@@ -829,6 +1067,12 @@ class RailsManager:
         """Every configured flow of *direction* free to rewrite its text, whether or not this request runs it."""
         configured = self.input_flows if direction is RailDirection.INPUT else self.output_flows
         return set(_rewriting_flows(self._rails, direction, configured))
+
+    def _configured_call_masks(self, tool_calls: Sequence[ToolCall]) -> set[str]:
+        """Every configured per-tool flow free to rewrite one of *tool_calls*, whether or not this request runs it."""
+        masking = self.per_tool_transform_flows[SurfaceDirection.TOOL_CALL]
+        names = {tool_call.function.name or tool_call.type for tool_call in tool_calls}
+        return {flow for name in names for flow in self.per_tool_call_flows.get(name, []) if flow in masking}
 
     def _nothing_ran(self, direction: RailDirection) -> RailResult:
         """The verdict when a request runs none of *direction*'s rails: allowed, with any configured mask unrun."""
@@ -1072,20 +1316,27 @@ class RailsManager:
 
     async def _run_per_tool_rails_sequential(
         self, checks: Sequence[_PerToolCheck], direction: SurfaceDirection
-    ) -> RailResult:
+    ) -> tuple[RailResult, dict[int, _ToolRewrite], set[str]]:
         """Run per-tool checks in turn, short-circuiting on the first unsafe result.
 
-        Each check's coroutine is built only when it runs, like ``_run_rails_sequential``, so a
-        rewrite can reach the checks behind it once tool rails support one.
+        Each check's coroutine is built only when it runs, like ``_run_rails_sequential``, so it
+        is handed the tool call or result as the checks ahead of it rewrote it. Returns the
+        verdict, the rewritten calls or results by index, which a block keeps for the record, and
+        the keys of the checks that decided, which the caller reads to tell whether a mask was left unrun.
         """
         req_id = get_request_id()
         collected: list[RailCallRecord] = []
+        rewritten: dict[int, _ToolRewrite] = {}
+        decided: set[str] = set()
         for check in checks:
+            earlier = rewritten.get(check.index) if check.index is not None else None
+            tool_call = earlier.tool_call if earlier is not None else check.tool_call
+            tool_result = earlier.tool_result if earlier is not None else check.tool_result
             result = await self._run_per_tool_rail(
                 direction,
                 check.flow,
-                tool_call=check.tool_call,
-                tool_result=check.tool_result,
+                tool_call=tool_call,
+                tool_result=tool_result,
                 tool_definition=check.tool_definition,
                 index=check.index,
             )
@@ -1093,12 +1344,36 @@ class RailsManager:
             log.debug("[%s] %s flow %s result %s", req_id, direction.value, check.flow, result)
             if not result.is_safe:
                 log.info("[%s] %s flow %s blocked", req_id, direction.value, check.flow)
-                return replace(result, records=tuple(collected))
-            if result.outcome.is_transform:
-                # No TransformTarget exists for tool calls/results yet. Apply the rewrite here, and
-                # pass the rewritten call/result to the checks behind it, once one does.
-                raise NotImplementedError(f"{check.flow!r} returned a rewrite, which tool rails cannot apply yet")
-        return RailResult.allow(records=tuple(collected))
+                return replace(result, records=tuple(collected)), rewritten, decided
+            if not result.outcome.is_transform:
+                decided.add(check.key)
+                continue
+            text = _rewritten_tool_text(result.outcome, direction, check.flow)
+            assert check.index is not None
+            if direction is SurfaceDirection.TOOL_CALL:
+                arguments = _rewritten_arguments(text)
+                if arguments is None:
+                    log.info(
+                        "[%s] %s flow %s rewrote arguments that are not a JSON object",
+                        req_id,
+                        direction.value,
+                        check.flow,
+                    )
+                    violation = ArgumentsViolation(
+                        violation_type=ToolViolationType.MALFORMED_ARGUMENTS,
+                        reason="a rail rewrote tool call arguments to text that is not a JSON object",
+                    )
+                    blocked = _rewritten_call_block(violation, check.flow, tool_call, check.index, tuple(collected))
+                    return blocked, rewritten, decided
+                log.info("[%s] %s flow %s rewrote the tool call it checked", req_id, direction.value, check.flow)
+                rewritten[check.index] = _ToolRewrite(check.flow, _with_arguments(tool_call, arguments))
+            else:
+                log.info("[%s] %s flow %s rewrote the tool result it checked", req_id, direction.value, check.flow)
+                rewritten[check.index] = _ToolRewrite(
+                    check.flow, tool_call, replace(cast(ToolResult, tool_result), content=text)
+                )
+            decided.add(check.key)
+        return RailResult.allow(records=tuple(collected)), rewritten, decided
 
     async def _run_rails_parallel(
         self,

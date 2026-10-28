@@ -418,3 +418,8 @@ class GuardrailCheckResponse(BaseModel):
         description="The tool calls or tool results a tool rail blocked, each with a `violation_type` to switch on. "
         "Present only when a tool rail blocked (IORails).",
     )
+    messages: Optional[List[dict]] = Field(
+        default=None,
+        description="The messages sent, as the rails left them, in the same order. "
+        "Present only when a tool rail rewrote a tool call or result (IORails).",
+    )

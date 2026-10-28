@@ -28,7 +28,9 @@ from unittest.mock import patch
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.compiled_rail import RailExecution
 from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
+from nemoguardrails.types import ToolCall
 
 
 class StubRail:
@@ -42,11 +44,25 @@ class StubRail:
         self.transform_target = transform_target
         self.seen_messages: list[dict] = []
         self.seen_bot_response: Optional[str] = None
+        self.seen_tool_calls: list[ToolCall] = []
+        self.seen_tool_results: list[ToolResult] = []
         self.call_count = 0
 
-    async def execute(self, messages: list[dict], bot_response: Optional[str] = None) -> RailExecution:
+    async def execute(
+        self,
+        messages: list[dict],
+        bot_response: Optional[str] = None,
+        *,
+        tool_call: Optional[ToolCall] = None,
+        tool_result: Optional[ToolResult] = None,
+        tool_definition: Optional[Tool] = None,
+    ) -> RailExecution:
         self.seen_messages = [dict(message) for message in messages]
         self.seen_bot_response = bot_response
+        if tool_call is not None:
+            self.seen_tool_calls.append(tool_call)
+        if tool_result is not None:
+            self.seen_tool_results.append(tool_result)
         self.call_count += 1
         return RailExecution(outcome=self.outcome)
 
@@ -58,16 +74,23 @@ class StubRail:
         """A compiled rail may own an HTTP client; a stub has nothing to release."""
 
 
+_DIRECTION_TARGET = {
+    SurfaceDirection.INPUT: TransformTarget.USER_MESSAGE,
+    SurfaceDirection.OUTPUT: TransformTarget.BOT_MESSAGE,
+    SurfaceDirection.TOOL_RESULT: TransformTarget.TOOL_RESULT,
+    SurfaceDirection.TOOL_CALL: TransformTarget.TOOL_CALL,
+}
+
+
 def rewriting_stub(text: str, direction: SurfaceDirection) -> StubRail:
     """A rail that both declares it may rewrite and does, to its direction's variable."""
-    target = TransformTarget.USER_MESSAGE if direction is SurfaceDirection.INPUT else TransformTarget.BOT_MESSAGE
+    target = _DIRECTION_TARGET[direction]
     return StubRail(RailOutcome.transform([(target, text)]), transform_target=target)
 
 
 def declared_rewriter(direction: SurfaceDirection) -> StubRail:
     """A rail free to rewrite that does not, which is what most requests to one look like."""
-    target = TransformTarget.USER_MESSAGE if direction is SurfaceDirection.INPUT else TransformTarget.BOT_MESSAGE
-    return StubRail(transform_target=target)
+    return StubRail(transform_target=_DIRECTION_TARGET[direction])
 
 
 def user_message_rewrite(text: str) -> RailResult:
@@ -78,6 +101,16 @@ def user_message_rewrite(text: str) -> RailResult:
 def bot_message_rewrite(text: str) -> RailResult:
     """The verdict output rails return when they rewrote the response to *text*."""
     return RailResult(RailOutcome.transform([(TransformTarget.BOT_MESSAGE, text)]))
+
+
+def tool_result_rewrite(text: str) -> RailResult:
+    """The verdict a per-tool rail returns when it rewrote the tool result it checked to *text*."""
+    return RailResult(RailOutcome.transform([(TransformTarget.TOOL_RESULT, text)]))
+
+
+def tool_call_rewrite(arguments: str) -> RailResult:
+    """The verdict a per-tool rail returns when it rewrote the arguments of the tool call it checked to *arguments*."""
+    return RailResult(RailOutcome.transform([(TransformTarget.TOOL_CALL, arguments)]))
 
 
 def rail_failure(rail: str) -> RailResult:

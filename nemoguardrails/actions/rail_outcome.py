@@ -61,6 +61,10 @@ class TransformTarget(str, Enum):
     USER_MESSAGE = "user_message"
     BOT_MESSAGE = "bot_message"
     RELEVANT_CHUNKS = "relevant_chunks"
+    # The text replaces the whole content of the tool message under check, as a string.
+    TOOL_RESULT = "tool_result"
+    # The text is the JSON object of the complete arguments of the tool call under check.
+    TOOL_CALL = "tool_call"
 
 
 @dataclass(frozen=True, slots=True)

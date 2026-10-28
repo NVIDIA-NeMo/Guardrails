@@ -16,7 +16,8 @@ There are three main ways in which you can use the NeMo Guardrails library with 
 
 ## Add Guardrails to an Agent
 
-For tool-calling agents built with `create_agent`, the `GuardrailsMiddleware` hooks into the agent loop to run safety checks before and after every model call:
+For tool-calling agents built with `create_agent`, the `GuardrailsMiddleware` hooks into the agent loop to run safety checks before and after every model call, and tool rails on every tool call and tool result when the config has them.
+The middleware requires LangChain 1.0 or later (`pip install "langchain>=1.0"`).
 
 ```python
 from langchain.agents import create_agent
