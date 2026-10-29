@@ -111,13 +111,25 @@ async def test_execute_action_with_async_invoke():
     assert result == ("done", "success")
 
 
-def test_load_all_actions_registers_builtin_library_action_refs_lazily():
-    catalog = default_rail_catalog()
-    action_modules = {
+def _get_manifest_action_refs(record):
+    if record.manifest.actions is None:
+        return ()
+
+    return record.manifest.actions.refs
+
+
+def _get_manifest_action_modules(catalog):
+    return {
         action_ref.target.partition(":")[0]
         for record in catalog.records.values()
-        for action_ref in (record.manifest.actions.refs if record.manifest.actions is not None else ())
+        for action_ref in _get_manifest_action_refs(record)
     }
+
+
+def test_load_all_actions_registers_builtin_library_action_refs_lazily():
+    catalog = default_rail_catalog()
+    action_modules = _get_manifest_action_modules(catalog)
+
     action_module = "nemoguardrails.library.content_safety.actions"
     sys.modules.pop(action_module, None)
     loaded_modules = set(sys.modules)
@@ -128,7 +140,9 @@ def test_load_all_actions_registers_builtin_library_action_refs_lazily():
     assert "content_safety_check_input" in dispatcher.get_registered_actions()
     assert dispatcher.is_manifest_action("ContentSafetyCheckInputAction")
     assert action_module not in sys.modules
+
     registered_actions = dispatcher.registered_actions
+
     assert "content_safety_check_input" in registered_actions
     assert "unknown_action" not in registered_actions
     assert action_module not in sys.modules
