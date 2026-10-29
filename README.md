@@ -8,7 +8,7 @@ Programmable guardrails for AI agents and the tools they use.
 [![Tests](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/pr-tests.yml?logo=github&label=tests)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/pr-tests.yml)
 [![Documentation](https://img.shields.io/badge/docs-nvidia.com-76B900)](https://docs.nvidia.com/nemo/guardrails)
 
-[Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#quickstart-check-a-tool-call) · [Integrations](#connect-your-agent) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples)
+[Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#quickstart-check-a-tool-call) · [Use cases](#what-are-you-building) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples)
 
 The NVIDIA NeMo Guardrails library is an open-source Python toolkit for adding policy checks to AI agents. Validate tool names and arguments before execution, check tool results before they enter the model's context, and apply safety checks to prompts and generated answers. Define your checks in configuration files and run them in your application or as a service.
 
@@ -37,8 +37,12 @@ flowchart LR
 
 Guardrails returns a verdict; your application or agent harness enforces it. Execute a tool only after its call passes, and send a tool result to the model only after its checks pass. The library does not execute tools for you.
 
+## Why NeMo Guardrails
+
 - **Validate tool traffic.** The IORails engine checks calls against declared tools and their argument schemas. It can also verify that a result links to an earlier call and apply additional checks per tool.
 - **Keep your model and agent loop.** Use `check_async()` or the HTTP `/v1/checks` endpoint to run checks without invoking a main model. Model-backed rails still call their configured guard model or service.
+- **Choose checks for the task.** Tool validation, regex, and CEL rules run locally without a model call. For supported configurations, IORails can also run rails in parallel or overlap input checks with generation using speculative mode. Speculative generation sends input to the model before the input checks finish, even if they later block it.
+- **Distinguish blocks from failures.** IORails tool checks fail closed and report policy violations separately from rail execution failures. Your application or hook configuration determines how to handle a failed check.
 - **Compose the policy you need.** Combine deterministic checks with content safety, topic control, jailbreak detection, sensitive data masking, and other rails. Checks run where you configure and invoke them.
 - **Run it in your environment.** The library is Apache 2.0 licensed. Deploy it in your own application or run a guardrails service, choosing local detectors or hosted endpoints for each check.
 
@@ -152,24 +156,31 @@ The script checks proposed calls without issuing a refund. In your agent loop, e
 
 To extend the example, configure `rails.tool_result` and check returned tool messages with `RailType.TOOL_RESULT`. See [tool calling](https://docs.nvidia.com/nemo/guardrails/latest/configure-guardrails/guardrail-catalog/tool-calling), [CEL rules](./docs/configure-rails/guardrail-catalog/cel.mdx), and [checking messages](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-python-apis/check-messages) for complete configuration and result handling.
 
-## Connect your agent
+## What are you building?
 
-Choose an interface based on where your application can run checks.
+### A shared guardrails service
 
-| Integration | How it connects | Coverage |
-| --- | --- | --- |
-| Custom agent loop or agent framework | Python `Guardrails.check_async()` | Check prompts, tool calls, tool results, and answers at the boundaries your application invokes. Tool checks require IORails and Chat Completions tool/message shapes. |
-| Shared guardrails service | `nemoguardrails server` and `/v1/checks` | Run configured checks over HTTP while your application retains its model calls and tool execution. |
-| Guardrailed generation | `generate_async()` or `/v1/chat/completions` | Send requests through Guardrails to a configured model. Built-in IORails tool validation supports the `openai` and `nim` engines. |
-| Claude Code and Codex | `nemoguardrails hooks-server` and `/v1/hooks/claude-code` or `/v1/hooks/codex` | Check tool calls through `PreToolUse`. The hooks server does not check prompts, tool results, or final answers. |
-| NeMo Relay plugin | `/v1/hooks/nemo-relay` | A plugin forwards Relay's tool conditional-execution checks to the hooks server. |
-| Experimental HTTP proxy | `python -m nemoguardrails.server.experimental` | Inspect supported text requests and responses. Current built-in profiles exclude tool traffic, conversation histories, and multimodal content. |
+Run `nemoguardrails server` and send checks to `/v1/checks` while your applications continue to call their own models and execute their own tools. The server can load multiple configurations, selected by `config_id`. To check tool calls and results, enable IORails for compatible configurations and send tool data in the OpenAI Chat Completions shape. See [checking messages with the server](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-python-apis/check-messages#guardrails-server).
 
-The Guardrails API server, hooks server, and experimental proxy are separate applications with different configuration requirements. Server installations require the `server` extra. For coding-agent setup, use the [hooks examples](./examples/configs/agent_hooks) and [hooks server guide](./docs/run-rails/using-hooks-server/index.mdx). Configure the agent's failure behavior to block tool execution when a hook check cannot complete.
+Alternatively, use `generate_async()` or `/v1/chat/completions` to send generation requests through Guardrails to a configured model. Built-in IORails tool validation for generation supports the `openai` and `nim` engines. See [Python APIs](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-python-apis) and the [Guardrails API server](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-fastapi-server).
 
-For other deployment paths, see [Python APIs](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-python-apis), [the Guardrails API server](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-fastapi-server), and [the experimental proxy](./docs/run-rails/using-proxy/index.mdx).
+### An inference gateway
 
-LangChain's `RunnableRails` integration is optional. It requires the LangChain packages used by your configuration and the opt-in `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` setting or `set_default_framework("langchain")`. See [LangChain integration](https://docs.nvidia.com/nemo/guardrails/latest/integration-with-third-party-libraries/langchain/langchain-integration).
+The [experimental proxy](./docs/run-rails/using-proxy/index.mdx) adds checks at the HTTP boundary between clients and model services. Its current built-in profiles inspect supported text requests and responses; they do not cover tool traffic, conversation histories, or multimodal content. Review the [provider and streaming coverage](./docs/run-rails/using-proxy/providers-and-streaming.mdx) before connecting an application.
+
+### Coding agents and harnesses
+
+Use `nemoguardrails hooks-server` with Claude Code or Codex to check `PreToolUse` calls before the agent runs them. A NeMo Relay plugin can also forward its tool conditional-execution checks to `/v1/hooks/nemo-relay`. The hooks server checks tool calls only; it does not check prompts, tool results, or final answers.
+
+Start with the [hooks examples](./examples/configs/agent_hooks) and [hooks server guide](./docs/run-rails/using-hooks-server/index.mdx). Configure the agent's failure behavior to block tool execution when a hook check cannot complete, and combine hooks with the agent's own permissions and sandboxing.
+
+### An agent platform or framework
+
+Embed `Guardrails.check_async()` in a custom agent loop to check prompts, tool calls, tool results, and answers at the boundaries your application invokes. Tool checks require IORails and Chat Completions tool and message shapes.
+
+For LangChain agents, [GuardrailsMiddleware](./docs/integration/langchain/agent-middleware.mdx) applies configured input and output rails around model calls. Those text rails do not inspect tool-call arguments or tool-result content. LangChain's `RunnableRails` can wrap chains and runnables. Both integrations require LangChain packages; `RunnableRails` also requires the opt-in `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` setting or `set_default_framework("langchain")`. See [LangChain integration](https://docs.nvidia.com/nemo/guardrails/latest/integration-with-third-party-libraries/langchain/langchain-integration).
+
+The Guardrails API server, hooks server, and experimental proxy are separate applications with different configuration requirements. Server installations require the `server` extra.
 
 ## Guardrail catalog
 
@@ -183,7 +194,7 @@ LangChain's `RunnableRails` integration is optional. It requires the LangChain p
 
 The library also supports Colang dialog flows and custom action execution rails for applications that need them. Rail support varies by engine; consult [rail engine support](https://docs.nvidia.com/nemo/guardrails/latest/reference/rail-engine-support) when choosing or combining checks.
 
-The [guardrail catalog](https://docs.nvidia.com/nemo/guardrails/latest/configure-guardrails/guardrail-catalog) covers NVIDIA safety models, community models, and third-party integrations, including their setup requirements. The [examples](./examples) show configurations for individual rails and integrations.
+The [guardrail catalog](https://docs.nvidia.com/nemo/guardrails/latest/configure-guardrails/guardrail-catalog) covers NVIDIA safety models, community models, and third-party integrations such as ActiveFence, Cisco AI Defense, CrowdStrike AIDR, GLiNER, and Pangea. Each integration has its own setup requirements. The [examples](./examples) show configurations for individual rails and integrations.
 
 Evaluate your policy against representative allowed and blocked requests before deployment. See the [evaluation guide](https://docs.nvidia.com/nemo/guardrails/latest/evaluation) and [security guidelines](https://docs.nvidia.com/nemo/guardrails/latest/resources/guidelines) for testing and deployment guidance.
 
