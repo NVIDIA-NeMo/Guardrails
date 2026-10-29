@@ -15,28 +15,29 @@
 
 """The engine-neutral outcome of a single rail check.
 
-``RailOutcome`` is the canonical, backend-agnostic verdict a rail produces. It
-carries only the DECISION and neutral evidence, never how a consequence is
-rendered: which exception to raise, which bot intent or refusal message to
-emit, and how to localize it are presentation concerns that each engine (the
-Colang flow, IORails) decides for itself from this outcome plus its config.
+``RailOutcome`` is the canonical, backend-agnostic verdict a rail produces.
+Each engine or Colang flow renders the consequence from the decision, its
+configuration, and any explicitly supported presentation metadata. For example,
+a consumer may use ``metadata["refusal_message"]`` as a localized refusal
+override; unsupported metadata must not be assumed to affect rendering.
 
 Fields:
 - ``decision``: ALLOW / BLOCK / TRANSFORM.
 - ``reason``: optional neutral, human-readable explanation.
-- ``metadata``: neutral evidence the decision is based on (policy violations,
-  categories, scores, or backend-specific details). The top-level mapping is
-  copied at construction and is never load-bearing for the decision itself.
-  Serialization and disclosure are concerns for consumers at their boundaries.
+- ``metadata``: evidence the decision is based on (policy violations,
+  categories, scores, or backend-specific details) and supported presentation
+  hints. The top-level mapping is copied at construction and is never
+  load-bearing for the decision itself. Consumers own serialization, disclosure,
+  and the interpretation of presentation hints.
 - ``transforms``: for TRANSFORM, which conversation variables are rewritten
   and to what. Transform outcomes are non-streaming; streaming output paths
   treat the check as non-blocking and do not apply the rewrite.
 - ``failed``: the rail raised instead of returning a verdict, so this BLOCK is
   the engine's fail-closed envelope rather than the rail's own decision.
 
-Deliberately NOT here (they are rendering, not decision): exception type,
-refusal intent/message, language, and Colang event/context-update channels.
-A BLOCK always means "stop"; there is no soft-block flag.
+Exception types and Colang event/context-update channels remain the consumer's
+responsibility. Presentation metadata does not change the verdict: a BLOCK
+always means "stop"; there is no soft-block flag.
 """
 
 from collections.abc import Mapping, Sequence
@@ -82,7 +83,7 @@ class RailOutcome:
 
     ``transforms`` is non-empty if and only if ``decision`` is TRANSFORM. Each
     engine renders the consequence of a BLOCK its own way; this object does not
-    encode it.
+    determine how presentation metadata is rendered.
     """
 
     decision: RailDecision
