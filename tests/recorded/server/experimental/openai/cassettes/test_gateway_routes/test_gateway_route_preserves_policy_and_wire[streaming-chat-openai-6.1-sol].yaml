@@ -1,0 +1,123 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-6.1-sol
+      stream: true
+      messages:
+      - role: user
+        content: 'Reply with exactly: Hello.'
+      max_completion_tokens: 1024
+      stream_options:
+        include_usage: true
+      reasoning_effort: low
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      cache-control:
+      - no-cache
+      content-type:
+      - text/event-stream; charset=utf-8
+      content-security-policy:
+      - frame-ancestors 'none'
+      transfer-encoding:
+      - chunked
+    body:
+      parsed_body:
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-6.1-sol
+        service_tier: auto
+        choices:
+        - index: 0
+          delta:
+            role: assistant
+            content: Hello
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-6.1-sol
+        service_tier: auto
+        choices:
+        - index: 0
+          delta:
+            content: .
+      - id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: openai/openai/gpt-6.1-sol
+        object: chat.completion.chunk
+        choices:
+        - finish_reason: stop
+          index: 0
+          delta: {}
+        provider_specific_fields:
+          frequency_penalty: 0.0
+          presence_penalty: 0.0
+          service_tier: default
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+        frequency_penalty: 0.0
+        presence_penalty: 0.0
+        service_tier: default
+        tool_usage:
+          image_gen:
+            input_tokens: 0
+            input_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            output_tokens: 0
+            output_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            total_tokens: 0
+          web_search:
+            num_requests: 0
+      - id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: openai/openai/gpt-6.1-sol
+        object: chat.completion.chunk
+        choices:
+        - index: 0
+          delta: {}
+        usage:
+          completion_tokens: 6
+          prompt_tokens: 12
+          total_tokens: 18
+          completion_tokens_details:
+            reasoning_tokens: 0
+          prompt_tokens_details:
+            cached_tokens: 0
+            cache_write_tokens: 0
+            cache_creation_tokens: 0
+          cost: 6.165600000000001e-05
+        service_tier: default
+      - '[DONE]'
