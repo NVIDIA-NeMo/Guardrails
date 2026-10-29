@@ -32,6 +32,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     constrained,
     disabled,
     guarded,
+    opaque,
     payload_contract,
     text_location,
 )
@@ -88,6 +89,11 @@ class LiteLLMChoiceProjection(ChatCompletionsChoiceProjection):
 class LiteLLMResponseProjection(ChatCompletionsGuardedResponseProjection):
     """Retain the single-text response boundary with the reviewed nested types."""
 
+    access_programs: Annotated[Any, opaque()] = None
+    billing: Annotated[Any, opaque()] = None
+    frequency_penalty: Annotated[Any, opaque()] = None
+    presence_penalty: Annotated[Any, opaque()] = None
+    tool_usage: Annotated[Any, opaque()] = None
     choices: Annotated[list[LiteLLMChoiceProjection], guarded(min_length=1, max_length=1)]
 
 

@@ -16,7 +16,7 @@
 """Declare LiteLLM stream fields while retaining OpenAI event semantics.
 
 LiteLLM's root and delta extension bags are optional, nullable, and closed.
-No nonempty streaming extensions have been reviewed. Source-declared content
+Terminal root extensions preserve reviewed response metadata. Source-declared content
 arrays may be absent, null, or empty, but never carry uninspected content.
 The classifier derives coverage and text paths from these rebound models;
 the endpoint uses the existing per-stream OpenAI lifecycle hooks.
@@ -31,6 +31,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     constrained,
     field_coverage,
     guarded,
+    opaque,
 )
 from nemoguardrails.server.experimental.provider.stream_classifier import StreamClassifierDefinition
 from nemoguardrails.server.experimental.provider.stream_policy import build_policy_stream_classifier, stream_text_path
@@ -49,6 +50,17 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.stream
     ChatCompletionsStreamDeltaProjection,
     ChatCompletionsStreamPayloadProjection,
 )
+
+
+class LiteLLMTerminalMetadata(PolicyModel):
+    """Declare the terminal root extension separately from delta extensions."""
+
+    access_programs: Annotated[Any, opaque()] = None
+    billing: Annotated[Any, opaque()] = None
+    frequency_penalty: Annotated[Any, opaque()] = None
+    presence_penalty: Annotated[Any, opaque()] = None
+    tool_usage: Annotated[Any, opaque()] = None
+    service_tier: Annotated[Any, opaque()] = None
 
 
 class LiteLLMStreamFields(PolicyModel):
@@ -86,8 +98,13 @@ class LiteLLMStreamPayloadProjection(ChatCompletionsStreamPayloadProjection):
         ChatCompletionsStreamPayloadProjection.policy, source="ModelResponseStream"
     )
 
+    access_programs: Annotated[Any, opaque()] = None
+    billing: Annotated[Any, opaque()] = None
+    frequency_penalty: Annotated[Any, opaque()] = None
+    presence_penalty: Annotated[Any, opaque()] = None
+    tool_usage: Annotated[Any, opaque()] = None
     choices: Annotated[list[LiteLLMStreamChoiceProjection], guarded(max_length=1)]
-    provider_specific_fields: Annotated[LiteLLMStreamFields | None, constrained()] = None
+    provider_specific_fields: Annotated[LiteLLMTerminalMetadata | None, constrained()] = None
 
 
 STREAM_RULES = tuple(

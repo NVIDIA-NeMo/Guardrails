@@ -19,7 +19,9 @@ or a promise of compatibility with every LiteLLM release and backend.
 | Buffered `choices[0].provider_specific_fields` | Optional and nullable; reviewed `native_finish_reason` metadata is opaque. Other members are rejected. |
 | Buffered message `images`, `thinking_blocks`, `reasoning_items` | Absent, null, or empty arrays only. Nonempty content is unsupported. |
 | Remaining buffered fields | Inherit the OpenAI response constraints and reviewed opaque metadata. The dialect's choice and message remain closed even under a trusted unknown-field override. |
-| Streaming root and delta `provider_specific_fields` | Absent, null, or empty objects only. These are separate from buffered choice extensions. |
+| Buffered and streaming root `billing`, `frequency_penalty`, `presence_penalty`, `tool_usage` | Reviewed opaque accounting/sampling metadata retained by Responses-to-Chat translation. |
+| Streaming root `provider_specific_fields` | Optional nullable closed object with those accounting/sampling members and `service_tier`. |
+| Streaming delta `provider_specific_fields` | Absent, null, or empty objects only. Root metadata permissions do not apply here. |
 | Streaming delta `images`, `thinking_blocks`, `reasoning_items`, `annotations` | Absent, null, or empty arrays only. |
 | Streaming event selection and lifecycle | Rebind the OpenAI content rule to the LiteLLM projection; retain error selection, metadata roles, sentinel/keepalive behavior, and fresh OpenAI lifecycle hooks. Choice index remains strict integer zero. |
 
