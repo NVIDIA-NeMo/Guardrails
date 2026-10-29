@@ -28,14 +28,14 @@ UNIT_TEST_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY -u NVIDIA_INFERENCE_KEY
 # directory of their own rather than .venv, so neither is a Guardrails dependency. `uv pip sync` makes the directory
 # match requirements.txt and checks every wheel against its hash. The tests run in .venv, with live provider keys unset
 # as for `make test`, and find the agents through HOOKS_AGENTS_DIR.
-HOOKS_AGENTS_TESTS ?= tests_hooks_agents
+HOOKS_AGENTS_TESTS ?= integration_tests/hooks_agents
 HOOKS_AGENTS_DIR ?= .cache/hooks_agents
 
 # The NeMo Relay plugin's end-to-end tests run in their own Python 3.11 environment without Guardrails, while the hooks
 # servers they start run from .venv. `uv pip sync --require-hashes` makes that environment match requirements.txt and
 # checks every package against its hash, which `uv run --with-requirements` doesn't. nemo-relay is exempt from
 # [tool.uv]'s exclude-newer window, which would filter out a recent pin. Live provider keys are unset as for `make test`.
-RELAY_PLUGIN_TESTS ?= tests_relay_plugin
+RELAY_PLUGIN_TESTS ?= integration_tests/relay_plugin
 RELAY_PLUGIN_VENV ?= .venv-relay-plugin
 RELAY_PLUGIN_PYTEST ?= $(UNIT_TEST_ENV) $(RELAY_PLUGIN_VENV)/bin/pytest
 
@@ -166,8 +166,8 @@ help:
 		'  make test-benchmark [ARGS="-q"]' \
 		'  make test-parallel [TEST=path] [WORKERS=auto] [ARGS="-q --tb=short"]' \
 		'  make test-watch [TEST=path]' \
-		'  make test-hooks-agents [TEST=tests_hooks_agents/...] [WORKERS=auto] [ARGS="-v"]' \
-		'  make test-relay-plugin [TEST=tests_relay_plugin/...] [ARGS="-v"]' \
+		'  make test-hooks-agents [TEST=integration_tests/hooks_agents/...] [WORKERS=auto] [ARGS="-v"]' \
+		'  make test-relay-plugin [TEST=integration_tests/relay_plugin/...] [ARGS="-v"]' \
 		'  make record-cassettes [RECORDED_TESTS=tests/recorded] [RECORDED_RECORD_MODE=once] [RECORDED_SNAPSHOT_MODE=create] [RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_API_KEY"]' \
 		'  make rewrite-cassettes [RECORDED_TESTS=tests/recorded] [RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_API_KEY"]' \
 		'  make replay-cassettes [RECORDED_TESTS=tests/recorded]' \

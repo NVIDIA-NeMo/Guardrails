@@ -25,7 +25,7 @@ from typing import Optional, Union
 
 import pytest
 
-from tests_hooks_agents.fake_model import FakeModel, ScriptedToolCall
+from integration_tests.hooks_agents.fake_model import FakeModel, ScriptedToolCall
 
 # The scripted shell command writes this file in the agent's working directory, so a test can tell whether it ran.
 TOOL_RAN_FILE = "tool-ran.txt"

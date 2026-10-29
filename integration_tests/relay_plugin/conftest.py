@@ -35,7 +35,7 @@ import pytest
 from mock_judge import MockJudge
 from nemo_relay import plugin
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 CRATE_DIR = REPO_ROOT / "crates" / "nemo-guardrails-relay-plugin"
 LIBRARY_TARGET = "nemo_guardrails_relay_plugin"
 LIBRARY_SUFFIX = ".dylib" if sys.platform == "darwin" else ".so"

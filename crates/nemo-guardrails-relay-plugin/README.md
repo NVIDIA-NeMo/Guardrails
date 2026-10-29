@@ -71,15 +71,16 @@ make test TEST=crates/nemo-guardrails-relay-plugin/scripts/test_package_bundle.p
 None of these tests needs a running NeMo Guardrails service.
 `.cargo/config.toml` sets `NEMO_RELAY_TEST_SKIP_IMPLICIT_CONFIG=1`, so that the host tests ignore a machine-wide `/etc/nemo-relay/plugins.toml`.
 
-The end-to-end tests in `tests_relay_plugin/`, at the repository root, load the release library into Relay's Python plugin host and check calls against a real NeMo Guardrails service: managed tool calls, and a LangChain agent through Relay's middleware.
-They start the service from the repository's `.venv`, as a hooks server for each of their configurations, and run in their own Python 3.11 environment without Guardrails, `.venv-relay-plugin`, installed from the hash-pinned `tests_relay_plugin/requirements.txt`.
+The end-to-end tests in `integration_tests/relay_plugin/`, at the repository root, load the release library into Relay's Python plugin host and check calls against a real NeMo Guardrails service: managed tool calls, and a LangChain agent through Relay's middleware.
+They start the service from the repository's `.venv`, as a hooks server for each of their configurations, and run in their own Python 3.11 environment without Guardrails, `.venv-relay-plugin`, installed from the hash-pinned `integration_tests/relay_plugin/requirements.txt`.
 They run on Linux and macOS, need the Rust toolchain, and aren't part of `make test`.
+[`integration_tests/README.md`](../../integration_tests/README.md) covers all of the repository's end-to-end suites, this one included.
 From the repository root:
 
 ```sh
 make test-relay-plugin
 # One file or test, with pytest's options
-make test-relay-plugin TEST=tests_relay_plugin/test_langchain.py ARGS=-v
+make test-relay-plugin TEST=integration_tests/relay_plugin/test_langchain.py ARGS=-v
 ```
 
 ## Packaging
