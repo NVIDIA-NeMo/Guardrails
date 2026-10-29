@@ -581,7 +581,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
 
         # Use action specific llm if registered else fallback to main llm
         generation_llm: Optional[LLMModel] = llm if llm else self.llm
-        log.info("Generating flow for name: {name}")
+        log.info(f"Generating flow for name: {name}")
 
         if not self.instruction_flows_index:
             raise RuntimeError("No instruction flows index has been created.")
