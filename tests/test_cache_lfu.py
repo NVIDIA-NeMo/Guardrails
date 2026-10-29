@@ -127,55 +127,36 @@ class TestLFUCache(unittest.TestCase):
         self.assertEqual(self.cache.get("c"), 3)
         self.assertEqual(self.cache.get("d"), 4)
 
-    def test_complex_eviction_scenario(self):
-        """Test complex eviction scenario with multiple frequency levels."""
-        # Create a new cache for this test
+    def _cache_with_multiple_frequency_levels(self):
+        """Build a cache with frequencies a=3, b=c=2 and d=1."""
         cache = LFUCache(4)
-
-        # Add items and create different frequency levels
         cache.put("a", 1)
         cache.put("b", 2)
         cache.put("c", 3)
         cache.put("d", 4)
-
-        # Create frequency pattern:
-        # a: freq 3 (accessed 2 more times)
-        # b: freq 2 (accessed 1 more time)
-        # c: freq 2 (accessed 1 more time)
-        # d: freq 1 (not accessed)
-
         cache.get("a")
         cache.get("a")
         cache.get("b")
         cache.get("c")
+        return cache
 
-        # Add new item - should evict 'd' (freq 1)
+    def test_complex_eviction_removes_lowest_frequency(self):
+        """Evict d, the only item with frequency 1."""
+        cache = self._cache_with_multiple_frequency_levels()
         cache.put("e", 5)
         self.assertIsNone(cache.get("d"))
-
-        # Add another item - should evict one of the least frequently used
-        cache.put("f", 6)
-
-        # After eviction, we should have:
-        # - 'a' (freq 3) - definitely kept
-        # - 'b' (freq 2) and 'c' (freq 2) - higher frequency, both kept
-        # - 'f' (freq 1) - just added
-        # - 'e' (freq 1) was evicted as it was least recently used among freq 1 items
-
-        # Check that we're at maxsize
         self.assertEqual(cache.size(), 4)
 
-        # 'a' should definitely still be there (highest frequency)
+    def test_complex_eviction_preserves_higher_frequencies(self):
+        """A second eviction removes e and keeps the more frequent items."""
+        cache = self._cache_with_multiple_frequency_levels()
+        cache.put("e", 5)
+        cache.put("f", 6)
+        self.assertEqual(cache.size(), 4)
         self.assertEqual(cache.get("a"), 1)
-
-        # 'b' and 'c' should both be there (freq 2)
         self.assertEqual(cache.get("b"), 2)
         self.assertEqual(cache.get("c"), 3)
-
-        # 'f' should be there (just added)
         self.assertEqual(cache.get("f"), 6)
-
-        # 'e' should have been evicted (freq 1, LRU among freq 1 items)
         self.assertIsNone(cache.get("e"))
 
     def test_zero_maxsize_cache(self):
