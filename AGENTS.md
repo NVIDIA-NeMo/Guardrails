@@ -59,6 +59,7 @@ skill discovery.
 
 - Main package: `nemoguardrails/`
 - Tests: `tests/` and `benchmark/tests` (the `testpaths` in `pytest.ini`)
+- End-to-end suites outside the `testpaths`: `integration_tests/` (see its `README.md`)
 - Schemas and validation snapshots: `schemas/`
 - Default development branch: `develop`
 

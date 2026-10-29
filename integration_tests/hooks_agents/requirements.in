@@ -4,7 +4,7 @@
 # binaries, and with hashes, which `make test-hooks-agents` checks as it installs them. Compile it from the repository
 # root, which applies the repository's 7-day exclude-newer window:
 #
-#   uv pip compile --universal --no-deps --generate-hashes tests_hooks_agents/requirements.in \
-#     -o tests_hooks_agents/requirements.txt
+#   uv pip compile --universal --no-deps --generate-hashes integration_tests/hooks_agents/requirements.in \
+#     -o integration_tests/hooks_agents/requirements.txt
 claude-agent-sdk==0.2.168
 openai-codex-cli-bin==0.163.0

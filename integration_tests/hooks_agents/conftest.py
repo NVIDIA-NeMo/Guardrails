@@ -37,11 +37,11 @@ from typing import Callable, Iterator
 import pytest
 import uvicorn
 
+from integration_tests.hooks_agents.agents import Agent, ClaudeCode, Codex
 from nemoguardrails import RailsConfig
 from nemoguardrails.server.hooks.app import create_hooks_app
-from tests_hooks_agents.agents import Agent, ClaudeCode, Codex
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 # Where `make test-hooks-agents` installs the agents' wheels: HOOKS_AGENTS_DIR when it's set, against the repository root.
 AGENTS_DIR = REPO_ROOT / (os.environ.get("HOOKS_AGENTS_DIR") or ".cache/hooks_agents")
 
