@@ -25,6 +25,7 @@ The agents are the real binaries from their published wheels.
 Prerequisites:
 
 - Linux or macOS, since the docs' hooks and the scripted command need a POSIX shell.
+- `curl` on `PATH`, which Codex's hook from the docs runs to call the hooks server.
 - Network access to PyPI the first time, to download the agents' wheels.
 - On a managed machine, Claude Code's managed settings still apply: an `allowedHttpHookUrls` that doesn't allow `localhost` stops its hook from running.
 
