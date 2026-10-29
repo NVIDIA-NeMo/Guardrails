@@ -818,28 +818,28 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
 
     def test_concurrent_clear_operations(self):
         """Test concurrent clear operations with other operations."""
-        writes_ready = threading.Barrier(3, timeout=5)
+        round_start = threading.Barrier(3, timeout=5)
         round_done = threading.Barrier(3, timeout=5)
 
         def writer():
-            """Write a batch before each round of reads and clearing."""
+            """Write a batch while the clearer and reader run."""
             for batch_start in range(0, 100, 20):
+                round_start.wait()
                 for i in range(batch_start, batch_start + 20):
                     self.cache.put(f"key_{i}", f"value_{i}")
-                writes_ready.wait()
                 round_done.wait()
 
         def clearer():
-            """Clear each batch while the reader accesses its keys."""
+            """Clear while the writer and reader access the cache."""
             for _ in range(5):
-                writes_ready.wait()
+                round_start.wait()
                 self.cache.clear()
                 round_done.wait()
 
         def reader():
-            """Read each batch concurrently with its clear operation."""
+            """Read each batch while the writer and clearer run."""
             for batch_start in range(0, 100, 20):
-                writes_ready.wait()
+                round_start.wait()
                 for i in range(batch_start, batch_start + 20):
                     self.cache.get(f"key_{i}")
                 round_done.wait()
