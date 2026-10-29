@@ -14,8 +14,6 @@ The NVIDIA NeMo Guardrails library is an open-source Python toolkit for adding p
 
 Use local rules for checks such as tool allowlists, JSON Schema validation, regex matching, and Common Expression Language (CEL) expressions. Add NVIDIA safety models, community models, third-party APIs, or custom Python actions for checks that require them.
 
-> **LATEST RELEASE / DEVELOPMENT VERSION**: The [develop](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop) branch tracks the latest top of tree development. The latest released version is [0.24.1](https://github.com/NVIDIA-NeMo/Guardrails/tree/v0.24.1).
-
 > [!NOTE]
 > This README describes the development branch. The agent quickstart below uses a source installation from `develop`; consult the documentation for your installed version when using a released package. IORails and the proxy described below are experimental.
 
