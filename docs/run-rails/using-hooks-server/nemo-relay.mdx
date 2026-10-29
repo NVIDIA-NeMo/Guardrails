@@ -1,6 +1,6 @@
 ---
 title: "Check NeMo Relay Tool Calls with the Hooks Server"
-sidebar-title: "NeMo Relay"
+sidebar-title: "NeMo Relay Endpoint"
 description: "The /v1/hooks/nemo-relay endpoint of the Guardrails hooks server, for a NeMo Relay plugin's tool conditional-execution guardrail."
 keywords: ["NeMo Relay", "tool conditional-execution guardrail", "nemoguardrails hooks-server", "/v1/hooks/nemo-relay", "NemoRelayToolConditionalExecutionGuardrail"]
 content:
@@ -10,6 +10,7 @@ content:
 [NeMo Relay](https://github.com/NVIDIA/NeMo-Relay) plugins can register a tool conditional-execution guardrail, which Relay runs before each tool call it manages, with the tool's name and arguments.
 A plugin can forward that check to the Guardrails hooks server (`nemoguardrails hooks-server`) at `/v1/hooks/nemo-relay`, so the hooks server's tool policy and per-tool rails decide whether the call runs.
 This page describes the endpoint such a plugin calls.
+To install the NVIDIA NeMo Guardrails Plugin for NeMo Relay, which calls it, refer to [Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin).
 
 For how Relay runs these guardrails, refer to [conditional execution](https://github.com/NVIDIA/NeMo-Relay/blob/494018ac4d6abb0085853a02f4b6d75a75ff7049/docs/about-nemo-relay/concepts/middleware.mdx?plain=1#L235) in the NeMo Relay documentation.
 

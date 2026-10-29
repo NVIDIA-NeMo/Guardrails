@@ -1,0 +1,331 @@
+---
+title: "Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin"
+sidebar-title: "NeMo Relay Plugin"
+description: "Install the NVIDIA NeMo Guardrails Plugin for NeMo Relay, which checks each tool call Relay manages with the Guardrails hooks server before the tool runs."
+keywords: ["NeMo Relay", "NeMo Relay plugin", "nvidia.nemo_guardrails", "nemo-relay plugins add", "plugins.toml", "nemoguardrails hooks-server", "/v1/hooks/nemo-relay", "NemoRelayMiddleware"]
+content:
+  type: "how_to"
+---
+
+The NVIDIA NeMo Guardrails Plugin for NeMo Relay, `nvidia.nemo_guardrails`, is a native [NeMo Relay](https://github.com/NVIDIA/NeMo-Relay) plugin that checks each tool call Relay manages before the tool runs.
+It sends the tool's name and arguments to the Guardrails hooks server (`nemoguardrails hooks-server`) at `/v1/hooks/nemo-relay`, and the hooks server's tool policy and per-tool rails decide whether the call runs.
+The plugin holds no rails of its own, so you decide what to block in the hooks server's configuration.
+
+## Where the Plugin Checks Calls
+
+The plugin registers a tool conditional-execution guardrail, which Relay runs before each tool call it manages:
+
+| Where Relay Runs | Calls the Plugin Checks |
+|---|---|
+| The Relay CLI with Claude Code or Codex, in every mode | Each `PreToolUse` hook. Through Relay 0.10, also each `PermissionRequest` hook. Refer to [Check Each Call Once](#check-each-call-once). |
+| The Relay CLI with pi | Each tool call that Relay's pi extension sends to Relay |
+| A Python application | Each tool call that runs through Relay: `nemo_relay.tools.execute`, Relay's LangChain middleware `NemoRelayMiddleware`, which also covers Deep Agents, and Relay's LangGraph tool node |
+| OpenClaw | Not supported |
+
+The plugin checks tool calls only.
+A tool's result reaches the model unchecked.
+
+## Prerequisites
+
+Before you install the plugin, meet the following prerequisites:
+
+- NeMo Relay 0.10.1 or a later 0.10 release.
+  Relay 0.10.0 refuses to load the plugin, because in that release an error from a guardrail let a Claude Code tool call run.
+- A running hooks server, with a configuration for the tool names of the agent you check.
+  To check Claude Code through the Relay CLI, start one with the [Claude Code example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/claude_code) from a clone of the repository:
+
+    ```bash
+    nemoguardrails hooks-server --config examples/configs/agent_hooks/claude_code
+    ```
+
+    Relay forwards each tool's name as the agent or application gives it, and the hooks server matches it exactly.
+    For Claude Code or Codex, base the configuration on the [Claude Code](/run-guardrailed-inference/using-hooks-server/claude-code#claude-code-tool-names) or [Codex](/run-guardrailed-inference/using-hooks-server/codex#codex-tool-names) tool names.
+    To write your own configuration, refer to [Run the Hooks Server: Write a Hooks Configuration](/run-guardrailed-inference/using-hooks-server/run-hooks-server#write-a-hooks-configuration).
+- To build the plugin: a clone of the [NeMo Guardrails repository](https://github.com/NVIDIA-NeMo/Guardrails), [rustup](https://rustup.rs/), and Python 3.
+
+## Build the Plugin Bundle
+
+A Relay plugin bundle is a directory that holds the plugin library, its manifest `relay-plugin.toml`, its configuration schema, and its license files.
+Build the library and package the bundle from the repository root:
+
+```bash
+cargo build --release --locked -p nemo-guardrails-relay-plugin
+python3 crates/nemo-guardrails-relay-plugin/scripts/package_bundle.py \
+  --library target/release/libnemo_guardrails_relay_plugin.so \
+  --output ~/nemo-guardrails-relay-plugin
+```
+
+The build uses the Rust version that the repository's `rust-toolchain.toml` pins.
+The library is `libnemo_guardrails_relay_plugin.so` on Linux, `libnemo_guardrails_relay_plugin.dylib` on macOS, and `nemo_guardrails_relay_plugin.dll` on Windows.
+
+Relay loads the plugin from the bundle directory, so keep the directory in place after you register it.
+The bundle is not signed, so Relay loads it only after you allow integrity-only attestation for the plugin, as the following sections show.
+
+## Choose a Setup
+
+The plugin works the same way in every Relay mode.
+How you run Relay decides who controls the plugin and its configuration:
+
+| | Try It Out | Production |
+|---|---|---|
+| Relay mode | `nemo-relay claude`, `nemo-relay codex`, `nemo-relay pi`, or a persistent integration from `nemo-relay install` | The managed Relay daemon, `nemo-relay daemon` |
+| Registered with | `nemo-relay plugins add --user` | `nemo-relay plugins add --global` |
+| Configuration file | Your user `plugins.toml` | The system `plugins.toml` |
+| Hooks server | Runs on your machine, started by you | Runs where an administrator deploys it |
+| Controlled by | The user, who can remove or reconfigure the plugin | An administrator |
+
+A Python application passes its own `plugins.toml` to Relay.
+Refer to [Use the Plugin in a Python Application](#use-the-plugin-in-a-python-application).
+
+## Try the Plugin Out
+
+Register the plugin for your user, then run an agent through the Relay CLI:
+
+1. Start the hooks server, as described in [Prerequisites](#prerequisites).
+1. Validate the bundle, and register it for your user:
+
+    ```bash
+    nemo-relay plugins validate ~/nemo-guardrails-relay-plugin/relay-plugin.toml
+    nemo-relay plugins add --user ~/nemo-guardrails-relay-plugin/relay-plugin.toml
+    ```
+
+    `plugins add` adds a `[[plugins.dynamic]]` entry for the plugin to your user `plugins.toml`, at `$XDG_CONFIG_HOME/nemo-relay/plugins.toml`, or at `~/.config/nemo-relay/plugins.toml` when `XDG_CONFIG_HOME` is not set.
+1. Open that file, allow the unsigned bundle, and add the plugin's configuration after its entry:
+
+    ```toml
+    version = 1
+
+    [plugins.policy.overrides."nvidia.nemo_guardrails"]
+    attestation = "integrity_only"
+
+    [[plugins.dynamic]]
+    manifest = "/home/user/nemo-guardrails-relay-plugin/relay-plugin.toml"
+
+    [plugins.dynamic.config]
+    endpoint = "http://127.0.0.1:8100"
+    ```
+
+    Keep `[plugins.dynamic.config]` directly after the plugin's `[[plugins.dynamic]]` entry, because TOML attaches it to the entry above it.
+    Without the `attestation` override, Relay refuses to start, with an error that the plugin requires `integrity.signature` under host policy.
+1. Enable the plugin, and validate its configuration:
+
+    ```bash
+    nemo-relay plugins enable nvidia.nemo_guardrails
+    nemo-relay plugins validate nvidia.nemo_guardrails
+    ```
+
+    `plugins validate` checks the configuration against the plugin's schema, for example that `endpoint` is set.
+    It does not check the `attestation` override.
+1. Run the agent through Relay:
+
+    ```bash
+    nemo-relay claude
+    ```
+
+    For Codex, run `nemo-relay codex` against a hooks server with a configuration for the Codex tool names.
+
+For pi, run `nemo-relay pi`, and also set the following:
+
+- `NEMO_RELAY_PI_FAIL=closed` in pi's environment.
+  By default, Relay's pi extension lets a call run when the check fails.
+- `timeout_millis` below pi's own limit, which `NEMO_RELAY_PI_TIMEOUT_MS` sets and which is 5000 milliseconds by default.
+  Otherwise pi stops waiting before the plugin does.
+
+Anyone who can edit your user `plugins.toml` can remove the plugin or point it at another hooks server.
+To enforce the checks for every user, refer to [Run the Plugin in Production](#run-the-plugin-in-production).
+
+### Verify the Plugin
+
+With the hooks server running the Claude Code example configuration, check the plugin from Claude Code:
+
+1. Ask Claude to run `echo 'rm -rf /tmp/guardrails-hook-check'`.
+   The example configuration blocks the command because its text matches the `rm -rf` pattern.
+   Claude Code blocks the call, and Claude receives the reason, `guardrail rejected: NeMo Guardrails blocked tool call 'Bash': regex check tool call`.
+   The hooks server logs the check:
+
+    ```text
+    INFO:nemoguardrails.server.hooks.app:Hook check on /v1/hooks/nemo-relay: event=NemoRelayToolConditionalExecutionGuardrail tool_name='Bash' tool_use_id=None outcome=deny code=None rail='regex check tool call'
+    ```
+
+1. Stop the hooks server and ask Claude to run any command.
+   Claude Code blocks the call because the check fails.
+1. Start the hooks server again.
+
+## Run the Plugin in Production
+
+In production, an administrator runs the managed Relay daemon, which loads the plugin for every user from the system `plugins.toml`.
+Set up the daemon as described in the NeMo Relay [daemon documentation](https://github.com/NVIDIA/NeMo-Relay/blob/0.10.4/docs/daemon/about.mdx), then add the plugin:
+
+1. Put the bundle in a directory that administrators own and every user can read, such as `/opt/nemo-guardrails-relay-plugin`.
+1. From an account that can write `/etc/nemo-relay`, register and enable the plugin:
+
+    ```bash
+    sudo nemo-relay plugins add --global /opt/nemo-guardrails-relay-plugin/relay-plugin.toml
+    sudo nemo-relay plugins enable nvidia.nemo_guardrails
+    ```
+
+1. Add the `attestation` override and the plugin's configuration to `/etc/nemo-relay/plugins.toml`, as in [Try the Plugin Out](#try-the-plugin-out), with the endpoint of the hooks server that serves your users.
+   Every local user can read this file, so do not put a credential in `headers`.
+1. Run `nemo-relay plugins validate nvidia.nemo_guardrails`.
+
+The daemon enforces the checks only when the following conditions hold:
+
+- **Start the daemon with `--require-worker`.**
+  Without it, the daemon answers hooks itself, and lets the call run, while no worker is ready: during worker startup and recovery, and after a daemon restart.
+- **Deliver the agent's hook settings through its managed settings.**
+  Otherwise a user can remove the hooks that send tool calls to the daemon.
+  Claude Code has managed settings; Relay documents no such mechanism for pi.
+- **Do not load a plugin that intercepts model execution, such as Switchyard.**
+  The daemon's worker refuses to start with one, and with `--require-worker`, the agents then stop working.
+
+To stage a deployment, first run a daemon for your own user on one machine, as a macOS LaunchAgent or a Linux user service.
+
+## Use the Plugin in a Python Application
+
+A Python application loads the plugin from a `plugins.toml` it passes to Relay.
+Write the file with the same entries as in [Try the Plugin Out](#try-the-plugin-out).
+A relative `manifest` path resolves from the directory of the `plugins.toml` file:
+
+```toml
+version = 1
+
+[plugins.policy.overrides."nvidia.nemo_guardrails"]
+attestation = "integrity_only"
+
+[[plugins.dynamic]]
+manifest = "nemo-guardrails-relay-plugin/relay-plugin.toml"
+
+[plugins.dynamic.config]
+endpoint = "http://127.0.0.1:8100"
+```
+
+Activate Relay's plugins with the file, and run the agent while they are active:
+
+```python
+import asyncio
+
+from nemo_relay import plugin
+
+
+async def main() -> None:
+    async with plugin.activate({}, "plugins.toml"):
+        ...  # Run your agent here.
+
+
+asyncio.run(main())
+```
+
+Relay also reads the system `plugins.toml`, `/etc/nemo-relay/plugins.toml` on Linux and macOS, and its settings take precedence over the file you pass.
+
+For a LangChain or Deep Agents agent, add Relay's middleware, which runs each tool call through Relay:
+
+```python
+from langchain.agents import create_agent
+from nemo_relay.integrations.langchain.middleware import NemoRelayMiddleware
+
+agent = create_agent(model=model, tools=tools, middleware=[NemoRelayMiddleware()])
+```
+
+When the hooks server denies a call, `invoke` and `ainvoke` raise a `RuntimeError`, and the tool does not run:
+
+```text
+RuntimeError: guardrail rejected: NeMo Guardrails blocked tool call 'search': regex check tool call
+```
+
+A failed check raises a `RuntimeError` whose message starts with `internal error: NeMo Guardrails check failed for tool call`.
+Neither error reaches the model, so handle them where your application handles the agent's errors.
+
+A Python application has no hook time limit, so the default `timeout_millis` leaves room for a rail that calls a model.
+
+## Configure the Plugin
+
+The plugin reads its configuration from the `[plugins.dynamic.config]` table of its entry:
+
+| Field | Default | Description |
+|---|---|---|
+| `endpoint` | None | Required. The base URL of the hooks server, using `http` or `https`, such as `http://127.0.0.1:8100`. The plugin sends each check to `/v1/hooks/nemo-relay` under it, keeping any path prefix. It must not contain a username or password; send credentials in `headers`. |
+| `headers` | `{}` | Headers to send with every check, as header names and string values. The hooks server has no authentication, so use them for a proxy or gateway in front of it, such as an `authorization` header. The plugin never quotes a header value in an error. It rejects headers that its HTTP client sets, such as `content-type`, `content-length`, and `host`. |
+| `timeout_millis` | `25000` | The time limit for one check, in milliseconds. Keep it below the agent's hook time limit: 30 seconds for Claude Code and Codex through the Relay CLI, and 5 seconds by default for pi. |
+| `priority` | `0` | The plugin's place among Relay's tool guardrails. Lower values run earlier. |
+| `executor` | None | Reserved for the Relay SDK's executor settings, such as `worker_threads`. |
+
+The following example sends an `authorization` header to a proxy in front of the hooks server:
+
+```toml
+[plugins.dynamic.config]
+endpoint = "https://guardrails.example.com"
+timeout_millis = 10000
+
+[plugins.dynamic.config.headers]
+authorization = "Bearer <token>"
+```
+
+Relay refuses to start when the configuration is not valid.
+
+<Note>
+
+The plugin uses the proxy settings of the Relay process that loads it, from `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY`, even for a hooks server on `127.0.0.1`.
+If you set a proxy, add the hooks server's host to `NO_PROXY`, such as `NO_PROXY=127.0.0.1,localhost`.
+Otherwise every check goes through the proxy, which then receives the tool's arguments and the configured `headers`, in plain text for an `http` endpoint.
+
+</Note>
+
+## What Happens to a Call
+
+The plugin turns the hooks server's answer into the guardrail's result, and Relay acts on it:
+
+| Hooks Server Answer | Plugin Result | Relay CLI with Claude Code or Codex | Relay CLI with pi | Python Application |
+|---|---|---|---|---|
+| Allow | Lets the call run | The tool runs, subject to the agent's own permission rules | The tool runs | The tool runs |
+| Deny | A rejection: `NeMo Guardrails blocked tool call '<tool>': <reason>` | Relay's hook exits `2`, and the agent blocks the call | pi blocks the call | `RuntimeError: guardrail rejected: ...` |
+| An error status, no answer within `timeout_millis`, or no connection | An error: `NeMo Guardrails check failed for tool call '<tool>': <detail>` | Relay's hook exits `2`, and the agent blocks the call | The tool runs, unless `NEMO_RELAY_PI_FAIL=closed` | `RuntimeError: internal error: ...` |
+
+The reason for a deny comes from the hooks server: the tool policy's reason, or the name of the per-tool rail that blocked the call.
+For every deny reason and error, refer to [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors).
+
+The detail of a failed check gives the HTTP status, the hooks server's error code and message, or says that the request timed out or could not be sent.
+It never includes a header value or the tool's arguments.
+The plugin does not retry a failed check, not even after a `503` with `Retry-After`.
+
+While the hooks server is stopped, restarting, or slower than `timeout_millis`, every check fails, so every tool call the plugin checks is blocked, except under pi without `NEMO_RELAY_PI_FAIL=closed`.
+The same holds for the calls a per-tool rail checks while the model it calls cannot be reached.
+
+### Find the Reason for a Failed Check
+
+Through the Relay CLI's gateway, the agent receives the plugin's error inside Relay's message:
+
+```text
+nemo-relay hook forward failed: hook gateway returned HTTP 500 Internal Server Error: NeMo Relay runtime error: internal error: NeMo Guardrails check failed for tool call 'Bash': error sending request for url (http://127.0.0.1:8100/v1/hooks/nemo-relay): client error (Connect): tcp connect error: Connection refused (os error 61)
+```
+
+Through the managed daemon, the agent can receive only Relay's own message, such as `daemon hook forward failed with HTTP 500`.
+
+The plugin also logs each failed check as a warning in Relay's log, with the target `nemo_relay.plugin.native.nvidia.nemo_guardrails`, the event `nemo_guardrails_check_failed`, and the fields `tool_name`, `status`, and `error_code`:
+
+```text
+2026-10-28T18:09:36.742Z WARN root=01a183b3 target=nemo_relay.plugin.native.nvidia.nemo_guardrails event=nemo_guardrails_check_failed error_code=None status=None tool_name=Bash NeMo Guardrails check failed for tool call 'Bash': error sending request for url (http://127.0.0.1:8100/v1/hooks/nemo-relay): client error (Connect): tcp connect error: Connection refused (os error 61)
+```
+
+Relay logs only errors by default, so set its log level to `warn` or lower to keep these warnings, for example with `nemo-relay --log-level warn`.
+The hooks server [logs each check that ends in an error](/run-guardrailed-inference/using-hooks-server/run-hooks-server#logs) at the `WARNING` level, with its error code.
+
+## Limits
+
+Plan your deployment around the following limits:
+
+- **No result checks.**
+  The hooks server checks tool calls only, so a tool's output reaches the model unchecked.
+- **One configuration for each Relay process.**
+  Relay loads the plugin once in each process, with one `endpoint`, and a hooks server serves one configuration.
+  To apply another policy, run another hooks server, and point another Relay setup at it.
+- **No authentication on the hooks server.**
+  Anyone who can reach the hooks server can send it calls, and learn what the policy allows.
+  Refer to [Run the Hooks Server: Expose the Server](/run-guardrailed-inference/using-hooks-server/run-hooks-server#expose-the-server).
+
+## Related Topics
+
+- [Check NeMo Relay Tool Calls with the Hooks Server](/run-guardrailed-inference/using-hooks-server/nemo-relay)
+- [Run the Hooks Server](/run-guardrailed-inference/using-hooks-server/run-hooks-server)
+- [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors)
+- [Configure Discoverable Plugins](https://github.com/NVIDIA/NeMo-Relay/blob/0.10.4/docs/configure-plugins/discoverable-plugins.mdx) in the NeMo Relay documentation
+- [The plugin's README](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/crates/nemo-guardrails-relay-plugin), for building and testing it
