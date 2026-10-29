@@ -98,7 +98,7 @@ The hooks server supports the following agent integrations:
 |---|---|---|---|
 | [Claude Code](/run-guardrailed-inference/using-hooks-server/claude-code) | `/v1/hooks/claude-code` | An `http` hook on `PreToolUse` | 2.1.295, for `onFailure: "block"` |
 | [Codex](/run-guardrailed-inference/using-hooks-server/codex) | `/v1/hooks/codex` | A `command` hook on `PreToolUse` that runs `curl` | 0.124.0. From 0.129.0, Codex runs a hook only after you trust it |
-| [NeMo Relay](/run-guardrailed-inference/using-hooks-server/nemo-relay) | `/v1/hooks/nemo-relay` | A plugin's tool conditional-execution guardrail | 0.10.1 |
+| [NeMo Relay](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin) | `/v1/hooks/nemo-relay` | A plugin's tool conditional-execution guardrail | 0.10.1 |
 
 The hooks server handles only the `PreToolUse` event, and the NeMo Relay guardrail that stands in for it.
 Any other hook event returns HTTP `422`, so register the hooks server on `PreToolUse` only.

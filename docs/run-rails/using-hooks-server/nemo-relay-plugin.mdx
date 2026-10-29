@@ -31,8 +31,15 @@ Before you install the plugin, meet the following prerequisites:
 
 - NeMo Relay 0.10.1 or a later 0.10 release.
   Relay 0.10.0 refuses to load the plugin, because in that release an error from a guardrail let a Claude Code tool call run.
-- A running hooks server, with a configuration for the tool names of the agent you check.
-  To check Claude Code through the Relay CLI, start one with the [Claude Code example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/claude_code) from a clone of the repository:
+- A running hooks server, with a configuration for the tool names of the agent or application you check.
+  Start one from a clone of the repository, with the example configuration for what you check:
+
+    - Claude Code, through `nemo-relay claude`: the [Claude Code example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/claude_code).
+    - Codex, through `nemo-relay codex`: the [Codex example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/codex).
+    - A Python application: the [NeMo Relay example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/nemo_relay), which allows only a `search` tool. The Python examples on this page use it.
+    - pi: the repository has no example, so write a configuration for pi's tool names.
+
+    For example, to check Claude Code, run the following command:
 
     ```bash
     nemoguardrails hooks-server --config examples/configs/agent_hooks/claude_code
@@ -41,12 +48,14 @@ Before you install the plugin, meet the following prerequisites:
     Relay forwards each tool's name as the agent or application gives it, and the hooks server matches it exactly.
     For Claude Code or Codex, base the configuration on the [Claude Code](/run-guardrailed-inference/using-hooks-server/claude-code#claude-code-tool-names) or [Codex](/run-guardrailed-inference/using-hooks-server/codex#codex-tool-names) tool names.
     To write your own configuration, refer to [Run the Hooks Server: Write a Hooks Configuration](/run-guardrailed-inference/using-hooks-server/run-hooks-server#write-a-hooks-configuration).
-- To build the plugin: a clone of the [NeMo Guardrails repository](https://github.com/NVIDIA-NeMo/Guardrails), [rustup](https://rustup.rs/), and Python 3.
+- To build the plugin: a clone of the [NeMo Guardrails repository](https://github.com/NVIDIA-NeMo/Guardrails), [rustup](https://rustup.rs/), a C compiler, such as the Xcode Command Line Tools on macOS or `build-essential` on Debian and Ubuntu, and Python 3.
 
 ## Build the Plugin Bundle
 
 A Relay plugin bundle is a directory that holds the plugin library, its manifest `relay-plugin.toml`, its configuration schema, and its license files.
-Build the library and package the bundle from the repository root:
+The library is `libnemo_guardrails_relay_plugin.so` on Linux, `libnemo_guardrails_relay_plugin.dylib` on macOS, and `nemo_guardrails_relay_plugin.dll` on Windows.
+Build the library and package the bundle from the repository root, passing your platform's library to `--library`.
+On Linux, run the following commands:
 
 ```bash
 cargo build --release --locked -p nemo-guardrails-relay-plugin
@@ -55,11 +64,14 @@ python3 crates/nemo-guardrails-relay-plugin/scripts/package_bundle.py \
   --output ~/nemo-guardrails-relay-plugin
 ```
 
+On macOS, pass `--library target/release/libnemo_guardrails_relay_plugin.dylib` instead.
 The build uses the Rust version that the repository's `rust-toolchain.toml` pins.
-The library is `libnemo_guardrails_relay_plugin.so` on Linux, `libnemo_guardrails_relay_plugin.dylib` on macOS, and `nemo_guardrails_relay_plugin.dll` on Windows.
 
 Relay loads the plugin from the bundle directory, so keep the directory in place after you register it.
 The bundle is not signed, so Relay loads it only after you allow integrity-only attestation for the plugin, as the following sections show.
+
+To update the plugin, for example to pick up a fix, package the new build into a new, empty directory, because the packaging script refuses an output directory that has files in it.
+Then change the plugin's `manifest` path in `plugins.toml` to the new directory, restart any running Relay process, and remove the old directory.
 
 ## Choose a Setup
 
@@ -114,8 +126,9 @@ Register the plugin for your user, then run an agent through the Relay CLI:
     nemo-relay plugins validate nvidia.nemo_guardrails
     ```
 
-    `plugins validate` checks the configuration against the plugin's schema, for example that `endpoint` is set.
-    It does not check the `attestation` override.
+    `plugins validate` checks the configuration against the plugin's schema: the field types, and that `endpoint` is set.
+    It does not check the `attestation` override, the endpoint's URL, or the header names.
+    The plugin checks the URL and the headers when Relay loads it, and Relay refuses to start when either is not valid.
 1. Run the agent through Relay:
 
     ```bash
@@ -157,16 +170,22 @@ In production, an administrator runs the managed Relay daemon, which loads the p
 Set up the daemon as described in the NeMo Relay [daemon documentation](https://github.com/NVIDIA/NeMo-Relay/blob/0.10.4/docs/daemon/about.mdx), then add the plugin:
 
 1. Put the bundle in a directory that administrators own and every user can read, such as `/opt/nemo-guardrails-relay-plugin`.
-1. From an account that can write `/etc/nemo-relay`, register and enable the plugin:
+1. From an account that can write `/etc/nemo-relay`, register the plugin:
 
     ```bash
     sudo nemo-relay plugins add --global /opt/nemo-guardrails-relay-plugin/relay-plugin.toml
-    sudo nemo-relay plugins enable nvidia.nemo_guardrails
     ```
 
 1. Add the `attestation` override and the plugin's configuration to `/etc/nemo-relay/plugins.toml`, as in [Try the Plugin Out](#try-the-plugin-out), with the endpoint of the hooks server that serves your users.
    Every local user can read this file, so do not put a credential in `headers`.
-1. Run `nemo-relay plugins validate nvidia.nemo_guardrails`.
+1. Enable the plugin, and validate its configuration:
+
+    ```bash
+    sudo nemo-relay plugins enable nvidia.nemo_guardrails
+    nemo-relay plugins validate nvidia.nemo_guardrails
+    ```
+
+    Enable the plugin only after you add its override and configuration, because Relay refuses to start with the plugin enabled and either one missing.
 
 The daemon enforces the checks only when the following conditions hold:
 
@@ -174,7 +193,8 @@ The daemon enforces the checks only when the following conditions hold:
   Without it, the daemon answers hooks itself, and lets the call run, while no worker is ready: during worker startup and recovery, and after a daemon restart.
 - **Deliver the agent's hook settings through its managed settings.**
   Otherwise a user can remove the hooks that send tool calls to the daemon.
-  Claude Code has managed settings; Relay documents no such mechanism for pi.
+  Claude Code has managed settings, and Codex has managed hooks in `requirements.toml`, which users cannot disable, as described in [Codex: Deploy the Hook with Managed Settings](/run-guardrailed-inference/using-hooks-server/codex#deploy-the-hook-with-managed-settings).
+  Relay's managed pi extension takes effect only when pi starts with `--no-extensions` and the extension's path, and the user controls the command that starts pi.
 - **Do not load a plugin that intercepts model execution, such as Switchyard.**
   The daemon's worker refuses to start with one, and with `--require-worker`, the agents then stop working.
 
@@ -183,7 +203,13 @@ To stage a deployment, first run a daemon for your own user on one machine, as a
 ## Use the Plugin in a Python Application
 
 A Python application loads the plugin from a `plugins.toml` it passes to Relay.
-Write the file with the same entries as in [Try the Plugin Out](#try-the-plugin-out).
+Install Relay's Python package from the same 0.10 release as the rest of your Relay setup, with the `langchain` extra if you use Relay's LangChain middleware:
+
+```bash
+pip install "nemo-relay[langchain]>=0.10.1,<0.11"
+```
+
+Write the `plugins.toml` file with the same entries as in [Try the Plugin Out](#try-the-plugin-out).
 A relative `manifest` path resolves from the directory of the `plugins.toml` file:
 
 ```toml
@@ -199,21 +225,29 @@ manifest = "nemo-guardrails-relay-plugin/relay-plugin.toml"
 endpoint = "http://127.0.0.1:8100"
 ```
 
-Activate Relay's plugins with the file, and run the agent while they are active:
+Activate Relay's plugins with the file, check that the plugin loaded, and run the agent while the plugins are active:
 
 ```python
 import asyncio
+from pathlib import Path
 
 from nemo_relay import plugin
 
 
 async def main() -> None:
-    async with plugin.activate({}, "plugins.toml"):
+    async with plugin.activate({}, Path(__file__).with_name("plugins.toml")) as activation:
+        report = activation.report
+        loaded = {entry["plugin_id"] for entry in report["dynamic_plugins"] if entry["selected"]}
+        if "nvidia.nemo_guardrails" not in loaded:
+            raise RuntimeError(f"NeMo Guardrails plugin not loaded: {report['config']['diagnostics']}")
         ...  # Run your agent here.
 
 
 asyncio.run(main())
 ```
+
+When the `plugins.toml` file you pass does not exist, Relay only adds a `plugin.configuration_file_missing` warning to the activation report, and activates without the plugin, so every tool runs unchecked.
+The example builds the path from the script's location, so that it does not depend on the working directory, and stops when the plugin is not loaded.
 
 Relay also reads the system `plugins.toml`, `/etc/nemo-relay/plugins.toml` on Linux and macOS, and its settings take precedence over the file you pass.
 
@@ -276,7 +310,7 @@ The plugin turns the hooks server's answer into the guardrail's result, and Rela
 
 | Hooks Server Answer | Plugin Result | Relay CLI with Claude Code or Codex | Relay CLI with pi | Python Application |
 |---|---|---|---|---|
-| Allow | Lets the call run | The tool runs, subject to the agent's own permission rules | The tool runs | The tool runs |
+| Allow | Lets the call run | The tool runs. Through Relay 0.10, Relay also approves Claude Code's permission prompt for the call, so Claude Code does not ask the user. Codex applies its own approval settings. | The tool runs | The tool runs |
 | Deny | A rejection: `NeMo Guardrails blocked tool call '<tool>': <reason>` | Relay's hook exits `2`, and the agent blocks the call | pi blocks the call | `RuntimeError: guardrail rejected: ...` |
 | An error status, no answer within `timeout_millis`, or no connection | An error: `NeMo Guardrails check failed for tool call '<tool>': <detail>` | Relay's hook exits `2`, and the agent blocks the call | The tool runs, unless `NEMO_RELAY_PI_FAIL=closed` | `RuntimeError: internal error: ...` |
 

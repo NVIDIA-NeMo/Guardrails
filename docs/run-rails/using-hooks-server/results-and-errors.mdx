@@ -118,7 +118,7 @@ The following table describes how to block tool calls when a check fails:
 |---|---|---|
 | Claude Code | Is a non-blocking error, and the tool runs | Set `onFailure: "block"` on the hook. Refer to [Claude Code: Add the Hook](/run-guardrailed-inference/using-hooks-server/claude-code#add-the-hook). |
 | Codex | Lets the tool run, unless the hook command exits `2`; a hook that times out lets it run too | Pass `curl` the `-f` option and a `--max-time` below the hook's `timeout`, and end the command with `\|\| exit 2`. Refer to [Codex: Add the Hook](/run-guardrailed-inference/using-hooks-server/codex#add-the-hook). |
-| NeMo Relay | Depends on the plugin and the integration | The plugin returns `Err` from the guardrail callback for any failed request, and Relay's Claude Code and Codex integrations block the call on `Err` from Relay 0.10.1. Relay's pi extension lets the call run by default. Refer to [NeMo Relay: Map the Response to the Guardrail Result](/run-guardrailed-inference/using-hooks-server/nemo-relay#map-the-response-to-the-guardrail-result). |
+| NeMo Relay | Depends on the plugin and the integration | The plugin returns `Err` from the guardrail callback for any failed request, and Relay's Claude Code and Codex integrations block the call on `Err` from Relay 0.10.1. Relay's pi extension lets the call run by default. Refer to [Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin: What Happens to a Call](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin#what-happens-to-a-call). |
 
 These instructions apply to `PreToolUse` only.
 Other events have different failure behavior. For example, Claude Code ignores `onFailure` on its `Stop` event.

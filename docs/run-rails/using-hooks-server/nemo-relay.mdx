@@ -81,7 +81,8 @@ Map every failure to `Err`, never to `Ok(None)`, so the plugin never reports a c
 What Relay then does with the call depends on the integration that runs the agent:
 
 - Relay's Claude Code and Codex integrations block the call on `Err` from Relay 0.10.1.
-  The agent sees Relay's own error text, not the plugin's.
+  Through the Relay CLI's gateway, the agent sees the plugin's error inside Relay's message; through the managed Relay daemon, it sees only Relay's own message.
+  Refer to [Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin: Find the Reason for a Failed Check](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin#find-the-reason-for-a-failed-check).
 - Relay's pi extension treats `Err` as a fault, and by default, with `NEMO_RELAY_PI_FAIL=open`, lets the call run.
   To block it, change that setting as described in the NeMo Relay documentation.
 
@@ -99,6 +100,7 @@ Account for the following sources of duplicate checks:
 - **Relay 0.10 checks some calls twice.**
   Through the 0.10 releases, Relay also runs the guardrail on Claude Code's and Codex's `PermissionRequest` event.
   A call that reaches a permission prompt then costs two requests to the hooks server, and two runs of any rail that calls a model.
+  When the second check allows the call, Relay also approves Claude Code's permission prompt, so Claude Code does not ask the user.
 
 ## Related Topics
 
