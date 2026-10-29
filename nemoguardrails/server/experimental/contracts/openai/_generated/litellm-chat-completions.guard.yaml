@@ -362,10 +362,58 @@ response:
                 default: null
                 x-nemo-guardrails:
                   classification: constrained
-                  reason: core_capability.reasoning_content
                 oneOf:
-                - items: {}
-                  maxItems: 0
+                - items:
+                    additionalProperties: false
+                    description: Preserve encrypted metadata while keeping plaintext
+                      and unknown fields closed.
+                    properties:
+                      content:
+                        default: null
+                        x-nemo-guardrails:
+                          classification: constrained
+                          reason: core_capability.reasoning_content
+                        oneOf:
+                        - items: {}
+                          maxItems: 0
+                          type: array
+                        - type: 'null'
+                      encrypted_content:
+                        x-nemo-guardrails:
+                          classification: opaque
+                      id:
+                        x-nemo-guardrails:
+                          classification: opaque
+                      status:
+                        x-nemo-guardrails:
+                          classification: opaque
+                      summary:
+                        default: null
+                        x-nemo-guardrails:
+                          classification: constrained
+                          reason: core_capability.reasoning_content
+                        oneOf:
+                        - items: {}
+                          maxItems: 0
+                          type: array
+                        - type: 'null'
+                      type:
+                        const: reasoning
+                        type: string
+                        x-nemo-guardrails:
+                          classification: constrained
+                    required:
+                    - type
+                    title: LiteLLMReasoningItemProjection
+                    type: object
+                    x-nemo-guardrails:
+                      variant:
+                        cardinality: any
+                        match:
+                          type: reasoning
+                      source: '#/components/schemas/ReasoningItem'
+                      unknown_fields: forbid
+                      reject_case_aliases: true
                   type: array
                 - type: 'null'
               refusal:
@@ -514,8 +562,8 @@ stream:
           properties:
             delta:
               additionalProperties: false
-              description: Accept source-declared empty content fields, preserving
-                the text target.
+              description: Accept reviewed encrypted reasoning and empty-only content
+                extensions.
               properties:
                 annotations:
                   default: null
@@ -589,10 +637,58 @@ stream:
                   default: null
                   x-nemo-guardrails:
                     classification: constrained
-                    reason: core_capability.reasoning_content
                   oneOf:
-                  - items: {}
-                    maxItems: 0
+                  - items:
+                      additionalProperties: false
+                      description: Preserve encrypted metadata while keeping plaintext
+                        and unknown fields closed.
+                      properties:
+                        content:
+                          default: null
+                          x-nemo-guardrails:
+                            classification: constrained
+                            reason: core_capability.reasoning_content
+                          oneOf:
+                          - items: {}
+                            maxItems: 0
+                            type: array
+                          - type: 'null'
+                        encrypted_content:
+                          x-nemo-guardrails:
+                            classification: opaque
+                        id:
+                          x-nemo-guardrails:
+                            classification: opaque
+                        status:
+                          x-nemo-guardrails:
+                            classification: opaque
+                        summary:
+                          default: null
+                          x-nemo-guardrails:
+                            classification: constrained
+                            reason: core_capability.reasoning_content
+                          oneOf:
+                          - items: {}
+                            maxItems: 0
+                            type: array
+                          - type: 'null'
+                        type:
+                          const: reasoning
+                          type: string
+                          x-nemo-guardrails:
+                            classification: constrained
+                      required:
+                      - type
+                      title: LiteLLMReasoningItemProjection
+                      type: object
+                      x-nemo-guardrails:
+                        variant:
+                          cardinality: any
+                          match:
+                            type: reasoning
+                        source: '#/components/schemas/ReasoningItem'
+                        unknown_fields: forbid
+                        reject_case_aliases: true
                     type: array
                   - type: 'null'
                 refusal:

@@ -26,7 +26,6 @@ from itertools import product
 import httpx
 import pytest
 from jsonschema import Draft202012Validator
-from pydantic import ValidationError
 
 from nemoguardrails.server.experimental._content_checker import (
     ContentAllowed,
@@ -36,7 +35,6 @@ from nemoguardrails.server.experimental._content_checker import (
 )
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
 from nemoguardrails.server.experimental.provider.sse import iter_sse_events
-from nemoguardrails.server.experimental.provider.stream import UnsupportedProviderStream
 from nemoguardrails.server.experimental.providers.openai.dialects.litellm.chat_completions import (
     LITELLM_CHAT_COMPLETIONS_ENDPOINT,
 )
@@ -128,56 +126,12 @@ def assert_route_inventory(payloads, model, operation, stream):
         assert set(terminal["provider_specific_fields"]) == expected
     if not stream and bridge:
         assert payloads[0]["billing"] == {"payer": "developer"}
-
-
-async def assert_unsupported_reasoning(request, upstream, payloads, stream, endpoint, vcr, key):
-    """Retain real nonempty reasoning items and pin the current rejection boundary."""
-    location = "delta" if stream else "message"
-    items = [c[location].get("reasoning_items") for p in payloads for c in p["choices"]]
-    assert any(items)
-    contract = export_guard_contract(endpoint)
-    validator = Draft202012Validator(contract["stream" if stream else "response"])
-    violations = [error for payload in payloads for error in validator.iter_errors(payload)]
-    assert violations
-    assert any("reasoning_items" in str(error) for error in violations)
-    if stream:
-        adapter = endpoint.stream.create_adapter()
-        recorded_events = await events(upstream.content)
-        with pytest.raises(UnsupportedProviderStream, match="reasoning_items"):
-            for failed_index, event in enumerate(recorded_events):
-                adapter.classify_event(event)
-    else:
-        with pytest.raises(ValidationError, match="reasoning_items"):
-            endpoint.guarded_response_model.validate_payload(payloads[0])
-
-    for inspect_input, inspect_output, window in product([False, True], [False, True], [1, 100] if stream else [100]):
-        vcr.rewind()
-        dispatches = []
-        checker = StaticChecker(
-            ContentInspectionPolicy(
-                inspect_input, inspect_output, StreamBufferingPolicy(window, 0) if inspect_output else None
-            )
-        )
-        async with responses_proxy(key, checker, dispatches, endpoint=endpoint, base_url=BASE_URL) as client:
-            response = await client.post("/v1/chat/completions", json=request)
-        assert len(dispatches) == len(vcr.requests) == vcr.play_count == 1
-        assert vcr.all_played
-        assert json.loads(dispatches[0].body) == request
-        assert [value for kind, value in checker.text_calls if kind == "input"] == ([PROMPT] if inspect_input else [])
-        if inspect_output:
-            assert response.status_code == (200 if stream else 502)
-            assert "unsupported_" in response.text
-            assert response.content != upstream.content
-            if stream:
-                received = await events(response.content)
-                assert received[-1].data == b"[DONE]"
-                expected_prefix = recorded_events[:failed_index] if window == 1 else []
-                assert [event.raw for event in received[:-2]] == [event.raw for event in expected_prefix]
-            if window == 100:
-                assert not any(kind == "output" for kind, _ in checker.text_calls)
-        else:
-            assert response.status_code == 200 and response.content == upstream.content
-            assert not any(kind == "output" for kind, _ in checker.text_calls)
+    if model == "openai/openai/gpt-5-mini":
+        location = "delta" if stream else "message"
+        items = [item for p in payloads for c in p["choices"] for item in c[location].get("reasoning_items", []) or []]
+        assert items
+        assert all(item["type"] == "reasoning" and item["encrypted_content"] for item in items)
+        assert all(not item.get("summary") and not item.get("content") for item in items)
 
 
 @pytest.mark.parametrize("model", ROUTES)
@@ -215,9 +169,6 @@ async def test_gateway_route_preserves_policy_and_wire(
         for payload in payloads:
             if "response" in payload:
                 upstream_validator.validate(payload["response"])
-    if model == "openai/openai/gpt-5-mini" and operation == "chat/completions":
-        await assert_unsupported_reasoning(request, upstream, payloads, stream, endpoint, vcr, nvidia_inference_key)
-        return
     validator = Draft202012Validator(contract["stream" if stream else "response"])
     for payload in payloads:
         validator.validate(payload)

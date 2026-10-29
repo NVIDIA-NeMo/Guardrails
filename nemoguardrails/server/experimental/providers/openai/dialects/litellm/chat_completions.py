@@ -44,7 +44,10 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.respon
     ChatCompletionsGuardedResponseProjection,
 )
 from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_hooks import ChatCompletionsStreamHooks
-from nemoguardrails.server.experimental.providers.openai.dialects.litellm.stream import STREAM_CLASSIFIER
+from nemoguardrails.server.experimental.providers.openai.dialects.litellm.stream import (
+    STREAM_CLASSIFIER,
+    LiteLLMReasoningItemProjection,
+)
 
 
 class LiteLLMMessageFields(PolicyModel):
@@ -73,9 +76,7 @@ class LiteLLMAssistantMessageProjection(ChatCompletionsAssistantMessageProjectio
     thinking_blocks: Annotated[
         list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
     ] = None
-    reasoning_items: Annotated[
-        list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
-    ] = None
+    reasoning_items: Annotated[list[LiteLLMReasoningItemProjection] | None, constrained()] = None
 
 
 class LiteLLMChoiceProjection(ChatCompletionsChoiceProjection):

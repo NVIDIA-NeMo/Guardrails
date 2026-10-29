@@ -17,7 +17,7 @@
 
 LiteLLM's root and delta extension bags are optional, nullable, and closed.
 Terminal root extensions preserve reviewed response metadata. Source-declared content
-arrays may be absent, null, or empty, but never carry uninspected content.
+arrays remain empty-only except typed reasoning items with no plaintext content.
 The classifier derives coverage and text paths from these rebound models;
 the endpoint uses the existing per-stream OpenAI lifecycle hooks.
 """
@@ -50,6 +50,15 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.stream
     ChatCompletionsStreamDeltaProjection,
     ChatCompletionsStreamPayloadProjection,
 )
+from nemoguardrails.server.experimental.providers.openai.responses.response_projection import (
+    ResponsesReasoningItemProjection,
+)
+
+
+class LiteLLMReasoningItemProjection(ResponsesReasoningItemProjection):
+    """Preserve encrypted metadata while keeping plaintext and unknown fields closed."""
+
+    policy: ClassVar[ObjectPolicy] = replace(ResponsesReasoningItemProjection.policy, unknown_fields="forbid")
 
 
 class LiteLLMTerminalMetadata(PolicyModel):
@@ -68,7 +77,7 @@ class LiteLLMStreamFields(PolicyModel):
 
 
 class LiteLLMStreamDeltaProjection(ChatCompletionsStreamDeltaProjection):
-    """Accept source-declared empty content fields, preserving the text target."""
+    """Accept reviewed encrypted reasoning and empty-only content extensions."""
 
     policy: ClassVar[ObjectPolicy] = replace(ChatCompletionsStreamDeltaProjection.policy, source="Delta")
 
@@ -77,9 +86,7 @@ class LiteLLMStreamDeltaProjection(ChatCompletionsStreamDeltaProjection):
     thinking_blocks: Annotated[
         list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
     ] = None
-    reasoning_items: Annotated[
-        list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
-    ] = None
+    reasoning_items: Annotated[list[LiteLLMReasoningItemProjection] | None, constrained()] = None
     annotations: Annotated[list[Any] | None, constrained(reason="core_capability.citation_content", max_length=0)] = (
         None
     )
