@@ -804,6 +804,10 @@ class ModelEngine(BaseEngine):
                 raise RuntimeError(f"Environment variable '{self.model_config.api_key_env_var}' not set")
             return env_value
 
+        api_key = (self.model_config.parameters or {}).get("api_key")
+        if api_key:
+            return str(api_key)
+
         if engine == "nim":
             env_value = self._get_environment_variable("NVIDIA_API_KEY")
             return env_value

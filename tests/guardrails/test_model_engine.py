@@ -375,6 +375,29 @@ class TestModelEngineApiKey:
         engine = ModelEngine(_make_model(engine="nim", api_key_env_var="MY_CUSTOM_KEY"))
         assert engine.api_key == "custom-key-789"
 
+    @patch.dict("os.environ", {"OPENAI_API_KEY": "openai-key-456"})
+    def test_parameters_api_key_overrides_engine_default(self):
+        """A model parameter takes priority over the engine's default environment variable."""
+        engine = ModelEngine(
+            _make_model(
+                engine="openai",
+                parameters={"base_url": "https://custom.example.com", "api_key": "parameter-key"},
+            )
+        )
+        assert engine.api_key == "parameter-key"
+
+    @patch.dict("os.environ", {"MY_CUSTOM_KEY": "custom-key-789"})
+    def test_api_key_env_var_overrides_parameters_api_key(self):
+        """api_key_env_var in model config takes priority over a model parameter."""
+        engine = ModelEngine(
+            _make_model(
+                engine="openai",
+                api_key_env_var="MY_CUSTOM_KEY",
+                parameters={"base_url": "https://custom.example.com", "api_key": "parameter-key"},
+            )
+        )
+        assert engine.api_key == "custom-key-789"
+
     @patch.dict("os.environ", {}, clear=True)
     def test_missing_env_var_raises(self):
         """Missing NVIDIA_API_KEY with nim engine stores api key as None"""
