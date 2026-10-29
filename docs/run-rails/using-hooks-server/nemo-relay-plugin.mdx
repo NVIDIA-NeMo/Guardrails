@@ -178,7 +178,8 @@ With the hooks server running the Claude Code example configuration, check the p
 
 ## Run the Plugin in Production
 
-In production, an administrator runs the managed Relay daemon, which loads the plugin for every user from the system `plugins.toml`.
+In production, an administrator runs the managed Relay daemon.
+Its workers load the plugin for every user from the system `plugins.toml` of the machine they run on.
 Set up the daemon as described in the NeMo Relay [daemon documentation](https://github.com/NVIDIA/NeMo-Relay/blob/0.10.4/docs/daemon/about.mdx), then add the plugin:
 
 1. Put the bundle in a directory that administrators own and every user can read, such as `/opt/nemo-guardrails-relay-plugin`.
@@ -198,6 +199,10 @@ Set up the daemon as described in the NeMo Relay [daemon documentation](https://
     ```
 
     Enable the plugin only after you add its override and configuration, because Relay refuses to start with the plugin enabled and either one missing.
+
+With a [remote daemon](https://github.com/NVIDIA/NeMo-Relay/blob/0.10.4/docs/daemon/remote-server.mdx), the workers run on the client machines, not on the daemon host.
+Repeat these steps on every client machine, with an endpoint that the client can reach, and run `nemo-relay plugins validate nvidia.nemo_guardrails` there.
+A plugin installed only on the daemon host checks no calls from remote workers.
 
 The daemon enforces the checks only when the following conditions hold:
 
@@ -223,7 +228,7 @@ pip install "nemo-relay[langchain]>=0.10.1,<0.11"
 ```
 
 Write the `plugins.toml` file with the same entries as in [Try the Plugin Out](#try-the-plugin-out).
-A relative `manifest` path resolves from the directory of the `plugins.toml` file:
+Point `manifest` at the bundle you built:
 
 ```toml
 version = 1
@@ -232,11 +237,13 @@ version = 1
 attestation = "integrity_only"
 
 [[plugins.dynamic]]
-manifest = "nemo-guardrails-relay-plugin/relay-plugin.toml"
+manifest = "/home/user/nemo-guardrails-relay-plugin/relay-plugin.toml"
 
 [plugins.dynamic.config]
 endpoint = "http://127.0.0.1:8100"
 ```
+
+A relative `manifest` path also works, and resolves from the directory of the `plugins.toml` file, for example when the bundle ships beside your application.
 
 Activate Relay's plugins with the file, check that the plugin loaded, and run the agent while the plugins are active:
 
@@ -331,7 +338,8 @@ The reason for a deny comes from the hooks server: the tool policy's reason, or 
 For every deny reason and error, refer to [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors).
 
 The detail of a failed check gives the HTTP status, the hooks server's error code and message, or says that the request timed out or could not be sent.
-It never includes a header value or the tool's arguments.
+The plugin adds no header value or tool argument to it, but it repeats the server's error message, up to 512 characters.
+A proxy or gateway in front of the hooks server could echo a header or an argument in that message.
 The plugin does not retry a failed check, not even after a `503` with `Retry-After`.
 
 While the hooks server is stopped, restarting, or slower than `timeout_millis`, every check fails, so every tool call the plugin checks is blocked, except under pi without `NEMO_RELAY_PI_FAIL=closed`.
