@@ -720,6 +720,20 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         """Set up test fixtures."""
         self.cache = LFUCache(100, track_stats=True)
 
+    def _read_write_worker(self, cache, errors, thread_id, operations_per_thread):
+        """Exercise private and shared keys in one concurrent worker."""
+        for i in range(operations_per_thread):
+            key = f"thread_{thread_id}_key_{i}"
+            value = f"thread_{thread_id}_value_{i}"
+            cache.put(key, value)
+            retrieved = cache.get(key)
+            if retrieved != value:
+                errors.append(f"Data corruption for {key}: expected {value}, got {retrieved}")
+
+            shared_key = f"shared_key_{i % 10}"
+            cache.put(shared_key, f"shared_value_{thread_id}_{i}")
+            cache.get(shared_key)
+
     def test_concurrent_reads_writes(self):
         """Test that concurrent reads and writes don't corrupt the cache."""
         num_threads = 10
@@ -727,31 +741,11 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         # Use a larger cache to avoid evictions during the test
         large_cache = LFUCache(2000, track_stats=True)
         errors = []
-
-        def worker(thread_id):
-            """Worker function that performs cache operations."""
-            for i in range(operations_per_thread):
-                key = f"thread_{thread_id}_key_{i}"
-                value = f"thread_{thread_id}_value_{i}"
-
-                # Put operation
-                large_cache.put(key, value)
-
-                # Get operation - should always succeed with large cache
-                retrieved = large_cache.get(key)
-
-                # Verify data integrity
-                if retrieved != value:
-                    errors.append(f"Data corruption for {key}: expected {value}, got {retrieved}")
-
-                # Access some shared keys
-                shared_key = f"shared_key_{i % 10}"
-                large_cache.put(shared_key, f"shared_value_{thread_id}_{i}")
-                large_cache.get(shared_key)
-
-        # Run threads
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = [executor.submit(worker, i) for i in range(num_threads)]
+            futures = [
+                executor.submit(self._read_write_worker, large_cache, errors, i, operations_per_thread)
+                for i in range(num_threads)
+            ]
             for future in futures:
                 future.result()  # Wait for completion and raise any exceptions
 
@@ -866,8 +860,8 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         self.assertGreater(final_stats["misses"], 0)
         self.assertGreater(final_stats["puts"], 0)
 
-    def test_get_or_compute_thread_safety(self):
-        """Test thread safety of get_or_compute method."""
+    async def _compute_shared_key_concurrently(self):
+        """Run ten requests for the same key and return results and computations."""
         compute_count = threading.local()
         compute_count.value = 0
         total_computes = []
@@ -887,35 +881,24 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
             await asyncio.sleep(0.1)
             return f"computed_value_{len(total_computes)}"
 
-        async def worker(thread_id):
-            """Worker that tries to get or compute the same key."""
-            result = await self.cache.get_or_compute("shared_compute_key", expensive_compute, default="default")
-            return result
+        tasks = [
+            self.cache.get_or_compute("shared_compute_key", expensive_compute, default="default") for _ in range(10)
+        ]
+        return await asyncio.gather(*tasks), total_computes
 
-        async def run_test():
-            """Run the async test."""
-            # Run multiple workers concurrently
-            tasks = [worker(i) for i in range(10)]
-            results = await asyncio.gather(*tasks)
-
-            # All should get the same value
-            self.assertTrue(
-                all(r == results[0] for r in results),
-                f"All threads should get same value, got: {results}",
-            )
-
-            # Compute should have been called only once
-            self.assertEqual(
-                len(total_computes),
-                1,
-                f"Compute should be called once, called {len(total_computes)} times",
-            )
-
-            return results[0]
-
-        # Run the async test
-        result = asyncio.run(run_test())
-        self.assertEqual(result, "computed_value_1")
+    def test_get_or_compute_thread_safety(self):
+        """Test thread safety of get_or_compute method."""
+        results, total_computes = asyncio.run(self._compute_shared_key_concurrently())
+        self.assertTrue(
+            all(r == results[0] for r in results),
+            f"All threads should get same value, got: {results}",
+        )
+        self.assertEqual(
+            len(total_computes),
+            1,
+            f"Compute should be called once, called {len(total_computes)} times",
+        )
+        self.assertEqual(results[0], "computed_value_1")
 
     def test_get_or_compute_exception_handling(self):
         """Test get_or_compute handles exceptions properly.
@@ -1108,38 +1091,32 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
 
         asyncio.run(run_test())
 
+    def _evicting_worker(self, cache, data_integrity_errors, thread_id):
+        """Exercise evictions while allowing keys to disappear between operations."""
+        for i in range(100):
+            key = f"t{thread_id}_k{i}"
+            value = f"t{thread_id}_v{i}"
+            cache.put(key, value)
+            retrieved = cache.get(key)
+
+            # Value might be None if evicted immediately (unlikely but possible)
+            if retrieved is not None and retrieved != value:
+                # This would indicate actual data corruption
+                data_integrity_errors.append(f"Wrong value for {key}: expected {value}, got {retrieved}")
+
+            # Also work with some high-frequency keys (access multiple times)
+            high_freq_key = f"high_freq_{thread_id % 5}"
+            for _ in range(3):  # Access 3 times to increase frequency
+                cache.put(high_freq_key, f"high_freq_value_{thread_id}")
+                cache.get(high_freq_key)
+
     def test_concurrent_operations_with_evictions(self):
         """Test thread safety when cache is at maxsize and evictions occur."""
         # Small cache to force evictions
         small_cache = LFUCache(50, track_stats=True)
         data_integrity_errors = []
-
-        def worker(thread_id):
-            """Worker that handles potential evictions gracefully."""
-            for i in range(100):
-                key = f"t{thread_id}_k{i}"
-                value = f"t{thread_id}_v{i}"
-
-                # Put value
-                small_cache.put(key, value)
-
-                # Immediately access to increase frequency
-                retrieved = small_cache.get(key)
-
-                # Value might be None if evicted immediately (unlikely but possible)
-                if retrieved is not None and retrieved != value:
-                    # This would indicate actual data corruption
-                    data_integrity_errors.append(f"Wrong value for {key}: expected {value}, got {retrieved}")
-
-                # Also work with some high-frequency keys (access multiple times)
-                high_freq_key = f"high_freq_{thread_id % 5}"
-                for _ in range(3):  # Access 3 times to increase frequency
-                    small_cache.put(high_freq_key, f"high_freq_value_{thread_id}")
-                    small_cache.get(high_freq_key)
-
-        # Run workers
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(worker, i) for i in range(10)]
+            futures = [executor.submit(self._evicting_worker, small_cache, data_integrity_errors, i) for i in range(10)]
             for future in futures:
                 future.result()
 
