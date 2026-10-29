@@ -266,11 +266,9 @@ class TestLFUCache(unittest.TestCase):
 
     def test_repeated_puts_same_key(self):
         """Test repeated puts with the same key maintain size=1 and update frequency."""
+        self.cache = LFUCache(3, track_stats=True)
         self.cache.put("key", "value1")
         self.assertEqual(self.cache.size(), 1)
-
-        # Track initial state
-        initial_stats = self.cache.get_stats() if self.cache.track_stats else None
 
         # Update same key multiple times
         for i in range(10):
@@ -280,11 +278,8 @@ class TestLFUCache(unittest.TestCase):
         # Final value should be the last one
         self.assertEqual(self.cache.get("key"), "value9")
 
-        # Verify stats if tracking enabled
-        if self.cache.track_stats:
-            final_stats = self.cache.get_stats()
-            # Should have 10 updates (after initial put)
-            self.assertEqual(final_stats["updates"], 10)
+        # Should have 10 updates (after initial put)
+        self.assertEqual(self.cache.get_stats()["updates"], 10)
 
     def test_access_pattern_preserves_frequently_used(self):
         """Test that frequently accessed items are preserved during evictions."""
@@ -581,14 +576,15 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
             (99, 1, "99.00%"),  # High hit rate
         ]
 
+        # Populate the hit key before resetting the counters for each scenario.
+        cache.put("hit_key", "value")
+
         for hits, misses, expected_rate in test_cases:
             cache.reset_stats()
 
             # Generate hits
-            if hits > 0:
-                cache.put("hit_key", "value")
-                for _ in range(hits):
-                    cache.get("hit_key")
+            for _ in range(hits):
+                cache.get("hit_key")
 
             # Generate misses
             for i in range(misses):
@@ -597,9 +593,9 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
             with patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log:
                 cache.log_stats_now()
 
-                if hits > 0 or misses > 0:
-                    log_message = mock_log.call_args[0][1]
-                    self.assertIn(f"Hit Rate: {expected_rate}", log_message)
+                mock_log.assert_called_once()
+                log_message = mock_log.call_args[0][1]
+                self.assertIn(f"Hit Rate: {expected_rate}", log_message)
 
 
 class TestContentSafetyCacheStatsConfig(unittest.TestCase):
@@ -840,13 +836,11 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
                 self.cache.get(key)  # Hit
                 self.cache.get(f"nonexistent_{thread_id}_{i}")  # Miss
 
-                # Periodically check stats
-                if i % 10 == 0:
-                    stats = self.cache.get_stats()
-                    # Just verify we can get stats without error
-                    self.assertIsInstance(stats, dict)
-                    self.assertIn("hits", stats)
-                    self.assertIn("misses", stats)
+                # Check the statistics structure after every group of operations.
+                stats = self.cache.get_stats()
+                self.assertIsInstance(stats, dict)
+                self.assertIn("hits", stats)
+                self.assertIn("misses", stats)
 
         # Run threads
         with ThreadPoolExecutor(max_workers=5) as executor:
@@ -940,7 +934,6 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
 
     def test_thread_safe_size_operations(self):
         """Test that size-related operations are thread-safe."""
-        results = []
 
         def worker(thread_id):
             """Worker that checks size consistency."""
@@ -953,21 +946,17 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
                 is_empty = self.cache.is_empty()
 
                 # Size should never be negative or exceed maxsize
-                if size < 0 or size > 100:
-                    results.append(f"Invalid size: {size}")
+                self.assertGreaterEqual(size, 0, f"Thread {thread_id}: Invalid size: {size}")
+                self.assertLessEqual(size, 100, f"Thread {thread_id}: Invalid size: {size}")
 
                 # is_empty should match size
-                if (size == 0) != is_empty:
-                    results.append(f"Size {size} but is_empty={is_empty}")
+                self.assertEqual(size == 0, is_empty, f"Thread {thread_id}: Size {size} but is_empty={is_empty}")
 
         # Run workers
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [executor.submit(worker, i) for i in range(10)]
             for future in futures:
                 future.result()
-
-        # Check for any inconsistencies
-        self.assertEqual(len(results), 0, f"Inconsistencies found: {results}")
 
     def test_concurrent_contains_operations(self):
         """Test thread safety of contains method."""
@@ -979,30 +968,25 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         for i in range(50):
             large_cache.put(f"existing_key_{i}", f"value_{i}")
 
-        results = []
-        eviction_warnings = []
-
         def worker(thread_id):
             """Worker that checks contains and manipulates cache."""
             for i in range(100):
                 # Check existing keys
                 key = f"existing_key_{i % 50}"
-                if not large_cache.contains(key):
-                    results.append(f"Thread {thread_id}: Missing key {key}")
+                self.assertTrue(large_cache.contains(key), f"Thread {thread_id}: Missing key {key}")
 
                 # Add new keys
                 new_key = f"new_key_{thread_id}_{i}"
                 large_cache.put(new_key, f"value_{thread_id}_{i}")
 
-                # Check new key immediately
-                if not large_cache.contains(new_key):
-                    # This could happen if cache is full and eviction occurred
-                    # Track it separately as it's not a thread safety issue
-                    eviction_warnings.append(f"Thread {thread_id}: Key {new_key} possibly evicted")
+                # The cache holds all 550 keys, so a new key must remain present.
+                self.assertTrue(large_cache.contains(new_key), f"Thread {thread_id}: Missing new key {new_key}")
 
                 # Check non-existent keys
-                if large_cache.contains(f"non_existent_{thread_id}_{i}"):
-                    results.append(f"Thread {thread_id}: Found non-existent key")
+                self.assertFalse(
+                    large_cache.contains(f"non_existent_{thread_id}_{i}"),
+                    f"Thread {thread_id}: Found non-existent key at operation {i}",
+                )
 
         # Run workers
         with ThreadPoolExecutor(max_workers=5) as executor:
@@ -1010,16 +994,8 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
             for future in futures:
                 future.result()
 
-        # Check for any errors (not counting eviction warnings)
-        self.assertEqual(len(results), 0, f"Errors found: {results}")
-
-        # Eviction warnings should be minimal with large cache
-        if eviction_warnings:
-            print(f"Note: {len(eviction_warnings)} keys were evicted during test")
-
     def test_concurrent_reset_stats(self):
         """Test thread safety of reset_stats operations."""
-        errors = []
 
         def worker(thread_id):
             """Worker that performs operations and resets stats."""
@@ -1035,17 +1011,13 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
 
                 # Check stats integrity
                 stats = self.cache.get_stats()
-                if any(v < 0 for v in stats.values() if isinstance(v, (int, float))):
-                    errors.append(f"Thread {thread_id}: Negative stat value: {stats}")
+                self.assertGreaterEqual(min(stats.values()), 0, f"Thread {thread_id}: Negative stat value: {stats}")
 
         # Run workers
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(worker, i) for i in range(5)]
             for future in futures:
                 future.result()
-
-        # Verify no errors
-        self.assertEqual(len(errors), 0, f"Stats errors: {errors[:5]}")
 
     def test_get_or_compute_concurrent_different_keys(self):
         """Test get_or_compute with different keys being computed concurrently."""
