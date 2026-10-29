@@ -17,7 +17,7 @@ The plugin registers a tool conditional-execution guardrail, which Relay runs be
 
 | Where Relay Runs | Calls the Plugin Checks |
 |---|---|
-| The Relay CLI with Claude Code or Codex, in every mode | Each `PreToolUse` hook. Through Relay 0.10, also each `PermissionRequest` hook. Refer to [Check Each Call Once](#check-each-call-once). |
+| The Relay CLI with Claude Code or Codex, in every mode | Each `PreToolUse` hook. Through Relay 0.10, also each `PermissionRequest` hook. Refer to [Check NeMo Relay Tool Calls with the Hooks Server: Check Each Call Once](/run-guardrailed-inference/using-hooks-server/nemo-relay#check-each-call-once). |
 | The Relay CLI with pi | Each tool call that Relay's pi extension sends to Relay |
 | A Python application | Each tool call that runs through Relay: `nemo_relay.tools.execute`, Relay's LangChain middleware `NemoRelayMiddleware`, which also covers Deep Agents, and Relay's LangGraph tool node |
 | OpenClaw | Not supported |
