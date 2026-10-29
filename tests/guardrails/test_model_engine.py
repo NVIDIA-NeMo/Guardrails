@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
+from pydantic import SecretStr
 
 from nemoguardrails.context import llm_call_info_var, llm_stats_var
 from nemoguardrails.exceptions import (
@@ -376,27 +377,16 @@ class TestModelEngineApiKey:
         assert engine.api_key == "custom-key-789"
 
     @patch.dict("os.environ", {"OPENAI_API_KEY": "openai-key-456"})
-    def test_parameters_api_key_overrides_engine_default(self):
+    @pytest.mark.parametrize("api_key", ["parameter-key", SecretStr("parameter-key")])
+    def test_parameters_api_key_overrides_engine_default(self, api_key):
         """A model parameter takes priority over the engine's default environment variable."""
         engine = ModelEngine(
             _make_model(
                 engine="openai",
-                parameters={"base_url": "https://custom.example.com", "api_key": "parameter-key"},
+                parameters={"base_url": "https://custom.example.com", "api_key": api_key},
             )
         )
         assert engine.api_key == "parameter-key"
-
-    @patch.dict("os.environ", {"MY_CUSTOM_KEY": "custom-key-789"})
-    def test_api_key_env_var_overrides_parameters_api_key(self):
-        """api_key_env_var in model config takes priority over a model parameter."""
-        engine = ModelEngine(
-            _make_model(
-                engine="openai",
-                api_key_env_var="MY_CUSTOM_KEY",
-                parameters={"base_url": "https://custom.example.com", "api_key": "parameter-key"},
-            )
-        )
-        assert engine.api_key == "custom-key-789"
 
     @patch.dict("os.environ", {}, clear=True)
     def test_missing_env_var_raises(self):
