@@ -23,17 +23,19 @@ A managed call gets the rejection or the error from Relay as is.
 In the CLI's hook modes, an agent can see Relay's own text for a failed check instead, such as `daemon hook forward failed with HTTP 500`.
 So the plugin also logs each failed check as a warning, under the log target `nemo_relay.plugin.native.nvidia.nemo_guardrails`.
 Its message is the error text, and its fields are `event` (`nemo_guardrails_check_failed`), `tool_name`, `status` and `error_code`.
-The plugin puts no header value and none of the tool's arguments into the error text or the warning.
+The plugin adds no header value and none of the tool's arguments to the error text or the warning.
+A failed check's detail does repeat the `error.code` and message of the answer, which the service, or a proxy in front of it, chose.
 
 The plugin checks every call; it keeps no earlier decisions.
-Relay runs the guardrail once for each tool call, so each call costs one request to the service, and one run of any LLM judge.
+On the Relay releases the plugin supports, Relay runs the guardrail once for each tool call, so the plugin sends one request to the service per call.
+Another client of the same service, such as a direct Claude Code or Codex hook, sends its own requests.
 
 ## Compatibility
 
-- NeMo Relay 0.11.0 and later 0.x releases (`compat.relay = ">=0.11.0,<1.0"`).
+- NeMo Relay 0.11.0 and later 0.x releases, and the 0.11.0 release candidates (`compat.relay = ">=0.11.0-rc.1,<1.0"`).
   The plugin is built against the Relay 0.11 SDK, which uses native ABI v8.
-- Relay 0.10 is excluded.
-  When a CLI tool call reaches a permission prompt, 0.10 runs the guardrail a second time, on Claude Code's and Codex's PermissionRequest event.
+- Relay 0.10, and the unpublished 0.11.0 alphas, are excluded.
+  When a CLI tool call reaches a permission prompt, 0.10 runs the guardrail a second time, on Claude Code's and Codex's PermissionRequest event, and so do the 0.11.0 alphas before 2026-10-18.
   That costs a second request to the service, and a second run of any LLM judge, which can deny a call the first check allowed.
 - Each Relay minor release so far has changed the native ABI, so the plugin is rebuilt and tested against each one.
   A build for one minor release isn't tested on the next.

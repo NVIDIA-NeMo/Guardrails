@@ -7,9 +7,11 @@ name = "NVIDIA NeMo Guardrails Plugin"
 kind = "rust_dynamic"
 
 [compat]
-# 0.11.0 is the floor: through 0.10, Relay runs the guardrail again on Claude Code's and Codex's
-# PermissionRequest, so a call that reaches a permission prompt is checked twice.
-relay = ">=0.11.0,<1.0"
+# 0.11.0-rc.1 is the floor: through 0.10, Relay runs the guardrail again on Claude Code's and
+# Codex's PermissionRequest, so a call that reaches a permission prompt is checked twice. Relay
+# matches a pre-release host as its release unless a bound names a pre-release, so a plain
+# `>=0.11.0` would admit the 0.11.0 alphas that still rerun it; rc.1 is the first published 0.11.
+relay = ">=0.11.0-rc.1,<1.0"
 native_api = "1"
 
 [defaults]
