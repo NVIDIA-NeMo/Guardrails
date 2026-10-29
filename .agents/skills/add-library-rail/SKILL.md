@@ -24,9 +24,13 @@ inventories into this guide.
 
 When editing this guidance, run
 `make test TEST=tests/test_rail_skill_references.py`. It checks
-literal repository paths and Python references written as
-`path/to/module.py::ClassName::method_name` without importing optional providers.
-It cannot verify behavioral claims; review those against the cited code.
+literal repository paths, Python references written as
+`path/to/module.py::ClassName::method_name`, dotted `nemoguardrails` module names,
+and single-line imports in inline code or Python code blocks, without importing
+providers. This is a source-reference check, not Python import resolution: it
+checks declared names (including re-exports), but does not follow their targets
+or handle star imports or submodules imported as names. It cannot verify
+behavioral claims; review those against the cited code.
 
 ## Step 1: Pick the archetype and exemplar
 
