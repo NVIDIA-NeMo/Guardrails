@@ -22,9 +22,8 @@ maxsize management, and edge cases.
 
 import asyncio
 import threading
-import time
 import unittest
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import patch
 
 from nemoguardrails.llm.cache.lfu import LFUCache
@@ -411,19 +410,23 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         """Test automatic periodic stats logging."""
         import logging
 
-        cache = LFUCache(5, track_stats=True, stats_logging_interval=0.5)
+        with (
+            patch("nemoguardrails.llm.cache.lfu.time") as mock_time,
+            patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log,
+        ):
+            mock_time.time.return_value = 1000.0
+            cache = LFUCache(5, track_stats=True, stats_logging_interval=0.5)
 
-        # Add some data
-        cache.put("key1", "value1")
-        cache.put("key2", "value2")
+            # Add some data
+            cache.put("key1", "value1")
+            cache.put("key2", "value2")
 
-        with patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log:
             # Initial operations shouldn't trigger logging
             cache.get("key1")
             self.assertEqual(mock_log.call_count, 0)
 
-            # Wait for interval to pass
-            time.sleep(0.6)
+            # Advance the clock past the logging interval
+            mock_time.time.return_value += 0.6
 
             # Next operation should trigger logging
             cache.get("key1")
@@ -433,8 +436,8 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
             cache.get("key2")
             self.assertEqual(mock_log.call_count, 1)
 
-            # Wait again
-            time.sleep(0.6)
+            # Advance the clock by another logging interval
+            mock_time.time.return_value += 0.6
             cache.put("key3", "value3")
             self.assertEqual(mock_log.call_count, 2)
 
@@ -442,15 +445,20 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         """Test stats logging with empty cache."""
         import logging
 
-        cache = LFUCache(5, track_stats=True, stats_logging_interval=0.1)
+        with (
+            patch("nemoguardrails.llm.cache.lfu.time") as mock_time,
+            patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log,
+        ):
+            mock_time.time.return_value = 1000.0
+            cache = LFUCache(5, track_stats=True, stats_logging_interval=0.1)
 
-        # Generate a miss first
-        cache.get("nonexistent")
+            # Generate a miss first
+            cache.get("nonexistent")
+            mock_log.assert_not_called()
 
-        # Wait for interval to pass
-        time.sleep(0.2)
+            # Advance the clock past the logging interval
+            mock_time.time.return_value += 0.2
 
-        with patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log:
             # This will trigger stats logging with the previous miss already counted
             cache.get("another_nonexistent")  # Trigger check
 
@@ -466,20 +474,27 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         """Test stats logging when cache is at maxsize."""
         import logging
 
-        cache = LFUCache(3, track_stats=True, stats_logging_interval=0.1)
+        with (
+            patch("nemoguardrails.llm.cache.lfu.time") as mock_time,
+            patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log,
+        ):
+            mock_time.time.return_value = 1000.0
+            cache = LFUCache(3, track_stats=True, stats_logging_interval=0.1)
 
-        # Fill cache
-        cache.put("key1", "value1")
-        cache.put("key2", "value2")
-        cache.put("key3", "value3")
+            # Fill cache
+            cache.put("key1", "value1")
+            cache.put("key2", "value2")
+            cache.put("key3", "value3")
 
-        # Cause eviction
-        cache.put("key4", "value4")
+            # Cause eviction
+            cache.put("key4", "value4")
+            mock_log.assert_not_called()
 
-        with patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log:
-            time.sleep(0.2)
+            # Advance the clock past the logging interval
+            mock_time.time.return_value += 0.2
             cache.get("key4")  # Trigger check
 
+            mock_log.assert_called_once()
             log_message = mock_log.call_args[0][1]
             self.assertIn("Size: 3/3", log_message)
             self.assertIn("Evictions: 1", log_message)
@@ -803,37 +818,37 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
 
     def test_concurrent_clear_operations(self):
         """Test concurrent clear operations with other operations."""
+        writes_ready = threading.Barrier(3, timeout=5)
+        round_done = threading.Barrier(3, timeout=5)
 
         def writer():
-            """Continuously write to cache."""
-            for i in range(100):
-                self.cache.put(f"key_{i}", f"value_{i}")
-                time.sleep(0.001)  # Small delay
+            """Write a batch before each round of reads and clearing."""
+            for batch_start in range(0, 100, 20):
+                for i in range(batch_start, batch_start + 20):
+                    self.cache.put(f"key_{i}", f"value_{i}")
+                writes_ready.wait()
+                round_done.wait()
 
         def clearer():
-            """Periodically clear the cache."""
+            """Clear each batch while the reader accesses its keys."""
             for _ in range(5):
-                time.sleep(0.01)
+                writes_ready.wait()
                 self.cache.clear()
+                round_done.wait()
 
         def reader():
-            """Continuously read from cache."""
-            for i in range(100):
-                self.cache.get(f"key_{i}")
-                time.sleep(0.001)
+            """Read each batch concurrently with its clear operation."""
+            for batch_start in range(0, 100, 20):
+                writes_ready.wait()
+                for i in range(batch_start, batch_start + 20):
+                    self.cache.get(f"key_{i}")
+                round_done.wait()
 
         # Run operations concurrently
-        threads = [
-            threading.Thread(target=writer),
-            threading.Thread(target=clearer),
-            threading.Thread(target=reader),
-        ]
-
-        for thread in threads:
-            thread.start()
-
-        for thread in threads:
-            thread.join()
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(operation) for operation in (writer, clearer, reader)]
+            for future in as_completed(futures):
+                future.result()
 
         # Cache should still be functional
         self.cache.put("final_key", "final_value")
