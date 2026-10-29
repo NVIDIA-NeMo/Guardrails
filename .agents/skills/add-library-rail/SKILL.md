@@ -282,23 +282,13 @@ declared `RetryPolicy` value -- the client applies it.
 - Send requests with the canonical helpers, threading the injected client
   down. Compose retry with `ensure_retrying_http_client`, which preserves an
   existing retry policy, places retry inside instrumentation, and rejects
-  duplicate retry or instrumentation layers:
-
-```python
-def _retrying_http_client(client: HTTPClient) -> ClosableHTTPClient:
-    return ensure_retrying_http_client(client, _RETRY_POLICY)
-
-client = self._retrying_http_client(self.http_client) if self.http_client is not None else None
-response = await http_call(
-    client,
-    "POST",
-    url,
-    json=payload,
-    headers=headers,
-    raise_for_status=False,
-    factory=self._create_http_client,
-)
-```
+  duplicate retry or instrumentation layers. For the wiring, read
+  `nemoguardrails/library/hf_classifier/backends.py::_RemoteBackend::_retrying_http_client`,
+  `nemoguardrails/library/hf_classifier/backends.py::_RemoteBackend::_create_http_client`,
+  and `nemoguardrails/library/hf_classifier/backends.py::_RemoteBackend::_post`.
+  These show how to compose an injected client and provide a fully composed
+  fallback factory to `http_call`; adapt the endpoint, payload, and policy to
+  your rail.
 
 - `http_call` manages the fallback client's lifecycle. Wrapping an injected
   client must not transfer ownership; the factory must return the fully
