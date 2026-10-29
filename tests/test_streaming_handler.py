@@ -77,6 +77,67 @@ async def test_single_chunk():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("buffered", [False, True])
+@pytest.mark.parametrize("finish", [False, True])
+@pytest.mark.parametrize("text", ["", "  ", "Unformatted reply"])
+async def test_unmatched_prefix_flushes_on_end(text, buffered, finish):
+    handler = StreamingHandler(enable_buffer=buffered)
+    handler.set_pattern(prefix=('  "', "  “"), suffix=('"', "”"))
+    await handler.push_chunk(text)
+    if finish:
+        await handler.finish()
+    else:
+        await handler.push_chunk(END_OF_STREAM)
+    if buffered:
+        await handler.disable_buffering()
+    chunks = await asyncio.wait_for(_collect_handler(handler), timeout=1)
+    assert "".join(chunks) == text
+    assert handler.completion == text
+
+
+async def _collect_handler(handler):
+    return [chunk async for chunk in handler]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("finish_before_release", [False, True])
+async def test_pattern_set_during_buffering_preserves_chunk_order(finish_before_release):
+    handler = StreamingHandler(enable_buffer=True)
+    await handler.push_chunk("  “Hello")
+    handler.set_pattern(prefix=('  "', "  “"), suffix=('"', "”"))
+    await handler.push_chunk(", there!”")
+    if finish_before_release:
+        await handler.finish()
+    await handler.disable_buffering()
+    if not finish_before_release:
+        await handler.finish()
+    chunks = await asyncio.wait_for(_collect_handler(handler), timeout=1)
+    assert "".join(chunks) == "Hello, there!"
+    assert handler.completion == "Hello, there!"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("opening,closing", [('"', '"'), ("“", "”")])
+@pytest.mark.parametrize("split", [False, True])
+@pytest.mark.parametrize("buffered", [False, True])
+async def test_alternative_quote_patterns(opening, closing, split, buffered):
+    handler = StreamingHandler(enable_buffer=buffered)
+    handler.set_pattern(prefix=('  "', "  “"), suffix=('"', "”"))
+    body = 'Say “hello” and "goodbye".'
+    text = f"  {opening}{body}{closing}"
+    for chunk in list(text) if split else [text]:
+        await handler.push_chunk(chunk)
+    if split and not buffered:
+        assert handler.completion == body
+    await handler.finish()
+    if buffered:
+        await handler.disable_buffering()
+    chunks = await asyncio.wait_for(_collect_handler(handler), timeout=1)
+    assert "".join(chunks) == body
+    assert handler.completion == body
+
+
+@pytest.mark.asyncio
 async def test_sequence_of_chunks():
     streaming_handler = StreamingHandler()
     streaming_consumer = StreamingConsumer(streaming_handler)
@@ -984,3 +1045,45 @@ async def test_cancelled_buffer_wait_cancels_producer():
         await waiter
     assert producer.cancelled()
     assert closed.is_set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("closing", ['"', "”"])
+@pytest.mark.parametrize("trailing", ["\n", " \t\r\n"])
+@pytest.mark.parametrize("split", [False, True])
+@pytest.mark.parametrize("buffered", [False, True])
+@pytest.mark.parametrize("finish", [False, True])
+async def test_closing_quote_before_trailing_whitespace(closing, trailing, split, buffered, finish):
+    handler = StreamingHandler(enable_buffer=buffered)
+    handler.set_pattern(prefix=('  "', "  “"), suffix=('"', "”"))
+    text = f"  “Hello!{closing}{trailing}"
+    for chunk in list(text) if split else [text]:
+        await handler.push_chunk(chunk)
+    if finish:
+        await handler.finish()
+    else:
+        await handler.push_chunk(END_OF_STREAM)
+    if buffered:
+        await handler.disable_buffering()
+
+    assert "".join(await asyncio.wait_for(_collect_handler(handler), timeout=1)) == "Hello!"
+    assert handler.completion == "Hello!"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body,expected",
+    [
+        ("Hello!  ”\n", "Hello!  "),
+        ("Hello! \t\n", "Hello! \t\n"),
+        ("She said “hello” \t\nand then waved.”\n", "She said “hello” \t\nand then waved."),
+    ],
+)
+async def test_suffix_whitespace_preserves_message_content(body, expected):
+    handler = StreamingHandler()
+    handler.set_pattern(suffix=('"', "”"))
+    for chunk in body:
+        await handler.push_chunk(chunk)
+    await handler.finish()
+
+    assert "".join(await asyncio.wait_for(_collect_handler(handler), timeout=1)) == expected

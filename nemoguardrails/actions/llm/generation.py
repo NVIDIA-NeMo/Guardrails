@@ -116,8 +116,8 @@ def _streaming_pattern_for(output_parser, *, include_bot_message_parser: bool):
     """
     verbose = output_parser == "verbose_v1" or (include_bot_message_parser and output_parser == "bot_message")
     if verbose:
-        return 'Bot message: "', '"'
-    return '  "', '"'
+        return ('Bot message: "', "Bot message: “"), ('"', "”")
+    return ('  "', "  “"), ('"', "”")
 
 
 @dataclass
@@ -924,13 +924,14 @@ class LLMGenerationActions:
             # The marker is only present when generation streamed,
             # so the main handler is set here.
             _streaming_handler.set_pipe_to(cast(StreamingHandler, streaming_handler))
-            await _streaming_handler.disable_buffering()
 
-            # And wait for it to finish.
             # We stop after the closing double quotes for the bot message.
             _streaming_handler.stop = [
                 '"\n',
             ]
+            await _streaming_handler.disable_buffering()
+
+            # And wait for it to finish.
             text = await _streaming_handler.wait()
 
             return ActionResult(events=_bot_turn_output_events(new_event_dict("BotMessage", text=text)))
@@ -1412,6 +1413,7 @@ class LLMGenerationActions:
             # We make this call with temperature 0 to have it as deterministic as possible.
             # This is important for canonical forms, but not a great choice for bot messages.
 
+            _streaming_handler = None
             if streaming_handler:
                 # Create a new "inner" streaming handler and save the reference
                 _streaming_handler = StreamingHandler()
@@ -1430,10 +1432,6 @@ class LLMGenerationActions:
                 )
                 _streaming_handler.set_producer_task(producer_task)
                 result = await _streaming_handler.wait_top_k_nonempty_lines(k=2)
-
-                # We also mark that the message is still being generated
-                # by a streaming handler.
-                result += f"\n{_streaming_handoff.register(_streaming_handler)}"
 
                 # Moving forward we need to set the expected pattern to correctly
                 # parse the message.
@@ -1456,6 +1454,10 @@ class LLMGenerationActions:
 
             # Parse the output using the associated parser
             result = self.llm_task_manager.parse_task_output(Task.GENERATE_INTENT_STEPS_MESSAGE, output=result)
+
+            # The handoff is internal state; output parsers must not rewrite it.
+            if _streaming_handler is not None:
+                result += f"\n{_streaming_handoff.register(_streaming_handler)}"
 
             # TODO: Implement logic for generating more complex Colang next steps (multi-step),
             #  not just a single bot intent.
