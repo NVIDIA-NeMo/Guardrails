@@ -298,7 +298,7 @@ The plugin reads its configuration from the `[plugins.dynamic.config]` table of 
 | Field | Default | Description |
 |---|---|---|
 | `endpoint` | None | Required. The base URL of the hooks server, using `http` or `https`, such as `http://127.0.0.1:8100`. The plugin sends each check to `/v1/hooks/nemo-relay` under it, keeping any path prefix. It must not contain a username or password; send credentials in `headers`. |
-| `headers` | `{}` | Headers to send with every check, as header names and string values. The hooks server has no authentication, so use them for a proxy or gateway in front of it, such as an `authorization` header. The plugin never quotes a header value in an error. It rejects headers that its HTTP client sets, such as `content-type`, `content-length`, and `host`. |
+| `headers` | `{}` | Headers to send with every check, as header names and string values. The hooks server has no authentication, so use them for a proxy or gateway in front of it, such as an `authorization` header. The plugin adds no header value to its own errors, but a failed check repeats the server's error message, which a proxy or gateway could fill with one; refer to [What Happens to a Call](#what-happens-to-a-call). It rejects headers that its HTTP client sets, such as `content-type`, `content-length`, and `host`. |
 | `timeout_millis` | `25000` | The time limit for one check, in milliseconds. Keep it below the agent's hook time limit: 30 seconds for Claude Code and Codex through the Relay CLI, and 5 seconds by default for pi. |
 | `priority` | `0` | The plugin's place among Relay's tool guardrails. Lower values run earlier. |
 | `executor` | None | Reserved for the Relay SDK's executor settings, such as `worker_threads`. |
