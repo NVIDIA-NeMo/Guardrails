@@ -5,6 +5,7 @@ Each suite installs those programs from its own hash-pinned `requirements.txt`, 
 
 `make test` doesn't run these suites, since each needs programs from outside Guardrails' environment: they sit outside the `testpaths` in `pytest.ini`.
 They also sit outside `tests/`, so they don't inherit the main suite's fixtures from `tests/conftest.py`.
+Each suite needs its own environment, so run it through its own target: `pytest integration_tests` fails at collection.
 
 | Suite | What it checks | Command |
 | --- | --- | --- |
@@ -17,7 +18,8 @@ The suite checks that Claude Code and Codex obey the hooks server through the `P
 A call the config allows runs, and a call it denies never runs, with the agent telling its model the server's reason.
 A call also never runs when its rail fails, when the hooks server is down, or when the server doesn't answer within the hook's timeout.
 
-Each test serves a config with the hooks server in the test's own process, then runs the agent headless against a fake model on loopback, which calls one scripted shell command.
+Each test runs the agent headless against a fake model on loopback, which calls one scripted shell command.
+The hooks server serves the test's config in the test's own process, except in the tests of a server that's down or doesn't answer: their hook points at a loopback port that refuses the connection, or at one that accepts it and never answers.
 The agents are the real binaries from their published wheels.
 
 Prerequisites:
