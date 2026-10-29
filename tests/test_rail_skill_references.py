@@ -15,7 +15,7 @@
 
 import ast
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
 
@@ -39,7 +39,7 @@ def _module_reference(module, symbol=None):
     filename = path.with_suffix(".py")
     if not filename.is_file() and path.is_dir():
         filename = path / "__init__.py"
-    reference = str(filename.relative_to(ROOT))
+    reference = filename.relative_to(ROOT).as_posix()
     return f"{reference}::{symbol}" if symbol else reference
 
 
@@ -170,3 +170,13 @@ def test_import_references_are_checked_without_execution(tmp_path, monkeypatch):
     references = list(_markdown_references("`from nemoguardrails.example import check`"))
     assert references == [(1, "nemoguardrails/example.py::check")]
     _assert_reference(references[0][1], "example")
+
+
+@pytest.mark.parametrize("path_type", [PurePosixPath, PureWindowsPath])
+def test_module_references_use_forward_slashes(path_type, monkeypatch):
+    class RepositoryPath(path_type):
+        def is_file(self):
+            return True
+
+    monkeypatch.setitem(globals(), "ROOT", RepositoryPath("/repo"))
+    assert _module_reference("nemoguardrails.llm.call", "llm_call") == "nemoguardrails/llm/call.py::llm_call"
