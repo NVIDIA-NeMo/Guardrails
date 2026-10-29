@@ -6,5 +6,5 @@
 #
 #   uv pip compile --universal --python-version 3.11 --generate-hashes --exclude-newer-package nemo-relay=false \
 #     integration_tests/relay_plugin/requirements.in -o integration_tests/relay_plugin/requirements.txt
-nemo-relay[langchain]==0.10.4
+nemo-relay[langchain]==0.11.0
 pytest
