@@ -266,50 +266,61 @@ def test_triggered_abc_bot():
 
 
 @pytest.mark.parametrize("outcome", _RAIL_OUTCOME_CASES)
-@pytest.mark.parametrize("log_field", ["activated_rails", "internal_events"])
-def test_generation_log_with_rail_outcome_is_json_serializable(outcome, log_field):
-    res = _generate_with_rail_outcome(outcome, log={log_field: True})
+def test_generation_log_activated_rails_with_rail_outcome_is_json_serializable(outcome):
+    res = _generate_with_rail_outcome(outcome, log={"activated_rails": True})
 
     data = _json_round_trip(res.log)
 
-    if log_field == "activated_rails":
-        serialized_outcome = data["activated_rails"][0]["executed_actions"][0]["return_value"]
-    else:
-        action_event = _get_outcome_action_event(data["internal_events"])
-        serialized_outcome = action_event["return_value"]
-
+    serialized_outcome = data["activated_rails"][0]["executed_actions"][0]["return_value"]
     assert serialized_outcome == _expected_serialized_outcome(outcome)
 
 
 @pytest.mark.parametrize("outcome", _RAIL_OUTCOME_CASES)
-@pytest.mark.parametrize(
-    "surface",
-    [
-        "activated_rails",
-        "internal_events",
-        "selected_output_vars",
-        "all_output_vars",
-    ],
-)
-def test_generation_response_with_rail_outcome_is_json_serializable(outcome, surface):
-    if surface in {"activated_rails", "internal_events"}:
-        res = _generate_with_rail_outcome(outcome, log={surface: True})
-    elif surface == "selected_output_vars":
-        res = _generate_with_rail_outcome(outcome, output_vars=["response"])
-    else:
-        res = _generate_with_rail_outcome(outcome, output_vars=True)
+def test_generation_log_internal_events_with_rail_outcome_is_json_serializable(outcome):
+    res = _generate_with_rail_outcome(outcome, log={"internal_events": True})
+
+    data = _json_round_trip(res.log)
+
+    action_event = _get_outcome_action_event(data["internal_events"])
+    assert action_event["return_value"] == _expected_serialized_outcome(outcome)
+
+
+@pytest.mark.parametrize("outcome", _RAIL_OUTCOME_CASES)
+def test_generation_response_activated_rails_with_rail_outcome_is_json_serializable(outcome):
+    res = _generate_with_rail_outcome(outcome, log={"activated_rails": True})
 
     data = _json_round_trip(res)
 
-    if surface == "activated_rails":
-        serialized_outcome = data["log"]["activated_rails"][0]["executed_actions"][0]["return_value"]
-    elif surface == "internal_events":
-        action_event = _get_outcome_action_event(data["log"]["internal_events"])
-        serialized_outcome = action_event["return_value"]
-    else:
-        serialized_outcome = data["output_data"]["response"]
-
+    serialized_outcome = data["log"]["activated_rails"][0]["executed_actions"][0]["return_value"]
     assert serialized_outcome == _expected_serialized_outcome(outcome)
+
+
+@pytest.mark.parametrize("outcome", _RAIL_OUTCOME_CASES)
+def test_generation_response_internal_events_with_rail_outcome_is_json_serializable(outcome):
+    res = _generate_with_rail_outcome(outcome, log={"internal_events": True})
+
+    data = _json_round_trip(res)
+
+    action_event = _get_outcome_action_event(data["log"]["internal_events"])
+    assert action_event["return_value"] == _expected_serialized_outcome(outcome)
+
+
+@pytest.mark.parametrize("outcome", _RAIL_OUTCOME_CASES)
+def test_generation_response_selected_output_vars_with_rail_outcome_is_json_serializable(outcome):
+    res = _generate_with_rail_outcome(outcome, output_vars=["response"])
+
+    data = _json_round_trip(res)
+
+    assert data["output_data"]["response"] == _expected_serialized_outcome(outcome)
+
+
+@pytest.mark.parametrize("outcome", _RAIL_OUTCOME_CASES)
+def test_generation_response_all_output_vars_with_rail_outcome_is_json_serializable(outcome):
+    res = _generate_with_rail_outcome(outcome, output_vars=True)
+
+    data = _json_round_trip(res)
+
+    assert data["output_data"]["response"] == _expected_serialized_outcome(outcome)
 
 
 @pytest.mark.skip(reason="Run manually.")
