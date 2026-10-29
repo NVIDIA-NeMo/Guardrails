@@ -1,0 +1,122 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/responses
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-6.1-sol
+      stream: false
+      store: false
+      input: 'Reply with exactly: Hello.'
+      max_output_tokens: 1024
+      reasoning:
+        effort: low
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID, Server-Timing-Total
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: response
+        created_at: 1793272116
+        status: completed
+        access_programs: null
+        background: false
+        billing:
+          payer: developer
+        completed_at: 1793272117
+        error: null
+        frequency_penalty: 0.0
+        incomplete_details: null
+        instructions: null
+        max_output_tokens: 1024
+        max_tool_calls: null
+        model: gpt-6.1-sol
+        moderation: null
+        output:
+        - id: msg_01a6966e1f9c41fc016ae329355c0087d1b578f9e5440d1514
+          type: message
+          status: completed
+          content:
+          - type: output_text
+            annotations: []
+            logprobs: []
+            text: Hello.
+          phase: final_answer
+          role: assistant
+        parallel_tool_calls: true
+        presence_penalty: 0.0
+        previous_response_id: null
+        prompt_cache_key: null
+        prompt_cache_retention: 24h
+        reasoning:
+          context: all_turns
+          effort: low
+          mode: standard
+          summary: null
+        safety_identifier: null
+        service_tier: default
+        store: false
+        temperature: 1.0
+        text:
+          format:
+            type: text
+          verbosity: medium
+        tool_choice: auto
+        tool_usage:
+          image_gen:
+            input_tokens: 0
+            input_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            output_tokens: 0
+            output_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            total_tokens: 0
+          web_search:
+            num_requests: 0
+        tools: []
+        top_logprobs: 0
+        top_p: 0.98
+        truncation: disabled
+        usage:
+          input_tokens: 12
+          input_tokens_details:
+            cache_write_tokens: 0
+            cached_tokens: 0
+          output_tokens: 6
+          output_tokens_details:
+            reasoning_tokens: 0
+          total_tokens: 18
+        user: null
+        metadata: {}
