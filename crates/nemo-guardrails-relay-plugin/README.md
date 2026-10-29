@@ -6,7 +6,7 @@ The plugin is a client and holds no rails of its own.
 The NeMo Guardrails service is a hooks server, started with `nemoguardrails hooks-server --config <path>`; its one configuration holds the rails and decides every call.
 Before each tool call that Relay manages, the plugin posts the tool's name and arguments to the service's `/v1/hooks/nemo-relay` endpoint.
 A deny from the service becomes a guardrail rejection, and a check that fails (an error status, a timeout, a service that can't be reached) becomes an error.
-Relay blocks the call on either, from 0.10.1 on, with one exception: on an error, pi's extension lets the call run unless `NEMO_RELAY_PI_FAIL=closed` is set.
+Relay blocks the call on either, with one exception: on an error, pi's extension lets the call run unless `NEMO_RELAY_PI_FAIL=closed` is set.
 
 ## Checks
 
@@ -26,14 +26,17 @@ Its message is the error text, and its fields are `event` (`nemo_guardrails_chec
 The plugin puts no header value and none of the tool's arguments into the error text or the warning.
 
 The plugin checks every call; it keeps no earlier decisions.
-Through Relay 0.10.4, a call that reaches a permission prompt runs the guardrail twice, on PreToolUse and right after on PermissionRequest, so it costs two requests to the service, and two runs of any LLM judge.
-Relay 0.11 runs the guardrail once.
+Relay runs the guardrail once for each tool call, so each call costs one request to the service, and one run of any LLM judge.
 
 ## Compatibility
 
-- NeMo Relay 0.10.1 and later 0.x releases, through native ABI v7 (`compat.relay = ">=0.10.1,<1.0"`).
-  Relay 0.10.0 is excluded: the plugin reports a failed check as an error, and at 0.10.0 an error from a guardrail lets a Claude Code tool call run.
-- Each Relay minor release changes the native ABI, so the plugin is rebuilt against each one.
+- NeMo Relay 0.11.0 and later 0.x releases (`compat.relay = ">=0.11.0,<1.0"`).
+  The plugin is built against the Relay 0.11 SDK, which uses native ABI v8.
+- Relay 0.10 is excluded.
+  When a CLI tool call reaches a permission prompt, 0.10 runs the guardrail a second time, on Claude Code's and Codex's PermissionRequest event.
+  That costs a second request to the service, and a second run of any LLM judge, which can deny a call the first check allowed.
+- Each Relay minor release so far has changed the native ABI, so the plugin is rebuilt and tested against each one.
+  A build for one minor release isn't tested on the next.
 
 ## Configuration
 

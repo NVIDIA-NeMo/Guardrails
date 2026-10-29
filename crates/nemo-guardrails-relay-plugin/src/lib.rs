@@ -120,8 +120,8 @@ impl ToolCallCheck {
 
     /// Logs a warning for the failed check and returns the guardrail's error for it.
     fn report_failure(&self, tool_name: &str, failure: &CheckFailure) -> String {
-        // From Relay 0.10.1, an error that starts with `HTTP <status>: ` becomes an upstream HTTP
-        // error, so this text must never start that way.
+        // Relay turns an error that starts with `HTTP <status>: ` into an upstream HTTP error with
+        // that status, so this text must never start that way.
         let message =
             format!("NeMo Guardrails check failed for tool call '{tool_name}': {failure}");
         let fields = json!({
