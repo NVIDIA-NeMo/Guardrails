@@ -205,17 +205,17 @@ the chosen exemplar's decorator rather than assuming it matches the template.
 Preserve an existing action's dispatch contract unless the task changes it.
 IORails invokes manifest actions locally and does not use this flag.
 
-The seam here is **actions decide, flows present**: the action returns a
-neutral verdict (allow/block/transform plus evidence in `metadata`), and the
-flow owns everything a user sees -- refusal wording, exception-vs-bot-message,
-localization. When you are unsure where a new piece of logic goes, ask which
-side of that line it is on. Anything a human reads belongs in the flow, never
-in the outcome.
+Actions choose the verdict; flows and engines render its consequence. Keep
+decision evidence neutral, and let the consumer choose exception handling,
+fallback messages, and the public response shape.
 
-One exception exists in the tree and you should not copy it:
-`content_safety`'s `detect_language` action returns localized refusal prose
-from a `DEFAULT_REFUSAL_MESSAGES` table, which predates this seam. Refusal
-strings and localization belong in the flow or in bot message definitions.
+Presentation metadata can supply an explicitly supported refusal override.
+For example, [the language detector rail in #2470](https://github.com/NVIDIA-NeMo/Guardrails/pull/2470)
+sets `metadata["refusal_message"]` to localized or configured text, consumed by
+its Colang flows and IORails. This is a rendering hint, not a different block
+decision. Do not assume arbitrary presentation keys are honored: check each
+supported engine's consumer and test the custom message, fallback, and failure
+paths. The older `content_safety` language helper also supplies refusal text.
 
 - The three decisions are `allow`, `block`, and `transform`
   (`RailOutcome.transform(rewrites=[(TransformTarget.RELEVANT_CHUNKS, new_text)])`).
@@ -229,9 +229,9 @@ strings and localization belong in the flow or in bot message definitions.
   and the vendor's own parsed response. `allow` and `block` are keyword-only
   and take `reason` and `metadata` and nothing else; `transform` takes
   `rewrites` positionally and then the same two keyword-only arguments. So
-  evidence goes inside the mapping, not as loose keyword arguments. Do NOT put refusal
-  text, exception types, or presentation decisions in the outcome; engines own
-  presentation.
+  evidence goes inside the mapping, not as loose keyword arguments. Keep
+  supported presentation hints separate from decision evidence. Do not embed
+  exception types or instructions to bypass engine error handling.
 - Flows consume the outcome via `$response.is_blocked`,
   `$response.is_transform`, and `$response.transform_text["<context var>"]`;
   copy `regex/flows.co` and `regex/flows.v1.co` for the idiom.

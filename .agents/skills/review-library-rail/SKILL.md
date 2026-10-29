@@ -149,11 +149,13 @@ Each item names the check, where to look, and what "wrong" looks like.
    add-library-rail Step 3 (same flow names, same action and bindings per
    flow, same branch structure, same asserted output); divergent semantics
    between dialects is a finding even when both parse.
-6. **Outcome discipline.** Actions return `RailOutcome` with neutral
-   evidence in metadata; refusal prose, exception types, or localization in
-   the outcome is a finding. Flows must only read metadata keys the action
-   actually sets (grep the action for each `metadata[` subscript used in a
-   flow). Then cross-check the config model: every field in `rail_config.py`
+6. **Outcome discipline.** Actions return `RailOutcome` with neutral decision
+   evidence. A supported `metadata["refusal_message"]` override may carry
+   localized or configured refusal text, as in #2470; verify the consumer and
+   rendering/fallback tests for each supported engine. Unsupported presentation
+   keys or embedded exception types are findings. Flows must only read metadata
+   keys the action actually sets (grep the action for each `metadata[` subscript
+   used in a flow). Then cross-check the config model: every field in `rail_config.py`
    must have a test at a non-default value, and decision-changing fields
    need both sides of the boundary. Read the comparison operator against the
    documented semantics; an inverted or off-by-one threshold passes every
