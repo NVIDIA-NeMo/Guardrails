@@ -75,10 +75,8 @@ class TestCohereEmbeddingModelMocked:
 
     def test_import_error_when_cohere_not_installed(self):
         with patch.dict("sys.modules", {"cohere": None}):
+            sys.modules.pop("nemoguardrails.embeddings.providers.cohere", None)
             with pytest.raises(ImportError, match="Could not import cohere"):
-                if "nemoguardrails.embeddings.providers.cohere" in sys.modules:
-                    del sys.modules["nemoguardrails.embeddings.providers.cohere"]
-
                 from nemoguardrails.embeddings.providers.cohere import (
                     CohereEmbeddingModel,
                 )
@@ -227,10 +225,8 @@ class TestOpenAIEmbeddingModelMocked:
 
     def test_import_error_when_openai_not_installed(self):
         with patch.dict("sys.modules", {"openai": None}):
+            sys.modules.pop("nemoguardrails.embeddings.providers.openai", None)
             with pytest.raises(ImportError, match="Could not import openai") as exc_info:
-                if "nemoguardrails.embeddings.providers.openai" in sys.modules:
-                    del sys.modules["nemoguardrails.embeddings.providers.openai"]
-
                 from nemoguardrails.embeddings.providers.openai import (
                     OpenAIEmbeddingModel,
                 )
@@ -375,10 +371,8 @@ class TestAzureEmbeddingModelMocked:
 
     def test_import_error_when_openai_not_installed(self):
         with patch.dict("sys.modules", {"openai": None}):
+            sys.modules.pop("nemoguardrails.embeddings.providers.azureopenai", None)
             with pytest.raises(ImportError, match="Could not import openai"):
-                if "nemoguardrails.embeddings.providers.azureopenai" in sys.modules:
-                    del sys.modules["nemoguardrails.embeddings.providers.azureopenai"]
-
                 from nemoguardrails.embeddings.providers.azureopenai import (
                     AzureEmbeddingModel,
                 )
@@ -600,10 +594,8 @@ class TestGoogleEmbeddingModelMocked:
 
     def test_import_error_when_google_genai_not_installed(self):
         with patch.dict("sys.modules", {"google": None, "google.genai": None}):
+            sys.modules.pop("nemoguardrails.embeddings.providers.google", None)
             with pytest.raises(ImportError, match="Could not import google-genai"):
-                if "nemoguardrails.embeddings.providers.google" in sys.modules:
-                    del sys.modules["nemoguardrails.embeddings.providers.google"]
-
                 from nemoguardrails.embeddings.providers.google import (
                     GoogleEmbeddingModel,
                 )
