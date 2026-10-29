@@ -6,6 +6,7 @@ Each suite installs those programs from its own hash-pinned `requirements.txt`, 
 `make test` doesn't run these suites, since each needs programs from outside Guardrails' environment: they sit outside the `testpaths` in `pytest.ini`.
 They also sit outside `tests/`, so they don't inherit the main suite's fixtures from `tests/conftest.py`.
 The hooks suite runs in `.venv` and the Relay suite in `.venv-relay-plugin`, so run each through its own target: `pytest integration_tests` fails at collection.
+CI runs both suites on Ubuntu, with the same targets, in [`integration-tests.yml`](../.github/workflows/integration-tests.yml), for pull requests that change Guardrails' code, these suites or the Relay plugin.
 
 | Suite | What it checks | Command |
 | --- | --- | --- |
@@ -37,7 +38,7 @@ make test-hooks-agents
 make test-hooks-agents TEST=integration_tests/hooks_agents/test_hooks_agents.py::test_allowed_call_runs ARGS=-v
 ```
 
-`make test-hooks-agents` installs `claude-agent-sdk`, which bundles Claude Code, and `openai-codex-cli-bin`, which bundles Codex, into `.cache/hooks_agents`, checking each wheel against its hash in `requirements.txt`.
+`make test-hooks-agents` installs `claude-agent-sdk`, which bundles Claude Code, and `openai-codex-cli-bin`, which bundles Codex, with their dependencies, into `.cache/hooks_agents`, checking each wheel against its hash in `requirements.txt`.
 It then runs the suite in `.venv`, with live provider keys unset as for `make test`.
 To change an agent's version, edit its pin in `requirements.in`, then recompile `requirements.txt` with the command that `requirements.in` gives.
 

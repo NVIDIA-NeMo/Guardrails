@@ -1,0 +1,117 @@
+name: Integration Tests
+
+# The suites in integration_tests/, which `make test` doesn't collect. Each runs NeMo Guardrails against a real client
+# with fake models behind it, so neither needs a secret or a model provider.
+
+on:
+  pull_request:
+    paths:
+      - "nemoguardrails/**"
+      - "integration_tests/**"
+      - "examples/configs/agent_hooks/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".cargo/**"
+      - "Makefile"
+      - "pytest.ini"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/actions/setup-uv/**"
+      - ".github/workflows/integration-tests.yml"
+      - "!**/*.md"
+  push:
+    branches:
+      - develop
+    paths:
+      - "nemoguardrails/**"
+      - "integration_tests/**"
+      - "examples/configs/agent_hooks/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".cargo/**"
+      - "Makefile"
+      - "pytest.ini"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/actions/setup-uv/**"
+      - ".github/workflows/integration-tests.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  relay-plugin:
+    name: NeMo Relay plugin
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # The suite's own environment needs Python 3.11; the hooks servers run from .venv.
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: ./.github/actions/setup-uv
+        with:
+          cache-suffix: "3.11"
+
+      # With no arguments, rustup installs the channel and components that rust-toolchain.toml pins.
+      - name: Install the Rust toolchain
+        run: rustup toolchain install
+
+      # Only develop saves the cache, so pull requests restore develop's and don't fill the repository's cache quota.
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/develop' }}
+
+      - name: Run the packaging script's tests
+        run: make test TEST=crates/nemo-guardrails-relay-plugin/scripts/test_package_bundle.py
+
+      # The suite builds the plugin in release and packages it before its first test.
+      - name: Run the NeMo Relay plugin tests
+        run: make test-relay-plugin
+
+  hooks-agents:
+    name: Claude Code and Codex
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: ./.github/actions/setup-uv
+        with:
+          cache-suffix: "3.11"
+
+      # Installs both agents from their hash-pinned wheels, then runs the suite in .venv.
+      - name: Run the Claude Code and Codex tests
+        run: make test-hooks-agents

@@ -21,3 +21,57 @@ updates:
       pre-commit-hooks:
         patterns:
           - "*"
+
+  - package-ecosystem: cargo
+    directory: /
+    # Changes a requirement in Cargo.toml only when the new version is outside it, so a patch release moves Cargo.lock
+    # alone and the SDK requirement stays at the manifest's compat.relay floor.
+    versioning-strategy: increase-if-necessary
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    # Relay's native plugin ABI changes with each minor release, so moving to a new one is a change of its own: the
+    # manifest's compat.relay, the end-to-end suite's nemo-relay pin and the docs move with it.
+    ignore:
+      - dependency-name: "nemo-relay*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
+    groups:
+      cargo:
+        patterns:
+          - "*"
+
+  # The NeMo Relay plugin's end-to-end environment, compiled with `uv pip compile`. Dependabot recompiles it with the
+  # --universal, --python-version and --generate-hashes it finds in the file, and keeps its header. It compiles in this
+  # directory, outside [tool.uv]'s exclude-newer window: the cooldown holds back each package the file lists, but not
+  # one that an update newly brings in.
+  - package-ecosystem: uv
+    directory: /integration_tests/relay_plugin
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    # nemo-relay moves to a new minor release together with the plugin's Rust SDK, as above.
+    ignore:
+      - dependency-name: nemo-relay
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
+    groups:
+      relay-plugin-tests:
+        patterns:
+          - "*"
+
+  # The agents that the hooks server's integration tests run, recompiled as above. Only the two agents are updated, each
+  # release in a pull request of its own, so an agent change that breaks its hooks fails on its own.
+  - package-ecosystem: uv
+    directory: /integration_tests/hooks_agents
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    allow:
+      - dependency-name: claude-agent-sdk
+      - dependency-name: openai-codex-cli-bin

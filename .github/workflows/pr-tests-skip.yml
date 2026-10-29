@@ -5,6 +5,13 @@ on:
     paths:
       - "**/*.md"
       - ".github/**"
+      # `make test` collects neither the Rust crate nor integration_tests/: relay-plugin.yml and integration-tests.yml run them.
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".cargo/**"
+      - "integration_tests/**"
 
 permissions: {}
 
