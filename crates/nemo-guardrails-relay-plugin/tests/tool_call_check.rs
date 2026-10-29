@@ -117,8 +117,8 @@ async fn failed_check_blocks_the_call_with_an_internal_error() {
     assert_eq!(runs.load(Ordering::SeqCst), 0);
 }
 
-/// Every call is checked, including an identical one right after, as PreToolUse and then
-/// PermissionRequest make through Relay 0.10.4.
+/// Every call is checked, including an identical one right after: the plugin keeps no earlier
+/// decisions.
 #[tokio::test]
 async fn every_call_is_checked() {
     let _host = HOST.lock().await;

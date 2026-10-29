@@ -7,9 +7,9 @@ name = "NVIDIA NeMo Guardrails Plugin"
 kind = "rust_dynamic"
 
 [compat]
-# Native ABI v7 ships with Relay 0.10, and Relay refuses a native manifest whose range admits 0.9.
-# 0.10.1 is the floor: on 0.10.0, an error from the guardrail lets a Claude Code tool call run.
-relay = ">=0.10.1,<1.0"
+# 0.11.0 is the floor: through 0.10, Relay runs the guardrail again on Claude Code's and Codex's
+# PermissionRequest, so a call that reaches a permission prompt is checked twice.
+relay = ">=0.11.0,<1.0"
 native_api = "1"
 
 [defaults]
