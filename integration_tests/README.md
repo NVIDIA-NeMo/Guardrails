@@ -5,7 +5,7 @@ Each suite installs those programs from its own hash-pinned `requirements.txt`, 
 
 `make test` doesn't run these suites, since each needs programs from outside Guardrails' environment: they sit outside the `testpaths` in `pytest.ini`.
 They also sit outside `tests/`, so they don't inherit the main suite's fixtures from `tests/conftest.py`.
-Each suite needs its own environment, so run it through its own target: `pytest integration_tests` fails at collection.
+The hooks suite runs in `.venv` and the Relay suite in `.venv-relay-plugin`, so run each through its own target: `pytest integration_tests` fails at collection.
 
 | Suite | What it checks | Command |
 | --- | --- | --- |
@@ -53,8 +53,9 @@ The hooks servers run from the repository's `.venv`, one for each configuration.
 Prerequisites:
 
 - Linux or macOS, since the suite loads the plugin as a `.so` or `.dylib`.
-- The Rust toolchain, to build the plugin's release library.
-- Network access the first time, to download the packages in `requirements.txt`, the plugin's Rust crates and, when the machine lacks it, Python 3.11.
+- The Rust toolchain from rustup, which reads `rust-toolchain.toml`, to build the plugin's release library.
+- No machine-wide `/etc/nemo-relay/plugins.toml`: Relay would merge it into every test's plugin host, so the suite fails when it exists.
+- Network access the first time, to download the packages in `requirements.txt`, the Rust toolchain that `rust-toolchain.toml` pins, the plugin's Rust crates and, when the machine lacks it, Python 3.11.
 
 From the repository root:
 
