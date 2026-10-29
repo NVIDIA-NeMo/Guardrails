@@ -583,13 +583,25 @@ the rail's declared actions, flows, surfaces, and provider usage.
 
 ## Step 7: Docs and examples
 
-- Author a catalog page at
-  `docs/configure-rails/guardrail-catalog/community/<name>.mdx` (exemplars:
-  `regex.mdx`, `clavata.mdx`) and set the manifest's `docs_url` to that same
-  repo-relative path, extension included, so it ends in `.mdx` (see
-  `regex/rail.py`). `test_builtin_manifest_docs_urls_resolve` asserts
-  `Path(docs_url).is_file()`, so an `.md` value fails a gate this skill
-  tells you to run.
+- Put new built-in rail pages directly under
+  `docs/configure-rails/guardrail-catalog/`; use its `community/` directory for
+  third-party integrations. Existing pages have legacy placement exceptions,
+  so do not infer placement from a single neighboring rail or move an existing
+  page as part of adding a rail.
+- Set the manifest's `docs_url` to the page's repo-relative `.mdx` path,
+  extension included. `test_builtin_manifest_docs_urls_resolve` checks that
+  this file exists.
+- Register the page in `docs/index.yml` with its docs-relative path and slug,
+  in the appropriate navigation section. Creating a page alone does not add
+  it to Fern navigation.
+- Add the rail's surfaces and engine support to
+  `docs/reference/rail-engine-support.mdx`. Recompute the introductory totals
+  and support-summary counts from the current catalog and engine support;
+  do not copy counts from this guide or an older contribution.
+- Add or update the catalog card in
+  `docs/configure-rails/guardrail-catalog/index.mdx`, using the published slug.
+  If an existing category card covers the rail, add its entry to that category
+  page rather than duplicating the card.
 - Add an example config under `examples/configs/<rail>/`.
 - Document the required Python packages (the `pip install` line, carrying
   the version bound the manifest cannot express), required env vars / API
