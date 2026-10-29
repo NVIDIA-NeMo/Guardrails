@@ -70,8 +70,20 @@ The build uses the Rust version that the repository's `rust-toolchain.toml` pins
 Relay loads the plugin from the bundle directory, so keep the directory in place after you register it.
 The bundle is not signed, so Relay loads it only after you allow integrity-only attestation for the plugin, as the following sections show.
 
-To update the plugin, for example to pick up a fix, package the new build into a new, empty directory, because the packaging script refuses an output directory that has files in it.
-Then change the plugin's `manifest` path in `plugins.toml` to the new directory, restart any running Relay process, and remove the old directory.
+To update the plugin, for example to pick up a fix, replace the bundle at the same path.
+Relay records the manifest's path when you register the plugin, and refuses to start when `plugins.toml` names another one.
+Replace the whole bundle, not only the library: the packaging script writes the library's digest into the manifest, and Relay refuses a library that does not match it.
+Build the new library as shown previously, package it next to the old bundle, because the packaging script refuses an output directory that has files in it, and swap the directories while Relay is stopped:
+
+```bash
+python3 crates/nemo-guardrails-relay-plugin/scripts/package_bundle.py \
+  --library target/release/libnemo_guardrails_relay_plugin.so \
+  --output ~/nemo-guardrails-relay-plugin.new
+rm -rf ~/nemo-guardrails-relay-plugin
+mv ~/nemo-guardrails-relay-plugin.new ~/nemo-guardrails-relay-plugin
+```
+
+Then start Relay again, and run `nemo-relay plugins validate nvidia.nemo_guardrails`.
 
 ## Choose a Setup
 
@@ -203,7 +215,8 @@ To stage a deployment, first run a daemon for your own user on one machine, as a
 ## Use the Plugin in a Python Application
 
 A Python application loads the plugin from a `plugins.toml` it passes to Relay.
-Install Relay's Python package from the same 0.10 release as the rest of your Relay setup, with the `langchain` extra if you use Relay's LangChain middleware:
+Relay's Python package needs Python 3.11 or later.
+Install it from the same 0.10 release as the rest of your Relay setup, with the `langchain` extra if you use Relay's LangChain middleware:
 
 ```bash
 pip install "nemo-relay[langchain]>=0.10.1,<0.11"
