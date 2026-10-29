@@ -34,8 +34,8 @@ Another client of the same service, such as a direct Claude Code or Codex hook, 
 
 - NeMo Relay 0.11.0 and later 0.x releases, and the 0.11.0 release candidates (`compat.relay = ">=0.11.0-rc.1,<1.0"`).
   The plugin is built against the Relay 0.11 SDK, which uses native ABI v8.
-- Relay 0.10, and the unpublished 0.11.0 alphas, are excluded.
-  When a CLI tool call reaches a permission prompt, 0.10 runs the guardrail a second time, on Claude Code's and Codex's PermissionRequest event, and so do the 0.11.0 alphas before 2026-10-18.
+- Relay 0.10 and every 0.11.0 alpha are excluded.
+  When a CLI tool call reaches a permission prompt, 0.10 runs the guardrail a second time, on Claude Code's and Codex's PermissionRequest event, and so do the 0.11.0 alphas before 2026-10-18; Relay published none of the alphas.
   That costs a second request to the service, and a second run of any LLM judge, which can deny a call the first check allowed.
 - Each Relay minor release so far has changed the native ABI, so the plugin is rebuilt and tested against each one.
   A build for one minor release isn't tested on the next.

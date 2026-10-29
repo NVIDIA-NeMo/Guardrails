@@ -15,7 +15,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # The native ABI changes with each Relay minor release, so the SDK stays on one minor.
-# 0.11.0 matches the manifest's `compat.relay` floor.
+# 0.11.0 is the first release the manifest's `compat.relay` admits; it also admits the 0.11.0
+# release candidates.
 nemo-relay-plugin = "0.11.0"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
 serde = { version = "1", features = ["derive"] }

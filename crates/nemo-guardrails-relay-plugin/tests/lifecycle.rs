@@ -126,9 +126,9 @@ async fn schema_rejects_priority_outside_32_bits() {
     assert!(!list_plugin_kinds().contains(&PLUGIN_ID.to_owned()));
 }
 
-/// The manifest's `compat.relay` refuses every Relay host that runs the guardrail again on
-/// PermissionRequest, the 0.10 releases and the 0.11.0 alphas before 2026-10-18, and accepts the
-/// 0.11.0 release candidates, 0.11.0 and later 0.x releases.
+/// The manifest's `compat.relay` refuses the Relay hosts that run the guardrail again on
+/// PermissionRequest, the 0.10 releases and the early 0.11.0 alphas, along with every other 0.11.0
+/// alpha, and accepts the 0.11.0 release candidates, 0.11.0 and later 0.x releases.
 #[test]
 fn manifest_refuses_relay_hosts_that_rerun_the_guardrail() {
     let manifest: toml::Table = toml::from_str(
@@ -146,6 +146,7 @@ fn manifest_refuses_relay_hosts_that_rerun_the_guardrail() {
         ("0.10.0", false),
         ("0.10.4", false),
         ("0.11.0-alpha.20261017", false),
+        ("0.11.0-alpha.20261027", false),
         ("0.11.0-rc.1", true),
         ("0.11.0", true),
         ("0.12.0", true),
