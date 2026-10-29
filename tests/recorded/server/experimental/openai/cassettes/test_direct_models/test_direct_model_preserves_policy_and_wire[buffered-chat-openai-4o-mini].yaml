@@ -1,0 +1,76 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-4o-mini
+      stream: false
+      store: false
+      messages:
+      - role: user
+        content: 'Reply with exactly: Hello.'
+      max_completion_tokens: 256
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-4o-mini-2024-07-18
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: Hello.
+            refusal: null
+            annotations: []
+          logprobs: null
+          finish_reason: stop
+        usage:
+          prompt_tokens: 13
+          completion_tokens: 2
+          total_tokens: 15
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: '[RECORDED_SYSTEM_FINGERPRINT]'
