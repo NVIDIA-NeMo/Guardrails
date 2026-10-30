@@ -21,6 +21,7 @@ import json
 import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest import mock
 
@@ -866,38 +867,47 @@ class TestPipelineConcurrency:
         assert isinstance(sentinel, _PipelineLoadError), "Sentinel was overwritten by late pipeline load"
 
     def test_concurrent_callers_wait_for_first_load(self):
-        """A second caller seeing _PipelineLoading should wait for the first
-        loader to finish and receive the same pipeline."""
+        """A second caller waits for the first loader and receives its pipeline."""
         key = _pipeline_cache_key("shared-model", "text-classification", {})
         load_started = threading.Event()
+        waiter_started = threading.Event()
+        release_load = threading.Event()
         mock_pipe = mock.MagicMock()
 
         def slow_pipeline(**kwargs):
             load_started.set()
-            time.sleep(0.1)
+            assert release_load.wait(timeout=5)
             return mock_pipe
 
         mock_transformers = mock.MagicMock()
-        mock_transformers.pipeline = slow_pipeline
+        mock_transformers.pipeline.side_effect = slow_pipeline
 
-        results = [None, None]
+        with (
+            mock.patch.dict("sys.modules", {"transformers": mock_transformers}),
+            ThreadPoolExecutor(max_workers=2) as executor,
+        ):
+            first = executor.submit(_get_or_create_pipeline, "shared-model", "text-classification", {})
+            try:
+                assert load_started.wait(timeout=5)
+                loading = backends_mod._pipelines[key]
+                wait_for_load = loading.wait
 
-        def loader(idx):
-            results[idx] = _get_or_create_pipeline("shared-model", "text-classification", {})
+                def observe_waiter():
+                    assert not loading.ready.is_set()
+                    waiter_started.set()
+                    return wait_for_load()
 
-        with mock.patch.dict("sys.modules", {"transformers": mock_transformers}):
-            t1 = threading.Thread(target=loader, args=(0,))
-            t1.start()
-            load_started.wait(timeout=5)
+                with mock.patch.object(loading, "wait", side_effect=observe_waiter) as waiting:
+                    second = executor.submit(_get_or_create_pipeline, "shared-model", "text-classification", {})
+                    assert waiter_started.wait(timeout=5)
+                    release_load.set()
+                    assert first.result(timeout=5) is mock_pipe
+                    assert second.result(timeout=5) is mock_pipe
+                    waiting.assert_called_once()
+            finally:
+                release_load.set()
 
-            t2 = threading.Thread(target=loader, args=(1,))
-            t2.start()
-
-            t1.join(timeout=5)
-            t2.join(timeout=5)
-
-        assert results[0] is mock_pipe
-        assert results[1] is mock_pipe
+        mock_transformers.pipeline.assert_called_once()
 
 
 class TestSentinelThroughLocalBackend:

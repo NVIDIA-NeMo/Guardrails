@@ -254,7 +254,6 @@ class TestColang1SyntaxConversion:
         input_lines = textwrap.dedent(input_script).strip().split("\n")
         expected_output = textwrap.dedent(expected_output_script).strip().split("\n")
 
-        print(convert_colang_1_syntax(input_lines))
         assert convert_colang_1_syntax(input_lines) == expected_output
 
     def test_flow_with_execute_and_stop(self):
