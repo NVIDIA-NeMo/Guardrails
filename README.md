@@ -10,11 +10,11 @@ Programmable guardrails for AI agents and the tools they use.
 
 [Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#check-a-tool-call) · [Use cases](#what-you-can-build) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples)
 
-The NVIDIA NeMo Guardrails library is an open-source Python toolkit for adding policy checks to AI agents.
-Validate tool names and arguments before execution, check tool results before they enter the model's context, and apply safety checks to prompts and generated answers.
-Define your checks in configuration files and run them in your application or as a service.
+**NeMo Guardrails adds programmable safeguards to your AI agents.** Agents are most useful when they can run commands, call APIs, query your data, and read the web. NeMo Guardrails lets them do that without letting a jailbreak, an injected instruction, or an unsafe tool call get through. You declare what each agent may do in a policy, and NeMo Guardrails enforces it at every step, in milliseconds. To get started:
 
-Use local rules for checks such as tool allowlists, JSON Schema validation, regex matching, and Common Expression Language (CEL) expressions. Add NVIDIA safety models, community models, third-party APIs, or custom Python actions for checks that require them.
+```bash
+pip install nemoguardrails
+```
 
 > [!NOTE]
 > This README describes the development branch. The agent quickstart uses a source installation from `develop`. For a released package, refer to the documentation for your installed version. IORails and the proxy described below are experimental.
@@ -45,20 +45,14 @@ The library provides the following capabilities:
 
 - **Validate tool traffic.** The IORails engine checks calls against declared tools and their argument schemas. It can also verify that a result links to an earlier call and apply additional checks per tool.
 - **Keep your model and agent loop.** Use `check_async()` or the HTTP `/v1/checks` endpoint to run checks without invoking a main model. Model-backed rails still call their configured guard model or service.
-- **Choose checks for the task.** Tool validation, regex, and CEL rules run locally without a model call. For supported configurations, IORails can also run rails in parallel or overlap input checks with generation using speculative mode. Speculative generation sends input to the model before the input checks finish, even if they later block it.
+- **Choose checks for the task.** Tool validation, regex, and Common Expression Language (CEL) rules run locally without a model call. For supported configurations, IORails can also run rails in parallel or overlap input checks with generation using speculative mode. Speculative generation sends input to the model before the input checks finish, even if they later block it.
 - **Distinguish blocks from failures.** IORails tool checks fail closed and report policy violations separately from rail execution failures. Your application or hook configuration determines how to handle a failed check.
 - **Compose the policy you need.** Combine deterministic checks with content safety, topic control, jailbreak detection, sensitive data masking, and other rails. Checks run where you configure and invoke them.
 - **Run it in your environment.** The library is Apache 2.0 licensed. Deploy it in your own application or run a guardrails service, choosing local detectors or hosted endpoints for each check.
 
 ## Installation
 
-The library supports Python 3.10–3.13. Install a released package with:
-
-```bash
-pip install nemoguardrails
-```
-
-Optional integrations have their own extras, packages, and credentials. Refer to the [installation guide](https://docs.nvidia.com/nemo/guardrails/latest/get-started/installation-guide) for details.
+The library supports Python 3.10–3.13. Optional integrations have their own extras, packages, and credentials. Refer to the [installation guide](https://docs.nvidia.com/nemo/guardrails/latest/get-started/installation-guide) for details.
 
 ## Check a Tool Call
 
