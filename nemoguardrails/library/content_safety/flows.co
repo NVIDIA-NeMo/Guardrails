@@ -27,7 +27,7 @@ flow content safety check output $model
 
   if not $allowed
     if $system.config.enable_rails_exceptions
-      send ContentSafetyCheckOuputException(message="Output not allowed. The output was blocked by the 'content safety check output $model='{$model}'' flow.")
+      send ContentSafetyCheckOutputException(message="Output not allowed. The output was blocked by the 'content safety check output $model='{$model}'' flow.")
     else
       if $system.config.rails.config.content_safety.multilingual.enabled
         $lang_result = await DetectLanguageAction()
