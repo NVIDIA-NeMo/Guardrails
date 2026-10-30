@@ -16,8 +16,8 @@
 """Declare LiteLLM stream fields while retaining OpenAI event semantics.
 
 LiteLLM's root and delta extension bags are optional, nullable, and closed.
-No nonempty streaming extensions have been reviewed. Source-declared content
-arrays may be absent, null, or empty, but never carry uninspected content.
+Terminal root extensions preserve reviewed response metadata. Source-declared content
+arrays remain empty-only except typed reasoning items with no plaintext content.
 The classifier derives coverage and text paths from these rebound models;
 the endpoint uses the existing per-stream OpenAI lifecycle hooks.
 """
@@ -31,6 +31,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     constrained,
     field_coverage,
     guarded,
+    opaque,
 )
 from nemoguardrails.server.experimental.provider.stream_classifier import StreamClassifierDefinition
 from nemoguardrails.server.experimental.provider.stream_policy import build_policy_stream_classifier, stream_text_path
@@ -49,6 +50,26 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.stream
     ChatCompletionsStreamDeltaProjection,
     ChatCompletionsStreamPayloadProjection,
 )
+from nemoguardrails.server.experimental.providers.openai.responses.response_projection import (
+    ResponsesReasoningItemProjection,
+)
+
+
+class LiteLLMReasoningItemProjection(ResponsesReasoningItemProjection):
+    """Preserve encrypted metadata while keeping plaintext and unknown fields closed."""
+
+    policy: ClassVar[ObjectPolicy] = replace(ResponsesReasoningItemProjection.policy, unknown_fields="forbid")
+
+
+class LiteLLMTerminalMetadata(PolicyModel):
+    """Declare the terminal root extension separately from delta extensions."""
+
+    access_programs: Annotated[Any, opaque()] = None
+    billing: Annotated[Any, opaque()] = None
+    frequency_penalty: Annotated[Any, opaque()] = None
+    presence_penalty: Annotated[Any, opaque()] = None
+    tool_usage: Annotated[Any, opaque()] = None
+    service_tier: Annotated[Any, opaque()] = None
 
 
 class LiteLLMStreamFields(PolicyModel):
@@ -56,7 +77,7 @@ class LiteLLMStreamFields(PolicyModel):
 
 
 class LiteLLMStreamDeltaProjection(ChatCompletionsStreamDeltaProjection):
-    """Accept source-declared empty content fields, preserving the text target."""
+    """Accept reviewed encrypted reasoning and empty-only content extensions."""
 
     policy: ClassVar[ObjectPolicy] = replace(ChatCompletionsStreamDeltaProjection.policy, source="Delta")
 
@@ -65,9 +86,7 @@ class LiteLLMStreamDeltaProjection(ChatCompletionsStreamDeltaProjection):
     thinking_blocks: Annotated[
         list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
     ] = None
-    reasoning_items: Annotated[
-        list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
-    ] = None
+    reasoning_items: Annotated[list[LiteLLMReasoningItemProjection] | None, constrained()] = None
     annotations: Annotated[list[Any] | None, constrained(reason="core_capability.citation_content", max_length=0)] = (
         None
     )
@@ -86,8 +105,13 @@ class LiteLLMStreamPayloadProjection(ChatCompletionsStreamPayloadProjection):
         ChatCompletionsStreamPayloadProjection.policy, source="ModelResponseStream"
     )
 
+    access_programs: Annotated[Any, opaque()] = None
+    billing: Annotated[Any, opaque()] = None
+    frequency_penalty: Annotated[Any, opaque()] = None
+    presence_penalty: Annotated[Any, opaque()] = None
+    tool_usage: Annotated[Any, opaque()] = None
     choices: Annotated[list[LiteLLMStreamChoiceProjection], guarded(max_length=1)]
-    provider_specific_fields: Annotated[LiteLLMStreamFields | None, constrained()] = None
+    provider_specific_fields: Annotated[LiteLLMTerminalMetadata | None, constrained()] = None
 
 
 STREAM_RULES = tuple(

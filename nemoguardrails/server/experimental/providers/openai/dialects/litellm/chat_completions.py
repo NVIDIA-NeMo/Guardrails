@@ -32,6 +32,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
     constrained,
     disabled,
     guarded,
+    opaque,
     payload_contract,
     text_location,
 )
@@ -43,7 +44,10 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.respon
     ChatCompletionsGuardedResponseProjection,
 )
 from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_hooks import ChatCompletionsStreamHooks
-from nemoguardrails.server.experimental.providers.openai.dialects.litellm.stream import STREAM_CLASSIFIER
+from nemoguardrails.server.experimental.providers.openai.dialects.litellm.stream import (
+    STREAM_CLASSIFIER,
+    LiteLLMReasoningItemProjection,
+)
 
 
 class LiteLLMMessageFields(PolicyModel):
@@ -72,9 +76,7 @@ class LiteLLMAssistantMessageProjection(ChatCompletionsAssistantMessageProjectio
     thinking_blocks: Annotated[
         list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
     ] = None
-    reasoning_items: Annotated[
-        list[Any] | None, constrained(reason="core_capability.reasoning_content", max_length=0)
-    ] = None
+    reasoning_items: Annotated[list[LiteLLMReasoningItemProjection] | None, constrained()] = None
 
 
 class LiteLLMChoiceProjection(ChatCompletionsChoiceProjection):
@@ -88,6 +90,11 @@ class LiteLLMChoiceProjection(ChatCompletionsChoiceProjection):
 class LiteLLMResponseProjection(ChatCompletionsGuardedResponseProjection):
     """Retain the single-text response boundary with the reviewed nested types."""
 
+    access_programs: Annotated[Any, opaque()] = None
+    billing: Annotated[Any, opaque()] = None
+    frequency_penalty: Annotated[Any, opaque()] = None
+    presence_penalty: Annotated[Any, opaque()] = None
+    tool_usage: Annotated[Any, opaque()] = None
     choices: Annotated[list[LiteLLMChoiceProjection], guarded(min_length=1, max_length=1)]
 
 

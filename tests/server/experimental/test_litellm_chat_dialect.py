@@ -183,7 +183,7 @@ def test_reviewed_choice_metadata_is_opaque_in_runtime_and_export():
     Draft202012Validator(schema).validate(payload)
 
 
-@pytest.mark.parametrize("field", ["images", "thinking_blocks", "reasoning_items"])
+@pytest.mark.parametrize("field", ["images", "thinking_blocks"])
 @pytest.mark.parametrize("value", [None, [], ["uninspected"], "uninspected", {}])
 def test_buffered_source_content_fields_only_allow_empty_values(field, value):
     payload = response_payload()
@@ -244,7 +244,7 @@ def test_stream_extension_containers_are_closed(location, value):
     assert Draft202012Validator(schema).is_valid(payload) == valid
 
 
-@pytest.mark.parametrize("field", ["images", "thinking_blocks", "reasoning_items", "annotations"])
+@pytest.mark.parametrize("field", ["images", "thinking_blocks", "annotations"])
 @pytest.mark.parametrize("value", [None, [], ["uninspected"], "uninspected"])
 def test_stream_source_content_fields_only_allow_empty_values(field, value):
     payload = stream_payload()
