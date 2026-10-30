@@ -723,24 +723,33 @@ navigation:
               - endpoint: GET /
                 title: Get Server Health or Chat UI
                 slug: get-root
-      - section: Hooks Server API
-        path: reference/hooks-server-api/index.mdx
+      - api: Hooks Server API
         slug: hooks-server-api
-        contents:
-          - page: Check a Claude Code Tool Call
-            path: reference/hooks-server-api/claude-code.mdx
+        # The main API uses fern/generators.yml; select the hooks server's separate contract here.
+        specs:
+          - type: openapi
+            path: ../fern/hooks-openapi.yml
+            overlays: ../fern/hooks-openapi-overlay.yml
+        # Show the hooks endpoints' validation, failure, and overload responses.
+        display-errors: true
+        layout:
+          - page: Overview
+            path: reference/hooks-server-api/index.mdx
+            slug: overview
+          - endpoint: POST /v1/hooks/claude-code
+            title: Check a Claude Code Tool Call
             slug: claude-code
-          - page: Check a Codex Tool Call
-            path: reference/hooks-server-api/codex.mdx
+          - endpoint: POST /v1/hooks/codex
+            title: Check a Codex Tool Call
             slug: codex
-          - page: Check a NeMo Relay Tool Call
-            path: reference/hooks-server-api/nemo-relay.mdx
+          - endpoint: POST /v1/hooks/nemo-relay
+            title: Check a NeMo Relay Tool Call
             slug: nemo-relay
           - page: Health Check
-            path: reference/hooks-server-api/get-health.mdx
+            path: reference/hooks-server-api/_generated/get-health.mdx
             slug: get-health
           - page: Health Check (Alias)
-            path: reference/hooks-server-api/get-healthz.mdx
+            path: reference/hooks-server-api/_generated/get-healthz.mdx
             slug: get-healthz
       - page: Migrating to 0.22
         path: migration/0.22.mdx

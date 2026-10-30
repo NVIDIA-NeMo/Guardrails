@@ -1,0 +1,153 @@
+# Documentation additions to the generated hooks server contract.
+overlay: 1.0.0
+info:
+  title: Hooks server API documentation additions
+  version: 1.0.0
+actions:
+- target: $
+  update:
+    info:
+      title: NVIDIA NeMo Guardrails Library Hooks Server
+      description: |
+        The hooks server checks agent tool calls before they run. It has no
+        authentication; keep it on loopback or a restricted private network.
+    servers:
+    - url: http://localhost:8100
+      description: Local hooks server
+- target: $.components.schemas.ClaudeCodePreToolUseRequest.properties.hook_event_name
+  update:
+    description: The event must be `PreToolUse`. Other events return `422` with `unsupported_hook_event`.
+- target: $.components.schemas.CodexPreToolUseRequest.properties.hook_event_name
+  update:
+    description: The event must be `PreToolUse`. Other events return `422` with `unsupported_hook_event`.
+- target: $.components.schemas.NemoRelayToolConditionalExecutionGuardrailRequest.properties.hook_event_name
+  update:
+    description: The event must be `NemoRelayToolConditionalExecutionGuardrail`. Other events return `422` with `unsupported_hook_event`.
+- target: $.components.schemas.*.properties.tool_input
+  update:
+    description: Tool call arguments. A value that is not a JSON object is denied.
+- target: $.components.schemas.*.properties.tool_name
+  update:
+    description: The tool name, matched exactly by the policy and per-tool rails. It must not be empty.
+- target: $.components.schemas.RelayDeny.properties.reason
+  update:
+    example: regex check tool call
+- target: $.components.schemas.HookError.properties.error.properties
+  update:
+    message:
+      description: "Human-readable message. Validation errors name each failing field as `body.<field>: <reason>`."
+    type:
+      description: '`invalid_request_error` for `422`; `server_error` for `500` and `503`.'
+    param:
+      description: The request field the error relates to, or `null`.
+    code:
+      description: '`unsupported_hook_event`, `rail_failed`, `queue_full`, or `null`.'
+- target: $.paths['/v1/hooks/claude-code'].post
+  update:
+    operationId: checkClaudeCodeToolCall
+    description: |
+      Checks a Claude Code `PreToolUse` hook. Extra input fields are accepted and ignored.
+      An allowed call returns `{}` so Claude Code continues its own permission flow.
+      A denied call returns a deny decision prefixed with `NeMo Guardrails: `.
+      An error status indicates a failed hook.
+
+      See [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors#errors)
+      for error codes and the `Retry-After: 30` header on a full queue.
+
+      See [Check Claude Code Tool Calls with the Hooks Server](/run-guardrailed-inference/using-hooks-server/claude-code).
+    requestBody:
+      content:
+        application/json:
+          examples:
+            deny:
+              summary: Deny
+              value: {hook_event_name: PreToolUse, tool_name: Bash, tool_input: {command: 'git push --force origin main'}, tool_use_id: toolu_02}
+            allow:
+              summary: Allow
+              value: {hook_event_name: PreToolUse, tool_name: Bash, tool_input: {command: 'git status'}, tool_use_id: toolu_01}
+    responses:
+      '200':
+        content:
+          application/json:
+            examples:
+              deny:
+                summary: Deny
+                value: {hookSpecificOutput: {hookEventName: PreToolUse, permissionDecision: deny, permissionDecisionReason: 'NeMo Guardrails: regex check tool call'}}
+              allow:
+                summary: Allow
+                value: {}
+- target: $.paths['/v1/hooks/codex'].post
+  update:
+    operationId: checkCodexToolCall
+    description: |
+      Checks a Codex `PreToolUse` hook. Extra input fields are accepted and ignored.
+      An allowed call returns `{}` so Codex follows its own approval settings.
+      A denied call returns a deny decision prefixed with `NeMo Guardrails: `.
+      An error status indicates a failed hook. The response has no other fields.
+
+      See [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors#errors)
+      for error codes and the `Retry-After: 30` header on a full queue.
+
+      Codex uses a command hook to send its input; use `curl -f` and `|| exit 2`
+      so an error status blocks the call. See [Check Codex Tool Calls with the Hooks Server](/run-guardrailed-inference/using-hooks-server/codex).
+    requestBody:
+      content:
+        application/json:
+          examples:
+            deny:
+              summary: Deny
+              value: {hook_event_name: PreToolUse, tool_name: Bash, tool_input: {command: 'rm -rf /tmp/build'}, tool_use_id: call_01}
+            allow:
+              summary: Allow
+              value: {hook_event_name: PreToolUse, tool_name: Bash, tool_input: {command: 'pwd'}, tool_use_id: call_02}
+    responses:
+      '200':
+        content:
+          application/json:
+            examples:
+              deny:
+                summary: Deny
+                value: {hookSpecificOutput: {hookEventName: PreToolUse, permissionDecision: deny, permissionDecisionReason: 'NeMo Guardrails: regex check tool call'}}
+              allow:
+                summary: Allow
+                value: {}
+- target: $.paths['/v1/hooks/nemo-relay'].post
+  update:
+    operationId: checkNemoRelayToolCall
+    description: |
+      Checks a NeMo Relay tool conditional-execution guardrail. Extra input fields
+      return `422`. An allow returns `{"decision": "allow"}`; a deny includes a
+      reason without a prefix. The plugin maps these to `Ok(None)` and
+      `Ok(Some(reason))`, and maps any error, timeout, or failed connection to `Err`.
+
+      See [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors#errors)
+      for error codes and the `Retry-After: 30` header on a full queue.
+
+      See [Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin).
+    requestBody:
+      content:
+        application/json:
+          examples:
+            deny:
+              summary: Deny
+              value: {hook_event_name: NemoRelayToolConditionalExecutionGuardrail, tool_name: search, tool_input: {query: ''}}
+            allow:
+              summary: Allow
+              value: {hook_event_name: NemoRelayToolConditionalExecutionGuardrail, tool_name: search, tool_input: {query: guardrails}}
+    responses:
+      '200':
+        content:
+          application/json:
+            examples:
+              deny:
+                summary: Deny
+                value: {decision: deny, reason: regex check tool call}
+              allow:
+                summary: Allow
+                value: {decision: allow}
+# Fern normalizes health+json to application/json. Generate these pages directly
+# from the handler so the documented media type remains accurate.
+- target: $.paths['/v1/health']
+  remove: true
+- target: $.paths['/healthz']
+  remove: true

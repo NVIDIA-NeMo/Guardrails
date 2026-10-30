@@ -19,14 +19,28 @@ const fail = (stage) => {
   if (process.env.GUARDRAILS_PUBLISH_TEST_FAILURE === stage) process.exit(42);
 };
 if (tool === "uv") {
-  assert.deepEqual(args, ["run", "--locked", "--extra", "server", "python", "scripts/export_openapi.py"]);
+  const script = args[5];
+  assert.deepEqual(args.slice(0, 5), ["run", "--locked", "--extra", "server", "python"]);
   assert.equal(process.env.FERN_TOKEN, undefined);
   assert.equal(process.env.DOCS_FERN_TOKEN, undefined);
-  record("openapi");
-  fail("openapi");
-  fs.writeFileSync(path.join(root, "fern/openapi.yml"), "fresh");
+  const hooks = script === "scripts/export_hooks_openapi.py";
+  assert.ok(hooks || script === "scripts/export_openapi.py");
+  const stage = hooks ? "hooks-openapi" : "openapi";
+  record(stage);
+  fail(stage);
+  fs.writeFileSync(path.join(root, hooks ? "fern/hooks-openapi.yml" : "fern/openapi.yml"), "fresh");
+  if (hooks) {
+    fs.mkdirSync(path.join(root, "docs/reference/hooks-server-api/_generated"), { recursive: true });
+    for (const page of ["get-health.mdx", "get-healthz.mdx"]) {
+      fs.writeFileSync(path.join(root, "docs/reference/hooks-server-api/_generated", page), "fresh");
+    }
+  }
 } else if (tool === "npx") {
   assert.equal(fs.readFileSync(path.join(root, "fern/openapi.yml"), "utf8"), "fresh");
+  assert.equal(fs.readFileSync(path.join(root, "fern/hooks-openapi.yml"), "utf8"), "fresh");
+  for (const page of ["get-health.mdx", "get-healthz.mdx"]) {
+    assert.equal(fs.readFileSync(path.join(root, "docs/reference/hooks-server-api/_generated", page), "utf8"), "fresh");
+  }
   assert.deepEqual(args, ["--yes", "fern-api@" + fernVersion, "docs", "md", "generate", "--library", "guardrails-python-sdk"]);
   record("sdk");
   fail("sdk");
@@ -68,7 +82,7 @@ function fixture() {
 }
 
 for (const destination of ["staging", "public"]) {
-  for (const failure of ["", "openapi", "sdk"]) {
+  for (const failure of ["", "openapi", "hooks-openapi", "sdk"]) {
     test(`${destination} publishing ${failure ? `stops when ${failure} fails` : "regenerates both references every time"}`, () => {
       const root = fixture();
       try {
@@ -109,11 +123,11 @@ for (const destination of ["staging", "public"]) {
           assert.ok(events.includes(failure));
           assert.ok(!events.some((event) => event.startsWith("publish:")));
         } else {
-          for (const event of ["openapi", "sdk", "normalize", `publish:${instance}`]) {
+          for (const event of ["openapi", "hooks-openapi", "sdk", "normalize", `publish:${instance}`]) {
             assert.equal(events.filter((value) => value === event).length, runs, event);
           }
-          assert.equal(events[3], `publish:${instance}`);
-          assert.equal(events[7], `publish:${instance}`);
+          assert.equal(events[4], `publish:${instance}`);
+          assert.equal(events[9], `publish:${instance}`);
         }
       } finally {
         rmSync(root, { recursive: true, force: true });

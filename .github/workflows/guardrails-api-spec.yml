@@ -5,6 +5,9 @@ on:
     paths:
       - "nemoguardrails/**"
       - "scripts/export_openapi.py"
+      - "scripts/export_hooks_openapi.py"
+      - "tests/server/test_export_hooks_openapi.py"
+      - "fern/hooks-openapi*.yml"
       - "tests/server/test_export_openapi.py"
       - "fern/openapi*.yml"
       - "fern/generators.yml"
@@ -18,6 +21,9 @@ on:
     paths:
       - "nemoguardrails/**"
       - "scripts/export_openapi.py"
+      - "scripts/export_hooks_openapi.py"
+      - "tests/server/test_export_hooks_openapi.py"
+      - "fern/hooks-openapi*.yml"
       - "tests/server/test_export_openapi.py"
       - "fern/openapi*.yml"
       - "fern/generators.yml"
@@ -48,3 +54,5 @@ jobs:
         run: make docs-fern-generate-openapi
       - name: Test exporter without provider calls
         run: make test WORKERS=1 TEST=tests/server/test_export_openapi.py
+      - name: Test hooks exporter without provider calls
+        run: make test WORKERS=1 TEST=tests/server/test_export_hooks_openapi.py
