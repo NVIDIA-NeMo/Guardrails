@@ -123,7 +123,7 @@ actions:
       See [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors#errors)
       for error codes and the `Retry-After: 30` header on a full queue.
 
-      See [Check NeMo Relay Tool Calls with the Hooks Server](/run-guardrailed-inference/using-hooks-server/nemo-relay).
+      See [Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin).
     requestBody:
       content:
         application/json:
