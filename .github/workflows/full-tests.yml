@@ -2,10 +2,7 @@ name: Full Tests
 
 on:
   pull_request:
-    types: [review_requested, ready_for_review]
-    paths-ignore:
-      - "**/*.md"
-      - ".github/**"
+    types: [opened, synchronize, reopened, review_requested, ready_for_review]
   push:
     branches:
       - main
@@ -16,6 +13,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   full-tests-matrix:
@@ -38,7 +39,15 @@ jobs:
   full-tests-summary:
     name: Full Tests Summary
     needs: full-tests-matrix
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
       - name: Verify Full Tests Completion
-        run: echo "Full tests completed. All matrix jobs passed."
+        env:
+          MATRIX_RESULT: ${{ needs.full-tests-matrix.result }}
+        run: |
+          if [ "$MATRIX_RESULT" != "success" ]; then
+            echo "Full test matrix did not pass: $MATRIX_RESULT"
+            exit 1
+          fi
+          echo "Full tests completed. All matrix jobs passed."
