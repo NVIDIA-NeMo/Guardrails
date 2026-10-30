@@ -39,16 +39,19 @@ flowchart LR
 
 Guardrails returns a verdict, and your application or agent harness enforces it.
 Execute a tool only after its call passes, and send a tool result to the model only after its checks pass.
-The library does not execute tools for you.
+The checks API validates proposed tool calls; your application executes them.
+
+Configure tool rails and explicitly request `RailType.TOOL_CALL` or `RailType.TOOL_RESULT` in `check_async()`.
+Message-role detection does not select tool rails automatically.
 
 ## Why NeMo Guardrails
 
 The library provides the following capabilities:
 
-- **Govern what agents do.** The IORails engine checks calls against declared tools and their argument schemas before execution. It can also validate tool results and apply additional checks per tool before the model receives them.
+- **Govern what agents do.** Configure IORails tool-call validation to check calls against declared tools and their argument schemas before execution. Configure tool-result validation and per-tool checks before returning results to the model.
 - **Keep your model and agent loop.** Use `check_async()` or the HTTP `/v1/checks` endpoint to run checks without invoking a main model. Model-backed rails still call their configured guard model or service.
 - **Choose checks for the task.** Tool validation, regex, and Common Expression Language (CEL) rules run locally without a model call. For supported configurations, IORails can also run rails in parallel or overlap input checks with generation using speculative mode. Speculative generation sends input to the model before the input checks finish, even if they later block it.
-- **Distinguish blocks from failures.** IORails tool checks fail closed and report policy violations separately from rail execution failures. Your application or hook configuration determines how to handle a failed check.
+- **Handle blocks and failures.** IORails returns blocked results for policy violations and rail execution failures, with different reasons. Errors carrying an upstream HTTP status propagate to the caller. Your application or hook configuration must handle both blocked results and errors before continuing execution.
 - **Compose the policy you need.** Combine deterministic checks with content safety, topic control, jailbreak detection, sensitive data masking, and other rails. Checks run where you configure and invoke them.
 - **Open and yours to run.** The library is Apache 2.0 licensed. Deploy it in your own application or run a guardrails service, choosing local detectors or hosted endpoints for each check.
 
@@ -168,7 +171,8 @@ You can also add [content safety](./docs/configure-rails/guardrail-catalog/conte
 
 Run `nemoguardrails server` and send checks to `/v1/checks` while your applications call their models and execute their tools.
 The server can load multiple configurations, selected by `config_id`.
-To check tool calls and results, enable IORails for compatible configurations and send tool data in the OpenAI Chat Completions shape.
+To check tool calls and results, set `NEMO_GUARDRAILS_IORAILS_ENGINE=1` before starting the server, use a compatible configuration, and explicitly select the tool rail types in each request.
+Send tool data in the OpenAI Chat Completions shape.
 Refer to [checking messages with the server](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-python-apis/check-messages#guardrails-server).
 
 Alternatively, use `generate_async()` or `/v1/chat/completions` to send generation requests through Guardrails to a configured model.
@@ -196,9 +200,9 @@ Embed `Guardrails.check_async()` in a custom agent loop to check prompts, tool c
 
 For LangChain agents, [GuardrailsMiddleware](./docs/integration/langchain/agent-middleware.mdx) applies configured input and output rails around model calls.
 Those text rails do not inspect tool-call arguments or tool-result content.
-LangChain's `RunnableRails` can wrap chains and runnables.
+The `RunnableRails` integration can wrap LangChain chains and runnables.
 Both integrations require LangChain packages.
-`RunnableRails` also requires the opt-in `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` setting or `set_default_framework("langchain")`.
+To load configured models through LangChain providers, select that framework with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` or `set_default_framework("langchain")`.
 Refer to [LangChain integration](https://docs.nvidia.com/nemo/guardrails/latest/integration-with-third-party-libraries/langchain/langchain-integration).
 
 The Guardrails API server, hooks server, and experimental proxy are separate applications with different configuration requirements. Server installations require the `server` extra.
@@ -228,7 +232,7 @@ The following table lists example checks at each checkpoint:
 | Answer out | `output` | Content safety, fact-checking, hallucination detection, sensitive data detection and masking |
 | Retrieval | `retrieval` | Filter or mask retrieved content before it enters a model's context |
 
-The library also supports Colang dialog flows and custom action execution rails for applications that need them.
+Use the LLMRails engine for Colang dialog flows and registered Python actions.
 Rail support varies by engine. Refer to [rail engine support](https://docs.nvidia.com/nemo/guardrails/latest/reference/rail-engine-support) when choosing or combining checks.
 
 The [guardrail catalog](https://docs.nvidia.com/nemo/guardrails/latest/configure-guardrails/guardrail-catalog) covers NVIDIA safety models, community models, and third-party integrations. These include ActiveFence, AutoAlign, Cisco AI Defense, Clavata, Cleanlab, CrowdStrike AIDR, F5, Fiddler, GCP Text Moderation, GLiNER, Guardrails AI, Pangea, Patronus Lynx, PolicyAI, Polygraf, Private AI, Prompt Security, and Trend Micro. Each integration has its own setup requirements. The [examples](./examples) show configurations for individual rails and integrations.
@@ -241,7 +245,7 @@ For testing and deployment guidance, refer to the [evaluation guide](https://doc
 
 ## Telemetry and Privacy
 
-The library sends anonymous usage events at startup and periodic heartbeats. Event payloads describe the library version, platform, configured engine providers, active rail categories and built-in features, and deployment mode. They exclude prompts, completions, model names, credentials, and endpoints. Per-request tracing is configured separately.
+Unless opted out, the library sends anonymous usage events when a rails engine is instantiated and through periodic heartbeats. Event payloads include the library version, platform, configured engine names, rail categories and built-in features, and deployment mode. They exclude prompts, completions, model names, credentials, and endpoints. Per-request tracing is configured separately.
 
 To opt out, set either environment variable before starting the library:
 
@@ -250,7 +254,9 @@ export NEMO_GUARDRAILS_NO_USAGE_STATS=1
 # Or: export DO_NOT_TRACK=1
 ```
 
-Refer to [telemetry and privacy](https://docs.nvidia.com/nemo/guardrails/latest/resources/telemetry) for the full schema, local audit file, opt-out options, and third-party endpoint terms.
+Refer to [telemetry and privacy](https://docs.nvidia.com/nemo/guardrails/latest/resources/telemetry) for the full schema, local audit file, and opt-out options.
+
+Model providers and remote guardrail integrations can receive prompt or response content at their configured endpoints. These environment variables disable the library's usage reporting; they do not disable those service calls. Review each provider's privacy terms separately.
 
 ## Contributing and Support
 
