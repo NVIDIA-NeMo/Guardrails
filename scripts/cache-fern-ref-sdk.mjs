@@ -76,12 +76,13 @@ export function main(args = process.argv.slice(2), environment = process.env) {
   }
 
   // New snapshots omit the build artifact; older snapshots retain their own spec.
-  if (existsSync(path.join(worktreeRoot, "scripts", "export_openapi.py"))) {
+  for (const exporter of ["export_openapi.py", "export_proxy_openapi.py"]) {
+    if (!existsSync(path.join(worktreeRoot, "scripts", exporter))) continue;
     const exportEnvironment = { ...environment, FERN_REF_SDK_HOOK: "0" };
     delete exportEnvironment.FERN_TOKEN;
     delete exportEnvironment.DOCS_FERN_TOKEN;
     exportEnvironment.UV_PROJECT_ENVIRONMENT = path.join(worktreeRoot, ".venv");
-    execFileSync("uv", ["run", "--locked", "--extra", "server", "python", "scripts/export_openapi.py"], {
+    execFileSync("uv", ["run", "--locked", "--extra", "server", "python", `scripts/${exporter}`], {
       cwd: worktreeRoot,
       env: exportEnvironment,
       stdio: "inherit",
