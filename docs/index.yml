@@ -723,10 +723,12 @@ navigation:
       - api: Hooks Server API
         slug: hooks-server-api
         summary: reference/hooks-server-api/index.mdx
+        # The main API uses fern/generators.yml; select the hooks server's separate contract here.
         specs:
           - type: openapi
             path: ../fern/hooks-openapi.yml
             overlays: ../fern/hooks-openapi-overlay.yml
+        # Show the hooks endpoints' validation, failure, and overload responses.
         display-errors: true
         layout:
           - endpoint: POST /v1/hooks/claude-code
