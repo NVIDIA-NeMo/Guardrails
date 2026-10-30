@@ -66,6 +66,8 @@ cargo build --release -p nemo-guardrails-relay-plugin
 make test TEST=crates/nemo-guardrails-relay-plugin/scripts/test_package_bundle.py
 ```
 
+CI runs the Cargo checks in [`relay-plugin.yml`](../../.github/workflows/relay-plugin.yml), with the tests in the debug profile only: the end-to-end tests below load the release library.
+It runs the packaging script's tests with the end-to-end tests, in [`integration-tests.yml`](../../.github/workflows/integration-tests.yml).
 `tests/client.rs` runs the hooks client against a stand-in NeMo Guardrails service, from `wiremock`.
 `tests/lifecycle.rs` and `tests/tool_call_check.rs` build the plugin library in the test's profile, then load it into a real Relay host through the `nemo-relay` crate; `tests/tool_call_check.rs` points it at a stand-in service.
 None of these tests needs a running NeMo Guardrails service.
