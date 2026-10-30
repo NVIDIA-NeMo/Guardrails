@@ -1,374 +1,272 @@
 # NVIDIA NeMo Guardrails Library
 
+Programmable guardrails for AI agents and the tools they use.
+
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PyPI](https://img.shields.io/pypi/v/nemoguardrails)](https://pypi.org/project/nemoguardrails)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/nemoguardrails)](https://pypi.org/project/nemoguardrails)
-[![Tests/Linux](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/pr-tests.yml?logo=github&label=Tests%2FLinux)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/pr-tests.yml)
-[![Tests/Windows](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/full-tests.yml?logo=github&label=Tests%2FWindows)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/full-tests.yml)
-[![Tests/macOS](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/full-tests.yml?logo=github&label=Tests%2FmacOS)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/full-tests.yml)
-[![Lint](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/lint.yml?logo=github&label=Lint)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/lint.yml)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Documentation](https://img.shields.io/badge/docs-nvidia.com-blue.svg)](https://docs.nvidia.com/nemo/guardrails)
-[![arXiv](https://img.shields.io/badge/cs.CL-arXiv%3A2310.10501-b31b1b.svg)](https://arxiv.org/abs/2310.10501)
-[![Downloads](https://static.pepy.tech/badge/nemoguardrails)](https://pepy.tech/project/nemoguardrails)
-[![Downloads](https://static.pepy.tech/badge/nemoguardrails/month)](https://pepy.tech/project/nemoguardrails)
+[![Python](https://img.shields.io/pypi/pyversions/nemoguardrails)](https://pypi.org/project/nemoguardrails)
+[![Tests](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/pr-tests.yml?logo=github&label=tests)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/pr-tests.yml)
+[![Documentation](https://img.shields.io/badge/docs-nvidia.com-76B900)](https://docs.nvidia.com/nemo/guardrails)
 
-> **LATEST RELEASE / DEVELOPMENT VERSION**: The [develop](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop) branch tracks the latest top of tree development. The latest released version is [0.24.1](https://github.com/NVIDIA-NeMo/Guardrails/tree/v0.24.1).
+[Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#check-a-tool-call) · [Use cases](#what-you-can-build) · [Capabilities](#nemo-guardrails-capabilities) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples)
 
-✨✨✨
+**NeMo Guardrails adds programmable safeguards to AI agents.** For agents that run commands, call APIs, query data, or access the web, define policies to validate inputs, outputs, tool calls, and tool results. Apply deterministic rules or model-based checks to detect jailbreak attempts, prompt injection, and unsafe tool use. Your application or agent harness invokes the checks at configured points in the workflow and enforces their results before continuing execution.
 
-📌 **The official NeMo Guardrails library documentation is available at [docs.nvidia.com/nemo/guardrails](https://docs.nvidia.com/nemo/guardrails).**
+To get started:
 
-✨✨✨
+```bash
+pip install nemoguardrails
+```
 
-NVIDIA NeMo Guardrails library is an open-source toolkit for easily adding *programmable guardrails* to LLM-based conversational applications. Guardrails (or "rails" for short) are specific ways of controlling the output of a large language model, such as not talking about politics, responding in a particular way to specific user requests, following a predefined dialog path, using a particular language style, extracting structured data, and more.
+> [!NOTE]
+> This README describes the development branch. The agent quickstart uses a source installation from `develop`. For a released package, refer to the documentation for your installed version. IORails and the proxy described below are experimental.
 
-[This paper](https://arxiv.org/abs/2310.10501) introduces the NeMo Guardrails library and contains a technical overview of the system and the current evaluation.
+## How It Works
 
-## Requirements
+Your agent calls Guardrails at the boundaries you want to check. For example, a tool-using agent can apply checks at four points:
 
-Python 3.10, 3.11, 3.12 or 3.13.
+```mermaid
+flowchart LR
+    Prompt[User prompt] --> Input[Input rails]
+    Input --> Model[Agent model]
+    Model --> Call[Tool-call rails]
+    Call --> Tool[Application executes tool]
+    Tool --> Result[Tool-result rails]
+    Result --> Model
+    Model --> Output[Output rails]
+    Output --> Answer[Answer to user]
+```
+
+Guardrails returns a verdict, and your application or agent harness enforces it.
+Execute a tool only after its call passes, and send a tool result to the model only after its checks pass.
+The checks API validates proposed tool calls; your application executes them.
+
+Configure tool rails and explicitly request `RailType.TOOL_CALL` or `RailType.TOOL_RESULT` in `check_async()`.
+Message-role detection does not select tool rails automatically.
+
+## Why NeMo Guardrails
+
+The library provides the following capabilities:
+
+- **Govern what agents do.** Configure IORails tool-call validation to check calls against declared tools and their argument schemas before execution. Configure tool-result validation and per-tool checks before returning results to the model.
+- **Keep your model and agent loop.** Use `check_async()` or the HTTP `/v1/checks` endpoint to run checks without invoking a main model. Model-backed rails still call their configured guard model or service.
+- **Choose checks for the task.** Tool validation, regex, and Common Expression Language (CEL) rules run locally without a model call. For supported configurations, IORails can also run rails in parallel or overlap input checks with generation using speculative mode. Speculative generation sends input to the model before the input checks finish, even if they later block it.
+- **Handle blocks and failures.** IORails returns blocked results for policy violations and rail execution failures, with different reasons. Errors carrying an upstream HTTP status propagate to the caller. Your application or hook configuration must handle both blocked results and errors before continuing execution.
+- **Compose the policy you need.** Combine deterministic checks with content safety, topic control, jailbreak detection, sensitive data masking, and other rails. Checks run where you configure and invoke them.
+- **Open and yours to run.** The library is Apache 2.0 licensed. Deploy it in your own application or run a guardrails service, choosing local detectors or hosted endpoints for each check.
 
 ## Installation
 
-To install using pip:
+The library supports Python 3.10–3.13. Optional integrations have their own extras, packages, and credentials. Refer to the [installation guide](https://docs.nvidia.com/nemo/guardrails/latest/get-started/installation-guide) for details.
+
+## Check a Tool Call
+
+Suppose a support agent can issue refunds, but each refund must be at most $500.
+This example validates the tool's arguments and applies that limit locally.
+It needs no model or API key.
+
+Use Python 3.11–3.13 for the optional `cel` extra. In an activated virtual environment, install the development version:
 
 ```bash
-> pip install nemoguardrails
+git clone --branch develop https://github.com/NVIDIA-NeMo/Guardrails.git
+cd Guardrails
+pip install -e ".[cel]"
 ```
 
-For more detailed instructions, see the [Installation Guide](https://docs.nvidia.com/nemo/guardrails/get-started/installation-guide).
-
-## Overview
-
-<!-- start-documentation-reuse -->
-
-The NeMo Guardrails library enables developers building LLM-based applications to add **programmable guardrails** between the application code and the LLM.
-
-<div align="center">
-  <img src="https://github.com/NVIDIA-NeMo/Guardrails/raw/develop/docs/_static/images/programmable_guardrails.png"  width="75%" alt="Programmable Guardrails">
-</div>
-
-Key benefits of adding *programmable guardrails* include:
-
-- **Building Trustworthy, Safe, and Secure LLM-based Applications:** you can define rails to guide and safeguard conversations; you can choose to define the behavior of your LLM-based application on specific topics and prevent it from engaging in discussions on unwanted topics.
-
-- **Connecting models, chains, and other services securely:** you can connect an LLM to other services (a.k.a. tools) seamlessly and securely.
-
-- **Controllable dialog**: you can steer the LLM to follow pre-defined conversational paths, allowing you to design the interaction following conversation design best practices and enforce standard operating procedures (e.g., authentication, support).
-
-<!-- end-documentation-reuse -->
-
-### Protecting against LLM Vulnerabilities
-
-The NeMo Guardrails library provides several mechanisms for protecting an LLM-powered chat application against common LLM vulnerabilities, such as jailbreaks and prompt injections. Below is a sample overview of the protection offered by different guardrails configuration for the example [ABC Bot](./examples/bots/abc) included in this repository. For more details, please refer to the [LLM Vulnerability Scanning](https://docs.nvidia.com/nemo/guardrails/evaluation/llm-vulnerability-scanning.html) page.
-
-<div align="center">
-<img src="https://github.com/NVIDIA-NeMo/Guardrails/raw/develop/docs/_static/images/abc-llm-vulnerability-scan-results.png" width="500">
-</div>
-
-### Use Cases
-
-You can use programmable guardrails in different types of use cases:
-
-1. **Question Answering** over a set of documents (a.k.a. Retrieval Augmented Generation): Enforce fact-checking and output moderation.
-2. **Domain-specific Assistants** (a.k.a. chatbots): Ensure the assistant stays on topic and follows the designed conversational flows.
-3. **LLM Endpoints**: Add guardrails to your custom LLM for safer customer interaction.
-4. **LangChain Chains** (optional): If you use LangChain for any use case, you can add a guardrails layer around your chains. To enable this integration, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`.
-
-### Usage
-
-To add programmable guardrails to your application you can use the Python API or a guardrails server (see the [Server Guide](https://docs.nvidia.com/nemo/guardrails/get-started/integrate-into-application) for more details). Using the Python API is similar to using the LLM directly. Calling the guardrails layer instead of the LLM requires only minimal changes to the code base, and it involves two simple steps:
-
-1. Loading a guardrails configuration and creating an `LLMRails` instance.
-2. Making the calls to the LLM using the `generate`/`generate_async` methods.
-
-```python
-from nemoguardrails import LLMRails, RailsConfig
-
-# Load a guardrails configuration from the specified path.
-config = RailsConfig.from_path("PATH/TO/CONFIG")
-rails = LLMRails(config)
-
-completion = rails.generate(
-    messages=[{"role": "user", "content": "Hello world!"}]
-)
-```
-
-Sample output:
-
-```json
-{"role": "assistant", "content": "Hi! How can I help you?"}
-```
-
-The input and output format for the `generate` method is similar to the [Chat Completions API](https://platform.openai.com/docs/guides/gpt/chat-completions-api) from OpenAI.
-
-#### Async API
-
-The NeMo Guardrails library is an async-first toolkit as the core mechanics are implemented using the Python async model. The public methods have both a sync and an async version. For example: `LLMRails.generate` and `LLMRails.generate_async`.
-
-### Supported LLMs
-
-You can use NeMo Guardrails with multiple LLMs like OpenAI GPT-3.5, GPT-4, LLaMa-2, Falcon, Vicuna, or Mosaic. For more details, check out the [Supported LLM Models](https://docs.nvidia.com/nemo/guardrails/about-nemo-guardrails-library/supported-llms) section in the Configuration Guide.
-
-### Types of Guardrails
-
-The NeMo Guardrails library supports five main types of guardrails:
-
-<div align="center">
-  <img src="https://github.com/NVIDIA-NeMo/Guardrails/raw/develop/docs/_static/images/programmable_guardrails_flow.png"  width="75%" alt="Programmable Guardrails Flow">
-</div>
-
-1. **Input rails**: applied to the input from the user; an input rail can reject the input, stopping any additional processing, or alter the input (e.g., to mask potentially sensitive data, to rephrase).
-
-2. **Dialog rails**: influence how the LLM is prompted; dialog rails operate on canonical form messages for details see [Colang Guide](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/colang)) and determine if an action should be executed, if the LLM should be invoked to generate the next step or a response, if a predefined response should be used instead, etc.
-
-3. **Retrieval rails**: applied to the retrieved chunks in the case of a RAG (Retrieval Augmented Generation) scenario; a retrieval rail can reject a chunk, preventing it from being used to prompt the LLM, or alter the relevant chunks (e.g., to mask potentially sensitive data).
-
-4. **Execution rails**: applied to input/output of the custom actions (a.k.a. tools), that need to be called by the LLM.
-
-5. **Output rails**: applied to the output generated by the LLM; an output rail can reject the output, preventing it from being returned to the user, or alter it (e.g., removing sensitive data).
-
-### Guardrails Configuration
-
-A guardrails configuration defines the **LLM(s)** to be used and **one or more guardrails**. A guardrails configuration can include any number of input/dialog/output/retrieval/execution rails. A configuration without any configured rails will essentially forward the requests to the LLM.
-
-The standard structure for a guardrails configuration folder looks like this:
-
-```
-.
-├── config
-│   ├── actions.py
-│   ├── config.py
-│   ├── config.yml
-│   ├── rails.co
-│   ├── ...
-```
-
-The `config.yml` contains all the general configuration options, such as LLM models, active rails, and custom configuration data". The `config.py` file contains any custom initialization code and the `actions.py` contains any custom python actions. For a complete overview, see the [Configuration Guide](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/configure-rails).
-
-Below is an example `config.yml`:
+Create `support-agent/config.yml`:
 
 ```yaml
-# config.yml
-models:
-  - type: main
-    engine: openai
-    model: gpt-3.5-turbo-instruct
+models: []
 
 rails:
-  # Input rails are invoked when new input from the user is received.
-  input:
+  tool_call:
     flows:
-      - check jailbreak
-      - mask sensitive data on input
-
-  # Output rails are triggered after a bot message has been generated.
-  output:
-    flows:
-      - self check facts
-      - self check hallucination
-      - activefence moderation on input
-
+      - tool call validation
+    per_tool:
+      issue_refund:
+        - cel check tool call
   config:
-    # Configure the types of entities that should be masked on user input.
-    sensitive_data_detection:
-      input:
-        entities:
-          - PERSON
-          - EMAIL_ADDRESS
+    cel:
+      tool_call:
+        issue_refund:
+          expressions:
+            - "args.amount > 500"
 ```
 
-The `.co` files included in a guardrails configuration contain the Colang definitions (see the next section for a quick overview of what Colang is) that define various types of rails. Below is an example `greeting.co` file which defines the dialog rails for greeting the user.
+A CEL expression that evaluates to `true` blocks the call. Save the following as `check_refund.py` beside the `support-agent` directory:
 
-```colang
-define user express greeting
-  "Hello!"
-  "Good afternoon!"
+```python
+import asyncio
+import json
 
-define flow
-  user express greeting
-  bot express greeting
-  bot offer to help
+from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.rails.llm.options import RailStatus, RailType
 
-define bot express greeting
-  "Hello there!"
+TOOLS = [{
+    "type": "function",
+    "function": {
+        "name": "issue_refund",
+        "parameters": {
+            "type": "object",
+            "properties": {"amount": {"type": "number", "minimum": 0}},
+            "required": ["amount"],
+            "additionalProperties": False,
+        },
+    },
+}]
 
-define bot offer to help
-  "How can I help you today?"
+
+async def main():
+    config = RailsConfig.from_path("./support-agent")
+    async with Guardrails(config, require_iorails=True) as rails:
+        for amount in (50, 5000):
+            call = {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "issue_refund",
+                        "arguments": json.dumps({"amount": amount}),
+                    },
+                }],
+            }
+            result = await rails.check_async(
+                [call], rail_types=[RailType.TOOL_CALL], tools=TOOLS
+            )
+            print(f"${amount}: {result.status.value}")
+            if result.status == RailStatus.PASSED:
+                print("Ready for the application to execute")
+
+
+asyncio.run(main())
 ```
 
-Below is an additional example of Colang definitions for a dialog rail against insults:
-
-```colang
-define user express insult
-  "You are stupid"
-
-define flow
-  user express insult
-  bot express calmly willingness to help
-```
-
-### Colang
-
-To configure and implement various types of guardrails, this toolkit introduces **Colang**, a modeling language specifically created for designing flexible, yet controllable, dialogue flows. Colang has a python-like syntax and is designed to be simple and intuitive, especially for developers.
-
-```{note}
-Two versions of Colang, 1.0 and 2.0, are supported and Colang 1.0 is the default.
-```
-
-For a brief introduction to the Colang 1.0 syntax, see the [Colang 1.0 Language Syntax Guide](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/colang).
-
-To get started with Colang 2.0, see the [Colang 2.0 Documentation](https://docs.nvidia.com/nemo/guardrails/colang-2/overview.html).
-
-### Guardrails Library
-
-NeMo Guardrails comes with a set of [built-in guardrails](https://docs.nvidia.com/nemo/guardrails/user-guides/guardrails-library.html).
-
-```{note}
-The built-in guardrails may or may not be suitable for a given production use case. As always, developers should work with their internal application team to ensure guardrails meets requirements for the relevant industry and use case and address unforeseen product misuse.
-```
-
-The library includes guardrails for LLM self-checking (input/output moderation, fact-checking, hallucination detection), NVIDIA safety models (content safety, topic safety), jailbreak and injection detection, and integrations with community models and third-party APIs. For the complete list, see the [Guardrails Library documentation](https://docs.nvidia.com/nemo/guardrails/user-guides/guardrails-library.html).
-
-## CLI
-
-The NeMo Guardrails library also comes with a built-in CLI.
+Run it from the repository root:
 
 ```bash
-$ nemoguardrails --help
-
-Usage: nemoguardrails [OPTIONS] COMMAND [ARGS]...
-
-actions-server    Start a NeMo Guardrails actions server.
-chat              Start an interactive chat session.
-evaluate          Run an evaluation task.
-server            Start a NeMo Guardrails server.
+python check_refund.py
 ```
 
-### Guardrails Server
+Expected output:
 
-You can use the NeMo Guardrails library CLI to start a guardrails server. The server can load one or more configurations from the specified folder and expose and HTTP API for using them.
-
-```
-nemoguardrails server [--config PATH/TO/CONFIGS] [--port PORT]
-```
-
-For example, to get a chat completion for a `sample` config, you can use the `/v1/chat/completions` endpoint:
-
-```
-POST /v1/chat/completions
+```text
+$50: passed
+Ready for the application to execute
+$5000: blocked
 ```
 
-```json
-{
-    "config_id": "sample",
-    "messages": [{
-      "role":"user",
-      "content":"Hello! What can you do for me?"
-    }]
-}
-```
+The script checks proposed calls without issuing a refund.
+In your agent loop, execute a tool only when the check passes.
+`require_iorails=True` makes an incompatible configuration raise an error instead of falling back to the legacy engine.
 
-Sample output:
+To extend the example, configure `rails.tool_result` and check returned tool messages with `RailType.TOOL_RESULT`.
+For complete configuration and result handling, refer to [tool calling](https://docs.nvidia.com/nemo/guardrails/latest/configure-guardrails/guardrail-catalog/tool-calling), [CEL rules](./docs/configure-rails/guardrail-catalog/cel.mdx), and [checking messages](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-python-apis/check-messages).
+You can also add [content safety](./docs/configure-rails/guardrail-catalog/content-safety.mdx) and [topic control](./docs/configure-rails/guardrail-catalog/topic-control.mdx) rails to check incoming prompts. Model-backed checks require a configured model and any credentials required by its provider.
 
-```json
-{"role": "assistant", "content": "Hi! How can I help you?"}
-```
+## What You Can Build
 
-#### Docker
+### A Shared Guardrails Service
 
-To start a guardrails server, you can also use a Docker container. The NeMo Guardrails library provides a [Dockerfile](./Dockerfile) that you can use to build a `nemoguardrails` image. For further information, see the [using Docker](https://docs.nvidia.com/nemo/guardrails/user-guides/advanced/using-docker.html) section.
+Run `nemoguardrails server` and send checks to `/v1/checks` while your applications call their models and execute their tools.
+The server can load multiple configurations, selected by `config_id`.
+To check tool calls and results, set `NEMO_GUARDRAILS_IORAILS_ENGINE=1` before starting the server, use a compatible configuration, and explicitly select the tool rail types in each request.
+Send tool data in the OpenAI Chat Completions shape.
+Refer to [checking messages with the server](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-python-apis/check-messages#guardrails-server).
 
-## Integration with LangChain (Optional)
+Alternatively, use `generate_async()` or `/v1/chat/completions` to send generation requests through Guardrails to a configured model.
+Built-in IORails tool validation for generation supports the `openai` and `nim` engines.
+Refer to [Python APIs](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-python-apis) and the [Guardrails API server](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-fastapi-server).
 
-LangChain integration is opt-in. To enable it, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`. Then install the LangChain packages your configuration requires. After you enable the integration, you can wrap a guardrails configuration around a LangChain chain (or any `Runnable`), and you can call a LangChain chain from within a guardrails configuration. For more information, refer to the [LangChain Integration Documentation](https://docs.nvidia.com/nemo/guardrails/user-guides/langchain/langchain-integration.html).
+### An Inference Gateway
 
-## Evaluation
+The [experimental proxy](./docs/run-rails/using-proxy/index.mdx) adds checks at the HTTP boundary between clients and model services.
+Its current built-in profiles inspect supported text requests and responses.
+They do not cover tool traffic, conversation histories, or multimodal content.
+Review the [provider and streaming coverage](./docs/run-rails/using-proxy/providers-and-streaming.mdx) before connecting an application.
 
-Evaluating the safety of a LLM-based conversational application is a complex task and still an open research question. To support proper evaluation, the NeMo Guardrails library provides the following:
+### Coding Agents and Harnesses
 
-1. An [evaluation tool](nemoguardrails/evaluate/README.md), i.e. `nemoguardrails evaluate`, with support for topical rails, fact-checking, moderation (jailbreak and output moderation) and hallucination.
-2. Sample LLM Vulnerability Scanning Reports, e.g, [ABC Bot - LLM Vulnerability Scan Results](https://docs.nvidia.com/nemo/guardrails/evaluation/llm-vulnerability-scanning.html)
+Use `nemoguardrails hooks-server` with Claude Code or Codex to check `PreToolUse` calls before the agent runs them.
+A NeMo Relay plugin can also forward its tool conditional-execution checks to `/v1/hooks/nemo-relay`.
+The hooks server checks tool calls only. It does not check prompts, tool results, or final answers.
 
-## How is this different?
+Start with the [hooks examples](./examples/configs/agent_hooks) and [hooks server guide](./docs/run-rails/using-hooks-server/index.mdx). Configure the agent's failure behavior to block tool execution when a hook check cannot complete, and combine hooks with the agent's own permissions and sandboxing.
 
-There are many ways guardrails can be added to an LLM-based conversational application. For example: explicit moderation endpoints (e.g., OpenAI, ActiveFence, PolicyAI), critique chains (e.g. constitutional chain), parsing the output (e.g. guardrails.ai), individual guardrails (e.g., LLM-Guard), hallucination detection for RAG applications (e.g., Got It AI, Patronus Lynx).
+### An Agent Platform or Framework
 
-The NeMo Guardrails library aims to provide a flexible toolkit that can integrate all these complementary approaches into a cohesive LLM guardrails layer. For example, the toolkit provides out-of-the-box integration with ActiveFence, PolicyAI, AlignScore and LangChain chains.
+Embed `Guardrails.check_async()` in a custom agent loop to check prompts, tool calls, tool results, and answers at the boundaries your application invokes. Tool checks require IORails and Chat Completions tool and message shapes.
 
-To the best of our knowledge, the NeMo Guardrails library is the only guardrails toolkit that also offers a solution for modeling the dialog between the user and the LLM. This enables on one hand the ability to guide the dialog in a precise way. On the other hand it enables fine-grained control for when certain guardrails should be used, e.g., use fact-checking only for certain types of questions.
+For LangChain agents, [GuardrailsMiddleware](./docs/integration/langchain/agent-middleware.mdx) applies configured input and output rails around model calls.
+Those text rails do not inspect tool-call arguments or tool-result content.
+The `RunnableRails` integration can wrap LangChain chains and runnables.
+Both integrations require LangChain packages.
+To load configured models through LangChain providers, select that framework with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` or `set_default_framework("langchain")`.
+Refer to [LangChain integration](https://docs.nvidia.com/nemo/guardrails/latest/integration-with-third-party-libraries/langchain/langchain-integration).
 
-## Learn More
+The Guardrails API server, hooks server, and experimental proxy are separate applications with different configuration requirements. Server installations require the `server` extra.
 
-- [Documentation](https://docs.nvidia.com/nemo/guardrails)
-- [Getting Started Guide](https://docs.nvidia.com/nemo/guardrails/getting-started)
-- [Examples](./examples)
-- [FAQs](https://docs.nvidia.com/nemo/guardrails/faqs.html)
-- [Security Guidelines](https://docs.nvidia.com/nemo/guardrails/security/guidelines.html)
+## NeMo Guardrails Capabilities
+
+Use the following capabilities to configure checks at the boundaries your application or agent harness invokes:
+
+- **Validate tool calls.** [Check declared tools and argument schemas with configured IORails tool-call rails](./docs/configure-rails/guardrail-catalog/tool-calling.mdx#tool-call-validation). Your application enforces the result before execution.
+- **Check tool results.** [Validate linkage to an earlier tool call and the result structure](./docs/configure-rails/guardrail-catalog/tool-calling.mdx#tool-result-validation). Add [per-tool model-judged checks](./docs/configure-rails/guardrail-catalog/tool-safety-check.mdx) for your safety instructions.
+- **Apply deterministic rules.** Configure local [tool validation](./docs/configure-rails/guardrail-catalog/tool-calling.mdx), [regex checks](./docs/configure-rails/guardrail-catalog/community/regex.mdx), and [CEL expressions](./docs/configure-rails/guardrail-catalog/cel.mdx).
+- **Connect coding agents.** Use the [hooks server](./docs/run-rails/using-hooks-server/overview.mdx#supported-agents) for Claude Code and Codex pre-tool checks or a NeMo Relay plugin's tool-check integration.
+- **Run checks without generation.** Use [Python checks or the HTTP checks endpoint](./docs/run-rails/using-python-apis/check-messages.mdx) without invoking a main model. Model-backed rails still call their configured model or service.
+- **Define policy in configuration files.** Configure [models, prompts, and rails in YAML](./docs/configure-rails/configuration-reference.mdx).
+- **Choose the deployment environment.** Embed the [Python library](./docs/run-rails/using-python-apis/overview.mdx) or run the [self-hosted API server](./docs/run-rails/using-fastapi-server/overview.mdx).
+- **Configure model providers.** Select [supported engines and compatible inference endpoints](./docs/about/supported-llms.mdx) for your configuration.
+
+## Guardrail Catalog
+
+The following table lists example checks at each checkpoint:
+
+| Checkpoint | Rail Type | Example Checks |
+| --- | --- | --- |
+| Prompt in | `input` | Content safety, topic control, jailbreak and prompt-injection detection, sensitive data detection and masking |
+| Tool call out | `tool_call` | Declared-tool allowlist, JSON Schema validation, per-tool regex, CEL rules, and model-backed tool safety checks |
+| Tool result in | `tool_result` | Linkage to a prior call, result shape and name validation, per-tool regex, CEL rules, and model-backed tool safety checks |
+| Answer out | `output` | Content safety, fact-checking, hallucination detection, sensitive data detection and masking |
+| Retrieval | `retrieval` | Filter or mask retrieved content before it enters a model's context |
+
+Use the LLMRails engine for Colang dialog flows and registered Python actions.
+Rail support varies by engine. Refer to [rail engine support](https://docs.nvidia.com/nemo/guardrails/latest/reference/rail-engine-support) when choosing or combining checks.
+
+The [guardrail catalog](https://docs.nvidia.com/nemo/guardrails/latest/configure-guardrails/guardrail-catalog) covers NVIDIA safety models, community models, and third-party integrations. These include ActiveFence, AutoAlign, Cisco AI Defense, Clavata, Cleanlab, CrowdStrike AIDR, F5, Fiddler, GCP Text Moderation, GLiNER, Guardrails AI, Pangea, Patronus Lynx, PolicyAI, Polygraf, Private AI, Prompt Security, and Trend Micro. Each integration has its own setup requirements. The [examples](./examples) show configurations for individual rails and integrations.
+
+> [!IMPORTANT]
+> Built-in guardrails might not suit every production use case. Work with your application and security teams to verify that your guardrails meet your requirements.
+
+Evaluate your policy against representative allowed and blocked requests before deployment.
+For testing and deployment guidance, refer to the [evaluation guide](https://docs.nvidia.com/nemo/guardrails/latest/evaluation) and [security guidelines](https://docs.nvidia.com/nemo/guardrails/latest/resources/guidelines).
 
 ## Telemetry and Privacy
 
-The NVIDIA NeMo Guardrails library collects anonymous telemetry to help NVIDIA understand which deployment patterns and safety features are most used. The library emits one usage event when you instantiate `LLMRails`, `IORails`, or `Guardrails`, then emits periodic heartbeats from a single daemon thread per process. This telemetry is separate from per-request [tracing](https://docs.nvidia.com/nemo/guardrails/latest/observability/tracing/index.html). You configure tracing in your guardrails config and send it to your own observability backend. Telemetry is a minimal anonymous ping to NVIDIA.
+Unless opted out, the library sends anonymous usage events when a rails engine is instantiated and through periodic heartbeats. Event payloads include the library version, platform, configured engine names, rail categories and built-in features, and deployment mode. They exclude prompts, completions, model names, credentials, and endpoints. Per-request tracing is configured separately.
 
-### Community usage snapshot
-
-Aggregate anonymous usage across exact `0.22.0` and `0.23.0` release builds, May 22–August 18, 2026:
-
-![Sessions by rail type](docs/_static/images/community-telemetry/sessions-by-rail-type.png)
-
-![Sessions by built-in feature](docs/_static/images/community-telemetry/sessions-by-built-in-feature.png)
-
-![Configured rails at startup](docs/_static/images/community-telemetry/configured-rails-at-startup.png)
-
-_Last updated on August 18, 2026_
-
-The telemetry includes:
-
-- Installed library version, Python version, operating system, and platform string
-- Colang configuration language version (1.0 or 2.x)
-- Names of configured LLM engine providers, such as `openai`, `nim`, or `nvidia_ai_endpoints`, never model names or credentials
-- Counts of configured rail flows for input, output, retrieval, tool call, and tool result rails, plus which rail categories are active
-- Names of built-in library features that are active, such as `jailbreak_detection`, `content_safety`, or `topic_safety`
-- Count of user-defined Colang flows (count only, never flow names or contents)
-- Whether tracing, streaming, or a knowledge base is configured
-- How you deployed guardrails (`library`, `api`, or `cli` server)
-- Which runtime rails engine is in use (`LLMRails` or `IORails`)
-- A random per-process UUID for correlating events from the same instance. The library generates it in memory and does not store it for reuse across restarts, but includes it in audit records and transmitted telemetry events
-
-No user content is collected in the event payload. The payload does not include model names, API keys, endpoints, prompts, completions, token counts, per-request metrics, file paths, usernames, or IP addresses. NVIDIA uses the data in aggregate to prioritize engineering work and will share adoption trends with the community.
-
-The library also attempts to write each event payload to a local audit file at `~/.config/nemoguardrails/usage_stats.json`. The audit file stores the event JSONL, not the full NVIDIA telemetry envelope. Audit writes are best effort, and telemetry transmission still proceeds if local audit writing fails.
-
-Set any one of the following options to disable telemetry:
+To opt out, set either environment variable before starting the library:
 
 ```bash
 export NEMO_GUARDRAILS_NO_USAGE_STATS=1
-# or
-export DO_NOT_TRACK=1
-# or
-mkdir -p ~/.config/nemoguardrails && touch ~/.config/nemoguardrails/do_not_track
+# Or: export DO_NOT_TRACK=1
 ```
 
-Set the opt-out before the NVIDIA NeMo Guardrails library starts. Changing environment variables or creating `do_not_track` after telemetry has started does not stop an already-running heartbeat thread.
+Refer to [telemetry and privacy](https://docs.nvidia.com/nemo/guardrails/latest/resources/telemetry) for the full schema, local audit file, and opt-out options.
 
-Refer to [docs/telemetry.md](https://docs.nvidia.com/nemo/guardrails/latest/telemetry.html) for the full schema and field-by-field descriptions.
+Model providers and remote guardrail integrations can receive prompt or response content at their configured endpoints. These environment variables disable the library's usage reporting; they do not disable those service calls. Review each provider's privacy terms separately.
 
-You may opt out of telemetry collection at any time. Opting out applies only to data collection by the NVIDIA NeMo Guardrails library itself.
+## Contributing and Support
 
-Third-party endpoints have separate terms and privacy practices. The NVIDIA NeMo Guardrails library can use inference endpoints such as NVIDIA Build (`build.nvidia.com`). If you use NVIDIA Build or another third-party endpoint, that endpoint's terms of service and privacy practices apply independently of the library. Any telemetry opt-out in the NVIDIA NeMo Guardrails library does not extend to the endpoint you choose. NVIDIA Build is intended for evaluation and testing only and must not be used in production environments. Do not submit confidential information or personal data when using NVIDIA Build.
+Refer to [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, issue assignment, validation, and pull request requirements, and [AI_POLICY.md](./AI_POLICY.md) for AI-assisted contributions. Ask usage questions in [GitHub Discussions](https://github.com/NVIDIA-NeMo/Guardrails/discussions).
 
-## Inviting the community to contribute
+## License and Citation
 
-The example rails residing in the repository are excellent starting points. We enthusiastically invite the community to contribute towards making the power of trustworthy, safe, and secure LLMs accessible to everyone. For guidance on setting up a development environment and how to contribute to the NeMo Guardrails library, see the [contributing guidelines](./CONTRIBUTING.md).
+The library is licensed under the [Apache License, Version 2.0](./LICENSE-Apache-2.0.txt).
 
-## License
-
-The NeMo Guardrails library is licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0).
-
-## How to cite
-
-If you use the NeMo Guardrails library, cite the [EMNLP 2023 paper](https://aclanthology.org/2023.emnlp-demo.40) that introduces it.
+If you use the NVIDIA NeMo Guardrails library in research, cite the [EMNLP 2023 paper](https://aclanthology.org/2023.emnlp-demo.40):
 
 ```bibtex
 @inproceedings{rebedea-etal-2023-nemo,
