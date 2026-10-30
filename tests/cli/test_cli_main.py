@@ -207,6 +207,31 @@ class TestServerCommand:
         expected_path = os.path.join("/current/dir", "config")
         assert mock_app.rails_config_path == expected_path
 
+    def test_server_config_reaches_the_startup_load(self, tmp_path, monkeypatch):
+        """The --config path, with its trailing separator stripped, reaches the served app's startup, which loads the single config."""
+        from fastapi.testclient import TestClient
+
+        from nemoguardrails.server import api
+
+        config_path = tmp_path / "my_config"
+        config_path.mkdir()
+        (config_path / "config.yml").write_text("models:\n  - type: main\n    engine: openai\n    model: gpt-4o-mini\n")
+        # The CLI overwrites the global app's path; this restores it afterwards.
+        monkeypatch.setattr(api.app, "rails_config_path", api.app.rails_config_path)
+        loaded = {}
+
+        def run_startup(server_app, **kwargs):
+            with TestClient(server_app):
+                loaded["config_id"] = server_app.single_config_id
+                loaded["config"] = server_app.single_config
+
+        with patch("uvicorn.run", side_effect=run_startup):
+            result = runner.invoke(app, ["server", f"--config={config_path}{os.sep}"])
+
+        assert result.exit_code == 0, result.exception
+        assert loaded["config_id"] == "my_config"
+        assert loaded["config"].models[0].model == "gpt-4o-mini"
+
     @patch("uvicorn.run")
     @patch("nemoguardrails.server.api.app")
     def test_server_with_disable_chat_ui(self, mock_app, mock_uvicorn):
