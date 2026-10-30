@@ -1,6 +1,6 @@
 ---
 title: "Check NeMo Relay Tool Calls with the Hooks Server"
-sidebar-title: "NeMo Relay"
+sidebar-title: "NeMo Relay Endpoint"
 description: "The /v1/hooks/nemo-relay endpoint of the Guardrails hooks server, for a NeMo Relay plugin's tool conditional-execution guardrail."
 keywords: ["NeMo Relay", "tool conditional-execution guardrail", "nemoguardrails hooks-server", "/v1/hooks/nemo-relay", "NemoRelayToolConditionalExecutionGuardrail"]
 content:
@@ -10,6 +10,7 @@ content:
 [NeMo Relay](https://github.com/NVIDIA/NeMo-Relay) plugins can register a tool conditional-execution guardrail, which Relay runs before each tool call it manages, with the tool's name and arguments.
 A plugin can forward that check to the Guardrails hooks server (`nemoguardrails hooks-server`) at `/v1/hooks/nemo-relay`, so the hooks server's tool policy and per-tool rails decide whether the call runs.
 This page describes the endpoint such a plugin calls.
+To install the plugin that calls this endpoint, refer to [Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin).
 
 For how Relay runs these guardrails, refer to [conditional execution](https://github.com/NVIDIA/NeMo-Relay/blob/494018ac4d6abb0085853a02f4b6d75a75ff7049/docs/about-nemo-relay/concepts/middleware.mdx?plain=1#L235) in the NeMo Relay documentation.
 
@@ -74,15 +75,18 @@ The plugin returns the hooks server's answer as the guardrail callback's result:
 |---|---|---|
 | `200` with `"decision": "allow"` | `Ok(None)` | Runs the tool |
 | `200` with `"decision": "deny"` | `Ok(Some(reason))` | Rejects the call with the reason |
-| Any other status, a timeout, or a failed connection | `Err` | Treats the guardrail as failed; what happens to the call depends on the integration |
+| Any other status, an invalid decision body, a timeout, or a failed connection | `Err` | Treats the guardrail as failed; what happens to the call depends on the integration |
 
 Map every failure to `Err`, never to `Ok(None)`, so the plugin never reports a check that could not finish as an allow.
 What Relay then does with the call depends on the integration that runs the agent:
 
 - Relay's Claude Code and Codex integrations block the call on `Err` from Relay 0.10.1.
-  The agent sees Relay's own error text, not the plugin's.
-- Relay's pi extension treats `Err` as a fault, and by default, with `NEMO_RELAY_PI_FAIL=open`, lets the call run.
-  To block it, change that setting as described in the NeMo Relay documentation.
+  Through the Relay CLI's gateway, the agent receives the plugin's error inside Relay's message.
+  Through the managed Relay daemon, the agent receives only Relay's own message.
+  Refer to [Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin: Find the Reason for a Failed Check](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin#find-the-reason-for-a-failed-check).
+- Relay's standalone pi extension treats `Err` as a fault and lets the call run by default, with `NEMO_RELAY_PI_FAIL=open`.
+  Set `NEMO_RELAY_PI_FAIL=closed` to block the call.
+- Relay's managed pi extension blocks the call on `Err` and does not use `NEMO_RELAY_PI_FAIL`.
 
 ## Tool Names
 
@@ -98,6 +102,7 @@ Account for the following sources of duplicate checks:
 - **Relay 0.10 checks some calls twice.**
   Through the 0.10 releases, Relay also runs the guardrail on Claude Code's and Codex's `PermissionRequest` event.
   A call that reaches a permission prompt then costs two requests to the hooks server, and two runs of any rail that calls a model.
+  When the second check allows the call, Relay also approves Claude Code's permission prompt, so Claude Code does not ask the user.
 
 ## Related Topics
 

@@ -8,6 +8,8 @@ Before each tool call that Relay manages, the plugin posts the tool's name and a
 A deny from the service becomes a guardrail rejection, and a check that fails (an error status, a timeout, a service that can't be reached) becomes an error.
 Relay blocks the call on either, from 0.10.1 on, with one exception: on an error, pi's extension lets the call run unless `NEMO_RELAY_PI_FAIL=closed` is set.
 
+To install and configure the plugin, refer to [Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin](./../../docs/run-rails/using-hooks-server/nemo-relay-plugin.mdx).
+
 ## Checks
 
 The plugin registers one tool conditional-execution guardrail, `nemo_guardrails_tool_call_check`, at the configured `priority`.
