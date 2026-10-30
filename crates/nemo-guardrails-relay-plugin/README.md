@@ -23,8 +23,8 @@ A managed call gets the rejection or the error from Relay as is.
 In the CLI's hook modes, an agent can see Relay's own text for a failed check instead, such as `daemon hook forward failed with HTTP 500`.
 So the plugin also logs each failed check as a warning, under the log target `nemo_relay.plugin.native.nvidia.nemo_guardrails`.
 Its message is the error text, and its fields are `event` (`nemo_guardrails_check_failed`), `tool_name`, `status` and `error_code`.
-The plugin adds no header value and none of the tool's arguments to the error text or the warning.
-A failed check's detail does repeat the `error.code` and message of the answer, which the service, or a proxy in front of it, chose.
+The plugin adds none of its configured header values and none of the tool's arguments to the error text or the warning.
+A failed check's detail does repeat text from the answer, which the service, or a proxy in front of it, chose: its `error.code` and message, and for a `503` with `queue_full`, its `Retry-After` header.
 
 The plugin checks every call; it keeps no earlier decisions.
 On the Relay releases the plugin supports, Relay runs the guardrail once for each tool call, so the plugin sends one request to the service per call.

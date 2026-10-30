@@ -142,7 +142,7 @@ async fn every_call_is_checked() {
 }
 
 /// A failed check logs one warning with its event, status and error code, with or without an
-/// answer from the service, and never a header value or the tool's arguments.
+/// answer from the service, and never a configured header value or the tool's arguments.
 #[tokio::test]
 async fn failed_check_logs_a_warning() {
     let _host = HOST.lock().await;

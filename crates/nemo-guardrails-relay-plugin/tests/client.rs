@@ -481,7 +481,8 @@ async fn unreachable_server_fails_with_the_transport_error() {
     );
 }
 
-/// Neither a failure nor the client's debug output repeats a header value or the tool's arguments.
+/// Neither a failure nor the client's debug output repeats a configured header value or the tool's
+/// arguments.
 #[tokio::test]
 async fn failures_never_repeat_header_values_or_arguments() {
     let erroring = hooks_server(envelope(
