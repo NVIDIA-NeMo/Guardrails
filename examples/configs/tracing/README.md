@@ -174,7 +174,7 @@ from nemoguardrails import LLMRails, RailsConfig
 
 config = RailsConfig.from_content(
     config={
-        "models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo-instruct"}],
+        "models": [{"type": "main", "engine": "openai", "model": "gpt-6-luna"}],
         "tracing": {
             "enabled": True,
             "adapters": [{"name": "OpenTelemetry"}]

@@ -24,7 +24,8 @@ from langchain_openai import ChatOpenAI
 from nemoguardrails.integrations.langchain.middleware import GuardrailsMiddleware
 
 guardrails = GuardrailsMiddleware(config_path="path/to/config")
-model = ChatOpenAI(model="gpt-4o")
+# gpt-6-luna accepts function tools in Chat Completions only with reasoning_effort="none".
+model = ChatOpenAI(model="gpt-6-luna", reasoning_effort="none")
 
 agent = create_agent(model, tools=[...], middleware=[guardrails])
 result = agent.invoke({"messages": [{"role": "user", "content": "Hello!"}]})

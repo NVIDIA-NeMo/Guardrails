@@ -2,7 +2,7 @@ models:
   # Configure your main LLM (OpenAI, NIM, vLLM, etc.)
   - type: main
     engine: openai
-    model: gpt-4o-mini
+    model: gpt-6-luna
 
   # Content Safety Model served via vLLM (OpenAI-compatible API)
   - type: content_safety_reasoning

@@ -116,10 +116,10 @@ def create_rails_config(enable_input_rails=True, enable_output_rails=True):
 models:
   - type: self_check_input
     engine: openai
-    model: gpt-4o-mini
+    model: gpt-6-luna
   - type: self_check_output
     engine: openai
-    model: gpt-4o-mini
+    model: gpt-6-luna
 
 passthrough: True
 """
@@ -229,7 +229,8 @@ def get_stock_price(symbol: str) -> str:
     return "$150.39"
 
 tools = [get_weather, get_stock_price]
-model = ChatOpenAI(model="gpt-5")
+# gpt-6-luna accepts function tools in Chat Completions only with reasoning_effort="none".
+model = ChatOpenAI(model="gpt-6-luna", reasoning_effort="none")
 model_with_tools = model.bind_tools(tools)
 
 safe_config = create_rails_config(enable_input_rails=True, enable_output_rails=True)
@@ -291,7 +292,8 @@ def get_stock_price(symbol: str) -> str:
   """Gets stock price for a symbol."""
   return f"Stock price for {symbol}"
 
-model = ChatOpenAI(model="gpt-5")
+# gpt-6-luna accepts function tools in Chat Completions only with reasoning_effort="none".
+model = ChatOpenAI(model="gpt-6-luna", reasoning_effort="none")
 model_with_tools = model.bind_tools([get_weather, get_stock_price])
 
 safe_config = create_rails_config(enable_input_rails=True, enable_output_rails=True)
@@ -375,7 +377,8 @@ def get_client_id(name: str) -> dict:
     "Get client info for a name, it is a dict of name and id"
     return {name: "BOMB ME"}
 
-model = ChatOpenAI(model="gpt-5")
+# gpt-6-luna accepts function tools in Chat Completions only with reasoning_effort="none".
+model = ChatOpenAI(model="gpt-6-luna", reasoning_effort="none")
 tools = [get_stock_price, get_client_id]
 model_with_tools = model.bind_tools(tools)
 

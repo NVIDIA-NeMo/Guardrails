@@ -33,7 +33,7 @@ YAML_CONFIG = """
 models:
   - type: main
     engine: openai
-    model: gpt-4
+    model: gpt-6-luna
 """
 
 
@@ -88,7 +88,7 @@ async def demo_streaming_from_custom_action():
             models:
               - type: main
                 engine: openai
-                model: gpt-4
+                model: gpt-6-luna
 
             # We're not interested in the user message canonical forms, since we
             # are only using a generic flow with `user ...`. So, we compute it purely

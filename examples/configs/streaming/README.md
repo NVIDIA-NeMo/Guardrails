@@ -6,7 +6,7 @@ This is an example configuration that uses streaming. To activate streaming supp
 streaming: True
 ```
 
-**NOTE**: This configuration uses OpenAI GPT-4. If you don't have access to GPT-4, feel free to use `gpt-3.5-turbo-instruct` (or `text-davinci-003` until deprecation) as well.
+**NOTE**: This configuration uses the OpenAI `gpt-6-luna` model. You can replace it with any other chat model you have access to.
 
 ## Testing
 

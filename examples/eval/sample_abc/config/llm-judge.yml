@@ -2,7 +2,7 @@
 models:
   - type: llm-judge
     engine: openai
-    model: gpt-4
+    model: gpt-6-luna
 
   - type: llm-judge
     engine: nvidia_ai_endpoints

@@ -3,7 +3,7 @@ models:
     engine: nim
     model: deepseek-ai/deepseek-r1
   - type: self_check_output
-    model: gpt-4o-mini
+    model: gpt-6-luna
     engine: openai
 
 rails:

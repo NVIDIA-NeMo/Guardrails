@@ -164,7 +164,7 @@ When usage is absent, no observation is recorded; "no observation" is deliberate
 | `rail.type` | `guardrails.requests.blocked` | `Input`, `Output` | Identifies whether an input or output rail blocked the request. Matches the `rail.type` span attribute. |
 | `gen_ai.operation.name` | All `gen_ai.client.*` | For example `chat`, `completion`, `embedding` | OpenTelemetry GenAI operation name. |
 | `gen_ai.provider.name` | All `gen_ai.client.*` | For example `openai`, `anthropic` | OpenTelemetry GenAI provider name. |
-| `gen_ai.request.model` | All `gen_ai.client.*` | For example `gpt-4o-mini` | The model name passed in the request. |
+| `gen_ai.request.model` | All `gen_ai.client.*` | For example `gpt-6-luna` | The model name passed in the request. |
 | `gen_ai.token.type` | `gen_ai.client.token.usage` | `input`, `output` | Required label per spec. |
 | `http.request.method` | `http.client.request.duration` | Uppercase HTTP method | For example `GET` or `POST`. |
 | `server.address` | `http.client.request.duration` | Destination host | Excludes credentials and port. |

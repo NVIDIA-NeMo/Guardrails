@@ -77,12 +77,12 @@ The following example shows how to configure the OpenAI model as the main applic
 models:
   - type: main
     engine: openai
-    model: gpt-4o
+    model: gpt-6-luna
 ```
 
 ### OpenAI Responses API
 
-Use the [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses) (`/v1/responses`) when an OpenAI model or option requires it. For example, some models, such as `gpt-5-pro`, require the Responses API, and recent OpenAI models support options such as `reasoning_effort` through the Responses API.
+Use the [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses) (`/v1/responses`) when an OpenAI model or option requires it. For example, `gpt-6-luna` supports function calling with reasoning enabled only through the Responses API, and recent OpenAI models support options such as `reasoning_effort` through the Responses API.
 
 The NVIDIA NeMo Guardrails library supports this option through the LangChain framework. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`, install `langchain-openai`, and set `use_responses_api: true` in the model's `parameters` block:
 
@@ -90,7 +90,7 @@ The NVIDIA NeMo Guardrails library supports this option through the LangChain fr
 models:
   - type: main
     engine: openai
-    model: gpt-4o
+    model: gpt-6-luna
     parameters:
       use_responses_api: true
 ```
@@ -278,12 +278,13 @@ Pass additional parameters to the underlying LLM client. For engines served by t
 models:
   - type: main
     engine: openai
-    model: gpt-4
+    model: gpt-6-luna
     parameters:
-      temperature: 0.7
       max_tokens: 1000
-      top_p: 0.9
+      reasoning_effort: low
 ```
+
+OpenAI reasoning models, such as `gpt-6-luna`, reject `top_p` and any `temperature` other than the default. For these models, the built-in client drops `temperature` and `stop` and sends `max_tokens` as `max_completion_tokens`.
 
 Common parameters vary by provider. For built-in engines, see the OpenAI-compatible client options. For LangChain engines, refer to the corresponding LangChain provider documentation.
 

@@ -112,7 +112,7 @@ class Model(BaseModel):
     {
         "type": "main",
         "engine": "openai",
-        "model": "gpt-3.5-turbo-instruct"
+        "model": "gpt-6-luna"
     }
     """
 
@@ -1093,7 +1093,7 @@ class RailsConfig(BaseModel):
         description="The lowest temperature that should be used for the LLM.",
     )
 
-    # This should only be enabled for highly capable LLMs i.e. gpt-3.5-turbo-instruct or similar.
+    # This should only be enabled for highly capable LLMs that reliably follow the multi-line output format.
     enable_multi_step_generation: Optional[bool] = Field(
         default=False,
         description="Whether to enable multi-step generation for the LLM.",

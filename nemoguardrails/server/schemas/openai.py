@@ -252,7 +252,7 @@ class OpenAIChatCompletionRequest(BaseModel):
     )
     model: str = Field(
         ...,
-        description="The LLM model to use for chat completion (e.g., 'gpt-4o', 'llama-3.1-8b').",
+        description="The LLM model to use for chat completion (e.g., 'gpt-6-luna', 'llama-3.1-8b').",
     )
     stream: Optional[bool] = Field(
         default=False,
