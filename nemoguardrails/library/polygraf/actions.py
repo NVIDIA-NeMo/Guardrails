@@ -287,8 +287,21 @@ async def polygraf_mask_pii(
         log.warning("Polygraf returned a malformed selected entity; replacing payload with redaction placeholder.")
         return _mask_outcome(source, text, FAILSAFE_MASK_PLACEHOLDER)
 
+    # Merge overlapping or nested spans so each character is masked once.
+    # Replacing them independently lets an earlier replacement shift the text
+    # under a later span, leaking raw characters. The longest span's type wins.
+    merged: List[List[Any]] = []  # [start, end, entity_type, type_span_length]
+    for start, end, entity_type in sorted(safe_spans, key=lambda x: (x[0], -x[1])):
+        if merged and start < merged[-1][1]:
+            region = merged[-1]
+            region[1] = max(region[1], end)
+            if end - start > region[3]:
+                region[2], region[3] = entity_type, end - start
+        else:
+            merged.append([start, end, entity_type, end - start])
+
     masked_text = text
-    for start, end, entity_type in sorted(safe_spans, key=lambda x: x[0], reverse=True):
+    for start, end, entity_type, _ in reversed(merged):
         masked_text = masked_text[:start] + f"<{entity_type}>" + masked_text[end:]
 
     return _mask_outcome(source, text, masked_text)

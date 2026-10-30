@@ -728,6 +728,83 @@ async def test_gliner_mask_pii_forwards_resolved_api_key():
     assert mock_request.await_args.kwargs["api_key"] == "sentinel-api-key"
 
 
+def _span(text: str, value: str, label: str) -> dict:
+    """Build a GLiNER entity dict for the first occurrence of ``value`` in ``text``."""
+    start = text.index(value)
+    return {
+        "value": value,
+        "suggested_label": label,
+        "start_position": start,
+        "end_position": start + len(value),
+        "score": 0.9,
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "text, spans, expected",
+    [
+        pytest.param(
+            "SSN on file: 123-45-6789 (call back)",
+            [("123-45-6789", "ssn"), ("45", "number")],
+            "SSN on file: [SSN] (call back)",
+            id="nested",
+        ),
+        pytest.param(
+            "Ship to 12 Elm St, Austin TX 78701 today",
+            [("12 Elm St, Austin TX 78701", "street_address"), ("TX", "state")],
+            "Ship to [STREET_ADDRESS] today",
+            id="nested-near-end",
+        ),
+        pytest.param(
+            "Wire to account 12345678 routing 021000021",
+            [("12345678", "account_number"), ("5678 routing 021000021", "bank_routing_number")],
+            "Wire to account [BANK_ROUTING_NUMBER]",
+            id="partial-overlap",
+        ),
+        pytest.param(
+            "Email jane@example.com today",
+            [("jane@example.com", "email"), ("jane@example.com", "email")],
+            "Email [EMAIL] today",
+            id="duplicate",
+        ),
+        pytest.param(
+            "Call Jane Doe Smith now",
+            [("Jane Doe", "first_name"), ("Doe Smith", "last_name"), ("Jane Doe Smith", "name")],
+            "Call [NAME] now",
+            id="multiple-nested",
+        ),
+        pytest.param(
+            "Call Jane Doe Smith Jr now",
+            [("Jane Doe", "first_name"), ("Doe Smith", "last_name"), ("Smith Jr", "suffix_name")],
+            "Call [LAST_NAME] now",
+            id="chained-overlap",
+        ),
+        pytest.param(
+            "Hi JaneDoe",
+            [("Jane", "first_name"), ("Doe", "last_name")],
+            "Hi [FIRST_NAME][LAST_NAME]",
+            id="adjacent-not-merged",
+        ),
+    ],
+)
+async def test_gliner_mask_pii_overlapping_spans_do_not_leak(text, spans, expected):
+    """Nested or overlapping spans (flat_ner=False) must not leave original characters behind."""
+    config = _build_gliner_config_for_api_key_tests(api_key_env_var=None)
+    entities = [_span(text, value, label) for value, label in spans]
+
+    with patch(
+        "nemoguardrails.library.gliner.actions.gliner_request",
+        new=AsyncMock(return_value={"entities": entities, "total_entities": len(entities)}),
+    ):
+        from nemoguardrails.library.gliner.actions import gliner_mask_pii
+
+        outcome = await gliner_mask_pii(source="input", text=text, config=config)
+
+    assert outcome.metadata["masked_text"] == expected
+
+
 NIM_ENDPOINT = "http://localhost:8000/v1/chat/completions"
 CUSTOM_ENDPOINT = "http://localhost:1235/v1/extract"
 
