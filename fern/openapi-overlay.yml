@@ -91,6 +91,9 @@ actions:
 
       The request shape is compatible with the OpenAI Chat Completions API and
       accepts Guardrails-specific options in the `guardrails` object.
+
+      To use Try it with a local server, follow
+      [Try the API Locally](/reference/guardrails-api-server/try-it).
     requestBody:
       content:
         application/json:
@@ -98,22 +101,33 @@ actions:
             basic:
               summary: Basic guarded completion
               value:
-                model: meta/llama-3.1-8b-instruct
+                model: nvidia/nemotron-3.5-lightning-30b-a3b
                 messages:
                 - role: user
                   content: What is the capital of France?
+                max_tokens: 128
                 guardrails:
-                  config_id: content_safety
+                  config_id: nemotron-3.5-content-safety
+                  options:
+                    llm_params:
+                      chat_template_kwargs:
+                        enable_thinking: false
             streaming:
-              summary: Streaming guarded completion
+              summary: Streaming guarded completion (requires output streaming)
+              description: Enable rails.output.streaming.enabled in the server configuration before using this example.
               value:
-                model: meta/llama-3.1-8b-instruct
+                model: nvidia/nemotron-3.5-lightning-30b-a3b
                 messages:
                 - role: user
                   content: Tell me a short story.
                 stream: true
+                max_tokens: 128
                 guardrails:
-                  config_id: content_safety
+                  config_id: nemotron-3.5-content-safety
+                  options:
+                    llm_params:
+                      chat_template_kwargs:
+                        enable_thinking: false
     responses:
       '200':
         description: Chat completion response or server-sent event stream.
@@ -126,7 +140,7 @@ actions:
                   id: chatcmpl-abc123
                   object: chat.completion
                   created: 1709424000
-                  model: meta/llama-3.1-8b-instruct
+                  model: nvidia/nemotron-3.5-lightning-30b-a3b
                   choices:
                   - index: 0
                     message:
@@ -134,7 +148,7 @@ actions:
                       content: Paris is the capital of France.
                     finish_reason: stop
                   guardrails:
-                    config_id: content_safety
+                    config_id: nemotron-3.5-content-safety
                     llm_output: null
                     output_data: null
                     log: null
@@ -152,7 +166,7 @@ actions:
             examples:
               completion:
                 value: |
-                  data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":"Paris"},"index":0,"finish_reason":null}]}
+                  data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"nvidia/nemotron-3.5-lightning-30b-a3b","choices":[{"delta":{"content":"Paris"},"index":0,"finish_reason":null}]}
 
                   data: [DONE]
               error:
@@ -201,7 +215,7 @@ actions:
               success:
                 value:
                   data:
-                  - id: meta/llama-3.1-8b-instruct
+                  - id: nvidia/nemotron-3.5-lightning-30b-a3b
                     object: model
                     created: 1700000000
                     owned_by: system
@@ -232,7 +246,7 @@ actions:
             examples:
               success:
                 value:
-                - id: content_safety
+                - id: nemotron-3.5-content-safety
                 - id: customer-service
 - target: $.paths['/v1/challenges'].get
   update:
@@ -349,12 +363,12 @@ actions:
             input:
               summary: Check a user message
               value:
-                model: meta/llama-3.1-8b-instruct
+                model: nvidia/nemotron-3.5-lightning-30b-a3b
                 messages:
                 - role: user
                   content: What is the capital of France?
                 guardrails:
-                  config_id: content_safety
+                  config_id: nemotron-3.5-content-safety
                   rail_types:
                   - input
     responses:

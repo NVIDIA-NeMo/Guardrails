@@ -46,7 +46,7 @@ test("Fern integration preserves existing API reference routes and curated examp
     const endpoints = new Map(
       Object.values(ir.services).flatMap(({ endpoints }) => endpoints.map((endpoint) => [endpoint.id, endpoint])),
     );
-    // This baseline records the API reference before switching to code generation.
+    // This baseline records the reviewed API routes, descriptions, and curated examples.
     for (const [id, expected] of Object.entries(baseline.endpoints)) {
       assert.ok(endpoints.has(id), `Missing API reference endpoint: ${id}`);
       assert.deepEqual(profile(endpoints.get(id)), expected, `Changed API reference: ${id}`);
@@ -55,9 +55,9 @@ test("Fern integration preserves existing API reference routes and curated examp
     const checks = profile(endpoints.get("endpoint_checks.checkGuardrails"));
     assert.deepEqual(checks.examples, [{
       request: {
-        model: "meta/llama-3.1-8b-instruct",
+        model: "nvidia/nemotron-3.5-lightning-30b-a3b",
         messages: [{ role: "user", content: "What is the capital of France?" }],
-        guardrails: { config_id: "content_safety", rail_types: ["input"] },
+        guardrails: { config_id: "nemotron-3.5-content-safety", rail_types: ["input"] },
       },
       response: { status: "passed", content: "What is the capital of France?" },
     }]);
