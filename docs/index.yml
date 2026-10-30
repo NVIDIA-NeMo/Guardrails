@@ -722,7 +722,6 @@ navigation:
                 slug: get-root
       - api: Hooks Server API
         slug: hooks-server-api
-        summary: reference/hooks-server-api/index.mdx
         # The main API uses fern/generators.yml; select the hooks server's separate contract here.
         specs:
           - type: openapi
@@ -731,6 +730,9 @@ navigation:
         # Show the hooks endpoints' validation, failure, and overload responses.
         display-errors: true
         layout:
+          - page: Overview
+            path: reference/hooks-server-api/index.mdx
+            slug: overview
           - endpoint: POST /v1/hooks/claude-code
             title: Check a Claude Code Tool Call
             slug: claude-code
