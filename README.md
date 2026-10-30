@@ -10,7 +10,9 @@ Programmable guardrails for AI agents and the tools they use.
 
 [Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#check-a-tool-call) · [Use cases](#what-you-can-build) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples)
 
-**NeMo Guardrails adds programmable safeguards to your AI agents.** Agents are most useful when they can run commands, call APIs, query your data, and read the web. NeMo Guardrails lets them do that without letting a jailbreak, an injected instruction, or an unsafe tool call get through. You declare what each agent may do in a policy, and NeMo Guardrails enforces it at every step, in milliseconds. To get started:
+**NeMo Guardrails adds programmable safeguards to AI agents.** For agents that run commands, call APIs, query data, or access the web, define policies to validate inputs, outputs, tool calls, and tool results. Apply deterministic rules or model-based checks to detect jailbreak attempts, prompt injection, and unsafe tool use. Your application or agent harness invokes the checks at configured points in the workflow and enforces their results before continuing execution.
+
+To get started:
 
 ```bash
 pip install nemoguardrails
