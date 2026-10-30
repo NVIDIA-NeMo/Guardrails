@@ -70,6 +70,10 @@ from nemoguardrails.utils import (
 
 log = logging.getLogger(__name__)
 
+# Fern's SDK generator does not escape quotes in class-attribute defaults.
+_STREAMING_MARKER_PREFIX = 'Bot message: "<<STREAMING['
+_STREAMING_MARKER_SUFFIX = ']>>"'
+
 
 class _StreamingHandoffRegistry:
     """Encodes the ``<<STREAMING[uid]>>`` handoff used by the single-call path.
@@ -81,21 +85,18 @@ class _StreamingHandoffRegistry:
     do not accumulate for the module lifetime.
     """
 
-    _MARKER_PREFIX = 'Bot message: "<<STREAMING['
-    _MARKER_SUFFIX = ']>>"'
-
     def __init__(self):
         self._handlers = {}
 
     def register(self, handler: "StreamingHandler") -> str:
         """Register an inner handler and return the marker text for it."""
         self._handlers[handler.uid] = handler
-        return f"{self._MARKER_PREFIX}{handler.uid}{self._MARKER_SUFFIX}"
+        return f"{_STREAMING_MARKER_PREFIX}{handler.uid}{_STREAMING_MARKER_SUFFIX}"
 
     def parse_marker(self, text: str) -> Optional[str]:
         """Return the handler uid encoded in ``text``, or None if not a marker."""
-        if text.startswith(self._MARKER_PREFIX) and text.endswith(self._MARKER_SUFFIX):
-            return text[len(self._MARKER_PREFIX) : -len(self._MARKER_SUFFIX)]
+        if text.startswith(_STREAMING_MARKER_PREFIX) and text.endswith(_STREAMING_MARKER_SUFFIX):
+            return text[len(_STREAMING_MARKER_PREFIX) : -len(_STREAMING_MARKER_SUFFIX)]
         return None
 
     def take(self, uid: str) -> Optional["StreamingHandler"]:
