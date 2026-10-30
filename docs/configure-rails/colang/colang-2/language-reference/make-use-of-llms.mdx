@@ -49,6 +49,20 @@ model: meta/llama-3.1-70b-instruct
 ```
 To support other models, you would need to create a set of new [template prompts](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/llm/prompts) that consider the specific capabilities and the API of the model and add them to your bot configuration.
 
+For `engine: openai` with GPT-5 or GPT-6 model names, dedicated chat templates cover
+user-intent detection, combined intent and bot-action generation, interaction
+continuation, and value generation. These tasks use the `main` model unless you
+configure a task-specific model. The default OpenAI-compatible framework requires
+`OPENAI_API_KEY` and no optional integration extra. These templates do not change
+the prompts for generating whole flows from names or natural-language descriptions.
+
+Generated bot actions must use the `bot action:` format shown in the templates.
+The parser accepts straight or paired curly double quotes as string delimiters,
+preserves quotes inside the string, and stops before subsequent dialogue turns.
+An answer with no bot action raises an `LlmResponseError` instead of creating an
+empty continuation flow. Custom prompts should request only the next turn;
+provider-side stop sequences are not available on every model.
+
 ## Natural Language Description (NLD)
 
 One of the main LLM generation mechanisms in Colang is the so-called Natural Language Description (NLD) in combination with the "generation" operator `...`.

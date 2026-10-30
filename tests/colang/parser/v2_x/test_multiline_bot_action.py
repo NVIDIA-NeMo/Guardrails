@@ -15,11 +15,44 @@
 
 """Tests for multi-line bot say quoted string handling in get_first_bot_action."""
 
+import pytest
+
 from nemoguardrails.actions.llm.utils import (
     _MAX_QUOTE_CONTINUATION_LINES,
     _has_unclosed_quote,
     get_first_bot_action,
 )
+
+
+@pytest.mark.parametrize(
+    ("completion", "expected"),
+    [
+        ("bot say “Hello!”", 'bot say "Hello!"'),
+        ("bot say “Hello\nworld!”", 'bot say "Hello\\nworld!"'),
+        ("bot say “She said “hello”.”", 'bot say "She said “hello”."'),
+        ('bot say “She said "hello".”', 'bot say "She said \\"hello\\"."'),
+        ('bot say "She said “hello”."', 'bot say "She said “hello”."'),
+        ("bot say 'She said “hello”.'", "bot say 'She said “hello”.'"),
+        ('bot say “It’s fine.” and bot gesture "wave"', 'bot say "It’s fine." and bot gesture "wave"'),
+        ("bot say “literal bot action: text”", 'bot say "literal bot action: text"'),
+    ],
+)
+def test_generated_smart_quote_delimiters(completion, expected):
+    from nemoguardrails.colang.v2_x.lang.parser import parse_colang_file
+
+    action = get_first_bot_action(("bot action: " + completion).splitlines())
+
+    assert action == expected
+    parsed = parse_colang_file("", f"flow generated\n  {action}")
+    assert len(parsed["flows"]) == 1
+
+
+def test_generated_action_stops_before_next_dialogue_turn():
+    action = get_first_bot_action(
+        "bot intent: bot greet\nbot action: bot say “Hello”\n"
+        'user action: user said "Bye"\nbot intent: bot farewell\nbot action: bot say "Bye"'.splitlines()
+    )
+    assert action == 'bot say "Hello"'
 
 
 class TestHasUnclosedQuote:

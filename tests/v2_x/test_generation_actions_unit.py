@@ -25,6 +25,7 @@ from nemoguardrails.colang.v2_x.runtime.errors import LlmResponseError
 from nemoguardrails.colang.v2_x.runtime.flows import InternalEvents
 from nemoguardrails.context import generation_options_var, raw_llm_request
 from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.testing.fake_model import FakeLLMModel
 
 
 class FakeIndex:
@@ -325,6 +326,63 @@ async def test_generate_flow_continuation_success_fallback_and_error(monkeypatch
     monkeypatch.setattr(v2_generation, "get_first_bot_action", lambda lines: None)
     with pytest.raises(LlmResponseError):
         await actions.generate_flow_continuation(state, [])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("output", ["Here is your answer.", "bot intent: bot answer", "bot action: ", "bot action:   "])
+@pytest.mark.parametrize("combined", [False, True])
+async def test_generation_rejects_missing_bot_action(output, combined):
+    actions = make_actions()
+    actions.llm = FakeLLMModel(responses=[output])
+    actions.flows_index = FakeIndex()
+    actions.instruction_flows_index = FakeIndex()
+    actions._collect_user_intent_and_examples = AsyncMock(return_value=(["user ask"], "", False))
+    state = SimpleNamespace(context={})
+
+    with pytest.raises(LlmResponseError):
+        if combined:
+            await actions.generate_user_intent_and_bot_action(state, [], "question")
+        else:
+            await actions.generate_flow_continuation(state, [])
+
+
+@pytest.mark.asyncio
+async def test_flow_continuation_indents_all_generated_actions():
+    from nemoguardrails.colang.v2_x.lang.parser import parse_colang_file
+
+    actions = make_actions()
+    actions.llm = FakeLLMModel(
+        responses=["bot intent: bot answer\nbot action: bot say “First”\nbot action: bot say “Second”"]
+    )
+    actions.flows_index = FakeIndex()
+    actions.instruction_flows_index = FakeIndex()
+
+    generated = await actions.generate_flow_continuation(SimpleNamespace(context={}), [])
+
+    parsed = parse_colang_file("", generated["body"])
+    assert len(parsed["flows"]) == 1
+    assert '\n  bot say "First"\n  bot say "Second"' in generated["body"]
+
+
+@pytest.mark.asyncio
+async def test_combined_generation_creates_valid_multiaction_flow():
+    from nemoguardrails.colang.v2_x.lang.parser import parse_colang_file
+
+    actions = make_actions()
+    actions.llm = FakeLLMModel(
+        responses=[
+            "user intent: user greet\nbot intent: bot greet\n"
+            'bot action: bot say “Hello”\nbot action: bot gesture "wave"'
+        ]
+    )
+    actions._collect_user_intent_and_examples = AsyncMock(return_value=(["user greet"], "", False))
+
+    result = await actions.generate_user_intent_and_bot_action(SimpleNamespace(context={}), [], "hi")
+    generated = await actions.create_flow([], result["bot_intent"], result["bot_action"])
+
+    parsed = parse_colang_file("", generated["body"])
+    assert len(parsed["flows"]) == 1
+    assert '\n  bot say "Hello"\n  bot gesture "wave"' in generated["body"]
 
 
 @pytest.mark.asyncio
