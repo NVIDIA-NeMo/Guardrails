@@ -434,15 +434,15 @@ langsmith==0.14.11 \
     # via
     #   langchain-core
     #   nemo-relay
-nemo-relay==0.10.4 \
-    --hash=sha256:1728fb994c9eb09fe5ae605be8f5189954e482f338327a75fa09983e90324e39 \
-    --hash=sha256:26e30775e0fdb2740b165c90a477c673082c92fe580475ee3834f6ddd1483030 \
-    --hash=sha256:5126ccd1d511d46f4438faff98c3c976a9029cb18d1fe4cfe0e0e1c0b3eb1a73 \
-    --hash=sha256:5c06204e680ddc846ce88752445cb55170b6a11cd2cda11a9158575e7c83b113 \
-    --hash=sha256:604e68570199c238daadefbbbcf6534273a73403567e697c79f9726893cbf6ce \
-    --hash=sha256:a51a38f31451d0f04675293ca2902ca2772dc12875297494095b8bbc71926909 \
-    --hash=sha256:a8b0b36fc1a08f4806ed8b007c643d99119487db7896b733d0e8e5c55c903896 \
-    --hash=sha256:f81fc276d0859ad58257ec7c3d12f0663fcde16ce883c113aabe04d63b86d6d5
+nemo-relay==0.11.0 \
+    --hash=sha256:1255077e8efc759f95ee05b568f51783b9542e267c3da0a2295bea14d0021078 \
+    --hash=sha256:146aecca2cb3d9c7490084fac83f838c09588ddce9360c942dcd1f2660d23f21 \
+    --hash=sha256:26bf5b96d23ef39971b8c7721e8d74a78f59498b3b4922ce2b137da52043dcb4 \
+    --hash=sha256:344d6fbfd61ce4c9a497fe36080f6a6f5718490b4947cdbcb13772f7c77b3e47 \
+    --hash=sha256:a4b2e72375a262dceee49ec6996fe2b63282b8ec0b3559a5f815cc02841d710e \
+    --hash=sha256:b5c4d07ecfa35e09cf64c625c970778d8b0596143473ec29c25a8b33efa5c53c \
+    --hash=sha256:c9d022948901a19a22851f2cf717140c5b8c48d39c188799148d1ef1c878c531 \
+    --hash=sha256:e30c0abbf21e010954f11acecd9f0b18c4c735103b3321c4c2834c0711592612
     # via -r integration_tests/relay_plugin/requirements.in
 opentelemetry-api==1.45.1 \
     --hash=sha256:aa38ed19bcc084ba42782a73255b3582283eced7ad6dddbd6695189e69adfb75 \
@@ -583,6 +583,7 @@ pydantic==2.14.1 \
     #   langchain-core
     #   langgraph
     #   langsmith
+    #   nemo-relay
 pydantic-core==2.50.1 \
     --hash=sha256:0036473f5583e6a60e50b8b21651511564277a3f05cc5dab8cf579f552cd5f6c \
     --hash=sha256:0048b6dddc8ef4b64fccaad878bd143b0c3882ea9936279dc11d613f6b7dd1bc \

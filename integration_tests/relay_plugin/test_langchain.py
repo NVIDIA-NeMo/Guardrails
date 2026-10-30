@@ -16,7 +16,7 @@
 """A LangChain agent whose tool calls the NeMo Relay plugin checks, through Relay's LangChain middleware."""
 
 # Adapted from Relay's own `create_agent` test, `test_agent_integration` in
-# python/tests/integrations/langchain_tests/test_middleware.py at 0.10.4.
+# python/tests/integrations/langchain_tests/test_middleware.py at 0.11.0.
 
 import asyncio
 from collections.abc import Sequence

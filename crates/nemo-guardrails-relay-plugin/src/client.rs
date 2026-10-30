@@ -58,8 +58,10 @@ fn non_empty<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<String
     Ok(text.filter(|text| !text.is_empty()))
 }
 
-/// A check that ended without a decision. Each `detail` says what went wrong, and never contains
-/// a header value or the tool's arguments.
+/// A check that ended without a decision. Each `detail` says what went wrong. The plugin adds
+/// none of its configured header values and none of the tool's arguments to it, but an answered
+/// failure's `detail` can repeat text from the answer, which the service or a proxy in front of it
+/// chose: its `error.code` and message, and a full queue's `Retry-After` header.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckFailure {
     /// No complete answer arrived: the request timed out or couldn't be sent.

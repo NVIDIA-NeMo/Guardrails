@@ -6,7 +6,7 @@ The plugin is a client and holds no rails of its own.
 The NeMo Guardrails service is a hooks server, started with `nemoguardrails hooks-server --config <path>`; its one configuration holds the rails and decides every call.
 Before each tool call that Relay manages, the plugin posts the tool's name and arguments to the service's `/v1/hooks/nemo-relay` endpoint.
 A deny from the service becomes a guardrail rejection, and a check that fails (an error status, a timeout, a service that can't be reached) becomes an error.
-Relay blocks the call on either, from 0.10.1 on, with one exception: on an error, pi's extension lets the call run unless `NEMO_RELAY_PI_FAIL=closed` is set.
+Relay blocks the call on either, with one exception: on an error, pi's extension lets the call run unless `NEMO_RELAY_PI_FAIL=closed` is set.
 
 ## Checks
 
@@ -23,17 +23,22 @@ A managed call gets the rejection or the error from Relay as is.
 In the CLI's hook modes, an agent can see Relay's own text for a failed check instead, such as `daemon hook forward failed with HTTP 500`.
 So the plugin also logs each failed check as a warning, under the log target `nemo_relay.plugin.native.nvidia.nemo_guardrails`.
 Its message is the error text, and its fields are `event` (`nemo_guardrails_check_failed`), `tool_name`, `status` and `error_code`.
-The plugin puts no header value and none of the tool's arguments into the error text or the warning.
+The plugin adds none of its configured header values and none of the tool's arguments to the error text or the warning.
+A failed check's detail does repeat text from the answer, which the service, or a proxy in front of it, chose: its `error.code` and message, and for a `503` with `queue_full`, its `Retry-After` header.
 
 The plugin checks every call; it keeps no earlier decisions.
-Through Relay 0.10.4, a call that reaches a permission prompt runs the guardrail twice, on PreToolUse and right after on PermissionRequest, so it costs two requests to the service, and two runs of any LLM judge.
-Relay 0.11 runs the guardrail once.
+On the Relay releases the plugin supports, Relay runs the guardrail once for each tool call, so the plugin sends one request to the service per call.
+Another client of the same service, such as a direct Claude Code or Codex hook, sends its own requests.
 
 ## Compatibility
 
-- NeMo Relay 0.10.1 and later 0.x releases, through native ABI v7 (`compat.relay = ">=0.10.1,<1.0"`).
-  Relay 0.10.0 is excluded: the plugin reports a failed check as an error, and at 0.10.0 an error from a guardrail lets a Claude Code tool call run.
-- Each Relay minor release changes the native ABI, so the plugin is rebuilt against each one.
+- NeMo Relay 0.11.0 and later 0.x releases, and the 0.11.0 release candidates (`compat.relay = ">=0.11.0-rc.1,<1.0"`).
+  The plugin is built against the Relay 0.11 SDK, which uses native ABI v8.
+- Relay 0.10 and every 0.11.0 alpha are excluded.
+  When a CLI tool call reaches a permission prompt, 0.10 runs the guardrail a second time, on Claude Code's and Codex's PermissionRequest event, and so do the 0.11.0 alphas before 2026-10-18; Relay published none of the alphas.
+  That costs a second request to the service, and a second run of any LLM judge, which can deny a call the first check allowed.
+- Each Relay minor release so far has changed the native ABI, so the plugin is rebuilt and tested against each one.
+  A build for one minor release isn't tested on the next.
 
 ## Configuration
 

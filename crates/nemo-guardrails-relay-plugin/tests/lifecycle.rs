@@ -126,10 +126,11 @@ async fn schema_rejects_priority_outside_32_bits() {
     assert!(!list_plugin_kinds().contains(&PLUGIN_ID.to_owned()));
 }
 
-/// The manifest's `compat.relay` refuses Relay 0.10.0, whose CLI hooks let a call run when a
-/// guardrail returns an error, and accepts 0.10.1 and later 0.10 releases.
+/// The manifest's `compat.relay` refuses the Relay hosts that run the guardrail again on
+/// PermissionRequest, the 0.10 releases and the early 0.11.0 alphas, along with every other 0.11.0
+/// alpha, and accepts the 0.11.0 release candidates, 0.11.0 and later 0.x releases.
 #[test]
-fn manifest_refuses_relay_hosts_before_0_10_1() {
+fn manifest_refuses_relay_hosts_that_rerun_the_guardrail() {
     let manifest: toml::Table = toml::from_str(
         &std::fs::read_to_string(crate_dir().join("relay-plugin.toml"))
             .expect("manifest template should be readable"),
@@ -141,7 +142,15 @@ fn manifest_refuses_relay_hosts_before_0_10_1() {
         .parse()
         .expect("compat.relay should be a version requirement");
 
-    for (version, accepted) in [("0.10.0", false), ("0.10.1", true), ("0.10.4", true)] {
+    for (version, accepted) in [
+        ("0.10.0", false),
+        ("0.10.4", false),
+        ("0.11.0-alpha.20261017", false),
+        ("0.11.0-alpha.20261027", false),
+        ("0.11.0-rc.1", true),
+        ("0.11.0", true),
+        ("0.12.0", true),
+    ] {
         let version = Version::parse(version).expect("test version should parse");
         assert_eq!(
             relay_version_matches(&requirement, &version),
