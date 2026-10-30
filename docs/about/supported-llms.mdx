@@ -40,6 +40,7 @@ Each engine is served by a framework that manages the underlying HTTP or SDK cal
 | `nvidia_ai_endpoints` | Built-in | yes | yes | yes | Alias for `nim`. |
 | `ollama` | Built-in | yes | yes | yes (where supported) | Default base URL `http://localhost:11434/v1`. |
 | `openai` | Built-in | yes | yes | yes | OpenAI public API or any OpenAI-compatible endpoint using `parameters.base_url`. For vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp, NVIDIA Nemotron, and similar providers, use `engine: openai` with `parameters.base_url` and `parameters.api_key`. |
+| `orcarouter` | Built-in | yes | yes | yes | OpenAI-compatible AI gateway routing across many models with adaptive routing, automatic failover, and zero-markup inference. Default base URL `https://api.orcarouter.ai/v1`; set `parameters.api_key` or `ORCAROUTER_API_KEY`. |
 | `vertexai` | LangChain (opt-in) | yes | yes | n/a | Requires `pip install langchain langchain-google-vertexai`. |
 | `vllm_openai`, `deepseek` | LangChain (opt-in) | yes | yes | yes | Legacy LangChain provider engines. They continue to work when you opt into LangChain. For new configurations, use `engine: openai` with `parameters.base_url` when the wire protocol is OpenAI-compatible. |
 | `<provider_name>` | LangChain (opt-in) | varies | varies | varies | Any community provider exposed through LangChain's chat-model integrations. Use the bare provider name as the engine name. |
