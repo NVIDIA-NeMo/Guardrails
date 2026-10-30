@@ -32,6 +32,16 @@ actions:
 - target: $.components.schemas.RelayDeny.properties.reason
   update:
     example: regex check tool call
+- target: $.components.schemas.HookError.properties.error.properties
+  update:
+    message:
+      description: "Human-readable message. Validation errors name each failing field as `body.<field>: <reason>`."
+    type:
+      description: '`invalid_request_error` for `422`; `server_error` for `500` and `503`.'
+    param:
+      description: The request field the error relates to, or `null`.
+    code:
+      description: '`unsupported_hook_event`, `rail_failed`, `queue_full`, or `null`.'
 - target: $.paths['/v1/hooks/claude-code'].post
   update:
     operationId: checkClaudeCodeToolCall

@@ -53,35 +53,4 @@ A hook endpoint answers each check with one of three outcomes:
 | Deny | `200` | The agent's deny shape, with the reason |
 | Error | `422`, `500`, or `503` | The OpenAI error envelope |
 
-## Errors
-
-Every error response uses the OpenAI error envelope, the same as the Guardrails API Server's:
-
-```json
-{
-  "error": {
-    "message": "rail 'tool safety check tool call' failed: tool safety check tool call error: Connection error.",
-    "type": "server_error",
-    "param": null,
-    "code": "rail_failed"
-  }
-}
-```
-
-<ParamField path="error.message" type="string" required={true}>
-A human-readable message. For a request that fails validation, it names each failing field as `body.<field>: <reason>`.
-</ParamField>
-
-<ParamField path="error.type" type="string" required={true}>
-The OpenAI error category for the status: `invalid_request_error` for `422`, and `server_error` for `500` and `503`.
-</ParamField>
-
-<ParamField path="error.param" type="string or null" required={true}>
-The request field the error relates to, such as `hook_event_name`, or `null`.
-</ParamField>
-
-<ParamField path="error.code" type="string or null" required={true}>
-`unsupported_hook_event`, `rail_failed`, `queue_full`, or `null`.
-</ParamField>
-
-For when each error occurs, refer to [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors#errors).
+For error codes and when they occur, refer to [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors#errors).

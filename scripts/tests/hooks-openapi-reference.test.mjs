@@ -32,6 +32,9 @@ test("Fern retains all hooks routes and the object-valued request examples", { t
     });
     assert.equal(result.status, 0, `${result.error ?? ""}\n${result.stdout}\n${result.stderr}`);
     const ir = JSON.parse(readFileSync(output, "utf8"));
+    const errorFields = new Map(ir.types["type_:HookErrorError"].shape.properties.map(({ name, docs }) => [name, docs]));
+    assert.match(errorFields.get("type"), /invalid_request_error.*422.*server_error.*500.*503/);
+    assert.match(errorFields.get("code"), /unsupported_hook_event.*rail_failed.*queue_full/);
     const endpoints = new Map(Object.values(ir.services).flatMap(({ endpoints }) => endpoints.map((e) => [e.id, e])));
     assert.deepEqual([...endpoints.keys()].sort(), [
       "endpoint_hooks.checkClaudeCodeToolCall",
