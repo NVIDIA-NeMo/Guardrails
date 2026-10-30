@@ -72,16 +72,35 @@ for what that gateway actually exposes. Do not automatically union dialects.
 
 ## Evidence and scope
 
-The source baseline is LiteLLM tag `v1.102.1`, resolved to immutable commit
+The handwritten type and conversion review uses LiteLLM tag `v1.102.1`, resolved to immutable commit
 [`d09bbae1c6df463e425558f60d460437193635da`](https://github.com/BerriAI/litellm/tree/d09bbae1c6df463e425558f60d460437193635da).
-This identifies the source reviewed for the field policy, not the build running
-in any deployment. See the [LiteLLM API stability policy](https://docs.litellm.ai/docs/api_stability_policy)
+This identifies the source for the type and conversion behavior below, not the
+build running in any deployment. See the [LiteLLM API stability policy](https://docs.litellm.ai/docs/api_stability_policy)
 for upstream compatibility guidance.
 
 | File | Observed behavior | SHA-256 of source bytes |
 | --- | --- | --- |
 | [`litellm/types/utils.py`](https://github.com/BerriAI/litellm/blob/d09bbae1c6df463e425558f60d460437193635da/litellm/types/utils.py) | Message/choice and stream root/delta declarations; buffered `Choices` stores the original finish reason when normalizing it. | `a1698ae315ba0c618aa25ed037338c8b47b8f821680176e31f95f588ff09b26f` |
 | [`convert_dict_to_response.py`](https://github.com/BerriAI/litellm/blob/d09bbae1c6df463e425558f60d460437193635da/litellm/litellm_core_utils/llm_response_utils/convert_dict_to_response.py) | Message conversion preserves existing extensions, collects unknown message members, and copies thinking blocks into the bag. Choice conversion collects unknown choice members. | `303a5f0b82318e8f87d0c3b31db791e8370d41cc069741dd503b8a6e2b31948b` |
+
+The conformance suite independently uses an
+[OpenAPI response extract](../../../../../../../tests/server/experimental/conformance/openai/litellm/fixtures/response.openapi.json)
+whose `info.version` is `1.106.6`. Its `x-source` records the download URL
+`https://docs.litellm.ai/openapi.json` and the captured source SHA-256.
+The [extractor](../../../../../../../tests/server/experimental/conformance/openai/litellm/extract_openapi.py)
+preserves the selected response schemas and their referenced components.
+That snapshot checks coverage of declared Responses fields and documents schema
+gaps: the Chat response schema is empty, the Responses object permits additional
+properties, and its streaming schema describes a string rather than event shapes.
+It does not establish the complete translated metadata or reasoning-item inventory.
+
+The [gateway route recordings](../../../../../../../tests/recorded/server/experimental/openai/test_gateway_routes.py)
+provide separate wire evidence for translated metadata and encrypted reasoning
+items on the captured routes. Synthetic tests exercise the explicit permissions
+and rejection rules; they do not prove that every permitted field occurs at every
+allowed location. The source review, OpenAPI snapshot and recordings are independent
+artifacts, not a single validated release baseline or evidence of the gateway's
+deployed LiteLLM version.
 
 ### Inventory decisions
 
