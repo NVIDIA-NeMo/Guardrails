@@ -8,7 +8,7 @@ Programmable guardrails for AI agents and the tools they use.
 [![Tests](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/pr-tests.yml?logo=github&label=tests)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/pr-tests.yml)
 [![Documentation](https://img.shields.io/badge/docs-nvidia.com-76B900)](https://docs.nvidia.com/nemo/guardrails)
 
-[Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#check-a-tool-call) · [Use cases](#what-you-can-build) · [Comparison](#how-nemo-guardrails-is-different) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples)
+[Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#check-a-tool-call) · [Use cases](#what-you-can-build) · [Capabilities](#nemo-guardrails-capabilities) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples)
 
 **NeMo Guardrails adds programmable safeguards to AI agents.** For agents that run commands, call APIs, query data, or access the web, define policies to validate inputs, outputs, tool calls, and tool results. Apply deterministic rules or model-based checks to detect jailbreak attempts, prompt injection, and unsafe tool use. Your application or agent harness invokes the checks at configured points in the workflow and enforces their results before continuing execution.
 
@@ -203,25 +203,18 @@ Refer to [LangChain integration](https://docs.nvidia.com/nemo/guardrails/latest/
 
 The Guardrails API server, hooks server, and experimental proxy are separate applications with different configuration requirements. Server installations require the `server` extra.
 
-## How NeMo Guardrails Is Different
+## NeMo Guardrails Capabilities
 
-NeMo Guardrails combines tool validation, per-tool policies, and content checks in a configurable layer that runs in your application or as a service.
-The following table uses named examples of other approaches to compare where checks run, how you configure them, and how you deploy them:
+Use the following capabilities to configure checks at the boundaries your application or agent harness invokes:
 
-| Capability | NeMo Guardrails | Cloud-Managed Guardrails: [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-use-invoke-guardrail-checks.html) | Agent SDK Guardrails: [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/guardrails/#tool-guardrails) | Guarded Proxy: [LiteLLM](https://docs.litellm.ai/docs/proxy/guardrails/quick_start) | Validator Library: [Guardrails AI](https://guardrailsai.com/guardrails/docs/concepts/validators) |
-| --- | --- | --- | --- | --- | --- |
-| Gate a tool call before execution | Configured IORails tool-call rails validate tools and schemas; the application enforces the verdict | Call the checks API before dispatch; the application acts on returned detection scores | Tool-input guardrails run inside the SDK's function-tool execution pipeline | [Tool policies](https://docs.litellm.ai/docs/proxy/tool_policies) check tool traffic that passes through the model or MCP gateway | Invoke validation before dispatch and enforce the configured failure policy |
-| Check tool results for indirect prompt injection | Configure per-tool rules or a model judge to check results before model use | Submit result content to prompt-attack checks and apply a threshold in the application | Attach a detector to tool-output guardrails for supported function tools | Configure a detector or [custom guardrail](https://docs.litellm.ai/docs/proxy/guardrails/custom_guardrail) on content passing through the proxy | Apply a suitable validator to returned content before forwarding it to the model |
-| Apply deterministic rules | Local tool-schema, regex, and CEL checks | [Word-list and regex policies](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-bedrock-guardrail.html) evaluated by the managed service | Python validation functions attached to agents or tools | Custom guardrail code runs in the proxy | Custom Python validator functions |
-| Connect coding agents | Claude Code and Codex pre-tool hooks; NeMo Relay plugin endpoint | Custom integration calls the service API from the harness | Guardrails execute within the SDK runner | Route supported model or MCP traffic through the gateway; local execution needs its own integration | Custom integration invokes validators from the harness |
-| Reuse checks across models and frameworks | Python and HTTP interfaces, subject to engine and integration support | [Model-independent API](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-use-independent-api.html) callable from application code | Reuse guardrail callbacks within SDK workflows | Route supported providers through a shared gateway | Invoke the validation library from application code |
-| Define policy separately from agent logic | YAML and Colang configuration files | Guardrail resources, including CloudFormation configuration, or per-request safeguards | Python guardrail functions attached to agent and tool definitions | YAML guardrail configuration and custom guardrail classes | Python configuration or RAIL specifications |
-| Choose the deployment environment | Embed the library or run a self-hosted service | AWS-hosted checks | SDK runs in the application; model and tracing connections are configured separately | Self-hosted gateway with local or service-backed detectors | Library runs in the application; selected validators determine dependencies |
-| Choose guard models | Configure compatible open-weight or hosted models for model-backed rails | [AWS manages the underlying guard models](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-how.html) | Call a classifier or model from a guardrail callback | Choose a detector integration or implement a custom guardrail | Choose or implement a model-backed validator |
-
-These examples describe the named implementations, not every product in each category. Tool coverage depends on the integration path, and a hook or validator needs a configured detector to check for prompt injection. Offline operation depends on the selected models, detectors, and telemetry or tracing configuration.
-
-Evaluate any of these approaches against representative attacks and legitimate requests. External scanners such as [garak](https://github.com/NVIDIA/garak) can test supported targets across approaches. Refer to the [vulnerability-scanning guide](./docs/evaluation/llm-vulnerability-scanning.mdx) for a NeMo Guardrails example.
+- **Validate tool calls.** [Check declared tools and argument schemas with configured IORails tool-call rails](./docs/configure-rails/guardrail-catalog/tool-calling.mdx#tool-call-validation). Your application enforces the result before execution.
+- **Check tool results.** [Validate linkage to an earlier tool call and the result structure](./docs/configure-rails/guardrail-catalog/tool-calling.mdx#tool-result-validation). Add [per-tool model-judged checks](./docs/configure-rails/guardrail-catalog/tool-safety-check.mdx) for your safety instructions.
+- **Apply deterministic rules.** Configure local [tool validation](./docs/configure-rails/guardrail-catalog/tool-calling.mdx), [regex checks](./docs/configure-rails/guardrail-catalog/community/regex.mdx), and [CEL expressions](./docs/configure-rails/guardrail-catalog/cel.mdx).
+- **Connect coding agents.** Use the [hooks server](./docs/run-rails/using-hooks-server/overview.mdx#supported-agents) for Claude Code and Codex pre-tool checks or a NeMo Relay plugin's tool-check integration.
+- **Run checks without generation.** Use [Python checks or the HTTP checks endpoint](./docs/run-rails/using-python-apis/check-messages.mdx) without invoking a main model. Model-backed rails still call their configured model or service.
+- **Define policy in configuration files.** Configure [models, prompts, and rails in YAML](./docs/configure-rails/configuration-reference.mdx).
+- **Choose the deployment environment.** Embed the [Python library](./docs/run-rails/using-python-apis/overview.mdx) or run the [self-hosted API server](./docs/run-rails/using-fastapi-server/overview.mdx).
+- **Configure model providers.** Select [supported engines and compatible inference endpoints](./docs/about/supported-llms.mdx) for your configuration.
 
 ## Guardrail Catalog
 
