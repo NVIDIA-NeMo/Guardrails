@@ -5,8 +5,11 @@ on:
     paths:
       - "nemoguardrails/**"
       - "scripts/export_openapi.py"
+      - "scripts/export_proxy_openapi.py"
       - "tests/server/test_export_openapi.py"
+      - "tests/server/test_export_proxy_openapi.py"
       - "fern/openapi*.yml"
+      - "fern/proxy-openapi*.yml"
       - "fern/generators.yml"
       - "pyproject.toml"
       - "uv.lock"
@@ -18,8 +21,11 @@ on:
     paths:
       - "nemoguardrails/**"
       - "scripts/export_openapi.py"
+      - "scripts/export_proxy_openapi.py"
       - "tests/server/test_export_openapi.py"
+      - "tests/server/test_export_proxy_openapi.py"
       - "fern/openapi*.yml"
+      - "fern/proxy-openapi*.yml"
       - "fern/generators.yml"
       - "pyproject.toml"
       - "uv.lock"
@@ -47,4 +53,6 @@ jobs:
       - name: Generate specification from this revision
         run: make docs-fern-generate-openapi
       - name: Test exporter without provider calls
-        run: make test WORKERS=1 TEST=tests/server/test_export_openapi.py
+        run: |
+          make test WORKERS=1 TEST=tests/server/test_export_openapi.py
+          make test WORKERS=1 TEST=tests/server/test_export_proxy_openapi.py

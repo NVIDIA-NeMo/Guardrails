@@ -723,6 +723,20 @@ navigation:
               - endpoint: GET /
                 title: Get Server Health or Chat UI
                 slug: get-root
+      - api: Experimental Proxy API
+        slug: proxy-api
+        specs:
+          - type: openapi
+            path: ../fern/proxy-openapi.yml
+            overlays: ../fern/proxy-openapi-overlay.yml
+        display-errors: true
+        layout:
+          - endpoint: POST /v1/chat/completions
+            title: Create a Guarded Chat Completion
+            slug: chat-completions
+          - endpoint: POST /v1/responses
+            title: Create a Guarded Response
+            slug: responses
       - section: Hooks Server API
         path: reference/hooks-server-api/index.mdx
         slug: hooks-server-api

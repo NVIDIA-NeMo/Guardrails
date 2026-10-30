@@ -1,0 +1,120 @@
+overlay: 1.0.0
+info:
+  title: Experimental proxy API documentation additions
+  version: 1.0.0
+actions:
+- target: $
+  update:
+    info:
+      title: Experimental Guardrails Proxy API
+      description: |
+        Reference for the built-in OpenAI provider's guarded operations in an
+        example deployment. Provider mounts, path prefixes, operation selection,
+        and custom bindings can change the routes and inspection boundaries.
+- target: $.paths['/v1/chat/completions'].post
+  update:
+    summary: Create a guarded chat completion
+    description: |
+      The URL shown uses an example deployment. Configured path prefixes and
+      provider mounts can change it. Set `stream` to `true` for server-sent
+      events. Provider responses remain provider-native, and upstream errors
+      can pass through.
+
+      The proxy validates the configured guarded request profile and forwards
+      the request to the selected provider. Depending on the Rails configuration,
+      it can inspect input and output text. Other provider routes can pass through
+      without inspection. Refer to the [proxy guide](/run-guardrailed-inference/using-proxy/providers-and-streaming)
+      for supported content, streaming, and inspection boundaries. Replace
+      `example-model` with a model available from your provider.
+    x-fern-examples:
+      - name: Buffered example
+        request: {"model":"example-model","messages":[{"role":"user","content":"Hello!"}]}
+        response:
+          body: {"choices":[{"message":{"role":"assistant","content":"Hello!"}}]}
+        code-samples:
+          - sdk: curl
+            code: |
+              curl http://localhost:8000/v1/chat/completions \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $OPENAI_API_KEY" \
+                -d '{"model":"example-model","messages":[{"role":"user","content":"Hello!"}]}'
+    responses:
+      "200":
+        content:
+          application/json:
+            examples:
+              completion:
+                summary: Buffered chat completion
+                value:
+                  choices:
+                    - message:
+                        role: assistant
+                        content: Hello!
+    requestBody:
+      content:
+        application/json:
+          examples:
+            buffered:
+              summary: Buffered chat completion
+              value:
+                model: example-model
+                messages:
+                  - role: user
+                    content: Hello!
+- target: $.paths['/v1/responses'].post
+  update:
+    summary: Create a guarded response
+    description: |
+      The URL shown uses an example deployment. Configured path prefixes and
+      provider mounts can change it. Set `stream` to `true` for server-sent
+      events. Provider responses remain provider-native, and upstream errors
+      can pass through.
+
+      The proxy validates the configured guarded request profile and forwards
+      the request to the selected provider. Set `store` to `false` for the
+      shipped Responses profile. Provider responses remain provider-native;
+      selected routes and inspection depend on configuration. Refer to the
+      [proxy guide](/run-guardrailed-inference/using-proxy/providers-and-streaming)
+      for content restrictions, streaming, and unguarded passthrough. Replace
+      `example-model` with a model available from your provider.
+    x-fern-examples:
+      - name: Buffered example
+        request: {"model":"example-model","input":"Hello!","store":false}
+        response:
+          body: {"id":"resp_example","object":"response","output":[{"type":"message","role":"assistant","id":"msg_example","content":[{"type":"output_text","text":"Hello!","annotations":[],"logprobs":[]}]}]}
+        code-samples:
+          - sdk: curl
+            code: |
+              curl http://localhost:8000/v1/responses \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $OPENAI_API_KEY" \
+                -d '{"model":"example-model","input":"Hello!","store":false}'
+    responses:
+      "200":
+        content:
+          application/json:
+            examples:
+              response:
+                summary: Buffered response
+                value:
+                  id: resp_example
+                  object: response
+                  output:
+                    - type: message
+                      role: assistant
+                      id: msg_example
+                      content:
+                        - type: output_text
+                          text: Hello!
+                          annotations: []
+                          logprobs: []
+    requestBody:
+      content:
+        application/json:
+          examples:
+            buffered:
+              summary: Buffered response
+              value:
+                model: example-model
+                input: Hello!
+                store: false
