@@ -230,8 +230,11 @@ async def test_resolved_model_reaches_outcome_metadata(api_key, score, source, q
 
     assert result.is_blocked is (score >= 0.5)
     assert result.metadata == {
+        "source": source,
         "scores": {question: score},
+        "thresholds": {question: 0.5},
         "triggered": [question] if score >= 0.5 else [],
+        "violations": [{"question": question, "score": score, "threshold": 0.5}] if score >= 0.5 else [],
         "model": "decision_model-1.13.0",
     }
     assert m.client.requests[0].json["model"] == MODEL
@@ -251,7 +254,13 @@ async def test_invalid_optional_model_is_omitted(api_key, model):
         )
 
     assert result.is_blocked is False
-    assert result.metadata == {"scores": {"harm": 0.1}, "triggered": []}
+    assert result.metadata == {
+        "source": "input",
+        "scores": {"harm": 0.1},
+        "thresholds": {"harm": 0.5},
+        "triggered": [],
+        "violations": [],
+    }
 
 
 @pytest.mark.asyncio
@@ -264,7 +273,13 @@ async def test_allows_when_all_scores_below_threshold(api_key):
         result = await decision_model_check(source="input", text="Hello!", config=config, http_client=m.client)
 
     assert result.is_blocked is False
-    assert result.metadata == {"scores": {"jailbreak": 0.1, "harm": 0.49}, "triggered": []}
+    assert result.metadata == {
+        "source": "input",
+        "scores": {"jailbreak": 0.1, "harm": 0.49},
+        "thresholds": {"jailbreak": 0.5, "harm": 0.5},
+        "triggered": [],
+        "violations": [],
+    }
 
 
 @pytest.mark.asyncio
@@ -279,7 +294,13 @@ async def test_blocks_when_a_score_reaches_threshold(api_key):
         )
 
     assert result.is_blocked is True
-    assert result.metadata == {"scores": {"jailbreak": 0.97, "harm": 0.1}, "triggered": ["jailbreak"]}
+    assert result.metadata == {
+        "source": "input",
+        "scores": {"jailbreak": 0.97, "harm": 0.1},
+        "thresholds": {"jailbreak": 0.5, "harm": 0.5},
+        "triggered": ["jailbreak"],
+        "violations": [{"question": "jailbreak", "score": 0.97, "threshold": 0.5}],
+    }
     assert "jailbreak" in result.reason
     assert "harm" not in result.reason
 
@@ -350,6 +371,9 @@ async def test_per_question_threshold_overrides_rail_threshold(api_key):
 
     assert result.is_blocked is True
     assert result.metadata["triggered"] == ["strict"]
+    # The record names the policy that blocked and the threshold it crossed; quiet questions are not violations.
+    assert result.metadata["violations"] == [{"question": "strict", "score": 0.3, "threshold": 0.2}]
+    assert result.metadata["thresholds"] == {"strict": 0.2, "lenient": 0.9, "default": 0.5}
 
 
 @pytest.mark.asyncio
@@ -367,7 +391,13 @@ async def test_per_question_threshold_can_allow_above_rail_threshold(api_key):
         result = await decision_model_check(source="input", text="Hello!", config=config, http_client=m.client)
 
     assert result.is_blocked is False
-    assert result.metadata == {"scores": {"lenient": 0.85}, "triggered": []}
+    assert result.metadata == {
+        "source": "input",
+        "scores": {"lenient": 0.85},
+        "thresholds": {"lenient": 0.9},
+        "triggered": [],
+        "violations": [],
+    }
 
 
 @pytest.mark.asyncio
@@ -472,9 +502,9 @@ async def test_empty_questions_allow_without_calling_the_api(monkeypatch):
         output_result = await decision_model_check(source="output", text="Hello!", config=config, http_client=m.client)
 
     assert m.client.requests == []
-    for result in (input_result, output_result):
+    for source, result in (("input", input_result), ("output", output_result)):
         assert result.is_blocked is False
-        assert result.metadata == {"scores": {}, "triggered": []}
+        assert result.metadata == {"source": source, "scores": {}, "thresholds": {}, "triggered": [], "violations": []}
 
 
 @pytest.mark.asyncio

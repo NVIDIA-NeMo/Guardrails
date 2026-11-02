@@ -147,7 +147,7 @@ Empty or whitespace-only text is allowed without a request. Empty question sets 
 
 ## Decisions and Failure Handling
 
-A question blocks when its score is greater than or equal to its threshold. The action returns `scores` for every requested question and `triggered` for the question IDs that blocked the text.
+A question blocks when its score is greater than or equal to its threshold. The action returns `scores` and `thresholds` for every requested question, `triggered` for the question IDs that blocked the text, and `violations` with the score and threshold behind each block.
 
 The Colang flows produce the standard `bot refuse to respond` refusal when a check blocks. With `enable_rails_exceptions: true`, they emit a `DecisionModelCheckRailException` instead. Refer to [Exceptions](/configure-guardrails/exceptions).
 
@@ -163,8 +163,11 @@ The `decision_model_check` action returns a rail outcome with these metadata fie
 
 | Key | Present | Description |
 | --- | --- | --- |
+| `source` | Always | The screened direction, `input` or `output`. |
 | `scores` | Assessment completed or skipped | Question ID to probability mapping; empty when skipped. |
+| `thresholds` | Assessment completed or skipped | Question ID to the effective threshold (the question's own, else the rail-level one); empty when skipped. |
 | `triggered` | Assessment completed or skipped | Question IDs whose probability reached the threshold. |
+| `violations` | Assessment completed or skipped | One `{question, score, threshold}` record per triggered question, identifying which policy blocked the text and by how much; empty when nothing blocked. |
 | `model` | Provider supplied a valid model ID | Resolved model ID; the configured identifier is not substituted when absent. |
 | `error` | Provider failure | Sanitized failure description. |
 | `fail_open` | Provider failure | The configured failure policy. |
