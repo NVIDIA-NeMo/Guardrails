@@ -1264,3 +1264,23 @@ def test_telemetry_uses_generic_feature_id(direction):
     )
     assert _detect_builtin_features(config) == ["decision_model"]
     assert _detect_builtin_features(_rails_config()) == ["decision_model"]
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_error_log_omits_text(monkeypatch, caplog):
+    """An authentication failure that escapes the action must not log the screened text."""
+    monkeypatch.setenv("DECISION_MODEL_API_KEY", "test-api-key")
+    chat = TestChat(_input_rail_config(), llm_completions=["  express greeting"])
+
+    with RecordedHTTPResponses() as m:
+        m.post(ENDPOINT, status=401, body="Unauthorized")
+        dispatcher = chat.app.runtime.action_dispatcher
+        with caplog.at_level("WARNING"):
+            _, status = await dispatcher.execute_action(
+                "decision_model_check",
+                {"source": "input", "text": SECRET_TEXT, "config": chat.app.config, "http_client": m.client},
+            )
+
+    assert status == "failed"
+    assert "authentication failed" in caplog.text
+    assert SECRET_TEXT not in caplog.text
