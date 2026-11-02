@@ -101,6 +101,51 @@ For remote servers, send a test request and inspect the response.
 | `task` | string | `text-classification` | Pipeline task type. Use `token-classification` for NER models. |
 | `parameters` | dict | `{}` | Kwargs forwarded to `transformers.pipeline()`. |
 
+#### Long Local Inputs
+
+For local `text-classification`, inputs that exceed the inferred model capacity are
+processed automatically in overlapping token windows when truncation is disabled or
+unspecified. Any window with a blocked label at or above `threshold` triggers the rail;
+scores are not averaged. Short inputs keep the original Hugging Face behavior.
+
+Configured truncation is preserved: text beyond the truncation limit is discarded and
+is **not** checked by this rail. Hugging Face also enables truncation implicitly when
+`parameters.max_length` is supplied without `parameters.truncation`.
+
+Local `token-classification` uses the unchanged Hugging Face pipeline. It normally
+truncates to the tokenizer limit by default, so text beyond that limit is not checked.
+Existing `parameters.stride` and `aggregation_strategy` settings continue to control
+Hugging Face's own overlapping windows and entity aggregation.
+
+To evaluate the full input with token classification, configure overlapping windows:
+
+```yaml
+task: token-classification
+parameters:
+  aggregation_strategy: simple
+  stride: 32
+```
+
+This requires a fast tokenizer and an aggregation strategy other than `none`. Set
+`stride` smaller than the tokenizer's window capacity after special tokens; `0` also
+processes the full input, with no overlap. Token classification does not accept
+`parameters.truncation`; use `stride` to enable full-input processing.
+
+Automatic text-classification windows require a fast tokenizer. The window limit comes
+from the model's position capacity (accounting for reserved positions), falling back to
+the tokenizer's limit. If neither declares a finite limit, native processing is retained;
+set `parameters.max_length` with `parameters.truncation: false` to provide a window limit.
+Overlap defaults to the smaller of 32 tokens and one quarter of the content capacity;
+`parameters.stride` overrides it, including `0` for no overlap. Overlap must be smaller
+than the window's content capacity. Windows cannot preserve context longer than a window.
+
+Default text-classification inference scores one window at a time. Token storage grows with input length,
+and oversized inputs require a second tokenization pass. Explicit `parameters.batch_size`
+and `parameters.num_workers` settings retain Hugging Face's batching behavior and memory
+tradeoffs. Calls sharing the cached text pipeline are serialized to avoid tokenizer races.
+Unsupported tokenizers, invalid settings and inference failures still raise errors.
+Remote backends retain their server's input-length behavior.
+
 **Remote engine fields (vllm, kserve, fms)**
 
 | Option | Type | Default | Description |
@@ -248,7 +293,9 @@ rails:
 
 ## Return Value
 
-Returns `True` if allowed, `False` if blocked. Triggered labels and scores are logged at `INFO` level:
+Actions return `RailOutcome.allow()` or `RailOutcome.block()` for input and output checks.
+A triggered retrieval check returns a transform outcome that clears all retrieved chunks.
+Triggered labels and scores are logged at `INFO` level:
 
 ```text
 HF classifier 'hap': blocked (detections: [('LABEL_1', 0.92)])
