@@ -20,7 +20,7 @@ from concurrent.futures import CancelledError, ThreadPoolExecutor
 from contextvars import copy_context
 from functools import lru_cache
 from threading import Event, Lock
-from typing import Any, TypeVar
+from typing import TypeVar
 
 try:
     from presidio_analyzer import PatternRecognizer  # type: ignore[reportMissingImports]
@@ -118,6 +118,41 @@ def _get_ad_hoc_recognizers(sdd_config: SensitiveDataDetection):
     for recognizer in sdd_config.recognizers:
         ad_hoc_recognizers.append(PatternRecognizer.from_dict(recognizer))
     return ad_hoc_recognizers
+
+
+def _anonymize(text: str, analyzer_results: list, entities: list, masking_strategy: str) -> str:
+    """Mask every detected entity, allocating placeholders per the strategy."""
+    anonymizer = AnonymizerEngine()
+
+    if masking_strategy != "per_value":
+        operators = {entity: OperatorConfig("replace") for entity in entities}
+        return anonymizer.anonymize(text=text, analyzer_results=analyzer_results, operators=operators).text
+
+    # The number cannot be assigned inside an operator: Presidio invokes operators in
+    # reverse text order, which would number right to left. `keep` leaves the text
+    # alone and returns the matches that survived Presidio's own conflict resolution,
+    # as offsets into `text`, so the spans are resolved first and rewritten below.
+    kept = anonymizer.anonymize(
+        text=text,
+        analyzer_results=analyzer_results,
+        operators={entity: OperatorConfig("keep") for entity in entities},
+    )
+    spans = sorted(kept.items, key=lambda item: item.start)
+
+    counts: dict[str, int] = {}
+    tokens: dict[tuple[str, str], str] = {}
+    for span in spans:
+        key = (span.entity_type, text[span.start : span.end])
+        if key not in tokens:
+            counts[span.entity_type] = counts.get(span.entity_type, 0) + 1
+            tokens[key] = f"<{span.entity_type}_{counts[span.entity_type]}>"
+
+    masked = text
+    # From the end, so each replacement keeps the offsets of the ones before it.
+    for span in reversed(spans):
+        token = tokens[(span.entity_type, text[span.start : span.end])]
+        masked = masked[: span.start] + token + masked[span.end :]
+    return masked
 
 
 def _sensitive_data_detection_outcome(has_sensitive_data: bool) -> RailOutcome:
@@ -222,10 +257,6 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig) -> Ra
             "Could not import presidio, please install it with `pip install presidio-analyzer presidio-anonymizer`."
         )
 
-    operators: dict[str, Any] = {}
-    for entity in options.entities:
-        operators[entity] = OperatorConfig("replace")
-
     def mask():
         """Keep initialization, analysis, and anonymization off the event loop."""
         analyzer = _get_analyzer()
@@ -235,9 +266,8 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig) -> Ra
             entities=options.entities,
             ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
         )
-        anonymizer = AnonymizerEngine()
-        return anonymizer.anonymize(text=text, analyzer_results=results, operators=operators)
+        return _anonymize(text, results, options.entities, options.masking_strategy)
 
-    masked_results = await _detection_executor.run(mask)
+    masked_text = await _detection_executor.run(mask)
 
-    return _mask_sensitive_data_outcome(source, text, masked_results.text)
+    return _mask_sensitive_data_outcome(source, text, masked_text)

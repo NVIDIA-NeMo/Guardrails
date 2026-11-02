@@ -2562,7 +2562,7 @@ requires-dist = [
     { name = "presidio-analyzer", marker = "python_full_version < '3.13' and extra == 'all'", specifier = ">=2.2" },
     { name = "presidio-analyzer", marker = "python_full_version < '3.13' and extra == 'sdd'", specifier = ">=2.2" },
     { name = "presidio-anonymizer", marker = "python_full_version < '3.13' and extra == 'all'", specifier = ">=2.2" },
-    { name = "presidio-anonymizer", marker = "python_full_version < '3.13' and extra == 'sdd'", specifier = ">=2.2" },
+    { name = "presidio-anonymizer", marker = "python_full_version < '3.13' and extra == 'sdd'", specifier = ">=2.2.350" },
     { name = "prometheus-client", marker = "extra == 'all'", specifier = ">=0.20.0,<2.0.0" },
     { name = "prometheus-client", marker = "extra == 'server'", specifier = ">=0.20.0,<2.0.0" },
     { name = "prompt-toolkit", specifier = ">=3.0" },
