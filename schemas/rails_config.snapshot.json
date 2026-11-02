@@ -289,8 +289,16 @@
           "type": "boolean"
         },
         "input": {
-          "$ref": "#/$defs/DecisionModelOptions",
-          "description": "Questions asked about the user input."
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionModelOptions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Questions asked about the user input. Required to use the input rail."
         },
         "model": {
           "description": "The decision model identifier. Pin a version for reproducibility.",
@@ -299,8 +307,16 @@
           "type": "string"
         },
         "output": {
-          "$ref": "#/$defs/DecisionModelOptions",
-          "description": "Questions asked about the bot output."
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionModelOptions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Questions asked about the bot output. Required to use the output rail."
         },
         "server_endpoint": {
           "description": "The decision model assessment endpoint URL.",
@@ -345,11 +361,15 @@
           "additionalProperties": {
             "$ref": "#/$defs/DecisionModelQuestion"
           },
-          "description": "Noul questions to ask about the text, keyed by an identifier. The text is blocked if any answer probability reaches its threshold.",
+          "description": "Noul questions to ask about the text, keyed by an identifier. At least one is required. The text is blocked if any answer probability reaches its threshold.",
+          "minProperties": 1,
           "title": "Questions",
           "type": "object"
         }
       },
+      "required": [
+        "questions"
+      ],
       "title": "DecisionModelOptions",
       "type": "object"
     },

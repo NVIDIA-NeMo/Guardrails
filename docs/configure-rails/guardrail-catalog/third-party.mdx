@@ -335,7 +335,7 @@ For more details, check out the [HuggingFace Classifier Integration](/configure-
 
 ## Decision Model
 
-The NVIDIA NeMo Guardrails library supports decision model endpoints that answer user-defined yes/no questions with probabilities. Configure the endpoint, model identifier, and API-key environment variable. The service must implement the documented `state`/`questions`/`answers` protocol.
+The NVIDIA NeMo Guardrails library supports decision model endpoints that answer user-defined yes/no questions with probabilities. Configure the endpoint, model identifier, and API-key environment variable. The service must implement the documented `state`/`questions`/`answers` protocol, for example at a `/v1/systemone` endpoint. The rail sends its request to exactly the `server_endpoint` URL you configure and does not append a path, so any compatible service works.
 
 ### Example usage
 
@@ -343,7 +343,7 @@ The NVIDIA NeMo Guardrails library supports decision model endpoints that answer
 rails:
   config:
     decision_model:
-      server_endpoint: "https://decision-model.example/v1/assess"
+      server_endpoint: "https://decision-model.example/v1/systemone"
       model: "your-decision-model-id"
       api_key_env_var: "DECISION_MODEL_API_KEY"
       input:

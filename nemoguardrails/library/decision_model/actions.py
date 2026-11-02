@@ -63,7 +63,7 @@ async def decision_model_check(
         supplied by the provider.
 
     Raises:
-        ValueError: If ``source`` is invalid, the rail is unconfigured, or its configured
+        ValueError: If ``source`` is invalid, the rail is unconfigured, the requested direction has no questions, or its configured
             API-key environment variable is unset. These are configuration errors.
         DecisionModelAuthError: If the service rejects the credentials (HTTP 401 or 403) and
             ``fail_open`` is false. The engine reports this as a system error rather than a
@@ -77,10 +77,13 @@ async def decision_model_check(
     decision_model_config: Optional[DecisionModelConfig] = config.rails.config.decision_model
     if decision_model_config is None:
         raise ValueError("rails.config.decision_model must configure server_endpoint and model.")
-    questions = getattr(decision_model_config, source).questions
-    # Nothing to ask, or nothing to assess (e.g. an empty or tool-call-only assistant turn): skip the
-    # API call and the API-key requirement rather than sending an empty state.
-    if not questions or not (text or "").strip():
+    options = getattr(decision_model_config, source)
+    if options is None:
+        raise ValueError(f"rails.config.decision_model.{source}.questions must be configured to screen {source} text.")
+    questions = options.questions
+    # Nothing to assess (e.g. an empty or tool-call-only assistant turn): skip the API call and the
+    # API-key requirement rather than sending an empty state.
+    if not (text or "").strip():
         return RailOutcome.allow(
             metadata={"source": source, "scores": {}, "thresholds": {}, "triggered": [], "violations": []}
         )

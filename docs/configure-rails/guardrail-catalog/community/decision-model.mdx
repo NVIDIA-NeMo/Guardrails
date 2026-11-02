@@ -24,7 +24,7 @@ Configure the rail in `config.yml`. Replace the example endpoint and model with 
 rails:
   config:
     decision_model:
-      server_endpoint: "https://decision-model.example/v1/assess"
+      server_endpoint: "https://decision-model.example/v1/systemone"
       model: "your-decision-model-id"
       api_key_env_var: "DECISION_MODEL_API_KEY"
       threshold: 0.5
@@ -49,7 +49,7 @@ rails:
       - decision model check output
 ```
 
-You can enable either direction independently. The manifest-backed input/output engine and Colang 1.0 discover the rail automatically.
+Define `questions` for each direction you enable; you can enable either direction independently. The manifest-backed input/output engine and Colang 1.0 discover the rail automatically.
 
 ### Colang 2.x
 
@@ -73,7 +73,7 @@ flow main
   activate llm continuation
 ```
 
-Define only the flow for each direction you want to screen. When both are defined, a refusal message produced by the input rail is itself checked by the output rail, which adds one request. The `rails.config.decision_model.<direction>.questions` block must also be set for that direction, or the check is skipped with a warning.
+Define only the flow for each direction you want to screen. When both are defined, a refusal message produced by the input rail is itself checked by the output rail, which adds one request. The `rails.config.decision_model.<direction>.questions` block must also be set for that direction.
 
 To verify the setup, export the API key and send a message that one of your input questions should flag:
 
@@ -136,14 +136,14 @@ All options live under `rails.config.decision_model`. Unknown keys are rejected.
 | `timeout` | `10.0` | Per-request timeout in seconds; must be greater than 0. |
 | `verify_ssl` | `true` | Verify the endpoint's TLS certificate. Set to `false` only for self-signed or internal certificates you trust. The rail logs a warning when verification is off. |
 | `fail_open` | `false` | Allow text on provider failure when set to `true`. |
-| `input.questions` | None | Questions about the user message, keyed by identifier. |
-| `output.questions` | None | Questions about the assistant response, keyed by identifier. |
+| `input.questions` | Required to screen user messages | Questions about the user message, keyed by identifier. |
+| `output.questions` | Required to screen assistant responses | Questions about the assistant response, keyed by identifier. |
 
 Each question requires an `instructions` string and accepts an optional `threshold` override. Its threshold falls back to the rail-level value when omitted.
 
-A direction with no questions is not screened, even with `fail_open: false`, and loading the configuration emits a `UserWarning` identifying the disabled direction. Define at least one question for each direction you enable.
+Each direction you enable requires at least one question, and at least one of `input` or `output` must be configured. If a flow runs for a direction with no questions, the action raises a configuration error.
 
-Empty or whitespace-only text is allowed without a request. Empty question sets also skip the request. Neither path reads the API-key environment variable.
+Empty or whitespace-only text is allowed without a request. This path does not read the API-key environment variable.
 
 ## Decisions and Failure Handling
 
