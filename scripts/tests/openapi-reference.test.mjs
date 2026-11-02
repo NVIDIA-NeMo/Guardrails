@@ -60,6 +60,40 @@ test("Fern integration preserves existing API reference routes and curated examp
         guardrails: { config_id: "content_safety", rail_types: ["input"] },
       },
       response: { status: "passed", content: "What is the capital of France?" },
+    }, {
+      request: {
+        model: "meta/llama-3.1-8b-instruct",
+        messages: [
+          { role: "user", content: "What's the weather in Paris?" },
+          {
+            // Fern drops null-valued fields from examples, so the overlay's `content: null` is absent here.
+            role: "assistant",
+            tool_calls: [{ id: "call_1", type: "function", function: { name: "delete_files", arguments: "{}" } }],
+          },
+        ],
+        tools: [{
+          type: "function",
+          function: {
+            name: "get_weather",
+            parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
+          },
+        }],
+        guardrails: { config_id: "tools", rail_types: ["tool_call"] },
+      },
+      response: {
+        status: "blocked",
+        content: "I'm sorry, I can't respond to that.",
+        rail: "tool call validation",
+        reason: "tool call 'delete_files' is not an allowed tool",
+        tool_violations: [{
+          kind: "tool_call",
+          violation_type: "tool_not_allowed",
+          reason: "tool call 'delete_files' is not an allowed tool",
+          tool_call_id: "call_1",
+          tool_name: "delete_files",
+          index: 0,
+        }],
+      },
     }]);
 
     const specPath = path.join(directory, "published-api.yml");
