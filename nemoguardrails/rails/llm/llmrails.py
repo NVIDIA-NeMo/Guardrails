@@ -58,6 +58,7 @@ from nemoguardrails.colang.v1_0.runtime.runtime import Runtime, RuntimeV1_0
 from nemoguardrails.colang.v2_x.runtime.flows import Action, State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.context import (
+    ensure_roundtrip_id,
     explain_info_var,
     generation_options_var,
     get_conversation_id,
@@ -1489,11 +1490,18 @@ class LLMRails(BaseGuardrails):
         # if an external generator is provided, use it directly
         if generator:
             if self.config.rails.output.streaming and self.config.rails.output.streaming.enabled:
-                return self._run_output_rails_in_streaming(
-                    streaming_handler=generator,
-                    output_rails_streaming_config=self.config.rails.output.streaming,
-                    messages=messages,
-                    prompt=prompt,
+                # The rails run as the consumer pulls chunks, which for a response body happens
+                # outside the caller that created the stream, so the IDs of that request are
+                # captured here and applied to each pull.
+                return stream_with_request_ids(
+                    self._run_output_rails_in_streaming(
+                        streaming_handler=generator,
+                        output_rails_streaming_config=self.config.rails.output.streaming,
+                        messages=messages,
+                        prompt=prompt,
+                    ),
+                    conversation=get_conversation_id(),
+                    roundtrip=ensure_roundtrip_id(),
                 )
             else:
                 return generator

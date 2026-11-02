@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The request-scoped conversation ID reaches every stage of an IORails request, and only that request."""
+"""The request-scoped conversation ID reaches every stage of a request, and only that request."""
 
 import asyncio
 from unittest.mock import AsyncMock, patch
@@ -21,10 +21,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 
+from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import conversation_id, get_conversation_id
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import RailType
 from nemoguardrails.types import LLMResponse, LLMResponseChunk
 from tests.guardrails.async_helpers import started_iorails
@@ -176,3 +179,53 @@ class TestOnIORails:
 
         assert sorted(conversation for stage, conversation in seen if stage == "input") == ["a", "b"]
         assert {conversation for stage, conversation in seen if stage == "output"} == {"a", "b"}
+
+
+async def _tokens():
+    for token in ("Hello", " ", "world", "!"):
+        yield token
+
+
+def _streaming_rails_over_an_external_generator(seen: list) -> LLMRails:
+    """An LLMRails whose only rail records the ID it ran under, for each streamed chunk."""
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": ["record output"],
+                    "streaming": {"enabled": True, "chunk_size": 2, "context_size": 1, "stream_first": False},
+                }
+            },
+            "streaming": True,
+        },
+        colang_content="""
+        define flow record output
+          execute record_leg
+        """,
+    )
+    rails = LLMRails(config)
+
+    @action(name="record_leg")
+    async def record_leg(**kwargs):
+        seen.append(get_conversation_id())
+        return RailOutcome.allow()
+
+    rails.register_action(record_leg, "record_leg")
+    return rails
+
+
+class TestOnLLMRails:
+    @pytest.mark.asyncio
+    async def test_a_stream_over_an_external_generator_keeps_the_id_it_was_created_with(self):
+        """The output rails of a stream_async(generator=...) call run as the consumer pulls."""
+        seen = []
+        rails = _streaming_rails_over_an_external_generator(seen)
+
+        with conversation_id("c-1"):
+            chunks = rails.stream_async(generator=_tokens(), messages=USER)
+        with conversation_id("someone-else"):
+            delivered = [chunk async for chunk in chunks]
+
+        assert "".join(delivered) == "Hello world!"
+        assert seen and set(seen) == {"c-1"}

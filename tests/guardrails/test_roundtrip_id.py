@@ -22,9 +22,12 @@ import pytest
 import pytest_asyncio
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import get_roundtrip_id, new_roundtrip_id, roundtrip_id
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import RailType
 from nemoguardrails.types import LLMResponse, LLMResponseChunk
 from tests.guardrails.async_helpers import started_iorails
@@ -245,6 +248,40 @@ class TestOnIORails:
         assert get_roundtrip_id() is None
 
 
+async def _tokens():
+    for token in ("Hello", " ", "world", "!"):
+        yield token
+
+
+def _streaming_rails_over_an_external_generator(seen: list) -> LLMRails:
+    """An LLMRails whose only rail records the ID it ran under, for each streamed chunk."""
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": ["record output"],
+                    "streaming": {"enabled": True, "chunk_size": 2, "context_size": 1, "stream_first": False},
+                }
+            },
+            "streaming": True,
+        },
+        colang_content="""
+        define flow record output
+          execute record_leg
+        """,
+    )
+    rails = LLMRails(config)
+
+    @action(name="record_leg")
+    async def record_leg(**kwargs):
+        seen.append(get_roundtrip_id())
+        return RailOutcome.allow()
+
+    rails.register_action(record_leg, "record_leg")
+    return rails
+
+
 class TestOnLLMRails:
     @staticmethod
     def _recording_chat(seen: list) -> TestChat:
@@ -287,3 +324,27 @@ class TestOnLLMRails:
             await chat.app.check_async(EXCHANGE)
 
         assert {request for _, request in seen} == {"r-1"}
+
+    @pytest.mark.asyncio
+    async def test_a_stream_over_an_external_generator_opens_a_round_trip(self):
+        """The output rails of a stream_async(generator=...) call run as the consumer pulls."""
+        seen = []
+        rails = _streaming_rails_over_an_external_generator(seen)
+
+        chunks = rails.stream_async(generator=_tokens(), messages=USER)
+        delivered = [chunk async for chunk in chunks]
+
+        assert "".join(delivered) == "Hello world!"
+        assert seen and len(set(seen)) == 1 and None not in seen
+        assert get_roundtrip_id() is None
+
+    @pytest.mark.asyncio
+    async def test_a_stream_over_an_external_generator_keeps_an_id_the_caller_set(self):
+        seen = []
+        rails = _streaming_rails_over_an_external_generator(seen)
+
+        with roundtrip_id("r-1"):
+            chunks = rails.stream_async(generator=_tokens(), messages=USER)
+        [chunk async for chunk in chunks]
+
+        assert seen and set(seen) == {"r-1"}
