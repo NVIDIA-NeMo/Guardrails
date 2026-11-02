@@ -125,6 +125,30 @@ rails:
 
 For additional guidance on handling undetected PII entities and minimizing false negatives, refer to the [Presidio FAQ](https://microsoft.github.io/presidio/faq/#what-can-i-do-if-presidio-does-not-detect-some-of-the-pii-entities-in-my-data-false-negatives).
 
+## Masking Strategy
+
+By default, every detected value of an entity type is replaced with the same token, so two different people both become `<PERSON>`. Set `masking_strategy: per_value` to number the distinct values of a type instead:
+
+```yaml
+rails:
+  config:
+    sensitive_data_detection:
+      input:
+        entities:
+          - PERSON
+          - LOCATION
+        masking_strategy: per_value
+```
+
+| `masking_strategy` | `Alice met Bob in Paris. Alice liked Paris.` becomes |
+| --- | --- |
+| `per_type` (default) | `<PERSON> met <PERSON> in <LOCATION>. <PERSON> liked <LOCATION>.` |
+| `per_value` | `<PERSON_1> met <PERSON_2> in <LOCATION_1>. <PERSON_1> liked <LOCATION_1>.` |
+
+The same detected value always maps to the same token, and numbering runs per entity type in order of appearance. Tokens are scoped to a single masking call: they are not stable across requests, and the mapping back to the original values is not retained.
+
+`masking_strategy` can be set for any of the sources (input, output and retrieval).
+
 ## Custom Recognizers
 
 If you have custom entities that you want to detect, you can define custom *recognizers*.
