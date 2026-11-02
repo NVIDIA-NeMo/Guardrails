@@ -141,7 +141,7 @@ All options live under `rails.config.decision_model`. Unknown keys are rejected.
 
 Each question requires an `instructions` string and accepts an optional `threshold` override. Its threshold falls back to the rail-level value when omitted.
 
-The rail ships with no default questions. A direction with no questions is not screened, even with `fail_open: false`, and loading the configuration emits a `UserWarning` identifying the disabled direction. Define at least one question for each direction you enable.
+A direction with no questions is not screened, even with `fail_open: false`, and loading the configuration emits a `UserWarning` identifying the disabled direction. Define at least one question for each direction you enable.
 
 Empty or whitespace-only text is allowed without a request. Empty question sets also skip the request. Neither path reads the API-key environment variable.
 
