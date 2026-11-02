@@ -16,7 +16,6 @@
 """Configuration for the decision model rail."""
 
 import logging
-import warnings
 from typing import Dict, Optional
 
 from pydantic import ConfigDict, field_validator, model_validator
@@ -46,9 +45,9 @@ class DecisionModelOptions(RailConfigBaseModel):
     model_config = ConfigDict(extra="forbid")
 
     questions: Dict[str, DecisionModelQuestion] = Field(
-        default_factory=dict,
+        min_length=1,
         description=(
-            "Noul questions to ask about the text, keyed by an identifier. "
+            "Noul questions to ask about the text, keyed by an identifier. At least one is required. "
             "The text is blocked if any answer probability reaches its threshold."
         ),
     )
@@ -88,13 +87,13 @@ class DecisionModelConfig(RailConfigBaseModel):
         default=False,
         description="If true, allow the text when the decision model cannot be reached. Default is to fail closed and block.",
     )
-    input: DecisionModelOptions = Field(
-        default_factory=DecisionModelOptions,
-        description="Questions asked about the user input.",
+    input: Optional[DecisionModelOptions] = Field(
+        default=None,
+        description="Questions asked about the user input. Required to use the input rail.",
     )
-    output: DecisionModelOptions = Field(
-        default_factory=DecisionModelOptions,
-        description="Questions asked about the bot output.",
+    output: Optional[DecisionModelOptions] = Field(
+        default=None,
+        description="Questions asked about the bot output. Required to use the output rail.",
     )
 
     @field_validator("server_endpoint", "model", "api_key_env_var")
@@ -123,15 +122,9 @@ class DecisionModelConfig(RailConfigBaseModel):
         return self
 
     @model_validator(mode="after")
-    def _warn_disabled_screening(self) -> "DecisionModelConfig":
-        for direction in ("input", "output"):
-            if not getattr(self, direction).questions:
-                warnings.warn(
-                    f"Decision model {direction} screening is disabled because rails.config.decision_model.{direction}.questions is empty. "
-                    f"All {direction} text will be allowed even when fail_open is false.",
-                    UserWarning,
-                    stacklevel=2,
-                )
+    def _require_a_direction(self) -> "DecisionModelConfig":
+        if self.input is None and self.output is None:
+            raise ValueError("at least one of 'input' or 'output' must define questions")
         return self
 
 

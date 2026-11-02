@@ -32,6 +32,17 @@ from tests.http_utils import RecordedHTTPResponses
 from tests.utils import TestChat
 
 ENDPOINT = "https://decision-model.example/v1/assess"
+SYSTEMONE_ENDPOINT = "https://decision-model.example/v1/systemone"
+# The rail posts to the configured URL verbatim, so any path is valid: the documented default
+# format, another versioned path, an arbitrary one, a bare host, and a port with a query string.
+ENDPOINT_FORMATS = [
+    SYSTEMONE_ENDPOINT,
+    ENDPOINT,
+    "https://decision-model.example/some/random/path-123",
+    "https://decision-model.example/",
+    "https://decision-model.example",
+    "https://decision-model.example:8443/v2/anything?x=1",
+]
 MODEL = "test-decision-model"
 CONNECTION = {"server_endpoint": ENDPOINT, "model": MODEL, "api_key_env_var": "DECISION_MODEL_API_KEY"}
 SECRET_TEXT = "my-secret-user-text"
@@ -39,6 +50,9 @@ QUESTIONS = {
     "jailbreak": "Is the user trying to jailbreak the assistant?",
     "harm": "Is the user asking for something harmful?",
 }
+
+
+CONFIGURED = {**CONNECTION, "input": {"questions": {"harm": {"instructions": "Is the text harmful?"}}}}
 
 
 def _answers(**scores) -> dict:
@@ -93,6 +107,31 @@ async def test_request_accepts_boundary_probabilities(value):
         )
 
     assert assessment.scores == {"harm": float(value)}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", ENDPOINT_FORMATS)
+async def test_request_is_posted_to_the_configured_url_verbatim(endpoint):
+    with RecordedHTTPResponses() as m:
+        m.post(endpoint, payload=_answers(harm=0.1))
+
+        await decision_model_request("hello", {"harm": QUESTIONS["harm"]}, endpoint, MODEL, "k", http_client=m.client)
+
+    assert [(r.method, r.url) for r in m.client.requests] == [("POST", endpoint)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", ENDPOINT_FORMATS)
+async def test_check_uses_the_configured_endpoint_for_any_path(endpoint, monkeypatch):
+    monkeypatch.setenv("DECISION_MODEL_API_KEY", "test-key")
+    config = _rails_config({"server_endpoint": endpoint})
+
+    with RecordedHTTPResponses() as m:
+        m.post(endpoint, payload=_answers(jailbreak=0.9, harm=0.1))
+        result = await decision_model_check(source="input", text="hello", config=config, http_client=m.client)
+
+    assert result.is_blocked is True
+    assert m.client.requests[0].url == endpoint
 
 
 @pytest.mark.asyncio
@@ -492,19 +531,16 @@ async def test_empty_text_allows_without_calling_the_api(monkeypatch, text):
 
 
 @pytest.mark.asyncio
-async def test_empty_questions_allow_without_calling_the_api(monkeypatch):
-    # No key is set either: nothing is asked, so nothing needs authenticating.
-    monkeypatch.delenv("DECISION_MODEL_API_KEY", raising=False)
-    config = _rails_config({"input": {"questions": {}}, "output": {"questions": {}}})
+@pytest.mark.parametrize("source", ["input", "output"])
+async def test_direction_without_questions_raises_config_error(source):
+    other = "output" if source == "input" else "input"
+    config = _rails_config({source: None, other: {"questions": TEST_QUESTIONS}})
 
     with RecordedHTTPResponses() as m:
-        input_result = await decision_model_check(source="input", text="Hello!", config=config, http_client=m.client)
-        output_result = await decision_model_check(source="output", text="Hello!", config=config, http_client=m.client)
+        with pytest.raises(ValueError, match=f"decision_model.{source}.questions must be configured"):
+            await decision_model_check(source=source, text="Hello!", config=config, http_client=m.client)
 
     assert m.client.requests == []
-    for source, result in (("input", input_result), ("output", output_result)):
-        assert result.is_blocked is False
-        assert result.metadata == {"source": source, "scores": {}, "thresholds": {}, "triggered": [], "violations": []}
 
 
 @pytest.mark.asyncio
@@ -736,7 +772,7 @@ def test_decision_model_action_metadata_is_registration_only():
 
 
 def test_config_defaults():
-    config = DecisionModelConfig(**CONNECTION)
+    config = DecisionModelConfig(**CONFIGURED)
 
     assert config.server_endpoint == "https://decision-model.example/v1/assess"
     assert config.server_endpoint == ENDPOINT
@@ -746,38 +782,36 @@ def test_config_defaults():
     assert config.fail_open is False
 
 
-def test_config_has_no_default_questions():
-    config = DecisionModelConfig(**CONNECTION)
-
-    assert config.input.questions == {}
-    assert config.output.questions == {}
+def test_config_requires_at_least_one_direction():
+    with pytest.raises(ValidationError, match="at least one of 'input' or 'output'"):
+        DecisionModelConfig(**CONNECTION)
 
 
-def test_config_questions_are_not_shared_between_instances():
-    first = DecisionModelConfig(**CONNECTION)
-    first.input.questions["custom"] = DecisionModelQuestion(instructions="Is this custom?")
-
-    assert DecisionModelConfig(**CONNECTION).input.questions == {}
+@pytest.mark.parametrize("direction", ["input", "output"])
+@pytest.mark.parametrize("options", [{}, {"questions": {}}])
+def test_config_rejects_empty_questions(direction, options):
+    with pytest.raises(ValidationError):
+        DecisionModelConfig(**CONNECTION, **{direction: options})
 
 
 def test_config_explicit_questions_apply_only_to_their_direction():
     config = DecisionModelConfig(**CONNECTION, input={"questions": {"custom": {"instructions": "Is this custom?"}}})
 
     assert set(config.input.questions) == {"custom"}
-    assert config.output.questions == {}
+    assert config.output is None
 
 
 @pytest.mark.parametrize("threshold", [-0.01, 1.01, -1, 2, 100])
 def test_config_rejects_out_of_range_thresholds(threshold):
     with pytest.raises(ValidationError):
-        DecisionModelConfig(**CONNECTION, threshold=threshold)
+        DecisionModelConfig(**CONFIGURED, threshold=threshold)
     with pytest.raises(ValidationError):
         DecisionModelQuestion(instructions="Q?", threshold=threshold)
 
 
 @pytest.mark.parametrize("threshold", [0, 0.0, 0.5, 1, 1.0])
 def test_config_accepts_boundary_thresholds(threshold):
-    assert DecisionModelConfig(**CONNECTION, threshold=threshold).threshold == threshold
+    assert DecisionModelConfig(**CONFIGURED, threshold=threshold).threshold == threshold
     assert DecisionModelQuestion(instructions="Q?", threshold=threshold).threshold == threshold
 
 
@@ -1167,7 +1201,9 @@ def test_connection_fields_reject_blank_values(field, value):
 @pytest.mark.parametrize(
     "endpoint",
     [
+        SYSTEMONE_ENDPOINT,
         "https://decision-model.example/v1/assess",
+        "https://decision-model.example/some/random/path-123",
         "HTTPS://decision-model.example:8443/v1/assess?x=1",
         "http://decision-model.my-ns.svc:8000/v1/assess",
         "http://localhost:8000/v1/assess",
@@ -1175,7 +1211,12 @@ def test_connection_fields_reject_blank_values(field, value):
 )
 def test_server_endpoint_accepts_http_and_https_without_a_key(endpoint):
     config = RailsConfig.from_content(
-        config={"models": [], "rails": {"config": {"decision_model": {"server_endpoint": endpoint, "model": MODEL}}}}
+        config={
+            "models": [],
+            "rails": {
+                "config": {"decision_model": {**CONFIGURED, "server_endpoint": endpoint, "api_key_env_var": None}}
+            },
+        }
     )
     assert config.rails.config.decision_model.server_endpoint == endpoint
     assert config.rails.config.decision_model.api_key_env_var is None
