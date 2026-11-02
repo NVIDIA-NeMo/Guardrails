@@ -172,6 +172,25 @@ The `decision_model_check` action returns a rail outcome with these metadata fie
 | `error` | Provider failure | Sanitized failure description. |
 | `fail_open` | Provider failure | The configured failure policy. |
 
+For example, with an input question `jailbreak` (rail-level threshold `0.5`) and an input question `harmful_request` (threshold `0.7`), a message that scores `0.97` and `0.04` blocks with the reason `Decision model flagged: jailbreak` and this metadata:
+
+```json
+{
+  "source": "input",
+  "scores": {"jailbreak": 0.97, "harmful_request": 0.04},
+  "thresholds": {"jailbreak": 0.5, "harmful_request": 0.7},
+  "triggered": ["jailbreak"],
+  "violations": [{"question": "jailbreak", "score": 0.97, "threshold": 0.5}],
+  "model": "your-decision-model-id"
+}
+```
+
+When the provider fails and `fail_open` is `false`, the rail blocks and the metadata describes the failure instead:
+
+```json
+{"source": "input", "error": "<sanitized failure description>", "fail_open": false}
+```
+
 Custom flows can call `decision_model_check` directly and read `is_blocked`, `reason`, and `metadata`. The rail does not add the assessed text to metadata.
 
 ## Questions and Thresholds
