@@ -129,6 +129,17 @@ def test_a_rejected_token_is_dropped_and_refetched():
     assert len(client.requests) == 2
 
 
+def test_a_rejection_of_a_superseded_token_keeps_the_fresh_one():
+    """Two callers meet a 401 on the same token; the second must not discard the first's refresh."""
+    client = RecordingHTTPClient([_token_response("token-1"), _token_response("token-2")])
+    assert _get(client) == "token-1"
+
+    assert _get(client, rejected="token-1") == "token-2"
+    assert _get(client, rejected="token-1") == "token-2"
+
+    assert len(client.requests) == 2
+
+
 class TestFailures:
     @pytest.mark.parametrize("status", [400, 401, 403, 500, 503])
     def test_non_200_raises_safe_transport_error(self, status):

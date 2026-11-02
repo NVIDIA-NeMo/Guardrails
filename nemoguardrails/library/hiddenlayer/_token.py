@@ -122,7 +122,11 @@ async def _access_token(
     """
     key = (api_url, client_id, hashlib.sha256(client_secret.encode()).hexdigest())
     if rejected is not None:
-        _tokens.pop(key, None)
+        # Drop only the token that was rejected: a concurrent 401 may already have replaced it,
+        # and popping unconditionally would discard that good token and refetch again.
+        stale = _tokens.get(key)
+        if stale is not None and stale.token == rejected:
+            _tokens.pop(key, None)
     cached = _tokens.get(key)
     if cached is not None and _now() < cached.refresh_at:
         return cached.token
