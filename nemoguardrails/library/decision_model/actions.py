@@ -31,8 +31,8 @@ log = logging.getLogger(__name__)
 VALID_SOURCES = ("input", "output")
 
 
-def _failure_outcome(fail_open: bool, reason: str) -> RailOutcome:
-    metadata = {"error": reason, "fail_open": fail_open}
+def _failure_outcome(source: str, fail_open: bool, reason: str) -> RailOutcome:
+    metadata = {"source": source, "error": reason, "fail_open": fail_open}
     if fail_open:
         return RailOutcome.allow(metadata=metadata)
     return RailOutcome.block(reason=reason, metadata=metadata)
@@ -56,8 +56,11 @@ async def decision_model_check(
     Returns:
         RailOutcome.block() if any question's probability reaches its threshold, or if the decision model
         cannot be reached and ``fail_open`` is false; RailOutcome.allow() otherwise. Metadata
-        holds the per-question ``scores``, ``triggered`` question ids, and the resolved
-        ``model`` when supplied by the provider, never the text.
+        explains the verdict without carrying the text: ``source`` (the screened direction),
+        per-question ``scores`` and effective ``thresholds``, the ``triggered`` question ids,
+        ``violations`` (one ``{question, score, threshold}`` record per triggered question, so a
+        consumer can tell which policy blocked and by how much), and the resolved ``model`` when
+        supplied by the provider.
 
     Raises:
         ValueError: If ``source`` is invalid, the rail is unconfigured, or its configured
@@ -78,7 +81,9 @@ async def decision_model_check(
     # Nothing to ask, or nothing to assess (e.g. an empty or tool-call-only assistant turn): skip the
     # API call and the API-key requirement rather than sending an empty state.
     if not questions or not (text or "").strip():
-        return RailOutcome.allow(metadata={"scores": {}, "triggered": []})
+        return RailOutcome.allow(
+            metadata={"source": source, "scores": {}, "thresholds": {}, "triggered": [], "violations": []}
+        )
 
     api_key = None
     if decision_model_config.api_key_env_var:
@@ -101,7 +106,7 @@ async def decision_model_check(
         log.error("%s", err)
         if decision_model_config.fail_open:
             log.warning("fail_open is enabled; allowing text despite the authentication failure.")
-            return _failure_outcome(True, str(err))
+            return _failure_outcome(source, True, str(err))
         raise
     except ValueError as err:
         log.warning(
@@ -109,16 +114,26 @@ async def decision_model_check(
             err,
             "allowing text" if decision_model_config.fail_open else "blocking text",
         )
-        return _failure_outcome(decision_model_config.fail_open, str(err))
+        return _failure_outcome(source, decision_model_config.fail_open, str(err))
 
     scores = assessment.scores
-    triggered = [
-        qid
+    thresholds = {
+        qid: questions[qid].threshold if questions[qid].threshold is not None else decision_model_config.threshold
+        for qid in scores
+    }
+    violations = [
+        {"question": qid, "score": score, "threshold": thresholds[qid]}
         for qid, score in scores.items()
-        if score
-        >= (questions[qid].threshold if questions[qid].threshold is not None else decision_model_config.threshold)
+        if score >= thresholds[qid]
     ]
-    metadata: Dict[str, Any] = {"scores": scores, "triggered": triggered}
+    triggered = [violation["question"] for violation in violations]
+    metadata: Dict[str, Any] = {
+        "source": source,
+        "scores": scores,
+        "thresholds": thresholds,
+        "triggered": triggered,
+        "violations": violations,
+    }
     if assessment.model is not None:
         metadata["model"] = assessment.model
     if triggered:
