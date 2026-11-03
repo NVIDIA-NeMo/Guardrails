@@ -71,36 +71,74 @@ def _type_label(schema: dict) -> str:
         return schema["type"]
     for keyword in ("oneOf", "anyOf", "allOf"):
         if keyword in schema:
-            return keyword + "(" + ", ".join(_type_label(child) for child in schema[keyword]) + ")"
-    return "provider-owned" if schema.get(EXTENSION, {}).get("classification") == "opaque" else "unspecified"
+            alternatives = schema[keyword]
+            if keyword in {"oneOf", "anyOf"} and len(alternatives) == 2 and {"type": "null"} in alternatives:
+                return " or ".join(_type_label(child) for child in alternatives)
+            return f"{keyword}: {len(alternatives)} alternatives"
+    return "any"
 
 
-def _schema_summary(schema: dict) -> dict:
-    """Keep assertions inside unions and arrays while showing object fields in their own scopes."""
-    summary = {key: value for key, value in schema.items() if key not in {"title", "description", "properties"}}
+def _readable_rules(schema: dict) -> str:
+    """Summarize common assertions; the exact export retains all annotations."""
+    policy = schema.get(EXTENSION, {})
+    if policy.get("gate") == "disabled":
+        return "Omit or null."
+    if policy.get("classification") == "opaque":
+        return "Provider requirements apply."
     for keyword in ("oneOf", "anyOf", "allOf"):
-        if keyword in summary:
-            summary[keyword] = [_schema_summary(child) for child in summary[keyword]]
-    if "items" in summary:
-        summary["items"] = _schema_summary(summary["items"])
-    policy = {key: value for key, value in summary.pop(EXTENSION, {}).items() if key not in {"classification", "gate"}}
-    if policy:
-        summary[EXTENSION] = policy
-    return summary
+        if keyword in schema:
+            branches = [child for child in schema[keyword] if child != {"type": "null"}]
+            if keyword in {"oneOf", "anyOf"} and len(branches) == 1 and len(schema[keyword]) == 2:
+                rule = _readable_rules(branches[0])
+                return "If non-null, " + rule[0].lower() + rule[1:]
+            return "See branch rules below."
+    rules = []
+    if "const" in schema:
+        rules.append(f"Must be {_json(schema['const'])}.")
+    if "enum" in schema:
+        rules.append("Allowed: " + ", ".join(_json(value) for value in schema["enum"]) + ".")
+    for minimum, maximum, unit in (("minItems", "maxItems", "items"), ("minLength", "maxLength", "characters")):
+        low, high = schema.get(minimum), schema.get(maximum)
+        if low is not None and low == high:
+            rules.append(f"Exactly {low} {unit[:-1] if low == 1 else unit}.")
+        else:
+            if low is not None:
+                rules.append(f"At least {low} {unit[:-1] if low == 1 else unit}.")
+            if high is not None:
+                rules.append(f"At most {high} {unit[:-1] if high == 1 else unit}.")
+    low, high = schema.get("minimum"), schema.get("maximum")
+    if low is not None and low == high:
+        rules.append(f"Must be {_json(low)}.")
+    else:
+        if low is not None:
+            rules.append(f"Minimum {_json(low)}.")
+        if high is not None:
+            rules.append(f"Maximum {_json(high)}.")
+    if "pattern" in schema:
+        rules.append(f"Pattern: {_code(schema['pattern'])}.")
+    if "properties" in schema or "items" in schema:
+        rules.append("See nested fields.")
+    if not rules and policy.get("subject"):
+        rules.append("Text selected for checks.")
+    return " ".join(rules) or "See exact contract."
 
 
 def _object_table(schema: dict, pointer: str) -> str:
-    lines = ["| Field | Type | Presence | Policy | Restrictions and annotations |", "| --- | --- | --- | --- | --- |"]
+    lines = [
+        '<div className="guardrails-proxy-contract-table">',
+        "",
+        "| Field | Type | Presence | Policy | Rules |",
+        "| --- | --- | --- | --- | --- |",
+    ]
     for name, child in schema.get("properties", {}).items():
         field_pointer = f"{pointer}/properties/{_pointer_part(name)}"
-        field = f'<code title="{html.escape(field_pointer, quote=True)}">{html.escape(name)}</code>'
-        assertions = _schema_summary(child)
-        assertions.pop("type", None)
+        label = html.escape(name).replace("_", "_<wbr />")
+        field = f'<code title="{html.escape(field_pointer, quote=True)}">{label}</code>'
         presence = "Required" if name in schema.get("required", []) else "Optional"
         lines.append(
-            f"| {field} | {_code(_type_label(child))} | {presence} | {policy_badge(child)} | "
-            f"{_json(assertions) if assertions else '—'} |"
+            f"| {field} | {_code(_type_label(child))} | {presence} | {policy_badge(child)} | {_readable_rules(child)} |"
         )
+    lines.extend(["", "</div>"])
     policy = schema.get(EXTENSION, {})
     if policy:
         lines.extend(

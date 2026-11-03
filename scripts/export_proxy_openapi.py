@@ -46,6 +46,7 @@ def describe_guard_fields(schema: dict) -> None:
     policy = schema.get("x-nemo-guardrails", {})
     classification = policy.get("classification")
     if policy.get("gate") == "disabled":
+        schema["x-fern-ignore"] = True
         explanation = "Omit this field or set it to `null`; non-null values are rejected."
     elif classification == "opaque":
         explanation = (

@@ -66,14 +66,18 @@ def test_export_matches_registered_proxy_routes(tmp_path):
     actual = yaml.safe_load(output.read_text())
     app = create_proxy_application(providers=[create_openai_integration(base_url="https://api.openai.com/v1")])
 
-    def without_descriptions(value):
+    def without_documentation(value):
         if isinstance(value, dict):
-            return {key: without_descriptions(child) for key, child in value.items() if key != "description"}
+            return {
+                key: without_documentation(child)
+                for key, child in value.items()
+                if key not in {"description", "x-fern-ignore"}
+            }
         if isinstance(value, list):
-            return [without_descriptions(child) for child in value]
+            return [without_documentation(child) for child in value]
         return value
 
-    assert without_descriptions(actual) == without_descriptions(app.openapi())
+    assert without_documentation(actual) == without_documentation(app.openapi())
     assert set(actual["paths"]) == {"/v1/chat/completions", "/v1/responses"}
     for path in actual["paths"]:
         operation = actual["paths"][path]["post"]
@@ -102,6 +106,7 @@ def test_field_explanations_match_the_bound_request_policies(tmp_path):
         assert ">Disabled</Badge>" in properties[name]["description"]
         assert "Omit this field or set it to `null`" in properties[name]["description"]
         assert "guardrails-proxy-null-only" in properties[name]["description"]
+        assert properties[name]["x-fern-ignore"] is True
     assert ">Guarded</Badge>" in properties["input"]["description"]
     assert ">Constrained</Badge>" in properties["store"]["description"]
     for name in ("model", "temperature"):
@@ -109,6 +114,7 @@ def test_field_explanations_match_the_bound_request_policies(tmp_path):
         assert "Forwarded without inspecting or validating" in properties[name]["description"]
         assert "guardrails-proxy-null-only" not in properties[name]["description"]
         assert "type" not in properties[name]
+        assert "x-fern-ignore" not in properties[name]
     reasoning = next(branch for branch in properties["reasoning"]["anyOf"] if branch.get("type") == "object")
     assert "guardrails-proxy-null-only" in reasoning["properties"]["summary"]["description"]
     chat = paths["/v1/chat/completions"]["post"]["requestBody"]["content"]["application/json"]["schema"]
@@ -163,7 +169,9 @@ def test_generated_contract_pages_include_unmodified_bound_exports(tmp_path):
             assert '<Accordion title="$.output[] (oneOf branch 2)">' in page
             assert "response.output_text.delta" in page
             logprobs = next(line for line in page.splitlines() if 'title="#/request/properties/top_logprobs"' in line)
-            assert '"minimum": 0' in logprobs and '"maximum": 0' in logprobs
+            assert "If non-null, must be `0`." in logprobs
+            assert '"minimum"' not in logprobs
+            assert "provider-owned" not in page.split("## Exact contract")[0]
         else:
             assert '"missing_text_shape": "chat.completion.chunk:metadata"' in page
 

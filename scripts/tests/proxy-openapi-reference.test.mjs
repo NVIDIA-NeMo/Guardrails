@@ -64,10 +64,8 @@ test("Fern converts the generated proxy operations and examples", { timeout: 240
         assert.doesNotMatch(properties.get(name).docs, /guardrails-proxy-null-only/);
       }
       for (const name of id.endsWith("responsesCreate") ? ["instructions", "tools", "conversation"] : ["tools", "audio"]) {
-        assert.match(properties.get(name).docs, /<Badge intent="danger" minimal>Disabled<\/Badge>/);
-        assert.match(properties.get(name).docs, /guardrails-proxy-null-only/);
-        assert.match(properties.get(name).docs, /Omit this field or set it to `null`/);
-        assert.match(properties.get(name).docs, /non-null values are rejected/);
+        assert.ok(!properties.has(name), `${name} must not be offered as an editable request parameter`);
+        assert.ok(contractPage.includes(`title="#/request/properties/${name}"`));
       }
       if (id.endsWith("responsesCreate")) {
         assert.match(properties.get("input").docs, /<Badge intent="success" minimal>Guarded<\/Badge>/);
@@ -76,10 +74,10 @@ test("Fern converts the generated proxy operations and examples", { timeout: 240
       assert.equal(endpoint.errors.length, 6);
     }
     const reasoning = ir.types["type_openai:OpenaiResponsesCreateRequestReasoning"].shape;
-    assert.match(reasoning.properties.find((property) => property.name === "summary").docs, /guardrails-proxy-null-only/);
+    assert.ok(!reasoning.properties.some((property) => property.name === "summary"));
     const message = ir.types["type_openai:OpenaiChatCompletionsCreateRequestMessagesItem"].shape;
     assert.match(message.properties.find((property) => property.name === "content").docs, />Guarded<\/Badge>/);
-    assert.match(message.properties.find((property) => property.name === "name").docs, /guardrails-proxy-null-only/);
+    assert.ok(!message.properties.some((property) => property.name === "name"));
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
