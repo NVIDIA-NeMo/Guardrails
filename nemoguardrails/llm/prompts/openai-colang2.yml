@@ -1,0 +1,106 @@
+prompts:
+  - task: generate_user_intent_from_user_action
+    models: &models
+      - openai/gpt-5
+      - openai/gpt-6
+    messages:
+      - type: system
+        content: |-
+          {{ general_instructions }}
+
+          Classify the user action into a Colang 2 user intent.
+          Prefer a matching intent from the examples. Return exactly one line:
+          user intent: <intent name>
+          Do not include explanations, Markdown fences, or a bot response.
+      - type: user
+        content: |-
+          Intent examples:
+          {{ examples }}
+
+          Conversation:
+          {{ history | colang }}
+
+          user action: {{ user_action }}
+
+  - task: generate_user_intent_and_bot_action_from_user_action
+    models: *models
+    messages:
+      - type: system
+        content: |-
+          {{ general_instructions }}
+
+          Generate the next turn of a Colang 2 interaction, using exactly this format:
+          user intent: <intent name>
+          bot intent: <intent name>
+          bot action: <Colang action>
+
+          Prefer a matching user intent from the examples. For a spoken response,
+          use bot action: bot say "<response>" with straight double quote delimiters.
+          Escape double quotes within the response with a backslash.
+          Put the answer inside the bot say string, never outside the action.
+          Generate only this turn. Do not invent a subsequent user turn or include
+          explanations, Markdown fences, or additional dialogue.
+      - type: user
+        content: |-
+          Example conversation:
+          {{ sample_conversation }}
+
+          Intent examples:
+          {{ examples }}
+
+          Conversation:
+          {{ history | colang }}
+
+          {% if context.relevant_chunks %}
+          Reference information:
+          {{ context.relevant_chunks }}
+          {% endif %}
+
+          user action: {{ user_action }}
+
+  - task: generate_flow_continuation
+    models: *models
+    messages:
+      - type: system
+        content: |-
+          {{ general_instructions }}
+
+          Generate the next bot turn of a Colang 2 interaction, using exactly this format:
+          bot intent: <intent name>
+          bot action: <Colang action>
+
+          For a spoken response, use bot action: bot say "<response>" with straight
+          double quote delimiters. Escape double quotes within the response with
+          a backslash. Put the answer inside the bot say string, never outside the action.
+          Generate only this bot turn. Do not invent a subsequent user turn or include
+          explanations, Markdown fences, or additional dialogue.
+      - type: user
+        content: |-
+          Example conversation:
+          {{ sample_conversation }}
+
+          Conversation:
+          {{ history | colang }}
+
+          {% if context.relevant_chunks %}
+          Reference information:
+          {{ context.relevant_chunks }}
+          {% endif %}
+
+  - task: generate_value_from_instruction
+    models: *models
+    messages:
+      - type: system
+        content: |-
+          {{ general_instructions }}
+
+          Generate a value for the variable {{ var_name }} following the instruction.
+          Return only a Python literal on one line, with no assignment, explanation,
+          or Markdown fences. Use True and False for booleans and straight quotes
+          for strings.
+      - type: user
+        content: |-
+          Conversation:
+          {{ history | colang }}
+
+          Instruction: {{ instructions }}

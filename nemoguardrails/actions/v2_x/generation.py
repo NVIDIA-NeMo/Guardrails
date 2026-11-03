@@ -389,7 +389,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         bot_intent = get_first_bot_intent(result.splitlines())
         bot_action = get_first_bot_action(result.splitlines())
 
-        if bot_action is None:
+        if not bot_action or not bot_action.strip():
             raise LlmResponseError(f"Issue with LLM response: {result}")
 
         user_intent = escape_flow_name(user_intent.strip(" "))
@@ -705,7 +705,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             bot_intent = get_first_bot_intent(result.splitlines())
         bot_action = get_first_bot_action(result.splitlines())
 
-        if bot_action is None:
+        if not bot_action or not bot_action.strip():
             raise LlmResponseError(f"Issue with LLM response: {result}")
 
         if bot_intent:
@@ -719,7 +719,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         return {
             "name": flow_name,
             "parameters": flow_parameters,
-            "body": f'@meta(bot_intent="{bot_intent}")\n' + f"flow {flow_name}\n" + f"  {bot_action}",
+            "body": f'@meta(bot_intent="{bot_intent}")\n' + f"flow {flow_name}\n" + textwrap.indent(bot_action, "  "),
         }
 
     @action(name="CreateFlowAction", is_system_action=True, execute_async=True)
@@ -738,7 +738,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         flow_name = f"_dynamic_{uuid} {name}"
         # TODO: parse potential parameters from flow name with a regex
 
-        body = f"flow {flow_name}\n  " + body
+        body = f"flow {flow_name}\n" + textwrap.indent(body, "  ")
         if decorators:
             body = decorators + "\n" + body
 
