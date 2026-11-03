@@ -22,17 +22,14 @@ updates:
         patterns:
           - "*"
 
+  # No versioning-strategy: GitHub rejects increase-if-necessary for Cargo, and it's already the Cargo default.
   - package-ecosystem: cargo
     directory: /
-    # Changes a requirement in Cargo.toml only when the new version is outside it, so a patch release moves Cargo.lock
-    # alone and the SDK requirement stays at the manifest's compat.relay floor.
-    versioning-strategy: increase-if-necessary
     schedule:
       interval: monthly
     cooldown:
       default-days: 7
-    # Relay's native plugin ABI changes with each minor release, so moving to a new one is a change of its own: the
-    # manifest's compat.relay, the end-to-end suite's nemo-relay pin and the docs move with it.
+    # Relay's plugin ABI changes with each minor release, so those upgrades are done by hand.
     ignore:
       - dependency-name: "nemo-relay*"
         update-types:
@@ -43,17 +40,12 @@ updates:
         patterns:
           - "*"
 
-  # The NeMo Relay plugin's end-to-end environment, compiled with `uv pip compile`. Dependabot recompiles it with the
-  # --universal, --python-version and --generate-hashes it finds in the file, and keeps its header. It compiles in this
-  # directory, where the pyproject.toml beside the file applies the repository's 7-day exclude-newer window, so it
-  # proposes no release that CI's install would refuse. The cooldown alone doesn't cover a package an update pulls in.
   - package-ecosystem: uv
     directory: /integration_tests/relay_plugin
     schedule:
       interval: monthly
     cooldown:
       default-days: 7
-    # nemo-relay moves to a new minor release together with the plugin's Rust SDK, as above.
     ignore:
       - dependency-name: nemo-relay
         update-types:
@@ -64,8 +56,6 @@ updates:
         patterns:
           - "*"
 
-  # The agents that the hooks server's integration tests run, recompiled as above. Only the two agents are updated, each
-  # release in a pull request of its own, so an agent change that breaks its hooks fails on its own.
   - package-ecosystem: uv
     directory: /integration_tests/hooks_agents
     schedule:
