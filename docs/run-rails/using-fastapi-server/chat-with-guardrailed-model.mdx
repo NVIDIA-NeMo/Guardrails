@@ -431,7 +431,7 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
 
 ### Standard OpenAI Parameters
 
-You can also pass standard OpenAI parameters such as `temperature`, `max_tokens`, `top_p`, `stop`, `presence_penalty`, and `frequency_penalty` at the top level:
+You can also pass standard OpenAI parameters such as `temperature`, `max_tokens`, `max_completion_tokens`, `top_p`, `stop`, `presence_penalty`, and `frequency_penalty` at the top level:
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
@@ -444,6 +444,10 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
     }
 })
 ```
+
+Use `max_completion_tokens` to set a completion-token budget, including reasoning tokens, when your provider supports it.
+Both LLMRails and IORails forward this parameter for streaming and non-streaming requests.
+A non-null top-level value overrides the same parameter in `guardrails.options.llm_params`.
 
 For complete details on generation options, see [Create Chat Completion](api:POST/v1/chat/completions).
 
