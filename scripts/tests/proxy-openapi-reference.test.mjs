@@ -44,8 +44,34 @@ test("Fern converts the generated proxy operations and examples", { timeout: 240
       assert.deepEqual(endpoint.userSpecifiedExamples[0].example.request.jsonExample, request);
       assert.notDeepEqual(endpoint.userSpecifiedExamples[0].example.response.value.value.jsonExample, { key: "value" });
       assert.match(endpoint.docs, /provider/);
+      assert.doesNotMatch(endpoint.docs, /### /);
+      assert.match(endpoint.docs, /guard-contracts#read-the-field-policy/);
+      assert.match(endpoint.docs, /providers-and-streaming#coverage-of-the-shipped-profiles/);
+      assert.match(endpoint.docs, /providers-and-streaming#completion-and-errors/);
+      const properties = new Map(endpoint.requestBody.properties.map((property) => [property.name, property]));
+      for (const name of ["model", "temperature"]) {
+        assert.match(properties.get(name).docs, /<Badge intent="note" minimal>Opaque<\/Badge>/);
+        assert.match(properties.get(name).docs, /Forwarded without inspecting or validating/);
+        assert.match(properties.get(name).docs, /href="\/run-guardrailed-inference\/using-proxy\/guard-contracts#read-the-field-policy"/);
+        assert.doesNotMatch(properties.get(name).docs, /guardrails-proxy-null-only/);
+      }
+      for (const name of id.endsWith("responsesCreate") ? ["instructions", "tools", "conversation"] : ["tools", "audio"]) {
+        assert.match(properties.get(name).docs, /<Badge intent="danger" minimal>Disabled<\/Badge>/);
+        assert.match(properties.get(name).docs, /guardrails-proxy-null-only/);
+        assert.match(properties.get(name).docs, /Omit this field or set it to `null`/);
+        assert.match(properties.get(name).docs, /non-null values are rejected/);
+      }
+      if (id.endsWith("responsesCreate")) {
+        assert.match(properties.get("input").docs, /<Badge intent="success" minimal>Guarded<\/Badge>/);
+        assert.match(properties.get("store").docs, /<Badge intent="warning" minimal>Constrained<\/Badge>/);
+      }
       assert.equal(endpoint.errors.length, 6);
     }
+    const reasoning = ir.types["type_openai:OpenaiResponsesCreateRequestReasoning"].shape;
+    assert.match(reasoning.properties.find((property) => property.name === "summary").docs, /guardrails-proxy-null-only/);
+    const message = ir.types["type_openai:OpenaiChatCompletionsCreateRequestMessagesItem"].shape;
+    assert.match(message.properties.find((property) => property.name === "content").docs, />Guarded<\/Badge>/);
+    assert.match(message.properties.find((property) => property.name === "name").docs, /guardrails-proxy-null-only/);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

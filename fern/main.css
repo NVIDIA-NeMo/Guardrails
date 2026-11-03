@@ -22,3 +22,14 @@
   font-weight: var(--font-weight-normal);
   text-decoration-color: var(--accent);
 }
+
+/* Fern renders a null-only schema as "any". Only marked proxy fields use this correction. */
+[id^="request.body."]:has(> .fern-api-property-description .guardrails-proxy-null-only)
+  > [data-state] > .fern-api-property-meta > .fern-api-property-type {
+  display: none;
+}
+
+[id^="request.body."]:has(> .fern-api-property-description .guardrails-proxy-null-only)
+  > [data-state] > .fern-api-property-meta::before {
+  content: "null";
+}

@@ -20,7 +20,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
+from pydantic import ValidationError
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/export_proxy_openapi.py"
@@ -63,7 +65,15 @@ def test_export_matches_registered_proxy_routes(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     actual = yaml.safe_load(output.read_text())
     app = create_proxy_application(providers=[create_openai_integration(base_url="https://api.openai.com/v1")])
-    assert actual == app.openapi()
+
+    def without_descriptions(value):
+        if isinstance(value, dict):
+            return {key: without_descriptions(child) for key, child in value.items() if key != "description"}
+        if isinstance(value, list):
+            return [without_descriptions(child) for child in value]
+        return value
+
+    assert without_descriptions(actual) == without_descriptions(app.openapi())
     assert set(actual["paths"]) == {"/v1/chat/completions", "/v1/responses"}
     for path in actual["paths"]:
         operation = actual["paths"][path]["post"]
@@ -77,6 +87,43 @@ def test_export_matches_registered_proxy_routes(tmp_path):
         ]["const"]
         is False
     )
+
+
+def test_field_explanations_match_the_bound_request_policies(tmp_path):
+    from nemoguardrails.server.experimental.providers.openai.responses.endpoint import RESPONSES_ENDPOINT
+
+    output = tmp_path / "proxy.yml"
+    assert run_export(output).returncode == 0
+    paths = yaml.safe_load(output.read_text())["paths"]
+    responses = paths["/v1/responses"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+    properties = responses["properties"]
+    for name in ("instructions", "tools", "conversation"):
+        assert properties[name]["type"] == "null"
+        assert ">Disabled</Badge>" in properties[name]["description"]
+        assert "Omit this field or set it to `null`" in properties[name]["description"]
+        assert "guardrails-proxy-null-only" in properties[name]["description"]
+    assert ">Guarded</Badge>" in properties["input"]["description"]
+    assert ">Constrained</Badge>" in properties["store"]["description"]
+    for name in ("model", "temperature"):
+        assert ">Opaque</Badge>" in properties[name]["description"]
+        assert "Forwarded without inspecting or validating" in properties[name]["description"]
+        assert "guardrails-proxy-null-only" not in properties[name]["description"]
+        assert "type" not in properties[name]
+    reasoning = next(branch for branch in properties["reasoning"]["anyOf"] if branch.get("type") == "object")
+    assert "guardrails-proxy-null-only" in reasoning["properties"]["summary"]["description"]
+    chat = paths["/v1/chat/completions"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+    message = chat["properties"]["messages"]["items"]
+    assert "Container leading to text selected" in chat["properties"]["messages"]["description"]
+    assert ">Guarded</Badge>" in message["properties"]["content"]["description"]
+    assert "guardrails-proxy-null-only" in message["properties"]["name"]["description"]
+
+    base = {"input": "Hello!", "store": False, "model": "example-model"}
+    request_model = RESPONSES_ENDPOINT.guarded_request_model
+    request_model.validate_payload(base | {"instructions": None, "tools": None})
+    for extra in ({"instructions": "extra input"}, {"tools": []}, {"conversation": "stored-id"}):
+        with pytest.raises(ValidationError):
+            request_model.validate_payload(base | extra)
+    request_model.validate_payload(base | {"temperature": "unvalidated provider value"})
 
 
 def test_export_is_deterministic_and_check_is_read_only(tmp_path):

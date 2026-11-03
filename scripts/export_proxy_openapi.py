@@ -39,12 +39,79 @@ def proxy_openapi() -> dict:
     return create_proxy_application(providers=[provider]).openapi()
 
 
+def describe_guard_fields(schema: dict) -> None:
+    """Explain exported field policy without changing validation assertions."""
+    policy = schema.get("x-nemo-guardrails", {})
+    classification = policy.get("classification")
+    if policy.get("gate") == "disabled":
+        label, intent = "Disabled", "danger"
+        explanation = "Omit this field or set it to `null`; non-null values are rejected."
+    elif classification == "opaque":
+        label, intent = "Opaque", "note"
+        explanation = (
+            "Forwarded without inspecting or validating its value or nested contents. "
+            "Provider requirements still apply."
+        )
+    elif classification == "guarded":
+        label, intent = "Guarded", "success"
+        explanation = (
+            "Text selected for input checks when enabled in the Rails configuration."
+            if policy.get("subject")
+            else "Container leading to text selected for input checks when enabled in the Rails configuration."
+        )
+    elif classification == "constrained":
+        label, intent = "Constrained", "warning"
+        explanation = "The proxy enforces the declared value and shape restrictions."
+    else:
+        explanation = ""
+    if explanation:
+        classes = f"guardrails-proxy-policy guardrails-proxy-policy-{label.lower()}"
+        if schema.get("type") == "null":
+            classes += " guardrails-proxy-null-only"
+        badge = (
+            f'<span className="{classes}">'
+            '<a href="/run-guardrailed-inference/using-proxy/guard-contracts#read-the-field-policy">'
+            f'<Badge intent="{intent}" minimal>{label}</Badge></a></span>'
+        )
+        schema["description"] = "\n\n".join(filter(None, (f"{badge} {explanation}", schema.get("description"))))
+    if "properties" in schema:
+        schema["description"] = "\n\n".join(
+            filter(
+                None,
+                (
+                    schema.get("description"),
+                    "Unlisted fields and case aliases of declared fields are rejected by default.",
+                ),
+            )
+        )
+    for child in schema.get("properties", {}).values():
+        describe_guard_fields(child)
+    if isinstance(schema.get("items"), dict):
+        describe_guard_fields(schema["items"])
+    for keyword in ("anyOf", "oneOf", "allOf"):
+        for child in schema.get(keyword, []):
+            describe_guard_fields(child)
+
+
+def reference_openapi() -> dict:
+    """Add readable guard policy to the example deployment's request schemas."""
+    document = proxy_openapi()
+    for path in document["paths"].values():
+        for operation in path.values():
+            schema = operation["requestBody"]["content"]["application/json"]["schema"]
+            schema["description"] = (
+                "Request fields describe the proxy guard boundary. Provider requirements apply separately."
+            )
+            describe_guard_fields(schema)
+    return document
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=SPEC_PATH)
     parser.add_argument("--check", action="store_true", help="Check for stale output without writing it")
     args = parser.parse_args()
-    expected = HEADER + yaml.safe_dump(proxy_openapi(), sort_keys=True, allow_unicode=True, width=100)
+    expected = HEADER + yaml.safe_dump(reference_openapi(), sort_keys=True, allow_unicode=True, width=100)
     if args.check:
         actual = args.output.read_text(encoding="utf-8") if args.output.exists() else ""
         if actual != expected:

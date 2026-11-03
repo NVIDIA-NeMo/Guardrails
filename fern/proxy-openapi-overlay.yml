@@ -15,17 +15,17 @@ actions:
   update:
     summary: Create a guarded chat completion
     description: |
-      The URL shown uses an example deployment. Configured path prefixes and
-      provider mounts can change it. Set `stream` to `true` for server-sent
-      events. Provider responses remain provider-native, and upstream errors
-      can pass through.
+      This page describes the built-in native OpenAI guard boundary at an
+      example URL. Provider mounts and path prefixes can change the route.
+      Set `stream` to `true` for SSE. Enabled Rails checks depend on configuration.
 
-      The proxy validates the configured guarded request profile and forwards
-      the request to the selected provider. Depending on the Rails configuration,
-      it can inspect input and output text. Other provider routes can pass through
-      without inspection. Refer to the [proxy guide](/run-guardrailed-inference/using-proxy/providers-and-streaming)
-      for supported content, streaming, and inspection boundaries. Replace
-      `example-model` with a model available from your provider.
+      See [field-policy meanings](/run-guardrailed-inference/using-proxy/guard-contracts#read-the-field-policy),
+      [supported input and output](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles),
+      and [streaming completion and errors](/run-guardrailed-inference/using-proxy/providers-and-streaming#completion-and-errors).
+      Field types describe proxy validation; consult the
+      [provider reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
+      for upstream requirements. Replace `example-model` with a model available
+      from your provider.
     x-fern-examples:
       - name: Buffered example
         request: {"model":"example-model","messages":[{"role":"user","content":"Hello!"}]}
@@ -40,6 +40,11 @@ actions:
                 -d '{"model":"example-model","messages":[{"role":"user","content":"Hello!"}]}'
     responses:
       "200":
+        description: |
+          Provider-native JSON or SSE. The JSON example is an illustrative excerpt.
+          Output restrictions apply only when output inspection is enabled.
+          After SSE headers, failures are reported in the stream rather than by
+          changing the HTTP status.
         content:
           application/json:
             examples:
@@ -65,18 +70,18 @@ actions:
   update:
     summary: Create a guarded response
     description: |
-      The URL shown uses an example deployment. Configured path prefixes and
-      provider mounts can change it. Set `stream` to `true` for server-sent
-      events. Provider responses remain provider-native, and upstream errors
-      can pass through.
+      This page describes the built-in native OpenAI guard boundary at an
+      example URL. Provider mounts and path prefixes can change the route.
+      Set `store` to `false` and `stream` to `true` for SSE. Enabled Rails checks
+      depend on configuration.
 
-      The proxy validates the configured guarded request profile and forwards
-      the request to the selected provider. Set `store` to `false` for the
-      shipped Responses profile. Provider responses remain provider-native;
-      selected routes and inspection depend on configuration. Refer to the
-      [proxy guide](/run-guardrailed-inference/using-proxy/providers-and-streaming)
-      for content restrictions, streaming, and unguarded passthrough. Replace
-      `example-model` with a model available from your provider.
+      See [field-policy meanings](/run-guardrailed-inference/using-proxy/guard-contracts#read-the-field-policy),
+      [supported input and output](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles),
+      and [streaming completion and errors](/run-guardrailed-inference/using-proxy/providers-and-streaming#completion-and-errors).
+      Field types describe proxy validation; consult the
+      [provider reference](https://developers.openai.com/api/reference/resources/responses/methods/create)
+      for upstream requirements. Replace `example-model` with a model available
+      from your provider.
     x-fern-examples:
       - name: Buffered example
         request: {"model":"example-model","input":"Hello!","store":false}
@@ -91,6 +96,11 @@ actions:
                 -d '{"model":"example-model","input":"Hello!","store":false}'
     responses:
       "200":
+        description: |
+          Provider-native JSON or SSE. The JSON example is an illustrative excerpt.
+          Output restrictions apply only when output inspection is enabled.
+          After SSE headers, failures are reported in the stream rather than by
+          changing the HTTP status.
         content:
           application/json:
             examples:
