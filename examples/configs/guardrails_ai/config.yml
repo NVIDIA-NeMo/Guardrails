@@ -1,7 +1,7 @@
 models:
   - type: main
     engine: openai
-    model: gpt-4
+    model: gpt-6-luna
 
 rails:
   config:

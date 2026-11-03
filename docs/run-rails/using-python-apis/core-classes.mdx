@@ -59,7 +59,7 @@ yaml_content = """
 models:
   - type: main
     engine: openai
-    model: gpt-4
+    model: gpt-6-luna
 
 instructions:
   - type: general
@@ -91,7 +91,7 @@ You can also provide configuration as a Python dictionary:
 config = RailsConfig.from_content(
     config={
         "models": [
-            {"type": "main", "engine": "openai", "model": "gpt-4"}
+            {"type": "main", "engine": "openai", "model": "gpt-6-luna"}
         ],
         "instructions": [
             {"type": "general", "content": "You are a helpful assistant."}
@@ -161,7 +161,7 @@ from langchain_openai import ChatOpenAI
 from nemoguardrails import LLMRails, RailsConfig
 
 config = RailsConfig.from_path("path/to/config")
-llm = ChatOpenAI(model="gpt-4", temperature=0.7)
+llm = ChatOpenAI(model="gpt-6-luna")
 
 rails = LLMRails(config, llm=llm)
 ```
@@ -423,7 +423,7 @@ async def main():
 models:
   - type: main
     engine: openai
-    model: gpt-4
+    model: gpt-6-luna
 
 rails:
   input:

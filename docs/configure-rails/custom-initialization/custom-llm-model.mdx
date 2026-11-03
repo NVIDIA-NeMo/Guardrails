@@ -147,7 +147,7 @@ class ToolCall:
 
 ### Properties
 
-- `model_name` returns the concrete model identifier (for example `gpt-4o-mini`, `meta/llama-3.1-70b-instruct`). Used in logs and error contexts.
+- `model_name` returns the concrete model identifier (for example `gpt-6-luna`, `meta/llama-3.1-70b-instruct`). Used in logs and error contexts.
 - `provider_name` returns the engine name as it appears in `config.yml` (for example `openai`, `nim`, `my_engine`). Return `None` only if you genuinely cannot determine it.
 - `provider_url` returns the base URL for HTTP backends, or `None` for backends that do not have one (for example a SageMaker endpoint addressed by ARN).
 

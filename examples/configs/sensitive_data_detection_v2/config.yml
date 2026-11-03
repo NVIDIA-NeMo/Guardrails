@@ -3,7 +3,7 @@ colang_version: "2.x"
 models:
   - type: main
     engine: openai
-    model: gpt-4o-mini
+    model: gpt-6-luna
 
 rails:
   config:

@@ -1,7 +1,7 @@
 models:
   - type: main
     engine: openai
-    model: gpt-5-pro
+    model: gpt-6-luna
     parameters:
       # Route calls to OpenAI's /v1/responses endpoint instead of
       # /v1/chat/completions. Honored only under the LangChain framework

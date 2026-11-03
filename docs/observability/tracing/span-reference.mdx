@@ -191,7 +191,7 @@ The library depends on the OpenTelemetry API only; without a `TracerProvider` th
     models:
       - type: main
         engine: openai
-        model: gpt-4o-mini
+        model: gpt-6-luna
 
     tracing:
       enabled: true
@@ -267,7 +267,7 @@ When speculative generation is active, the request span also carries these attri
 | ------------- | ------ | -------- | -------------------------------------- |
 | `action.name` | string | Always   | The name of the action being executed. |
 
-**`chat {model}`** is a `CLIENT` span for one LLM call, named `{operation} {model}`, such as `chat gpt-4o-mini`.
+**`chat {model}`** is a `CLIENT` span for one LLM call, named `{operation} {model}`, such as `chat gpt-6-luna`.
 The operation is `chat` because IORails issues chat completions.
 This span carries the token-level GenAI attributes; see [Token-Level Attributes](#token-level-attributes) for the emission semantics.
 

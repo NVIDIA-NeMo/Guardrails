@@ -50,7 +50,7 @@ YAML_CONFIG = """
 models:
   - type: main
     engine: openai
-    model: gpt-3.5-turbo-instruct
+    model: gpt-6-luna
 """
 
 

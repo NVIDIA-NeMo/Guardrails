@@ -29,11 +29,10 @@ The `models` key defines LLM providers and models used by the NVIDIA NeMo Guardr
 models:
     - type: main # Required: Model type
       engine: openai # Required: LLM provider
-      model: gpt-4 # Required: Model name
+      model: gpt-6-luna # Required: Model name
       mode: chat # Optional: "chat" or "text" (default: "chat")
       api_key_env_var: OPENAI_KEY # Optional: Environment variable for API key
       parameters: # Optional: Provider-specific parameters
-          temperature: 0.7
           max_tokens: 1000
       cache: # Optional: Caching configuration
           enabled: false
