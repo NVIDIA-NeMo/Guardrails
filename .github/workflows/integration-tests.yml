@@ -3,43 +3,25 @@ name: Integration Tests
 # The suites in integration_tests/, which `make test` doesn't collect. Each runs NeMo Guardrails against a real client
 # with fake models behind it, so neither needs a secret or a model provider.
 
+# Every change except documentation runs both suites. LICENSE.md comes back after the Markdown exclusion because
+# package_bundle.py copies it into the plugin bundle, as it does LICENSE-Apache-2.0.txt.
 on:
   pull_request:
     paths:
-      - "nemoguardrails/**"
-      - "integration_tests/**"
-      - "examples/configs/agent_hooks/**"
-      - "crates/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - ".cargo/**"
-      - "Makefile"
-      - "pytest.ini"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/actions/setup-uv/**"
-      - ".github/workflows/integration-tests.yml"
+      - "**"
       - "!**/*.md"
+      - "!docs/**"
+      - "!fern/**"
+      - "LICENSE.md"
   push:
     branches:
       - develop
     paths:
-      - "nemoguardrails/**"
-      - "integration_tests/**"
-      - "examples/configs/agent_hooks/**"
-      - "crates/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - ".cargo/**"
-      - "Makefile"
-      - "pytest.ini"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/actions/setup-uv/**"
-      - ".github/workflows/integration-tests.yml"
+      - "**"
       - "!**/*.md"
+      - "!docs/**"
+      - "!fern/**"
+      - "LICENSE.md"
   workflow_dispatch:
 
 permissions:
