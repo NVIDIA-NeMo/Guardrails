@@ -737,6 +737,15 @@ navigation:
           - endpoint: POST /v1/responses
             title: Create a Guarded Response
             slug: responses
+      - section: Proxy Guard Contracts
+        slug: proxy-guard-contracts
+        contents:
+          - page: Chat Completions
+            path: ../fern/proxy-guard-contracts/chat-completions.mdx
+            slug: chat-completions
+          - page: Responses
+            path: ../fern/proxy-guard-contracts/responses.mdx
+            slug: responses
       - section: Hooks Server API
         path: reference/hooks-server-api/index.mdx
         slug: hooks-server-api

@@ -19,6 +19,10 @@ actions:
       example URL. Provider mounts and path prefixes can change the route.
       Set `stream` to `true` for SSE. Enabled Rails checks depend on configuration.
 
+      Inspect the [request](/reference/proxy-guard-contracts/chat-completions#request),
+      [response](/reference/proxy-guard-contracts/chat-completions#response), and
+      [stream](/reference/proxy-guard-contracts/chat-completions#stream) guard declarations.
+
       See [field-policy meanings](/run-guardrailed-inference/using-proxy/guard-contracts#read-the-field-policy),
       [supported input and output](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles),
       and [streaming completion and errors](/run-guardrailed-inference/using-proxy/providers-and-streaming#completion-and-errors).
@@ -74,6 +78,10 @@ actions:
       example URL. Provider mounts and path prefixes can change the route.
       Set `store` to `false` and `stream` to `true` for SSE. Enabled Rails checks
       depend on configuration.
+
+      Inspect the [request](/reference/proxy-guard-contracts/responses#request),
+      [response](/reference/proxy-guard-contracts/responses#response), and
+      [stream](/reference/proxy-guard-contracts/responses#stream) guard declarations.
 
       See [field-policy meanings](/run-guardrailed-inference/using-proxy/guard-contracts#read-the-field-policy),
       [supported input and output](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles),

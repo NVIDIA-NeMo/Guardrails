@@ -27,9 +27,18 @@ if (tool === "uv") {
   record(spec);
   fail(spec);
   fs.writeFileSync(path.join(root, "fern/" + spec + ".yml"), "fresh");
+  if (spec === "proxy-openapi") {
+    fs.mkdirSync(path.join(root, "fern/proxy-guard-contracts"), { recursive: true });
+    for (const slug of ["chat-completions", "responses"]) {
+      fs.writeFileSync(path.join(root, "fern/proxy-guard-contracts", slug + ".mdx"), "fresh");
+    }
+  }
 } else if (tool === "npx") {
   assert.equal(fs.readFileSync(path.join(root, "fern/openapi.yml"), "utf8"), "fresh");
   assert.equal(fs.readFileSync(path.join(root, "fern/proxy-openapi.yml"), "utf8"), "fresh");
+  for (const slug of ["chat-completions", "responses"]) {
+    assert.equal(fs.readFileSync(path.join(root, "fern/proxy-guard-contracts", slug + ".mdx"), "utf8"), "fresh");
+  }
   assert.deepEqual(args, ["--yes", "fern-api@" + fernVersion, "docs", "md", "generate", "--library", "guardrails-python-sdk"]);
   record("sdk");
   fail("sdk");

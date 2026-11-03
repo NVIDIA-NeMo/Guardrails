@@ -48,6 +48,14 @@ test("Fern converts the generated proxy operations and examples", { timeout: 240
       assert.match(endpoint.docs, /guard-contracts#read-the-field-policy/);
       assert.match(endpoint.docs, /providers-and-streaming#coverage-of-the-shipped-profiles/);
       assert.match(endpoint.docs, /providers-and-streaming#completion-and-errors/);
+      const contractSlug = pathName.endsWith("responses") ? "responses" : "chat-completions";
+      for (const section of ["request", "response", "stream"]) {
+        assert.ok(endpoint.docs.includes(`/reference/proxy-guard-contracts/${contractSlug}#${section}`));
+      }
+      const contractPage = readFileSync(path.join(fern, "proxy-guard-contracts", `${contractSlug}.mdx`), "utf8");
+      for (const heading of ["Request", "Response", "Stream", "Exact contract"]) {
+        assert.ok(contractPage.includes(`## ${heading}`));
+      }
       const properties = new Map(endpoint.requestBody.properties.map((property) => [property.name, property]));
       for (const name of ["model", "temperature"]) {
         assert.match(properties.get(name).docs, /<Badge intent="note" minimal>Opaque<\/Badge>/);

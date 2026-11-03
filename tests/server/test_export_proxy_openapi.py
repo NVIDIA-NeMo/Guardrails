@@ -142,6 +142,48 @@ def test_export_is_deterministic_and_check_is_read_only(tmp_path):
     assert output.read_bytes() == original
 
 
+def test_generated_contract_pages_include_unmodified_bound_exports(tmp_path):
+    from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
+    from nemoguardrails.server.experimental.providers.openai.integration import create_openai_integration
+
+    output = tmp_path / "proxy.yml"
+    assert run_export(output).returncode == 0
+    pages = tmp_path / "proxy-guard-contracts"
+    for endpoint in create_openai_integration(base_url="https://api.openai.com/v1").endpoints:
+        slug = endpoint.contract_name.replace("_", "-")
+        page = (pages / f"{slug}.mdx").read_text()
+        assert all(f"## {section}" in page for section in ("Request", "Response", "Stream", "Exact contract"))
+        exact_section = page.split('<Accordion title="Exact exported contract">', 1)[1]
+        exact_yaml = exact_section.split("```yaml\n", 1)[1].split("\n```", 1)[0]
+        assert yaml.safe_load(exact_yaml) == export_guard_contract(endpoint)
+        assert "stateful" in page.lower()
+        assert "Defaults are not inserted" in page
+        if slug == "responses":
+            assert '<Accordion title="$.output[] (oneOf branch 1)">' in page
+            assert '<Accordion title="$.output[] (oneOf branch 2)">' in page
+            assert "response.output_text.delta" in page
+            logprobs = next(line for line in page.splitlines() if 'title="#/request/properties/top_logprobs"' in line)
+            assert '"minimum": 0' in logprobs and '"maximum": 0' in logprobs
+        else:
+            assert '"missing_text_shape": "chat.completion.chunk:metadata"' in page
+
+
+def test_contract_page_check_is_read_only_and_checks_missing_pages(tmp_path):
+    output = tmp_path / "proxy.yml"
+    directory = tmp_path / "contracts"
+    assert run_export(output, "--contracts-output", str(directory)).returncode == 0
+    page = directory / "responses.mdx"
+    original = page.read_bytes()
+    page.write_text("stale\n")
+    assert run_export(output, "--contracts-output", str(directory), "--check").returncode == 1
+    assert page.read_text() == "stale\n"
+    page.unlink()
+    assert run_export(output, "--contracts-output", str(directory), "--check").returncode == 1
+    assert not page.exists()
+    assert run_export(output, "--contracts-output", str(directory)).returncode == 0
+    assert page.read_bytes() == original
+
+
 def test_selected_operations_and_mount_change_registered_routes():
     from nemoguardrails.server.experimental._application import create_proxy_application
     from nemoguardrails.server.experimental.providers.openai.integration import create_openai_integration
