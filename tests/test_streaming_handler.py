@@ -1087,3 +1087,50 @@ async def test_suffix_whitespace_preserves_message_content(body, expected):
     await handler.finish()
 
     assert "".join(await asyncio.wait_for(_collect_handler(handler), timeout=1)) == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("producer_fails", [False, True])
+async def test_repeated_line_reads_wait_for_complete_line(producer_fails):
+    handler = StreamingHandler()
+    await handler.enable_buffering()
+    release = asyncio.Event()
+
+    async def produce():
+        await handler.push_chunk('user "hello"\nexpress greeting\nbot ')
+        await release.wait()
+        if producer_fails:
+            raise RuntimeError("provider interrupted")
+        await handler.push_chunk('express greeting\n  "Hello!"')
+        await handler.finish()
+
+    producer = asyncio.create_task(produce())
+    handler.set_producer_task(producer)
+    first = await asyncio.wait_for(handler.wait_top_k_nonempty_lines(2), timeout=2)
+    assert first == 'user "hello"\nexpress greeting'
+    second = asyncio.create_task(handler.wait_top_k_nonempty_lines(1))
+    try:
+        await asyncio.sleep(0)
+        assert not second.done()
+        release.set()
+        if producer_fails:
+            with pytest.raises(RuntimeError, match="provider interrupted"):
+                await asyncio.wait_for(second, timeout=2)
+        else:
+            assert await asyncio.wait_for(second, timeout=2) == "bot express greeting"
+            assert handler.buffer == '  "Hello!"'
+    finally:
+        producer.cancel()
+        second.cancel()
+        await asyncio.gather(producer, second, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_repeated_line_reads_after_buffered_end_of_stream():
+    handler = StreamingHandler()
+    await handler.enable_buffering()
+    await handler.push_chunk("first\nsecond\nlast")
+    assert await asyncio.wait_for(handler.wait_top_k_nonempty_lines(2), timeout=2) == "first\nsecond"
+    await handler.finish()
+    assert await asyncio.wait_for(handler.wait_top_k_nonempty_lines(1), timeout=2) == "last"
+    assert await asyncio.wait_for(handler.wait_top_k_nonempty_lines(1), timeout=2) == ""

@@ -158,6 +158,7 @@ class StreamingHandler(AsyncIterator):
         and remove them from the buffer.
         """
         self.k = k
+        self.top_k_nonempty_lines_event.clear()
         self._notify_buffer_ready()
         await self._wait_for_event_or_producer(self.top_k_nonempty_lines_event)
 
@@ -177,7 +178,7 @@ class StreamingHandler(AsyncIterator):
     def _notify_buffer_ready(self):
         lines = [line.strip() for line in self.buffer.split("\n")]
         lines = [line for line in lines if len(line) > 0 and line[0] != "#"]
-        if len(lines) > self.k > 0:
+        if self._buffered_end_of_stream or len(lines) > self.k > 0:
             self.top_k_nonempty_lines_event.set()
 
     async def enable_buffering(self):
@@ -262,6 +263,7 @@ class StreamingHandler(AsyncIterator):
                 self._notify_buffer_ready()
             elif chunk is END_OF_STREAM:
                 self._buffered_end_of_stream = True
+                self._notify_buffer_ready()
 
         else:
             prev_completion = self.completion

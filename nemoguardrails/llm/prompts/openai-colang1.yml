@@ -1,0 +1,139 @@
+prompts:
+  - task: generate_user_intent
+    models: &models
+      - openai/gpt-5
+      - openai/gpt-6
+    messages:
+      - type: system
+        content: |-
+          {{ general_instructions }}
+
+          Classify the latest user message into a Colang 1 user intent.
+          Prefer a matching intent from the examples. If none matches, generate
+          a short intent name that describes the user's request.
+          Return exactly one line: User intent: <intent name>
+          Do not answer the user, repeat their message, or include explanations
+          or Markdown fences.
+      - type: user
+        content: |-
+          Example conversation:
+          {{ sample_conversation | verbose_v1 }}
+
+          Intent examples:
+          {{ examples | verbose_v1 }}
+
+          Candidate intents: {{ potential_user_intents }}
+
+          Conversation:
+          {{ history | colang | verbose_v1 }}
+    output_parser: user_intent
+
+  - task: generate_next_steps
+    models: *models
+    messages:
+      - type: system
+        content: |-
+          {{ general_instructions }}
+
+          Generate the next Colang 1 flow steps for the latest user intent,
+          following the matching examples. For a bot response, return only:
+          Bot intent: <intent name>
+          When an example calls for actions or other flow steps, return those
+          Colang steps instead. Do not write the spoken answer, repeat the user
+          intent, or include explanations or Markdown fences.
+      - type: user
+        content: |-
+          Example conversation:
+          {{ sample_conversation | remove_text_messages | verbose_v1 }}
+
+          Flow examples:
+          {{ examples | remove_text_messages | verbose_v1 }}
+
+          Conversation:
+          {{ history | colang | remove_text_messages | verbose_v1 }}
+    output_parser: verbose_v1
+
+  - task: generate_bot_message
+    models: *models
+    messages:
+      - type: system
+        content: |-
+          {{ general_instructions }}
+
+          Write the spoken response for the latest bot intent in the conversation.
+          Return only: Bot message: "<response>"
+          Use straight double quotes around the response. Do not repeat intents,
+          invent another turn, or include explanations or Markdown fences.
+      - type: user
+        content: |-
+          Example conversation:
+          {{ sample_conversation | verbose_v1 }}
+
+          Bot response examples:
+          {{ examples | verbose_v1 }}
+
+          {% if relevant_chunks %}
+          Reference information:
+          {{ relevant_chunks }}
+          {% endif %}
+
+          Conversation:
+          {{ history | colang | verbose_v1 }}
+    output_parser: bot_message
+
+  - task: generate_intent_steps_message
+    models: *models
+    messages:
+      - type: system
+        content: |-
+          {{ general_instructions }}
+
+          Generate the next turn of a Colang 1 interaction, using exactly this format:
+          User intent: <intent name>
+          Bot intent: <intent name>
+          Bot message: "<response>"
+
+          Prefer a matching user intent from the examples. If none matches,
+          generate a short intent name that describes the user's request.
+          Use straight double quotes around the response. Generate only these
+          two intents and the bot message. Do not repeat the user message,
+          invent another turn, or include explanations or Markdown fences.
+      - type: user
+        content: |-
+          Example conversation:
+          {{ sample_conversation | verbose_v1 }}
+
+          Flow examples:
+          {{ examples | verbose_v1 }}
+
+          Candidate intents: {{ potential_user_intents }}
+
+          {% if relevant_chunks %}
+          Reference information:
+          {{ relevant_chunks }}
+          {% endif %}
+
+          Conversation:
+          {{ history | colang | verbose_v1 }}
+    output_parser: verbose_v1
+
+  - task: generate_value
+    models: *models
+    messages:
+      - type: system
+        content: |-
+          {{ general_instructions }}
+
+          Generate a value for the variable {{ var_name }} following the instruction.
+          Return only a Python literal on one line, with no assignment, explanation,
+          or Markdown fences. Use True and False for booleans and straight quotes
+          for strings.
+      - type: user
+        content: |-
+          Flow examples:
+          {{ examples }}
+
+          Conversation:
+          {{ history | colang }}
+
+          Instruction: {{ instructions }}

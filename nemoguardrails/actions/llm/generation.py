@@ -121,6 +121,19 @@ def _streaming_pattern_for(output_parser, *, include_bot_message_parser: bool):
     return ('  "', "  “"), ('"', "”")
 
 
+def _remove_echoed_user_message(completion: str) -> Tuple[str, bool]:
+    """Remove an optional quoted user-message line before the generated intents."""
+    lines = completion.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if re.fullmatch(r'(?:user|User message:)\s+["“].*["”]', line, flags=re.IGNORECASE):
+            return "".join(lines[index + 1 :]), True
+        break
+    return completion, False
+
+
 @dataclass
 class SingleCallPayload:
     """The bot intent/message events computed by the single-call generation.
@@ -1433,6 +1446,11 @@ class LLMGenerationActions:
                 )
                 _streaming_handler.set_producer_task(producer_task)
                 result = await _streaming_handler.wait_top_k_nonempty_lines(k=2)
+                result, echoed_user_message = _remove_echoed_user_message(result)
+                if echoed_user_message:
+                    # The echo consumed one of the two buffered intent lines.
+                    bot_intent_line = await _streaming_handler.wait_top_k_nonempty_lines(k=1)
+                    result += "\n" + bot_intent_line
 
                 # Moving forward we need to set the expected pattern to correctly
                 # parse the message.
@@ -1452,6 +1470,7 @@ class LLMGenerationActions:
                     "temperature": self.config.lowest_temperature,
                 }
                 result = (await llm_call(generation_llm, prompt, llm_params=additional_params)).content
+                result, _ = _remove_echoed_user_message(result)
 
             # Parse the output using the associated parser
             result = self.llm_task_manager.parse_task_output(Task.GENERATE_INTENT_STEPS_MESSAGE, output=result)

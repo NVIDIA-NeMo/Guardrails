@@ -38,24 +38,18 @@ async def test_dialog_generate_async_public_contract(openai_api_key):
     assert result == snapshot(
         {
             "role": "assistant",
-            "content": "Hello! How can I assist you today?",
+            "content": "Hello from recorded dialog.",
         }
     )
 
 
 @pytest.mark.vcr
 async def test_dialog_generation_bot_message_public_contract(openai_api_key):
-    """Bot-message GENERATION prompt carries few-shot examples + retrieved kb chunks.
+    """Exercise intent classification and generated bot text with retrieved context.
 
-    "tell me about your product" maps (via a flow) to the bot intent
-    "describe the product", which has no predefined message, so
-    ``generate_bot_message`` calls the LLM with the bot-message index examples and
-    the retrieved kb chunks. VCR matches on ``recorded_body``, so this cassette
-    pins all three dialog prompts (intent, next-step, bot-message) by their exact
-    request bodies. It was verified to replay byte-identically against both the
-    pre-refactor ``generation.py`` on ``develop`` and the refactored branch, so
-    the prompts are unchanged pre/post -- a prompt-fidelity equivalence check the
-    prompt-independent ``FakeLLMModel`` oracle cannot make.
+    The product question selects a flow whose bot intent has no predefined
+    message. Its generation prompt includes bot-message examples and knowledge
+    base chunks. VCR matches the complete intent and bot-message request bodies.
     """
     rails = LLMRails(load_config(DIALOG_GENERATION_CONFIG), verbose=False)
 
@@ -65,15 +59,7 @@ async def test_dialog_generation_bot_message_public_contract(openai_api_key):
     assert result == snapshot(
         {
             "role": "assistant",
-            "content": """\
-Sure! If you mean the **guardrails toolkit for large language models** you mentioned in the context, here’s what it is and what it helps you do:
-- **Programmable “rails” for LLMs:** Lets developers define rules and logic that run during the conversation.
-- **Check user input:** You can validate or filter what users send (e.g., detect disallowed content, enforce formatting, constrain requests).
-- **Steer the dialog:** You can route or modify the assistant’s behavior based on the input or conversation state (e.g., ask clarifying questions, refuse safely, switch modes).
-- **Validate bot output:** Before the response is shown to the user, rails can verify it meets requirements (e.g., must include/avoid certain content, follow a policy, adhere to a schema).
-- **Reduce unsafe or off-policy responses:** The overall goal is to make LLM behavior more controlled, consistent, and safer.
-If you tell me what kind of use case you’re building (customer support, tutoring, legal/health Q&A, internal tools, etc.), I can suggest what kinds of rails you’d typically implement.\
-""",
+            "content": "My product is a guardrails toolkit for large language models. It helps developers add programmable “rails” that can check and validate what users say, steer the conversation flow, and verify or filter the bot’s output before it’s sent back to the user. The goal is to make LLM applications safer, more reliable, and easier to control—without needing to hard-code every rule into the model itself.",
         }
     )
 
@@ -88,10 +74,7 @@ async def test_single_call_generate_async_public_contract(openai_api_key):
     assert result == snapshot(
         {
             "role": "assistant",
-            "content": """\
-bot express greeting
-"Hello again! 😊 How can I assist you today?"\
-""",
+            "content": "Hello from recorded single call.",
         }
     )
 

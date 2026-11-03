@@ -19,13 +19,19 @@ interactions:
     parsed_body:
       model: gpt-5.4-nano
       messages:
+      - role: system
+        content: |-
+          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
+
+          Classify the latest user message into a Colang 1 user intent.
+          Prefer a matching intent from the examples. If none matches, generate
+          a short intent name that describes the user's request.
+          Return exactly one line: User intent: <intent name>
+          Do not answer the user, repeat their message, or include explanations
+          or Markdown fences.
       - role: user
         content: |
-          """
-          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
-          """
-
-          # This is how a conversation between a user and the bot can go:
+          Example conversation:
           User message: "Hello there!"
           User intent: express greeting
           Bot intent: express greeting
@@ -48,22 +54,15 @@ interactions:
           Bot message: "You're welcome. If you have any more questions or if there's anything else I can help you with, please don't hesitate to ask."
 
 
-          # This is how the user talks:
+          Intent examples:
           User message: "tell me about your product"
           User intent: ask about the product
 
 
 
-          # This is the current conversation between the user and the bot:
-          # Choose intent from this list: ask about the product
-          User message: "Hello there!"
-          User intent: express greeting
-          Bot intent: express greeting
-          Bot message: "Hello! How can I assist you today?"
-          User message: "What can you do for me?"
-          User intent: ask about capabilities
-          Bot intent: respond about capabilities
-          Bot message: "As an AI assistant, I can help you with a wide range of tasks. This includes question answering on various topics, generating text for various purposes and providing suggestions based on your preferences."
+          Candidate intents: ask about the product
+
+          Conversation:
           User message: "tell me about your product"
   response:
     status:
@@ -96,23 +95,14 @@ interactions:
         - index: 0
           message:
             role: assistant
-            content: |-
-              Hello! I’m an AI assistant designed to help with a wide range of tasks through conversation. Here are a few things I can do that often feel “product-like”:
-
-              - **Answer questions**: Explain topics, help with general knowledge, and walk through concepts.
-              - **Generate text**: Draft emails, messages, summaries, stories, posts, or structured documents.
-              - **Help with writing & editing**: Improve clarity, tone, grammar, and rewrite content for different audiences.
-              - **Assist with problem-solving**: Break down steps for coding, math, study plans, brainstorming, and troubleshooting (as long as the details you provide are enough).
-              - **Support planning & ideation**: Generate ideas, outlines, checklists, and options for decisions.
-
-              If you tell me what you want to accomplish (e.g., writing something, learning a topic, coding help, planning), I can tailor the assistance to that goal. What kind of task are you thinking about?
+            content: 'User intent: ask about the product'
             refusal: null
             annotations: []
           finish_reason: stop
         usage:
-          prompt_tokens: 580
-          completion_tokens: 200
-          total_tokens: 780
+          prompt_tokens: 521
+          completion_tokens: 10
+          total_tokens: 531
           prompt_tokens_details:
             cached_tokens: 0
             audio_tokens: 0
@@ -142,127 +132,17 @@ interactions:
     parsed_body:
       model: gpt-5.4-nano
       messages:
+      - role: system
+        content: |-
+          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
+
+          Write the spoken response for the latest bot intent in the conversation.
+          Return only: Bot message: "<response>"
+          Use straight double quotes around the response. Do not repeat intents,
+          invent another turn, or include explanations or Markdown fences.
       - role: user
         content: |
-          """
-          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
-          """
-
-          # This is how a conversation between a user and the bot can go:
-          User intent: express greeting
-          Bot intent: express greeting
-          User intent: ask about capabilities
-          Bot intent: respond about capabilities
-          User intent: ask general question
-          Bot intent: response for general question
-          User intent: request more information
-          Bot intent: provide more information
-          User intent: express appreciation
-          Bot intent: express appreciation and offer additional help
-
-
-          # This is how the bot thinks:
-          User intent: ask about the product
-          Bot intent: describe the product
-
-          User intent: express greeting
-          Bot intent: express greeting
-
-
-
-          # This is the current conversation between the user and the bot:
-          User intent: express greeting
-          Bot intent: express greeting
-          User intent: ask about capabilities
-          Bot intent: respond about capabilities
-          User intent: Hello! I’m an AI assistant designed to help with a wide range of tasks through conversation. Here are a few things I can do that often feel “product-like”:
-  response:
-    status:
-      code: 200
-      message: OK
-    headers:
-      content-type:
-      - application/json
-      transfer-encoding:
-      - chunked
-      connection:
-      - keep-alive
-      server:
-      - cloudflare
-      strict-transport-security:
-      - max-age=31536000; includeSubDomains; preload
-      access-control-expose-headers:
-      - X-Request-ID
-      - CF-Ray
-      - CF-Ray
-      alt-svc:
-      - h3=":443"; ma=86400
-    body:
-      parsed_body:
-        id: '[RECORDED_RESPONSE_ID]'
-        object: chat.completion
-        created: 0
-        model: gpt-5.4-nano-2026-03-17
-        choices:
-        - index: 0
-          message:
-            role: assistant
-            content: |-
-              Hello! I’m here to help with a wide range of tasks through conversation. A few things I can do that often feel “product-like” include:
-
-              - **Answer questions and explain concepts** (from quick facts to deeper walkthroughs)
-              - **Help you write and edit** (emails, essays, resumes, cover letters, posts, etc.)
-              - **Brainstorm ideas** (projects, names, outlines, strategies, content themes)
-              - **Summarize and extract key points** from text you provide
-              - **Assist with planning** (study plans, travel itineraries, schedules, checklists)
-              - **Draft and refine messages** in a particular tone (friendly, formal, persuasive, etc.)
-              - **Provide coding help** (debugging, writing snippets, explaining errors, algorithm ideas)
-              - **Role-play or simulate conversations** (interviews, customer support, practice dialogues)
-
-              If you tell me what you’re trying to do today, I can jump in right away. What would you like help with?
-            refusal: null
-            annotations: []
-          finish_reason: stop
-        usage:
-          prompt_tokens: 269
-          completion_tokens: 208
-          total_tokens: 477
-          prompt_tokens_details:
-            cached_tokens: 0
-            audio_tokens: 0
-          completion_tokens_details:
-            reasoning_tokens: 0
-            audio_tokens: 0
-            accepted_prediction_tokens: 0
-            rejected_prediction_tokens: 0
-        service_tier: default
-        system_fingerprint: null
-- request:
-    method: POST
-    uri: https://api.openai.com/v1/chat/completions
-    headers:
-      host:
-      - api.openai.com
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate, zstd
-      connection:
-      - keep-alive
-      user-agent:
-      - python-httpx/0.28.1
-      content-type:
-      - application/json
-    parsed_body:
-      model: gpt-5.4-nano
-      messages:
-      - role: user
-        content: |
-          """
-          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
-          """
-
-          # This is how a conversation between a user and the bot can go:
+          Example conversation:
           User message: "Hello there!"
           User intent: express greeting
           Bot intent: express greeting
@@ -285,16 +165,7 @@ interactions:
           Bot message: "You're welcome. If you have any more questions or if there's anything else I can help you with, please don't hesitate to ask."
 
 
-
-          # This is some additional context:
-          ```markdown
-          The product is a guardrails toolkit for large language models. It lets
-          developers add programmable rails that check user input, steer the dialog, and
-          validate bot output before it reaches the user.
-          ```
-
-
-          # This is how the bot talks:
+          Bot response examples:
           Bot intent: inform cannot engage with inappropriate content
           Bot message: "I will not engage with inappropriate content."
 
@@ -312,18 +183,17 @@ interactions:
 
 
 
-          # This is the current conversation between the user and the bot:
-          User message: "Hello there!"
-          User intent: express greeting
-          Bot intent: express greeting
-          Bot message: "Hello! How can I assist you today?"
-          User message: "What can you do for me?"
-          User intent: ask about capabilities
-          Bot intent: respond about capabilities
-          Bot message: "As an AI assistant, I can help you with a wide range of tasks. This includes question answering on various topics, generating text for various purposes and providing suggestions based on your preferences."
+
+          Reference information:
+          The product is a guardrails toolkit for large language models. It lets
+          developers add programmable rails that check user input, steer the dialog, and
+          validate bot output before it reaches the user.
+
+
+          Conversation:
           User message: "tell me about your product"
-          User intent: Hello! I’m an AI assistant designed to help with a wide range of tasks through conversation. Here are a few things I can do that often feel “product-like”:
-          Bot intent: general response
+          User intent: ask about the product
+          Bot intent: describe the product
   response:
     status:
       code: 200
@@ -355,23 +225,17 @@ interactions:
         - index: 0
           message:
             role: assistant
-            content: |-
-              Sure! If you mean the **guardrails toolkit for large language models** you mentioned in the context, here’s what it is and what it helps you do:
-
-              - **Programmable “rails” for LLMs:** Lets developers define rules and logic that run during the conversation.
-              - **Check user input:** You can validate or filter what users send (e.g., detect disallowed content, enforce formatting, constrain requests).
-              - **Steer the dialog:** You can route or modify the assistant’s behavior based on the input or conversation state (e.g., ask clarifying questions, refuse safely, switch modes).
-              - **Validate bot output:** Before the response is shown to the user, rails can verify it meets requirements (e.g., must include/avoid certain content, follow a policy, adhere to a schema).
-              - **Reduce unsafe or off-policy responses:** The overall goal is to make LLM behavior more controlled, consistent, and safer.
-
-              If you tell me what kind of use case you’re building (customer support, tutoring, legal/health Q&A, internal tools, etc.), I can suggest what kinds of rails you’d typically implement.
+            content: 'Bot message: "My product is a guardrails toolkit for large language models. It helps developers add
+              programmable “rails” that can check and validate what users say, steer the conversation flow, and verify or
+              filter the bot’s output before it’s sent back to the user. The goal is to make LLM applications safer, more
+              reliable, and easier to control—without needing to hard-code every rule into the model itself."'
             refusal: null
             annotations: []
           finish_reason: stop
         usage:
-          prompt_tokens: 753
-          completion_tokens: 235
-          total_tokens: 988
+          prompt_tokens: 637
+          completion_tokens: 88
+          total_tokens: 725
           prompt_tokens_details:
             cached_tokens: 0
             audio_tokens: 0

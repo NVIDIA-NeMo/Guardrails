@@ -19,6 +19,7 @@ import json
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.testing.fake_model import FakeLLMModel
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallChunk, ToolCallDeltaChunk
 from tests.utils import TestChat
@@ -256,4 +257,68 @@ async def test_single_call_stream_flushes_on_producer_end(monkeypatch, body, exp
     rails = LLMRails(config, llm=model)
     chunks = await asyncio.wait_for(_collect_single_call_stream(rails), timeout=3)
     assert "".join(chunks) == expected
+    assert model.inference_count == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("verbose", [False, True])
+@pytest.mark.parametrize("echo", [False, True])
+@pytest.mark.parametrize("finish_before_handoff", [False, True])
+async def test_single_call_handles_echoed_user_message(monkeypatch, streaming, verbose, echo, finish_before_handoff):
+    if finish_before_handoff:
+        from nemoguardrails.streaming import StreamingHandler
+
+        original_wait = StreamingHandler.wait_top_k_nonempty_lines
+
+        async def wait_for_completed_producer(self, k):
+            await self._producer_task
+            return await original_wait(self, k)
+
+        monkeypatch.setattr(StreamingHandler, "wait_top_k_nonempty_lines", wait_for_completed_producer)
+
+    question = "Tell me a short fun fact about the Moon."
+    answer = "Fun fact: The Moon drifts about 3.8 centimeters farther from Earth each year."
+    if verbose:
+        completion = f'User intent: ask for a fun fact\nBot intent: share fun fact\nBot message: "{answer}"'
+        echoed_message = f'User message: "{question}"\n'
+    else:
+        completion = f'  ask for a fun fact\nbot share fun fact\n  "{answer}"'
+        echoed_message = f'user "{question}"\n'
+    if echo:
+        completion = echoed_message + completion
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {"dialog": {"single_call": {"enabled": True}}},
+            "prompts": [
+                {
+                    "task": "generate_intent_steps_message",
+                    "content": "Generate the next turn.",
+                    "models": ["unknown"],
+                    "output_parser": "verbose_v1" if verbose else None,
+                }
+            ],
+        },
+        colang_content='define user express greeting\n  "hello"\ndefine flow\n  user express greeting\n  bot express greeting\n',
+    )
+    model = FakeLLMModel(responses=[completion])
+    rails = LLMRails(config, llm=model)
+    messages = [{"role": "user", "content": question}]
+    if streaming:
+
+        async def collect():
+            return "".join([chunk async for chunk in rails.stream_async(messages=messages)])
+
+        content = await asyncio.wait_for(collect(), timeout=3)
+    else:
+        result = await rails.generate_async(messages=messages, options={"log": {"internal_events": True}})
+        assert isinstance(result, GenerationResponse)
+        assert isinstance(result.response, list)
+        assert result.log is not None and result.log.internal_events is not None
+        content = result.response[0]["content"]
+        assert [
+            (e["type"], e["intent"]) for e in result.log.internal_events if e["type"] in ("UserIntent", "BotIntent")
+        ] == [("UserIntent", "ask for a fun fact"), ("BotIntent", "share fun fact")]
+    assert content == answer
     assert model.inference_count == 1

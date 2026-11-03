@@ -317,10 +317,18 @@ The library includes predefined prompts for these models:
 - `openai/gpt-3.5-turbo-instruct`
 - `openai/gpt-3.5-turbo`
 - `openai/gpt-4`
+- `openai/gpt-5` and `openai/gpt-6` model families
 - `databricks/dolly-v2-3b`
 - `cohere/command`
 - `cohere/command-light`
 - `cohere/command-light-nightly`
+
+For Colang 1, the GPT-5 and GPT-6 prompt families use chat messages for intent
+classification, next-step generation, bot messages, single-call dialog generation,
+and value generation. Intent prompts request structured output instead of a spoken
+reply. Single-call generation requests two intent lines followed by the bot message;
+the parser also accepts an optional leading quoted user-message echo in buffered
+and streaming modes. Custom prompts can override these templates using `models`.
 
 <Note>
 
