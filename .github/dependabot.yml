@@ -45,8 +45,8 @@ updates:
 
   # The NeMo Relay plugin's end-to-end environment, compiled with `uv pip compile`. Dependabot recompiles it with the
   # --universal, --python-version and --generate-hashes it finds in the file, and keeps its header. It compiles in this
-  # directory, outside [tool.uv]'s exclude-newer window: the cooldown holds back each package the file lists, but not
-  # one that an update newly brings in.
+  # directory, where the pyproject.toml beside the file applies the repository's 7-day exclude-newer window, so it
+  # proposes no release that CI's install would refuse. The cooldown alone doesn't cover a package an update pulls in.
   - package-ecosystem: uv
     directory: /integration_tests/relay_plugin
     schedule:
