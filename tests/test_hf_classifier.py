@@ -1356,6 +1356,15 @@ class TestLocalPipeline:
         with pytest.raises(ValueError, match="fast tokenizer"):
             chunked(" ".join(["w0"] * 60))
 
+    @pytest.mark.parametrize("limit", [1, 2])
+    def test_window_limit_must_leave_room_for_content(self, classifiers, limit):
+        _, chunked = classifiers
+        chunked.model.config.max_position_embeddings = limit
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="window limit.*special-token count"):
+                chunked("w0 w1")
+        forward.assert_not_called()
+
     def test_overlap_must_leave_room_for_content(self, classifiers):
         _, chunked = classifiers
         with pytest.raises(ValueError, match="content token capacity"):

@@ -95,6 +95,8 @@ class ChunkedTextClassificationPipeline(ChunkPipeline, TextClassificationPipelin
             self.tokenizer.num_special_tokens_to_add(pair=False) if kwargs.get("add_special_tokens", True) else 0
         )
         capacity = limit - special_tokens
+        if capacity <= 0:
+            raise ValueError("HF classifier window limit must exceed the tokenizer's special-token count.")
         stride = kwargs.get("stride", min(32, capacity // 4))
         if not 0 <= stride < capacity:
             raise ValueError(

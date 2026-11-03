@@ -143,6 +143,9 @@ Default text-classification inference scores one window at a time. Token storage
 and oversized inputs require a second tokenization pass. Explicit `parameters.batch_size`
 and `parameters.num_workers` settings retain Hugging Face's batching behavior and memory
 tradeoffs. Calls sharing the cached text pipeline are serialized to avoid tokenizer races.
+Automatic windowing has no total-input or window-count cap, so a large request can delay
+other requests sharing that pipeline. For deployments that need bounded request sizes,
+reject oversized input at the application boundary before invoking the rail.
 Unsupported tokenizers, invalid settings and inference failures still raise errors.
 Remote backends retain their server's input-length behavior.
 
