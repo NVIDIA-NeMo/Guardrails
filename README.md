@@ -154,7 +154,7 @@ Below is an example `config.yml`:
 models:
   - type: main
     engine: openai
-    model: gpt-3.5-turbo-instruct
+    model: gpt-4o-mini
 
 rails:
   # Input rails are invoked when new input from the user is received.
