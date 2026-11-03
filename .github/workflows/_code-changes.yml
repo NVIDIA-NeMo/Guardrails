@@ -1,0 +1,54 @@
+name: Reusable Code Changes
+
+# Tells pr-tests.yml and pr-coverage.yml whether a pull request needs the Python unit tests. Each still runs its summary
+# job when it doesn't, so the summary checks that branch protection requires always report.
+
+on:
+  workflow_call:
+    outputs:
+      code:
+        description: "'true' when the pull request changes a file the Python unit tests depend on"
+        value: ${{ jobs.changes.outputs.code }}
+
+permissions: {}
+
+jobs:
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.files.outputs.code }}
+    steps:
+      - name: Check the changed files
+        id: files
+        uses: actions/github-script@v9
+        with:
+          script: |
+            // `make test` collects neither the Rust crate nor integration_tests/: relay-plugin.yml and
+            // integration-tests.yml run them.
+            const needsNoTests = [
+              /\.md$/,
+              /^\.github\//,
+              /^crates\//,
+              /^Cargo\.(toml|lock)$/,
+              /^rust-toolchain\.toml$/,
+              /^\.cargo\//,
+              /^integration_tests\//,
+            ];
+            const needsTests = (name) => !needsNoTests.some((pattern) => pattern.test(name));
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+            // The API lists at most 3,000 files, so a pull request that reaches the limit counts as a code change.
+            // A file moved out of a tested path counts as well.
+            const code =
+              files.length >= 3000 ||
+              files.some((file) => needsTests(file.filename) || (file.previous_filename && needsTests(file.previous_filename)));
+            core.info(`${files.length} changed files; the Python unit tests ${code ? "run" : "are skipped"}.`);
+            core.setOutput("code", String(code));

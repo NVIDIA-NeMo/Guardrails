@@ -1,8 +1,9 @@
 name: PR size label
 
 # Applies a "size: XS/S/M/L/XL" label to PRs from a weighted diff score
-# (code + 50% docs + 50% tests), excluding uv.lock and recorded test data
-# so generated fixtures do not dominate the size.
+# (code + 50% docs + 50% tests), excluding lockfiles, the integration suites'
+# compiled requirements and recorded test data so generated files do not
+# dominate the size.
 #
 # Uses pull_request_target so it has a write token on fork PRs. Safe because the
 # job only reads the PR file list via the API and calls the labels API; it never
@@ -37,6 +38,8 @@ jobs:
 
             const isExcluded = (name) =>
               name === "uv.lock" ||
+              name === "Cargo.lock" ||
+              /^integration_tests\/[^/]+\/requirements\.txt$/.test(name) ||
               name.includes("/cassettes/") ||
               name.includes("/recordings/") ||
               name.includes("/fixtures/");
@@ -44,7 +47,10 @@ jobs:
             const isDocs = (name) =>
               name.startsWith("docs/") || name.endsWith(".md");
 
-            const isTests = (name) => name.startsWith("tests/");
+            const isTests = (name) =>
+              name.startsWith("tests/") ||
+              name.startsWith("integration_tests/") ||
+              /^crates\/[^/]+\/tests\//.test(name);
 
             let code = 0;
             let docs = 0;
