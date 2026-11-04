@@ -781,6 +781,34 @@ class TestLocalImportError:
                 await LocalBackend(c).classify("text")
 
 
+class TestTokenizerCompatibility:
+    @pytest.mark.parametrize("version", ["0.23.1", "0.23.2", "0.23.2+local"])
+    @pytest.mark.parametrize("stride", [0, 3])
+    def test_token_windows_reject_affected_versions_before_loading(self, version, stride):
+        fake_transformers = mock.MagicMock()
+        with mock.patch.dict(
+            "sys.modules",
+            {"transformers": fake_transformers, "tokenizers": SimpleNamespace(__version__=version)},
+        ):
+            with pytest.raises(ValueError, match="windowing is unsafe.*0.23.1.*0.23.2"):
+                backends_mod._get_or_create_pipeline(
+                    "test-model", "token-classification", {"stride": stride, "aggregation_strategy": "simple"}
+                )
+        fake_transformers.pipeline.assert_not_called()
+
+    @pytest.mark.parametrize("version,stride", [("0.23.2", None), ("0.22.2", 0), ("0.23.3", 3)])
+    def test_native_or_compatible_token_pipeline_still_loads(self, version, stride):
+        fake_transformers = mock.MagicMock()
+        parameters = {} if stride is None else {"stride": stride, "aggregation_strategy": "simple"}
+        with mock.patch.dict(
+            "sys.modules",
+            {"transformers": fake_transformers, "tokenizers": SimpleNamespace(__version__=version)},
+        ):
+            pipe = backends_mod._get_or_create_pipeline("test-model", "token-classification", parameters)
+        assert pipe is fake_transformers.pipeline.return_value
+        fake_transformers.pipeline.assert_called_once()
+
+
 class TestDiscriminatedUnion:
     _ta = TypeAdapter(HFClassifierConfig)
 
@@ -1127,9 +1155,11 @@ class TestLocalPipeline:
         ]
         assert chunked(text, stride=3, **options) == expected
 
+    @pytest.mark.parametrize("direction", ["left", "right"])
     @pytest.mark.parametrize("stride,special_tokens,overlap", [(None, True, 7), (0, True, 0), (3, False, 3)])
-    def test_windows_cover_all_tokens(self, classifiers, stride, special_tokens, overlap):
+    def test_windows_cover_all_tokens(self, classifiers, stride, special_tokens, overlap, direction):
         _, chunked = classifiers
+        chunked.tokenizer.truncation_side = direction
         text = " ".join([*[f"w{i}" for i in range(30)], *["café", "危"] * 20])
         options = {"add_special_tokens": special_tokens}
         if stride is not None:
@@ -1140,9 +1170,126 @@ class TestLocalPipeline:
             assert window["input_ids"].shape[1] <= 32
             ids = window["input_ids"][0][window["attention_mask"][0].bool()].tolist()
             content.append(ids[1:-1] if special_tokens else ids)
+        if direction == "left":
+            content = [ids[::-1] for ids in content]
         assert [window["is_last"] for window in windows] == [False] * (len(windows) - 1) + [True]
         reconstructed = content[0] + [token for window in content[1:] for token in window[overlap:]]
+        if direction == "left":
+            reconstructed.reverse()
         assert reconstructed == chunked.tokenizer.encode(text, add_special_tokens=False)
+
+    @pytest.mark.parametrize("damage", ["missing_tail", "missing_middle", "changed_tail"])
+    @pytest.mark.parametrize("batch_size", [1, 2])
+    def test_incomplete_window_coverage_fails_before_inference(self, classifiers, monkeypatch, damage, batch_size):
+        _, chunked = classifiers
+        tokenizer_type = type(chunked.tokenizer)
+        tokenize = tokenizer_type.__call__
+
+        def incomplete(tokenizer, text, **kwargs):
+            if kwargs.get("return_overflowing_tokens") and damage == "changed_tail":
+                text = text.replace("w24", "w23")
+            encoded = tokenize(tokenizer, text, **kwargs)
+            if kwargs.get("return_overflowing_tokens") and damage != "changed_tail":
+                index = -1 if damage == "missing_tail" else 1
+                for values in encoded.values():
+                    values.pop(index)
+                encoded.encodings.pop(index)
+            return encoded
+
+        monkeypatch.setattr(tokenizer_type, "__call__", incomplete)
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="complete input token sequence"):
+                chunked(" ".join(["w0"] * 59 + ["w24"]), batch_size=batch_size)
+        forward.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "action", [hf_classifier_check_input, hf_classifier_check_output, hf_classifier_check_retrieval]
+    )
+    async def test_missing_overflow_raises_through_actions(self, classifiers, rail_config, monkeypatch, action):
+        _, chunked = classifiers
+        tokenizer_type = type(chunked.tokenizer)
+        tokenize = tokenizer_type.__call__
+
+        def first_window_only(tokenizer, text, **kwargs):
+            encoded = tokenize(tokenizer, text, **kwargs)
+            if kwargs.get("return_overflowing_tokens"):
+                for values in encoded.values():
+                    del values[1:]
+                del encoded.encodings[1:]
+            return encoded
+
+        monkeypatch.setattr(tokenizer_type, "__call__", first_window_only)
+        monkeypatch.setattr(backends_mod, "_get_or_create_pipeline", lambda *args: chunked)
+        text = " ".join(["w0"] * 59 + ["w24"])
+        context = {"user_message": text, "bot_message": text, "relevant_chunks": text}
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="complete input token sequence"):
+                await action(context=context, config=rail_config, classifier="test")
+        forward.assert_not_called()
+
+    @pytest.mark.parametrize("max_windows", [1, 2])
+    @pytest.mark.parametrize("stride", [0, 7])
+    def test_window_budget_boundary(self, classifiers, max_windows, stride):
+        _, chunked = classifiers
+        size = 30 + (max_windows - 1) * (30 - stride)
+        text = " ".join(["w0"] * size)
+        options = {"max_windows": max_windows, "stride": stride}
+        assert len(list(chunked.preprocess(text, **options))) == max_windows
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="exceeds max_windows"):
+                chunked(text + " w0", **options)
+        forward.assert_not_called()
+
+    def test_default_window_budget_rejects_before_overflow_tokenization(self, classifiers, monkeypatch):
+        _, chunked = classifiers
+        tokenizer_type = type(chunked.tokenizer)
+        tokenize = tokenizer_type.__call__
+
+        def no_overflow(tokenizer, text, **kwargs):
+            assert not kwargs.get("return_overflowing_tokens")
+            return tokenize(tokenizer, text, **kwargs)
+
+        monkeypatch.setattr(tokenizer_type, "__call__", no_overflow)
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="exceeds max_windows"):
+                chunked(" ".join(["w0"] * (30 + 127 * 23 + 1)))
+        forward.assert_not_called()
+
+    @pytest.mark.parametrize("max_windows", [0, -1, True, 1.5, "2", None])
+    def test_invalid_window_budget(self, classifiers, max_windows):
+        _, chunked = classifiers
+        with pytest.raises(ValueError, match="max_windows must be a positive integer"):
+            chunked("w0", max_windows=max_windows)
+
+    def test_window_budget_preserves_explicit_truncation(self, classifiers):
+        original, chunked = classifiers
+        text = " ".join(["w0"] * 60)
+        assert chunked(text, max_windows=1, truncation=True) == original(text, truncation=True)
+
+    @pytest.mark.parametrize("version", ["0.23.1", "0.23.2"])
+    def test_affected_tokenizer_only_rejects_automatic_windows(self, classifiers, monkeypatch, version):
+        original, chunked = classifiers
+        monkeypatch.setattr(self.tokenizers, "__version__", version)
+        text = " ".join(["w0"] * 60)
+        assert chunked("w0") == original("w0")
+        assert chunked(text, truncation=True) == original(text, truncation=True)
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="windowing is unsafe.*0.23.1.*0.23.2"):
+                chunked(text)
+        forward.assert_not_called()
+
+    @pytest.mark.parametrize("options", [{}, {"top_k": None}, {"truncation": True}])
+    @pytest.mark.parametrize("at_construction", [False, True])
+    def test_single_window_needs_no_batch_padding(self, classifiers, options, at_construction):
+        original, chunked = classifiers
+        chunked.tokenizer.pad_token = None
+        text = " ".join(["w0"] * (60 if options.get("truncation") else 3))
+        batch_options = {"batch_size": 2, "num_workers": 1}
+        if at_construction:
+            chunked = type(chunked)(model=chunked.model, tokenizer=chunked.tokenizer, device="cpu", **batch_options)
+            batch_options = {}
+        assert chunked(text, **options, **batch_options) == original(text, **options)
 
     @pytest.mark.parametrize("truncation", [None, False, "do_not_truncate"])
     def test_previously_failing_input_succeeds(self, classifiers, truncation):
@@ -1241,6 +1388,39 @@ class TestLocalPipeline:
             blocked_labels: [B-toxic]
     """
         )
+
+    @pytest.mark.asyncio
+    async def test_configured_window_budget_reaches_cached_pipeline(self, classifiers, tmp_path, monkeypatch):
+        original, _ = classifiers
+        model_path = tmp_path / "tiny"
+        original.save_pretrained(model_path)
+        monkeypatch.setattr(backends_mod, "_pipelines", {})
+        config = RailsConfig.from_content(
+            config={
+                "rails": {
+                    "config": {
+                        "hf_classifier": {
+                            "test": {
+                                "engine": "local",
+                                "model": str(model_path),
+                                "blocked_labels": ["B-toxic"],
+                                "parameters": {"max_windows": 2, "device": "cpu"},
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        cfg = config.rails.config.hf_classifier["test"]
+        pipe = backends_mod._get_or_create_pipeline(cfg.model, cfg.task, cfg.parameters)
+        backend = backends_mod.LocalBackend(cfg)
+        assert await backend.classify(" ".join(["w0"] * 53))
+        with mock.patch.object(pipe, "_forward") as forward:
+            with pytest.raises(ValueError, match="exceeds max_windows"):
+                await hf_classifier_check_input(
+                    context={"user_message": " ".join(["w0"] * 54)}, config=config, classifier="test"
+                )
+        forward.assert_not_called()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

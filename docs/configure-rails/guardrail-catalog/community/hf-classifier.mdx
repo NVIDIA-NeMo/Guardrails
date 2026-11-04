@@ -21,10 +21,28 @@ Fast, prompt-free alternative to LLM-based self-check rails. Supports four infer
 For the **local** backend, install the required dependencies:
 
 ```bash
-pip install transformers torch
+pip install transformers torch "tokenizers!=0.23.1,!=0.23.2"
 ```
 
 The model is downloaded on first use from HuggingFace Hub. For air-gapped environments, set `HF_HUB_OFFLINE=1` and point `model` to a local path.
+
+Avoid tokenizers 0.23.1 and 0.23.2: their overflow-token regression can omit input
+from both text-classification and token-classification windows. The upstream fix is
+available in [tokenizers 0.23.3](https://github.com/huggingface/tokenizers/issues/2091).
+With either affected version, this rail raises an error before automatic text-classification
+windowing, or during pipeline initialization when token classification has `stride` configured
+(including `0`). The error identifies the incompatible versions and explains how to upgrade.
+Short text-classification inputs and explicitly truncated inputs retain their native behavior.
+Remote backends do not check the locally installed tokenizer version.
+
+From a source checkout, you can apply the same exclusion with the rail-local constraints file:
+
+```bash
+uv pip install transformers torch -c nemoguardrails/library/hf_classifier/constraints.txt
+```
+
+The constraints file only restricts versions during this explicit installation. It does
+not install packages by itself or change the project's default or `all` dependencies.
 
 For **remote** backends, a running inference server is required. No additional Python dependencies are needed.
 
@@ -100,6 +118,7 @@ For remote servers, send a test request and inspect the response.
 |--------|------|---------|-------------|
 | `task` | string | `text-classification` | Pipeline task type. Use `token-classification` for NER models. |
 | `parameters` | dict | `{}` | Kwargs forwarded to `transformers.pipeline()`. |
+| `parameters.max_windows` | integer | `128` | Positive maximum number of automatic text-classification windows per input. Inputs exceeding the budget raise an error before inference. Does not apply to token classification or explicit truncation. |
 
 #### Long Local Inputs
 
@@ -112,7 +131,7 @@ Configured truncation is preserved: text beyond the truncation limit is discarde
 is **not** checked by this rail. Hugging Face also enables truncation implicitly when
 `parameters.max_length` is supplied without `parameters.truncation`.
 
-Local `token-classification` uses the unchanged Hugging Face pipeline. It normally
+Local `token-classification` uses the native Hugging Face pipeline after the version check. It normally
 truncates to the tokenizer limit by default, so text beyond that limit is not checked.
 Existing `parameters.stride` and `aggregation_strategy` settings continue to control
 Hugging Face's own overlapping windows and entity aggregation.
@@ -142,10 +161,24 @@ than the window's content capacity. Windows cannot preserve context longer than 
 Default text-classification inference scores one window at a time. Token storage grows with input length,
 and oversized inputs require a second tokenization pass. Explicit `parameters.batch_size`
 and `parameters.num_workers` settings retain Hugging Face's batching behavior and memory
-tradeoffs. Calls sharing the cached text pipeline are serialized to avoid tokenizer races.
-Automatic windowing has no total-input or window-count cap, so a large request can delay
-other requests sharing that pipeline. For deployments that need bounded request sizes,
-reject oversized input at the application boundary before invoking the rail.
+tradeoffs for multiple windows. A single-window scalar input runs directly and needs no
+padding token, even with a larger batch size.
+
+Before inference, automatic windowing verifies that the windows cover the complete input
+token sequence. Missing or changed tokens raise an error instead of accepting a partial
+classification. This check does not change the native token-classification pipeline.
+
+Automatic text-classification windowing permits at most `parameters.max_windows` windows
+per input (default `128`). It rejects inputs exceeding that budget before overflow
+tokenization or inference; it does not silently truncate them. Increase the positive
+integer budget to allow longer inputs. The cap bounds model forward passes, but the
+initial tokenization still reads the full input and allocates storage proportional to
+its length. Apply a request-size limit before invoking the rail when you also need to
+bound tokenization work and memory.
+
+Calls sharing the cached text pipeline are serialized to avoid tokenizer races, including
+short inputs. The window cap limits inference work per call, but does not guarantee latency;
+choose a budget appropriate to your model, hardware, and serving requirements.
 Unsupported tokenizers, invalid settings and inference failures still raise errors.
 Remote backends retain their server's input-length behavior.
 

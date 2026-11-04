@@ -238,6 +238,10 @@ def _get_or_create_pipeline(
                 "backend. Install it with: pip install transformers torch"
             )
         kwargs = {k: v for k, v in parameters.items() if k not in _HTTP_ONLY_PARAMS}
+        if task == "token-classification" and kwargs.get("stride") is not None:
+            from nemoguardrails.library.hf_classifier.compatibility import ensure_overflow_support
+
+            ensure_overflow_support()
         if task == "text-classification":
             from nemoguardrails.library.hf_classifier.chunking import ChunkedTextClassificationPipeline
 
