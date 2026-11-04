@@ -25,6 +25,9 @@ Rejecting the output is the safest action and most appropriate for production de
 As an alternative to rejecting the output, you can specify to *omit* the triggering text from the response.
 The rail removes the full matched byte ranges, including XOR-encoded matches and matches whose returned data is truncated, then checks the modified response against all configured rules.
 If any match has a missing or invalid range, the result is not valid UTF-8, validation fails, or the modified response still matches a rule, `omit` blocks the output.
+These rules detect patterns; they do not guarantee that output is safe to render or execute.
+The default rules can also match quoted code or template examples. Use custom rules when your application needs to allow those examples.
+This rail does not support `LLMRails` output streaming. Use non-streaming generation when applying it.
 
 ### About the Default Rules
 

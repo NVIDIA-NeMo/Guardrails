@@ -17,13 +17,14 @@ rule import_shells
     condition:
         ($imp and
             any of ($mod*) and
-            for any of ($mod*) : (@imp < @)
+            for any of ($mod*) : (@imp < @[#])
             ) or
         ($imp and
             $from and
             any of ($mod*) and
-            for any of ($mod*) : (@from < @) and
-            for any of ($mod*) : (@ < @imp)
+            for any of ($mod*) : (
+                for any i in (1..#) : (@from < @[i] and @[i] < @imp[#imp])
+            )
             )
 }
 
@@ -50,12 +51,13 @@ rule import_networking
     condition:
         ($imp and
             any of ($mod*) and
-            for any of ($mod*) : (@imp < @)
+            for any of ($mod*) : (@imp < @[#])
             ) or
         ($imp and
             $from and
             any of ($mod*) and
-            for any of ($mod*) : (@from < @) and
-            for any of ($mod*) : (@ < @imp)
+            for any of ($mod*) : (
+                for any i in (1..#) : (@from < @[i] and @[i] < @imp[#imp])
+            )
             )
 }
