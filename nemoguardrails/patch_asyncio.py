@@ -15,8 +15,7 @@
 
 import asyncio
 import os
-
-import nest_asyncio
+import warnings
 
 # Keep track of whether the patch was applied or not
 nest_asyncio_patch_applied = False
@@ -30,6 +29,22 @@ def apply():
         "1",
         "yes",
     ]:
+        try:
+            import nest_asyncio
+        except ImportError as exc:
+            raise ImportError(
+                "Automatic asyncio patching requires the optional nest-asyncio dependency. "
+                "Install it with pip install 'nemoguardrails[nest-asyncio]' "
+                "or set DISABLE_NEST_ASYNCIO=true to disable patching."
+            ) from exc
+
+        warnings.warn(
+            "Automatic nest_asyncio patching will be deprecated in NeMo Guardrails 0.26. "
+            "Use async APIs such as `await rails.generate_async(...)` inside a running event loop. "
+            "Synchronous APIs outside a running event loop remain supported.",
+            FutureWarning,
+            stacklevel=2,
+        )
         nest_asyncio.apply()
         nest_asyncio_patch_applied = True
 

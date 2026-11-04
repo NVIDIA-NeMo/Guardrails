@@ -135,7 +135,12 @@ You can install the NeMo Guardrails library with optional extra packages to add 
 | `gcp`          | Google Cloud Platform language services                                                                                                                                                                           |
 | `jailbreak`    | YARA-based jailbreak detection heuristics                                                                                                                                                                         |
 | `multilingual` | Language detection for multilingual content                                                                                                                                                                       |
+| `nest-asyncio` | Optional compatibility support for synchronous calls inside a running event loop. Automatic patching will be deprecated in 0.26. See [Nested AsyncIO Loop](/troubleshooting#nested-asyncio-loop). |
 | `all`          | All optional packages                                                                                                                                                                                             |
+
+Starting with 0.25, the default installation does not require `nest-asyncio`.
+Use async APIs in notebooks and async applications. Existing examples that import `nest_asyncio` require `pip install 'nemoguardrails[nest-asyncio]'`.
+The `chat-ui` and `all` extras still install `nest-asyncio` through Chainlit. If you need an installation without that package, avoid those extras and verify your application's other dependencies.
 
 Some features such as [AlignScore](/configure-guardrails/guardrail-catalog/third-party/alignscore) have additional requirements. See the feature documentation for details.
 

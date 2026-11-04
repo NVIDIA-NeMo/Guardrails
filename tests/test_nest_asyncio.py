@@ -16,6 +16,24 @@ import os
 import subprocess
 import sys
 
+import pytest
+
+BLOCK_NEST_ASYNCIO = """
+import sys
+from importlib.abc import MetaPathFinder
+
+assert "nest_asyncio" not in sys.modules
+nest_asyncio_imports = []
+
+class BlockNestAsyncio(MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "nest_asyncio":
+            nest_asyncio_imports.append(fullname)
+            raise ModuleNotFoundError("nest_asyncio is unavailable", name=fullname)
+
+sys.meta_path.insert(0, BlockNestAsyncio())
+"""
+
 CHAT_SETUP = """
 from nemoguardrails import RailsConfig
 from tests.utils import TestChat
@@ -27,9 +45,12 @@ chat = TestChat(config, llm_completions=["Hello there!"])
 
 def _run_in_subprocess(source, disable_nest_asyncio):
     env = os.environ.copy()
-    env["DISABLE_NEST_ASYNCIO"] = "true" if disable_nest_asyncio else "false"
+    if disable_nest_asyncio is None:
+        env.pop("DISABLE_NEST_ASYNCIO", None)
+    else:
+        env["DISABLE_NEST_ASYNCIO"] = "true" if disable_nest_asyncio else "false"
     result = subprocess.run(
-        [sys.executable, "-c", CHAT_SETUP + source],
+        [sys.executable, "-c", source],
         capture_output=True,
         env=env,
         text=True,
@@ -40,7 +61,8 @@ def _run_in_subprocess(source, disable_nest_asyncio):
 
 def test_sync_api():
     _run_in_subprocess(
-        """
+        CHAT_SETUP
+        + """
 chat >> "Hi!"
 chat << "Hello there!"
 """,
@@ -50,7 +72,8 @@ chat << "Hello there!"
 
 def test_async_api():
     _run_in_subprocess(
-        """
+        CHAT_SETUP
+        + """
 import asyncio
 import nemoguardrails.patch_asyncio
 
@@ -69,7 +92,8 @@ asyncio.run(main())
 
 def test_async_api_error():
     _run_in_subprocess(
-        """
+        CHAT_SETUP
+        + """
 import asyncio
 import nemoguardrails.patch_asyncio
 
@@ -88,4 +112,76 @@ async def main():
 asyncio.run(main())
 """,
         True,
+    )
+
+
+@pytest.mark.parametrize("disable_nest_asyncio", [None, True])
+def test_sync_and_async_apis_without_nest_asyncio(disable_nest_asyncio):
+    _run_in_subprocess(
+        BLOCK_NEST_ASYNCIO
+        + """
+import warnings
+warnings.simplefilter("error", FutureWarning)
+"""
+        + CHAT_SETUP
+        + """
+import asyncio
+import nemoguardrails.patch_asyncio
+
+assert nest_asyncio_imports == []
+assert "nest_asyncio" not in sys.modules
+assert not nemoguardrails.patch_asyncio.nest_asyncio_patch_applied
+assert not hasattr(asyncio, "_nest_patched")
+
+chat >> "Hi!"
+chat << "Hello there!"
+
+async def main():
+    async_chat = TestChat(config, llm_completions=["Hello there!"])
+    assert await async_chat.app.generate_async(prompt="Hi!") == "Hello there!"
+
+asyncio.run(main())
+assert nest_asyncio_imports == []
+""",
+        disable_nest_asyncio,
+    )
+
+
+def test_opt_in_without_nest_asyncio_has_installation_hint():
+    _run_in_subprocess(
+        BLOCK_NEST_ASYNCIO
+        + """
+try:
+    import nemoguardrails
+except ImportError as exc:
+    assert "pip install 'nemoguardrails[nest-asyncio]'" in str(exc)
+    assert "DISABLE_NEST_ASYNCIO=true" in str(exc)
+    assert isinstance(exc.__cause__, ModuleNotFoundError)
+else:
+    raise AssertionError("Patching succeeded without nest_asyncio")
+""",
+        False,
+    )
+
+
+def test_opt_in_warns_about_future_deprecation():
+    _run_in_subprocess(
+        """
+import warnings
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always", FutureWarning)
+    import nemoguardrails
+
+future_warnings = [warning for warning in caught if warning.category is FutureWarning]
+assert len(future_warnings) == 1, future_warnings
+message = str(future_warnings[0].message)
+assert "patching" in message
+assert "deprecated in" in message
+assert "0.26" in message
+assert "generate_async" in message
+assert "Synchronous APIs" in message
+assert nemoguardrails.patch_asyncio.nest_asyncio_patch_applied
+""",
+        False,
     )
