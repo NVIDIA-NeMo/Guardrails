@@ -2,6 +2,12 @@
 
 Recorded tests replay provider traffic through pytest-recording cassettes and must run without live network access by default.
 
+Most tests belong in this suite because they send at least one real provider
+request. Two repository policies also keep selected deterministic tests here:
+public-API equivalence/validation contracts and the mandatory public entry for
+each library rail. Those exceptions do not invent cassettes. See
+`.agents/skills/recorded-tests/SKILL.md` for the placement rules.
+
 ## Adding a test
 
 Markers are applied once per module via `pytestmark`; do not stack `@pytest.mark.recorded` / `vcr` / `asyncio` on each test. Use a module-level list, and fold in `vcr`/`asyncio` only when every test in the module needs them:
@@ -31,9 +37,8 @@ Request credentials as fixture parameters (`openai_api_key`, `nvidia_api_key`,
 or `nvidia_inference_key`) rather than calling
 `request.getfixturevalue(...)`. In modules that mix sync/async tests or
 vcr/non-vcr tests, keep only `recorded` in `pytestmark` and apply
-`@pytest.mark.vcr` / `@pytest.mark.asyncio` per test. Then use the Makefile
-refresh workflow to record once with credentials, fill the snapshot offline,
-and verify the replay:
+`@pytest.mark.vcr` / `@pytest.mark.asyncio` per test. For a test whose snapshots
+already contain values, use the Makefile refresh workflow:
 
 ```bash
 OPENAI_API_KEY=... make record-cassettes \
@@ -41,12 +46,31 @@ OPENAI_API_KEY=... make record-cassettes \
   RECORDED_REQUIRED_KEYS=OPENAI_API_KEY
 ```
 
+For a brand-new test with an empty `snapshot()`, use the explicit two-pass
+workflow. The first command records the cassette and exits nonzero at snapshot
+teardown; the cassette is the expected artifact. The second command fills the
+snapshot from that cassette offline, and also reports the expected creation
+teardown error. The third command must pass:
+
+```bash
+OPENAI_API_KEY=... uv run --locked pytest path::test_my_case \
+  --record-mode=once -m "not fake_cassette"
+uv run --locked pytest path::test_my_case --block-network \
+  --inline-snapshot=create
+uv run --locked pytest path::test_my_case --block-network
+```
+
+`make record-cassettes` cannot perform this initial creation in one invocation:
+its record pass runs before its snapshot pass, so the empty-snapshot teardown
+stops Make. After the snapshot contains a value, the target works normally.
+
 ## Negative paths
 
-This suite owns **pipeline-level** failures (how `LLMRails` behaves when a model call
-fails) and **public-API input validation**. Client/wire-level conditions (status code to
-exception mapping, retries, SSE, malformed bodies) belong in `tests/llm/clients/`, which
-covers them with `httpx.MockTransport` + JSON fixtures; do not duplicate them here.
+This suite owns **pipeline-level** failures (how an engine behaves when a model call
+fails) and selected **public-API input validation** contracts. Synthetic client/wire-level
+conditions (status code to exception mapping, retries, SSE, malformed bodies) belong in
+`tests/llm/clients/`, which covers them with `httpx.MockTransport` + JSON fixtures. Real
+provider happy paths and recordable error shapes belong in `tests/recorded/clients/`.
 
 Prefer mechanisms in this order:
 
@@ -58,9 +82,14 @@ Prefer mechanisms in this order:
 3. **Fake cassette** (`@pytest.mark.fake_cassette`) only as a last resort, for a synthetic
    response that must flow through the full pipeline and cannot be reproduced by 1 or 2.
 
-Observed behavior these tests pin: a failing model call (main *or* a rail's own model)
-propagates as `LLMCallException` — a safety-model failure does not let content through
-silently. Name negative tests `test_<surface>_<failure>_<behavior>` with the suffixes
+Recorded provider HTTP errors propagate rather than becoming policy refusals.
+Calls through `llm_call` raise `LLMCallException` on LLMRails and IORails;
+IORails direct model-engine calls can raise `ModelEngineError`. IORails converts
+ordinary rail-action errors without an upstream HTTP status to a blocking
+failed outcome; those synthetic failures belong in unit tests. See
+`rails/library/test_iorails_parity.py` for the recorded
+safety-model 404 and vendor-error blocking contracts. Name negative tests
+`test_<surface>_<failure>_<behavior>` with the suffixes
 `_raises` / `_fails_closed` / `_invalid_*` so they are greppable
 (`pytest -k "raises or invalid"`), and co-locate each with its happy-path sibling module.
 
@@ -90,14 +119,14 @@ Reused tool-call IDs across turns are covered by deterministic tests: each occur
 ### Commands
 
 ```bash
-uv run pytest tests/recorded --block-network -v --durations=10
+uv run --locked pytest tests/recorded --block-network -v --durations=10
 ```
 
 Focused rails replay:
 
 ```bash
-uv run pytest tests/recorded/rails/public_api --block-network -v
-uv run pytest tests/recorded/rails/library --block-network -v
+uv run --locked pytest tests/recorded/rails/public_api --block-network -v
+uv run --locked pytest tests/recorded/rails/library --block-network -v
 ```
 
 Replay mode installs dummy API keys from `tests/recorded/utils.py`. A cassette miss with `--block-network` is a test failure.
@@ -146,18 +175,20 @@ provider payloads before updating snapshots.
 
 ## Refresh
 
-Refresh only in a trusted environment with real provider credentials. The
-record -> fill-snapshots -> verify loop is wrapped in make targets.
+Refresh only in a trusted environment with real provider credentials. For
+tests whose inline snapshots already contain values, the
+record -> update-snapshots -> verify loop is wrapped in make targets.
 
 ```bash
 OPENAI_API_KEY=... NVIDIA_API_KEY=... make record-cassettes
 ```
 
 `record-cassettes` defaults to `RECORDED_RECORD_MODE=once` and
-`RECORDED_SNAPSHOT_MODE=create`, which records missing cassettes, fills empty
-snapshots, and replays existing cassettes. This is the safest mode when adding
-new tests because it will not rewrite unrelated existing cassettes selected by
-the same path.
+`RECORDED_SNAPSHOT_MODE=create`. It records missing cassettes without rewriting
+existing ones, then runs snapshot creation and offline replay only when the
+record pass succeeds. A brand-new empty snapshot makes that first pass exit
+nonzero, so use the explicit workflow under Adding a test before returning to
+the Make target.
 
 For a focused new cassette that only touches one provider, pass the test node and
 override the preflight list:
@@ -269,19 +300,38 @@ uv run python -m tests.recorded.inspect_cassette tests/recorded/rails/public_api
 
 ## Snapshots
 
-Rails replay outputs are pinned with inline snapshots after normalization. Create or fix snapshots with:
+Rails replay outputs are pinned with inline snapshots, normalizing composite or
+volatile structures as needed. Create or fix snapshots with:
 
 ```bash
-uv run pytest tests/recorded/rails --block-network --inline-snapshot=create
-uv run pytest tests/recorded/rails --block-network --inline-snapshot=fix
-uv run pytest tests/recorded/rails --block-network --inline-snapshot=review
+uv run --locked pytest tests/recorded/rails --block-network --inline-snapshot=create
+uv run --locked pytest tests/recorded/rails --block-network --inline-snapshot=fix
+uv run --locked pytest tests/recorded/rails --block-network --inline-snapshot=review
 ```
 
 Snapshot formatting uses `ruff format` through `[tool.inline-snapshot]` in `pyproject.toml`.
-Snapshot create/fix/review runs must be serial. Use `make record-cassettes` or a
-direct `uv run pytest ... --inline-snapshot=<mode>` command; the default
+Snapshot create/fix/review runs must be serial. Use a direct
+`uv run --locked pytest ... --inline-snapshot=<mode>` command for a new empty
+snapshot; use `make record-cassettes` once snapshot values exist. The default
 `make test` path uses xdist, where inline-snapshot disables update and report
 modes.
+
+How inline snapshots actually behave (so the workflow does not surprise you):
+
+- `--inline-snapshot=create` REWRITES THE TEST FILE in place, filling an empty
+  `snapshot()` with the observed value. `--inline-snapshot=fix` updates an
+  incorrect existing value; it does not create an empty one. Review the
+  resulting diff, do not revert it. A creation run still reports a teardown
+  error ("the value is now created and you can ignore this message"); a
+  `1 passed, 1 error` result is normal.
+- An unfilled `snapshot()` never passes silently: under serial runs the test
+  passes but errors at teardown ("your snapshot is missing one value");
+  under xdist (`make test`) the comparison itself fails. Either way, fill it
+  serially with `--inline-snapshot=create`.
+- Normalize composite or volatile response structures before snapshotting
+  (`assert normalize_*(...) == snapshot(...)`, helpers in
+  `tests/recorded/normalization.py`). Stable scalar public outputs such as a
+  generated string may be snapshotted directly.
 
 Volatile response fields (ids, timestamps, fingerprints) are scrubbed to fixed sentinels in the cassette, so snapshots assert them directly without needing loose matchers.
 

@@ -41,7 +41,7 @@ The example's `Bash` rail blocks the force push:
 {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"NeMo Guardrails: regex check tool call"}}
 ```
 
-To point the agent's hook at the server, follow the agent's page: [Claude Code](./../../../docs/run-rails/using-hooks-server/claude-code.mdx), [Codex](./../../../docs/run-rails/using-hooks-server/codex.mdx), or [NeMo Relay](./../../../docs/run-rails/using-hooks-server/nemo-relay.mdx).
+To point the agent's hook at the server, follow the agent's page: [Claude Code](./../../../docs/run-rails/using-hooks-server/claude-code.mdx), [Codex](./../../../docs/run-rails/using-hooks-server/codex.mdx), or [NeMo Relay](./../../../docs/run-rails/using-hooks-server/nemo-relay-plugin.mdx).
 
 ## One Server for Each Agent
 

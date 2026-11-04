@@ -162,16 +162,19 @@ def build_error_payload(
 # looks like an OpenAI error object cannot truncate a stream or skip output
 # rails. ``downstream_error`` carries an upstream HTTP status;
 # ``generation_error`` is a status-less generation failure;
-# ``guardrails_violation`` is emitted when a rail blocks.
+# ``guardrails_violation`` is emitted when a rail blocks;
+# ``internal_error`` is emitted when a rail fails to execute.
 GENERATION_ERROR_TYPE = "generation_error"
 DOWNSTREAM_ERROR_TYPE = "downstream_error"
 GUARDRAILS_VIOLATION_TYPE = "guardrails_violation"
+INTERNAL_ERROR_TYPE = "internal_error"
 
 STREAM_ERROR_TYPES = frozenset(
     {
         GENERATION_ERROR_TYPE,
         DOWNSTREAM_ERROR_TYPE,
         GUARDRAILS_VIOLATION_TYPE,
+        INTERNAL_ERROR_TYPE,
     }
 )
 

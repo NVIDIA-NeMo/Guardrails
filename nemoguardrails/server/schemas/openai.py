@@ -262,6 +262,10 @@ class OpenAIChatCompletionRequest(BaseModel):
         default=None,
         description="The maximum number of tokens to generate.",
     )
+    max_completion_tokens: Optional[int] = Field(
+        default=None,
+        description="The maximum number of completion tokens to generate, including reasoning tokens.",
+    )
     temperature: Optional[float] = Field(
         default=None,
         description="Sampling temperature to use.",

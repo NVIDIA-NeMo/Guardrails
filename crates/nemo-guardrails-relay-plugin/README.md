@@ -6,7 +6,9 @@ The plugin is a client and holds no rails of its own.
 The NeMo Guardrails service is a hooks server, started with `nemoguardrails hooks-server --config <path>`; its one configuration holds the rails and decides every call.
 Before each tool call that Relay manages, the plugin posts the tool's name and arguments to the service's `/v1/hooks/nemo-relay` endpoint.
 A deny from the service becomes a guardrail rejection, and a check that fails (an error status, a timeout, a service that can't be reached) becomes an error.
-Relay blocks the call on either, from 0.10.1 on, with one exception: on an error, pi's extension lets the call run unless `NEMO_RELAY_PI_FAIL=closed` is set.
+Relay blocks the call on either, with one exception: on an error, pi's extension lets the call run unless `NEMO_RELAY_PI_FAIL=closed` is set.
+
+To install and configure the plugin, refer to [Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin](./../../docs/run-rails/using-hooks-server/nemo-relay-plugin.mdx).
 
 ## Checks
 
@@ -26,14 +28,13 @@ Its message is the error text, and its fields are `event` (`nemo_guardrails_chec
 The plugin puts no header value and none of the tool's arguments into the error text or the warning.
 
 The plugin checks every call; it keeps no earlier decisions.
-Through Relay 0.10.4, a call that reaches a permission prompt runs the guardrail twice, on PreToolUse and right after on PermissionRequest, so it costs two requests to the service, and two runs of any LLM judge.
-Relay 0.11 runs the guardrail once.
+Relay runs the guardrail once per tool call, so the plugin sends one request per call.
 
 ## Compatibility
 
-- NeMo Relay 0.10.1 and later 0.x releases, through native ABI v7 (`compat.relay = ">=0.10.1,<1.0"`).
-  Relay 0.10.0 is excluded: the plugin reports a failed check as an error, and at 0.10.0 an error from a guardrail lets a Claude Code tool call run.
-- Each Relay minor release changes the native ABI, so the plugin is rebuilt against each one.
+- NeMo Relay 0.11.0-rc.1 and later 0.x releases (`compat.relay = ">=0.11.0-rc.1,<1.0"`), built against the 0.11 SDK (native ABI v8).
+- Relay 0.10 and the 0.11.0 alphas are excluded: they run the guardrail a second time when a CLI tool call reaches a permission prompt.
+- Each Relay minor release so far has changed the native ABI, so the plugin is rebuilt against each one.
 
 ## Configuration
 
@@ -66,10 +67,24 @@ cargo build --release -p nemo-guardrails-relay-plugin
 make test TEST=crates/nemo-guardrails-relay-plugin/scripts/test_package_bundle.py
 ```
 
+CI runs the Cargo checks in [`relay-plugin.yml`](../../.github/workflows/relay-plugin.yml), with the tests in the debug profile only: the end-to-end tests below load the release library.
+It runs the packaging script's tests with the end-to-end tests, in [`integration-tests.yml`](../../.github/workflows/integration-tests.yml).
 `tests/client.rs` runs the hooks client against a stand-in NeMo Guardrails service, from `wiremock`.
 `tests/lifecycle.rs` and `tests/tool_call_check.rs` build the plugin library in the test's profile, then load it into a real Relay host through the `nemo-relay` crate; `tests/tool_call_check.rs` points it at a stand-in service.
 None of these tests needs a running NeMo Guardrails service.
 `.cargo/config.toml` sets `NEMO_RELAY_TEST_SKIP_IMPLICIT_CONFIG=1`, so that the host tests ignore a machine-wide `/etc/nemo-relay/plugins.toml`.
+
+The end-to-end tests in the repository's `integration_tests/relay_plugin/` load the release library into Relay's Python plugin host and check calls against a real NeMo Guardrails service: managed tool calls, and a LangChain agent through Relay's middleware.
+They start the service from the repository's `.venv`, as a hooks server for each of their configurations, and run in their own Python 3.11 environment without Guardrails, `.venv-relay-plugin`, installed from the hash-pinned `integration_tests/relay_plugin/requirements.txt`.
+They run on Linux and macOS, need the Rust toolchain, and aren't part of `make test`.
+[`integration_tests/README.md`](../../integration_tests/README.md) covers all of the repository's end-to-end suites, this one included.
+From the repository root:
+
+```sh
+make test-relay-plugin
+# One file or test, with pytest's options
+make test-relay-plugin TEST=integration_tests/relay_plugin/test_langchain.py ARGS=-v
+```
 
 ## Packaging
 

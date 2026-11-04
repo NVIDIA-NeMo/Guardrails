@@ -1,6 +1,6 @@
 [project]
 name = "nemoguardrails"
-version = "0.25.0.dev0"
+version = "0.25.0-rc1"
 description = "NeMo Guardrails is an open-source toolkit for easily adding programmable guardrails to LLM-based conversational systems."
 license = "Apache-2.0"
 license-files = ["LICENSE*", "LICENCES*"]
@@ -169,6 +169,7 @@ module-name = "nemoguardrails"
 source-exclude = [
   "/nemoguardrails/AGENTS.md",
   "/nemoguardrails/CLAUDE.md",
+  "/nemoguardrails/library/AGENTS.md",
 ]
 
 # Directories in which to run ty type-checking

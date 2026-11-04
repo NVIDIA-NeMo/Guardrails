@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Optional, cast
 
 import aiohttp
 from aiohttp_retry import RetryClient
+from pydantic import SecretStr
 
 from nemoguardrails.exceptions import (
     LLMClientError,
@@ -803,6 +804,10 @@ class ModelEngine(BaseEngine):
             if not env_value:
                 raise RuntimeError(f"Environment variable '{self.model_config.api_key_env_var}' not set")
             return env_value
+
+        api_key = (self.model_config.parameters or {}).get("api_key")
+        if api_key:
+            return api_key.get_secret_value() if isinstance(api_key, SecretStr) else str(api_key)
 
         if engine == "nim":
             env_value = self._get_environment_variable("NVIDIA_API_KEY")

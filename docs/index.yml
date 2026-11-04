@@ -545,7 +545,10 @@ navigation:
           - page: Codex
             path: run-rails/using-hooks-server/codex.mdx
             slug: codex
-          - page: NeMo Relay
+          - page: NeMo Relay Plugin
+            path: run-rails/using-hooks-server/nemo-relay-plugin.mdx
+            slug: nemo-relay-plugin
+          - page: NeMo Relay Endpoint
             path: run-rails/using-hooks-server/nemo-relay.mdx
             slug: nemo-relay
           - page: Results and Errors

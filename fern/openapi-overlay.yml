@@ -345,6 +345,7 @@ actions:
     requestBody:
       content:
         application/json:
+          # Fern pairs each response example with the request example that has the same summary.
           examples:
             input:
               summary: Check a user message
@@ -357,13 +358,57 @@ actions:
                   config_id: content_safety
                   rail_types:
                   - input
+            tool_call:
+              summary: Check a call to an undeclared tool
+              value:
+                model: meta/llama-3.1-8b-instruct
+                messages:
+                - role: user
+                  content: "What's the weather in Paris?"
+                - role: assistant
+                  content: null
+                  tool_calls:
+                  - id: call_1
+                    type: function
+                    function:
+                      name: delete_files
+                      arguments: '{}'
+                tools:
+                - type: function
+                  function:
+                    name: get_weather
+                    parameters:
+                      type: object
+                      properties:
+                        city:
+                          type: string
+                      required:
+                      - city
+                guardrails:
+                  config_id: tools
+                  rail_types:
+                  - tool_call
     responses:
       '200':
         content:
           application/json:
             examples:
               passed:
-                summary: Input passed the configured rails
+                summary: Check a user message
                 value:
                   status: passed
                   content: What is the capital of France?
+              tool_call:
+                summary: Check a call to an undeclared tool
+                value:
+                  status: blocked
+                  content: "I'm sorry, I can't respond to that."
+                  rail: tool call validation
+                  reason: "tool call 'delete_files' is not an allowed tool"
+                  tool_violations:
+                  - kind: tool_call
+                    violation_type: tool_not_allowed
+                    reason: "tool call 'delete_files' is not an allowed tool"
+                    tool_call_id: call_1
+                    tool_name: delete_files
+                    index: 0

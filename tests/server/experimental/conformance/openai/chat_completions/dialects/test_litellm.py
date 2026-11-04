@@ -209,3 +209,24 @@ async def test_usage_only_events_keep_metadata_role_without_bypassing_extension_
     else:
         assert response.status_code == 200
         assert response.content == body
+
+
+@pytest.mark.parametrize("inspect", [False, True], ids=["relay", "inspected"])
+@pytest.mark.parametrize("streaming,path", [(False, MESSAGE), (True, DELTA)], ids=["buffered", "stream"])
+@pytest.mark.parametrize(
+    "extra,accepted",
+    [
+        ({"encrypted_content": "opaque-test-value", "summary": []}, True),
+        ({"summary": [{"type": "summary_text", "text": "unchecked"}]}, False),
+        ({"content": [{"type": "reasoning_text", "text": "unchecked"}]}, False),
+        ({"future_content": "unchecked"}, False),
+    ],
+)
+async def test_translated_reasoning_preserves_only_reviewed_metadata(inspect, streaming, path, extra, accepted):
+    await assert_extension_exchange(
+        streaming,
+        extension_body(streaming, path + ("reasoning_items",), [{"type": "reasoning", **extra}]),
+        inspect,
+        LITELLM_CHAT_COMPLETIONS_ENDPOINT,
+        accepted,
+    )

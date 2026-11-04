@@ -17,10 +17,13 @@ or a promise of compatibility with every LiteLLM release and backend.
 | Request | Reuse the OpenAI single-user-text request binding, including disabled tools, multimodal content, and log probabilities. No additional request fields are enabled. |
 | Buffered `choices[0].message.provider_specific_fields` | Optional and nullable, with optional `refusal: null` and absent/null/empty `thinking_blocks`. Other members are rejected. |
 | Buffered `choices[0].provider_specific_fields` | Optional and nullable; reviewed `native_finish_reason` metadata is opaque. Other members are rejected. |
-| Buffered message `images`, `thinking_blocks`, `reasoning_items` | Absent, null, or empty arrays only. Nonempty content is unsupported. |
+| Buffered message `images`, `thinking_blocks` | Absent, null, or empty arrays only. Nonempty content is unsupported. |
+| Buffered message and streaming delta `reasoning_items` | Optional nullable lists of closed typed items with `type: "reasoning"`. Item `encrypted_content`, `id`, and `status` are opaque; `content` and `summary` must be absent, null, or empty arrays. Unknown item fields are rejected. |
 | Remaining buffered fields | Inherit the OpenAI response constraints and reviewed opaque metadata. The dialect's choice and message remain closed even under a trusted unknown-field override. |
-| Streaming root and delta `provider_specific_fields` | Absent, null, or empty objects only. These are separate from buffered choice extensions. |
-| Streaming delta `images`, `thinking_blocks`, `reasoning_items`, `annotations` | Absent, null, or empty arrays only. |
+| Buffered and streaming root `access_programs`, `billing`, `frequency_penalty`, `presence_penalty`, `tool_usage` | Reviewed opaque metadata retained by Responses-to-Chat translation. |
+| Streaming root `provider_specific_fields` | Optional nullable closed object with those reviewed metadata members and `service_tier`. Other members are rejected. |
+| Streaming delta `provider_specific_fields` | Absent, null, or empty objects only. Root metadata permissions do not apply here. |
+| Streaming delta `images`, `thinking_blocks`, `annotations` | Absent, null, or empty arrays only. |
 | Streaming event selection and lifecycle | Rebind the OpenAI content rule to the LiteLLM projection; retain error selection, metadata roles, sentinel/keepalive behavior, and fresh OpenAI lifecycle hooks. Choice index remains strict integer zero. |
 
 Extension containers are **constrained**, not wholly opaque. Their members have
@@ -69,16 +72,35 @@ for what that gateway actually exposes. Do not automatically union dialects.
 
 ## Evidence and scope
 
-The source baseline is LiteLLM tag `v1.102.1`, resolved to immutable commit
+The handwritten type and conversion review uses LiteLLM tag `v1.102.1`, resolved to immutable commit
 [`d09bbae1c6df463e425558f60d460437193635da`](https://github.com/BerriAI/litellm/tree/d09bbae1c6df463e425558f60d460437193635da).
-This identifies the source reviewed for the field policy, not the build running
-in any deployment. See the [LiteLLM API stability policy](https://docs.litellm.ai/docs/api_stability_policy)
+This identifies the source for the type and conversion behavior below, not the
+build running in any deployment. See the [LiteLLM API stability policy](https://docs.litellm.ai/docs/api_stability_policy)
 for upstream compatibility guidance.
 
 | File | Observed behavior | SHA-256 of source bytes |
 | --- | --- | --- |
 | [`litellm/types/utils.py`](https://github.com/BerriAI/litellm/blob/d09bbae1c6df463e425558f60d460437193635da/litellm/types/utils.py) | Message/choice and stream root/delta declarations; buffered `Choices` stores the original finish reason when normalizing it. | `a1698ae315ba0c618aa25ed037338c8b47b8f821680176e31f95f588ff09b26f` |
 | [`convert_dict_to_response.py`](https://github.com/BerriAI/litellm/blob/d09bbae1c6df463e425558f60d460437193635da/litellm/litellm_core_utils/llm_response_utils/convert_dict_to_response.py) | Message conversion preserves existing extensions, collects unknown message members, and copies thinking blocks into the bag. Choice conversion collects unknown choice members. | `303a5f0b82318e8f87d0c3b31db791e8370d41cc069741dd503b8a6e2b31948b` |
+
+The conformance suite independently uses an
+[OpenAPI response extract](../../../../../../../tests/server/experimental/conformance/openai/litellm/fixtures/response.openapi.json)
+whose `info.version` is `1.106.6`. Its `x-source` records the download URL
+`https://docs.litellm.ai/openapi.json` and the captured source SHA-256.
+The [extractor](../../../../../../../tests/server/experimental/conformance/openai/litellm/extract_openapi.py)
+preserves the selected response schemas and their referenced components.
+That snapshot checks coverage of declared Responses fields and documents schema
+gaps: the Chat response schema is empty, the Responses object permits additional
+properties, and its streaming schema describes a string rather than event shapes.
+It does not establish the complete translated metadata or reasoning-item inventory.
+
+The [gateway route recordings](../../../../../../../tests/recorded/server/experimental/openai/test_gateway_routes.py)
+provide separate wire evidence for translated metadata and encrypted reasoning
+items on the captured routes. Synthetic tests exercise the explicit permissions
+and rejection rules; they do not prove that every permitted field occurs at every
+allowed location. The source review, OpenAPI snapshot and recordings are independent
+artifacts, not a single validated release baseline or evidence of the gateway's
+deployed LiteLLM version.
 
 ### Inventory decisions
 
@@ -90,12 +112,15 @@ key that LiteLLM's open dictionaries could contain.
 | Chat request `model`, `messages`, `n`, `stream`, OpenAI sampling/usage controls | Inherit existing OpenAI policy; this dialect does not promise full provider-schema validation. |
 | Request `caching`, `num_retries`, `guardrails`, `fallbacks`, `context_window_fallback_dict` | Reject as undeclared. These affect execution/routing or upstream guardrail selection, not just response metadata; enabling them requires a separate operational policy decision. |
 | Message `content`, `role`, `audio`, `function_call`, `tool_calls`, `reasoning_content`, `annotations` | Inherit guarded text and existing role/content constraints. |
-| Message `images`, `thinking_blocks`, `reasoning_items` | Explicit empty-only arrays; they are additional content channels, not accounting metadata. |
+| Message `images`, `thinking_blocks` | Explicit empty-only arrays; they are additional content channels, not accounting metadata. |
+| Message and stream delta `reasoning_items` | Optional nullable lists of closed typed reasoning items. Preserve opaque `encrypted_content`, `id`, and `status`; require `type: "reasoning"` and absent/null/empty `content` and `summary`. Reject unknown item fields. |
 | Message extension `refusal`, `thinking_blocks` | Null-only refusal and empty-only thinking blocks. Other extension names require review. |
 | Choice `message`, `finish_reason`, `index`, `logprobs` | Inherit OpenAI policy. Buffered index/finish reason are opaque; log probabilities remain disabled. |
 | Choice extension `native_finish_reason` | Opaque provider termination metadata. It is not used to select or end stream events. |
-| Stream root/delta extension bags | Recognize containers; reject nonempty bags pending field-specific review. Buffered extension membership is not assumed to apply to streams. |
-| Stream delta content arrays and annotations | Explicit empty-only arrays, as above. |
+| Buffered and streaming root `access_programs`, `billing`, `frequency_penalty`, `presence_penalty`, `tool_usage` | Reviewed opaque metadata retained by Responses-to-Chat translation. |
+| Stream root extension bag | Optional nullable closed object accepting the reviewed root metadata above and `service_tier`. Other members are rejected. |
+| Stream delta extension bag | Absent, null, or empty objects only. Root metadata permissions do not apply here. |
+| Stream delta `images`, `thinking_blocks`, `annotations` | Explicit empty-only arrays. Typed `reasoning_items` follow the separate policy above. |
 | Root response/stream identity, usage and other existing opaque fields | Preserve unchanged. Reasoning-token counts and cost inside usage are not reasoning text. |
 | Source constructor extras, including choice `enhancements`, and unknown backend fields | Reject unless already in the inherited opaque inventory. Open upstream dictionaries are not an automatic passthrough policy. |
 

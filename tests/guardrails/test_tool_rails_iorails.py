@@ -35,6 +35,7 @@ from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.types import ToolCallChunk
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.tool_helpers import (
     WEATHER_SCHEMA,
@@ -471,12 +472,47 @@ class TestToolCallRoundTrip:
 
 class TestStreamingToolCalls:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("include_metadata", [False, True])
+    @pytest.mark.parametrize("allowed", [False, True])
+    async def test_config_tools_server_stream(self, iorails_config_tools, include_metadata, allowed):
+        from nemoguardrails.server.api import _format_streaming_response
+
+        name = "get_weather" if allowed else "undeclared_tool"
+        _inject_sse_stream(iorails_config_tools, _tool_call_sse_lines(name, ['{"city": ', '"Paris"}']))
+        stream = iorails_config_tools.stream_async(MESSAGES, include_metadata=include_metadata)
+        frames = await _collect(_format_streaming_response(stream, model_name="stub-model"))
+        assert frames[-1] == "data: [DONE]\n\n"
+        payloads = [json.loads(frame[6:]) for frame in frames[:-1]]
+        calls = [
+            choice for payload in payloads for choice in payload.get("choices", []) if "tool_calls" in choice["delta"]
+        ]
+        if allowed:
+            assert len(calls) == 1
+            assert calls[0]["finish_reason"] == "tool_calls"
+            assert calls[0]["delta"] == {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                    }
+                ]
+            }
+        else:
+            assert calls == []
+            violation = payloads[-1]
+            if include_metadata:
+                violation = json.loads(violation["choices"][0]["delta"]["text"])
+            assert violation["error"]["type"] == "guardrails_violation"
+
+    @pytest.mark.asyncio
     async def test_allowed_streamed_tool_call_passes(self, iorails):
         _inject_sse_stream(iorails, _tool_call_sse_lines("get_weather", ['{"city": ', '"Paris"}']))
         chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
 
         assert _stream_violation_chunks(chunks) == []
-        terminal = json.loads(chunks[-1])
+        terminal = {"tool_calls": [call.to_dict() for call in chunks[-1].tool_calls]}
         assert terminal["tool_calls"][0]["function"]["name"] == "get_weather"
 
     @pytest.mark.asyncio
@@ -488,7 +524,7 @@ class TestStreamingToolCalls:
         assert len(violations) == 1
         assert violations[0]["error"]["param"] == "tool_call_rails"
         # The tool-call chunk is suppressed: no chunk carries the tool call.
-        assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
+        assert not any(isinstance(c, ToolCallChunk) for c in chunks)
 
     @pytest.mark.asyncio
     async def test_undeclared_streamed_tool_call_violation_carries_the_validator_reason(self, iorails):
@@ -520,7 +556,7 @@ class TestStreamingToolCalls:
         _inject_sse_stream(iorails, _tool_call_sse_lines("get_weather", ['{"city": "Par']))
         chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
 
-        assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
+        assert not any(isinstance(c, ToolCallChunk) for c in chunks)
         error_chunks = [c for c in chunks if isinstance(c, str) and '"error"' in c]
         assert error_chunks, f"expected a generation error chunk, got {chunks}"
         assert json.loads(error_chunks[0])["error"]["code"] == "generation_failed"

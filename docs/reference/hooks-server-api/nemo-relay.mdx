@@ -49,7 +49,7 @@ The hooks server applies its tool policy, then the called tool's per-tool rails.
 The plugin returns the decision as its guardrail callback's result: `Ok(None)` for an allow, `Ok(Some(reason))` for a deny, and `Err` for any error status, timeout, or failed connection.
 
 The request examples come from the [NeMo Relay example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/nemo_relay), which allows a `search` tool with only a `query` argument.
-For the plugin side, refer to [Check NeMo Relay Tool Calls with the Hooks Server](/run-guardrailed-inference/using-hooks-server/nemo-relay).
+For the plugin that calls this endpoint, refer to [Check NeMo Relay Tool Calls with the NVIDIA NeMo Guardrails Plugin](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin).
 
 ## Request
 

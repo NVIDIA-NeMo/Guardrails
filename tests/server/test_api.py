@@ -25,7 +25,8 @@ from pydantic import ValidationError
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
-from nemoguardrails import RailsConfig
+from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.actions import action
 from nemoguardrails.exceptions import InvalidModelConfigurationError
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
@@ -1410,6 +1411,97 @@ async def test_openai_sse_format_basic_chunks():
     assert j2["choices"][0]["delta"]["content"] == "world"
 
     assert done == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("as_dict", [False, True])
+async def test_streaming_rail_execution_failure_is_terminal(as_dict):
+    error = {
+        "error": {
+            "message": "Internal error in failing safety check rail: action failed",
+            "type": "internal_error",
+            "param": "failing safety check",
+            "code": "rail_execution_failure",
+        }
+    }
+    stream = _create_test_stream([error if as_dict else json.dumps(error), "Unchecked content"])
+
+    frames = [frame async for frame in _format_streaming_response(stream, model_name="test-model")]
+
+    assert len(frames) == 2
+    assert json.loads(frames[0][6:]) == error
+    assert frames[1] == "data: [DONE]\n\n"
+
+
+@pytest.mark.parametrize("use_iorails", [False, True], ids=["legacy", "iorails-fallback"])
+@pytest.mark.parametrize("parallel", [False, True], ids=["sequential", "parallel"])
+@pytest.mark.parametrize("invalid_outcome", [False, True], ids=["action-failure", "invalid-outcome"])
+@pytest.mark.parametrize("stream_first", [False, True], ids=["rails-first", "stream-first"])
+def test_streaming_output_rail_failure_returns_error_frame(
+    monkeypatch, use_iorails, parallel, invalid_outcome, stream_first
+):
+    @action(is_system_action=True)
+    def failing_rail_action(**params):
+        if invalid_outcome:
+            return False
+        raise RuntimeError("Action execution failed")
+
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "passthrough": True,
+            "rails": {
+                "output": {
+                    "parallel": parallel,
+                    "flows": ["failing safety check"],
+                    "streaming": {"enabled": True, "stream_first": stream_first, "chunk_size": 4},
+                }
+            },
+        },
+        colang_content="""
+        define subflow failing safety check
+          execute failing_rail_action
+        """,
+    )
+    rails = Guardrails(config, llm=FakeLLMModel(responses=["Unchecked model content"]), use_iorails=use_iorails)
+    assert isinstance(rails.rails_engine, LLMRails)
+    rails.register_action(failing_rail_action)
+    monkeypatch.setattr(api, "_get_rails", AsyncMock(return_value=rails))
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+            "guardrails": {"config_id": "with_custom_llm"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    frames = [line[6:] for line in response.text.splitlines() if line.startswith("data: ")]
+    assert frames[-1] == "[DONE]"
+    events = [json.loads(frame) for frame in frames[:-1]]
+    content_events = events[:-1]
+    if stream_first:
+        assert content_events
+        assert "".join(event["choices"][0]["delta"]["content"] for event in content_events) == "Unchecked model content"
+    else:
+        assert content_events == []
+    error_message = (
+        "Rail action must return RailOutcome, got bool"
+        if invalid_outcome
+        else "Action failing_rail_action failed with status: failed"
+    )
+    assert events[-1] == {
+        "error": {
+            "message": f"Internal error in failing safety check rail: {error_message}",
+            "type": "internal_error",
+            "param": "failing safety check",
+            "code": "rail_execution_failure",
+        }
+    }
 
 
 @pytest.mark.asyncio

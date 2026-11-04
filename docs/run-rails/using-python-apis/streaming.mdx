@@ -182,7 +182,7 @@ They are retained for backward compatibility, and the internal `stream_async()` 
 Read token counts from `usage` instead.
 If you use `StreamingHandler` directly, the handler can still push these keys and accumulate them onto the terminal frame.
 
-An `IORails` tool-call response adds an assembled tool-call JSON frame after this empty frame, so the tool-call frame is the final frame in that stream.
+An `IORails` tool-call response adds a completed `ToolCallChunk` event after this empty frame, so the tool-call frame is the final frame in that stream.
 
 Without `include_metadata`, text chunks are plain strings (default behavior).
 
@@ -268,8 +268,8 @@ Two `GenerationResponse` fields have engine-specific streaming behavior:
 - `reasoning_content`: Neither engine emits provider reasoning deltas as chunk text.
   A model that embeds `<think>` tags in its content streams them as ordinary text, so output rails process the reasoning.
   `IORails` logs one warning per request when it detects this.
-- `tool_calls`: `IORails` emits assembled tool calls as a terminal chunk whose text is a `{"tool_calls": [...]}` JSON string.
-  The string uses the OpenAI wire shape with `function.arguments` as a JSON string, while the non-streaming `GenerationResponse.tool_calls` uses dictionary arguments.
+- `tool_calls`: `IORails` emits assembled tool calls as a terminal `ToolCallChunk` event in either metadata mode, after any enabled tool-call checks allow them.
+  Its `ToolCall` objects use dictionary-valued `function.arguments`, like non-streaming `GenerationResponse.tool_calls`.
   `LLMRails` forwards provider fragments as `ToolCallDeltaChunk` events and retains assembled calls for its internal response. Backends without delta support emit completed `ToolCallChunk` events, as described below.
 
 To obtain a `GenerationResponse` for a request, use `generate_async()`.
@@ -304,8 +304,7 @@ The adapter does not emit completed calls again after emitting deltas.
 
 Backends without incremental support retain `ToolCallChunk`, containing completed
 `ToolCall` objects with dictionary-valued `function.arguments`. The optional
-LangChain adapter retains this completed-call behavior. `IORails` also retains
-its existing assembled-call behavior; incremental delivery applies to `LLMRails`.
+LangChain adapter retains this completed-call behavior. `IORails` emits the same completed-call event after its tool-call rails allow the calls; incremental delivery applies to `LLMRails`.
 
 Both event types remain structured objects with `include_metadata=True`; neither
 is wrapped in a text dictionary. They do not contribute to assistant text and are
@@ -352,6 +351,9 @@ Without these request-level tool parameters, the existing incremental server
 path remains unchanged. Its formatter can serialize backend-produced
 `ToolCallDeltaChunk` and `ToolCallChunk` events, subject to the engine restrictions
 above.
+For config-declared tools, `IORails` runs configured tool-call checks when enabled
+before releasing its completed event. Setting `options.rails.tool_call` to `false`
+bypasses these checks; receiving a completed event does not guarantee validation ran.
 
 </Warning>
 

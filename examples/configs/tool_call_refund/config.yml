@@ -1,0 +1,15 @@
+models: []
+
+rails:
+  tool_call:
+    flows:
+      - tool call validation
+    per_tool:
+      issue_refund:
+        - cel check tool call
+  config:
+    cel:
+      tool_call:
+        issue_refund:
+          expressions:
+            - "args.amount > 500"

@@ -23,13 +23,13 @@ import re
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, List, Literal, Optional, Union
+from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
@@ -53,6 +53,7 @@ from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError
 from nemoguardrails.llm.call import _prepend_think_tags
 from nemoguardrails.llm.clients._errors import (
+    STREAM_ERROR_TYPES,
     build_error_payload,
     build_streaming_error_payload,
     normalize_error_status,
@@ -539,9 +540,16 @@ class ChunkErrorMetadata(BaseModel):
     message: str
     # Only the internal stream markers count as a terminal error frame; see
     # ChunkError below.
-    type: Literal["generation_error", "downstream_error", "guardrails_violation"]
+    type: str
     param: Optional[str] = None
     code: Union[str, int, None] = None
+
+    @field_validator("type")
+    @classmethod
+    def validate_error_type(cls, value: str) -> str:
+        if value not in STREAM_ERROR_TYPES:
+            raise ValueError("Not an internal stream error type")
+        return value
 
 
 class ChunkError(BaseModel):
@@ -771,6 +779,8 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
     # Set OpenAI-compatible parameters in llm_params
     if body.max_tokens:
         generation_options.llm_params["max_tokens"] = body.max_tokens
+    if body.max_completion_tokens is not None:
+        generation_options.llm_params["max_completion_tokens"] = body.max_completion_tokens
     if body.temperature is not None:
         generation_options.llm_params["temperature"] = body.temperature
     if body.top_p is not None:

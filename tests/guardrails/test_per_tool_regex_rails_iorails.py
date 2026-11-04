@@ -204,8 +204,8 @@ class TestStreamingPerToolCallRegex:
         )
         chunks = await _collect(call_pattern_iorails.stream_async(MESSAGES))
         assert _stream_violation_chunks(chunks) == []
-        streamed = json.loads(chunks[-1])["tool_calls"]
-        assert [call["function"]["arguments"] for call in streamed] == arguments
+        streamed = [call.to_dict() for call in chunks[-1].tool_calls]
+        assert [call["function"]["arguments"] for call in streamed] == [json.loads(argument) for argument in arguments]
 
 
 def _tool_conversation(content: str) -> list:

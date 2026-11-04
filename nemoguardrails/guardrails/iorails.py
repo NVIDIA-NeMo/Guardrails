@@ -107,7 +107,7 @@ from nemoguardrails.rails.llm.options import (
 )
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.tracing.constants import GuardrailsAttributes
-from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk, ToolCall
+from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk, ToolCall, ToolCallChunk
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -208,21 +208,6 @@ def _frame_for_stream(payload: str, include_metadata: Optional[bool]) -> Union[s
     strings, so terminal and block chunks that bypass the handler stay shape-consistent.
     """
     return {"text": payload} if include_metadata else payload
-
-
-def _terminal_tool_call_chunk(
-    tool_calls: list[ToolCall], include_metadata: Optional[bool]
-) -> tuple[str, Union[str, dict]]:
-    """Frame assembled tool calls as the stream's terminal chunk.
-
-    Returns ``(payload, framed)``: ``payload`` is the OpenAI-native
-    ``{"tool_calls": ...}`` JSON string used for content capture, and
-    ``framed`` is what to yield — a ``{"text": payload}`` dict under
-    ``include_metadata``, a raw string otherwise — matching the shape of
-    the surrounding stream.
-    """
-    payload = json.dumps({"tool_calls": _serialize_tool_calls(tool_calls)})
-    return payload, _frame_for_stream(payload, include_metadata)
 
 
 def _build_assistant_message(content: str, tool_calls: Optional[list[ToolCall]]) -> LLMMessage:
@@ -1832,12 +1817,12 @@ class IORails(BaseGuardrails):
         messages: LLMMessages,
         options: Optional[Union[dict, GenerationOptions]] = None,
         include_metadata: Optional[bool] = False,
-    ) -> AsyncIterator[Union[str, dict]]:
+    ) -> AsyncIterator[Union[str, dict, ToolCallChunk]]:
         """Stream LLM response tokens with input/output rails applied.
 
         Returns an async iterator that yields string chunks (or dicts when
-        ``include_metadata=True``).  Input rails run before any tokens are
-        streamed.  If output rails are configured and streaming is enabled,
+        ``include_metadata=True``) and completed ``ToolCallChunk`` events.
+        Input rails run before any tokens are streamed.  If output rails are configured and streaming is enabled,
         tokens are buffered and checked using the same ``RollingBuffer`` /
         ``stream_first`` semantics as LLMRails.
 
@@ -1849,7 +1834,7 @@ class IORails(BaseGuardrails):
                 ``metadata`` keys instead of plain strings.
 
         Returns:
-            An async iterator of string chunks (or dicts).
+            An async iterator of text chunks and completed ``ToolCallChunk`` events.
 
         Raises:
             StreamingNotSupportedError: If output rails are present but
@@ -1961,7 +1946,7 @@ class IORails(BaseGuardrails):
 
                 # Step 2: Stream main LLM content from structured response.
                 # delta_content is forwarded as text chunks; delta_tool_calls are
-                # accumulated and surfaced as a terminal JSON chunk after the text
+                # accumulated and surfaced as a terminal ToolCallChunk after the text
                 # stream ends. Reasoning is dropped for LLMRails compatibility.
                 log.info("[%s] Streaming main LLM", req_id)
                 content_parts: list[str] = []
@@ -2135,12 +2120,13 @@ class IORails(BaseGuardrails):
                                                 delivered.append(violation)
                                             yield _frame_for_stream(violation, include_metadata)
                                         else:
-                                            payload, framed = _terminal_tool_call_chunk(
-                                                accumulated_tool_calls, include_metadata
-                                            )
                                             if self._content_capture_enabled:
-                                                delivered.append(payload)
-                                            yield framed
+                                                delivered.append(
+                                                    json.dumps(
+                                                        {"tool_calls": _serialize_tool_calls(accumulated_tool_calls)}
+                                                    )
+                                                )
+                                            yield ToolCallChunk(accumulated_tool_calls)
                                 finally:
                                     if not task.done():
                                         task.cancel()

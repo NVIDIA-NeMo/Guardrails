@@ -238,6 +238,14 @@ response:
   description: Derive coverage and text extraction from the complete dialect model
     graph.
   properties:
+    access_programs:
+      default: null
+      x-nemo-guardrails:
+        classification: opaque
+    billing:
+      default: null
+      x-nemo-guardrails:
+        classification: opaque
     choices:
       items:
         additionalProperties: false
@@ -354,10 +362,58 @@ response:
                 default: null
                 x-nemo-guardrails:
                   classification: constrained
-                  reason: core_capability.reasoning_content
                 oneOf:
-                - items: {}
-                  maxItems: 0
+                - items:
+                    additionalProperties: false
+                    description: Preserve encrypted metadata while keeping plaintext
+                      and unknown fields closed.
+                    properties:
+                      content:
+                        default: null
+                        x-nemo-guardrails:
+                          classification: constrained
+                          reason: core_capability.reasoning_content
+                        oneOf:
+                        - items: {}
+                          maxItems: 0
+                          type: array
+                        - type: 'null'
+                      encrypted_content:
+                        x-nemo-guardrails:
+                          classification: opaque
+                      id:
+                        x-nemo-guardrails:
+                          classification: opaque
+                      status:
+                        x-nemo-guardrails:
+                          classification: opaque
+                      summary:
+                        default: null
+                        x-nemo-guardrails:
+                          classification: constrained
+                          reason: core_capability.reasoning_content
+                        oneOf:
+                        - items: {}
+                          maxItems: 0
+                          type: array
+                        - type: 'null'
+                      type:
+                        const: reasoning
+                        type: string
+                        x-nemo-guardrails:
+                          classification: constrained
+                    required:
+                    - type
+                    title: LiteLLMReasoningItemProjection
+                    type: object
+                    x-nemo-guardrails:
+                      variant:
+                        cardinality: any
+                        match:
+                          type: reasoning
+                      source: '#/components/schemas/ReasoningItem'
+                      unknown_fields: forbid
+                      reject_case_aliases: true
                   type: array
                 - type: 'null'
               refusal:
@@ -434,6 +490,10 @@ response:
     created:
       x-nemo-guardrails:
         classification: opaque
+    frequency_penalty:
+      default: null
+      x-nemo-guardrails:
+        classification: opaque
     id:
       x-nemo-guardrails:
         classification: opaque
@@ -449,10 +509,18 @@ response:
     object:
       x-nemo-guardrails:
         classification: opaque
+    presence_penalty:
+      default: null
+      x-nemo-guardrails:
+        classification: opaque
     service_tier:
       x-nemo-guardrails:
         classification: opaque
     system_fingerprint:
+      x-nemo-guardrails:
+        classification: opaque
+    tool_usage:
+      default: null
       x-nemo-guardrails:
         classification: opaque
     usage:
@@ -479,6 +547,14 @@ stream:
   - additionalProperties: false
     description: Recognize LiteLLM's root extension bag, including on usage-only events.
     properties:
+      access_programs:
+        default: null
+        x-nemo-guardrails:
+          classification: opaque
+      billing:
+        default: null
+        x-nemo-guardrails:
+          classification: opaque
       choices:
         items:
           additionalProperties: false
@@ -486,8 +562,8 @@ stream:
           properties:
             delta:
               additionalProperties: false
-              description: Accept source-declared empty content fields, preserving
-                the text target.
+              description: Accept reviewed encrypted reasoning and empty-only content
+                extensions.
               properties:
                 annotations:
                   default: null
@@ -561,10 +637,58 @@ stream:
                   default: null
                   x-nemo-guardrails:
                     classification: constrained
-                    reason: core_capability.reasoning_content
                   oneOf:
-                  - items: {}
-                    maxItems: 0
+                  - items:
+                      additionalProperties: false
+                      description: Preserve encrypted metadata while keeping plaintext
+                        and unknown fields closed.
+                      properties:
+                        content:
+                          default: null
+                          x-nemo-guardrails:
+                            classification: constrained
+                            reason: core_capability.reasoning_content
+                          oneOf:
+                          - items: {}
+                            maxItems: 0
+                            type: array
+                          - type: 'null'
+                        encrypted_content:
+                          x-nemo-guardrails:
+                            classification: opaque
+                        id:
+                          x-nemo-guardrails:
+                            classification: opaque
+                        status:
+                          x-nemo-guardrails:
+                            classification: opaque
+                        summary:
+                          default: null
+                          x-nemo-guardrails:
+                            classification: constrained
+                            reason: core_capability.reasoning_content
+                          oneOf:
+                          - items: {}
+                            maxItems: 0
+                            type: array
+                          - type: 'null'
+                        type:
+                          const: reasoning
+                          type: string
+                          x-nemo-guardrails:
+                            classification: constrained
+                      required:
+                      - type
+                      title: LiteLLMReasoningItemProjection
+                      type: object
+                      x-nemo-guardrails:
+                        variant:
+                          cardinality: any
+                          match:
+                            type: reasoning
+                        source: '#/components/schemas/ReasoningItem'
+                        unknown_fields: forbid
+                        reject_case_aliases: true
                     type: array
                   - type: 'null'
                 refusal:
@@ -641,6 +765,10 @@ stream:
       created:
         x-nemo-guardrails:
           classification: opaque
+      frequency_penalty:
+        default: null
+        x-nemo-guardrails:
+          classification: opaque
       id:
         x-nemo-guardrails:
           classification: opaque
@@ -658,16 +786,43 @@ stream:
         type: string
         x-nemo-guardrails:
           classification: constrained
+      presence_penalty:
+        default: null
+        x-nemo-guardrails:
+          classification: opaque
       provider_specific_fields:
         default: null
         x-nemo-guardrails:
           classification: constrained
         oneOf:
         - additionalProperties: false
-          description: Recognize an empty extension bag without authorizing arbitrary
-            contents.
-          properties: {}
-          title: LiteLLMStreamFields
+          description: Declare the terminal root extension separately from delta extensions.
+          properties:
+            access_programs:
+              default: null
+              x-nemo-guardrails:
+                classification: opaque
+            billing:
+              default: null
+              x-nemo-guardrails:
+                classification: opaque
+            frequency_penalty:
+              default: null
+              x-nemo-guardrails:
+                classification: opaque
+            presence_penalty:
+              default: null
+              x-nemo-guardrails:
+                classification: opaque
+            service_tier:
+              default: null
+              x-nemo-guardrails:
+                classification: opaque
+            tool_usage:
+              default: null
+              x-nemo-guardrails:
+                classification: opaque
+          title: LiteLLMTerminalMetadata
           type: object
           x-nemo-guardrails:
             unknown_fields: forbid
@@ -677,6 +832,10 @@ stream:
         x-nemo-guardrails:
           classification: opaque
       system_fingerprint:
+        x-nemo-guardrails:
+          classification: opaque
+      tool_usage:
+        default: null
         x-nemo-guardrails:
           classification: opaque
       usage:

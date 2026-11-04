@@ -10,7 +10,7 @@ content:
 The Guardrails hooks server (`nemoguardrails hooks-server`) loads one guardrails configuration at startup.
 It checks each tool call against that configuration's tool policy and per-tool rails.
 Use this guide to configure, start, and monitor the server.
-To connect an agent, refer to the [Claude Code](/run-guardrailed-inference/using-hooks-server/claude-code), [Codex](/run-guardrailed-inference/using-hooks-server/codex), or [NeMo Relay](/run-guardrailed-inference/using-hooks-server/nemo-relay) page.
+To connect an agent, refer to the [Claude Code](/run-guardrailed-inference/using-hooks-server/claude-code), [Codex](/run-guardrailed-inference/using-hooks-server/codex), or [NeMo Relay](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin) page.
 
 ## Start the Server
 
@@ -302,6 +302,11 @@ INFO:nemoguardrails.server.hooks.app:Hook check on /v1/hooks/claude-code: event=
 `rail` names the per-tool rail that blocked or failed, `tool policy` for a call the tool policy denied, or `None` when no rail decided, such as for an allow.
 A check that ends in an error is logged at the `WARNING` level.
 The line never includes the tool's input, which can carry file contents or credentials.
+
+The `nemoguardrails hooks-server` command logs at the `INFO` level only from the hooks server, from Uvicorn, the web server, for startup and requests, and from the `IORails` engine.
+The engine's lines carry timings, outcomes, and each model request's URL and model name, but no message content.
+The library's other loggers stay at `WARNING`.
+A [tool safety check](/configure-guardrails/guardrail-catalog/tool-safety-check) sends the call's arguments to its judge model, but the server logs neither the arguments nor the judge's prompt.
 
 A request the server answers before checking a call gets no such line: a `422` for a malformed request, a `503` when the admission queue is full, or a `500` for an unexpected error.
 The server's error handlers log those in their own format.
