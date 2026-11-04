@@ -60,6 +60,7 @@ def create_mock_yara_match(matched_text: str, rule_name: str = "test_rule"):
         def __init__(self, text):
             self._text = text.encode("utf-8")
             self.matched_length = len(self._text)
+            self.matched_data = self._text
 
         def plaintext(self):
             return self._text
@@ -803,6 +804,7 @@ async def test_omit_injection_unicode_decode_error():
             # invalid utf-8 bytes
             self._text = b"\xff\xfe"
             self.matched_length = len(self._text)
+            self.matched_data = self._text
 
         def plaintext(self):
             return self._text
@@ -881,10 +883,19 @@ async def test_omit_blocks_incomplete_real_yara_matches(text):
     [
         ("rule test { strings: $a = { A9 } condition: $a }", "é"),
         ('rule test { strings: $a = "foo" xor(1) condition: $a }', "gnn"),
+        ('rule test { strings: $a = "foo" xor(1) $b = "marker" condition: all of them }', "gnn foo marker"),
+        ('rule test { strings: $b = "marker" $a = "foo" xor(1) condition: all of them }', "gnn foo marker"),
         ("rule test { condition: true }", "any text"),
         ('rule test { strings: $a = "bad" condition: $a }', "bbadad"),
     ],
-    ids=["partial-utf8", "xor", "no-spans", "new-match-after-removal"],
+    ids=[
+        "partial-utf8",
+        "xor",
+        "xor-with-unrelated-plaintext",
+        "xor-after-partial-removal",
+        "no-spans",
+        "new-match-after-removal",
+    ],
 )
 async def test_omit_blocks_unremovable_custom_yara_matches(rule, text):
     config = RailsConfig.from_content(
@@ -906,7 +917,15 @@ async def test_omit_blocks_unremovable_custom_yara_matches(rule, text):
 
 
 @pytest.mark.asyncio
-async def test_omit_overlapping_real_yara_matches():
+@pytest.mark.parametrize(
+    ("rule", "text", "expected"),
+    [
+        ('rule test { strings: $a = "abc" $b = "bc" condition: all of them }', "abc", ""),
+        ('rule test { strings: $a = "foo" xor(0) $b = "marker" condition: all of them }', "foo marker", " "),
+    ],
+    ids=["overlapping-matches", "identity-xor"],
+)
+async def test_omit_complete_real_yara_matches(rule, text, expected):
     config = RailsConfig.from_content(
         config={
             "models": [],
@@ -915,23 +934,24 @@ async def test_omit_overlapping_real_yara_matches():
                     "injection_detection": {
                         "injections": ["test"],
                         "action": "omit",
-                        "yara_rules": {"test": 'rule test { strings: $a = "abc" $b = "bc" condition: all of them }'},
+                        "yara_rules": {"test": rule},
                     }
                 }
             },
         }
     )
 
-    outcome = await injection_detection("abc", config)
+    outcome = await injection_detection(text, config)
 
     assert outcome.is_transform
-    assert outcome.transform_text["bot_message"] == ""
+    assert outcome.transform_text["bot_message"] == expected
     assert outcome.metadata["is_injection"] is True
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("enable_rails_exceptions", [False, True])
 async def test_omit_incomplete_removal_blocks_colang_1(enable_rails_exceptions):
+    """Failed omissions produce a refusal or the configured rail exception."""
     config = RailsConfig.from_content(
         config={
             "models": [],

@@ -1255,6 +1255,7 @@ def _injection_detection_outcome(
     action: str,
     detections: list[str] | None = None,
 ) -> RailOutcome:
+    """Construct the outcome shared by Colang and IORails equivalence cases."""
     metadata = {
         "is_injection": is_injection,
         "text": text,

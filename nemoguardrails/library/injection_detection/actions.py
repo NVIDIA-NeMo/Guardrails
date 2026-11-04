@@ -59,6 +59,7 @@ def _injection_detection_outcome(
     action_option: str,
     original_text: str,
 ) -> RailOutcome:
+    """Block rejected or unremovable detections, and expose completed rewrites."""
     metadata = dict(result)
     metadata["action"] = action_option
     if result["is_injection"] and (
@@ -238,6 +239,9 @@ def _omit_injection(text: str, matches: list["yara.Match"]) -> Tuple[bool, str]:
                     # YARA can truncate returned data before the end of the match or a UTF-8 character.
                     if len(matched_bytes) != instance.matched_length:
                         log.warning("Cannot omit a truncated injection match; blocking output.")
+                        return True, text
+                    if matched_bytes != instance.matched_data:
+                        log.warning("Cannot omit a decoded injection match; blocking output.")
                         return True, text
                     plaintext = matched_bytes.decode("utf-8")
                 except (AttributeError, UnicodeDecodeError):

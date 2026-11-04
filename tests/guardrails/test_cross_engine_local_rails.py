@@ -245,6 +245,7 @@ INJECTION_OMIT_CONFIG = {"injection_detection": {"injections": ["sqli"], "action
 @pytest.mark.asyncio
 @pytest.mark.parametrize("partial_removal", [False, True])
 async def test_iorails_blocks_incomplete_injection_omission(partial_removal):
+    """Incomplete omission blocks both checking and generation through IORails."""
     text = "<script>/*" + "a" * 501 + "é" + "*/alert(1)</script>"
     if partial_removal:
         text = "<script>alert(2)</script> " + text
