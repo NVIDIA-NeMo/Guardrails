@@ -65,6 +65,8 @@ def _injection_detection_outcome(
     if result["is_injection"] and (
         action_option == "reject" or (action_option == "omit" and result["text"] == original_text)
     ):
+        if action_option == "omit":
+            metadata.pop("text", None)
         return RailOutcome.block(metadata=metadata)
     if result["text"] != original_text:
         return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, result["text"])], metadata=metadata)
