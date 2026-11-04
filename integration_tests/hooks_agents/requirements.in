@@ -1,10 +1,11 @@
 # The agents the suite runs: Claude Code, which claude-agent-sdk bundles, and Codex, which openai-codex-cli-bin bundles.
 # Neither is a Guardrails dependency, so they aren't in pyproject.toml. Exact pins, so each agent release reaches the
-# suite as its own bump. requirements.txt pins these without their dependencies, since the suite only runs the bundled
-# binaries, and with hashes, which `make test-hooks-agents` checks as it installs them. Compile it from the repository
-# root, which applies the repository's 7-day exclude-newer window:
+# suite as its own bump. requirements.txt pins them and their dependencies with hashes, which `make test-hooks-agents`
+# checks as it installs them. The suite only runs the bundled binaries, but Dependabot can't recompile the file without
+# the dependencies. They install for .venv's Python, so the file covers Guardrails' oldest. Compile it from the
+# repository root, which applies the repository's 7-day exclude-newer window:
 #
-#   uv pip compile --universal --no-deps --generate-hashes integration_tests/hooks_agents/requirements.in \
+#   uv pip compile --universal --python-version 3.10 --generate-hashes integration_tests/hooks_agents/requirements.in \
 #     -o integration_tests/hooks_agents/requirements.txt
 claude-agent-sdk==0.2.168
 openai-codex-cli-bin==0.163.0

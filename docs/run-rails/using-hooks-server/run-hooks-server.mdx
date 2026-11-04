@@ -303,6 +303,11 @@ INFO:nemoguardrails.server.hooks.app:Hook check on /v1/hooks/claude-code: event=
 A check that ends in an error is logged at the `WARNING` level.
 The line never includes the tool's input, which can carry file contents or credentials.
 
+The `nemoguardrails hooks-server` command logs at the `INFO` level only from the hooks server, from Uvicorn, the web server, for startup and requests, and from the `IORails` engine.
+The engine's lines carry timings, outcomes, and each model request's URL and model name, but no message content.
+The library's other loggers stay at `WARNING`.
+A [tool safety check](/configure-guardrails/guardrail-catalog/tool-safety-check) sends the call's arguments to its judge model, but the server logs neither the arguments nor the judge's prompt.
+
 A request the server answers before checking a call gets no such line: a `422` for a malformed request, a `503` when the admission queue is full, or a `500` for an unexpected error.
 The server's error handlers log those in their own format.
 
