@@ -33,6 +33,7 @@ from typing import Optional
 from urllib.parse import urljoin
 
 from nemoguardrails.http import HTTPClient, HTTPClientError, HTTPTimeoutError, http_call
+from nemoguardrails.library.jailbreak_detection.model_based.errors import JailbreakInputTooLongError
 
 log = logging.getLogger(__name__)
 
@@ -93,6 +94,8 @@ async def jailbreak_detection_model_request(
     }
 
     response = await http_call(http_client, "POST", api_url, json=payload, raise_for_status=False)
+    if response.status_code == 413:
+        raise JailbreakInputTooLongError("Input exceeds the jailbreak detector's input limit.")
     if response.status_code != 200:
         log.error(f"Jailbreak check API request failed with status {response.status_code}")
         return None
@@ -133,6 +136,8 @@ async def jailbreak_nim_request(
             timeout=30,
             raise_for_status=False,
         )
+        if response.status_code == 413:
+            raise JailbreakInputTooLongError("Input exceeds the jailbreak detector's input limit.")
         if response.status_code != 200:
             log.error(f"NemoGuard JailbreakDetect NIM request failed with status {response.status_code}")
             return None
@@ -146,6 +151,8 @@ async def jailbreak_nim_request(
             log.exception("No jailbreak field in result.")
             result = None
         return result
+    except JailbreakInputTooLongError:
+        raise
     except HTTPTimeoutError:
         log.error("NemoGuard JailbreakDetect NIM request timed out")
         return None

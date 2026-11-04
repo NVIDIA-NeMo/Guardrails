@@ -105,6 +105,16 @@ To compute the perplexity of a string, the current implementation uses the `gpt2
 
 There is currently one available model-based detection, using a random forest-based detector trained on [`Snowflake/snowflake-arctic-embed-m-long`](https://huggingface.co/Snowflake/snowflake-arctic-embed-m-long) embeddings.
 
+#### Input Length Limit
+
+The local model-based detector accepts up to 2,048 tokens, including special tokens, counted with the Snowflake tokenizer.
+Inputs above this limit are rejected before model inference rather than classified using a truncated input.
+The `jailbreak detection model` rail blocks these inputs when it runs in-process.
+The bundled detector server returns HTTP 413 from `/model`, which the rail also treats as a block.
+
+For a NIM deployment, the endpoint determines the input limit.
+The model rail blocks a request if the NIM returns HTTP 413; it does not tokenize or truncate remote requests locally.
+
 ### Detector Availability
 
 <Warning>
@@ -114,7 +124,7 @@ When a configured detector cannot be reached, the rail allows the request instea
 
 </Warning>
 
-A connection failure, a timeout, and an error response all produce the same outcome, for both the heuristics server and the jailbreak detection NIM.
+A connection failure, a timeout, and an error response all produce the same outcome, for both the heuristics server and the jailbreak detection NIM, except for HTTP 413 responses from model endpoints, which block the request.
 The rail logs the failure, allows the request, and returns no error to the caller, so a detector outage removes this protection without a visible signal.
 The rail decides this itself, so it fails open on both engines rather than falling into either engine's error handling.
 
