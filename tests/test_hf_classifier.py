@@ -1291,6 +1291,23 @@ class TestLocalPipeline:
             batch_options = {}
         assert chunked(text, **options, **batch_options) == original(text, **options)
 
+    @pytest.mark.parametrize("size,tokenization_passes", [(3, 1), (60, 2), (600, 2)])
+    @pytest.mark.parametrize("batch_size", [1, 2, 8])
+    def test_scalar_tokenization_is_not_repeated(self, classifiers, monkeypatch, size, tokenization_passes, batch_size):
+        _, chunked = classifiers
+        tokenizer_type = type(chunked.tokenizer)
+        tokenize = tokenizer_type.__call__
+        calls = 0
+
+        def count_calls(tokenizer, *args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return tokenize(tokenizer, *args, **kwargs)
+
+        monkeypatch.setattr(tokenizer_type, "__call__", count_calls)
+        chunked(" ".join(["w0"] * size), batch_size=batch_size)
+        assert calls == tokenization_passes
+
     @pytest.mark.parametrize("truncation", [None, False, "do_not_truncate"])
     def test_previously_failing_input_succeeds(self, classifiers, truncation):
         original, chunked = classifiers
@@ -1591,6 +1608,38 @@ class TestLocalPipeline:
         _, chunked = classifiers
         restored = pickle.loads(pickle.dumps(chunked))
         assert restored("w0 w1") == chunked("w0 w1")
+
+    def test_prepared_scalar_windows_work_with_data_loader_workers(self, classifiers):
+        _, chunked = classifiers
+        text = " ".join(["w0"] * 59 + ["w24"])
+        expected = chunked(text, top_k=None)
+        actual = chunked(text, top_k=None, batch_size=1, num_workers=1)
+        assert len(actual) == len(expected)
+        for result, reference in zip(actual, expected):
+            assert result == pytest.approx(reference)
+
+    def test_prepared_input_pickles_without_retokenizing(self, classifiers, monkeypatch):
+        _, chunked = classifiers
+        text = " ".join(["w0"] * 60)
+        expected = list(chunked.preprocess(text))
+        prepared = pickle.loads(pickle.dumps(chunked._prepare_input(text)))
+        monkeypatch.setattr(chunked, "_prepare_input", mock.Mock(side_effect=AssertionError("repeated tokenization")))
+        actual = list(chunked.preprocess(prepared))
+        assert len(actual) == len(expected)
+        for window, reference in zip(actual, expected):
+            assert window["is_last"] == reference["is_last"]
+            assert self.torch.equal(window["input_ids"], reference["input_ids"])
+
+    def test_mixed_input_batch_matches_scalar_results(self, classifiers):
+        _, chunked = classifiers
+        texts = ["w0", " ".join(["w0"] * 59 + ["w24"]), "w1"]
+        expected = [chunked(text, top_k=None) for text in texts]
+        actual = chunked(texts, top_k=None, batch_size=2)
+        assert len(actual) == len(expected)
+        for results, references in zip(actual, expected):
+            assert len(results) == len(references)
+            for result, reference in zip(results, references):
+                assert result == pytest.approx(reference)
 
     @pytest.mark.asyncio
     async def test_concurrent_short_and_long_calls_share_pipeline(self, classifiers, rail_config, monkeypatch):

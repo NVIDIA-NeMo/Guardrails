@@ -16,6 +16,7 @@
 """Automatic windows for local text classifiers without truncation."""
 
 import threading
+from dataclasses import dataclass
 from typing import Any
 
 from transformers import BatchEncoding, TextClassificationPipeline
@@ -23,6 +24,18 @@ from transformers.pipelines.base import ChunkPipeline
 from transformers.tokenization_utils_base import LARGE_INTEGER
 
 from nemoguardrails.library.hf_classifier.compatibility import ensure_overflow_support
+
+
+@dataclass
+class _PreparedInput:
+    """Validated tokenization that can be passed to HF data-loader workers."""
+
+    encoding: BatchEncoding
+    is_chunked: bool = False
+
+    @property
+    def window_count(self) -> int:
+        return len(self.encoding["input_ids"]) if self.is_chunked else 1
 
 
 def _content_tokens(encoding: Any) -> list[int]:
@@ -111,10 +124,12 @@ class ChunkedTextClassificationPipeline(ChunkPipeline, TextClassificationPipelin
         if batch_size > 1 or num_workers:
             # Native scalar inference never constructs a batch-padding collator.
             if isinstance(inputs, list) and len(inputs) == 1:
-                first = next(self.preprocess(inputs[0], **preprocess_params))
-                if first["is_last"]:
+                prepared = self._prepare_input(inputs[0], **preprocess_params)
+                if prepared.window_count == 1:
+                    first = next(self.preprocess(prepared))
                     yield self.postprocess([self.forward(first, **forward_params)], **postprocess_params)
                     return
+                inputs = [prepared]
             yield from super().get_iterator(
                 inputs, num_workers, batch_size, preprocess_params, forward_params, postprocess_params
             )
@@ -126,7 +141,17 @@ class ChunkedTextClassificationPipeline(ChunkPipeline, TextClassificationPipelin
             )
             yield self.postprocess(outputs, **postprocess_params)
 
-    def preprocess(self, inputs, max_windows=128, **kwargs):
+    def preprocess(self, inputs, **kwargs):
+        prepared = inputs if isinstance(inputs, _PreparedInput) else self._prepare_input(inputs, **kwargs)
+        if not prepared.is_chunked:
+            yield {**prepared.encoding, "is_last": True}
+            return
+        for index in range(prepared.window_count):
+            # Convert one window at a time; default inference needs no padding token.
+            window = BatchEncoding({key: [value[index]] for key, value in prepared.encoding.items()}, tensor_type="pt")
+            yield {**window, "is_last": index == prepared.window_count - 1}
+
+    def _prepare_input(self, inputs, max_windows=128, **kwargs) -> _PreparedInput:
         """Preserve native truncation, otherwise verify and bound overlapping windows."""
         assert self.tokenizer is not None
         prepared: Any = super().preprocess(inputs, **kwargs)
@@ -136,8 +161,7 @@ class ChunkedTextClassificationPipeline(ChunkPipeline, TextClassificationPipelin
             truncation is None and kwargs.get("max_length") is not None
         )
         if truncates or limit is None or prepared["input_ids"].shape[-1] <= limit:
-            yield {**prepared, "is_last": True}
-            return
+            return _PreparedInput(prepared)
         if not self.tokenizer.is_fast:
             raise ValueError("Oversized HF classifier inputs require a fast tokenizer for overlapping windows.")
         ensure_overflow_support()
@@ -171,12 +195,9 @@ class ChunkedTextClassificationPipeline(ChunkPipeline, TextClassificationPipelin
                 "HF classifier input exceeds max_windows; shorten the input or increase the window budget."
             )
         _verify_coverage(expected, encoded, stride, self.tokenizer.truncation_side)
-        for index in range(count):
-            if len(encoded["input_ids"][index]) > limit:
-                raise ValueError("HF classifier padding exceeds the model input limit; adjust the padding parameters.")
-            # Convert one window at a time; default inference needs no padding token.
-            window = BatchEncoding({key: [value[index]] for key, value in encoded.items()}, tensor_type="pt")
-            yield {**window, "is_last": index == count - 1}
+        if any(len(ids) > limit for ids in encoded["input_ids"]):
+            raise ValueError("HF classifier padding exceeds the model input limit; adjust the padding parameters.")
+        return _PreparedInput(encoded, is_chunked=True)
 
     def _forward(self, model_inputs):
         is_last = model_inputs.pop("is_last")
