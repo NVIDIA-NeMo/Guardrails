@@ -5,6 +5,7 @@ info:
 actions:
 - target: $
   update:
+    x-fern-explorer: false
     info:
       title: Experimental Guardrails Proxy API
       description: |
@@ -22,7 +23,7 @@ actions:
       Inspect the [request](/reference/proxy-guard-contracts/chat-completions#request),
       [response](/reference/proxy-guard-contracts/chat-completions#response), and
       [stream](/reference/proxy-guard-contracts/chat-completions#stream) guard declarations.
-      The editable parameter list omits disabled fields; the request contract
+      The parameter list omits disabled fields; the request contract
       retains their declarations.
 
       See [field-policy meanings](/run-guardrailed-inference/using-proxy/guard-contracts#read-the-field-policy),
@@ -84,7 +85,7 @@ actions:
       Inspect the [request](/reference/proxy-guard-contracts/responses#request),
       [response](/reference/proxy-guard-contracts/responses#response), and
       [stream](/reference/proxy-guard-contracts/responses#stream) guard declarations.
-      The editable parameter list omits disabled fields; the request contract
+      The parameter list omits disabled fields; the request contract
       retains their declarations.
 
       See [field-policy meanings](/run-guardrailed-inference/using-proxy/guard-contracts#read-the-field-policy),
