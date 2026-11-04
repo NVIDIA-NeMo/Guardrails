@@ -1975,7 +1975,6 @@ dependencies = [
     { name = "jinja2" },
     { name = "jsonschema" },
     { name = "lark" },
-    { name = "nest-asyncio" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "onnxruntime" },
@@ -2036,6 +2035,9 @@ jailbreak = [
 ]
 multilingual = [
     { name = "fast-langdetect" },
+]
+nest-asyncio = [
+    { name = "nest-asyncio" },
 ]
 sdd = [
     { name = "presidio-analyzer", marker = "python_full_version < '3.13'" },
@@ -2154,7 +2156,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "jsonschema", specifier = ">=4.26.0,<5.0.0" },
     { name = "lark", specifier = ">=1.1.7" },
-    { name = "nest-asyncio", specifier = ">=1.5.6" },
+    { name = "nest-asyncio", marker = "extra == 'nest-asyncio'", specifier = ">=1.5.6" },
     { name = "numpy", marker = "python_full_version < '3.12'", specifier = ">=1.21" },
     { name = "numpy", marker = "python_full_version == '3.12.*'", specifier = ">=1.26" },
     { name = "numpy", marker = "python_full_version == '3.12.*' and extra == 'all'", specifier = ">=1.26" },
@@ -2204,7 +2206,7 @@ requires-dist = [
     { name = "yara-python", marker = "extra == 'all'", specifier = ">=4.5.1,<5.0.0" },
     { name = "yara-python", marker = "extra == 'jailbreak'", specifier = ">=4.5.1,<5.0.0" },
 ]
-provides-extras = ["tracing", "server", "sdd", "gcp", "jailbreak", "cel", "multilingual", "chat-ui", "eval", "all"]
+provides-extras = ["nest-asyncio", "tracing", "server", "sdd", "gcp", "jailbreak", "cel", "multilingual", "chat-ui", "eval", "all"]
 
 [package.metadata.requires-dev]
 dev = [
