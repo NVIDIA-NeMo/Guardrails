@@ -47,6 +47,7 @@ from nemoguardrails.library.injection_detection.actions import (
     _reject_injection,
     _sanitize_injection,
     _validate_injection_config,
+    injection_detection,
 )
 from tests.utils import TestChat
 
@@ -58,6 +59,7 @@ def create_mock_yara_match(matched_text: str, rule_name: str = "test_rule"):
     class MockStringMatchInstance:
         def __init__(self, text):
             self._text = text.encode("utf-8")
+            self.matched_length = len(self._text)
 
         def plaintext(self):
             return self._text
@@ -107,6 +109,14 @@ def create_mock_rules(matches=None):
             RailOutcome.transform(
                 [(TransformTarget.BOT_MESSAGE, "omitted")],
                 metadata={"is_injection": True, "text": "omitted", "detections": ["sqli"], "action": "omit"},
+            ),
+        ),
+        (
+            {"is_injection": True, "text": "normal", "detections": ["xss"]},
+            "omit",
+            "normal",
+            RailOutcome.block(
+                metadata={"is_injection": True, "text": "normal", "detections": ["xss"], "action": "omit"}
             ),
         ),
     ],
@@ -766,17 +776,20 @@ async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
 
 
 @pytest.mark.asyncio
-async def test_omit_injection_attribute_error():
+async def test_omit_injection_attribute_error(caplog):
     """Test error handling in _omit_injection for AttributeError."""
 
     text = "test text"
-    mock_matches = [
-        create_mock_yara_match("invalid bytes", "test_rule")  # This will cause AttributeError
-    ]
+    mock_matches = [create_mock_yara_match(text, "test_rule")]
 
-    is_injection, result = _omit_injection(text=text, matches=mock_matches)
-    assert not is_injection
+    with patch.object(
+        mock_matches[0].strings[0].instances[0], "plaintext", side_effect=AttributeError("sensitive payload")
+    ):
+        is_injection, result = _omit_injection(text=text, matches=mock_matches)
+    assert is_injection
     assert result == text
+    assert "Cannot decode an injection match" in caplog.text
+    assert "sensitive payload" not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -789,6 +802,7 @@ async def test_omit_injection_unicode_decode_error():
         def __init__(self):
             # invalid utf-8 bytes
             self._text = b"\xff\xfe"
+            self.matched_length = len(self._text)
 
         def plaintext(self):
             return self._text
@@ -805,20 +819,138 @@ async def test_omit_injection_unicode_decode_error():
 
     mock_matches = [MockMatchUnicode("test_rule")]
     is_injection, result = _omit_injection(text=text, matches=mock_matches)
-    assert not is_injection
+    assert is_injection
     assert result == text
 
 
 @pytest.mark.asyncio
-async def test_omit_injection_no_modifications():
+@pytest.mark.parametrize("matched_text", ["", "nonexistent pattern"])
+async def test_omit_injection_no_modifications(matched_text):
     """Test _omit_injection when no modifications are made to the text."""
 
     text = "safe text"
-    mock_matches = [create_mock_yara_match("nonexistent pattern", "test_rule")]
+    mock_matches = [create_mock_yara_match(matched_text, "test_rule")]
 
     is_injection, result = _omit_injection(text=text, matches=mock_matches)
-    assert not is_injection
+    assert is_injection
     assert result == text
+
+
+LONG_UNICODE_SCRIPT = "<script>/*" + "a" * 501 + "é" + "*/alert(1)</script>"
+INJECTION_REFUSAL = "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of markdown_xss."
+
+
+def test_omit_without_matches_preserves_text():
+    assert _omit_injection("safe text", []) == (False, "safe text")
+
+
+def test_omit_missing_instances_discards_partial_edits():
+    text = "matched text"
+    matches = [create_mock_yara_match("matched"), create_mock_yara_match("text")]
+    matches[1].strings[0].instances.clear()
+
+    assert _omit_injection(text, matches) == (True, text)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "text",
+    [
+        LONG_UNICODE_SCRIPT,
+        "<script>alert(2)</script> " + LONG_UNICODE_SCRIPT,
+        "<script>/*" + "a" * 600 + "*/alert(1)</script>",
+    ],
+    ids=["truncated-unicode", "partial-removal", "truncated-ascii"],
+)
+async def test_omit_blocks_incomplete_real_yara_matches(text):
+    config = RailsConfig.from_content(
+        config={"models": [], "rails": {"config": {"injection_detection": {"injections": ["xss"], "action": "omit"}}}}
+    )
+
+    outcome = await injection_detection(text, config)
+
+    assert outcome.is_blocked
+    assert outcome.metadata["is_injection"] is True
+    assert outcome.metadata["detections"] == ["markdown_xss"]
+    assert outcome.metadata["text"] == text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("rule", "text"),
+    [
+        ("rule test { strings: $a = { A9 } condition: $a }", "é"),
+        ('rule test { strings: $a = "foo" xor(1) condition: $a }', "gnn"),
+        ("rule test { condition: true }", "any text"),
+        ('rule test { strings: $a = "bad" condition: $a }', "bbadad"),
+    ],
+    ids=["partial-utf8", "xor", "no-spans", "new-match-after-removal"],
+)
+async def test_omit_blocks_unremovable_custom_yara_matches(rule, text):
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "config": {
+                    "injection_detection": {"injections": ["test"], "action": "omit", "yara_rules": {"test": rule}}
+                }
+            },
+        }
+    )
+
+    outcome = await injection_detection(text, config)
+
+    assert outcome.is_blocked
+    assert outcome.metadata["is_injection"] is True
+    assert outcome.metadata["text"] == text
+
+
+@pytest.mark.asyncio
+async def test_omit_overlapping_real_yara_matches():
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "config": {
+                    "injection_detection": {
+                        "injections": ["test"],
+                        "action": "omit",
+                        "yara_rules": {"test": 'rule test { strings: $a = "abc" $b = "bc" condition: all of them }'},
+                    }
+                }
+            },
+        }
+    )
+
+    outcome = await injection_detection("abc", config)
+
+    assert outcome.is_transform
+    assert outcome.transform_text["bot_message"] == ""
+    assert outcome.metadata["is_injection"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("enable_rails_exceptions", [False, True])
+async def test_omit_incomplete_removal_blocks_colang_1(enable_rails_exceptions):
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "enable_rails_exceptions": enable_rails_exceptions,
+            "rails": {
+                "config": {"injection_detection": {"injections": ["xss"], "action": "omit"}},
+                "output": {"flows": ["injection detection"]},
+            },
+        }
+    )
+    chat = TestChat(config, llm_completions=[LONG_UNICODE_SCRIPT])
+
+    response = await chat.app.generate_async(messages=[{"role": "user", "content": "hello"}])
+
+    if enable_rails_exceptions:
+        assert response["role"] == "exception"
+        assert response["content"]["type"] == "InjectionDetectionRailException"
+    else:
+        assert response["content"] == INJECTION_REFUSAL
 
 
 @pytest.mark.asyncio

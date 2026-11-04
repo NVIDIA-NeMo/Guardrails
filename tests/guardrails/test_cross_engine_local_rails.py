@@ -241,6 +241,35 @@ SQL_OUTPUT = "This is a SELECT * FROM users; -- malicious comment in text"
 SANITIZED_OUTPUT = "This is a  * FROM usersmalicious comment in text"
 INJECTION_OMIT_CONFIG = {"injection_detection": {"injections": ["sqli"], "action": "omit"}}
 
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("partial_removal", [False, True])
+async def test_iorails_blocks_incomplete_injection_omission(partial_removal):
+    text = "<script>/*" + "a" * 501 + "é" + "*/alert(1)</script>"
+    if partial_removal:
+        text = "<script>alert(2)</script> " + text
+    config_dict = _local_config(
+        LocalRail(
+            rail_id="injection_detection_omit",
+            flow="injection detection",
+            direction="output",
+            rails_config={"injection_detection": {"injections": ["xss"], "action": "omit"}},
+        )
+    )
+    with patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=config_dict))
+
+    async with iorails:
+        result = await iorails.check_async(
+            [{"role": "user", "content": BENIGN_INPUT}, {"role": "assistant", "content": text}],
+            rail_types=[RailType.OUTPUT],
+        )
+
+    assert result.status == RailStatus.BLOCKED
+    assert result.content == REFUSAL_MESSAGE
+    assert await _iorails_reply(config_dict, BENIGN_INPUT, text) == REFUSAL_MESSAGE
+
+
 BLOAT_LIMIT = 40
 BLOATED_INPUT = "tell me about guardrails and every option they support, at length, in detail"
 TRUNCATED_INPUT = BLOATED_INPUT[:BLOAT_LIMIT]

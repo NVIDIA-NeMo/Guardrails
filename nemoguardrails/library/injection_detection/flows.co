@@ -4,12 +4,11 @@ flow injection detection
   This rail operates on the $bot_message.
   """
   $response = await InjectionDetectionAction(text=$bot_message)
-  $injection_detection_action = $system.config.rails.config.injection_detection.action
 
   if $response.is_blocked
     if $system.config.enable_rails_exceptions
       send InjectionDetectionRailException(message="Output not allowed. The output was blocked by the 'injection detection' flow.")
-    elif $injection_detection_action == "reject"
+    else
       $detections = ", ".join($response.metadata["detections"])
       bot say "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {$detections}."
     abort

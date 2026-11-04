@@ -61,7 +61,9 @@ def _injection_detection_outcome(
 ) -> RailOutcome:
     metadata = dict(result)
     metadata["action"] = action_option
-    if action_option == "reject" and result["is_injection"]:
+    if result["is_injection"] and (
+        action_option == "reject" or (action_option == "omit" and result["text"] == original_text)
+    ):
         return RailOutcome.block(metadata=metadata)
     if result["text"] != original_text:
         return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, result["text"])], metadata=metadata)
@@ -211,34 +213,42 @@ def _omit_injection(text: str, matches: list["yara.Match"]) -> Tuple[bool, str]:
 
     Returns:
         Tuple[bool, str]: A tuple containing:
-            - bool: True if injection was detected and modified,
-                    False if the text is safe (i.e., not modified).
-            - str: The text, with detected injections stripped out if modified.
+            - bool: True if any YARA rule matched, regardless of removal success.
+            - str: The text with detected strings removed, or the original text
+                   if any match cannot be fully removed. The caller must block
+                   detected injections when the text is unchanged and recheck
+                   modified text for remaining matches.
 
     Raises:
         ImportError: If the yara module is not installed.
     """
 
-    original_text = text
     modified_text = text
-    is_injection = False
     for match in matches:
-        if match.strings:
-            for match_string in match.strings:
-                for instance in match_string.instances:
-                    try:
-                        plaintext = instance.plaintext().decode("utf-8")
-                        if plaintext in modified_text:
-                            modified_text = modified_text.replace(plaintext, "")
-                    except (AttributeError, UnicodeDecodeError) as e:
-                        log.warning(f"Error processing match: {e}")
+        if not match.strings:
+            log.warning("Cannot omit an injection match without matched strings; blocking output.")
+            return True, text
+        for match_string in match.strings:
+            if not match_string.instances:
+                log.warning("Cannot omit an injection match without string instances; blocking output.")
+                return True, text
+            for instance in match_string.instances:
+                try:
+                    matched_bytes = instance.plaintext()
+                    # YARA can truncate returned data before the end of the match or a UTF-8 character.
+                    if len(matched_bytes) != instance.matched_length:
+                        log.warning("Cannot omit a truncated injection match; blocking output.")
+                        return True, text
+                    plaintext = matched_bytes.decode("utf-8")
+                except (AttributeError, UnicodeDecodeError):
+                    log.warning("Cannot decode an injection match for omission; blocking output.")
+                    return True, text
+                if not plaintext or plaintext not in text:
+                    log.warning("Cannot locate an injection match in the original text; blocking output.")
+                    return True, text
+                modified_text = modified_text.replace(plaintext, "")
 
-    if modified_text != original_text:
-        is_injection = True
-        return is_injection, modified_text
-    else:
-        is_injection = False
-        return is_injection, original_text
+    return bool(matches), modified_text
 
 
 def _sanitize_injection(text: str, matches: list["yara.Match"]) -> Tuple[bool, str]:
@@ -369,6 +379,9 @@ async def injection_detection(text: str, config: RailsConfig) -> RailOutcome:
 
             if action_option == "omit":
                 is_injection, result_text = _omit_injection(text, matches)
+                if result_text != text and rules.match(data=result_text):
+                    log.warning("Injection omission left matching content; blocking output.")
+                    result_text = text
                 return _injection_detection_outcome(
                     InjectionDetectionResult(
                         is_injection=is_injection,
