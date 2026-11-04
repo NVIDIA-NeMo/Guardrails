@@ -36,7 +36,11 @@ from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.http import HTTPClient
-from nemoguardrails.library.jailbreak_detection.model_based.errors import JailbreakInputTooLongError
+from nemoguardrails.library.jailbreak_detection.model_based.errors import (
+    JailbreakInputTooLongError,
+    JailbreakInputValidationError,
+)
+from nemoguardrails.library.jailbreak_detection.model_based.input_length import validate_input_length
 from nemoguardrails.library.jailbreak_detection.request import (
     jailbreak_detection_heuristics_request,
     jailbreak_detection_model_request,
@@ -123,6 +127,12 @@ async def jailbreak_detection_model(
 
     # we do this as a hack to treat this action as an LLM call for tracing
     llm_call_info_var.set(LLMCallInfo(task="jailbreak_detection_model"))
+
+    try:
+        validate_input_length(prompt)
+    except (JailbreakInputTooLongError, JailbreakInputValidationError) as e:
+        log.warning("Jailbreak detection blocked input whose complete coverage could not be verified.")
+        return RailOutcome.block(reason=str(e))
 
     cache = model_caches.get("jailbreak_detection") if model_caches else None
 

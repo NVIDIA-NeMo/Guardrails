@@ -19,9 +19,9 @@ from typing import Tuple
 import numpy as np
 
 from .errors import JailbreakInputTooLongError
+from .input_length import MAX_INPUT_TOKENS
 
 SNOWFLAKE_MODEL_ID = "Snowflake/snowflake-arctic-embed-m-long"
-MAX_INPUT_TOKENS = 2048
 
 
 class SnowflakeEmbed:

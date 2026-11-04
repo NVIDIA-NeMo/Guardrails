@@ -15,14 +15,15 @@
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.recorded.assertions import assert_rails_result
 from tests.recorded.cassette import decode_body_json
 from tests.recorded.normalization import normalize_rails_result
-from tests.recorded.rails.library.configs import JAILBREAK_PROMPT, NIM_JAILBREAK_CONFIG
-from tests.recorded.rails.library.helpers import check_rails
+from tests.recorded.rails.library.configs import JAILBREAK_PROMPT, NIM_JAILBREAK_CONFIG, OVERSIZED_JAILBREAK_PROMPT
+from tests.recorded.rails.library.helpers import check_iorails, check_rails
 from tests.recorded.snapshots import snapshot
 
 pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
@@ -83,4 +84,42 @@ async def test_jailbreak_detection_input_invalid_key_fails_open(nvidia_api_key, 
     assert_rails_result(result, status=RailStatus.PASSED)
     assert normalize_rails_result(result) == snapshot(
         {"status": "passed", "rail": None, "content": "What is the capital of France?"}
+    )
+
+
+async def test_jailbreak_detection_blocks_oversized_input_despite_provider_allow(nvidia_api_key, vcr):
+    """Record the hosted blind spot, then verify both engines reject before dispatch."""
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(
+            "https://ai.api.nvidia.com/v1/security/nvidia/nemoguard-jailbreak-detect",
+            headers={"Authorization": f"Bearer {nvidia_api_key}"},
+            json={"input": OVERSIZED_JAILBREAK_PROMPT},
+        )
+    assert response.status_code == 200
+    assert response.json()["jailbreak"] is False
+
+    outcomes = {}
+    for engine, checker in (("llmrails", check_rails), ("iorails", check_iorails)):
+        result = await checker(
+            NIM_JAILBREAK_CONFIG,
+            [{"role": "user", "content": OVERSIZED_JAILBREAK_PROMPT}],
+            rail_types=(RailType.INPUT,),
+        )
+        assert_rails_result(result, status=RailStatus.BLOCKED, rail="jailbreak detection model")
+        outcomes[engine] = normalize_rails_result(result)
+
+    _assert_detector_exchange(vcr, OVERSIZED_JAILBREAK_PROMPT, status=200, jailbreak=False)
+    assert outcomes == snapshot(
+        {
+            "llmrails": {
+                "status": "blocked",
+                "rail": "jailbreak detection model",
+                "content": "I'm sorry, I can't respond to that.",
+            },
+            "iorails": {
+                "status": "blocked",
+                "rail": "jailbreak detection model",
+                "content": "I'm sorry, I can't respond to that.",
+            },
+        }
     )

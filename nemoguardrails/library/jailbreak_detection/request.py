@@ -34,6 +34,7 @@ from urllib.parse import urljoin
 
 from nemoguardrails.http import HTTPClient, HTTPClientError, HTTPTimeoutError, http_call
 from nemoguardrails.library.jailbreak_detection.model_based.errors import JailbreakInputTooLongError
+from nemoguardrails.library.jailbreak_detection.model_based.input_length import validate_input_length
 
 log = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ async def jailbreak_detection_model_request(
     api_url: str = "http://localhost:1337/model",
     http_client: Optional[HTTPClient] = None,
 ):
+    validate_input_length(prompt)
     payload = {
         "prompt": prompt,
     }
@@ -118,6 +120,7 @@ async def jailbreak_nim_request(
     nim_classification_path: str,
     http_client: Optional[HTTPClient] = None,
 ):
+    validate_input_length(prompt)
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     payload = {
         "input": prompt,

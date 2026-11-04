@@ -1,9 +1,9 @@
 # Integration Tests
 
-The suites here run NeMo Guardrails against real agents, clients, or model artifacts, with fake model inference, so no test calls a live model or needs an API key.
-The agent and client suites install those programs from their own hash-pinned `requirements.txt`, so none of them is a Guardrails dependency, and each has its own Make target.
+The suites here run NeMo Guardrails against the real agents and clients that call it, with fake models behind them, so no test calls a live model or needs an API key.
+Each suite installs those programs from its own hash-pinned `requirements.txt`, so none of them is a Guardrails dependency, and each has its own Make target.
 
-`make test` doesn't run these suites, since they need optional dependencies, external programs, or downloaded artifacts: they sit outside the `testpaths` in `pytest.ini`.
+`make test` doesn't run these suites, since each needs programs from outside Guardrails' environment: they sit outside the `testpaths` in `pytest.ini`.
 They also sit outside `tests/`, so they don't inherit the main suite's fixtures from `tests/conftest.py`.
 The hooks suite runs in `.venv` and the Relay suite in `.venv-relay-plugin`, so run each through its own target: `pytest integration_tests` fails at collection.
 CI runs both suites on Ubuntu, with the same targets, in [`integration-tests.yml`](../.github/workflows/integration-tests.yml), for pull requests that change Guardrails' code, these suites or the Relay plugin.
@@ -12,7 +12,6 @@ CI runs both suites on Ubuntu, with the same targets, in [`integration-tests.yml
 | --- | --- | --- |
 | [`hooks_agents/`](hooks_agents/) | Claude Code and Codex obey the hooks server's answers | `make test-hooks-agents` |
 | [`relay_plugin/`](relay_plugin/) | The NeMo Relay plugin checks tool calls with a real hooks server | `make test-relay-plugin` |
-| [`jailbreak_detection/`](jailbreak_detection/) | The real Snowflake tokenizer preserves detector limits and cache isolation | See the suite README |
 
 ## Claude Code and Codex (`hooks_agents/`)
 
