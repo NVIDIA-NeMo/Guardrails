@@ -7,11 +7,11 @@ It provides independent evidence for offline tests, not runtime policy.
 The extractor removes documentation annotations while preserving named
 properties and literal schema values.
 
-Source: [OpenAI OpenAPI revision df63773](https://github.com/openai/openai-openapi/blob/df63773f69f542ef875b9f00c3837c25ba5f4f2a/openapi.yaml),
+Source: [OpenAI OpenAPI revision 3e288ba](https://github.com/openai/openai-openapi/blob/3e288ba501d136b81181919a12a88495a0244488/openapi.yaml),
 licensed MIT. Original source SHA-256:
-`f2dae1a9aced09b91310db89edda51bf1e36ecbfb05230c3a50b239c07708469`.
+`cf91be897ab55e4aefcfc44ec1eb7611eea1227509b67178be583244c2680ab3`.
 Extract SHA-256:
-`a84917786d64f8a04998da6f166b9b293eba20a1f093dd49ac69a1498f78454f`.
+`fe22de8fe8bb4a92680c02df3fbbbd1b865706acc33aa7fd6ef03209269cce71`.
 
 See the [Chat conformance guide](../README.md) for test scope and the source's
 legacy `nullable` interpretation.

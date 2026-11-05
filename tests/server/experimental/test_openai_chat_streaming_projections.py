@@ -166,7 +166,7 @@ def test_stream_models_classify_every_declared_field_and_derive_root_coverage():
         {"created", "id", "model", "moderation", "obfuscation", "service_tier", "system_fingerprint", "usage"}
     )
     assert field_coverage(ChatCompletionsStreamDeltaProjection).local_extension_fields == frozenset(
-        {"audio", "reasoning_content"}
+        {"reasoning_content"}
     )
 
 

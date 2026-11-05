@@ -1,16 +1,18 @@
 {
   "source": {
-    "document_url": "https://github.com/openai/openai-openapi/blob/df63773f69f542ef875b9f00c3837c25ba5f4f2a/openapi.yaml",
-    "download_url": "https://raw.githubusercontent.com/openai/openai-openapi/df63773f69f542ef875b9f00c3837c25ba5f4f2a/openapi.yaml",
-    "revision": "df63773f69f542ef875b9f00c3837c25ba5f4f2a",
+    "document_url": "https://github.com/openai/openai-openapi/blob/3e288ba501d136b81181919a12a88495a0244488/openapi.yaml",
+    "download_url": "https://raw.githubusercontent.com/openai/openai-openapi/3e288ba501d136b81181919a12a88495a0244488/openapi.yaml",
+    "revision": "3e288ba501d136b81181919a12a88495a0244488",
     "document_version": "2.3.0",
-    "sha256": "f2dae1a9aced09b91310db89edda51bf1e36ecbfb05230c3a50b239c07708469"
+    "sha256": "cf91be897ab55e4aefcfc44ec1eb7611eea1227509b67178be583244c2680ab3"
   },
   "schema_fields": {
     "CreateResponse": [
+      "access_programs",
       "background",
       "context_management",
       "conversation",
+      "image",
       "include",
       "input",
       "instructions",
@@ -41,12 +43,14 @@
       "user"
     ],
     "Response": [
+      "access_programs",
       "background",
       "completed_at",
       "conversation",
       "created_at",
       "error",
       "id",
+      "image",
       "incomplete_details",
       "instructions",
       "max_output_tokens",
@@ -71,12 +75,16 @@
       "temperature",
       "text",
       "tool_choice",
+      "tool_usage",
       "tools",
       "top_logprobs",
       "top_p",
       "truncation",
       "usage",
       "user"
+    ],
+    "ResolvedImageOptions": [
+      "context_compression"
     ],
     "Reasoning": [
       "context",
@@ -201,6 +209,7 @@
   "text_response_example": {
     "id": "resp_67ccd2bed1ec8190b14f964abc0542670bb6a6b452d3795b",
     "object": "response",
+    "access_programs": null,
     "created_at": 1741476542,
     "status": "completed",
     "completed_at": 1741476543,
@@ -219,7 +228,8 @@
           {
             "type": "output_text",
             "text": "In a peaceful grove beneath a silver moon, a unicorn named Lumina discovered a hidden pool that reflected the stars. As she dipped her horn into the water, the pool began to shimmer, revealing a pathway to a magical realm of endless night skies. Filled with wonder, Lumina whispered a wish for all who dream to find their own hidden magic, and as she glanced back, her hoofprints sparkled like stardust.",
-            "annotations": []
+            "annotations": [],
+            "logprobs": []
           }
         ]
       }

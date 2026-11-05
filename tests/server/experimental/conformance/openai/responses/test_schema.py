@@ -22,19 +22,17 @@ import yaml
 
 from nemoguardrails.server.experimental.provider.contract_export import export_guard_contract
 from nemoguardrails.server.experimental.provider.projection_policy import EXTENSION, field_coverage, model_graph
-from nemoguardrails.server.experimental.providers.openai.responses.response_projection import ResponseImageProjection
 from tests.server.experimental.conformance.openai.responses.fixtures.extract_source import COMPONENTS, extract_inventory
 from tests.server.experimental.conformance.openai.responses.support import ENDPOINTS, INVENTORY, INVENTORY_PATH, ROOT
 
 NATIVE_ADDITIONS = {
     "store",
-    "access_programs",
     "billing",
     "frequency_penalty",
-    "image",
     "presence_penalty",
-    "tool_usage",
 }
+# These source-defined request controls remain unsupported by the closed binding.
+UNSUPPORTED_REQUEST_FIELDS = {"access_programs", "image"}
 
 
 def bound_models(endpoint):
@@ -60,20 +58,20 @@ def test_inventory_tracks_the_reviewed_provider_source():
     assert INVENTORY["source"] == pin
     assert (
         hashlib.sha256(INVENTORY_PATH.read_bytes()).hexdigest()
-        == "3166e95194393c2180bca713a440368b4760610fa422692765134401affcbb19"
+        == "2b5e5a4967f843baf7807bee8795ecb4e836056ef569894dade378c55a40ad5c"
     )
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
 def test_every_bound_model_has_complete_independent_source_coverage(endpoint):
     models = bound_models(endpoint)
-    assert ResponseImageProjection in models
-    assert field_coverage(ResponseImageProjection).reviewed_fields == {"context_compression"}
-    models.remove(ResponseImageProjection)
     assert {model.policy.source for model in models} == INVENTORY["schema_fields"].keys()
     event_models = {rule.model for rule in endpoint.stream.classifier.rules}
     for model in models:
         expected = set(INVENTORY["schema_fields"][model.policy.source])
+        if model.policy.source == "CreateResponse":
+            assert UNSUPPORTED_REQUEST_FIELDS <= expected
+            expected -= UNSUPPORTED_REQUEST_FIELDS
         if model.policy.source == "Response":
             expected |= NATIVE_ADDITIONS
         if model.policy.source == "ResponseTextDeltaEvent":
@@ -114,8 +112,10 @@ def test_observed_native_metadata_is_opaque_in_buffered_and_lifecycle_responses(
         ("CreateResponse", "conversation", "constrained"),
         ("CreateResponse", "tools", "constrained"),
         ("CreateResponse", "include", "constrained"),
+        ("ResolvedImageOptions", "context_compression", "constrained"),
         ("Reasoning", "summary", "constrained"),
         ("Response", "output", "guarded"),
+        ("Response", "image", "constrained"),
         ("Response", "output_text", "constrained"),
         ("OutputMessage", "content", "guarded"),
         ("OutputTextContent", "text", "guarded"),

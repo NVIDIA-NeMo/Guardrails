@@ -299,6 +299,7 @@ response:
         title: ResponseImageProjection
         type: object
         x-nemo-guardrails:
+          source: '#/components/schemas/ResolvedImageOptions'
           unknown_fields: forbid
           reject_case_aliases: true
       - type: 'null'
@@ -1272,6 +1273,7 @@ stream:
               title: ResponseImageProjection
               type: object
               x-nemo-guardrails:
+                source: '#/components/schemas/ResolvedImageOptions'
                 unknown_fields: forbid
                 reject_case_aliases: true
             - type: 'null'
@@ -1621,6 +1623,7 @@ stream:
               title: ResponseImageProjection
               type: object
               x-nemo-guardrails:
+                source: '#/components/schemas/ResolvedImageOptions'
                 unknown_fields: forbid
                 reject_case_aliases: true
             - type: 'null'
@@ -1971,6 +1974,7 @@ stream:
               title: ResponseImageProjection
               type: object
               x-nemo-guardrails:
+                source: '#/components/schemas/ResolvedImageOptions'
                 unknown_fields: forbid
                 reject_case_aliases: true
             - type: 'null'
@@ -2320,6 +2324,7 @@ stream:
               title: ResponseImageProjection
               type: object
               x-nemo-guardrails:
+                source: '#/components/schemas/ResolvedImageOptions'
                 unknown_fields: forbid
                 reject_case_aliases: true
             - type: 'null'
@@ -2669,6 +2674,7 @@ stream:
               title: ResponseImageProjection
               type: object
               x-nemo-guardrails:
+                source: '#/components/schemas/ResolvedImageOptions'
                 unknown_fields: forbid
                 reject_case_aliases: true
             - type: 'null'
@@ -3018,6 +3024,7 @@ stream:
               title: ResponseImageProjection
               type: object
               x-nemo-guardrails:
+                source: '#/components/schemas/ResolvedImageOptions'
                 unknown_fields: forbid
                 reject_case_aliases: true
             - type: 'null'

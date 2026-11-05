@@ -63,13 +63,10 @@ async def test_native_observations_distinguish_metadata_from_gateway_annotations
     _, buffered = recording(False)
     payload = json.loads(buffered)
     assert payload.keys() - declared == {
-        "access_programs",
         "billing",
         "frequency_penalty",
-        "image",
         "presence_penalty",
         "store",
-        "tool_usage",
     }
     assert payload["store"] is False
     assert payload["access_programs"] is None
@@ -88,12 +85,9 @@ async def test_native_observations_distinguish_metadata_from_gateway_annotations
         if "response" in payload:
             lifecycle.append(payload["type"])
             assert payload["response"].keys() - declared == {
-                "access_programs",
                 "frequency_penalty",
-                "image",
                 "presence_penalty",
                 "store",
-                "tool_usage",
             }
             assert payload["response"]["image"] == {"context_compression": "disabled"}
     assert lifecycle == ["response.created", "response.in_progress", "response.completed"]
@@ -200,6 +194,10 @@ async def test_synthetic_stream_mutations_of_native_recording_cannot_escape_as_m
         {"text": {"format": {"type": "json_schema", "schema": {}}}},
         {"include": ["reasoning.encrypted_content"]},
         {"future_input": "unreviewed text"},
+        {"image": {"context_compression": "disabled"}},
+        {"image": None},
+        {"access_programs": {"cyber": "standard"}},
+        {"access_programs": None},
     ],
 )
 @pytest.mark.parametrize("endpoint", ENDPOINTS)

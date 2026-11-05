@@ -31,6 +31,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
 class ResponseImageProjection(PolicyModel):
     """Accept the effective image policy without opening an image content channel."""
 
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ResolvedImageOptions")
     context_compression: Annotated[Literal["enabled", "disabled"], constrained()]
 
 

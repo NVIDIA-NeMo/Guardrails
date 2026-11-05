@@ -518,6 +518,7 @@ response:
         title: ResponseImageProjection
         type: object
         x-nemo-guardrails:
+          source: '#/components/schemas/ResolvedImageOptions'
           unknown_fields: forbid
           reject_case_aliases: true
       - type: 'null'
@@ -604,7 +605,6 @@ stream:
                   type: 'null'
                   x-nemo-guardrails:
                     classification: constrained
-                    extension: true
                     gate: disabled
                     reason: core_capability.audio_content
                 content:
@@ -817,6 +817,7 @@ stream:
           title: ResponseImageProjection
           type: object
           x-nemo-guardrails:
+            source: '#/components/schemas/ResolvedImageOptions'
             unknown_fields: forbid
             reject_case_aliases: true
         - type: 'null'
@@ -876,6 +877,7 @@ stream:
                 title: ResponseImageProjection
                 type: object
                 x-nemo-guardrails:
+                  source: '#/components/schemas/ResolvedImageOptions'
                   unknown_fields: forbid
                   reject_case_aliases: true
               - type: 'null'
