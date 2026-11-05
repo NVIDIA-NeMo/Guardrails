@@ -414,7 +414,6 @@ stream:
                   type: 'null'
                   x-nemo-guardrails:
                     classification: constrained
-                    extension: true
                     gate: disabled
                     reason: core_capability.audio_content
                 content:

@@ -105,6 +105,27 @@ def test_request_selects_response_mode_from_a_strict_boolean(stream):
     assert request.streams_response is stream
 
 
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"prewarm": True},
+        {"prewarm": 0},
+        {"prewarm": 1},
+        {"prewarm": "false"},
+        {"prewarm": None},
+        {"Prewarm": False},
+        {"future_control": True},
+        "invalid options",
+    ],
+)
+def test_request_rejects_cache_only_generation_and_unreviewed_cache_controls(options):
+    with pytest.raises(ValidationError):
+        ResponsesGuardedRequest.validate_payload(
+            {"input": "hello", "store": False, "prompt_cache_options": options},
+            unknown_content_fields=UnknownContentFieldPolicy.ALLOW,
+        )
+
+
 def test_buffered_response_finds_the_only_message_and_preserves_metadata():
     payload = response_payload()
     original = deepcopy(payload)

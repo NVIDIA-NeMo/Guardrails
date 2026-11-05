@@ -31,14 +31,14 @@ interactions:
     headers:
       content-type:
       - application/json
+      connection:
+      - keep-alive
       content-security-policy:
       - frame-ancestors 'none'
-      vary:
-      - Accept-Encoding
     body:
       parsed_body:
         id: '[RECORDED_RESPONSE_ID]'
-        created_at: 1793270943
+        created_at: 1793868794
         error: null
         incomplete_details: null
         instructions: null
@@ -46,12 +46,12 @@ interactions:
         model: openai/openai/gpt-5-mini
         object: response
         output:
-        - id: encitem_bGl0ZWxsbTptb2RlbF9pZDpvcGVuYWkvb3BlbmFpL2dwdC01LW1pbmk7aXRlbV9pZDpyc18wYjFjOTk0MDJjZjIyNWZlMDE2YWUzMjQ5Zjk1YjQ4N2QwODQwNzdhYTRjODI3ZjVlYg==
+        - id: encitem_bGl0ZWxsbTptb2RlbF9pZDpvcGVuYWkvb3BlbmFpL2dwdC01LW1pbmk7aXRlbV9pZDpyc18wYjA5YTk2YjE2MDRkODYzMDE2YWVjNDNmYThjMWM4N2QxYjNkZWRlZDNiNzg1ZDgyYg==
           summary: []
           type: reasoning
           content: []
-          encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1taW5p;gAAAAABq4ySgm_5mqHiYBgkWmW0M82Kkg9D-m3VnGaNlXbKDgzkrjCPyKGGVJlYaXkUo9hFzCDlqqhtRXcI0RTOaA5BCT5RhYMWigTo8yy9QfXaoY4B8MK_GeG9vfuKiwym3QLdrF8S6UsSDw-A7u4CtjacbxXZ48L33ws2F15WmAm5RuWwYXm058nWgnGn92SK14rz2v3Z8V7JWzZpKazi4fiuvQAOWgNVt0EdyC-9-v3jIJ8qV3ZpAqK459t16lBOQrRorAjbkRWNC_GJ7DYZX-mQQKkufuuJXUh5aAMOtj_VociWavYvNI7g7CvXA23eLoAjKRKBNnfCQms-XxeuRWXTmZhJXaOrEEXKrs8Uth5jmHK0fP3AF3xGNo08O_37u1jVxAMiACyqAv12Kw5Dyd8sInFRgoEEDLBt8scgnI9-gcjgpqUeXhYFXurP2UZlIEueCkFGzGtPjr3JXRdMZ0N0gphBKpH90ykSMRWTudtLZccd9rByqg1kFTZNEJjbEqqMTa894pdMrnv-xnUl90zRji-KvluFgwL_u7l4cwHeHgVOkdDWqJo9mXmEsuca9_ZKJHsMqpV3PlAlci0i42fmFhI21RqTUsOMlB-fxIon7hJanz9xqyUp9hlcH6ZQkXVhAT2OCiKPL7ppTA5Gao4qnGgeYn4T1bD2wPc1_mXoMKE9UAhH-m5e6ZGBFVN-jvE9szAa9PbYs78OFzpxh5Df8y83FVyAa7tGLrkf0k_PxenxPbm-6jSgH7GDAyWBbJk9FB_4qUl7Q2cYClMKOXYw80JXDjbcesTOp57C49IfIMS04lDgLGloVIV_odlAanvHgkfi9pTcSaWL4YuTXVuKt8Lcn59Vb3403VHFgJ9xI5WZgWkXQ9B7wvFTWDipJDbciirAd9vMtnP3hcWO10D1C0lflNK_rMOoCSkNiP97LgDR1y21wOEE28BOgpHP28Isg-rMjhtF0G1GYXQ45v-TfPNXZ-ueZuYmM95bVTMntWwVp8btqTZ4pt6XS7Gsd93uufW_xfHrbgV7CTm1laBt1rNkEXOX7quQYRhX6-e7bb18H40QXI0XtU74EC3SHzNN43bXL3SuRBsQYBj6lf8NOQ5jRKROSJMYftW9gg8eXROFlQPPjvtXcJNXRLoM1m64C0B-V606bPcXBVaZNxVUCCruhDYGw9--kfodGz1Pg6HI33ckn_gXSR7MbUd2Veyv9u8SyQ-SeTqxtFcRYt-oq81J6C8Mqo_9kqwKKQtuLRnCyp1GhLO-3Hk06Uad4AdJzHymQMnpKwMUyVNG-9k42z22tnF9Oog-Z1CZ1AcZfaA4n525UoeZHoEOgKhRD3tL2osQHY6GD6ifH_JHlkZU_7fMJEO6v6fZnYsmlJN00dXSGFoqijmHBilN-lv9YqArb4U4F-zYULvuK6gZKS44AMrm9S6hGq-Xx8TMOm5FQkR945lbqmJXNqmfIg50IwNPQ2uk6dJIN0dVKr73tRcSRJI5FC9imFSJm9c3Uo7edDSJOEjdZ2j_hi66f_Si04TGLNTKUBw21hyfCelwDPJYlZsVSsB6TvqaXcUTih0FzfIchnYySoE-AGXWF6VHOejIFrHJ5WcLKDHKHA3LYRvKKIPZ544gIOfGmuBJB0ACygEcEHX-dZVsTvPA-SRLjDxRJxDezzXboBsdamaxgiczvK7ELO1WG6e64YAMEYtPGonPoS2kh6v8rA7sqcQEGgp3QBb8AVQNlbuw_AJb8yhVR_imGx9OAvUMHfstS0jLk6MZUK_BtMOTS-KdYXwXIpZ0Q3KEpEgnqMfwiwU9vAke9b6okShTou1vGKaTPRAOciUZD97D19lgwozLtBotJDfOk5m73CjMEs7tpK0JWIvw7mRcWFELlKIj5yBlgykyR0RnWL1WN-tOQ6gXmMs_maRLhbPahy0wdJyRxAW3TseCslJQZIe7__DzNTAnnmpzmt3BvV4Ur649TjqbgR75GuuFV51d3cm6jELBsWHJlZCSiLbkV4eKPftD7NmG8mFSREkvK2ou41z2irW7TILJU6cu5OxL3
-        - id: msg_0b1c99402cf225fe016ae324a0110487d0add2ac3526d4bb1d
+          encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1taW5p;gAAAAABq7EP7Rp4HSjrGEF_0CI0DuUUvki2ToQ3LM1gwFeQOrm6Xm9A7Ha1VV_dTy1yXG0qn2aoF3QhtNMB9ivBEw2ITcfxH6Zi7yskOPLETWd01ZMFaVw3Pl1bbuMaCF6DaxA9gtosXRGzUlUAEtj5xF2i2N1SAFSrDCkkgv42_DgUlqAZ-njcEPmG7BmczR5a9ZuvPD8JUVIn7hVGWfsweuEjruUOQhKhzQRxSj8wTYP7-CzBhHPTYh8HdI3uW6C05l_fOX379l1UmvHWdNciBugrJn0n3sKMhgJ_ELF3EnzgrxrVrNIC-XVsLZnYcV-QUNoYC3slV1iMgx3ZXRz474DFVVBgEVuugiwLJ_h7GBa0Rj7LrVeXdLG257edMSFsOEiVrpN7eLbfarDr4yF95cB9d4ws98ULgKksOLSUGq0WhSMaTw3N9MwjHSl2Scdl7bLssqNCygbH_OvdR8mReP7So6rS9vN_Zrbzbuz9nT83CqsCHDD0TCd6i6RrFmEo6KNAVpDOzR09ajKbTvDCqrMEARma2fg0kPugIfoXrgBZj7rKlzcOvxyTchAeu6F01nHcX3dZ-10HbvmNkmHebYlUoq197SlytPp127-Fu4RDB1qSv0bxZ82f4y78WHnfqEw6LzO5tVq1nHKGFDetThvv5BmyX6RtUNkTzXtKVjhhixkarTPLqSstBDaYVC04sDp_CJam7F1EsJV_6OllUPUBGkznBKRbKlZ7KwWey3950KNSjY3LotoA4elSih9woePTvJdutagSAZpMCDMdJWA4KSHfLhb0o9AveUqhwfncYcF3QcXF2mCXDbndkeXEGOLqUJPrZss5w0fF4cAQyM4E_fZ8Yx4bmsop61KuKnph0q5a1NB_aF8NGGKSN5RJEMJ8KudbrMPpAY_-TS5ZXUgXmR22G6AzVtkRt3_9NB1LhyAqYsH8SCirEKhxuOebujfeA-lPuZdN62twoFGNKVeHfGyWPt-nD2J9zvtMZBEMwzQ4DFCGPUAS0kxy8oAyRVaz_cpFofFlbzbGz1LwClVPOx9ohEeNVJLJx5E8yk5wiW_vYo9ynyZ7IJ6T3lD00aHsCIfoaXxSoNmB8OSf3gFzccPfR7BVgKMMky1J81YA-t4sH8luc0SVGWZGeT58CS6P4R-lg6hCo7AL-3gd42LzbRnVPxo7dluQeOxl_FfS5i-tSSdhEfla-9CmkeB29m3G5xlOkKGMX6f7jKH1hQZgezSybZjk_F5qQuf89pAUfcm80pQnD-O9e8jzfAig59dxTPDvthvT5Z3EkB-mG0fna8GwVOUGYTy5HN-9YoJ84y9aKLXyILFq5YAPuCFcWK3wi_6XRaJtPg3mA3G8g_LQFbJfYarMBURhnWw4LI1zSX4Snoapiu9V_s1n6f0xSu2bdGPKBrkcYnW71kg1UaPkR9WOSaqBM-QB2nYxYNEaNz3UB8GsBJGyZ0k3H7FHsK3EBKu4XYy7thHkWcmNkbM7Vls0FR9nacoMtqQBMHC6Er11zmOWg-3xLFhHvgk1Wt0C2wiTfP3FvmzNw263Pp_3irLkY9Th7seNYpUXk_1B3cqK_sPW9t-tHYzXrVguQg5ww5YFB2sPKtTWFGFVL04Mp5EQsG55CEkVHINIDTd1C2iZJ8iltM2XmT58P8cOvbwpf9ipDMmKnUFUFjwmJFnx-sGw-tlhGDzhTj2r5sDt-bw9xesvges28-ovm-9Ym853za2PumZhfxGyslige8-mc8q1wkcwo6jpVh8-IgAsHciWZ-3I-X-eZPn8iuBAmHzqdqumvG9b67qvLXpJcKZqnTcpl94-tLjTHuGXXRnslK19R8UtFKvkUcnyFFa2q_aUdMi7W0BSzkyBkCxYjTv6KAJRbQro8LDTNJbt1QVh55ghCTRSMc2bMhHL3fZsdusih3vfW4bJWFv3qHmp99rmyR-LoTEtJZg2edrrmoKgHiSPomFYjxEJz5jy_aT0GGVGBSbLV
+        - id: msg_0b09a96b1604d863016aec43faf17487d1a8b5584e228bc808
           content:
           - annotations: []
             text: Hello.
@@ -89,12 +89,12 @@ interactions:
             text_tokens: null
             video_tokens: null
             cache_write_tokens: 0
-          output_tokens: 48
+          output_tokens: 45
           output_tokens_details:
             audio_tokens: null
             reasoning_tokens: 0
             text_tokens: null
-          total_tokens: 60
+          total_tokens: 57
           cost: null
         user: null
         store: false
@@ -102,8 +102,10 @@ interactions:
         background: false
         billing:
           payer: developer
-        completed_at: 1793270944
+        completed_at: 1793868795
         frequency_penalty: 0.0
+        image:
+          context_compression: disabled
         max_tool_calls: null
         moderation: null
         presence_penalty: 0.0

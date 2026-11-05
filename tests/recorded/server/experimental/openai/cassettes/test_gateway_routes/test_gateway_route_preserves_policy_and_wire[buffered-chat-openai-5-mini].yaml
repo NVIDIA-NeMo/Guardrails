@@ -31,10 +31,10 @@ interactions:
     headers:
       content-type:
       - application/json
+      connection:
+      - keep-alive
       content-security-policy:
       - frame-ancestors 'none'
-      vary:
-      - Accept-Encoding
     body:
       parsed_body:
         id: '[RECORDED_RESPONSE_ID]'
@@ -49,13 +49,13 @@ interactions:
             role: assistant
             reasoning_items:
             - type: reasoning
-              id: rs_08436e4dbde98797016ae32495e7f887d0aa216c00f460b867
-              encrypted_content: gAAAAABq4ySWG4UbCW31oboxvR0F6Esys-PUnWmgt82-YR1E1O9V9olGTGRuybOqTbts4L39xSD_je3dP58ivMN6_iR3WB2p4vwMWjnZfWDNbjEbFAt0SSjyu54phZ9MJZWQG3dG73OF1Dabho2MUtHEZe1MR0drCXw7cnkk4O6FcHCStp2THrtNN50E1n6oMQrz9lryv4xehS344mQ3V5g0DSPZFeaFSNLhxLbcv6bhrbCk8hTLnSvzL8CVqgRGIO3cpCWI6k3YTNaMjUOVg1AUKr2GJyJukiV6Lc8v7K5e5TuUQmbTkTt2efpliO-NEj3iKvGffe1d1AEykjcKISA8ftuQlIpLpQPXsSbF1dKTpTcQDd2ldVAeVv0vLRp7Yr-eaEyzsj5mxZfWPy1gXfGQyr7qb4sRdiCA5pVfoP9sozRGw4OLzk2rHv5jOv_k_QEDH8JRuTJEow2Ulg-15r2nw3VA5IxEgO7uQC6-CjGwVbhPtDJ6oxXMc0VXi39VvV5-auOyv4A6uhYysUHoVGMDlhPSR7TxZzQe9eWQ6lMZdg3opPUyn0TAEy9F0yGajrvm_p0CpJYtQcmSqwTVh1m5TXFRMzEgzRfIkHjmMCtCL8EV_fqc4GFWpepyGogdVeTGeE73UDkZaMuuVvd8ZYmbbfoVNhd1DVZqiJZINY_h0xOSvnu07kOwWfwkbI6QEp-ERtVb79rDDOPv5wi7SpRVws1LE5caf94r_9WIMKTNCMzG3TMryIpH3Ks5xhc1gohnwE7_bocVVZ45vbj-WNqqd18jO2J5fU5-Jjg50gxnwT9hXmXzmCOVe1Ier4M4FoTR99n6vdUmlMs5rfer339HPhuu8u8c_7dxOGFdk_evO2e4vQUeN3FMZY05AF7YHXakZRHgBqnwfVHga6XgwWkUWc2TTJDo-T9-saSUB3J9qRtKL9UTcRFQRh8WoJgHf8ymL5xuk_nO9_7k0P-CdYaf8dnEFZF93EheGwQC2tp5OzP4lOPAKomhR_7cdKgyaR1-6eW--O_E66dlP7gT30olEXXiLazjGgeNuh6tw7b6EgrD5LZrTTp5zwy7qBOv62EGLMBT38RCxB4w4eVsyOqVpZQIKGDPwb109nM_cZ44zaWMYl6jU9gfR79Qdqw1xguCtD1fEwGyEvBi0Y2aTGr4jFG8EXtyGKeBeOLYR6eNmZ2JpkcTW3gFld-8DVRAjBWGiKhKo86onV-d6xc5XO0uKlPxt5SRVgqRrnwBp8svh8fMXlLaLxopmmDJX5Oo3LJ4aoyRdZ1MMoYklZ_XjUsCdqQDJaDgc_RGlxIMw6q9kM0I_2sMlG65AERfVnJ_yDDJdDPIpE6iOycrHdO_Vv0hUdGfRmrt2ztErqsmSxuUj8JivfakWpDyyBQDGlbXgIW1Tu2QRwCDyrXPPhbagmYnHBofScwEzs2O_80AoOCNIFtQlRXtEpuCii1bNuqeSA2tcr6iAMLOWpFUO1EXtTjGukMZD9AvIqE2PT6NUorpIn8a886qcJUx9jlgUp6cNmnnqfvGmzz3GeiEnLMczjA5OplyALFKETvOIoWq6zNlimTfYV0ldnIO1SYyRtoAtZwc4ykGgyU9NUs_Vyvs6mhbk0ApImlzK6roOrTJgmL9wZI47fBtGwHx_vO48pO6Brnqf-Ssoh428Xy2JthepV8dLEDyXA1RpKZsqIzaUtwyWg9j-avZLPblhld862ERbDvVNLygq2h8MGDmYCYyA5CvoIY-cj41WjCX7EfM5mqfQN72gkNiZ4vLS3qjLte5K3NNnWo3xQSsSKkHHllC03wP1EFMb6zokS6PznscSGkK3v8r7bp9UEBaHw63nHe_3t51zwDy9M2ELTQCvJMiD5QNVdfEhbOuefaFC1It9GUbXiUVsUXyLos34yk2oTXIhWHrjdgYfzQHzxwlJyHssiW5tZBmR9WRjvoO1hczuCtT2hfG4aLe9un_H0hyPg1oYSdUP8Iyi8zqji9TC0tGMUQBCvlYXwh_FHCJG0qjFLZFDs-Y_UVoUuU=
+              id: rs_087555ad7dbcdd34016aec43f8a76887d1a03a502c538e72b4
+              encrypted_content: gAAAAABq7EP51lboWuxscTu-s5tuqY_IUWYr_Le1rfYYHvgd0cMoTLJo3I_cb48M3RGYgaORZhxBhfG9YJCPpnemeshbQVl9XlvmSeF6Udvexc3mDOW9_IVFoyiK9I6rIYVm8B_KtrlzS1HbcGSkU2woSLsh9BoAuoj0lMZS4H8laVroFKCFr3Qy2gSiSor1CDpxIM-GBxyjal3X5Y_GWRlG_L2qaVzCSv6UlO9q3eAYIaCYHTUHggC2KAnK2921DFRbRCAK20kXHMDo7o2rbdlUwLaTki6KDFtmpEa8au-vaoPSF4_vFX3dTxYQ60C-_rw2agPKbiI1HDVdepk9r5_WDfmop2qFkzsbx38ZC0p2-qKyfVIpkOfb0R-AZk3i2nEpeJDkvhB0xB_ZcNnS5bHBbODnl_ZTCMy8fvlDy0AhSGdpa2G8iE0TcJMIKEDLDNTES-W_E5xZeEy18Dm-RfIvdMJ0nT9Xp3UTY-bgUzbIt4XrVTkmNeF23JHiDio7lxgCGcDAfixpRr0t5QiV0aPMbeX2I73PrDXsyI5ipa_81asyo6cZfZL26kLilGxLCEfV7RikI2FdWL1GopOP3FoGtJAZ4aAcoBHkOOOzTrjdl27vg0FxtdkRxK1nTTX5KfByXms4eD07Op_gSXW1lNOvu3k1QIvB7MN5ROu6iAeReaCvhENkSwMspaGeW5kAoFIsRpdO6O82swUQtM8MxPf6RgusOW9B-GcaIFTAqxH2Dlw3tYVzJEz2ggnf5kLnIB_P7uzGQIjUcniRvRXEBVKuPxa6LnDgPBOxU5K5y4Ghmo8UHM8F5LBmH6itH2VNPIwLkIjtCFP-T82quSbleA7a7YN4LTmEzCUo9dfFFLIVEyOqcl1jXRLmfhh0LTjBTypp1LvtJAgMFApqJrN006ZClTo5BMHF-J6AzIRux7eF-y7dyvrZsunnR1f5wYPjkyFeCExtL2Arii46NHYYn1_xwvnfsVkzITGq6APCoxX5GTAZK8jv5kn1h6OZd2QGUMbikzZaRrFlfyTL_0F_5fn5ORlB61fNXP2sR4_a6Kxgdld8yRgy6c5rPnTK6V_KY9fAanDsH-St4jl9ftCeKOkYV5BlOrlGes59BeWrRWc2iHCXLpJUeqkII2VzhxfpgEV2ufIplQJjHcu8C85XMIkxWW7loZvHkYfn4yl5_UF8XSPXrCHvx7X8w5_H6jTudehCICtKTjKgks9N11LOr-iMR83NttCg8OOWdaooxrToW5WX1Adedl0oOItCcJW75ePYkauU0RpAivg1a7xU8ZZu6XjiWLvdN2xqrGH_J0lgw4a92t6-649pbeaFHfwnRyKcPBREea6slDwHf5zbajhg1i3p2yjkBF9UZPmfI-Eg48ZCugl2wFUN2mK2rpYBI-mn5FP_owkerVzqhznvlPn4QIHrddM9PMjc6Jt77wGAXM1vERPeN88qFEJymuY5nIAheL0jBTZLGNWmdi7pZUTfMCvup8W7h4TxMwaeXpD1HG4LGwoEC6xo5xgqJZC-2P1vThewpwJgLZCGIcIaTPz77JtK0M-CYpXwrEY7Q0j2XkndXuvJA2yJfV1V3tqVPHIdLrOMXCCdit3oepDiluqIiWZpPYowuxgPZcV3m7hZaYewQdcR348EYEFbKFkDHB4EZq7CeLDsjv9h89ldjjhrkw3ZzcOyaU2RDRkUCouMkZRqZqh_DJNRWP9kO0v1q0wDhIbC28J-rV9r02o1oX4HDKPVBG-4WFshGWWcqKmd-57pTeF2TznXVFEBHg7214lwxWq5Ll6TX3wCVqgwVw-BQbkLs0S_9KpS8xL3dPOkTCuAUjfpe0vLX3uTh7oNeygpwzAEJEg2Hyzwjr4QjAVS5ZnohA_GcMrsI-adaswkfXbDcpqcFiyIZE6SjnZIqw2Ln1m-lZeemddhjH3SiPsDDB2eU7rpPrQWHIPBaJSazSa39AaLpAs1ZkaJtFdph9q1d8GJ8GGQ
               summary: []
         usage:
-          completion_tokens: 50
+          completion_tokens: 44
           prompt_tokens: 12
-          total_tokens: 62
+          total_tokens: 56
           completion_tokens_details:
             reasoning_tokens: 0
           prompt_tokens_details:
@@ -65,6 +65,8 @@ interactions:
         billing:
           payer: developer
         frequency_penalty: 0.0
+        image:
+          context_compression: disabled
         presence_penalty: 0.0
         service_tier: default
         tool_usage:

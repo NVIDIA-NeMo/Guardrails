@@ -6,7 +6,7 @@ contents as opaque.
 
 ## Evidence and coverage
 
-- [Pinned inventory](fixtures/README.md): 21 Responses components, inherited
+- [Pinned inventory](fixtures/README.md): 23 Responses components, inherited
   `allOf` properties, and the official text-input response example.
 - [Native Responses recordings](../../../../../recorded/server/experimental/openai/test_responses.py):
   buffered/streaming success and invalid-model HTTP errors from OpenAI.
@@ -22,10 +22,29 @@ Unmodified recordings are positive controls for the same injection path;
 mutations stay in memory and are never recorded as provider evidence.
 
 The pinned `Response` schema omits `store`, while its example includes it. Native
-captures also contain `access_programs`, `billing`, `frequency_penalty`,
-`presence_penalty`, and `tool_usage`. These six response fields belong to the
-native policy; only the root SSE `model` annotation requires the LiteLLM dialect.
+captures also contain `billing`, `frequency_penalty`, and `presence_penalty`
+beyond the source fields. These four response fields belong to the native
+policy; only the root SSE `model` annotation requires the LiteLLM dialect.
 The native delta `obfuscation` field is also accounted for explicitly.
+
+The November 5 refreshed native and Hub mini recordings include `image` policy
+metadata. The refreshed source declares `image`, `access_programs`, and
+`tool_usage`; the shared image model uses its `ResolvedImageOptions` component.
+`image` may be null or contain only `context_compression: enabled | disabled`.
+Image and access-program request options remain unsupported and are rejected
+before dispatch, including when output inspection is disabled.
+
+The source refresh also makes response `access_programs` required and nullable
+and permits null `usage`. Guard projections remain partial content policies:
+they do not require every provider-owned metadata member. Chat's now-optional
+`refusal` and streaming `finish_reason` retain their existing optional handling,
+and its source-defined streaming audio content remains disabled.
+
+`ResponsePromptCacheOptionsParam` is also inventoried independently. Its nested
+`prewarm` control permits only omission or boolean `false`; cache-only execution
+and unreviewed cache members reject before dispatch. The remaining reviewed
+cache controls retain their opaque values, and accepted requests preserve the
+original payload.
 
 ## Policy boundaries
 
