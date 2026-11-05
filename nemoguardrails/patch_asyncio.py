@@ -22,6 +22,14 @@ nest_asyncio_patch_applied = False
 
 
 def apply():
+    """Apply the optional nested-loop patch when explicitly enabled.
+
+    Raises:
+        ImportError: If patching is enabled without the optional dependency.
+
+    Warns:
+        FutureWarning: When automatic patching is enabled.
+    """
     global nest_asyncio_patch_applied
 
     if os.environ.get("DISABLE_NEST_ASYNCIO", "true").lower() not in [
