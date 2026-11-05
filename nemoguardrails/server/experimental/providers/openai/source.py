@@ -20,11 +20,11 @@ the values match.
 """
 
 PROVIDER_DOCUMENT_URL = (
-    "https://github.com/openai/openai-openapi/blob/df63773f69f542ef875b9f00c3837c25ba5f4f2a/openapi.yaml"
+    "https://github.com/openai/openai-openapi/blob/3e288ba501d136b81181919a12a88495a0244488/openapi.yaml"
 )
 PROVIDER_DOWNLOAD_URL = (
-    "https://raw.githubusercontent.com/openai/openai-openapi/df63773f69f542ef875b9f00c3837c25ba5f4f2a/openapi.yaml"
+    "https://raw.githubusercontent.com/openai/openai-openapi/3e288ba501d136b81181919a12a88495a0244488/openapi.yaml"
 )
-PROVIDER_REVISION = "df63773f69f542ef875b9f00c3837c25ba5f4f2a"
+PROVIDER_REVISION = "3e288ba501d136b81181919a12a88495a0244488"
 PROVIDER_DOCUMENT_VERSION = "2.3.0"
-PROVIDER_DOCUMENT_SHA256 = "f2dae1a9aced09b91310db89edda51bf1e36ecbfb05230c3a50b239c07708469"
+PROVIDER_DOCUMENT_SHA256 = "cf91be897ab55e4aefcfc44ec1eb7611eea1227509b67178be583244c2680ab3"
