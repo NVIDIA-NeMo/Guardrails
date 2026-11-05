@@ -27,6 +27,12 @@ captures also contain `access_programs`, `billing`, `frequency_penalty`,
 native policy; only the root SSE `model` annotation requires the LiteLLM dialect.
 The native delta `obfuscation` field is also accounted for explicitly.
 
+The November 5 refreshed native and Hub mini recordings include `image` policy
+metadata. This post-pin addition is constrained separately: `image` may be null
+or contain only `context_compression: enabled | disabled`. The shared image
+model has no component in the older pinned schema; its independent coverage and
+invalid-content cases are checked explicitly. Image request options stay closed.
+
 ## Policy boundaries
 
 | Surface | Policy |

@@ -66,6 +66,7 @@ async def test_native_observations_distinguish_metadata_from_gateway_annotations
         "access_programs",
         "billing",
         "frequency_penalty",
+        "image",
         "presence_penalty",
         "store",
         "tool_usage",
@@ -74,6 +75,7 @@ async def test_native_observations_distinguish_metadata_from_gateway_annotations
     assert payload["access_programs"] is None
     assert payload["billing"] == {"payer": "developer"}
     assert payload["frequency_penalty"] == payload["presence_penalty"] == 0
+    assert payload["image"] == {"context_compression": "disabled"}
     assert set(payload["tool_usage"]) == {"image_gen", "web_search"}
     _, streaming = recording(True)
     lifecycle = []
@@ -88,10 +90,12 @@ async def test_native_observations_distinguish_metadata_from_gateway_annotations
             assert payload["response"].keys() - declared == {
                 "access_programs",
                 "frequency_penalty",
+                "image",
                 "presence_penalty",
                 "store",
                 "tool_usage",
             }
+            assert payload["response"]["image"] == {"context_compression": "disabled"}
     assert lifecycle == ["response.created", "response.in_progress", "response.completed"]
 
 

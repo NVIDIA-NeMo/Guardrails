@@ -29,6 +29,7 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
 )
 from nemoguardrails.server.experimental.providers.openai.responses.response_projection import (
     RESPONSE_METADATA_FIELDS,
+    ResponseImageProjection,
     ResponsesAssistantMessageProjection,
     ResponsesOutputTextProjection,
     ResponsesReasoningItemProjection,
@@ -57,6 +58,7 @@ class ResponsesLifecycleResponseProjection(PolicyModel, GuardedContentModel):
     """Describe a full response snapshot without demanding a message before generation."""
 
     policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="Response", opaque=RESPONSE_METADATA_FIELDS)
+    image: Annotated[ResponseImageProjection | None, constrained()] = None
     output: Annotated[list[ResponsesReasoningItemProjection | ResponsesSnapshotMessageProjection], guarded()]
     output_text: Annotated[None, disabled("provider_integrity.duplicate_text")] = None
 

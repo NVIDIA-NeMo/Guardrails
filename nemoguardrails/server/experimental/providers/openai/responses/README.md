@@ -32,6 +32,13 @@ marked configurable can accept unknown members under a trusted `ALLOW` policy;
 the stream classifier always uses the closed default. Case aliases cannot
 override reviewed policy.
 
+Optional response `image` metadata is absent, null, or a closed object containing
+`context_compression: enabled | disabled`, the effective image context policy.
+This applies to buffered responses and lifecycle snapshots, including text-only
+exchanges. It does not enable image request options or image content. Other
+members and values remain unsupported. See the
+[OpenAI response field addition](https://github.com/openai/openai-python/commit/1b2fb74d1ac88eca798a00d3e5c0789ab9e42833).
+
 ## Declaration and runtime responsibilities
 
 - `request_projection.py` and `response_projection.py` classify fields.
@@ -174,7 +181,8 @@ captured native profile, not every OpenAI-compatible server.
 
 The captures use `gpt-5-nano-2025-08-07` with minimal reasoning, a short benign
 greeting, and `store: false`, matching the model family used by the LiteLLM
-comparison. They were captured on 2026-10-21. The model is a historical
+comparison. Successful exchanges were refreshed on 2026-11-05 to retain the
+upstream `image.context_compression: disabled` metadata. The model is a historical
 compatibility baseline, not a recommendation for new applications. Refresh
 requires `OPENAI_API_KEY`; default replay supplies a dummy key and blocks the
 network. No SDK or additional provider extra is needed beyond the repository's

@@ -109,6 +109,11 @@ async def test_native_responses_preserve_policy_and_wire(
     if stream:
         events = await stream_events(upstream.content)
         payloads = [json.loads(event.data) for event in events]
+        assert all(
+            payload["response"]["image"] == {"context_compression": "disabled"}
+            for payload in payloads
+            if "response" in payload
+        )
         assert payloads[0]["type"] == "response.created"
         assert payloads[-1]["type"] == "response.completed"
         deltas = [payload["delta"] for payload in payloads if payload["type"] == "response.output_text.delta"]
@@ -122,6 +127,7 @@ async def test_native_responses_preserve_policy_and_wire(
         adapter.validate_end_of_stream()
     else:
         payload = upstream.json()
+        assert payload["image"] == {"context_compression": "disabled"}
         text = assistant_text(payload)
         parsed = ENDPOINT.guarded_response_model.validate_payload(payload)
         assert parsed.locate_guarded_message(payload).message.content == text
