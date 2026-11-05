@@ -15,6 +15,8 @@
 import os
 import subprocess
 import sys
+from types import ModuleType
+from unittest.mock import Mock
 
 import pytest
 
@@ -185,3 +187,39 @@ assert nemoguardrails.patch_asyncio.nest_asyncio_patch_applied
 """,
         False,
     )
+
+
+def test_apply_without_optional_dependency_raises(monkeypatch):
+    import nemoguardrails.patch_asyncio as patch_asyncio
+
+    monkeypatch.setenv("DISABLE_NEST_ASYNCIO", "false")
+    monkeypatch.setattr(patch_asyncio, "nest_asyncio_patch_applied", False)
+    monkeypatch.setitem(sys.modules, "nest_asyncio", None)
+
+    with pytest.raises(ImportError) as exc_info:
+        patch_asyncio.apply()
+
+    assert "pip install 'nemoguardrails[nest-asyncio]'" in str(exc_info.value)
+    assert "DISABLE_NEST_ASYNCIO=true" in str(exc_info.value)
+    assert isinstance(exc_info.value.__cause__, ModuleNotFoundError)
+    assert patch_asyncio.nest_asyncio_patch_applied is False
+
+
+def test_apply_enabled_warns_and_patches(monkeypatch):
+    import nemoguardrails.patch_asyncio as patch_asyncio
+
+    nest_asyncio = ModuleType("nest_asyncio")
+    apply_patch = Mock()
+    monkeypatch.setattr(nest_asyncio, "apply", apply_patch, raising=False)
+    monkeypatch.setitem(sys.modules, "nest_asyncio", nest_asyncio)
+    monkeypatch.setenv("DISABLE_NEST_ASYNCIO", "false")
+    monkeypatch.setattr(patch_asyncio, "nest_asyncio_patch_applied", False)
+
+    with pytest.warns(FutureWarning, match="patching will be deprecated in NeMo Guardrails 0.26") as caught:
+        patch_asyncio.apply()
+
+    assert "generate_async" in str(caught[0].message)
+    assert "Synchronous APIs" in str(caught[0].message)
+    assert caught[0].filename == __file__
+    apply_patch.assert_called_once_with()
+    assert patch_asyncio.nest_asyncio_patch_applied is True
