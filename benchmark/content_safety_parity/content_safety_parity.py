@@ -127,13 +127,14 @@ class Verdict:
 
 
 def parse_verdict(raw: str, latency_ms: float = 0.0) -> Verdict:
-    has_verdict = "User Safety:" in raw
-    is_safe = "User Safety: safe" in raw
+    raw_lower = raw.lower()
+    has_verdict = "user safety:" in raw_lower
+    is_safe = "user safety: safe" in raw_lower
     categories: list[str] = []
     for line in raw.splitlines():
         stripped = line.strip()
-        if stripped.startswith("Safety Categories:"):
-            cats_str = stripped.removeprefix("Safety Categories:").strip()
+        if stripped.lower().startswith("safety categories:"):
+            cats_str = stripped[len("safety categories:") :].strip()
             categories = [c.strip() for c in cats_str.split(",") if c.strip()]
     # No verdict line → truncated/malformed response; mark as error so metrics skip it.
     return Verdict(is_safe=is_safe, raw=raw, categories=categories, latency_ms=latency_ms, error=not has_verdict)
@@ -188,6 +189,8 @@ def _stratified_sample(samples: list[Sample], n: int, seed: int = 42) -> list[Sa
     rng.shuffle(unsafe)
     n_safe = min(n // 2, len(safe))
     n_unsafe = min(n - n_safe, len(unsafe))
+    # Refill spare slots from the other class when one class is exhausted.
+    n_safe = min(n - n_unsafe, len(safe))
     return safe[:n_safe] + unsafe[:n_unsafe]
 
 
@@ -732,6 +735,18 @@ async def run_direct_eval(
 
     verdicts = list(await asyncio.gather(*[eval_one(s) for s in samples]))
     print()
+    # Validate that chat_template_kwargs is propagating correctly: when request_categories
+    # is set (the non-custom-policy path), the NIM should return "Safety Categories:" lines.
+    # Zero category lines across all non-error responses means the extra body param was ignored.
+    if not use_custom_policy:
+        non_error = [v for v in verdicts if not v.error]
+        if non_error and all(not v.categories for v in non_error):
+            print(
+                "  ⚠ Warning: no 'Safety Categories' lines found in any response. "
+                "chat_template_kwargs may not be propagating to the NIM. "
+                "Check that request_categories='/categories' is accepted by the NIM version in use.",
+                flush=True,
+            )
     return verdicts
 
 
@@ -769,13 +784,14 @@ async def run_guardrails_eval(
     in-process state between simultaneous requests.
     """
     from nemoguardrails import LLMRails, RailsConfig  # type: ignore[import]
+    from nemoguardrails.rails.llm.options import RailStatus, RailType  # type: ignore[import]
 
     print(f"  Loading Guardrails config from {config_path}...")
     image_samples = [s for s in samples if s.extra.get("image_path")]
     if image_samples:
         print(
             f"  ⚠ Warning: {len(image_samples)} sample(s) include an image. "
-            "generate_async does not accept multimodal content, so images are dropped for the "
+            "check_async does not accept multimodal content, so images are dropped for the "
             "Guardrails path. The direct and Guardrails paths judge different inputs for these "
             "samples — agreement figures for image-dependent verdicts will not be meaningful."
         )
@@ -817,11 +833,13 @@ async def run_guardrails_eval(
         rails = await pool.get()
         t0 = time.monotonic()
         try:
-            result = await rails.generate_async(messages=[{"role": "user", "content": s.text}])
+            result = await rails.check_async(
+                messages=[{"role": "user", "content": s.text}],
+                rail_types=[RailType.INPUT],
+            )
             latency_ms = (time.monotonic() - t0) * 1000
-            content = result.get("content", "") if isinstance(result, dict) else str(result)
-            blocked = content.strip().startswith(REFUSAL_PREFIX)
-            verdicts[idx] = Verdict(is_safe=not blocked, raw=content, latency_ms=latency_ms)
+            blocked = result.status == RailStatus.BLOCKED
+            verdicts[idx] = Verdict(is_safe=not blocked, raw=result.content or "", latency_ms=latency_ms)
         except Exception as exc:
             latency_ms = (time.monotonic() - t0) * 1000
             verdicts[idx] = Verdict(is_safe=True, raw=f"ERROR: {exc}", latency_ms=latency_ms, error=True)

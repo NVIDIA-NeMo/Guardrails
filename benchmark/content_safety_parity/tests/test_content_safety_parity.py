@@ -79,6 +79,20 @@ class TestParseVerdict:
         v = parse_verdict(raw)
         assert v.raw == raw
 
+    def test_safe_verdict_capital_s(self):
+        # NIM sometimes returns "Safe" with a capital S — must still parse as safe.
+        raw = "User Safety: Safe\nSafety Categories: None"
+        v = parse_verdict(raw, latency_ms=10.0)
+        assert v.is_safe is True
+        assert v.error is False
+
+    def test_unsafe_verdict_capital_u(self):
+        raw = "User Safety: Unsafe\nSafety Categories: Violence"
+        v = parse_verdict(raw)
+        assert v.is_safe is False
+        assert v.error is False
+        assert "Violence" in v.categories
+
 
 class TestComputeMetrics:
     def _make_pair(self, gt: str, pred_safe: bool) -> tuple:
@@ -176,13 +190,23 @@ class TestStratifiedSample:
         assert [s.text for s in r1] != [s.text for s in r2]
 
     def test_skewed_dataset_capped_at_available(self):
-        # 3 safe, 100 unsafe → request 20; safe capped at 3
+        # 3 safe, 100 unsafe → request 20; safe capped at 3, unsafe fills remaining 17
         samples = self._samples(3, 100)
         result = _stratified_sample(samples, n=20)
         safe_n = sum(1 for s in result if s.ground_truth == "safe")
         unsafe_n = sum(1 for s in result if s.ground_truth == "unsafe")
         assert safe_n == 3
         assert unsafe_n == 17
+
+    def test_skewed_dataset_reverse_capped_at_available(self):
+        # 100 safe, 3 unsafe → request 20; unsafe capped at 3, safe fills remaining 17
+        samples = self._samples(100, 3)
+        result = _stratified_sample(samples, n=20)
+        safe_n = sum(1 for s in result if s.ground_truth == "safe")
+        unsafe_n = sum(1 for s in result if s.ground_truth == "unsafe")
+        assert safe_n == 17
+        assert unsafe_n == 3
+        assert len(result) == 20
 
 
 class TestBuildContent:
