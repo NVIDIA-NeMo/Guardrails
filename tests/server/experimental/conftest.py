@@ -21,6 +21,12 @@ from nemoguardrails.server.experimental.provider.projection_policy import EXTENS
 from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
 
 
+@pytest.fixture(params=["allow", "forbid"])
+def unknown_fields(request):
+    """Exercise proxy behavior with each explicitly selected field policy."""
+    return UnknownContentFieldPolicy(request.param)
+
+
 def _reject_case_aliases(validator, reviewed, instance, schema):
     """Check exact Unicode case folding against names derived from the export."""
     if not isinstance(instance, dict):

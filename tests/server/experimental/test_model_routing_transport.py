@@ -415,7 +415,7 @@ def test_route_destinations_must_be_fixed_safe_http_origins(url):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("decision", ["allow", "input-block", "output-block"])
-async def test_routed_generation_enforces_real_rails(monkeypatch, rails_configs, stream, decision):
+async def test_routed_generation_enforces_real_rails(monkeypatch, rails_configs, stream, decision, *, unknown_fields):
     monkeypatch.setenv("PROVIDER_A_KEY", "destination-a")
     calls = []
     text = "BLOCK_OUTPUT" if decision == "output-block" else "hello"
@@ -445,7 +445,9 @@ async def test_routed_generation_enforces_real_rails(monkeypatch, rails_configs,
         )
 
     application = create_proxy_application(
-        providers=(create_openai_chat_integration(base_url="http://model-router.internal/v1"),),
+        providers=(
+            create_openai_chat_integration(unknown_fields=unknown_fields, base_url="http://model-router.internal/v1"),
+        ),
         rails_configs=rails_configs,
         http_transport_factory=transport,
     )

@@ -140,38 +140,41 @@ async def assert_forward_compatible_exchange(
     text, window = await recorded_text(upstream, operation, stream)
     assert text
 
-    for blocked in (False, True):
-        cassette.rewind()
-        checker = StaticChecker(
-            ContentInspectionPolicy(True, True, StreamBufferingPolicy(window, 0) if stream else None),
-            output_decisions=[ContentBlocked("recorded test block")] if blocked else [],
-        )
-        dispatches = []
-        async with responses_proxy(api_key, checker, dispatches, endpoint=endpoint, base_url=base_url) as client:
-            response = await client.post("/v1/" + operation, json=request)
-        assert_consumed_once(cassette)
-        assert len(dispatches) == 1
-        assert json.loads(dispatches[0].body) == request
-        assert checker.text_calls == [("input", INPUT), ("output", text)]
-        if not blocked:
-            assert response.status_code == 200
-            assert response.content == upstream.content
-            assert response.headers["content-type"] == upstream.headers["content-type"]
-        else:
-            assert response.status_code == (200 if stream else 400)
-            assert "content_blocked" in response.text
-            assert "unsupported_" not in response.text
-            if stream:
-                received = [event for event in await stream_events(response.content) if event.data is not None]
-                errors = received[:-1] if operation == "chat/completions" else received
-                assert len(errors) == 1
-                error = json.loads(errors[0].data)
-                if operation == "chat/completions":
-                    assert received[-1].data == b"[DONE]"
-                    assert error["error"]["code"] == "content_blocked"
-                else:
-                    assert error["type"] == "error"
-                    assert error["code"] == "content_blocked"
+    for unknown_fields in ("allow", "forbid"):
+        for blocked in (False, True):
+            cassette.rewind()
+            checker = StaticChecker(
+                ContentInspectionPolicy(True, True, StreamBufferingPolicy(window, 0) if stream else None),
+                output_decisions=[ContentBlocked("recorded test block")] if blocked else [],
+            )
+            dispatches = []
+            async with responses_proxy(
+                api_key, checker, dispatches, endpoint=endpoint, base_url=base_url, unknown_fields=unknown_fields
+            ) as client:
+                response = await client.post("/v1/" + operation, json=request)
+            assert_consumed_once(cassette)
+            assert len(dispatches) == 1
+            assert json.loads(dispatches[0].body) == request
+            assert checker.text_calls == [("input", INPUT), ("output", text)]
+            if not blocked:
+                assert response.status_code == 200
+                assert response.content == upstream.content
+                assert response.headers["content-type"] == upstream.headers["content-type"]
+            else:
+                assert response.status_code == (200 if stream else 400)
+                assert "content_blocked" in response.text
+                assert "unsupported_" not in response.text
+                if stream:
+                    received = [event for event in await stream_events(response.content) if event.data is not None]
+                    errors = received[:-1] if operation == "chat/completions" else received
+                    assert len(errors) == 1
+                    error = json.loads(errors[0].data)
+                    if operation == "chat/completions":
+                        assert received[-1].data == b"[DONE]"
+                        assert error["error"]["code"] == "content_blocked"
+                    else:
+                        assert error["type"] == "error"
+                        assert error["code"] == "content_blocked"
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])

@@ -16,6 +16,7 @@
 """Exercise Responses through the existing HTTP and streaming kernels."""
 
 import json
+from functools import partial
 
 import httpx
 import pytest
@@ -40,7 +41,7 @@ from tests.server.experimental.test_openai_responses_projections import response
 from tests.server.experimental.test_openai_responses_streaming_projections import event_bytes
 
 
-async def post_stream(chunks, checker, *, failure=None, endpoint=RESPONSES_ENDPOINT, unknown_fields="forbid"):
+async def post_stream(chunks, checker, *, unknown_fields, failure=None, endpoint=RESPONSES_ENDPOINT):
     source = Source(chunks, failure=failure)
     dispatches = []
 
@@ -78,6 +79,11 @@ async def post_stream(chunks, checker, *, failure=None, endpoint=RESPONSES_ENDPO
     return result, source, dispatches
 
 
+@pytest.fixture
+def send_stream(unknown_fields):
+    return partial(post_stream, unknown_fields=unknown_fields)
+
+
 def checker(*, input_decision=ContentAllowed(), output_decisions=()):
     return StaticChecker(
         ContentInspectionPolicy(True, True, StreamBufferingPolicy(8, 0)), input_decision, output_decisions
@@ -98,11 +104,12 @@ def good_stream():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("fragment_size", [1, 17, 10000])
-async def test_allowed_stream_preserves_exact_bytes_and_checks_original_deltas(fragment_size):
+async def test_allowed_stream_preserves_exact_bytes_and_checks_original_deltas(fragment_size, *, send_stream):
     wire = good_stream()
     inspector = checker()
-    response, source, dispatches = await post_stream(
-        [wire[index : index + fragment_size] for index in range(0, len(wire), fragment_size)], inspector
+    response, source, dispatches = await send_stream(
+        [wire[index : index + fragment_size] for index in range(0, len(wire), fragment_size)],
+        inspector,
     )
     assert response.status_code == 200
     assert response.content == wire
@@ -113,15 +120,15 @@ async def test_allowed_stream_preserves_exact_bytes_and_checks_original_deltas(f
 
 
 @pytest.mark.asyncio
-async def test_input_block_prevents_any_upstream_dispatch():
-    response, _, dispatches = await post_stream([good_stream()], checker(input_decision=ContentBlocked("blocked")))
+async def test_input_block_prevents_any_upstream_dispatch(*, send_stream):
+    response, _, dispatches = await send_stream([good_stream()], checker(input_decision=ContentBlocked("blocked")))
     assert response.status_code == 400
     assert dispatches == []
 
 
 @pytest.mark.asyncio
-async def test_output_block_withholds_deltas_and_all_text_snapshots():
-    response, source, _ = await post_stream([good_stream()], checker(output_decisions=[ContentBlocked("blocked")]))
+async def test_output_block_withholds_deltas_and_all_text_snapshots(*, send_stream):
+    response, source, _ = await send_stream([good_stream()], checker(output_decisions=[ContentBlocked("blocked")]))
     assert response.status_code == 200
     assert b'"code":"content_blocked"' in response.content
     assert b"event: error" in response.content
@@ -144,9 +151,9 @@ async def test_output_block_withholds_deltas_and_all_text_snapshots():
         + event_bytes("response.output_text.delta", delta="late"),
     ],
 )
-async def test_invalid_completion_never_releases_pending_text(tail):
+async def test_invalid_completion_never_releases_pending_text(tail, *, send_stream):
     wire = event_bytes("response.output_text.delta", delta="answer") + tail
-    response, source, _ = await post_stream([wire], checker())
+    response, source, _ = await send_stream([wire], checker())
     assert b'"code":"unsupported_responses_response_shape"' in response.content
     assert b"answer" not in response.content
     assert b"hidden" not in response.content
@@ -155,21 +162,21 @@ async def test_invalid_completion_never_releases_pending_text(tail):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("terminal", ["response.failed", "response.incomplete", "error"])
-async def test_provider_terminal_failures_are_relayed_after_checked_text(terminal):
+async def test_provider_terminal_failures_are_relayed_after_checked_text(terminal, *, send_stream):
     fields = (
         {"message": "provider failure", "code": "provider_error"}
         if terminal == "error"
         else {"response": response_payload()}
     )
     wire = event_bytes("response.output_text.delta", delta="answer") + event_bytes(terminal, **fields)
-    response, source, _ = await post_stream([wire], checker())
+    response, source, _ = await send_stream([wire], checker())
     assert response.content == wire
     assert source.closed
 
 
 @pytest.mark.asyncio
-async def test_upstream_failure_closes_owner_and_withholds_pending_text():
-    response, source, _ = await post_stream(
+async def test_upstream_failure_closes_owner_and_withholds_pending_text(*, send_stream):
+    response, source, _ = await send_stream(
         [event_bytes("response.output_text.delta", delta="answer")],
         checker(),
         failure=httpx.ReadError("private detail"),

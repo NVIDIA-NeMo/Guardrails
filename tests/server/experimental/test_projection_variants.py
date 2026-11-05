@@ -334,6 +334,7 @@ async def test_coerced_variant_request_returns_unsupported_shape(scalar_variant_
                 create_guarded_http_operation(
                     endpoint,
                     OPENAI_ERROR_MAPPING,
+                    unknown_fields="forbid",
                     max_stream_event_bytes=1024,
                     max_pending_stream_bytes=1024,
                 ),

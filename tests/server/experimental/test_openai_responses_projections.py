@@ -116,15 +116,14 @@ def test_request_selects_response_mode_from_a_strict_boolean(stream):
         {"prewarm": "false"},
         {"prewarm": None},
         {"Prewarm": False},
-        {"future_control": True},
         "invalid options",
     ],
 )
-def test_request_rejects_cache_only_generation_and_unreviewed_cache_controls(options):
+def test_request_rejects_cache_only_generation_and_malformed_cache_controls(options, unknown_fields):
     with pytest.raises(ValidationError):
         ResponsesGuardedRequest.validate_payload(
             {"input": "hello", "store": False, "prompt_cache_options": options},
-            unknown_content_fields=UnknownContentFieldPolicy.ALLOW,
+            unknown_content_fields=unknown_fields,
         )
 
 

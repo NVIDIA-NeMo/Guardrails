@@ -146,7 +146,9 @@ def buffered_request(path="/v1/chat/completions", raw_path=b"/v1/chat/completion
 @pytest.mark.parametrize("streaming", [False, True])
 @pytest.mark.parametrize("blocked_stage", [None, "input", "output"])
 @pytest.mark.parametrize("route_path", ["/v1/chat/completions", "/%76%31/chat/completions"])
-async def test_transport_connects_chat_router_to_upstream_between_inspections(streaming, blocked_stage, route_path):
+async def test_transport_connects_chat_router_to_upstream_between_inspections(
+    streaming, blocked_stage, route_path, *, unknown_fields
+):
     checker = StaticChecker(
         ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)),
         input_decision=ContentBlocked("blocked") if blocked_stage == "input" else ContentAllowed(),
@@ -178,6 +180,7 @@ async def test_transport_connects_chat_router_to_upstream_between_inspections(st
         app = FastAPI()
         app.include_router(
             create_openai_chat_router(
+                unknown_fields=unknown_fields,
                 checker=checker,
                 dispatch=transport.dispatch,
                 stream_dispatch=transport.stream_dispatch,

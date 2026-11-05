@@ -206,11 +206,16 @@ async def test_gateway_route_preserves_policy_and_wire(
         text = buffered_text(payloads[0], operation)
     assert text
 
-    async def exchange(checker):
+    async def exchange(checker, *, unknown_fields):
         vcr.rewind()
         dispatches = []
         async with responses_proxy(
-            nvidia_inference_key, checker, dispatches, endpoint=endpoint, base_url=BASE_URL
+            nvidia_inference_key,
+            checker,
+            dispatches,
+            unknown_fields=unknown_fields,
+            endpoint=endpoint,
+            base_url=BASE_URL,
         ) as client:
             response = await client.post("/v1/" + operation, json=request)
         assert len(dispatches) == len(vcr.requests) == vcr.play_count == 1
@@ -218,60 +223,70 @@ async def test_gateway_route_preserves_policy_and_wire(
         assert json.loads(dispatches[0].body) == request
         return response
 
-    for inspect_input, inspect_output, window in product([False, True], [False, True], [1, 100] if stream else [100]):
-        checker = StaticChecker(
-            ContentInspectionPolicy(
-                inspect_input, inspect_output, StreamBufferingPolicy(window, 0) if inspect_output else None
+    for unknown_fields in ("allow", "forbid"):
+        for inspect_input, inspect_output, window in product(
+            [False, True], [False, True], [1, 100] if stream else [100]
+        ):
+            checker = StaticChecker(
+                ContentInspectionPolicy(
+                    inspect_input, inspect_output, StreamBufferingPolicy(window, 0) if inspect_output else None
+                )
             )
-        )
-        response = await exchange(checker)
-        assert response.status_code == 200
-        assert response.content == upstream.content
-        assert response.headers["content-type"] == upstream.headers["content-type"]
-        assert [value for kind, value in checker.text_calls if kind == "input"] == ([PROMPT] if inspect_input else [])
-        assert "".join(value for kind, value in checker.text_calls if kind == "output") == (
-            text if inspect_output else ""
-        )
+            response = await exchange(checker, unknown_fields=unknown_fields)
+            assert response.status_code == 200
+            assert response.content == upstream.content
+            assert response.headers["content-type"] == upstream.headers["content-type"]
+            assert [value for kind, value in checker.text_calls if kind == "input"] == (
+                [PROMPT] if inspect_input else []
+            )
+            assert "".join(value for kind, value in checker.text_calls if kind == "output") == (
+                text if inspect_output else ""
+            )
 
-    # A large window reaches terminal metadata before checking this short answer.
-    for window in [1, 100] if stream else [100]:
-        checker = StaticChecker(
-            ContentInspectionPolicy(True, True, StreamBufferingPolicy(window, 0)),
-            output_decisions=[ContentBlocked("recorded test block")],
-        )
-        response = await exchange(checker)
-        assert response.status_code == (200 if stream else 400)
-        assert "content_blocked" in response.text
-        assert "unsupported_" not in response.text
-        assert checker.text_calls[0] == ("input", PROMPT)
-        assert len(checker.text_calls) == 2
+        # A large window reaches terminal metadata before checking this short answer.
+        for window in [1, 100] if stream else [100]:
+            checker = StaticChecker(
+                ContentInspectionPolicy(True, True, StreamBufferingPolicy(window, 0)),
+                output_decisions=[ContentBlocked("recorded test block")],
+            )
+            response = await exchange(checker, unknown_fields=unknown_fields)
+            assert response.status_code == (200 if stream else 400)
+            assert "content_blocked" in response.text
+            assert "unsupported_" not in response.text
+            assert checker.text_calls[0] == ("input", PROMPT)
+            assert len(checker.text_calls) == 2
+            if stream:
+                received = await events(response.content)
+                error_index = -2 if operation == "chat/completions" else -1
+                assert received[:error_index] == []
+                assert (received[-1].data == b"[DONE]") == (operation == "chat/completions")
+
         if stream:
+            assert len(deltas) > 1, "Refresh must retain a multi-delta sample for later-window blocking"
+            checker = StaticChecker(
+                ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)),
+                output_decisions=[ContentAllowed(), ContentBlocked("later block")],
+            )
+            response = await exchange(checker, unknown_fields=unknown_fields)
             received = await events(response.content)
             error_index = -2 if operation == "chat/completions" else -1
-            assert received[:error_index] == []
-            assert (received[-1].data == b"[DONE]") == (operation == "chat/completions")
+            assert [e.raw for e in received[:error_index]] == [e.raw for e in recorded_events[: deltas[0][0] + 1]]
+            assert "content_blocked" in received[error_index].data.decode()
+            assert checker.text_calls == [("input", PROMPT), ("output", deltas[0][1]), ("output", deltas[1][1])]
 
-    if stream:
-        assert len(deltas) > 1, "Refresh must retain a multi-delta sample for later-window blocking"
-        checker = StaticChecker(
-            ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)),
-            output_decisions=[ContentAllowed(), ContentBlocked("later block")],
-        )
-        response = await exchange(checker)
-        received = await events(response.content)
-        error_index = -2 if operation == "chat/completions" else -1
-        assert [e.raw for e in received[:error_index]] == [e.raw for e in recorded_events[: deltas[0][0] + 1]]
-        assert "content_blocked" in received[error_index].data.decode()
-        assert checker.text_calls == [("input", PROMPT), ("output", deltas[0][1]), ("output", deltas[1][1])]
-
-    # Input blocking must not consume the stored upstream interaction.
-    vcr.rewind()
-    checker = StaticChecker(ContentInspectionPolicy(True, True), input_decision=ContentBlocked("input block"))
-    dispatches = []
-    async with responses_proxy(
-        nvidia_inference_key, checker, dispatches, endpoint=endpoint, base_url=BASE_URL
-    ) as client:
-        response = await client.post("/v1/" + operation, json=request)
-    assert response.status_code == 400 and "content_blocked" in response.text
-    assert dispatches == [] and vcr.play_count == 0
-    assert checker.text_calls == [("input", PROMPT)]
+        # Input blocking must not consume the stored upstream interaction.
+        vcr.rewind()
+        checker = StaticChecker(ContentInspectionPolicy(True, True), input_decision=ContentBlocked("input block"))
+        dispatches = []
+        async with responses_proxy(
+            nvidia_inference_key,
+            checker,
+            dispatches,
+            unknown_fields=unknown_fields,
+            endpoint=endpoint,
+            base_url=BASE_URL,
+        ) as client:
+            response = await client.post("/v1/" + operation, json=request)
+        assert response.status_code == 400 and "content_blocked" in response.text
+        assert dispatches == [] and vcr.play_count == 0
+        assert checker.text_calls == [("input", PROMPT)]

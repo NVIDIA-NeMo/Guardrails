@@ -53,6 +53,7 @@ def document(tmp_path):
                 "base_url": "https://provider.test/v1",
                 "operations": ["chat_completions", "responses"],
                 "rails_config_id": "standard",
+                "unknown_fields": "forbid",
             }
         ],
     }
@@ -71,7 +72,9 @@ def test_yaml_and_python_resolve_identical_bindings_from_another_directory(
     tmp_path, document, monkeypatch, dialect, resolution_timeout, unknown_fields
 ):
     document["providers"][0]["dialect"] = dialect
-    if unknown_fields is not None:
+    if unknown_fields is None:
+        document["providers"][0].pop("unknown_fields")
+    else:
         document["providers"][0]["unknown_fields"] = unknown_fields
     document["config_resolution_timeout"] = resolution_timeout
     path = write_manifest(tmp_path, document)
@@ -326,7 +329,7 @@ def test_validation_and_inspection_do_not_load_rails_or_create_owners(tmp_path, 
     provider = inspected["providers"][0]
     assert provider["dialect"] == "native"
     assert provider["rails_config_id"] == "standard"
-    assert provider["unknown_fields"] == "allow"
+    assert provider["unknown_fields"] == "forbid"
     assert len(provider["operations"]) == 2
     for operation in provider["operations"]:
         assert operation["profiles"] == {

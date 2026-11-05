@@ -32,10 +32,10 @@ async def responses_proxy(
     checker,
     dispatches,
     *,
+    unknown_fields,
     http_transport=None,
     endpoint=RESPONSES_ENDPOINT,
     base_url="https://api.openai.com/v1",
-    unknown_fields="allow",
 ):
     async with httpx.AsyncClient(timeout=60, transport=http_transport) as upstream:
         transport = ProviderTransport(UpstreamSettings(base_url=base_url, mount_path="/v1"), upstream)
