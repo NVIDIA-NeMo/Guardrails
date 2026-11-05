@@ -303,7 +303,11 @@ def test_http_schema_does_not_require_exportable_unions(example_endpoint):
         export_guard_contract(endpoint)
 
     operation = create_guarded_http_operation(
-        endpoint, OPENAI_ERROR_MAPPING, max_stream_event_bytes=1024, max_pending_stream_bytes=1024
+        endpoint,
+        OPENAI_ERROR_MAPPING,
+        unknown_fields="forbid",
+        max_stream_event_bytes=1024,
+        max_pending_stream_bytes=1024,
     )
     schema = operation.openapi_extra["requestBody"]["content"]["application/json"]["schema"]
     assert schema["additionalProperties"] is False
@@ -331,7 +335,11 @@ def test_http_schema_supports_models_without_policy_annotations(example_endpoint
     endpoint = replace(example_endpoint, guarded_request_model=PlainRequest)
 
     operation = create_guarded_http_operation(
-        endpoint, OPENAI_ERROR_MAPPING, max_stream_event_bytes=1024, max_pending_stream_bytes=1024
+        endpoint,
+        OPENAI_ERROR_MAPPING,
+        unknown_fields="forbid",
+        max_stream_event_bytes=1024,
+        max_pending_stream_bytes=1024,
     )
 
     assert operation.openapi_extra["requestBody"]["content"]["application/json"]["schema"] == (

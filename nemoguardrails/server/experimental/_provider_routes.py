@@ -129,6 +129,7 @@ def create_provider_router(
         create_guarded_http_operation(
             endpoint,
             provider.errors,
+            unknown_fields=provider.unknown_fields,
             policy_stream_dispatch=policy_stream_dispatch if endpoint.stream is not None else None,
             max_stream_event_bytes=max_response_body_bytes,
             max_pending_stream_bytes=max_response_body_bytes,

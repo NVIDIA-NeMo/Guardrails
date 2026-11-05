@@ -73,6 +73,7 @@ def sse_bytes(payloads):
 
 
 async def injected_response(request, body, *, endpoint=RESPONSES_ENDPOINT, inspect_input=True, inspect_output=True):
+    """Exercise strict reviewed-inventory conformance, independently of runtime defaults."""
     sent = []
 
     async def upstream(outbound):
@@ -90,7 +91,12 @@ async def injected_response(request, body, *, endpoint=RESPONSES_ENDPOINT, inspe
     )
     dispatches = []
     async with responses_proxy(
-        "synthetic-probe", checker, dispatches, http_transport=httpx.MockTransport(upstream), endpoint=endpoint
+        "synthetic-probe",
+        checker,
+        dispatches,
+        http_transport=httpx.MockTransport(upstream),
+        endpoint=endpoint,
+        unknown_fields="forbid",
     ) as client:
         response = await client.post("/v1/responses", json=request)
     assert len(sent) == len(dispatches)

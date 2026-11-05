@@ -57,7 +57,7 @@ def provider(**overrides):
             "operations": ("chat_completions", "responses"),
             "rails_config_id": "standard",
             **overrides,
-        }
+        },
     )
 
 
@@ -170,14 +170,19 @@ class Upstream:
     "operations",
     [("chat_completions",), ("responses",), ("chat_completions", "responses"), ("responses", "chat_completions")],
 )
-def test_exact_binding_selection_and_direct_assembly_equivalence(entries, dialect, operations):
-    declaration = provider(dialect=dialect, operations=operations)
+def test_exact_binding_selection_and_direct_assembly_equivalence(entries, dialect, operations, *, unknown_fields):
+    declaration = provider(unknown_fields=unknown_fields, dialect=dialect, operations=operations)
     actual = _configuration.resolve_provider(declaration)
     native = {"chat_completions": CHAT_COMPLETIONS_ENDPOINT, "responses": RESPONSES_ENDPOINT}
     alternative = {"chat_completions": LITELLM_CHAT_COMPLETIONS_ENDPOINT, "responses": LITELLM_RESPONSES_ENDPOINT}
     expected_endpoints = tuple((native if dialect is None else alternative)[operation] for operation in operations)
     expected = replace(
-        create_openai_integration(instance_id="gateway", base_url="https://provider.test/v1", mount_path="/gateway"),
+        create_openai_integration(
+            unknown_fields=unknown_fields,
+            instance_id="gateway",
+            base_url="https://provider.test/v1",
+            mount_path="/gateway",
+        ),
         endpoints=expected_endpoints,
     )
     assert actual == expected
@@ -204,6 +209,7 @@ def test_exact_binding_selection_and_direct_assembly_equivalence(entries, dialec
         ("rails_config_id", ""),
         ("rails_config_id", " standard "),
         ("rails_config_ids", ["standard"]),
+        *(("unknown_fields", value) for value in (None, True, False, 0, "strict", "ALLOW", {})),
         ("extra", True),
     ],
 )
@@ -425,10 +431,13 @@ def test_large_catalogue_needs_no_provider_level_enumeration(entries):
 @pytest.mark.parametrize("streaming", [False, True])
 @pytest.mark.parametrize("decision", ["allow", "input", "output"])
 def test_declarations_use_real_rails_for_buffered_and_streaming_checks(
-    entries, dialect, operation, streaming, decision
+    entries, dialect, operation, streaming, decision, *, unknown_fields
 ):
     upstream = Upstream("BLOCK_OUTPUT" if decision == "output" else "answer")
-    declaration = config(entries, provider(dialect=dialect, operations=(operation,)))
+    declaration = config(
+        entries,
+        provider(unknown_fields=unknown_fields, dialect=dialect, operations=(operation,)),
+    )
     app = create_proxy_application(declaration, http_transport_factory=upstream.factory)
     assert upstream.factory_calls == 0
     with TestClient(app) as client:

@@ -25,6 +25,10 @@ Typed Python projections, bindings, and endpoint declarations are authoritative.
 The contract is exported from those bound declarations. The running proxy does
 not load it to create policy, and changing the YAML does not change execution.
 
+Exports describe the reviewed inventory for strict auditing. Runtime acceptance
+also depends on the provider's
+[`unknown_fields` setting](/run-guardrailed-inference/using-proxy/configuration#handle-provider-additions).
+
 ## Read the Field Policy
 
 The contract classifies fields by how the binding handles them:
@@ -121,6 +125,12 @@ standard export format.
 Compare the request and response fields and stream declarations with the previous
 export. Pay particular attention to new opaque fields: their values bypass text
 inspection.
+
+Keep provider captures complete when refreshing recordings, then compare them
+with the reviewed inventory using strict validation. The
+[format reference](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/README.md#object-and-stream-metadata)
+describes audit semantics and opaque-field limits. A passing historical replay
+does not establish compatibility with current provider traffic.
 
 The export describes declared field policies and stream events. Stateful stream
 hooks, custom Python validation, transport behavior, and cleanup remain in code.

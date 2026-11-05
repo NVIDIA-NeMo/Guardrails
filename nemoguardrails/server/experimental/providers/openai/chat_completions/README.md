@@ -17,7 +17,9 @@ unknown-field policy. It is not a deployment profile selector. The capability
 profile remains `single_text.v1`; the exported document format remains experimental
 `1.0.0-alpha.1`.
 
-`ObjectPolicy` controls object closure. `PolicyModel` requires Pydantic
+`ObjectPolicy` controls whether an object permits a trusted unknown-field policy.
+See the [shared object policy](../../../contracts/README.md#object-and-stream-metadata)
+for runtime selection and strict audit semantics. `PolicyModel` requires Pydantic
 `extra="allow"` internally so its validator can inspect every unreviewed member;
 overriding it with `ignore` or `forbid` is rejected at class declaration.
 
@@ -44,14 +46,13 @@ boolean or null, and response annotations accept only null or an empty list. Onl
 The original request bytes are forwarded without normalizing null to false.
 `n` accepts only the
 integer `1`; booleans, strings, and floats are rejected. Generic JSON Schema
-and Python validation are not claimed to be interchangeable. Canonical exports
-are closed by default and explicitly declare configurable unknown-field handling
-and Unicode case-alias rejection. Contract-aware tools must implement those
-annotations when trusted configuration selects `ALLOW`.
+and Python validation are not claimed to be interchangeable; the shared object
+policy describes guard annotations such as Unicode case-alias rejection.
 
 The HTTP route publishes the same object-policy rules in its OpenAPI request
 schema: reviewed opaque members remain available, and unreviewed members are
-rejected by default. This schema still does not encode arbitrary Python validators.
+accepted or rejected according to the provider's `unknown_fields` setting. This
+schema still does not encode arbitrary Python validators.
 
 The [contract guide](../../../contracts/README.md) defines the document format;
 the [OpenAI source reference](../../../contracts/openai/README.md) records
@@ -67,7 +68,7 @@ provider provenance. Neither is loaded by the models or bindings.
 | Constrained values | User/assistant roles, single-item arrays, and request `n` constrained to one. |
 | Unsupported content | Tool, audio, multimodal, refusal, participant name, and separate reasoning content where explicitly disabled. |
 | Opaque data | Reviewed provider-owned metadata and controls, not additional guarded subjects. |
-| Closed objects | The request, its user message, the buffered response, and its choice and assistant message reject members outside OpenAI's fields. The user message, choice, and assistant message are configurable: only trusted configuration may allow unknown members there. Fields specific to compatible servers belong to their own reviewed extensions. |
+| Unknown members | Follow the [shared object policy](../../../contracts/README.md#object-and-stream-metadata) for the selected provider. |
 
 This request boundary does not accept conversation histories, system or developer
 messages alongside the user message, or multimodal content blocks. Disabled
@@ -90,9 +91,8 @@ text replacement. Unrelated provider data must remain intact.
 The Python projections, bindings, and endpoint determine exact acceptance and
 runtime behavior. The [exported contract](../../../contracts/openai/_generated/chat-completions.guard.yaml)
 describes buffered payloads and the bound stream classifier, not a separately
-maintained handwritten policy. The stream root, choice, delta, and error envelope
-are closed. Error details are configurable, but the classifier validates with
-the closed default, so unreviewed error fields are rejected too.
+maintained handwritten policy. All stream objects, including error envelopes
+and details, use the same object-policy selection during HTTP execution.
 
 The stream export includes event selection, roles, missing-text handling, and
 SSE sentinel/non-data declarations. Stateful hooks enforce completion and event
@@ -108,14 +108,10 @@ for generation, drift checks, and limitations.
 [stream_projection.py](stream_projection.py) uses the same field annotations and
 `ObjectPolicy` for the experimental `single_text_delta.v1` boundary. A chunk
 accepts zero or one choice with a strict integer index of zero, and `logprobs`
-must be null. The root, choice, and delta reject unreviewed members; reviewed
-root metadata such as `id`, `model`, and `usage` passes through unchanged and
-is not inspected.
+must be null. Reviewed root metadata such as `id`, `model`, and `usage` passes
+through unchanged and is not inspected.
 Missing or null content is metadata, while empty string content is still guarded
-text. Error messages are constrained fields, not guarded assistant output. The
-error envelope rejects unreviewed members, and its error object rejects them
-unless trusted configuration allows unknown fields; the stream classifier
-always validates with the closed default.
+text. Error messages are constrained fields, not guarded assistant output.
 
 [stream_classifier.py](stream_classifier.py) owns explicit `StreamEventRule`
 declarations for content and provider errors, along with the opaque `[DONE]`
@@ -268,8 +264,8 @@ Exporting the policy does not enable runtime features.
 
 A successful response whose assistant content is empty or null is relayed
 unchanged without output checks, but only after the full response passes the
-closed projection. Null content alongside refusal, reasoning, tool, or citation
-content is still rejected.
+projection with the selected unknown-field policy. Null content alongside
+declared refusal, reasoning, tool, or citation content is still rejected.
 
 Guarded requests require exactly one `Content-Type: application/json` header.
 Inspected successful buffered responses require the same; inspected streams

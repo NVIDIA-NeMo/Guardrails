@@ -112,7 +112,7 @@ request:
         type: object
         x-nemo-guardrails:
           source: '#/components/schemas/ResponsePromptCacheOptionsParam'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       - type: 'null'
     prompt_cache_retention:
@@ -271,7 +271,7 @@ request:
   type: object
   x-nemo-guardrails:
     source: '#/components/schemas/CreateResponse'
-    unknown_fields: forbid
+    unknown_fields: configurable
     reject_case_aliases: true
     model: ResponsesGuardedRequest
     stream_selector_field: stream
@@ -328,7 +328,7 @@ response:
         type: object
         x-nemo-guardrails:
           source: '#/components/schemas/ResolvedImageOptions'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       - type: 'null'
     incomplete_details:
@@ -585,7 +585,7 @@ response:
   type: object
   x-nemo-guardrails:
     source: '#/components/schemas/Response'
-    unknown_fields: forbid
+    unknown_fields: configurable
     reject_case_aliases: true
     model: ResponsesGuardedResponse
 integration:
@@ -670,7 +670,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseTextDeltaEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMTextDeltaEvent
       event:
@@ -750,7 +750,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseTextDoneEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMTextDoneEvent
       event:
@@ -860,7 +860,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseContentPartAddedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMPartAddedEvent
       event:
@@ -970,7 +970,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseContentPartDoneEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMPartDoneEvent
       event:
@@ -1112,7 +1112,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseOutputItemAddedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMMessageAddedEvent
       event:
@@ -1255,7 +1255,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseOutputItemDoneEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMMessageDoneEvent
       event:
@@ -1328,7 +1328,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -1588,7 +1588,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -1610,7 +1610,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseCreatedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMCreatedEvent
       event:
@@ -1682,7 +1682,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -1942,7 +1942,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -1964,7 +1964,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseInProgressEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMInProgressEvent
       event:
@@ -2036,7 +2036,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -2296,7 +2296,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -2318,7 +2318,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseQueuedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMQueuedEvent
       event:
@@ -2390,7 +2390,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -2650,7 +2650,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -2672,7 +2672,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseCompletedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMCompletedEvent
       event:
@@ -2744,7 +2744,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -3004,7 +3004,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -3026,7 +3026,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseFailedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMFailedEvent
       event:
@@ -3098,7 +3098,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -3358,7 +3358,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -3380,7 +3380,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseIncompleteEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMIncompleteEvent
       event:
@@ -3477,7 +3477,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseOutputItemAddedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMReasoningAddedEvent
       event:
@@ -3574,7 +3574,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseOutputItemDoneEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMReasoningDoneEvent
       event:
@@ -3622,7 +3622,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseErrorEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMErrorEvent
       event:

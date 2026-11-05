@@ -186,7 +186,7 @@ def test_stream_schema_preserves_closure_defaults_and_text_policy():
     assert content["default"] is None
     assert content["oneOf"] == [{"type": "string"}, {"type": "null"}]
     assert content[EXTENSION]["subject"] == {"kind": "text", "role": "assistant"}
-    assert delta[EXTENSION]["unknown_fields"] == "forbid"
+    assert delta[EXTENSION]["unknown_fields"] == "configurable"
     assert choice["properties"]["logprobs"][EXTENSION]["gate"] == "disabled"
     for native in (chunk({}), chunk({"content": None}), chunk({"content": ""}), chunk({"content": "safe"})):
         Draft202012Validator(schema).validate(native)

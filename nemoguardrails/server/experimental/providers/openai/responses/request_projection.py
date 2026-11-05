@@ -68,7 +68,8 @@ class ResponsesGuardedRequestProjection(PolicyModel, GuardedRequestModel):
     """Inspect one string input without provider-managed history or tools.
 
     Provider controls are reviewed passthrough values, not inspected subjects.
-    Unknown root fields fail closed; no backend dialect is inferred here.
+    Unknown fields follow the selected validation policy; no backend dialect
+    is inferred here.
     """
 
     policy: ClassVar[ObjectPolicy] = ObjectPolicy(

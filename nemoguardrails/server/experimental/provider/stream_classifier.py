@@ -16,13 +16,13 @@
 """Validate declared event shapes without changing the inspected wire text."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
 
 from nemoguardrails.server.experimental._json_payload import parse_json_object
-from nemoguardrails.server.experimental.provider.payload import guarded_schema_error
+from nemoguardrails.server.experimental.provider.payload import guarded_schema_error, projection_validation_context
 from nemoguardrails.server.experimental.provider.sse import ServerSentEvent
 from nemoguardrails.server.experimental.provider.stream import (
     GuardedStreamEvent,
@@ -31,6 +31,7 @@ from nemoguardrails.server.experimental.provider.stream import (
     UnsupportedProviderStream,
     validate_stream_event,
 )
+from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
 
 StreamMatchValue = str | int | float | bool | None
 
@@ -117,6 +118,11 @@ class StreamClassifier:
     non_data_shape: str | None
     event_type_field: str | None
     require_event_type: bool
+    unknown_fields: UnknownContentFieldPolicy = UnknownContentFieldPolicy.FORBID
+
+    def with_unknown_fields(self, unknown_fields: UnknownContentFieldPolicy) -> "StreamClassifier":
+        """Bind a trusted field policy without changing the shared declaration."""
+        return replace(self, unknown_fields=UnknownContentFieldPolicy(unknown_fields))
 
     def classify_event(self, event: ServerSentEvent) -> GuardedStreamEvent:
         """Validate and classify one native provider event."""
@@ -152,7 +158,7 @@ class StreamClassifier:
                 raise UnsupportedProviderStream(f"{self.subject} event ambiguously matches {shapes}.")
             rule = matching_rules[0]
             text = _resolve_text(payload, rule.text_path)
-            projection = rule.model.model_validate(payload)
+            projection = rule.model.model_validate(payload, context=projection_validation_context(self.unknown_fields))
             if _resolve_text(projection, rule.text_path) != text:
                 raise UnsupportedProviderStream(f"{self.subject} validation changed the original guarded text.")
             if text is None and rule.missing_text_role is not None:

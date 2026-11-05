@@ -56,7 +56,7 @@ from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapp
 from nemoguardrails.server.experimental.provider.payload import GuardedMessageTarget, guarded_schema_error
 from nemoguardrails.server.experimental.provider.projection_policy import PolicyModel, policy_json_schema
 from nemoguardrails.server.experimental.provider.transport import ProviderBindingViolation
-from nemoguardrails.server.experimental.provider.types import GuardedMessage
+from nemoguardrails.server.experimental.provider.types import GuardedMessage, UnknownContentFieldPolicy
 
 PolicyStreamingHttpDispatch = Callable[
     [BufferedHttpRequest, bool],
@@ -90,6 +90,7 @@ def _require_json_representation(request: BufferedHttpRequest) -> None:
 def _prepare_guardable_request(
     request: BufferedHttpRequest,
     endpoint: GuardedJsonEndpoint,
+    unknown_fields: UnknownContentFieldPolicy,
 ) -> GuardableProviderRequest:
     """Validate the request and locate its exact guarded text target."""
     if endpoint.api_revision is not None:
@@ -105,7 +106,7 @@ def _prepare_guardable_request(
     except UnsupportedJsonShape as error:
         raise UnsupportedGuardedPayload(str(error), endpoint.unsupported_request_code) from error
     try:
-        projection = endpoint.guarded_request_model.validate_payload(payload)
+        projection = endpoint.guarded_request_model.validate_payload(payload, unknown_content_fields=unknown_fields)
         target = projection.locate_guarded_message(payload)
     except ValidationError as error:
         raise UnsupportedGuardedPayload(
@@ -129,18 +130,22 @@ def create_guarded_http_operation(
     *,
     stream_dispatch: StreamingHttpDispatch | None = None,
     policy_stream_dispatch: PolicyStreamingHttpDispatch | None = None,
+    unknown_fields: UnknownContentFieldPolicy | str = UnknownContentFieldPolicy.ALLOW,
     max_stream_event_bytes: int,
     max_pending_stream_bytes: int,
 ) -> GuardedHttpOperation:
     """Create one buffered-and-streaming operation from an endpoint contract."""
 
-    stream_binding = endpoint.stream
+    selected_unknown_fields = UnknownContentFieldPolicy(unknown_fields)
+    stream_binding = (
+        endpoint.stream.with_unknown_fields(selected_unknown_fields) if endpoint.stream is not None else None
+    )
     if (stream_dispatch is not None or policy_stream_dispatch is not None) and stream_binding is None:
         raise ValueError("A streaming dispatcher requires an endpoint stream binding.")
 
     def prepare_request(request: BufferedHttpRequest) -> GuardableProviderRequest:
         """Prepare one buffered HTTP request for guarded execution."""
-        return _prepare_guardable_request(request, endpoint)
+        return _prepare_guardable_request(request, endpoint, selected_unknown_fields)
 
     def project_request(payload: GuardableProviderRequest) -> GuardedMessage:
         """Select guarded input text from a prepared provider request."""
@@ -166,7 +171,9 @@ def create_guarded_http_operation(
             )
         try:
             document = parse_json_object(payload.body)
-            projection = endpoint.guarded_response_model.validate_payload(document)
+            projection = endpoint.guarded_response_model.validate_payload(
+                document, unknown_content_fields=selected_unknown_fields
+            )
             target = projection.locate_guarded_message(document)
             # Validation has already rejected generated content in other
             # reviewed fields, and opaque metadata is not inspected, so a
@@ -183,7 +190,7 @@ def create_guarded_http_operation(
 
     request_model = endpoint.guarded_request_model
     request_schema = (
-        policy_json_schema(request_model)
+        policy_json_schema(request_model, unknown_fields=selected_unknown_fields)
         if issubclass(request_model, PolicyModel)
         else request_model.model_json_schema()
     )

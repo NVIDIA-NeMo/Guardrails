@@ -134,23 +134,26 @@ async def test_native_responses_preserve_policy_and_wire(
         Draft202012Validator(document["response"]).validate(payload)
     assert text
 
-    for inspected in (True, False):
-        vcr.rewind()
-        checker = StaticChecker(
-            ContentInspectionPolicy(inspected, inspected, StreamBufferingPolicy(1, 0) if inspected else None)
-        )
-        dispatches = []
-        async with proxy(openai_api_key, checker, dispatches) as client:
-            response = await client.post("/v1/responses", json=request)
-        assert_consumed_once(vcr)
-        assert len(dispatches) == 1
-        assert json.loads(dispatches[0].body) == request
-        assert response.status_code == 200
-        assert response.content == upstream.content
-        assert response.headers["content-type"] == upstream.headers["content-type"]
-        assert checker.text_calls == (
-            [("input", INPUT)] + [("output", delta) for delta in (deltas if stream else [text])] if inspected else []
-        )
+    for unknown_fields in ("allow", "forbid"):
+        for inspected in (True, False):
+            vcr.rewind()
+            checker = StaticChecker(
+                ContentInspectionPolicy(inspected, inspected, StreamBufferingPolicy(1, 0) if inspected else None)
+            )
+            dispatches = []
+            async with proxy(openai_api_key, checker, dispatches, unknown_fields=unknown_fields) as client:
+                response = await client.post("/v1/responses", json=request)
+            assert_consumed_once(vcr)
+            assert len(dispatches) == 1
+            assert json.loads(dispatches[0].body) == request
+            assert response.status_code == 200
+            assert response.content == upstream.content
+            assert response.headers["content-type"] == upstream.headers["content-type"]
+            assert checker.text_calls == (
+                [("input", INPUT)] + [("output", delta) for delta in (deltas if stream else [text])]
+                if inspected
+                else []
+            )
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])
@@ -165,27 +168,29 @@ async def test_native_provider_error_is_preserved(openai_api_key, record_mode, r
 
     assert_consumed_once(vcr)
     assert cassette_request_jsons(recorded_cassette_path) == [request]
-    vcr.rewind()
-    checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
-    dispatches = []
-    async with proxy(openai_api_key, checker, dispatches) as client:
-        response = await client.post("/v1/responses", json=request)
-    assert_consumed_once(vcr)
-    assert len(dispatches) == 1
-    assert response.status_code == upstream.status_code
-    assert response.content == upstream.content
-    assert checker.text_calls == [("input", INPUT)]
+    for unknown_fields in ("allow", "forbid"):
+        vcr.rewind()
+        checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+        dispatches = []
+        async with proxy(openai_api_key, checker, dispatches, unknown_fields=unknown_fields) as client:
+            response = await client.post("/v1/responses", json=request)
+        assert_consumed_once(vcr)
+        assert len(dispatches) == 1
+        assert response.status_code == upstream.status_code
+        assert response.content == upstream.content
+        assert checker.text_calls == [("input", INPUT)]
 
 
+@pytest.mark.parametrize("unknown_fields", ["allow", "forbid"])
 @pytest.mark.vcr(BUFFERED_RECORDING, record_mode="none")
-async def test_recorded_buffered_output_is_withheld_on_block(openai_api_key, vcr):
+async def test_recorded_buffered_output_is_withheld_on_block(openai_api_key, vcr, unknown_fields):
     upstream = await capture(openai_api_key, responses_request(False))
     assert_consumed_once(vcr)
     text = assistant_text(upstream.json())
     vcr.rewind()
     checker = StaticChecker(ContentInspectionPolicy(True, True), output_decisions=[ContentBlocked("blocked by test")])
     dispatches = []
-    async with proxy(openai_api_key, checker, dispatches) as client:
+    async with proxy(openai_api_key, checker, dispatches, unknown_fields=unknown_fields) as client:
         response = await client.post("/v1/responses", json=responses_request(False))
     assert_consumed_once(vcr)
     assert len(dispatches) == 1
@@ -195,11 +200,12 @@ async def test_recorded_buffered_output_is_withheld_on_block(openai_api_key, vcr
     assert checker.text_calls == [("input", INPUT), ("output", text)]
 
 
+@pytest.mark.parametrize("unknown_fields", ["allow", "forbid"])
 @pytest.mark.vcr(STREAMING_RECORDING, record_mode="none")
 @pytest.mark.parametrize("allowed_windows", [0, 1], ids=["first-window", "later-window"])
 @pytest.mark.parametrize("chunk_size,context_size", [(1, 0), (2, 1)], ids=["single-delta", "overlapping-context"])
 async def test_recorded_stream_releases_only_approved_prefix(
-    openai_api_key, vcr, allowed_windows, chunk_size, context_size
+    openai_api_key, vcr, allowed_windows, chunk_size, context_size, unknown_fields
 ):
     upstream = await capture(openai_api_key, responses_request(True))
     assert_consumed_once(vcr)
@@ -218,7 +224,7 @@ async def test_recorded_stream_releases_only_approved_prefix(
     )
     vcr.rewind()
     dispatches = []
-    async with proxy(openai_api_key, checker, dispatches) as client:
+    async with proxy(openai_api_key, checker, dispatches, unknown_fields=unknown_fields) as client:
         response = await client.post("/v1/responses", json=responses_request(True))
     assert_consumed_once(vcr)
     assert len(dispatches) == 1

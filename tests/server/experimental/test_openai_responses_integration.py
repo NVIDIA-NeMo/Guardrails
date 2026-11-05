@@ -52,7 +52,7 @@ class ResponseBody(httpx.AsyncByteStream):
 
 
 @pytest.fixture
-def proxy(tmp_path, request):
+def proxy(tmp_path, request, *, unknown_fields):
     config = tmp_path / "rails"
     config.mkdir()
     (config / "config.yml").write_text("""models: []
@@ -133,6 +133,7 @@ rails:
         )
 
     provider = create_openai_integration(
+        unknown_fields=unknown_fields,
         instance_id="test",
         base_url="https://provider.test/v1",
         mount_path="/openai",

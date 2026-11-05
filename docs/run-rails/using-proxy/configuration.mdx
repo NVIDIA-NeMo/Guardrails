@@ -75,15 +75,47 @@ Use the following provider fields to select routing, bindings, and Rails checks:
 | `operations` | Nonempty ordered selection of `chat_completions`, `responses`, or both. |
 | `dialect` | Omit for native bindings; use `litellm` for the reviewed dialect. |
 | `rails_config_id` | A declared Rails ID. Required for each provider in YAML. |
+| `unknown_fields` | `allow` (default) preserves unreviewed provider payload members; `forbid` rejects them for strict inventory checking. |
 
-Unknown names and conflicting routes are rejected. There is no implicit addition
-of future operations and no automatic dialect detection. Declarative upstreams
-must be explicit; provider-specific environment defaults are not used.
+Unknown operation or dialect names and conflicting routes are rejected. There is
+no implicit addition of future operations and no automatic dialect detection.
+Declarative upstreams must be explicit; provider-specific environment defaults
+are not used.
 
 Operation selection installs guard bindings. It does not create an HTTP route
 allowlist: unselected operations can still pass through. Enforce an inbound route
 allowlist separately if your deployment needs one. Enabling a binding also does
 not activate checks disabled in the selected Rails configuration.
+
+## Handle Provider Additions
+
+The built-in HTTP integrations default to `unknown_fields: allow`. New members in
+requests, inspected buffered responses, and inspected SSE payloads, including
+nested response snapshots, pass through without a guard-contract update. The
+proxy preserves the original bytes and inspects only the declared content paths;
+unknown fields and opaque metadata are not inspected.
+
+Unreviewed request options may affect provider behavior. Forwarding an option
+does not establish inspection support for that behavior; the provider remains
+responsible for accepting its parameters.
+
+Set `unknown_fields: forbid` on a provider entry for strict checking against its
+reviewed inventory. Use it for conformance checks, recording review, or
+deployments that require rejection of unreviewed members. The setting applies
+to that instance's bound operations and cannot be selected by a client request.
+
+Guarded requests always use the selected policy, including when input checks are
+disabled. Responses and SSE payloads use it only when output inspection is
+enabled. Input-only and relay configurations retain raw response forwarding;
+`forbid` does not enable output checks or require generated text from an
+uninspected response. Intentionally free-form maps, such as application
+`metadata`, remain free-form under `forbid`.
+
+Both values enforce declared content constraints and reject case aliases of
+reviewed names. Allowing unknown members does not add tools, multimodal content,
+new SSE event families, or cache-only execution support. Those require matching
+inspection and execution capabilities. Custom bindings can also declare objects
+that remain closed under either setting.
 
 ## Share a Rails Catalog
 
@@ -139,7 +171,7 @@ The launcher commands perform the following validation and initialization:
 | Command | What It Establishes |
 | --- | --- |
 | `validate` | Data, directory availability, URL rules, and route composition. It does not read Rails contents, establish checker compatibility, or contact providers. |
-| `inspect` | JSON with effective routes, bound profiles, fixed Rails IDs, limits, and pass-through behavior. It does not report enabled checks or establish upstream compatibility. |
+| `inspect` | JSON with effective routes, bound profiles, fixed Rails IDs, each provider's `unknown_fields` setting, limits, and pass-through behavior. It does not report enabled checks or establish upstream compatibility. |
 | `schema` | JSON Schema for the manifest, derived from its model. Semantic checks still require `validate`. |
 | `serve` | Initializes resources and Rails, then serves the same assembled application. |
 

@@ -96,7 +96,7 @@ def chat_request(*, model=OPENAI_MODEL, stream=False):
 
 
 @asynccontextmanager
-async def recorded_proxy(api_key, checker, dispatched=None) -> AsyncIterator[httpx.AsyncClient]:
+async def recorded_proxy(api_key, checker, dispatched=None, *, unknown_fields) -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient() as upstream_client:
         dispatcher = ProviderTransport(
             UpstreamSettings(
@@ -123,6 +123,7 @@ async def recorded_proxy(api_key, checker, dispatched=None) -> AsyncIterator[htt
         app = FastAPI()
         app.include_router(
             create_openai_chat_router(
+                unknown_fields=unknown_fields,
                 endpoint=LITELLM_CHAT_COMPLETIONS_ENDPOINT,
                 checker=checker,
                 dispatch=buffered_dispatch,
@@ -173,14 +174,16 @@ def recorded_provider_response(cassette_path):
 
 
 async def assert_allowed_relay_is_transparent(
-    api_key, request, guarded_response, guarded_dispatches, cassette, *, stream
+    api_key, request, guarded_response, guarded_dispatches, cassette, *, stream, unknown_fields
 ):
     assert cassette.play_count == 1
     assert cassette.all_played
     cassette.rewind()
     uninspected_checker = StaticChecker(ContentInspectionPolicy(False, False))
     uninspected_dispatches = []
-    async with recorded_proxy(api_key, uninspected_checker, uninspected_dispatches) as client:
+    async with recorded_proxy(
+        api_key, uninspected_checker, uninspected_dispatches, unknown_fields=unknown_fields
+    ) as client:
         uninspected_response = await client.post("/v1/chat/completions", json=request)
 
     assert uninspected_checker.calls == []
@@ -247,42 +250,45 @@ def assert_recorded_request(record_mode, cassette_path, expected):
 
 
 async def test_buffered_chat_preserves_guarded_constrained_and_opaque_contract_fields(
-    nvidia_inference_key, record_mode, recorded_cassette_path, checker, vcr
+    nvidia_inference_key, record_mode, recorded_cassette_path, vcr
 ):
-    request = chat_request()
-    dispatched = []
-    async with recorded_proxy(nvidia_inference_key, checker, dispatched) as client:
-        response = await client.post("/v1/chat/completions", json=request)
+    for unknown_fields in ("forbid",) if record_mode != "none" else ("allow", "forbid"):
+        vcr.rewind()
+        checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+        request = chat_request()
+        dispatched = []
+        async with recorded_proxy(nvidia_inference_key, checker, dispatched, unknown_fields=unknown_fields) as client:
+            response = await client.post("/v1/chat/completions", json=request)
 
-    assert response.status_code == 200, response.text
-    payload = response.json()
-    assert len(payload["choices"]) == 1
-    assert payload["choices"][0]["message"]["role"] == "assistant"
-    assert payload["choices"][0]["message"]["content"]
-    assert checker.text_calls == [
-        ("input", USER_MESSAGE),
-        ("output", payload["choices"][0]["message"]["content"]),
-    ]
-    assert_recorded_request(record_mode, recorded_cassette_path, request)
-    if record_mode == "none":
-        await assert_allowed_relay_is_transparent(
-            nvidia_inference_key, request, response, dispatched, vcr, stream=False
-        )
-        provider_response = recorded_provider_response(recorded_cassette_path)
-        assert response.status_code == provider_response["status"]["code"]
-        assert normalize_provider_metadata(payload) == provider_response["body"]["parsed_body"]
-    assert normalize_provider_metadata(payload) == snapshot(
-        {
-            "id": "[RECORDED_RESPONSE_ID]",
-            "created": 0,
-            "model": "openai/openai/gpt-5-nano",
-            "object": "chat.completion",
-            "choices": [
-                {
-                    "finish_reason": "stop",
-                    "index": 0,
-                    "message": {
-                        "content": """\
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert len(payload["choices"]) == 1
+        assert payload["choices"][0]["message"]["role"] == "assistant"
+        assert payload["choices"][0]["message"]["content"]
+        assert checker.text_calls == [
+            ("input", USER_MESSAGE),
+            ("output", payload["choices"][0]["message"]["content"]),
+        ]
+        assert_recorded_request(record_mode, recorded_cassette_path, request)
+        if record_mode == "none":
+            await assert_allowed_relay_is_transparent(
+                nvidia_inference_key, request, response, dispatched, vcr, unknown_fields=unknown_fields, stream=False
+            )
+            provider_response = recorded_provider_response(recorded_cassette_path)
+            assert response.status_code == provider_response["status"]["code"]
+            assert normalize_provider_metadata(payload) == provider_response["body"]["parsed_body"]
+        assert normalize_provider_metadata(payload) == snapshot(
+            {
+                "id": "[RECORDED_RESPONSE_ID]",
+                "created": 0,
+                "model": "openai/openai/gpt-5-nano",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "message": {
+                            "content": """\
 Sure! Here are some short greeting options you can use, depending on the vibe:
 
 Casual
@@ -306,56 +312,61 @@ General short
 
 If you share who it’s for and the tone you want (casual, professional, etc.), I can tailor a version for you. Want it in another language too?\
 """,
-                        "role": "assistant",
-                        "provider_specific_fields": {"refusal": None},
-                        "annotations": [],
+                            "role": "assistant",
+                            "provider_specific_fields": {"refusal": None},
+                            "annotations": [],
+                        },
+                        "provider_specific_fields": {},
+                    }
+                ],
+                "usage": {
+                    "completion_tokens": 898,
+                    "prompt_tokens": 17,
+                    "total_tokens": 915,
+                    "completion_tokens_details": {
+                        "accepted_prediction_tokens": 0,
+                        "audio_tokens": 0,
+                        "reasoning_tokens": 768,
+                        "rejected_prediction_tokens": 0,
                     },
-                    "provider_specific_fields": {},
-                }
-            ],
-            "usage": {
-                "completion_tokens": 898,
-                "prompt_tokens": 17,
-                "total_tokens": 915,
-                "completion_tokens_details": {
-                    "accepted_prediction_tokens": 0,
-                    "audio_tokens": 0,
-                    "reasoning_tokens": 768,
-                    "rejected_prediction_tokens": 0,
+                    "prompt_tokens_details": {"audio_tokens": 0, "cached_tokens": 0},
                 },
-                "prompt_tokens_details": {"audio_tokens": 0, "cached_tokens": 0},
-            },
-            "service_tier": "default",
-        }
-    )
+                "service_tier": "default",
+            }
+        )
 
 
 async def test_streaming_chat_preserves_declared_events_and_opaque_metadata(
-    nvidia_inference_key, record_mode, recorded_cassette_path, checker, vcr
+    nvidia_inference_key, record_mode, recorded_cassette_path, vcr
 ):
-    request = chat_request(stream=True)
-    dispatched = []
-    async with recorded_proxy(nvidia_inference_key, checker, dispatched) as client:
-        response = await client.post("/v1/chat/completions", json=request)
+    for unknown_fields in ("forbid",) if record_mode != "none" else ("allow", "forbid"):
+        vcr.rewind()
+        checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+        request = chat_request(stream=True)
+        dispatched = []
+        async with recorded_proxy(nvidia_inference_key, checker, dispatched, unknown_fields=unknown_fields) as client:
+            response = await client.post("/v1/chat/completions", json=request)
 
-    assert response.status_code == 200
-    assert response.headers["content-type"].partition(";")[0] == "text/event-stream"
-    events = stream_events(response.content)
-    assert events[-1] == "[DONE]"
-    summary = summarize_stream(events)
-    content = summary["content"]
-    assert content
-    assert checker.text_calls[0] == ("input", USER_MESSAGE)
-    assert "".join(value for kind, value in checker.text_calls if kind == "output") == content
-    assert_recorded_request(record_mode, recorded_cassette_path, request)
-    if record_mode == "none":
-        await assert_allowed_relay_is_transparent(nvidia_inference_key, request, response, dispatched, vcr, stream=True)
-        provider_response = recorded_provider_response(recorded_cassette_path)
-        assert response.status_code == provider_response["status"]["code"]
-        assert normalize_provider_metadata(events) == provider_response["body"]["parsed_body"]
-    assert summary == snapshot(
-        {
-            "content": """\
+        assert response.status_code == 200
+        assert response.headers["content-type"].partition(";")[0] == "text/event-stream"
+        events = stream_events(response.content)
+        assert events[-1] == "[DONE]"
+        summary = summarize_stream(events)
+        content = summary["content"]
+        assert content
+        assert checker.text_calls[0] == ("input", USER_MESSAGE)
+        assert "".join(value for kind, value in checker.text_calls if kind == "output") == content
+        assert_recorded_request(record_mode, recorded_cassette_path, request)
+        if record_mode == "none":
+            await assert_allowed_relay_is_transparent(
+                nvidia_inference_key, request, response, dispatched, vcr, unknown_fields=unknown_fields, stream=True
+            )
+            provider_response = recorded_provider_response(recorded_cassette_path)
+            assert response.status_code == provider_response["status"]["code"]
+            assert normalize_provider_metadata(events) == provider_response["body"]["parsed_body"]
+        assert summary == snapshot(
+            {
+                "content": """\
 Here are a few short greeting options you can use. Pick the tone you want:
 
 - Casual: Hi there! / Hey!
@@ -365,103 +376,112 @@ Here are a few short greeting options you can use. Pick the tone you want:
 
 What context are you using it for (text, email, in person) and what tone should it have? I can tailor it.\
 """,
-            "model": "openai/openai/gpt-5-nano",
-            "finish_reason": "stop",
-            "usage": {
-                "completion_tokens": 739,
-                "prompt_tokens": 17,
-                "total_tokens": 756,
-                "completion_tokens_details": {
-                    "accepted_prediction_tokens": 0,
-                    "audio_tokens": 0,
-                    "reasoning_tokens": 640,
-                    "rejected_prediction_tokens": 0,
+                "model": "openai/openai/gpt-5-nano",
+                "finish_reason": "stop",
+                "usage": {
+                    "completion_tokens": 739,
+                    "prompt_tokens": 17,
+                    "total_tokens": 756,
+                    "completion_tokens_details": {
+                        "accepted_prediction_tokens": 0,
+                        "audio_tokens": 0,
+                        "reasoning_tokens": 640,
+                        "rejected_prediction_tokens": 0,
+                    },
+                    "prompt_tokens_details": {"audio_tokens": 0, "cached_tokens": 0},
+                    "cost": 0.00021759429999999998,
                 },
-                "prompt_tokens_details": {"audio_tokens": 0, "cached_tokens": 0},
-                "cost": 0.00021759429999999998,
-            },
-            "event_kinds": ["content", "done", "finish", "role", "usage"],
-        }
-    )
+                "event_kinds": ["content", "done", "finish", "role", "usage"],
+            }
+        )
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])
 async def test_real_provider_error_is_preserved_before_output_inspection(
-    nvidia_inference_key, record_mode, recorded_cassette_path, stream, checker, vcr
+    nvidia_inference_key, record_mode, recorded_cassette_path, stream, vcr
 ):
-    request = chat_request(model=INVALID_OPENAI_MODEL, stream=stream)
-    dispatched = []
-    async with recorded_proxy(nvidia_inference_key, checker, dispatched) as client:
-        response = await client.post("/v1/chat/completions", json=request)
+    for unknown_fields in ("forbid",) if record_mode != "none" else ("allow", "forbid"):
+        vcr.rewind()
+        checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+        request = chat_request(model=INVALID_OPENAI_MODEL, stream=stream)
+        dispatched = []
+        async with recorded_proxy(nvidia_inference_key, checker, dispatched, unknown_fields=unknown_fields) as client:
+            response = await client.post("/v1/chat/completions", json=request)
 
-    assert 400 <= response.status_code <= 499
-    assert checker.text_calls == [("input", USER_MESSAGE)]
-    assert_recorded_request(record_mode, recorded_cassette_path, request)
-    if record_mode == "none":
-        await assert_allowed_relay_is_transparent(
-            nvidia_inference_key, request, response, dispatched, vcr, stream=stream
+        assert 400 <= response.status_code <= 499
+        assert checker.text_calls == [("input", USER_MESSAGE)]
+        assert_recorded_request(record_mode, recorded_cassette_path, request)
+        if record_mode == "none":
+            await assert_allowed_relay_is_transparent(
+                nvidia_inference_key, request, response, dispatched, vcr, unknown_fields=unknown_fields, stream=stream
+            )
+            provider_response = recorded_provider_response(recorded_cassette_path)
+            assert response.status_code == provider_response["status"]["code"]
+            assert normalize_provider_metadata(response.json()) == provider_response["body"]["parsed_body"]
+        assert {
+            "status_code": response.status_code,
+            "content_type": response.headers["content-type"].partition(";")[0],
+            "body": normalize_provider_metadata(response.json()),
+        } == snapshot(
+            {
+                "status_code": 403,
+                "content_type": "application/json",
+                "body": {
+                    "error": {
+                        "message": "key not allowed to access model. This key can only access models=['default-models']. Tried to access openai/openai/recorded-invalid-model",
+                        "type": "key_model_access_denied",
+                        "param": "model",
+                        "code": "403",
+                    }
+                },
+            }
         )
-        provider_response = recorded_provider_response(recorded_cassette_path)
-        assert response.status_code == provider_response["status"]["code"]
-        assert normalize_provider_metadata(response.json()) == provider_response["body"]["parsed_body"]
-    assert {
-        "status_code": response.status_code,
-        "content_type": response.headers["content-type"].partition(";")[0],
-        "body": normalize_provider_metadata(response.json()),
-    } == snapshot(
-        {
-            "status_code": 403,
-            "content_type": "application/json",
-            "body": {
-                "error": {
-                    "message": "key not allowed to access model. This key can only access models=['default-models']. Tried to access openai/openai/recorded-invalid-model",
-                    "type": "key_model_access_denied",
-                    "param": "model",
-                    "code": "403",
-                }
-            },
-        }
-    )
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])
 async def test_nvidia_chat_source_profile_preserves_allowed_relay(
-    nvidia_inference_key, record_mode, recorded_cassette_path, stream, checker, vcr
+    nvidia_inference_key, record_mode, recorded_cassette_path, stream, vcr
 ):
-    request = chat_request(stream=stream)
-    request["messages"][0]["content"] = "Give a one-sentence greeting for a coworker."
-    dispatched = []
-    async with recorded_proxy(nvidia_inference_key, checker, dispatched) as client:
-        response = await client.post("/v1/chat/completions", json=request)
+    for unknown_fields in ("forbid",) if record_mode != "none" else ("allow", "forbid"):
+        vcr.rewind()
+        checker = StaticChecker(ContentInspectionPolicy(True, True, StreamBufferingPolicy(1, 0)))
+        request = chat_request(stream=stream)
+        request["messages"][0]["content"] = "Give a one-sentence greeting for a coworker."
+        dispatched = []
+        async with recorded_proxy(nvidia_inference_key, checker, dispatched, unknown_fields=unknown_fields) as client:
+            response = await client.post("/v1/chat/completions", json=request)
 
-    assert response.status_code == 200
-    assert checker.text_calls[0] == ("input", request["messages"][0]["content"])
-    assert_recorded_request(record_mode, recorded_cassette_path, request)
-    if stream:
-        events = stream_events(response.content)
-        assert events[-1] == "[DONE]"
-        content = summarize_stream(events)["content"]
-        assert content
-        assert "".join(value for kind, value in checker.text_calls if kind == "output") == content
-    else:
-        payload = response.json()
-        content = payload["choices"][0]["message"]["content"]
-        assert content
-        assert checker.text_calls == [("input", request["messages"][0]["content"]), ("output", content)]
+        assert response.status_code == 200
+        assert checker.text_calls[0] == ("input", request["messages"][0]["content"])
+        assert_recorded_request(record_mode, recorded_cassette_path, request)
+        if stream:
+            events = stream_events(response.content)
+            assert events[-1] == "[DONE]"
+            content = summarize_stream(events)["content"]
+            assert content
+            assert "".join(value for kind, value in checker.text_calls if kind == "output") == content
+        else:
+            payload = response.json()
+            content = payload["choices"][0]["message"]["content"]
+            assert content
+            assert checker.text_calls == [("input", request["messages"][0]["content"]), ("output", content)]
 
-    if record_mode == "none":
-        await assert_allowed_relay_is_transparent(
-            nvidia_inference_key, request, response, dispatched, vcr, stream=stream
-        )
+        if record_mode == "none":
+            await assert_allowed_relay_is_transparent(
+                nvidia_inference_key, request, response, dispatched, vcr, unknown_fields=unknown_fields, stream=stream
+            )
 
 
+@pytest.mark.parametrize("unknown_fields", ["allow", "forbid"])
 @pytest.mark.vcr(BUFFERED_RECORDING, record_mode="none")
-async def test_recorded_buffered_output_is_withheld_on_block(nvidia_inference_key, vcr_cassette_dir, checker):
+async def test_recorded_buffered_output_is_withheld_on_block(
+    nvidia_inference_key, vcr_cassette_dir, checker, unknown_fields
+):
     checker.output_decisions = [ContentBlocked("blocked by test")]
     provider_body = recorded_provider_response(Path(vcr_cassette_dir) / BUFFERED_RECORDING)["body"]["parsed_body"]
     content = provider_body["choices"][0]["message"]["content"]
     dispatched = []
-    async with recorded_proxy(nvidia_inference_key, checker, dispatched) as client:
+    async with recorded_proxy(nvidia_inference_key, checker, dispatched, unknown_fields=unknown_fields) as client:
         response = await client.post("/v1/chat/completions", json=chat_request())
 
     assert len(dispatched) == 1
@@ -471,11 +491,12 @@ async def test_recorded_buffered_output_is_withheld_on_block(nvidia_inference_ke
     assert content not in response.text
 
 
+@pytest.mark.parametrize("unknown_fields", ["allow", "forbid"])
 @pytest.mark.vcr(STREAMING_RECORDING, record_mode="none")
 @pytest.mark.parametrize("allowed_windows", [0, 1], ids=["first-window", "later-window"])
 @pytest.mark.parametrize("chunk_size,context_size", [(1, 0), (2, 1)], ids=["single-delta", "overlapping-context"])
 async def test_recorded_stream_releases_only_approved_prefix(
-    nvidia_inference_key, vcr_cassette_dir, checker, allowed_windows, chunk_size, context_size
+    nvidia_inference_key, vcr_cassette_dir, checker, allowed_windows, chunk_size, context_size, unknown_fields
 ):
     checker.policy = ContentInspectionPolicy(True, True, StreamBufferingPolicy(chunk_size, context_size))
     checker.output_decisions = [ContentAllowed()] * allowed_windows + [ContentBlocked("blocked by test")]
@@ -489,7 +510,7 @@ async def test_recorded_stream_releases_only_approved_prefix(
     approved_deltas = allowed_windows * chunk_size
     released_end = text_events[approved_deltas - 1][0] + 1 if approved_deltas else 0
     dispatched = []
-    async with recorded_proxy(nvidia_inference_key, checker, dispatched) as client:
+    async with recorded_proxy(nvidia_inference_key, checker, dispatched, unknown_fields=unknown_fields) as client:
         response = await client.post("/v1/chat/completions", json=chat_request(stream=True))
 
     assert len(dispatched) == 1

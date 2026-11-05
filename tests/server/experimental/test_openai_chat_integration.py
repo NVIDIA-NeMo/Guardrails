@@ -15,14 +15,13 @@
 
 import json
 from dataclasses import replace
+from functools import partial
 
 import httpx
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
-from jsonschema import Draft202012Validator
-from pydantic import ValidationError
 
 from nemoguardrails.server.experimental._buffered_kernel import InspectionStage, OperationProjectionFailed
 from nemoguardrails.server.experimental._content_checker import (
@@ -41,7 +40,6 @@ from nemoguardrails.server.experimental._http_kernel import (
     create_http_proxy_router,
 )
 from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapping, ProviderErrorResponse
-from nemoguardrails.server.experimental.provider.projection_policy import EXTENSION
 from nemoguardrails.server.experimental.provider.transport import (
     ExactApiRevision,
     ProviderApiRevisionBinding,
@@ -92,14 +90,21 @@ def _response_body():
     return b'{ "id" : "chatcmpl-example", "choices" : [ { "index" : 0, "message" : { "role" : "assistant", "content" : "answer" } } ], "usage" : { "total_tokens" : 2 } }'
 
 
-def _guarded_operation(endpoint, errors):
+def _guarded_operation(endpoint, errors, **options):
     """Build the guarded operation with default stream limits."""
-    return create_guarded_http_operation(endpoint, errors, max_stream_event_bytes=1024, max_pending_stream_bytes=1024)
+    return create_guarded_http_operation(
+        endpoint, errors, max_stream_event_bytes=1024, max_pending_stream_bytes=1024, **options
+    )
 
 
 def _json_headers(*headers):
     """Return JSON content headers with optional provider metadata."""
     return ((b"content-type", b"application/json"), *headers)
+
+
+@pytest.fixture
+def chat_router_factory(unknown_fields):
+    return partial(create_openai_chat_router, unknown_fields=unknown_fields)
 
 
 def test_openai_chat_router_constructs_its_buffered_operation():
@@ -113,7 +118,7 @@ def test_openai_chat_router_constructs_its_buffered_operation():
     assert any(isinstance(route, APIRoute) and route.path == "/v1/chat/completions" for route in router.routes)
 
 
-def test_buffered_request_preparation_preserves_the_complete_provider_request():
+def test_buffered_request_preparation_preserves_the_complete_provider_request(*, unknown_fields):
     """Projection selects text without normalizing provider bytes or metadata."""
     request = BufferedHttpRequest(
         method="POST",
@@ -123,7 +128,7 @@ def test_buffered_request_preparation_preserves_the_complete_provider_request():
         headers=_json_headers((b"x-provider-opaque", b"first"), (b"x-provider-opaque", b"second")),
         body=_request_body(),
     )
-    operation = _guarded_operation(CHAT_COMPLETIONS_ENDPOINT, OPENAI_ERROR_MAPPING)
+    operation = _guarded_operation(CHAT_COMPLETIONS_ENDPOINT, OPENAI_ERROR_MAPPING, unknown_fields=unknown_fields)
 
     prepared = operation.prepare_request(request)
 
@@ -132,7 +137,7 @@ def test_buffered_request_preparation_preserves_the_complete_provider_request():
 
 
 @pytest_asyncio.fixture
-async def proxy_harness():
+async def proxy_harness(*, chat_router_factory):
     """Provide a proxy client, checker, and dispatched-request log."""
     checker = StaticChecker()
     dispatched = []
@@ -153,7 +158,7 @@ async def proxy_harness():
         )
 
     app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
+    app.include_router(chat_router_factory(checker=checker, dispatch=dispatch))
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test")
     try:
         yield client, checker, dispatched
@@ -225,7 +230,9 @@ async def test_future_chat_api_version_cannot_bypass_guarded_projection(proxy_ha
         (ContentCheckFailed("internal checker detail"), "proxy_error", "guardrails_input_check_failed"),
     ],
 )
-async def test_input_guard_outcome_is_openai_shaped_and_prevents_dispatch(decision, expected_type, expected_code):
+async def test_input_guard_outcome_is_openai_shaped_and_prevents_dispatch(
+    decision, expected_type, expected_code, *, chat_router_factory
+):
     """Stopped input produces an OpenAI error without provider dispatch."""
     checker = StaticChecker(input_decision=decision)
     dispatched = []
@@ -236,7 +243,7 @@ async def test_input_guard_outcome_is_openai_shaped_and_prevents_dispatch(decisi
         raise AssertionError("a stopped input must not be dispatched")
 
     app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
+    app.include_router(chat_router_factory(checker=checker, dispatch=dispatch))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
         response = await client.post(
             "/v1/chat/completions",
@@ -253,7 +260,7 @@ async def test_input_guard_outcome_is_openai_shaped_and_prevents_dispatch(decisi
 
 
 @pytest.mark.asyncio
-async def test_output_block_hides_provider_response_in_openai_error():
+async def test_output_block_hides_provider_response_in_openai_error(*, chat_router_factory):
     """Blocked output hides the provider body and headers behind an OpenAI error."""
     checker = StaticChecker(output_decision=ContentBlocked("Response blocked."))
     provider_body = _response_body()
@@ -263,7 +270,7 @@ async def test_output_block_hides_provider_response_in_openai_error():
         return BufferedHttpResponse(200, _json_headers((b"x-provider-secret", b"hidden")), provider_body)
 
     app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
+    app.include_router(chat_router_factory(checker=checker, dispatch=dispatch))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
         response = await client.post(
             "/v1/chat/completions",
@@ -294,7 +301,7 @@ async def test_guarded_request_asks_the_provider_for_identity_encoding(proxy_har
 
 
 @pytest.mark.asyncio
-async def test_encoded_successful_response_is_not_inspected_or_relayed():
+async def test_encoded_successful_response_is_not_inspected_or_relayed(*, chat_router_factory):
     """A provider that encodes anyway is rejected rather than relayed unchecked."""
     checker = StaticChecker()
 
@@ -303,7 +310,7 @@ async def test_encoded_successful_response_is_not_inspected_or_relayed():
         return BufferedHttpResponse(200, _json_headers((b"content-encoding", b"gzip")), b"\x1f\x8b")
 
     app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
+    app.include_router(chat_router_factory(checker=checker, dispatch=dispatch))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
         response = await client.post(
             "/v1/chat/completions", content=_request_body(), headers={"content-type": "application/json"}
@@ -314,25 +321,29 @@ async def test_encoded_successful_response_is_not_inspected_or_relayed():
     assert [stage for stage, _check in checker.calls] == ["input"]
 
 
-async def _relay_through_proxy(message, finish_reason="stop"):
-    """Send one provider response message through the proxy and record its checks."""
-    checker = StaticChecker(output_decision=ContentBlocked("Response blocked."))
-    choice = {"index": 0, "finish_reason": finish_reason}
-    if message is not None:
-        choice["message"] = message
-    provider_body = json.dumps({"id": "chatcmpl-example", "choices": [choice]}, separators=(",", ":")).encode()
+@pytest.fixture
+def relay_response(chat_router_factory):
+    async def send(message, finish_reason="stop"):
+        """Send one provider response message through the proxy and record its checks."""
+        checker = StaticChecker(output_decision=ContentBlocked("Response blocked."))
+        choice = {"index": 0, "finish_reason": finish_reason}
+        if message is not None:
+            choice["message"] = message
+        provider_body = json.dumps({"id": "chatcmpl-example", "choices": [choice]}, separators=(",", ":")).encode()
 
-    async def dispatch(_request):
-        """Return the provider response under test."""
-        return BufferedHttpResponse(200, _json_headers(), provider_body)
+        async def dispatch(_request):
+            """Return the provider response under test."""
+            return BufferedHttpResponse(200, _json_headers(), provider_body)
 
-    app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
-        response = await client.post(
-            "/v1/chat/completions", content=_request_body(), headers={"content-type": "application/json"}
-        )
-    return response, provider_body, [stage for stage, _check in checker.calls]
+        app = FastAPI()
+        app.include_router(chat_router_factory(checker=checker, dispatch=dispatch))
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
+            response = await client.post(
+                "/v1/chat/completions", content=_request_body(), headers={"content-type": "application/json"}
+            )
+        return response, provider_body, [stage for stage, _check in checker.calls]
+
+    return send
 
 
 @pytest.mark.asyncio
@@ -340,11 +351,9 @@ async def _relay_through_proxy(message, finish_reason="stop"):
     ("content", "finish_reason"),
     [("", "length"), (None, "content_filter"), (None, "stop")],
 )
-async def test_response_without_text_is_relayed_without_output_check(content, finish_reason):
+async def test_response_without_text_is_relayed_without_output_check(content, finish_reason, *, relay_response):
     """A validated response with no text skips output rails and is relayed unchanged."""
-    response, provider_body, stages = await _relay_through_proxy(
-        {"role": "assistant", "content": content}, finish_reason
-    )
+    response, provider_body, stages = await relay_response({"role": "assistant", "content": content}, finish_reason)
 
     assert response.status_code == 200
     assert response.content == provider_body
@@ -352,9 +361,9 @@ async def test_response_without_text_is_relayed_without_output_check(content, fi
 
 
 @pytest.mark.asyncio
-async def test_response_with_text_is_still_output_checked():
+async def test_response_with_text_is_still_output_checked(*, relay_response):
     """Ordinary assistant text still goes through output rails."""
-    response, provider_body, stages = await _relay_through_proxy({"role": "assistant", "content": "answer"})
+    response, provider_body, stages = await relay_response({"role": "assistant", "content": "answer"})
 
     assert response.status_code == 400
     assert provider_body not in response.content
@@ -373,9 +382,9 @@ async def test_response_with_text_is_still_output_checked():
         {"role": "assistant", "content": None, "annotations": [{"type": "url_citation"}]},
     ],
 )
-async def test_response_without_text_cannot_skip_shape_validation(message):
+async def test_response_without_text_cannot_skip_shape_validation(message, *, relay_response):
     """Missing text never excuses content in another field or a missing message."""
-    response, provider_body, stages = await _relay_through_proxy(message)
+    response, provider_body, stages = await relay_response(message)
 
     assert response.status_code == 502
     assert response.json()["error"]["code"] == "unsupported_chat_completions_response_shape"
@@ -384,7 +393,7 @@ async def test_response_without_text_cannot_skip_shape_validation(message):
 
 
 @pytest.mark.asyncio
-async def test_unsupported_request_is_openai_shaped_and_not_dispatched():
+async def test_unsupported_request_is_openai_shaped_and_not_dispatched(*, chat_router_factory):
     """Unsupported Chat shapes produce an OpenAI error before dispatch."""
     dispatched = []
 
@@ -394,7 +403,7 @@ async def test_unsupported_request_is_openai_shaped_and_not_dispatched():
         raise AssertionError("an unsupported request must not be dispatched")
 
     app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=StaticChecker(), dispatch=dispatch))
+    app.include_router(chat_router_factory(checker=StaticChecker(), dispatch=dispatch))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
         response = await client.post(
             "/v1/chat/completions",
@@ -408,7 +417,7 @@ async def test_unsupported_request_is_openai_shaped_and_not_dispatched():
 
 
 @pytest.mark.asyncio
-async def test_unsupported_success_response_is_hidden_in_openai_error():
+async def test_unsupported_success_response_is_hidden_in_openai_error(*, chat_router_factory):
     """Unsupported successful responses are hidden behind an OpenAI error."""
     provider_body = b'{"choices":[{"message":{"role":"assistant","content":"answer","tool_calls":[{"id":"call"}]}}]}'
 
@@ -417,7 +426,7 @@ async def test_unsupported_success_response_is_hidden_in_openai_error():
         return BufferedHttpResponse(200, _json_headers((b"x-provider-secret", b"hidden")), provider_body)
 
     app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=StaticChecker(), dispatch=dispatch))
+    app.include_router(chat_router_factory(checker=StaticChecker(), dispatch=dispatch))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
         response = await client.post(
             "/v1/chat/completions",
@@ -432,7 +441,7 @@ async def test_unsupported_success_response_is_hidden_in_openai_error():
 
 
 @pytest.mark.asyncio
-async def test_provider_error_response_is_preserved_without_output_check():
+async def test_provider_error_response_is_preserved_without_output_check(*, chat_router_factory):
     """Provider error responses pass through without output inspection."""
     checker = StaticChecker()
     provider_body = b'{ "error" : { "message" : "rate limited", "type" : "provider_error" } }'
@@ -446,7 +455,7 @@ async def test_provider_error_response_is_preserved_without_output_check():
         )
 
     app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
+    app.include_router(chat_router_factory(checker=checker, dispatch=dispatch))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
         response = await client.post(
             "/v1/chat/completions",
@@ -468,7 +477,9 @@ async def test_provider_error_response_is_preserved_without_output_check():
         (StaticChecker(output_decision=ContentAllowed("replacement")), 502, "response_content_not_replaceable", 1),
     ],
 )
-async def test_replacement_remains_explicitly_unsupported(checker, status_code, code, dispatches):
+async def test_replacement_remains_explicitly_unsupported(
+    checker, status_code, code, dispatches, *, chat_router_factory
+):
     """Replacement outcomes stay unsupported until buffered replacement lands."""
     dispatched = []
 
@@ -478,7 +489,7 @@ async def test_replacement_remains_explicitly_unsupported(checker, status_code, 
         return BufferedHttpResponse(200, _json_headers(), _response_body())
 
     app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
+    app.include_router(chat_router_factory(checker=checker, dispatch=dispatch))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
         response = await client.post(
             "/v1/chat/completions",
@@ -644,46 +655,6 @@ async def test_endpoint_error_codes_control_guarded_http_failures(stage, body, h
     assert [call[0] for call in checker.calls] == (["input"] if stage == "response" else [])
 
 
-@pytest.mark.parametrize(
-    ("location", "member", "accepted"),
-    [
-        ("root", "model", True),
-        ("root", "metadata", True),
-        ("root", "future_field", False),
-        ("root", "Model", False),
-        ("message", "future_field", False),
-        ("message", "Content", False),
-    ],
-)
-def test_openai_request_openapi_matches_default_object_policy(location, member, accepted):
-    """Published request schemas retain opaque members and close unreviewed ones."""
-    app = FastAPI()
-
-    async def dispatch(_request):
-        raise AssertionError("OpenAPI generation must not dispatch")
-
-    app.include_router(create_openai_chat_router(checker=StaticChecker(), dispatch=dispatch))
-    document = app.openapi()
-    schema = document["paths"]["/v1/chat/completions"]["post"]["requestBody"]["content"]["application/json"]["schema"]
-    message_schema = schema["properties"]["messages"]["items"]
-    assert schema["additionalProperties"] is False
-    assert schema[EXTENSION]["unknown_fields"] == "forbid"
-    assert message_schema["additionalProperties"] is False
-    assert message_schema[EXTENSION]["unknown_fields"] == "configurable"
-    assert message_schema[EXTENSION]["reject_case_aliases"] is True
-    assert schema["properties"]["model"][EXTENSION]["classification"] == "opaque"
-
-    payload = json.loads(_request_body())
-    target = payload if location == "root" else payload["messages"][0]
-    target[member] = {"arbitrary": [1, "opaque"]} if member == "metadata" else "value"
-    assert Draft202012Validator(document).evolve(schema=schema).is_valid(payload) is accepted
-    if accepted:
-        CHAT_COMPLETIONS_ENDPOINT.guarded_request_model.validate_payload(payload)
-    else:
-        with pytest.raises(ValidationError):
-            CHAT_COMPLETIONS_ENDPOINT.guarded_request_model.validate_payload(payload)
-
-
 def test_openai_error_mapping_is_the_openapi_response_authority():
     """The runtime error mapping also supplies the OpenAPI response models."""
     app = FastAPI()
@@ -752,7 +723,9 @@ async def test_route_rejections_use_native_errors_before_checking_or_dispatch(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("status_code", "body"), [(200, b"{}"), (204, b"")])
-async def test_success_without_guarded_chat_content_fails_provider_projection(status_code, body):
+async def test_success_without_guarded_chat_content_fails_provider_projection(
+    status_code, body, *, chat_router_factory
+):
     """Keep successful-response applicability fail-closed in the Chat binding."""
 
     checker = StaticChecker()
@@ -761,7 +734,7 @@ async def test_success_without_guarded_chat_content_fails_provider_projection(st
         return BufferedHttpResponse(status_code, _json_headers((b"x-provider-secret", b"hidden")), body)
 
     app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=checker, dispatch=dispatch))
+    app.include_router(chat_router_factory(checker=checker, dispatch=dispatch))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:
         response = await client.post(
             "/v1/chat/completions", content=_request_body(), headers={"content-type": "application/json"}

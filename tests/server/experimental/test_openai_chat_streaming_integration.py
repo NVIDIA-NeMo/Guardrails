@@ -66,25 +66,30 @@ class Source:
         self.closed = True
 
 
-def make_client(checker, stream_dispatch=None, buffered_dispatch=None, max_response_body_bytes=10 * 1024 * 1024):
-    async def reject_buffered(_request):
-        raise AssertionError("a selected streaming request must not use buffered dispatch")
+@pytest.fixture
+def make_client(unknown_fields):
+    def build(checker, stream_dispatch=None, buffered_dispatch=None, max_response_body_bytes=10 * 1024 * 1024):
+        async def reject_buffered(_request):
+            raise AssertionError("a selected streaming request must not use buffered dispatch")
 
-    app = FastAPI()
-    app.include_router(
-        create_openai_chat_router(
-            checker=checker,
-            dispatch=buffered_dispatch or reject_buffered,
-            stream_dispatch=stream_dispatch,
-            max_response_body_bytes=max_response_body_bytes,
+        app = FastAPI()
+        app.include_router(
+            create_openai_chat_router(
+                unknown_fields=unknown_fields,
+                checker=checker,
+                dispatch=buffered_dispatch or reject_buffered,
+                stream_dispatch=stream_dispatch,
+                max_response_body_bytes=max_response_body_bytes,
+            )
         )
-    )
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test")
+        return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test")
+
+    return build
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["missing_dispatch", "event", "media_type", "encoding"])
-async def test_stream_errors_honor_endpoint_codes(failure, monkeypatch):
+async def test_stream_errors_honor_endpoint_codes(failure, monkeypatch, *, make_client):
     """Endpoint codes survive failures before and after streaming headers."""
     from nemoguardrails.server.experimental.providers.openai import integration
 
@@ -119,7 +124,7 @@ async def post_stream(client, body=None, **kwargs):
 
 
 @pytest.mark.asyncio
-async def test_transforming_projection_never_checks_different_text_then_relays_original(monkeypatch):
+async def test_transforming_projection_never_checks_different_text_then_relays_original(monkeypatch, *, make_client):
     from nemoguardrails.server.experimental.providers.openai import integration
 
     class TransformingPayload(ChatCompletionsStreamPayloadProjection):
@@ -149,7 +154,7 @@ async def test_transforming_projection_never_checks_different_text_then_relays_o
 
 
 @pytest.mark.asyncio
-async def test_streaming_chat_uses_one_prepared_request_and_preserves_provider_sse_bytes():
+async def test_streaming_chat_uses_one_prepared_request_and_preserves_provider_sse_bytes(*, make_client):
     events = [
         stream_event(),
         stream_event("safe "),
@@ -205,7 +210,7 @@ async def test_streaming_chat_uses_one_prepared_request_and_preserves_provider_s
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("selector", [False, None, "omitted"])
-async def test_non_streaming_request_uses_the_same_operation_and_buffered_dispatch(selector):
+async def test_non_streaming_request_uses_the_same_operation_and_buffered_dispatch(selector, *, make_client):
     buffered = []
     streamed = []
 
@@ -238,7 +243,7 @@ async def test_non_streaming_request_uses_the_same_operation_and_buffered_dispat
 
 
 @pytest.mark.asyncio
-async def test_streaming_input_block_and_unsupported_policy_stop_before_dispatch():
+async def test_streaming_input_block_and_unsupported_policy_stop_before_dispatch(*, make_client):
     dispatched = []
 
     async def stream_dispatch(request):
@@ -265,7 +270,7 @@ async def test_streaming_input_block_and_unsupported_policy_stop_before_dispatch
 
 
 @pytest.mark.asyncio
-async def test_missing_stream_dispatch_does_not_fall_through_to_buffered_dispatch():
+async def test_missing_stream_dispatch_does_not_fall_through_to_buffered_dispatch(*, make_client):
     buffered = []
 
     async def buffered_dispatch(request):
@@ -282,7 +287,7 @@ async def test_missing_stream_dispatch_does_not_fall_through_to_buffered_dispatc
 
 
 @pytest.mark.asyncio
-async def test_unsupported_stream_request_stops_before_stream_dispatch():
+async def test_unsupported_stream_request_stops_before_stream_dispatch(*, make_client):
     dispatched = []
 
     async def stream_dispatch(request):
@@ -299,7 +304,7 @@ async def test_unsupported_stream_request_stops_before_stream_dispatch():
 
 
 @pytest.mark.asyncio
-async def test_streaming_output_block_hides_the_pending_provider_window():
+async def test_streaming_output_block_hides_the_pending_provider_window(*, make_client):
     unsafe = stream_event("INTERNAL-") + stream_event("SECRET")
 
     async def stream_dispatch(_request):
@@ -324,7 +329,7 @@ async def test_streaming_output_block_hides_the_pending_provider_window():
 
 
 @pytest.mark.asyncio
-async def test_provider_error_event_is_preserved_without_output_check():
+async def test_provider_error_event_is_preserved_without_output_check(*, make_client):
     stream = b'data: {"error":{"message":"upstream failed","type":"server_error"}}\n\ndata: [DONE]\n\n'
 
     async def stream_dispatch(_request):
@@ -339,7 +344,7 @@ async def test_provider_error_event_is_preserved_without_output_check():
 
 
 @pytest.mark.asyncio
-async def test_streaming_provider_drift_is_hidden_in_native_error_events():
+async def test_streaming_provider_drift_is_hidden_in_native_error_events(*, make_client):
     hidden = b"unguarded reasoning"
     event = stream_event(reasoning_content=hidden.decode())
 
@@ -357,7 +362,7 @@ async def test_streaming_provider_drift_is_hidden_in_native_error_events():
 
 
 @pytest.mark.asyncio
-async def test_streaming_provider_http_error_is_preserved_and_bounded():
+async def test_streaming_provider_http_error_is_preserved_and_bounded(*, make_client):
     provider_body = b'{"error":{"message":"rate limited","type":"provider_error"}}'
 
     async def stream_dispatch(_request):
@@ -385,7 +390,7 @@ async def test_streaming_provider_http_error_is_preserved_and_bounded():
 
 
 @pytest.mark.asyncio
-async def test_successful_non_sse_response_fails_before_headers_and_closes_source():
+async def test_successful_non_sse_response_fails_before_headers_and_closes_source(*, make_client):
     source = Source([b'{"hidden":"secret-provider-payload"}'])
 
     async def stream_dispatch(_request):
@@ -402,7 +407,7 @@ async def test_successful_non_sse_response_fails_before_headers_and_closes_sourc
 
 
 @pytest.mark.asyncio
-async def test_stream_without_output_inspection_is_relayed_without_event_parsing():
+async def test_stream_without_output_inspection_is_relayed_without_event_parsing(*, make_client):
     stream = b"opaque provider bytes"
     source = Source([stream[:7], stream[7:]])
 
@@ -419,7 +424,7 @@ async def test_stream_without_output_inspection_is_relayed_without_event_parsing
 
 
 @pytest.mark.asyncio
-async def test_upstream_iterator_failure_is_encoded_after_streaming_starts():
+async def test_upstream_iterator_failure_is_encoded_after_streaming_starts(*, make_client):
     source = Source([], RuntimeError("upstream disconnected"))
 
     async def stream_dispatch(_request):
@@ -510,7 +515,7 @@ async def test_stream_requests_retain_native_route_rejections_before_dispatch(pr
 @pytest.mark.parametrize(
     "headers", [{"content-length": "999"}, {"content-length": "3", "transfer-encoding": "chunked"}]
 )
-async def test_stream_requests_use_shared_request_framing_validation(headers):
+async def test_stream_requests_use_shared_request_framing_validation(headers, *, make_client):
     async def dispatch(_request):
         pytest.fail("invalid request framing must stop before dispatch")
 
@@ -525,7 +530,7 @@ async def test_stream_requests_use_shared_request_framing_validation(headers):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("status", [204, 205])
-async def test_bodyless_stream_success_fails_natively_before_headers(status):
+async def test_bodyless_stream_success_fails_natively_before_headers(status, *, make_client):
     source = Source([b"hidden provider content"])
 
     async def dispatch(_request):

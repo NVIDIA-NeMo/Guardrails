@@ -73,8 +73,8 @@ class ChatCompletionsChoiceProjection(PolicyModel, GuardedContentModel):
 class ChatCompletionsGuardedResponseProjection(PolicyModel, GuardedPayloadModel):
     """Require one guarded choice and retain reviewed provider-owned response fields.
 
-    The response is closed to OpenAI's fields: a member outside them could
-    carry generated text that output rails never inspect.
+    Unknown fields follow the selected policy. Their values are outside the
+    declared guarded output subject when unknown fields are allowed.
     """
 
     policy: ClassVar[ObjectPolicy] = ObjectPolicy(

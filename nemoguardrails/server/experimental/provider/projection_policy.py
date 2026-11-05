@@ -90,10 +90,11 @@ class ObjectPolicy:
             This is provenance metadata, not a schema lookup or validation step.
         opaque: Reviewed passthrough fields not declared as Pydantic fields.
             Names must be unique and must not overlap declared fields.
-        unknown_fields: How unreviewed members are handled. "forbid" always
-            rejects them. "configurable" rejects them unless validation
-            explicitly allows unknown content fields, which is reserved for
-            trusted configuration. Members listed in opaque are reviewed.
+        unknown_fields: How unreviewed members are handled. The default,
+            "configurable", follows the selected validation policy; direct
+            model validation rejects unknown members unless explicitly allowed.
+            "forbid" always rejects them, including under trusted overrides.
+            Members listed in opaque are reviewed.
         variant: Optional discriminator and selection cardinality when this
             model is a branch of a guarded heterogeneous array.
 
@@ -103,7 +104,7 @@ class ObjectPolicy:
 
     source: str | None = None
     opaque: tuple[str, ...] = ()
-    unknown_fields: Literal["forbid", "configurable"] = "forbid"
+    unknown_fields: Literal["forbid", "configurable"] = "configurable"
     variant: ArrayVariant | None = None
 
     def __post_init__(self) -> None:
@@ -453,14 +454,20 @@ def payload_contract(
     )
 
 
-def policy_json_schema(model: type[PolicyModel]) -> dict[str, Any]:
-    """Describe default object validation without the contract's union restrictions.
+def policy_json_schema(
+    model: type[PolicyModel],
+    *,
+    unknown_fields: UnknownContentFieldPolicy = UnknownContentFieldPolicy.FORBID,
+) -> dict[str, Any]:
+    """Describe selected object validation without the contract's union restrictions.
 
-    Add reviewed opaque properties, default closure, and explicit object policy
-    to the root and nested model definitions. Inline references so the schema can
-    be embedded in an OpenAPI document without dangling definition paths; retain
-    union semantics. Recursive models cannot be inlined and are rejected.
-    The result is fresh; arbitrary Python validators are not serialized.
+    Direct callers get the strict reviewed inventory by default. Allowing unknown
+    fields opens configurable objects in the root and nested model definitions;
+    explicit forbid policies stay closed. Inline references so the schema can be
+    embedded in an OpenAPI document without dangling definition paths; retain
+    union semantics, opaque properties, and case-alias annotations. Recursive
+    models cannot be inlined and are rejected. The result is fresh; arbitrary
+    Python validators are not serialized.
     """
     model_graph(model)
     document = model.model_json_schema()
@@ -483,11 +490,14 @@ def policy_json_schema(model: type[PolicyModel]) -> dict[str, Any]:
                 if keyword in metadata:
                     metadata[keyword] = metadata.pop(keyword)
             result[EXTENSION] = metadata
+            if metadata.get("unknown_fields") == "configurable":
+                result["additionalProperties"] = unknown_fields == UnknownContentFieldPolicy.ALLOW
             result["properties"] = {name: inline(child, active) for name, child in result["properties"].items()}
         if "items" in result:
             result["items"] = inline(result["items"], active)
-        if isinstance(result.get("additionalProperties"), dict):
-            result["additionalProperties"] = inline(result["additionalProperties"], active)
+        additional_properties = result.get("additionalProperties")
+        if isinstance(additional_properties, dict):
+            result["additionalProperties"] = inline(additional_properties, active)
         for keyword in ("anyOf", "oneOf", "allOf", "prefixItems"):
             if keyword in result:
                 result[keyword] = [inline(child, active) for child in result[keyword]]

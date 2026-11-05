@@ -15,8 +15,9 @@
 
 """Bind LiteLLM Chat extensions to the single-text OpenAI pipeline.
 
-Reviewed finish metadata is opaque; extension containers remain closed to
-unreviewed content. See README.md for source/version evidence and field policy.
+Reviewed finish metadata is opaque; unreviewed extension members follow the
+selected unknown-field policy. See README.md for source/version evidence and
+field policy.
 
 The OpenAI request binding and stream lifecycle hooks are reused. Python declarations
 are authoritative; the exported contract describes these effective bindings and
@@ -52,7 +53,7 @@ from nemoguardrails.server.experimental.providers.openai.responses.response_proj
 
 
 class LiteLLMMessageFields(PolicyModel):
-    """Allow the recorded null refusal without accepting uninspected content."""
+    """Retain null refusal and empty thinking blocks as declared constraints."""
 
     refusal: Annotated[None, disabled("core_capability.refusal_content")] = None
     thinking_blocks: Annotated[
@@ -67,11 +68,9 @@ class LiteLLMChoiceFields(PolicyModel):
 
 
 class LiteLLMAssistantMessageProjection(ChatCompletionsAssistantMessageProjection):
-    """Add a closed message extension without changing the guarded text target."""
+    """Add reviewed message extensions without changing the guarded text target."""
 
-    policy: ClassVar[ObjectPolicy] = replace(
-        ChatCompletionsAssistantMessageProjection.policy, source=None, unknown_fields="forbid"
-    )
+    policy: ClassVar[ObjectPolicy] = replace(ChatCompletionsAssistantMessageProjection.policy, source=None)
     provider_specific_fields: Annotated[LiteLLMMessageFields | None, constrained()] = None
     images: Annotated[list[Any] | None, constrained(reason="core_capability.multimodal_content", max_length=0)] = None
     thinking_blocks: Annotated[
@@ -83,7 +82,6 @@ class LiteLLMAssistantMessageProjection(ChatCompletionsAssistantMessageProjectio
 class LiteLLMChoiceProjection(ChatCompletionsChoiceProjection):
     """Rebind the message type and constrain the provider-specific choice object."""
 
-    policy: ClassVar[ObjectPolicy] = replace(ChatCompletionsChoiceProjection.policy, unknown_fields="forbid")
     message: Annotated[LiteLLMAssistantMessageProjection, guarded()]
     provider_specific_fields: Annotated[LiteLLMChoiceFields | None, constrained()] = None
 

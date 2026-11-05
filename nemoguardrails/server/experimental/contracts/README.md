@@ -68,12 +68,30 @@ enables a detector or a runtime capability.
 `model` identifies the Python model; `source` identifies a provider schema
 component. Canonical exports explicitly declare `unknown_fields: forbid` or
 `unknown_fields: configurable` on every reviewed object. Both use
-`additionalProperties: false` for default validation. Only trusted configuration
-may select `ALLOW` on a configurable object; a contract-aware validator then
-permits its unreviewed members. Closed objects remain closed under either policy.
-Objects without the marker are closed. Generic JSON Schema validators
-apply the default closure but do not implement trusted overrides. Reviewed opaque
-names appear as properties classified `opaque`, so `additionalProperties` describes only unreviewed members.
+`additionalProperties: false` to describe the strict reviewed inventory. Direct
+projection and typed classifier validation default to `FORBID`, which supports
+conformance and recording audits independently of deployed runtime policy.
+
+HTTP integrations pass the provider's selected policy through validation context.
+Configurable objects accept unreviewed members under `ALLOW`; custom objects
+marked `forbid` remain closed. Objects without the marker are closed in
+contract-aware tools. The
+[configuration guide](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-proxy/configuration#handle-provider-additions)
+defines the runtime default, selection, and inspection scope.
+Generic JSON Schema validators apply the exported inventory closure, not a
+deployment's runtime selection. Runtime OpenAPI schemas reflect that selection.
+
+Reviewed opaque names appear as properties classified `opaque`, so
+`additionalProperties` describes only unreviewed members. Opaque values and
+intentionally free-form maps are not recursively closed by strict checking.
+Allowing unknown members preserves original bytes without inspecting those
+members. Declared content constraints, event admission, and stream lifecycle
+checks remain independent; the setting does not add content or execution
+capabilities.
+
+Maintenance audits invoke direct strict validation separately, including the
+profile's content constraints. Uninspected relay traffic is not automatically
+audited.
 
 Canonical exports also declare `reject_case_aliases: true` on every reviewed
 object. A member not listed in `properties` is rejected when its Unicode

@@ -240,6 +240,7 @@ async def test_composed_instance_uses_its_declared_dialect_under_inspection(stre
         instance_id="selected",
         base_url="https://provider.example/v1",
         mount_path="/selected",
+        unknown_fields="forbid",
     )
     if litellm:
         provider = replace(provider, endpoints=(LITELLM_CHAT_COMPLETIONS_ENDPOINT,))
@@ -386,12 +387,15 @@ async def test_dialects_of_one_protocol_can_coexist_without_widening_each_other(
         async def check_output(self, _check):
             return ContentAllowed()
 
-    standard = create_openai_chat_integration(instance_id="standard", base_url="https://standard.example/v1")
+    standard = create_openai_chat_integration(
+        instance_id="standard", base_url="https://standard.example/v1", unknown_fields="forbid"
+    )
     dialect = create_openai_chat_integration(
         instance_id="litellm",
         base_url="https://litellm.example/v1",
         mount_path="/providers/litellm",
         endpoint=LITELLM_CHAT_COMPLETIONS_ENDPOINT,
+        unknown_fields="forbid",
     )
     if streaming:
         body = (

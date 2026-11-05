@@ -150,32 +150,34 @@ async def test_gateway_responses_preserve_policy_and_wire(
     assert cassette_request_jsons(recorded_cassette_path) == [request]
     text = await validate_inventory(upstream, request)
     assert text
-    for inspected in (True, False):
-        vcr.rewind()
-        checker = StaticChecker(
-            ContentInspectionPolicy(inspected, inspected, StreamBufferingPolicy(1, 0) if inspected else None)
-        )
-        dispatches = []
-        async with proxy(nvidia_inference_key, checker, dispatches) as client:
-            response = await client.post("/v1/responses", json=request)
-        assert response.status_code == upstream.status_code
-        assert response.content == upstream.content
-        assert response.headers["content-type"] == upstream.headers["content-type"]
-        assert len(dispatches) == len(vcr.requests) == vcr.play_count == 1
-        assert vcr.all_played
-        assert json.loads(dispatches[0].body) == request
-        if inspected:
-            assert checker.text_calls[0] == ("input", INPUT)
-            assert "".join(value for kind, value in checker.text_calls if kind == "output") == text
-        else:
-            assert checker.calls == []
+    for unknown_fields in ("allow", "forbid"):
+        for inspected in (True, False):
+            vcr.rewind()
+            checker = StaticChecker(
+                ContentInspectionPolicy(inspected, inspected, StreamBufferingPolicy(1, 0) if inspected else None)
+            )
+            dispatches = []
+            async with proxy(nvidia_inference_key, checker, dispatches, unknown_fields=unknown_fields) as client:
+                response = await client.post("/v1/responses", json=request)
+            assert response.status_code == upstream.status_code
+            assert response.content == upstream.content
+            assert response.headers["content-type"] == upstream.headers["content-type"]
+            assert len(dispatches) == len(vcr.requests) == vcr.play_count == 1
+            assert vcr.all_played
+            assert json.loads(dispatches[0].body) == request
+            if inspected:
+                assert checker.text_calls[0] == ("input", INPUT)
+                assert "".join(value for kind, value in checker.text_calls if kind == "output") == text
+            else:
+                assert checker.calls == []
 
 
+@pytest.mark.parametrize("unknown_fields", ["allow", "forbid"])
 @pytest.mark.vcr("test_gateway_responses_preserve_policy_and_wire[buffered].yaml", record_mode="none")
-async def test_gateway_recorded_buffered_block_withholds_output(nvidia_inference_key, vcr):
+async def test_gateway_recorded_buffered_block_withholds_output(nvidia_inference_key, vcr, unknown_fields):
     checker = StaticChecker(ContentInspectionPolicy(True, True), output_decisions=[ContentBlocked("blocked by test")])
     dispatches = []
-    async with proxy(nvidia_inference_key, checker, dispatches) as client:
+    async with proxy(nvidia_inference_key, checker, dispatches, unknown_fields=unknown_fields) as client:
         response = await client.post("/v1/responses", json=responses_request(False))
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "content_blocked"
@@ -186,9 +188,12 @@ async def test_gateway_recorded_buffered_block_withholds_output(nvidia_inference
     assert checker.text_calls[1][1] not in response.text
 
 
+@pytest.mark.parametrize("unknown_fields", ["allow", "forbid"])
 @pytest.mark.vcr("test_gateway_responses_preserve_policy_and_wire[streaming].yaml", record_mode="none")
 @pytest.mark.parametrize("allowed_windows", [0, 1], ids=["first-window", "later-window"])
-async def test_gateway_recorded_stream_releases_only_approved_prefix(nvidia_inference_key, vcr, allowed_windows):
+async def test_gateway_recorded_stream_releases_only_approved_prefix(
+    nvidia_inference_key, vcr, allowed_windows, unknown_fields
+):
     upstream = await capture(nvidia_inference_key, responses_request(True))
     recorded_events = await events(upstream.content)
     deltas = [
@@ -207,7 +212,7 @@ async def test_gateway_recorded_stream_releases_only_approved_prefix(nvidia_infe
         output_decisions=[ContentAllowed()] * allowed_windows + [ContentBlocked("blocked by test")],
     )
     dispatches = []
-    async with proxy(nvidia_inference_key, checker, dispatches) as client:
+    async with proxy(nvidia_inference_key, checker, dispatches, unknown_fields=unknown_fields) as client:
         response = await client.post("/v1/responses", json=responses_request(True))
     assert response.status_code == 200
     received = await events(response.content)

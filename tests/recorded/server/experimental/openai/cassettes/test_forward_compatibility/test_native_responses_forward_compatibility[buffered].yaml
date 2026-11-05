@@ -1,0 +1,128 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/responses
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5-nano-2025-08-07
+      stream: false
+      input: 'Reply with exactly: Hello.'
+      store: false
+      max_output_tokens: 256
+      reasoning:
+        effort: minimal
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID, Server-Timing-Total
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: response
+        created_at: 1793878580
+        status: completed
+        access_programs: null
+        background: false
+        billing:
+          payer: developer
+        completed_at: 1793878581
+        error: null
+        frequency_penalty: 0.0
+        image:
+          context_compression: disabled
+        incomplete_details: null
+        instructions: null
+        max_output_tokens: 256
+        max_tool_calls: null
+        model: gpt-5-nano-2025-08-07
+        moderation: null
+        output:
+        - id: rs_019718f4fb0f66ca016aec6a35953087d2a32b3b9ddf51f49d
+          type: reasoning
+          content: []
+          encrypted_content: gAAAAABq7Go1corejoSeNgFZpcC22ITs5Yj71dhcelwTGWlxKk-KjmMA0kDfh_jmxu664paG9llBgFXc-ZPYcYwcFYfUxij8u0_B6aFa1nwpxt_-xUBthcjGHKbHcm4rBA7k3ozoYxJE9aA1oklRVM5veuqMIngTeS1iIe5O8oNPkyjvsqaUJDF3FyzqD_ugIAmBTSqCOXVfdN3lOjtSHDWIseOO50QfpYofvBd38YPrvFN0kbRVNWXECzGGQ8KK0pa0cAkieVDAotnrupZFYbmHKaXzCvZcVavzc8qEF4y1o3Fjys1rd74yf4dyvrQbFKdIR2yFMEjC0S629KcXgGabpMdfJFVQqQrkfUh7fCDd9dvscc_Lo06Gz2ANS6R2LqjfLcA_8E_vdc9pkRrG8DaL8xSPFAdBM9RQkT9NQJTsXf9aDftWIygzG5zt_FpVnhxLkky7xe-XDsqCMyYzfDmCQh4PtnkwTnHlBLqgKlJTWjvabdczM4dOwRh6zfz_Yzdb4lp2s9SdJxbe3MtBugM38GEJV8_sOhZwGf-CBx0HHK2b0o5fS1B8rY9LJH-01gAJptWzjA7keBHYPAKwWKmqgfn8DMWWGzFfMAgp-IG-MvhcCpb5XI3B8lv4RxnYLTm6xVpBYqWv1dvdmBolo2fP5aclQfupoET0Bu4c5eRps3kYcEwGK2J7ipmGKLUSuPOjf1Lxj9WmIxvDFsWVdmc-_JLUBXPWPbizJdwDkLGUfrgnMbMSIoDbnNqfXQPGOQz1n5KVGY8GaN_vcAtx2iEdjd3LJzyF_-Vg0zDR8Z1-8XpkaChh5s3oJ4ZJUtBsW22EFZlnbfx1uoSTLmd9TkEshln9aIjRjyB6lUjCExBzUiq3_AMytmrD6uMZo1FfQhWdoiHjLC4UnflqbA4s8bqTdmYwyKdu9v4sWjS7H_Y0NOq5Ft2PoKF1THt5RrBLiOflr3x14B2ZWOsvEtS50pYqWubljQZ4wd5jhWosiXd1CgJ2D_R67HZt2ZGs0F9OlMHRpakN1vOTlE66E7jfxqXAraWQ8qyeVeL3xFIQ4VY0PFGi5QPi0jfdfVHgvd9aOWsmo2gZYUPc16sAsXNOtTyp6XH-z5kRakrSkKdgVLCcDu-rsN0YIhNL3uLW7Xi0CbUsT9YelUH6_rNK4RO6FS8m5OCHBxIeCCYbcb1pfM1njVu80jtPm8T6gEKSVMuQNakRAOKciYUTYAtaqqByprnntHUHSBHbgXr8ytunfR76KcSpXo9DW4JgwW5XEMAfY2bZsVT9CnMhohRf90xGkbhM0DoqS9hxjDrH7G-IB0FhrmLBG1c8qfcys-g3HKDYKPBrintNPjdHR1rZDTjXQB6JPznjbMJJ7isYiiAOkVKkB5PV2WfPDOVoamfldMWertc1Sz9BdtKv5DqfXJYH2FN6CUXSJBqwfaAbyktsNWCUOQxALTMbRDCdEwVSbJmKM5FFSgKHKc_oK-Wsf3FXHWvx8QYRKLaN-PraSw-0sAZewgMXg4nNjp_vNk6AHMhJsMKSTmMNlIc0cHZVIYrUZ0zfc03s8uIlxj58JJgYL_k7K7iyTfkNvRdxM-98UDs9jMQK0V8GACBiT4yFuaRJ5fM2Z1c5j8j8L3_K-P1mrCbgz5thmu1d3Fs=
+          summary: []
+        - id: msg_019718f4fb0f66ca016aec6a35b3e087d2a3633f60e5f21d43
+          type: message
+          status: completed
+          content:
+          - type: output_text
+            annotations: []
+            logprobs: []
+            text: Hello.
+          role: assistant
+        parallel_tool_calls: true
+        presence_penalty: 0.0
+        previous_response_id: null
+        prompt_cache_key: null
+        prompt_cache_retention: in_memory
+        reasoning:
+          context: current_turn
+          effort: minimal
+          mode: standard
+          summary: null
+        safety_identifier: null
+        service_tier: default
+        store: false
+        temperature: 1.0
+        text:
+          format:
+            type: text
+          verbosity: medium
+        tool_choice: auto
+        tool_usage:
+          image_gen:
+            input_tokens: 0
+            input_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            output_tokens: 0
+            output_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            total_tokens: 0
+          web_search:
+            num_requests: 0
+        tools: []
+        top_logprobs: 0
+        top_p: 1.0
+        truncation: disabled
+        usage:
+          input_tokens: 12
+          input_tokens_details:
+            cache_write_tokens: 0
+            cached_tokens: 0
+          output_tokens: 20
+          output_tokens_details:
+            reasoning_tokens: 0
+          total_tokens: 32
+        user: null
+        metadata: {}

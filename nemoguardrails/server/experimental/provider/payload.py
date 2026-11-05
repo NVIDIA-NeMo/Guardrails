@@ -169,7 +169,12 @@ class GuardedProjectionModel(BaseModel):
         FORBID is the default. ALLOW opens only objects whose policy declares
         configurable unknown fields, and is reserved for trusted configuration.
         """
-        return cls.model_validate(document, context={_UNKNOWN_CONTENT_FIELDS_CONTEXT: unknown_content_fields})
+        return cls.model_validate(document, context=projection_validation_context(unknown_content_fields))
+
+
+def projection_validation_context(unknown_fields: UnknownContentFieldPolicy) -> dict[str, UnknownContentFieldPolicy]:
+    """Carry one trusted unknown-member policy through nested model validation."""
+    return {_UNKNOWN_CONTENT_FIELDS_CONTEXT: UnknownContentFieldPolicy(unknown_fields)}
 
 
 def unknown_content_field_policy(info: ValidationInfo) -> UnknownContentFieldPolicy:

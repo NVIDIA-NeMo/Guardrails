@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Source-backed bridge metadata must preserve the guarded text boundary."""
+"""Reviewed bridge metadata must preserve the guarded text boundary."""
 
 from copy import deepcopy
 
@@ -33,6 +33,7 @@ METADATA = {
     "access_programs": {"cyber": "daybreak_blue"},
     "billing": {"payer": "developer"},
     "frequency_penalty": 0.0,
+    "image": {"context_compression": "disabled"},
     "presence_penalty": 0.0,
     "tool_usage": {"web_search": {"num_requests": 0}},
 }

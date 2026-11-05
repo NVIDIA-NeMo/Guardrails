@@ -44,7 +44,7 @@ class ResponseBytes(httpx.AsyncByteStream):
 
 @asynccontextmanager
 async def proxy(checker, body, *, streaming=False, endpoint=None):
-    """Observe requests after real dispatch construction; use no live sockets."""
+    """Exercise strict inventory conformance through the real dispatch path."""
     requests = []
     source = ResponseBytes(body)
 
@@ -65,6 +65,7 @@ async def proxy(checker, body, *, streaming=False, endpoint=None):
                 checker=checker,
                 dispatch=transport.dispatch,
                 stream_dispatch=transport.stream_dispatch,
+                unknown_fields="forbid",
             )
         )
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy.test") as client:

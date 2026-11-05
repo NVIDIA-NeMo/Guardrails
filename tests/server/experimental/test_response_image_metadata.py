@@ -79,7 +79,7 @@ def response_case(request):
 def validate_case(endpoint, shape, payload):
     if shape == "buffered":
         return endpoint.guarded_response_model.validate_payload(
-            payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW
+            payload, unknown_content_fields=UnknownContentFieldPolicy.FORBID
         )
     prefix = b"event: " + shape.encode() + b"\n" if shape.startswith("response.") else b""
     event = ServerSentEvent.from_bytes(prefix + b"data: " + json.dumps(payload).encode() + b"\n\n")

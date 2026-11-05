@@ -93,23 +93,9 @@ def test_optional_extension_containers(location, value):
 
 
 @pytest.mark.parametrize("location", ["message", "choice"])
-@pytest.mark.parametrize(
-    "value",
-    [
-        {"reasoning": "hidden"},
-        {"reasoning_content": "hidden"},
-        {"refusal": "hidden"},
-        {"token_ids": [123]},
-        {"tools": []},
-        {"unknown": None},
-        {"Refusal": None},
-        [],
-        "hidden",
-        False,
-    ],
-)
+@pytest.mark.parametrize("value", [[], "hidden", False])
 @pytest.mark.parametrize("override", list(UnknownContentFieldPolicy))
-def test_extension_containers_are_never_opaque(location, value, override):
+def test_extension_containers_reject_malformed_values(location, value, override):
     payload = response_payload()
     target = payload["choices"][0]
     if location == "message":
@@ -122,9 +108,34 @@ def test_extension_containers_are_never_opaque(location, value, override):
     )
 
 
+@pytest.mark.parametrize("location", ["message", "choice"])
+@pytest.mark.parametrize("field", ["reasoning", "reasoning_content", "token_ids", "tools", "future_metadata"])
+def test_unreviewed_extension_members_follow_selected_policy(location, field):
+    payload = response_payload()
+    target = payload["choices"][0]
+    if location == "message":
+        target = target["message"]
+    target["provider_specific_fields"] = {field: {"provider_owned": True}}
+    original = deepcopy(payload)
+    with pytest.raises(ValidationError):
+        response_model().validate_payload(payload)
+    parsed = response_model().validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
+    assert parsed.locate_guarded_message(payload).message.content == "answer"
+    assert payload == original
+
+
+@pytest.mark.parametrize("value", [{"refusal": "hidden"}, {"Refusal": None}, {"thinking_blocks": ["hidden"]}])
+@pytest.mark.parametrize("override", list(UnknownContentFieldPolicy))
+def test_declared_message_extension_constraints_apply_under_both_policies(value, override):
+    payload = response_payload()
+    payload["choices"][0]["message"]["provider_specific_fields"] = value
+    with pytest.raises(ValidationError):
+        response_model().validate_payload(payload, unknown_content_fields=override)
+
+
 @pytest.mark.parametrize("location", ["root", "choice", "message"])
 @pytest.mark.parametrize("field", ["reasoning", "token_ids", "Provider_Specific_Fields"])
-def test_unreviewed_response_fields_remain_closed(location, field):
+def test_forbid_policy_rejects_unreviewed_response_fields(location, field):
     payload = response_payload()
     target = payload
     if location != "root":
@@ -133,7 +144,22 @@ def test_unreviewed_response_fields_remain_closed(location, field):
         target = target["message"]
     target[field] = "hidden"
     with pytest.raises(ValidationError):
-        response_model().validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
+        response_model().validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.FORBID)
+
+
+@pytest.mark.parametrize("location", ["root", "choice", "message"])
+def test_allow_policy_preserves_unreviewed_response_fields(location):
+    payload = response_payload()
+    target = payload
+    if location != "root":
+        target = payload["choices"][0]
+    if location == "message":
+        target = target["message"]
+    target["future_metadata"] = {"version": 2}
+    original = deepcopy(payload)
+    parsed = response_model().validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
+    assert parsed.locate_guarded_message(payload).message.content == "answer"
+    assert payload == original
 
 
 def test_dialect_rebinds_nested_models_without_mutating_openai():
@@ -185,15 +211,16 @@ def test_reviewed_choice_metadata_is_opaque_in_runtime_and_export():
 
 @pytest.mark.parametrize("field", ["images", "thinking_blocks"])
 @pytest.mark.parametrize("value", [None, [], ["uninspected"], "uninspected", {}])
-def test_buffered_source_content_fields_only_allow_empty_values(field, value):
+@pytest.mark.parametrize("unknown", list(UnknownContentFieldPolicy))
+def test_buffered_source_content_fields_only_allow_empty_values(field, value, unknown):
     payload = response_payload()
     payload["choices"][0]["message"][field] = value
     valid = value is None or value == []
     if valid:
-        response_model().validate_payload(payload)
+        response_model().validate_payload(payload, unknown_content_fields=unknown)
     else:
         with pytest.raises(ValidationError):
-            response_model().validate_payload(payload)
+            response_model().validate_payload(payload, unknown_content_fields=unknown)
     assert (
         Draft202012Validator(export_guard_contract(LITELLM_CHAT_COMPLETIONS_ENDPOINT)["response"]).is_valid(payload)
         == valid
@@ -271,7 +298,7 @@ def test_stream_extensions_do_not_change_roles_or_openai_declarations():
 
 
 @pytest.mark.parametrize("field", ["guardrails", "caching", "num_retries", "context_window_fallback_dict", "fallbacks"])
-def test_litellm_request_controls_are_not_implicitly_enabled(field):
+def test_direct_request_validation_audits_unreviewed_gateway_controls(field):
     payload = {"messages": [{"role": "user", "content": "question"}], field: None}
     with pytest.raises(ValidationError):
         LITELLM_CHAT_COMPLETIONS_ENDPOINT.guarded_request_model.validate_payload(payload)
@@ -288,7 +315,7 @@ def test_export_matches_format_and_generated_artifact():
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("inspect", [False, True])
 @pytest.mark.asyncio
-async def test_dialect_does_not_enable_extra_request_content(stream, inspect):
+async def test_strict_dialect_rejects_unreviewed_request_content(stream, inspect):
     async def dispatch(_request):
         raise AssertionError("Unreviewed prompt content must not reach the provider")
 
@@ -300,6 +327,7 @@ async def test_dialect_does_not_enable_extra_request_content(stream, inspect):
             checker=checker,
             dispatch=dispatch,
             stream_dispatch=dispatch,
+            unknown_fields=UnknownContentFieldPolicy.FORBID,
         )
     )
     payload = {
@@ -315,14 +343,16 @@ async def test_dialect_does_not_enable_extra_request_content(stream, inspect):
 
 
 @pytest.mark.asyncio
-async def test_default_router_does_not_select_dialect_from_url_or_payload():
+async def test_strict_native_router_rejects_dialect_extensions():
     async def dispatch(_request):
         return BufferedHttpResponse(
             200, ((b"content-type", b"application/json"),), json.dumps(response_payload()).encode()
         )
 
     app = FastAPI()
-    app.include_router(create_openai_chat_router(checker=Checker(), dispatch=dispatch))
+    app.include_router(
+        create_openai_chat_router(checker=Checker(), dispatch=dispatch, unknown_fields=UnknownContentFieldPolicy.FORBID)
+    )
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://litellm.test") as client:
         response = await client.post(
             "/v1/chat/completions", json={"messages": [{"role": "user", "content": "question"}]}
@@ -376,7 +406,7 @@ class Source:
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("inspect", [False, True])
 @pytest.mark.parametrize("hidden", [False, True])
-async def test_explicit_dialect_selection_preserves_or_rejects_provider_bytes(stream, inspect, hidden):
+async def test_strict_dialect_preserves_or_rejects_provider_bytes(stream, inspect, hidden):
     checker = Checker(inspect)
     if stream:
         delta = {"content": "answer", "provider_specific_fields": None, "thinking_blocks": []}
@@ -413,6 +443,7 @@ async def test_explicit_dialect_selection_preserves_or_rejects_provider_bytes(st
             checker=checker,
             dispatch=dispatch,
             stream_dispatch=stream_dispatch,
+            unknown_fields=UnknownContentFieldPolicy.FORBID,
         )
     )
     request_body = json.dumps({"messages": [{"role": "user", "content": "question"}], "stream": stream}).encode()

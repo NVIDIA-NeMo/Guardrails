@@ -33,6 +33,7 @@ from nemoguardrails.server.experimental._http_kernel import (
 from nemoguardrails.server.experimental._runtime import DEFAULT_CONFIG_RESOLUTION_TIMEOUT
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.provider.integration import ProviderIntegration
+from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
 from nemoguardrails.server.experimental.rails import ConfigContext, ConfigEntry, ConfigResolver
 
 
@@ -54,6 +55,10 @@ class ProviderConfig(BaseModel):
     mount_path: StrictStr = ""
     dialect: Literal["litellm"] | None = None
     rails_config_id: StrictStr | None = None
+    unknown_fields: UnknownContentFieldPolicy = Field(
+        default=UnknownContentFieldPolicy.ALLOW,
+        description="Preserve unreviewed JSON members, or reject them when validating guarded payloads.",
+    )
 
     @field_validator("operations", mode="before")
     @classmethod
@@ -150,7 +155,10 @@ def resolve_provider(config: ProviderConfig) -> ProviderIntegration:
     except KeyError:
         raise ValueError("Unsupported provider, operation, and dialect combination.") from None
     integration = create_openai_integration(
-        instance_id=config.instance_id, base_url=config.base_url, mount_path=config.mount_path
+        instance_id=config.instance_id,
+        base_url=config.base_url,
+        mount_path=config.mount_path,
+        unknown_fields=config.unknown_fields,
     )
     return replace(integration, endpoints=endpoints)
 
