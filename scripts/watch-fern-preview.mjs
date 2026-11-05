@@ -152,7 +152,9 @@ function shouldIgnorePath(candidatePath) {
 
 function shouldTriggerRun(candidatePath) {
   const relativePath = path.relative(repoRoot, candidatePath).split(path.sep).join("/");
-  if (relativePath === "fern/openapi.yml" || relativePath.startsWith("docs/_static/python-sdk-reference/")) {
+  if (["fern/openapi.yml", "fern/proxy-openapi.yml"].includes(relativePath) ||
+      relativePath === "fern/proxy-guard-contracts" || relativePath.startsWith("fern/proxy-guard-contracts/") ||
+      relativePath.startsWith("docs/_static/python-sdk-reference/")) {
     return false;
   }
   return true;
