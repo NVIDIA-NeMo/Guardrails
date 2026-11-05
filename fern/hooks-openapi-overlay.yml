@@ -83,7 +83,8 @@ actions:
       Checks a Codex `PreToolUse` hook. Extra input fields are accepted and ignored.
       An allowed call returns `{}` so Codex follows its own approval settings.
       A denied call returns a deny decision prefixed with `NeMo Guardrails: `.
-      An error status indicates a failed hook. The response has no other fields.
+      An error status indicates a failed hook.
+      An allow is exactly `{}` and a deny has only the fields shown, because Codex treats an unknown field as a failed hook and runs the tool.
 
       See [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors#errors)
       for error codes and the `Retry-After: 30` header on a full queue.
