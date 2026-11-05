@@ -1,0 +1,84 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-5-mini
+      stream: false
+      messages:
+      - role: user
+        content: 'Reply with exactly: Hello.'
+      max_completion_tokens: 1024
+      reasoning_effort: low
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: openai/openai/gpt-5-mini
+        object: chat.completion
+        choices:
+        - finish_reason: stop
+          index: 0
+          message:
+            content: Hello.
+            role: assistant
+            reasoning_items:
+            - type: reasoning
+              id: rs_0be12e8ffdba0da9016aec6a3e7a5487d190f219931ff925b4
+              encrypted_content: gAAAAABq7Go-qIikMHIXmj470Ygvir5D-sRPVmEMW7gJDn5LkuPQAVNTywW7TSYwYEvmvWJGRoBwgGJQRk7wdacNStvivk-AcSFJaL9uX2fmRwIgWTdaLVeJFrH0ssSEaQ_Z48F1rdPu4yr0eNqbR-yz71YWYrcXE7uUTrfuZX41ask7iHMxbAgtgi4X5HVJMXW5vlV9uwlQSrLly4hbGNSnq6Py3kyECs4opDa_4bY6ruyTLGh2ONT8RqM9YWEBNOQcwwwLv50Xn9ibLsDwPbXip4kE7hWM99Bom7F0_DQr4xa_WIzmqzySAZ6ZeMEwqRjx1IQpqA0L3ZJff1cW8e6VEuqqln5P4sP5EbQ2Z_FWpyvtDm4eY2sUknEb2r96iCEppjUNRVHVE8ZT4v1DweMbyuPE8X-sfOeuTRLFDEetDMCW7B98ATPzQaNzAuBQUzf8QcieQj-mciJeMTSm04pqr8ZolOW11l32uB2YCOchpA0lgnLV6UJNDV560wBxPtOpGONFNvHoGASBYpxVLvFN8zqAB7RyNH5sdkJQDBGK70ObHuN6HgXfs_ZMK4RRihvPUJLklwXqLxYOjnX2jZsJH9EdBO6y18e4lzBsphPgxpz1wIi0GnzfU7NM9ihrWZR1NpeE8HSv0jOJZZYQi9CFJKmIQLptuz_qyMXwQlkxNeKwA42qGj6FBYjFr1LdunAdCXtpssZ8xUTMrmz4p9rmOqxGVyj80XTh1q1e5nHYrp69F3dSBCGLn4AsMdVRlJtzZNJsYyJcSmU1V7orMFwP-aO1s_ZV7356ygCNg_VjBYNFshSk__4WzTWTv-kcSBThgkODprjQOF3cx6PIHcM-k6OXeWfnEvHUUmiJWP3RjuiK8sPtw5U4D_e5x9BUh1mhmFz6eFc54sNvUDk8MMzk9-xcMI9ohoghNUHtLsQVKzB-A7_bwTtj0slBwxbwtvUcyhzkEYcI0kGc8QVk3fheEUh79XAMz8SWo2cPQjpThJwy9fI76ZHC4CNiOtq-gi7k4rz87uLc78mdbvS2htDZq4IxFuevK2Sw-Jywma0xhAHjkmBvtiwW61Op_371mDk-H6lO2V4lhM95VDIkmJPEk0lnNeIX5a_iGgRDNOlNOpIxlyK-Ix5qWB_N1Wfy3kJ-KbY0ySAjw5KIsrtSyPLQJomegKV4GmVqHNcXK74a8ggR0bahBuG_gi6YKxkw9dx3nmYxtfheXU4p9nungmOBoTl_YZOTvGFjsCBnAcZS0Xz3xrTpjhH9KTUGRD2anFvKJwzGlgYWNzlXaJdxHwdlpifjizH3SMxTpDGjEVTYICj5y0m3D9toyk38gORPR2pSeO4KEh47LxMSQ5pNnmyAVrcSXktgQi5_l-kuOVCrOCCfKnILzrlgcctWH9Jbzc8QyLQzKgbrd3OcvEqu0rnoIC5vN3WtV38RJpgQrYdhgg2IZFDQTALeiIf_SJT4h-iw0_LcW4Xr_DO9BO74n-J4ZIG7zsJ9Dn3Hky7mLKL3-x880HETFlvGpba7AxselZvmpWhDaR8dzd8WdQ1cx_JTlI_C-t_WRLAZGB7KJg9Vfx2ikTqeM7ZpXf13w2OLzaGfgSfIO3AH5WIhcecd9ECFw5FhuH-6xpKqHuHXrkcv2zxN3sG2fOjoI4tyI7DgcQvP4NbtLHt-SesmHpjYwxpxML2wG7guPbAaMOtQi5zxBPQ5X4RFBb68czxPopimGqvkjTxJzXBDLGUlMcSnlLZFPCSVNrucE1r0UsXXt8VM7xgjrePr45asJNugVkKTKPfU5uxZpRmQZsM4WR-giuTjbRrn5ZoQzaD1-rHa2lbzmQtkkzQTNld7y_fJTG4Lp1O99f3zgxVaXIsPqSvwxaNT8iiR3M3MYEJxKgTZoLeA-6Nxek0n-lXL3vbjgI3kEHCx551lwbQVMKccdcepZ_SQjQor7wKF5Q==
+              summary: []
+        usage:
+          completion_tokens: 41
+          prompt_tokens: 12
+          total_tokens: 53
+          completion_tokens_details:
+            reasoning_tokens: 0
+          prompt_tokens_details:
+            cached_tokens: 0
+            cache_write_tokens: 0
+            cache_creation_tokens: 0
+        billing:
+          payer: developer
+        frequency_penalty: 0.0
+        image:
+          context_compression: disabled
+        presence_penalty: 0.0
+        service_tier: default
+        tool_usage:
+          image_gen:
+            input_tokens: 0
+            input_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            output_tokens: 0
+            output_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            total_tokens: 0
+          web_search:
+            num_requests: 0

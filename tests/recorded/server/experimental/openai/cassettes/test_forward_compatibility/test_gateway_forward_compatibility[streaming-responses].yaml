@@ -1,0 +1,308 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/responses
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-5-mini
+      stream: true
+      input: 'Reply with exactly: Hello.'
+      store: false
+      max_output_tokens: 1024
+      reasoning:
+        effort: low
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - text/event-stream; charset=utf-8
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      cache-control:
+      - no-cache
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+      - type: response.created
+        response:
+          id: resp_pjLCs09uMBso7pRzQTeDD9DqKJRJdpjjPgpeJAA8vj-LM9PjzoC9fZ-f2MnBVKgh3EGpGgoSXDx8IJE6cTSMW3kqRRF7XcRlhV7eeGXiz446aB2Vf6gkaY5QYevVrCi5UZy2MNDurFGfyDMeVMdTuRCvaviwHhPTa6JXCcA7_Z3WYzuAAU0UII4ixLO5-101O2TD588mVeuOdj87NorpWyxLDp-0Kwlqu1aXKDt2h9ydpjFSIbmaJK9QjhULzrIqC32lqTWp1EP5_Du6wBXQ5jS-FMuw7rnKRk1Y7kEJ9YQtomO1g6rlgft4Z2tQ_0dqdSkCdX00l4Hzwnwh3zbEAvZhMYI2l-MPwUVShlZCqU-Icpcxy3mUeITsLHWT28JjZlyX_LdvgMRTVEkd-Ug7y4-z06i1WmVxhYuMtQw_W-44s0I=
+          created_at: 1793878595
+          metadata: {}
+          model: gpt-5-mini-2025-08-07
+          object: response
+          output: []
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 1.0
+          max_output_tokens: 1024
+          reasoning:
+            context: current_turn
+            effort: low
+            mode: standard
+            summary: null
+          status: in_progress
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          store: false
+          background: false
+          frequency_penalty: 0.0
+          image:
+            context_compression: disabled
+          presence_penalty: 0.0
+          prompt_cache_retention: in_memory
+          service_tier: auto
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 0
+        model: openai/openai/gpt-5-mini
+      - type: response.in_progress
+        response:
+          id: resp_pjLCs09uMBso7pRzQTeDD9DqKJRJdpjjPgpeJAA8vj-LM9PjzoC9fZ-f2MnBVKgh3EGpGgoSXDx8IJE6cTSMW3kqRRF7XcRlhV7eeGXiz446aB2Vf6gkaY5QYevVrCi5UZy2MNDurFGfyDMeVMdTuRCvaviwHhPTa6JXCcA7_Z3WYzuAAU0UII4ixLO5-101O2TD588mVeuOdj87NorpWyxLDp-0Kwlqu1aXKDt2h9ydpjFSIbmaJK9QjhULzrIqC32lqTWp1EP5_Du6wBXQ5jS-FMuw7rnKRk1Y7kEJ9YQtomO1g6rlgft4Z2tQ_0dqdSkCdX00l4Hzwnwh3zbEAvZhMYI2l-MPwUVShlZCqU-Icpcxy3mUeITsLHWT28JjZlyX_LdvgMRTVEkd-Ug7y4-z06i1WmVxhYuMtQw_W-44s0I=
+          created_at: 1793878595
+          metadata: {}
+          model: gpt-5-mini-2025-08-07
+          object: response
+          output: []
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 1.0
+          max_output_tokens: 1024
+          reasoning:
+            context: current_turn
+            effort: low
+            mode: standard
+            summary: null
+          status: in_progress
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          store: false
+          background: false
+          frequency_penalty: 0.0
+          image:
+            context_compression: disabled
+          presence_penalty: 0.0
+          prompt_cache_retention: in_memory
+          service_tier: auto
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 1
+        model: openai/openai/gpt-5-mini
+      - type: response.output_item.added
+        output_index: 0
+        item:
+          id: rs_0b202ce789393e98016aec6a43a6c087d1929ece414b884b97
+          type: reasoning
+          content: []
+          encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1taW5p;gAAAAABq7GpDm7KryfWJfKbiMFOYUWUNQjKMyjtrUX96xMkDluHGs3xgm5UraOgobYd0xjyN8kXTF0lAvguFLwwkQX-Go5MK42mzsNnuBa5uByDQrKeEU0iUUHacjHCB0AuqIKnYAlv9XETYfWZAjXlK8UEwyupK4rxOJKEJ0Y_5nNrn-jWdWKHrEO3scwQG6TTmE_lvPEYHxJuXh2EXmLN02wZgvhLmgTKBICGs4Ixot8eXPAqhtc7hHy6LmZ65oYojxndWkKIdQOpJIZJWvqgnI5ryGetLidkRCY2cMEMpEQKj7WrCF_MMIgPVjK7osU3tZPdjbqv7CEqWpjqCAaEJCN05H6BmirIT-qLoPzIEh3dNDRh6t7vll2IgVt4jZe9l-fyBUaxssw7M9PTB9jVB0IRkuvrnSb6ZGjFDDur5_xQhpB4WAegbFEraydkwX4tsUBRBQzzF6AwFi1SI-3q1HDSjLHTxkpLuFOvsDl6d6MsINp9O57CUKuYWBQJLH6ti64UWHvogepoQWXB6Gwo0EKVKNnKahs8WtIQKtG2AIG_wbYxHuwXo8CCoLy-uoUzYuKcX80qla3KAr2aE1RSikJDbM4tg9uxZG_Quj-BS4JMk9LAlw9stPfLFLvDc-CjfaiItH_z5PtHMhcqiMDAcrThYDuxkn3nzSEMbIGS-4emI6ctByLHpcv58vreYiASpwEOLydBRx66XakA1zPvT5byiw8x8m5eCR4lgXMfsvFeGtC_JLXMBTUrsmiv_WxDzJg6Ww-Tooo8piuHMoH6zf6muS8-s_uTdfCdiFehS09sqFiw9c5IIwkeErdh0IssxU-x1ju1k7E9x2llb73DlA4zF4InyPUBAUX38Ew2M04CTv_Jb_ihV84RUhb8HAZFiJHjL7NxLs9Iq3OUEwQAjrWEpeXpHfxcGfIC2Nk9jfmaUTUKvB44wyj_duHiFics7gdFyOdpvs6G1D9Bc-PEO_XvlC-m2Zj8-vcDqXsxD4tx0a_3PO9RuETqTi5oXwpFiofSsxu4QWYGFYhBSisOxAkhxCrSmiX2PoU0XZCHSWMLlK4KFNg8ZJKF_5xST2Zs-OqAoStE9hAnOQV_aOZpqAg2mGEI1B0LYSfFQ12niHock0uqfQ242eU7yWUzHxzdZISaCx-89rrEbEsL2-vmXbXc5jGe7UFyK9MormIkNS6LZnOgt8fq-S0bS-r7Cr_mwXGCombojzZVAvkabCZbCos6MkxR-Aw==
+          summary: []
+        sequence_number: 2
+        model: openai/openai/gpt-5-mini
+      - type: response.output_item.done
+        output_index: 0
+        sequence_number: 3
+        item:
+          id: rs_0b202ce789393e98016aec6a43a6c087d1929ece414b884b97
+          type: reasoning
+          content: []
+          encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1taW5p;gAAAAABq7GpDbQk_9iz9vUB65gbwNEJS4Ye5AvMgGYbLx6wL6HmUGbXnBcspHJfuf-wcV-MzauF15GzfwdJxEdqJmKWkgtPMiR5jiTsUvwhycy74vR4bwOtjWzy45FsYNUnEpN1ZUwcIsQD-SSTNIt1w6ji9h0_OCg7QVc4JSdJ2J2bnZgUMJrV_x8cdgMBUBt_4ibV30MW0n22u2jgulZmEFJcSupvb7nVGyZ6fVyzfCydl6u8Rd-suBdLnNoa25ZUfYtQkzcDR7vdBXVXI-K7t-M8gJV_ZCjTrLcJNaajW3tAipSLoXBgT2eYQJE4xIXSm8y4bG4Cfm4eMlNUd9432hFLJQL0bFLMMW3mNM2_LPD1eQawo1kazRONxyH_upGehVQVtCdQ0O4m7Qr0heWlKmOjsx3BJ6hPfWyhDQFd07dB_XbBBpis0J5xVNfJW2h9A86NFFC1E_qlvs6u_fM8diIqzI3m5dzdOmmPn9EvPJWoHQbO7pORL3_3UdsXQN7f196VKgFVlvoCvyHQ1YB4SpcCU7vZLdsoprgMZtmG9vz3vi1LAksU7WE9sRSogfDpA15D97Pe4fH53Iu4CcWRiMJIqtRFuVL9eF2lr2jrwbTfXSI665hmDx_yBx47JIBgQs5sWWWvybyZAXx0rmCgkMiAtbJY7l0jBesB_bZ41b1obAtR-pqZBfBiTTxmkkAKxK4tyvfC5s6_23X2NjlkKjIpYVbr1jaNSC-BPyzAhsIBum34gBV04VeeLYsYqEAlwbWWnGwNcQx_v-4tcBYNpY0tTSUIYZ_Kc0RaoTcjHBrPyCnuCgbCS4seAz_XZonYw1gzAXZxuViNuVjDAI-0TjVRaWZ6P_315qx5E6dswD-2ZB-U8317vFzJnwaZSh_s9MceoWyD6bpHXdSTEKX65m3tVhlKZGzNoL5e2oOwiClUvPm7wO55NE6qE51xpABBD2JhdoWsRLFz_SwiGdDIdOCZnDZGnKqekHL9z5kBjv_MZA3Xkz-I3yAXshjQ-Y6kVyE2j57AXimom5HsQlqGqr3ftTelp24mGyAWnETywraJacolqWiptmH2BtE5yulBHzqd8aGCTvnBdX38i5LCwrq4jph-HcWhJ38t1b1ZginLIPAvRJ4q4LNOgNGFRZKiXvBMEvHagqa-86Dw1ylXM2NwXZodDF2xwuH4suuXRN2uHbS9N1IYCVSOF89NcHUJmLX8P1k3pOMWsPYZ9rNhkN0CrWeJTTV1-LRdYGpXiZ55M9xm1qCVRCNav7mOEMkbydM9LhMe-kPSaxIhcdnZArmDEkU89Z4mJ-xuY2lhlkoBqDA_4fG1-JAp9X193GTECS4wS-fmqx8JpI2pTgbz9lG4pnKSYBKlI-6A42xlIW0wfzZTlyEb2BindfG1b909mMPIIJjSmCT_2HOhbXbQdxY2W_PQ57RPeivrWckISc4V6UhwboXD8Rf9iLWq4A2ZVRhqYjjREen14wqU6CePrJ6cEVdsdRkjKqitPjoirhnm6YbKjTHyJJzGi-3I5fJNFyWMkGs-2bpFObDiEeF24M1KHz2Wx9mW6jhP2PSkdwtkt4X0WOh7Brz2JQzPyxIGiCPFQLS_U7fD6mFPNc-UP2DoG0Fs32CcBVN2sUC6jRphgrcBCwP-3_CaQDnmOuLeZCevrvBxpsDrDrow3bcEgnQt3aDR0tOaATz_W8zr3_lYUF972fVQf3fiZeMvhfIf1UY-4eC_4FBmqrZT8FOHBb-eaC9YWC-VzyTqIplx9umArigJWVkQtX65ammyJZUR6aUC_RncEPyY2nrmkHAEoKtWcXtQjc_FEXm_ALgWSmYbkKIjl0JqVgdtY6TNx0pStqxddq_LQ03mXw56gg0m5JEQBZOVFoNDIZUuYDOTFLyxkI1yyZrxAOi7Nl-0DEDbXWa9GsL_o9W09nWyWBwqexb2x2OWXHLC0_tyujEQc8WUw9YInWWOlN1o2c-OYqxZQv_x_bW8cGRapgP1a-YiB9HUGTRYpx_ExiUTg40_Sm3hIL5B14Szg28V3mOLh6NNjMA4AVyTGp07MmiKtblc22J4-5SLWqg==
+          summary: []
+        model: openai/openai/gpt-5-mini
+      - type: response.output_item.added
+        output_index: 1
+        item:
+          id: msg_0b202ce789393e98016aec6a43fc2487d1a4002780626af636
+          type: message
+          status: in_progress
+          content: []
+          role: assistant
+        sequence_number: 4
+        model: openai/openai/gpt-5-mini
+      - type: response.content_part.added
+        item_id: msg_0b202ce789393e98016aec6a43fc2487d1a4002780626af636
+        output_index: 1
+        content_index: 0
+        part:
+          type: output_text
+          annotations: []
+          logprobs: []
+          text: ''
+        sequence_number: 5
+        model: openai/openai/gpt-5-mini
+      - type: response.output_text.delta
+        item_id: msg_0b202ce789393e98016aec6a43fc2487d1a4002780626af636
+        output_index: 1
+        content_index: 0
+        delta: Hello
+        logprobs: []
+        obfuscation: ybzXNyCTs3J
+        sequence_number: 6
+        model: openai/openai/gpt-5-mini
+      - type: response.output_text.delta
+        item_id: msg_0b202ce789393e98016aec6a43fc2487d1a4002780626af636
+        output_index: 1
+        content_index: 0
+        delta: .
+        logprobs: []
+        obfuscation: GdPrKEAJXPtKEQ9
+        sequence_number: 7
+        model: openai/openai/gpt-5-mini
+      - type: response.output_text.done
+        item_id: msg_0b202ce789393e98016aec6a43fc2487d1a4002780626af636
+        output_index: 1
+        content_index: 0
+        text: Hello.
+        logprobs: []
+        sequence_number: 8
+        model: openai/openai/gpt-5-mini
+      - type: response.content_part.done
+        item_id: msg_0b202ce789393e98016aec6a43fc2487d1a4002780626af636
+        output_index: 1
+        content_index: 0
+        part:
+          type: output_text
+          text: Hello.
+          annotations: []
+          logprobs: []
+        sequence_number: 9
+        model: openai/openai/gpt-5-mini
+      - type: response.output_item.done
+        output_index: 1
+        sequence_number: 10
+        item:
+          id: msg_0b202ce789393e98016aec6a43fc2487d1a4002780626af636
+          type: message
+          status: completed
+          content:
+          - type: output_text
+            annotations: []
+            logprobs: []
+            text: Hello.
+          role: assistant
+        model: openai/openai/gpt-5-mini
+      - type: response.completed
+        response:
+          id: resp_pjLCs09uMBso7pRzQTeDD9DqKJRJdpjjPgpeJAA8vj-LM9PjzoC9fZ-f2MnBVKgh3EGpGgoSXDx8IJE6cTSMW3kqRRF7XcRlhV7eeGXiz446aB2Vf6gkaY5QYevVrCi5UZy2MNDurFGfyDMeVMdTuRCvaviwHhPTa6JXCcA7_Z3WYzuAAU0UII4ixLO5-101O2TD588mVeuOdj87NorpWyxLDp-0Kwlqu1aXKDt2h9ydpjFSIbmaJK9QjhULzrIqC32lqTWp1EP5_Du6wBXQ5jS-FMuw7rnKRk1Y7kEJ9YQtomO1g6rlgft4Z2tQ_0dqdSkCdX00l4Hzwnwh3zbEAvZhMYI2l-MPwUVShlZCqU-Icpcxy3mUeITsLHWT28JjZlyX_LdvgMRTVEkd-Ug7y4-z06i1WmVxhYuMtQw_W-44s0I=
+          created_at: 1793878595
+          metadata: {}
+          model: gpt-5-mini-2025-08-07
+          object: response
+          output:
+          - id: encitem_bGl0ZWxsbTptb2RlbF9pZDpvcGVuYWkvb3BlbmFpL2dwdC01LW1pbmk7aXRlbV9pZDpyc18wYjIwMmNlNzg5MzkzZTk4MDE2YWVjNmE0M2E2YzA4N2QxOTI5ZWNlNDE0Yjg4NGI5Nw==
+            summary: []
+            type: reasoning
+            content: []
+            encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1taW5p;gAAAAABq7GpE_1L8lY_KmEplWXle9DwpFrTwjiYI8GQT45RR9YW7xyJkHxZMtru7m5fSiKYP40CUUIW8pUQIqDz7J9mEu3DNKXy3Jt4dWI7Ql0vFUHsin3jB1qqDQDdudgLJ48zxWIUvOoqZVe-F3tFpu5GzTqHBtzgavkZD1w-fugaA479RjHsn0dTPsT0Mkld2PYly_ZqP19xd6CwGy7Y6NVuEkJA1OPHxINAvj8w5R551_crgLuBzkaJTS7UrzNfADrohzIk7-qcx4gJ1xbfZoPy56t9UBVSlNxNp46WfiJdq6hRvaVJNAoNKCO3Uo7ZFmw1RQCTybdsVtUVdeY6tkl_kpGmesSvv3sM4ax2Ap-KqZJ-K8VCiChd6mO_vIDlZNHn3mp2DYwgUGqsl3onjEuWwizNgcr7itq5pDSjWWkLuBRZ3JU2wXhV9KToG6RUrQ7PakVnRUfef711MVyQyXLbR3ugpOSQettCXS_Z9yPEd2VCy_SyJ0FiRzXkZD4KrHaGvlC-oILaDm-EP1ooQQjNDE4QN6VDVZRRQtJPnrguLf0HbX3r3na6SA4H3vsRLGiiT0la-udknFLJI5of1bTO9ko99x7dO4SLhSFhjY1ItCBksGbFaZfthPyPdfSIdmW_IPUFO-8joCDTzlqY-jhOr6kfCApPdMUG65NeFDad-ydz0JuG3FJY7kAlWe9k5Oju1zGekjkhgQJM4gsrHsTkHvvfXTJSfk10sgKSYyxysRdkOLcKWnFP7c-IlfiljUxcZDzaBKYyF8Pp_aAfV3qydMN6F49OxHysxiGQqfbs8aN339lVtQr_opk26lYyr4dhM3kKgjUBbexDl462J9sc6Dfyzykib7_1b9rFksprC0BKiEQar6LhvxY2n9FezfDpxfm08bj9glshEf22uAfPTyGwKTGe6cMlDn2f_j02wqNKuZbTNM23r6c5sUGN8EkBuHupXrFQZD3q003DP2eTzuKPjV_wgYU-Rpb5j6lCHa7glMj7M1rW0QWckBCLROJ1EY8lRA9TG8T-sGXVhk98S_AfBLLQOj0BAijERy6-6vUnQFh9P4934Eg2iduOUbZCQ5K-YUz9dTe8wfyA3o6fMdtYnRgJC4Y-UXTY0pQan4UIAAEziTTQqEK5CREa4fffs05UnTpMEY8ml5ME5w1-bnaG243-uKq71imLN2Yv-xLvoLvv1D4OwXrnhsKVizUhqTOsFHx0n9grZ3d_bIdtPan3gxawZrPNKMDdOvPvxFlo122ZtEyohAppqOsI7C3vXNfkoAFt_mzsrUgb_sfqGa_KaMNsDMIjBVKaIc4h2hHSdb3tLUOOuEoxjyVt8-ehNqdA-6PTRblxEdAoU7Qyn-m1yOnoZNdY2YoOZwgNCEhzOEE2vyz-Npj1CR4Hok_UeRQnY256HZfj4F4DvKOznLx7cJI85Li6vuy93VyLc0HVjPr2j6kMw3zN8OC7Q9FdkNRM6J5hVLnwkYIwywGp6Y56-QAjGySgIh_STI_7RCNvCat07ZYcySMXqM8zQQoSuuYx9oiGP935qys-VSF28faXswZrpwvnWRO1WSpds4Sk6RR2K0ZfXTB6SdLyj2LXW4YPGXLys1abPg0Zg8neBfwWY2reHM9ocsFM5JG1591BwAteMO1a2LcL6XZ6kahj9B3j2bP7vgw3wMt18kKINkOuwbYBVGGErw6w7xp77jg7O1519BSsMWwVNOp27cWZtulNIrsLuaR9Lb3RbOVtEvVoq2bKGxKUieFgbrHivk1zBoSCjEqbfr6tCi35yAmxXAabMdF6j5ZLU-BYDpxPu7hmbcWiYxj_hZmzbWzoIXb6-rS-914TxucUaLEeFCk-DgpuQ4a0JsJGIbrQwtbYLRliHEybeTrMAg8p9V4b4BlNtSEmsA8zUc2T_2qAChIZZ5i6iPVd1plSdcr9_giE8ZCgWv065qBt2Yv3vhi4G6745-rDrR6TWtlv5owd8j8-9tijNIjVF87tXqWNicCahODIeW0q643MKGgevEO938k1NDH3xmn0LatlXdutFW-rO5R48eyRHYIQBTzKwaKWuVy7VFQ==
+          - id: msg_0b202ce789393e98016aec6a43fc2487d1a4002780626af636
+            content:
+            - annotations: []
+              text: Hello.
+              type: output_text
+              logprobs: []
+            role: assistant
+            status: completed
+            type: message
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 1.0
+          max_output_tokens: 1024
+          reasoning:
+            context: current_turn
+            effort: low
+            mode: standard
+            summary: null
+          status: completed
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          usage:
+            input_tokens: 12
+            input_tokens_details:
+              cached_tokens: 0
+              cache_write_tokens: 0
+            output_tokens: 50
+            output_tokens_details:
+              reasoning_tokens: 0
+            total_tokens: 62
+            cost: 7.5602e-05
+          store: false
+          background: false
+          completed_at: 1793878596
+          frequency_penalty: 0.0
+          image:
+            context_compression: disabled
+          presence_penalty: 0.0
+          prompt_cache_retention: in_memory
+          service_tier: default
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 11
+        model: openai/openai/gpt-5-mini
+      - '[DONE]'
