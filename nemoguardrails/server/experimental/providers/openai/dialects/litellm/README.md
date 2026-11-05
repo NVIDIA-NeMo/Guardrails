@@ -12,27 +12,30 @@ or a promise of compatibility with every LiteLLM release and backend.
 
 ## Supported boundary
 
+Unreviewed members follow the
+[shared object policy](../../../../contracts/README.md#object-and-stream-metadata).
+The table lists the dialect's reviewed fields and constraints.
+
 | Location | Policy |
 | --- | --- |
-| Request | Reuse the OpenAI single-user-text request binding, including disabled tools, multimodal content, and log probabilities. No additional request fields are enabled. |
-| Buffered `choices[0].message.provider_specific_fields` | Optional and nullable, with optional `refusal: null` and absent/null/empty `thinking_blocks`. Other members are rejected. |
-| Buffered `choices[0].provider_specific_fields` | Optional and nullable; reviewed `native_finish_reason` metadata is opaque. Other members are rejected. |
+| Request | Reuse the OpenAI single-user-text request binding, including declared constraints on tools, multimodal content, and log probabilities. |
+| Buffered `choices[0].message.provider_specific_fields` | Optional and nullable, with optional `refusal: null` and absent/null/empty `thinking_blocks`. |
+| Buffered `choices[0].provider_specific_fields` | Optional and nullable; reviewed `native_finish_reason` metadata is opaque. |
 | Buffered message `images`, `thinking_blocks` | Absent, null, or empty arrays only. Nonempty content is unsupported. |
-| Buffered message and streaming delta `reasoning_items` | Optional nullable lists of closed typed items with `type: "reasoning"`. Item `encrypted_content`, `id`, and `status` are opaque; `content` and `summary` must be absent, null, or empty arrays. Unknown item fields are rejected. |
-| Remaining buffered fields | Inherit the OpenAI response constraints and reviewed opaque metadata. The dialect's choice and message remain closed even under a trusted unknown-field override. |
+| Buffered message and streaming delta `reasoning_items` | Optional nullable lists of typed items with `type: "reasoning"`. Item `encrypted_content`, `id`, and `status` are opaque; `content` and `summary` must be absent, null, or empty arrays. |
+| Remaining buffered fields | Inherit the OpenAI response constraints, reviewed opaque metadata, and provider-level unknown-field selection. |
 | Buffered and streaming root `access_programs`, `billing`, `frequency_penalty`, `presence_penalty`, `tool_usage` | Reviewed opaque metadata retained by Responses-to-Chat translation. |
-| Buffered/streaming root `image` and streaming root `provider_specific_fields.image` | Absent, null, or a closed object containing `context_compression: enabled \| disabled`. Effective image policy metadata; no image content or request options are enabled. |
-| Streaming root `provider_specific_fields` | Optional nullable closed object with those reviewed metadata members and `service_tier`. Other members are rejected. |
-| Streaming delta `provider_specific_fields` | Absent, null, or empty objects only. Root metadata permissions do not apply here. |
+| Buffered/streaming root `image` and streaming root `provider_specific_fields.image` | Absent, null, or an object with required `context_compression: enabled \| disabled`. Effective image policy metadata; no image content or request options are enabled. |
+| Streaming root `provider_specific_fields` | Optional nullable object with those reviewed metadata members and `service_tier`. |
+| Streaming delta `provider_specific_fields` | Optional nullable object with no reviewed members. Supplied members pass uninspected under `allow`; `forbid` requires an empty object. |
 | Streaming delta `images`, `thinking_blocks`, `annotations` | Absent, null, or empty arrays only. |
 | Streaming event selection and lifecycle | Rebind the OpenAI content rule to the LiteLLM projection; retain error selection, metadata roles, sentinel/keepalive behavior, and fresh OpenAI lifecycle hooks. Choice index remains strict integer zero. |
 
 Extension containers are **constrained**, not wholly opaque. Their members have
 individual policies: `native_finish_reason` is opaque metadata, null refusal
-is disabled, and thinking blocks are constrained to empty values. Reasoning or
-refusal text, token arrays, and unreviewed names are rejected. Reviewed opaque
-fields such as usage remain uninspected, including their contents; this dialect
-does not claim to inspect all JSON text or validate all metadata value types.
+is disabled, and thinking blocks are constrained to empty values. Declared
+reasoning or refusal text and token arrays are rejected. Reviewed opaque fields
+such as usage remain uninspected, including their contents.
 
 As in the base integration, disabling output inspection relays response bytes
 without applying response projections or stream classification. Guarded request
@@ -67,9 +70,10 @@ client wrapper. Omitting `endpoint` retains the OpenAI declaration. Neither the
 hostname, request model string, response fields, nor exported YAML selects it.
 
 Selection assumes the reviewed wire behavior matches the configured deployment.
-Unknown shapes fail closed when inspected; accepted names and opaque fields do
-not prove backend semantics. A gateway in front of vLLM needs separate evidence
-for what that gateway actually exposes. Do not automatically union dialects.
+Unsupported content variants and event families fail closed when inspected;
+accepted names and opaque fields do not prove backend semantics. A gateway in
+front of vLLM needs separate evidence for what that gateway actually exposes.
+Do not automatically union dialects.
 
 ## Evidence and scope
 
@@ -111,19 +115,19 @@ key that LiteLLM's open dictionaries could contain.
 | Source fields | Policy decision |
 | --- | --- |
 | Chat request `model`, `messages`, `n`, `stream`, OpenAI sampling/usage controls | Inherit existing OpenAI policy; this dialect does not promise full provider-schema validation. |
-| Request `caching`, `num_retries`, `guardrails`, `fallbacks`, `context_window_fallback_dict` | Reject as undeclared. These affect execution/routing or upstream guardrail selection, not just response metadata; enabling them requires a separate operational policy decision. |
+| Request `caching`, `num_retries`, `guardrails`, `fallbacks`, `context_window_fallback_dict` | Outside the reviewed request inventory: forwarded uninspected under `allow`, rejected under `forbid`. These options can affect provider execution, routing, or upstream checks; forwarding does not establish inspection support for their behavior. |
 | Message `content`, `role`, `audio`, `function_call`, `tool_calls`, `reasoning_content`, `annotations` | Inherit guarded text and existing role/content constraints. |
 | Message `images`, `thinking_blocks` | Explicit empty-only arrays; they are additional content channels, not accounting metadata. |
-| Message and stream delta `reasoning_items` | Optional nullable lists of closed typed reasoning items. Preserve opaque `encrypted_content`, `id`, and `status`; require `type: "reasoning"` and absent/null/empty `content` and `summary`. Reject unknown item fields. |
-| Message extension `refusal`, `thinking_blocks` | Null-only refusal and empty-only thinking blocks. Other extension names require review. |
+| Message and stream delta `reasoning_items` | Optional nullable lists of typed reasoning items. Preserve opaque `encrypted_content`, `id`, and `status`; require `type: "reasoning"` and absent/null/empty `content` and `summary`. |
+| Message extension `refusal`, `thinking_blocks` | Null-only refusal and empty-only thinking blocks. |
 | Choice `message`, `finish_reason`, `index`, `logprobs` | Inherit OpenAI policy. Buffered index/finish reason are opaque; log probabilities remain disabled. |
 | Choice extension `native_finish_reason` | Opaque provider termination metadata. It is not used to select or end stream events. |
 | Buffered and streaming root `access_programs`, `billing`, `frequency_penalty`, `presence_penalty`, `tool_usage` | Reviewed opaque metadata retained by Responses-to-Chat translation. |
-| Stream root extension bag | Optional nullable closed object accepting the reviewed root metadata above and `service_tier`. Other members are rejected. |
-| Stream delta extension bag | Absent, null, or empty objects only. Root metadata permissions do not apply here. |
+| Stream root extension bag | Optional nullable object accepting the reviewed root metadata above and `service_tier`. |
+| Stream delta extension bag | Optional nullable object with no reviewed members. Members pass uninspected under `allow`; `forbid` requires an empty object. |
 | Stream delta `images`, `thinking_blocks`, `annotations` | Explicit empty-only arrays. Typed `reasoning_items` follow the separate policy above. |
 | Root response/stream identity, usage and other existing opaque fields | Preserve unchanged. Reasoning-token counts and cost inside usage are not reasoning text. |
-| Source constructor extras, including choice `enhancements`, and unknown backend fields | Reject unless already in the inherited opaque inventory. Open upstream dictionaries are not an automatic passthrough policy. |
+| Source constructor extras, including choice `enhancements`, and unknown backend fields | Preserve uninspected under `allow`; reject outside the reviewed inventory under `forbid`. |
 
 Recorded buffered and streaming exchanges are covered separately in
 [#2455](https://github.com/NVIDIA-NeMo/Guardrails/pull/2455). They exercise this
@@ -138,17 +142,11 @@ proves compatibility with all model routes. No live calls are needed for tests.
 ## Application-owned extensions
 
 A trusted application can bind a reviewed Python projection to its own endpoint
-and pass that endpoint to the router. For harmless additional metadata, declare
-the specific member opaque and rebind the containing models; do not disable
-output inspection just to preserve metadata. Regenerate the exported contract
-and test both passthrough and rejection after changing a boundary. Additional
-content needs supported inspection or an explicit decision to leave it opaque.
-
-The default dialect remains closed. The existing unknown-field override does
-not relax declared constraints or this dialect's closed response objects.
-There is no request-controlled opt-out, YAML loader, wildcard metadata allowance,
-or new deployment configuration system. Broader operator configuration can be
-added separately if needed.
+and pass that endpoint to the router. To classify metadata for the reviewed
+inventory and strict deployments, declare its field opaque, rebind the containing
+models, and regenerate the exported contract. See the
+[customization walkthrough](https://docs.nvidia.com/nemo/guardrails/latest/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings)
+for a complete example.
 
 ## Contract export
 

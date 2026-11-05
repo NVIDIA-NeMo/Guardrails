@@ -1,8 +1,8 @@
 # Responses conformance
 
-This suite checks field policies against provider source, examples, and recorded
-exchanges. A field's presence is evidence to review, not permission to treat its
-contents as opaque.
+This suite uses strict validation to check field policies against provider source,
+examples, and recorded exchanges. A field's presence is evidence to review, not
+permission to treat its contents as opaque.
 
 ## Evidence and coverage
 

@@ -47,6 +47,38 @@ Blocking tests reference the existing successful cassettes and force
 original success tests when authorized; do not create separate provider
 recordings for synthetic safety verdicts.
 
+## Forward compatibility coverage
+
+The [forward compatibility suite](openai/test_forward_compatibility.py) records
+six exchanges: native OpenAI Responses, gateway Responses, and gateway Chat,
+each buffered and streaming. The same recordings replay under both
+`unknown_fields: allow` and `unknown_fields: forbid`, preserving the complete
+sanitized response and verifying that supported text reaches the checker. Each
+successful cassette is rewound for allowed and synthetic output-block decisions,
+with exactly one upstream exchange per pass. Capture still runs once per scenario.
+
+Shared proxy behavior is tested under both policies; focused tests cover their
+unknown-field differences and the omitted production default. Every captured
+request and successful response is also audited strictly,
+including focused refresh and replay runs of the compatibility tests. A new
+unreviewed field fails the maintenance check while retaining the complete capture
+for review. The [inventory audit](openai/test_contract_inventory.py) discovers all
+stored proxy cassettes and requires an explicit provider/operation mapping.
+The compatibility tests do not require a particular additive metadata field to
+remain present; deterministic tests cover injected unknown fields.
+
+Refresh requires `OPENAI_API_KEY` for native OpenAI and `NVIDIA_INFERENCE_KEY`
+for the gateway, supplied through the environment:
+
+```bash
+make rewrite-cassettes \
+  RECORDED_TESTS=tests/recorded/server/experimental/openai/test_forward_compatibility.py \
+  RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_INFERENCE_KEY"
+
+make replay-cassettes \
+  RECORDED_TESTS=tests/recorded/server/experimental/openai/test_forward_compatibility.py
+```
+
 ## Pattern for another operation or provider
 
 1. Keep tests and sanitized recordings under the provider directory. Record

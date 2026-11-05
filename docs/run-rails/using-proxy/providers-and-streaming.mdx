@@ -97,12 +97,16 @@ accepts specific extension containers; its
 [Responses dialect](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/dialects/litellm/responses.md)
 accepts different metadata. Their allowances are operation-specific.
 
-By default, unknown fields and case aliases of declared fields are rejected.
-To restrict request values or allow reviewed response metadata,
+Unknown members follow the provider's
+[`unknown_fields` setting](/run-guardrailed-inference/using-proxy/configuration#handle-provider-additions),
+which defaults to `allow`. The content and streaming constraints on this page
+apply under either setting.
+
+To restrict request values or classify metadata in the reviewed inventory,
 [customize the binding policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings)
 for buffered and streaming responses. The
 [contract reference](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/README.md#object-and-stream-metadata)
-describes lower-level unknown-field overrides and their limits.
+describes strict exported inventories and lower-level validation.
 
 Reviewed source revisions describe the field-policy baseline. Select the binding
 for your gateway's protocol and version, including whether the operation uses a

@@ -63,6 +63,10 @@ another directory. YAML paths instead resolve against the manifest location.
 Application construction validates configuration and routes; lifespan startup
 initializes Rails and network owners.
 
+Set `unknown_fields="forbid"` on `ProviderConfig` for strict inventory checking.
+The default and inspection scope are documented in
+[provider configuration](/run-guardrailed-inference/using-proxy/configuration#handle-provider-additions).
+
 ## Choose Advanced Customization
 
 Choose a customization guide for your application requirements:
@@ -180,6 +184,14 @@ system. In direct mode, one Rails entry with no resolver infers static selection
 multiple entries require a resolver. An explicit resolver still runs with one
 entry. Do not mix `ProxyConfig` with direct provider, catalog, or limit arguments;
 callbacks remain separate keyword arguments in either mode.
+
+The direct factory accepts the same setting:
+`create_openai_integration(..., unknown_fields="forbid")`.
+
+Stream classifiers can support the setting by implementing
+`with_unknown_fields(policy)`, which returns a configured classifier without
+modifying the shared instance. Built-in typed classifiers implement this method;
+custom classifiers without it retain their own validation rules.
 
 For implementation detail, start with the
 [typed Chat declarations](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/chat_completions/README.md)

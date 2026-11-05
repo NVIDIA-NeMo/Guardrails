@@ -13,10 +13,10 @@ support one assistant text response under the native content restrictions.
 
 Reviewed response metadata, including `store` and `tool_usage`, remains opaque:
 its values and nested structure are not inspected. The event's `model` field
-does not select events or supply guarded text. Unknown root fields and events,
-additional content channels, and nested LiteLLM SSE errors fail closed when
-output inspection is enabled. Disabling output inspection retains raw response
-relay; request restrictions still apply.
+does not select events or supply guarded text. Unreviewed members follow the
+[shared object policy](../../../../contracts/README.md#object-and-stream-metadata).
+Content restrictions, event admission, no-output handling, and uninspected
+response relay follow the native Responses policy.
 
 ## Explicit selection
 

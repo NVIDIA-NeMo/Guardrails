@@ -27,23 +27,24 @@ token alternatives and citation text are not separately inspected.
 
 Reviewed provider metadata, including encrypted reasoning, usage, IDs, and
 echoed controls, remains opaque where declared. Opaque does not mean safe or
-inspected. Unknown root fields fail closed. Only nested objects explicitly
-marked configurable can accept unknown members under a trusted `ALLOW` policy;
-the stream classifier always uses the closed default. Case aliases cannot
-override reviewed policy.
+inspected. Unreviewed members follow the
+[shared object policy](../../../contracts/README.md#object-and-stream-metadata).
+Cache-only execution, including `prompt_cache_options.prewarm: true`, requires
+separate no-output handling; field permissiveness does not supply it.
 
-Request `prompt_cache_options` may be omitted, null, or a closed object with
+Request `prompt_cache_options` may be omitted, null, or an object with
 reviewed `ttl`, `mode`, and `comparison_response_id` controls. `prewarm` permits
 only the boolean `false` or omission: cache-only requests do not generate the
-assistant text required by this profile. Unknown cache controls and non-boolean
-`prewarm` values reject before upstream dispatch, including with output checks
-disabled. Allowed request bytes are forwarded unchanged.
+assistant text required by this profile. Unknown cache controls follow the
+selected field policy. Non-boolean `prewarm` values reject before upstream
+dispatch, including with output checks disabled. Allowed request bytes are
+forwarded unchanged.
 
-Optional response `image` metadata is absent, null, or a closed object containing
+Optional response `image` metadata is absent, null, or an object requiring
 `context_compression: enabled | disabled`, the effective image context policy.
 This applies to buffered responses and lifecycle snapshots, including text-only
-exchanges. It does not enable image request options or image content. Other
-members and values remain unsupported. See the
+exchanges. It does not enable image content. Unknown members follow the selected
+field policy; other `context_compression` values remain unsupported. See the
 [OpenAI response field addition](https://github.com/openai/openai-python/commit/1b2fb74d1ac88eca798a00d3e5c0789ab9e42833).
 
 ## Declaration and runtime responsibilities
@@ -100,7 +101,7 @@ are rejected during construction.
 
 `create_openai_chat_integration` remains a Chat-only wrapper, including its
 existing explicit dialect endpoint customization. The broader factory selects
-strict OpenAI boundaries; it does not infer a dialect from an upstream URL.
+native OpenAI boundaries; it does not infer a dialect from an upstream URL.
 
 ```python
 from pathlib import Path
@@ -174,6 +175,10 @@ implementation. Generic JSON Schema validators ignore guard annotations such
 as selected-variant cardinality and case-alias rejection; policy-aware checks
 are needed for those rules. Python strict integer checks are also stronger than
 JSON Schema's mathematical integer semantics.
+
+The [shared object policy](../../../contracts/README.md#object-and-stream-metadata)
+defines the export's strict inventory semantics and how to audit provider
+captures independently of runtime acceptance.
 
 The [OpenAI source pin](../../../contracts/openai/source.yaml) remains the review
 baseline. The old Responses implementation provided characterization cases,
