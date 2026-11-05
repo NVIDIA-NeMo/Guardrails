@@ -33,12 +33,17 @@ rails = LLMRails(config, verbose=False)
 
 # start-image-fetch
 # Fetch the image client-side so the NIM endpoint does not need to reach
-# external URLs. Wikimedia blocks server-side HTTP clients with a 403.
+# external URLs. Wikimedia requires a descriptive User-Agent and returns 403
+# for the default Python urllib agent.
 _image_url = (
     "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/"
     "SIG_Pro_by_Augustas_Didzgalvis.jpg/330px-SIG_Pro_by_Augustas_Didzgalvis.jpg"
 )
-with urllib.request.urlopen(_image_url) as _resp:
+_req = urllib.request.Request(
+    _image_url,
+    headers={"User-Agent": "NeMoGuardrailsDemo/1.0 (https://github.com/NVIDIA-NeMo/Guardrails)"},
+)
+with urllib.request.urlopen(_req) as _resp:
     _image_b64 = base64.b64encode(_resp.read()).decode("utf-8")
 image_data_url = f"data:image/jpeg;base64,{_image_b64}"
 # end-image-fetch
