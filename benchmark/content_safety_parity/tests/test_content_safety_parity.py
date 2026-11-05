@@ -79,6 +79,14 @@ class TestParseVerdict:
         v = parse_verdict(raw)
         assert v.raw == raw
 
+    def test_truncated_verdict_line_is_error(self):
+        # A response truncated after "User Safety:" with no value must be an error,
+        # not an unsafe verdict.
+        raw = "User Safety:"
+        v = parse_verdict(raw)
+        assert v.error is True
+        assert v.is_safe is False
+
     def test_safe_verdict_capital_s(self):
         # NIM sometimes returns "Safe" with a capital S — must still parse as safe.
         raw = "User Safety: Safe\nSafety Categories: None"

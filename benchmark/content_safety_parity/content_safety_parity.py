@@ -128,15 +128,18 @@ class Verdict:
 
 def parse_verdict(raw: str, latency_ms: float = 0.0) -> Verdict:
     raw_lower = raw.lower()
-    has_verdict = "user safety:" in raw_lower
     is_safe = "user safety: safe" in raw_lower
+    is_unsafe = "user safety: unsafe" in raw_lower
+    # Require a complete "safe" or "unsafe" value; a bare "User Safety:" (truncated response)
+    # has no verdict and must be treated as an error, not as unsafe.
+    has_verdict = is_safe or is_unsafe
     categories: list[str] = []
     for line in raw.splitlines():
         stripped = line.strip()
         if stripped.lower().startswith("safety categories:"):
             cats_str = stripped[len("safety categories:") :].strip()
             categories = [c.strip() for c in cats_str.split(",") if c.strip()]
-    # No verdict line → truncated/malformed response; mark as error so metrics skip it.
+    # No complete verdict line → truncated/malformed response; mark as error so metrics skip it.
     return Verdict(is_safe=is_safe, raw=raw, categories=categories, latency_ms=latency_ms, error=not has_verdict)
 
 
@@ -527,11 +530,13 @@ def load_vlguard(n: int, mode: str = "instruction", images_dir: Optional[str] = 
     else:
         img_root = Path(zip_path).parent / "vlguard_test_images"
 
-    if not img_root.exists():
+    sentinel = img_root / "_extraction_complete"
+    if not sentinel.exists():
         print(f"  Extracting images to {img_root} ...")
         img_root.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(zip_path) as zf:
             zf.extractall(img_root)
+        sentinel.touch()
 
     with open(json_path) as f:
         data = json.load(f)
@@ -963,12 +968,18 @@ def print_policy_comparison(
     type_keys = [s.extra.get("type") for s in samples]
     if any(t for t in type_keys):
         by_type: dict[str, dict[str, int]] = defaultdict(lambda: {"agree": 0, "disagree": 0})
+        policy_errors = 0
         for s, dv, cv in zip(samples, default_verdicts, custom_verdicts):
+            if dv.error or cv.error:
+                policy_errors += 1
+                continue
             t = s.extra.get("type", "unknown")
             if dv.is_safe == cv.is_safe:
                 by_type[t]["agree"] += 1
             else:
                 by_type[t]["disagree"] += 1
+        if policy_errors:
+            print(f"\n  ({policy_errors} errored pair(s) excluded from disagreement breakdown)")
 
         print("\n  Disagreements by original label type:")
         print(f"  {'Type':<12}  {'Agree':>7}  {'Disagree':>9}  {'Conflict%':>10}")
@@ -986,12 +997,15 @@ def print_comparison(
     direct_verdicts: list[Verdict],
     guardrails_verdicts: list[Verdict],
 ) -> None:
+    # Exclude image-bearing samples: the Guardrails check_async path sends only text, so
+    # direct and Guardrails paths judge different inputs — their verdicts are not comparable.
+    image_skipped = sum(1 for s in samples if s.extra.get("image_path"))
     valid_pairs = [
         (i, s, d, g)
         for i, (s, d, g) in enumerate(zip(samples, direct_verdicts, guardrails_verdicts))
-        if not d.error and not g.error
+        if not d.error and not g.error and not s.extra.get("image_path")
     ]
-    skipped = len(samples) - len(valid_pairs)
+    skipped = len(samples) - image_skipped - len(valid_pairs)
     agree = sum(1 for _, _, d, g in valid_pairs if d.is_safe == g.is_safe)
     total = len(valid_pairs)
     agreement_rate = agree / total if total else 0.0
@@ -1003,6 +1017,8 @@ def print_comparison(
         f"  Agreement: {agree}/{total} ({agreement_rate:.1%}){f'  ({skipped} errored pairs skipped)' if skipped else ''}"
     )
 
+    image_note = f"  ({image_skipped} image samples excluded — Guardrails path is text-only)\n" if image_skipped else ""
+    print(f"{image_note}", end="")
     if not valid_pairs:
         print("  Inconclusive — all pairs errored; check endpoint and API key.")
         return
