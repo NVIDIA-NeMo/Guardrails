@@ -21,6 +21,7 @@ import httpx
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import (
     llm_call_info_var,
     llm_response_metadata_var,
@@ -251,10 +252,15 @@ async def test_server_sends_delta_before_upstream_finishes(
     rails = LLMRails(
         RailsConfig.from_content(
             config=config,
-            colang_content='define flow check output\n  if $bot_message == "BLOCK"\n    bot refuse to respond\n    stop\n',
+            colang_content="define flow check output\n  execute check_output\n",
         ),
         llm=make_model(),
     )
+
+    async def check_output(**params):
+        return RailOutcome.allow()
+
+    rails.register_action(check_output, "check_output")
 
     async def get_rails(*args, **kwargs):
         return rails

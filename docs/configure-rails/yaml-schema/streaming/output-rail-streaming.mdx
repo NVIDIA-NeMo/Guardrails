@@ -95,6 +95,40 @@ The top-level `streaming: True` field is deprecated and no longer required. Use 
 
 </Note>
 
+### Output Rail Flow Requirements
+
+Output rail streaming does not run the whole Colang flow on each chunk.
+It calls the first `execute` action of each output rail flow directly and passes it the chunk as `$bot_message`.
+Each flow in `rails.output.flows` must therefore call its check as the first `execute` action in its own body, as the library flows do:
+
+```colang
+define flow self check output
+  $response = execute self_check_output
+
+  if $response.is_blocked
+    bot refuse to respond
+    stop
+```
+
+A flow with no `execute` action in its own body, for example one that delegates its check to a subflow, cannot run on the streaming path:
+
+```colang
+define flow blocking output check
+  if $bot_message
+    do inner blocking check
+```
+
+`stream_async()` rejects such a configuration with a `StreamingNotSupportedError` that names the flow, before it streams any tokens.
+The server returns HTTP 400 for the request.
+`generate_async()` runs these flows unchanged.
+
+<Warning>
+
+If a flow runs another `execute` action before its check, the streaming path calls that action instead of the check, and `stream_async()` cannot detect this.
+Keep the check as the first `execute` action in each output rail flow.
+
+</Warning>
+
 ---
 
 ## Usage Examples
@@ -179,6 +213,7 @@ rails:
    - `stream_first: False`: Output rails run on the chunk first. The client receives the new tokens only if rails pass. If the rails block the content, the client never receives the tokens.
 3. **Context Overlap**: The system retains the last `context_size` tokens from the current chunk and prepends them to the next chunk's processing context. This gives rails visibility across chunk boundaries.
 4. **Blocking**: If any rail blocks the content, the stream yields a JSON error object (`{"error": {...}}`) and terminates immediately.
+   The stream also terminates if a rail fails to run. Refer to [When an Output Rail Fails to Run](#when-an-output-rail-fails-to-run).
 
 ### stream_first: True (default)
 
@@ -216,6 +251,30 @@ Chunk 2: rails process [token151 ... token200, token201 ... token400]
                         └── context_size ──┘  └── new tokens ───────┘
          user receives  [token201 ... token400]
 ```
+
+### When an Output Rail Fails to Run
+
+If an output rail cannot produce a verdict for a chunk, the stream yields a single error object and terminates.
+For example, the rail's action raises an exception or returns something other than a `RailOutcome`:
+
+```json
+{
+  "error": {
+    "message": "Internal error in self check output rail: Action self_check_output failed with status: failed",
+    "type": "internal_error",
+    "param": "self check output",
+    "code": "rail_execution_failure"
+  }
+}
+```
+
+Sequential and parallel output rails (`rails.output.parallel: True`) both end the stream with this error object.
+With parallel rails, `param` names the rail that failed, or is `output rails` when the failure is not specific to one rail.
+The message never includes the text of an exception raised by a rail action, which can carry provider details; the server log records the exception.
+
+Treat a `rail_execution_failure` error like a block, because the chunk was never checked.
+With `stream_first: False`, the client never receives that chunk.
+With `stream_first: True`, the client has already received it, as with a blocked chunk.
 
 ---
 
