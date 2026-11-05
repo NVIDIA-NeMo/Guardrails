@@ -62,10 +62,6 @@ Follow these steps to prepare the guardrails configuration.
 
    For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
 
-   <Note>
-   The model ID `nvidia/nemotron-3.5-lightning-30b-a3b` is the name used on [build.nvidia.com](https://build.nvidia.com). If you deploy the Lightning model as a local NIM container, its `/v1/models` endpoint self-reports the shorter ID `nvidia/nemotron-3.5-lightning`. Use `nvidia/nemotron-3.5-lightning-30b-a3b` when routing requests through the hosted API, and `nvidia/nemotron-3.5-lightning` when pointing `base_url` at a local NIM container.
-   </Note>
-
 1. Save the following as `config/prompts.yml`.
 
    ```yaml
