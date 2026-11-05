@@ -32,7 +32,7 @@ Follow these steps to prepare the guardrails configuration.
    models:
      - type: main
        engine: nim
-       model: nvidia/nemotron-3.5-lightning
+       model: nvidia/nemotron-3.5-lightning-30b-a3b
 
      - type: content_safety
        engine: nim
@@ -61,6 +61,10 @@ Follow these steps to prepare the guardrails configuration.
    - `request_categories: "/categories"`: instructs the model to include the `Safety Categories` field in the response. Omitting this causes the model to default to `/no_categories`, which suppresses that field. The 24-category taxonomy is applied regardless.
 
    For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
+
+   <Note>
+   The model ID `nvidia/nemotron-3.5-lightning-30b-a3b` is the name used on [build.nvidia.com](https://build.nvidia.com). If you deploy the Lightning model as a local NIM container, its `/v1/models` endpoint self-reports the shorter ID `nvidia/nemotron-3.5-lightning`. Use `nvidia/nemotron-3.5-lightning-30b-a3b` when routing requests through the hosted API, and `nvidia/nemotron-3.5-lightning` when pointing `base_url` at a local NIM container.
+   </Note>
 
 1. Save the following as `config/prompts.yml`.
 
@@ -187,7 +191,7 @@ To run the Nemotron 3.5 Content Safety NIM in a Docker container, follow these s
    models:
      - type: main
        engine: nim
-       model: nvidia/nemotron-3.5-lightning
+       model: nvidia/nemotron-3.5-lightning-30b-a3b
 
      - type: content_safety
        engine: nim
