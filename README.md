@@ -59,32 +59,84 @@ These are integration points you choose for your workflow. Rail support varies b
 ## Quickstart
 
 Check a support agent's proposed refund against a $500 limit, without a model or API key.
-Using Python 3.11–3.13 in an activated virtual environment:
+Use Python 3.11–3.13 and install the optional CEL extra:
 
 ```bash
-git clone --branch develop https://github.com/NVIDIA-NeMo/Guardrails.git
-cd Guardrails
-pip install -e ".[cel]"
-python examples/configs/tool_call_refund/check_refund.py
+pip install "nemoguardrails[cel]"
 ```
 
-The [example configuration](./examples/configs/tool_call_refund/config.yml) validates the tool's argument schema and adds this per-tool rule:
+Save the following as `check_refund.py`. It validates the tool's argument schema and blocks calls over the limit:
 
-```yaml
+```python
+import asyncio
+import json
+
+from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.rails.llm.options import RailStatus, RailType
+
+config = RailsConfig.from_content(yaml_content="""
+models: []
 rails:
   tool_call:
+    flows: [tool call validation]
     per_tool:
-      issue_refund:
-        - cel check tool call
+      issue_refund: [cel check tool call]
   config:
     cel:
       tool_call:
         issue_refund:
-          expressions:
-            - "args.amount > 500"
+          expressions: ["args.amount > 500"]
+""")
+
+TOOLS = [{
+    "type": "function",
+    "function": {
+        "name": "issue_refund",
+        "parameters": {
+            "type": "object",
+            "properties": {"amount": {"type": "number", "minimum": 0}},
+            "required": ["amount"],
+            "additionalProperties": False,
+        },
+    },
+}]
+
+
+async def main():
+    async with Guardrails(config, require_iorails=True) as rails:
+        for amount in (50, 5000):
+            call = {
+                "role": "assistant",
+                "tool_calls": [{
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "issue_refund",
+                        "arguments": json.dumps({"amount": amount}),
+                    },
+                }],
+            }
+            result = await rails.check_async(
+                [call], rail_types=[RailType.TOOL_CALL], tools=TOOLS
+            )
+            print(f"${amount}: {result.status.value}")
+            if result.status == RailStatus.PASSED:
+                print("Ready for the application to execute")
+            else:
+                print(f"Rail: {result.rail}")
+                print(f"Reason: {result.reason}")
+
+
+asyncio.run(main())
 ```
 
-A matching CEL expression blocks the call. The [complete example](./examples/configs/tool_call_refund/check_refund.py) checks $50 and $5,000 calls and prints the blocking rail and reason:
+Run it from the directory where you saved the file:
+
+```bash
+python check_refund.py
+```
+
+Expected output:
 
 ```text
 $50: passed
@@ -95,7 +147,7 @@ Reason: cel check tool call
 ```
 
 The example does not issue refunds. Your application executes a tool only after its checks pass.
-This quickstart uses the development source and experimental IORails engine. For configuration and error handling, refer to [tool calling](./docs/configure-rails/guardrail-catalog/tool-calling.mdx) and [checking messages](./docs/run-rails/using-python-apis/check-messages.mdx).
+For more configuration and error-handling examples, refer to [tool calling](./docs/configure-rails/guardrail-catalog/tool-calling.mdx) and [checking messages](./docs/run-rails/using-python-apis/check-messages.mdx).
 
 ## Guardrail Catalog
 
