@@ -9,7 +9,7 @@ content:
 ---
 Learn how to restrict conversations to allowed topics using a custom policy with [Nemotron 3.5 Content Safety](https://build.nvidia.com/nvidia/nemotron-3.5-content-safety).
 
-A custom policy lets you define your own safety rules for a specific use case, for example limiting a customer service bot to company-related topics. When `custom_taxonomy` is set, the model uses the custom policy instead of the built-in 24-category safety taxonomy. To apply both, use two separate model entries in `config.yml`: one with `request_categories: "/categories"` for the built-in taxonomy and one with `custom_taxonomy` for your rules.
+A custom policy lets you define your own safety rules for a specific use case, for example limiting a customer service bot to company-related topics. The Nemotron 3.5 Content Safety NIM supports two mutually exclusive custom-field modes: `custom_policy` (Mode A) accepts free-text behavioral instructions and replaces the built-in safety behavior entirely; `custom_taxonomy` (Mode B) accepts a structured list of harm categories that replaces the built-in 24-category taxonomy. This tutorial uses `custom_policy`. To apply both the built-in taxonomy and a custom policy simultaneously, use two separate model entries in `config.yml`: one with `request_categories: "/categories"` for the built-in taxonomy and one with `custom_policy` for your rules.
 
 By following this tutorial, you learn how to configure a custom policy and interact with both on-topic and off-topic requests.
 
@@ -32,7 +32,7 @@ By following this tutorial, you learn how to configure a custom policy and inter
    models:
      - type: main
        engine: nim
-       model: nvidia/nemotron-3.5-lightning
+       model: nvidia/nemotron-3.5-lightning-30b-a3b
 
      - type: content_safety
        engine: nim
@@ -41,7 +41,7 @@ By following this tutorial, you learn how to configure a custom policy and inter
          chat_template_kwargs:
            enable_thinking: false
            request_categories: "/categories"
-           custom_taxonomy: |
+           custom_policy: |
              You are to act as a customer service agent, providing users with factual information in accordance with the knowledge base. Your role is to ensure that you respond only to relevant queries and adhere to the following guidelines:
              - Do not answer questions related to personal opinions or advice on a user's order or future recommendations.
              - Do not provide any information on non-company products or services.
@@ -57,7 +57,7 @@ By following this tutorial, you learn how to configure a custom policy and inter
          - content safety check input $model=content_safety
    ```
 
-   The `custom_taxonomy` field is passed to the model's chat template and replaces the built-in 24-category taxonomy. The model applies your custom policy and returns `User Safety: safe` or `User Safety: unsafe`. Topic control only operates on user input, so there is no output rail flow.
+   The `custom_policy` field is passed to the model's chat template as free-text behavioral instructions (Mode A). The model applies your policy and returns `User Safety: safe` or `User Safety: unsafe`. Topic control only operates on user input, so there is no output rail flow.
 
    For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
 
@@ -74,7 +74,7 @@ By following this tutorial, you learn how to configure a custom policy and inter
        max_length: 128000
    ```
 
-   Nemotron 3.5 Content Safety builds the full safety prompt server-side, including your `custom_taxonomy`. The `prompts.yml` passes only the user turn to classify. The `nemotron_content_safety_parse_prompt_safety` output parser reads the `User Safety: safe/unsafe` verdict line.
+   Nemotron 3.5 Content Safety builds the full safety prompt server-side, including your `custom_policy`. The `prompts.yml` passes only the user turn to classify. The `nemotron_content_safety_parse_prompt_safety` output parser reads the `User Safety: safe/unsafe` verdict line.
 
 ## Run the Guardrails Chat Application
 
@@ -177,7 +177,7 @@ To run the Nemotron 3.5 Content Safety NIM in a Docker container, follow these s
    models:
      - type: main
        engine: nim
-       model: nvidia/nemotron-3.5-lightning
+       model: nvidia/nemotron-3.5-lightning-30b-a3b
 
      - type: content_safety
        engine: nim
@@ -187,7 +187,7 @@ To run the Nemotron 3.5 Content Safety NIM in a Docker container, follow these s
          chat_template_kwargs:
            enable_thinking: false
            request_categories: "/categories"
-           custom_taxonomy: |
+           custom_policy: |
              You are to act as a customer service agent, providing users with factual information in accordance with the knowledge base. Your role is to ensure that you respond only to relevant queries and adhere to the following guidelines:
              - Do not answer questions related to personal opinions or advice on a user's order or future recommendations.
              - Do not provide any information on non-company products or services.
