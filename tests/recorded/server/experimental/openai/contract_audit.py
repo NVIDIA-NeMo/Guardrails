@@ -94,7 +94,7 @@ async def _audit_exchange(path: Path, uri: str, request_body: bytes | str, respo
         return
     if endpoint.stream is None:
         raise ValueError("A streaming recording requires a reviewed stream binding")
-    adapter = endpoint.stream.create_adapter()
+    adapter = endpoint.stream.with_unknown_fields(UnknownContentFieldPolicy.FORBID).create_adapter()
     observed_text = ""
 
     async def chunks():

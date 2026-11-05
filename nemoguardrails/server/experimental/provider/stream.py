@@ -16,12 +16,13 @@
 """Define the stream boundary implemented by provider adapters."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
-from typing import Callable, Protocol
+from typing import Callable, Protocol, runtime_checkable
 
 from nemoguardrails.server.experimental.provider.payload import ProjectionFieldCoverage
 from nemoguardrails.server.experimental.provider.sse import ServerSentEvent
+from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
 
 
 class UnsupportedProviderStream(ValueError):
@@ -139,6 +140,16 @@ class ProviderStreamClassifier(Protocol):
         ...
 
 
+@runtime_checkable
+class ConfigurableProviderStreamClassifier(ProviderStreamClassifier, Protocol):
+    """Optionally bind a trusted field policy without changing the shared classifier."""
+
+    def with_unknown_fields(self, unknown_fields: UnknownContentFieldPolicy) -> ProviderStreamClassifier:
+        """Return a classifier configured independently of the original instance."""
+
+        ...
+
+
 class ProviderStreamHooks(Protocol):
     """Implement stateful protocol checks and provider-native error framing."""
 
@@ -232,6 +243,13 @@ class StreamBinding:
             raise TypeError("A stream binding requires a callable classifier.")
         if not callable(self.hooks_factory):
             raise TypeError("A stream binding requires a callable hook factory.")
+
+    def with_unknown_fields(self, unknown_fields: UnknownContentFieldPolicy) -> "StreamBinding":
+        """Configure capable classifiers; legacy classifiers retain their own policy."""
+        selected = UnknownContentFieldPolicy(unknown_fields)
+        if not isinstance(self.classifier, ConfigurableProviderStreamClassifier):
+            return self
+        return replace(self, classifier=self.classifier.with_unknown_fields(selected))
 
     def create_adapter(self) -> ClassifiedStreamAdapter:
         """Create request-local hooks and validate their protocol interface."""

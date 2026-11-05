@@ -55,7 +55,6 @@ from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndp
 from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapping
 from nemoguardrails.server.experimental.provider.payload import GuardedMessageTarget, guarded_schema_error
 from nemoguardrails.server.experimental.provider.projection_policy import PolicyModel, policy_json_schema
-from nemoguardrails.server.experimental.provider.stream_classifier import StreamClassifier
 from nemoguardrails.server.experimental.provider.transport import ProviderBindingViolation
 from nemoguardrails.server.experimental.provider.types import GuardedMessage, UnknownContentFieldPolicy
 
@@ -138,12 +137,9 @@ def create_guarded_http_operation(
     """Create one buffered-and-streaming operation from an endpoint contract."""
 
     selected_unknown_fields = UnknownContentFieldPolicy(unknown_fields)
-    stream_binding = endpoint.stream
-    if stream_binding is not None and isinstance(stream_binding.classifier, StreamClassifier):
-        stream_binding = replace(
-            stream_binding,
-            classifier=replace(stream_binding.classifier, unknown_fields=selected_unknown_fields),
-        )
+    stream_binding = (
+        endpoint.stream.with_unknown_fields(selected_unknown_fields) if endpoint.stream is not None else None
+    )
     if (stream_dispatch is not None or policy_stream_dispatch is not None) and stream_binding is None:
         raise ValueError("A streaming dispatcher requires an endpoint stream binding.")
 

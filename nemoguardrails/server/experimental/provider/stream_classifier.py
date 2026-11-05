@@ -16,7 +16,7 @@
 """Validate declared event shapes without changing the inspected wire text."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
@@ -119,6 +119,10 @@ class StreamClassifier:
     event_type_field: str | None
     require_event_type: bool
     unknown_fields: UnknownContentFieldPolicy = UnknownContentFieldPolicy.FORBID
+
+    def with_unknown_fields(self, unknown_fields: UnknownContentFieldPolicy) -> "StreamClassifier":
+        """Bind a trusted field policy without changing the shared declaration."""
+        return replace(self, unknown_fields=UnknownContentFieldPolicy(unknown_fields))
 
     def classify_event(self, event: ServerSentEvent) -> GuardedStreamEvent:
         """Validate and classify one native provider event."""
