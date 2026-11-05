@@ -86,6 +86,12 @@
     "ResolvedImageOptions": [
       "context_compression"
     ],
+    "ResponsePromptCacheOptionsParam": [
+      "comparison_response_id",
+      "mode",
+      "prewarm",
+      "ttl"
+    ],
     "Reasoning": [
       "context",
       "effort",

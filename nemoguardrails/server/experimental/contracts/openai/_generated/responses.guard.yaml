@@ -85,8 +85,36 @@ request:
       x-nemo-guardrails:
         classification: opaque
     prompt_cache_options:
+      default: null
       x-nemo-guardrails:
-        classification: opaque
+        classification: constrained
+      oneOf:
+      - additionalProperties: false
+        description: Keep prompt caching compatible with foreground text generation.
+        properties:
+          comparison_response_id:
+            x-nemo-guardrails:
+              classification: opaque
+          mode:
+            x-nemo-guardrails:
+              classification: opaque
+          prewarm:
+            const: false
+            default: false
+            type: boolean
+            x-nemo-guardrails:
+              classification: constrained
+              reason: core_capability.cache_only_generation
+          ttl:
+            x-nemo-guardrails:
+              classification: opaque
+        title: ResponsesPromptCacheOptionsProjection
+        type: object
+        x-nemo-guardrails:
+          source: '#/components/schemas/ResponsePromptCacheOptionsParam'
+          unknown_fields: forbid
+          reject_case_aliases: true
+      - type: 'null'
     prompt_cache_retention:
       x-nemo-guardrails:
         classification: opaque

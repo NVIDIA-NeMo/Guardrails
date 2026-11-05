@@ -6,7 +6,7 @@ contents as opaque.
 
 ## Evidence and coverage
 
-- [Pinned inventory](fixtures/README.md): 22 Responses components, inherited
+- [Pinned inventory](fixtures/README.md): 23 Responses components, inherited
   `allOf` properties, and the official text-input response example.
 - [Native Responses recordings](../../../../../recorded/server/experimental/openai/test_responses.py):
   buffered/streaming success and invalid-model HTTP errors from OpenAI.
@@ -39,6 +39,12 @@ and permits null `usage`. Guard projections remain partial content policies:
 they do not require every provider-owned metadata member. Chat's now-optional
 `refusal` and streaming `finish_reason` retain their existing optional handling,
 and its source-defined streaming audio content remains disabled.
+
+`ResponsePromptCacheOptionsParam` is also inventoried independently. Its nested
+`prewarm` control permits only omission or boolean `false`; cache-only execution
+and unreviewed cache members reject before dispatch. The remaining reviewed
+cache controls retain their opaque values, and accepted requests preserve the
+original payload.
 
 ## Policy boundaries
 

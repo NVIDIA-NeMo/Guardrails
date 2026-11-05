@@ -32,6 +32,13 @@ marked configurable can accept unknown members under a trusted `ALLOW` policy;
 the stream classifier always uses the closed default. Case aliases cannot
 override reviewed policy.
 
+Request `prompt_cache_options` may be omitted, null, or a closed object with
+reviewed `ttl`, `mode`, and `comparison_response_id` controls. `prewarm` permits
+only the boolean `false` or omission: cache-only requests do not generate the
+assistant text required by this profile. Unknown cache controls and non-boolean
+`prewarm` values reject before upstream dispatch, including with output checks
+disabled. Allowed request bytes are forwarded unchanged.
+
 Optional response `image` metadata is absent, null, or a closed object containing
 `context_compression: enabled | disabled`, the effective image context policy.
 This applies to buffered responses and lifecycle snapshots, including text-only

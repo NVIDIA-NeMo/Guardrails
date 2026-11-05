@@ -198,6 +198,9 @@ async def test_synthetic_stream_mutations_of_native_recording_cannot_escape_as_m
         {"image": None},
         {"access_programs": {"cyber": "standard"}},
         {"access_programs": None},
+        {"prompt_cache_options": {"prewarm": True}},
+        {"prompt_cache_options": {"prewarm": 0}},
+        {"prompt_cache_options": {"future_control": True}},
     ],
 )
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
@@ -213,3 +216,20 @@ async def test_request_content_rejected_before_dispatch(updates, endpoint, strea
     assert response.json()["error"]["code"] == "unsupported_responses_shape"
     assert sent == []
     assert checker.calls == []
+
+
+@pytest.mark.parametrize(
+    "options",
+    [None, {}, {"ttl": "12h", "mode": "implicit"}, {"prewarm": False, "comparison_response_id": "resp_test"}],
+)
+@pytest.mark.parametrize("endpoint", ENDPOINTS)
+@pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])
+async def test_reviewed_cache_options_preserve_forwarded_request_and_response(options, endpoint, stream):
+    request, body = recording(stream)
+    request["prompt_cache_options"] = options
+    response, checker, sent = await injected_response(request, body, endpoint=endpoint)
+    assert response.status_code == 200
+    assert response.content == body
+    assert len(sent) == 1
+    assert json.loads(sent[0].content) == request
+    assert [kind for kind, _ in checker.text_calls] == ["input", "output"]

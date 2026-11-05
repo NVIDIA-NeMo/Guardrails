@@ -58,7 +58,7 @@ def test_inventory_tracks_the_reviewed_provider_source():
     assert INVENTORY["source"] == pin
     assert (
         hashlib.sha256(INVENTORY_PATH.read_bytes()).hexdigest()
-        == "2b5e5a4967f843baf7807bee8795ecb4e836056ef569894dade378c55a40ad5c"
+        == "c184d2d1d22d7ae18e9c5f5c4f290d3a4ab21702158ed545ac128653d0005829"
     )
 
 
@@ -112,6 +112,8 @@ def test_observed_native_metadata_is_opaque_in_buffered_and_lifecycle_responses(
         ("CreateResponse", "conversation", "constrained"),
         ("CreateResponse", "tools", "constrained"),
         ("CreateResponse", "include", "constrained"),
+        ("CreateResponse", "prompt_cache_options", "constrained"),
+        ("ResponsePromptCacheOptionsParam", "prewarm", "constrained"),
         ("ResolvedImageOptions", "context_compression", "constrained"),
         ("Reasoning", "summary", "constrained"),
         ("Response", "output", "guarded"),

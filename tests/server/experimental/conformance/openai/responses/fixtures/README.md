@@ -1,6 +1,6 @@
 # Pinned Responses field inventory
 
-`source_inventory.json` contains the named properties of 22 reviewed Responses
+`source_inventory.json` contains the named properties of 23 reviewed Responses
 components, including inherited `allOf` properties, and the official text-input
 response example. It is independent of our typed declarations and generated guard
 contracts. It is a field inventory, not a complete provider validation schema.
@@ -9,13 +9,15 @@ Source: [OpenAI OpenAPI revision 3e288ba](https://github.com/openai/openai-opena
 licensed MIT. Original source SHA-256:
 `cf91be897ab55e4aefcfc44ec1eb7611eea1227509b67178be583244c2680ab3`.
 Inventory SHA-256:
-`2b5e5a4967f843baf7807bee8795ecb4e836056ef569894dade378c55a40ad5c`.
+`c184d2d1d22d7ae18e9c5f5c4f290d3a4ab21702158ed545ac128653d0005829`.
 
 The schema omits `store` from `Response`, while its example contains it. Native
 recordings additionally establish `billing`, `frequency_penalty`,
 `presence_penalty`, and delta `obfuscation` beyond the pinned component fields.
 `image`, `access_programs`, and `tool_usage` are now declared in the source.
 The image object's fields are inventoried through `ResolvedImageOptions`.
+`ResponsePromptCacheOptionsParam` accounts for the nested cache controls and
+their rejection of cache-only generation.
 Gateway recordings and the
 reviewed LiteLLM source establish root SSE `model` as a dialect extension.
 These distinctions are explicit test expectations, never generated from runtime
