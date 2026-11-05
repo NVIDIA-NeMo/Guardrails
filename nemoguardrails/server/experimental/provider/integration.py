@@ -23,6 +23,7 @@ from nemoguardrails.server.experimental._configuration_error import DeploymentVa
 from nemoguardrails.server.experimental._http_paths import _route_shape
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.provider.errors import ProviderErrorMapping
+from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
 
 ProviderOpenApiDocument: TypeAlias = Callable[[], Mapping[str, Any]]
 
@@ -54,8 +55,10 @@ class ProviderIntegration:
     errors: ProviderErrorMapping
     control_headers: frozenset[str] = frozenset()
     openapi_document: ProviderOpenApiDocument | None = None
+    unknown_fields: UnknownContentFieldPolicy = UnknownContentFieldPolicy.ALLOW
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "unknown_fields", UnknownContentFieldPolicy(self.unknown_fields))
         if not self.provider_type or not self.provider_type.replace("-", "_").isidentifier():
             raise ValueError("The provider type must be a non-empty identifier.")
         if not self.instance_id or not self.instance_id.replace("-", "_").isidentifier():

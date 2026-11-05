@@ -35,6 +35,7 @@ async def responses_proxy(
     http_transport=None,
     endpoint=RESPONSES_ENDPOINT,
     base_url="https://api.openai.com/v1",
+    unknown_fields="allow",
 ):
     async with httpx.AsyncClient(timeout=60, transport=http_transport) as upstream:
         transport = ProviderTransport(UpstreamSettings(base_url=base_url, mount_path="/v1"), upstream)
@@ -55,6 +56,7 @@ async def responses_proxy(
                         endpoint,
                         OPENAI_ERROR_MAPPING,
                         stream_dispatch=streaming,
+                        unknown_fields=unknown_fields,
                         max_stream_event_bytes=1024 * 1024,
                         max_pending_stream_bytes=1024 * 1024,
                     ),

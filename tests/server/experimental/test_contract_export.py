@@ -306,7 +306,7 @@ def test_http_schema_does_not_require_exportable_unions(example_endpoint):
         endpoint, OPENAI_ERROR_MAPPING, max_stream_event_bytes=1024, max_pending_stream_bytes=1024
     )
     schema = operation.openapi_extra["requestBody"]["content"]["application/json"]["schema"]
-    assert schema["additionalProperties"] is False
+    assert schema["additionalProperties"] is True
     assert schema["properties"]["option"]["anyOf"] == [{"type": "string"}, {"type": "integer"}]
     for option in ("value", 1):
         payload = {"prompt": "q", "option": option}

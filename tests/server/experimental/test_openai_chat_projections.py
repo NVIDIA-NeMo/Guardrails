@@ -367,17 +367,15 @@ def test_request_projection_rejects_members_outside_openai_fields(payload):
         ChatCompletionsGuardedRequest.validate_payload(payload)
 
 
-def test_trusted_unknown_field_policy_opens_only_configurable_objects():
-    """Allowing unknown fields opens configurable content objects, never the closed root."""
-    request = _request(messages=[{"role": "user", "content": "question", "future": 1}])
+def test_trusted_unknown_field_policy_opens_root_and_nested_objects():
+    """Explicit ALLOW opens unreviewed members without changing the guarded subject."""
+    request = _request(future={"version": 1}, messages=[{"role": "user", "content": "question", "future": 1}])
     with pytest.raises(ValidationError, match="unreviewed fields are forbidden: future"):
         ChatCompletionsGuardedRequest.validate_payload(request)
-    ChatCompletionsGuardedRequest.validate_payload(request, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
-
-    with pytest.raises(ValidationError, match="unreviewed fields are forbidden: future"):
-        ChatCompletionsGuardedRequest.validate_payload(
-            _request(future=1), unknown_content_fields=UnknownContentFieldPolicy.ALLOW
-        )
+    parsed = ChatCompletionsGuardedRequest.validate_payload(
+        request, unknown_content_fields=UnknownContentFieldPolicy.ALLOW
+    )
+    assert parsed.locate_guarded_message(request).message.content == "question"
 
 
 @pytest.mark.parametrize(
@@ -547,7 +545,7 @@ def test_export_follows_each_object_unknown_field_policy():
         assert content[EXTENSION]["unknown_fields"] == "configurable"
     for root in (request, response):
         assert root["additionalProperties"] is False
-        assert root[EXTENSION]["unknown_fields"] == "forbid"
+        assert root[EXTENSION]["unknown_fields"] == "configurable"
     for node in (*configurable, request, response):
         assert node[EXTENSION]["reject_case_aliases"] is True
 

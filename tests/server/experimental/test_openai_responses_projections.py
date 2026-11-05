@@ -86,15 +86,17 @@ def test_request_extracts_original_input_without_modifying_provider_fields():
         {"stream": "true"},
         {"stream": 1},
         {"stream": None},
-        {"future_prompt": "hidden"},
         {"Input": "hidden"},
         {"reasoning": {"summary": "auto"}},
         {"text": {"format": {"type": "json_schema", "schema": {}}}},
     ],
 )
-def test_unsupported_requests_fail_closed(updates):
+@pytest.mark.parametrize("unknown", list(UnknownContentFieldPolicy))
+def test_unsupported_requests_fail_closed(updates, unknown):
     with pytest.raises(ValidationError):
-        ResponsesGuardedRequest.validate_payload({"input": "hello", "store": False, **updates})
+        ResponsesGuardedRequest.validate_payload(
+            {"input": "hello", "store": False, **updates}, unknown_content_fields=unknown
+        )
 
 
 @pytest.mark.parametrize("stream", [False, True])
@@ -155,9 +157,10 @@ def test_buffered_response_finds_the_only_message_and_preserves_metadata():
         [output_message(), {"type": "reasoning", "summary": [{"type": "summary_text", "text": "hidden"}]}],
     ],
 )
-def test_response_rejects_missing_ambiguous_or_unsupported_content(output):
+@pytest.mark.parametrize("unknown", list(UnknownContentFieldPolicy))
+def test_response_rejects_missing_ambiguous_or_unsupported_content(output, unknown):
     with pytest.raises(ValidationError):
-        ResponsesGuardedResponse.validate_payload({"output": output})
+        ResponsesGuardedResponse.validate_payload({"output": output}, unknown_content_fields=unknown)
 
 
 @pytest.mark.parametrize(
@@ -170,20 +173,39 @@ def test_response_rejects_missing_ambiguous_or_unsupported_content(output):
         ("Text", "hidden"),
     ],
 )
-def test_nested_response_text_is_closed_and_disallows_side_channels(field, value):
+def test_strict_response_text_rejects_unreviewed_members_and_disallowed_fields(field, value):
     payload = response_payload()
     payload["output"][1]["content"][0][field] = value
     with pytest.raises(ValidationError):
         ResponsesGuardedResponse.validate_payload(payload)
 
 
-def test_only_declared_configurable_objects_allow_trusted_unknown_fields():
+def test_trusted_unknown_field_policy_preserves_root_and_nested_response_additions():
     payload = response_payload()
+    payload["image"] = {"context_compression": "disabled"}
     payload["output"][1]["future_metadata"] = 1
-    ResponsesGuardedResponse.validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
-    payload["future_text"] = "hidden"
+    payload["output"][1]["content"][0]["future_metadata"] = {"version": 2}
+    original = deepcopy(payload)
     with pytest.raises(ValidationError):
-        ResponsesGuardedResponse.validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
+        ResponsesGuardedResponse.validate_payload(payload)
+    parsed = ResponsesGuardedResponse.validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
+    assert parsed.locate_guarded_message(payload).message.content == "answer"
+    assert payload == original
+
+
+def test_trusted_unknown_field_policy_preserves_root_and_nested_request_additions():
+    payload = {
+        "input": "hello",
+        "store": False,
+        "future_control": {"version": 1},
+        "reasoning": {"effort": "minimal", "future_control": "provider-owned"},
+    }
+    original = deepcopy(payload)
+    with pytest.raises(ValidationError):
+        ResponsesGuardedRequest.validate_payload(payload)
+    parsed = ResponsesGuardedRequest.validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
+    assert parsed.locate_guarded_message(payload).message.content == "hello"
+    assert payload == original
 
 
 def test_declared_payload_coverage_is_derived_not_a_second_inventory():

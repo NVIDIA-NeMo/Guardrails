@@ -21,7 +21,6 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
-from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from nemoguardrails.server.experimental._buffered_kernel import InspectionStage, OperationProjectionFailed
@@ -47,6 +46,7 @@ from nemoguardrails.server.experimental.provider.transport import (
     ProviderApiRevisionBinding,
     TransportLocation,
 )
+from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
 from nemoguardrails.server.experimental.providers.openai.errors import (
     OPENAI_ERROR_MAPPING,
@@ -655,20 +655,25 @@ async def test_endpoint_error_codes_control_guarded_http_failures(stage, body, h
         ("message", "Content", False),
     ],
 )
-def test_openai_request_openapi_matches_default_object_policy(location, member, accepted):
-    """Published request schemas retain opaque members and close unreviewed ones."""
+@pytest.mark.parametrize("unknown_fields", list(UnknownContentFieldPolicy))
+def test_openai_request_openapi_matches_selected_object_policy(
+    location, member, accepted, unknown_fields, export_policy_validator
+):
+    """Published schemas and runtime apply the selected inventory and alias policies."""
     app = FastAPI()
 
     async def dispatch(_request):
         raise AssertionError("OpenAPI generation must not dispatch")
 
-    app.include_router(create_openai_chat_router(checker=StaticChecker(), dispatch=dispatch))
+    app.include_router(
+        create_openai_chat_router(checker=StaticChecker(), dispatch=dispatch, unknown_fields=unknown_fields)
+    )
     document = app.openapi()
     schema = document["paths"]["/v1/chat/completions"]["post"]["requestBody"]["content"]["application/json"]["schema"]
     message_schema = schema["properties"]["messages"]["items"]
-    assert schema["additionalProperties"] is False
-    assert schema[EXTENSION]["unknown_fields"] == "forbid"
-    assert message_schema["additionalProperties"] is False
+    assert schema["additionalProperties"] is (unknown_fields == UnknownContentFieldPolicy.ALLOW)
+    assert schema[EXTENSION]["unknown_fields"] == "configurable"
+    assert message_schema["additionalProperties"] is (unknown_fields == UnknownContentFieldPolicy.ALLOW)
     assert message_schema[EXTENSION]["unknown_fields"] == "configurable"
     assert message_schema[EXTENSION]["reject_case_aliases"] is True
     assert schema["properties"]["model"][EXTENSION]["classification"] == "opaque"
@@ -676,12 +681,15 @@ def test_openai_request_openapi_matches_default_object_policy(location, member, 
     payload = json.loads(_request_body())
     target = payload if location == "root" else payload["messages"][0]
     target[member] = {"arbitrary": [1, "opaque"]} if member == "metadata" else "value"
-    assert Draft202012Validator(document).evolve(schema=schema).is_valid(payload) is accepted
+    accepted = accepted or (member == "future_field" and unknown_fields == UnknownContentFieldPolicy.ALLOW)
+    assert export_policy_validator(schema, unknown_fields).is_valid(payload) is accepted
     if accepted:
-        CHAT_COMPLETIONS_ENDPOINT.guarded_request_model.validate_payload(payload)
+        CHAT_COMPLETIONS_ENDPOINT.guarded_request_model.validate_payload(payload, unknown_content_fields=unknown_fields)
     else:
         with pytest.raises(ValidationError):
-            CHAT_COMPLETIONS_ENDPOINT.guarded_request_model.validate_payload(payload)
+            CHAT_COMPLETIONS_ENDPOINT.guarded_request_model.validate_payload(
+                payload, unknown_content_fields=unknown_fields
+            )
 
 
 def test_openai_error_mapping_is_the_openapi_response_authority():

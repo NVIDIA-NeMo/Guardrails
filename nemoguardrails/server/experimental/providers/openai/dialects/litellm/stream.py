@@ -15,7 +15,8 @@
 
 """Declare LiteLLM stream fields while retaining OpenAI event semantics.
 
-LiteLLM's root and delta extension bags are optional, nullable, and closed.
+LiteLLM's root and delta extension bags are optional and nullable; unknown
+members follow the selected validation policy.
 Terminal root extensions preserve reviewed response metadata. Source-declared content
 arrays remain empty-only except typed reasoning items with no plaintext content.
 The classifier derives coverage and text paths from these rebound models;
@@ -57,9 +58,7 @@ from nemoguardrails.server.experimental.providers.openai.responses.response_proj
 
 
 class LiteLLMReasoningItemProjection(ResponsesReasoningItemProjection):
-    """Preserve encrypted metadata while keeping plaintext and unknown fields closed."""
-
-    policy: ClassVar[ObjectPolicy] = replace(ResponsesReasoningItemProjection.policy, unknown_fields="forbid")
+    """Preserve encrypted metadata while retaining the declared plaintext restrictions."""
 
 
 class LiteLLMTerminalMetadata(PolicyModel):
@@ -75,7 +74,7 @@ class LiteLLMTerminalMetadata(PolicyModel):
 
 
 class LiteLLMStreamFields(PolicyModel):
-    """Recognize an empty extension bag without authorizing arbitrary contents."""
+    """Apply the selected unknown-field policy to delta extension metadata."""
 
 
 class LiteLLMStreamDeltaProjection(ChatCompletionsStreamDeltaProjection):

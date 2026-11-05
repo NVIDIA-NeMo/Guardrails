@@ -71,7 +71,14 @@ class ResponsesStreamHooks:
             self._observe_text_identity(payload.get("item_id"), payload.get("output_index"))
         elif shape.endswith(":message"):
             self._observe_text_identity(payload["item"].get("id"), payload.get("output_index"))
-        elif "response" in payload:
+        elif shape in {
+            "response.created",
+            "response.in_progress",
+            "response.queued",
+            "response.completed",
+            "response.failed",
+            "response.incomplete",
+        }:
             for index, item in enumerate(payload["response"]["output"]):
                 if item["type"] == "message":
                     self._observe_text_identity(item.get("id"), index)

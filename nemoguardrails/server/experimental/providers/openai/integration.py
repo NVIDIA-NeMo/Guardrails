@@ -33,6 +33,7 @@ from nemoguardrails.server.experimental._http_kernel import (
 from nemoguardrails.server.experimental._streaming_http import StreamingHttpDispatch
 from nemoguardrails.server.experimental.provider.endpoint import GuardedJsonEndpoint
 from nemoguardrails.server.experimental.provider.integration import ProviderIntegration, UpstreamSettings
+from nemoguardrails.server.experimental.provider.types import UnknownContentFieldPolicy
 from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import (
     CHAT_COMPLETIONS_ENDPOINT,
 )
@@ -49,6 +50,7 @@ def create_openai_integration(
     base_url: str | None = None,
     mount_path: str = "",
     operations: Sequence[OpenAIOperation] = ("chat_completions", "responses"),
+    unknown_fields: UnknownContentFieldPolicy | str = UnknownContentFieldPolicy.ALLOW,
 ) -> ProviderIntegration:
     """Create an OpenAI instance with the selected built-in guard bindings.
 
@@ -58,8 +60,10 @@ def create_openai_integration(
 
     Selection installs guard bindings, not a route allowlist. Unselected routes
     retain the application's passthrough behavior and are not thereby guarded.
-    These are strict OpenAI boundaries: an upstream URL does not select a
-    dialect. Trusted applications can customize explicit endpoint bindings.
+    Unknown JSON members are preserved by default. Set ``unknown_fields`` to
+    ``"forbid"`` to reject members outside the reviewed inventory. Declared
+    content constraints apply in either mode. An upstream URL does not select
+    a dialect; trusted applications can customize explicit endpoint bindings.
 
     Raises:
         TypeError: ``operations`` is not a sequence of operation names.
@@ -93,6 +97,7 @@ def create_openai_integration(
         display_name="OpenAI",
         endpoints=tuple(endpoints[operation] for operation in selected),
         errors=OPENAI_ERROR_MAPPING,
+        unknown_fields=UnknownContentFieldPolicy(unknown_fields),
     )
 
 
@@ -102,17 +107,22 @@ def create_openai_chat_integration(
     base_url: str | None = None,
     mount_path: str = "",
     endpoint: GuardedJsonEndpoint | None = None,
+    unknown_fields: UnknownContentFieldPolicy | str = UnknownContentFieldPolicy.ALLOW,
 ) -> ProviderIntegration:
     """Create a Chat-only OpenAI instance with an explicitly reviewed endpoint.
 
-    Omitting ``endpoint`` selects the strict OpenAI Chat boundary through
+    Omitting ``endpoint`` selects the native OpenAI Chat boundary through
     :func:`create_openai_integration`. A trusted application may instead supply
     an OpenAI-wire-compatible dialect endpoint; it must use the OpenAI error
     mapping. Other instances are unaffected. Unselected routes retain the
     application's passthrough behavior.
     """
     integration = create_openai_integration(
-        instance_id=instance_id, base_url=base_url, mount_path=mount_path, operations=("chat_completions",)
+        instance_id=instance_id,
+        base_url=base_url,
+        mount_path=mount_path,
+        operations=("chat_completions",),
+        unknown_fields=unknown_fields,
     )
     return integration if endpoint is None else replace(integration, endpoints=(endpoint,))
 
@@ -126,6 +136,7 @@ def create_openai_chat_router(
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
     max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
     endpoint: GuardedJsonEndpoint | None = None,
+    unknown_fields: UnknownContentFieldPolicy | str = UnknownContentFieldPolicy.ALLOW,
 ) -> APIRouter:
     """Create the private buffered and streaming OpenAI Chat proxy surface.
 
@@ -140,6 +151,7 @@ def create_openai_chat_router(
             create_guarded_http_operation(
                 CHAT_COMPLETIONS_ENDPOINT if endpoint is None else endpoint,
                 OPENAI_ERROR_MAPPING,
+                unknown_fields=unknown_fields,
                 stream_dispatch=stream_dispatch,
                 max_stream_event_bytes=max_response_body_bytes,
                 max_pending_stream_bytes=max_response_body_bytes,

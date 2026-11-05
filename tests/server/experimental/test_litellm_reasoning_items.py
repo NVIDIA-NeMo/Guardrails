@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Translated reasoning retains Responses constraints and closed Chat boundaries."""
+"""Translated reasoning retains declared Responses content constraints."""
 
 from copy import deepcopy
 
@@ -68,8 +68,6 @@ def test_reviewed_reasoning_preserves_payload_and_assistant_text(stream, items):
     [
         [{**REASONING, "summary": [{"type": "summary_text", "text": "unchecked"}]}],
         [{**REASONING, "content": [{"type": "reasoning_text", "text": "unchecked"}]}],
-        [{**REASONING, "text": "unchecked"}],
-        [{**REASONING, "future_content": "unchecked"}],
         [{**REASONING, "Summary": []}],
         [{**REASONING, "Encrypted_Content": "unchecked"}],
         [{**REASONING, "type": "message"}],
@@ -79,7 +77,7 @@ def test_reviewed_reasoning_preserves_payload_and_assistant_text(stream, items):
         {},
     ],
 )
-def test_plaintext_unknown_fields_and_malformed_items_remain_rejected(stream, unknown, items):
+def test_declared_plaintext_fields_and_malformed_items_remain_rejected(stream, unknown, items):
     payload = payload_with_reasoning(stream, items)
     with pytest.raises(ValidationError):
         model_for(stream).validate_payload(payload, unknown_content_fields=unknown)
@@ -87,11 +85,24 @@ def test_plaintext_unknown_fields_and_malformed_items_remain_rejected(stream, un
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["buffered", "stream"])
-def test_reasoning_permissions_do_not_open_extension_bags(stream):
+@pytest.mark.parametrize("field", ["text", "future_content"])
+def test_unreviewed_reasoning_fields_follow_selected_policy(stream, field):
+    payload = payload_with_reasoning(stream, [{**REASONING, field: "provider-owned"}])
+    original = deepcopy(payload)
+    with pytest.raises(ValidationError):
+        model_for(stream).validate_payload(payload)
+    model_for(stream).validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
+    assert not validator_for(stream).is_valid(payload)
+    assert payload == original
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["buffered", "stream"])
+def test_extension_bag_additions_follow_selected_policy(stream):
     payload = payload_with_reasoning(stream, [])
     payload["choices"][0]["delta" if stream else "message"]["provider_specific_fields"] = {
         "reasoning_items": [REASONING]
     }
     with pytest.raises(ValidationError):
-        model_for(stream).validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
+        model_for(stream).validate_payload(payload)
+    model_for(stream).validate_payload(payload, unknown_content_fields=UnknownContentFieldPolicy.ALLOW)
     assert not validator_for(stream).is_valid(payload)

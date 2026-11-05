@@ -66,10 +66,13 @@ def write_manifest(tmp_path, document):
 
 @pytest.mark.parametrize("dialect", [None, "litellm"])
 @pytest.mark.parametrize("resolution_timeout", [0.5, 5.0])
+@pytest.mark.parametrize("unknown_fields", [None, "allow", "forbid"], ids=["default", "allow", "forbid"])
 def test_yaml_and_python_resolve_identical_bindings_from_another_directory(
-    tmp_path, document, monkeypatch, dialect, resolution_timeout
+    tmp_path, document, monkeypatch, dialect, resolution_timeout, unknown_fields
 ):
     document["providers"][0]["dialect"] = dialect
+    if unknown_fields is not None:
+        document["providers"][0]["unknown_fields"] = unknown_fields
     document["config_resolution_timeout"] = resolution_timeout
     path = write_manifest(tmp_path, document)
     elsewhere = tmp_path / "elsewhere"
@@ -87,11 +90,13 @@ def test_yaml_and_python_resolve_identical_bindings_from_another_directory(
                 operations=("chat_completions", "responses"),
                 rails_config_id="standard",
                 dialect=dialect,
+                **({} if unknown_fields is None else {"unknown_fields": unknown_fields}),
             ),
         ),
     )
     assert config == expected
     assert cli.inspect_config(config)["limits"]["config_resolution_timeout"] == resolution_timeout
+    assert cli.inspect_config(config)["providers"][0]["unknown_fields"] == (unknown_fields or "allow")
     assert resolve_provider(config.providers[0]) == resolve_provider(expected.providers[0])
     actual_app = create_proxy_application(config)
     expected_app = create_proxy_application(expected)
@@ -169,6 +174,7 @@ def test_version_requires_exact_supported_integer(tmp_path, document, version):
         {"operations": ["unimplemented"]},
         {"provider": "anthropic"},
         {"dialect": "openai"},
+        *({"unknown_fields": value} for value in (None, True, 0, "strict", "ALLOW", {})),
         {"rails_config_id": None},
         {"rails_config_id": "unknown"},
         {"factory": "untrusted.module:create"},
@@ -320,6 +326,7 @@ def test_validation_and_inspection_do_not_load_rails_or_create_owners(tmp_path, 
     provider = inspected["providers"][0]
     assert provider["dialect"] == "native"
     assert provider["rails_config_id"] == "standard"
+    assert provider["unknown_fields"] == "allow"
     assert len(provider["operations"]) == 2
     for operation in provider["operations"]:
         assert operation["profiles"] == {
@@ -365,6 +372,8 @@ def test_schema_is_derived_and_can_validate_the_example(document):
     assert provider_schema["additionalProperties"] is False
     assert "rails_config_id" in provider_schema["required"]
     assert provider_schema["properties"]["rails_config_id"]["type"] == "string"
+    assert provider_schema["properties"]["unknown_fields"]["default"] == "allow"
+    assert schema["$defs"]["UnknownContentFieldPolicy"]["enum"] == ["allow", "forbid"]
     assert schema["$defs"]["ConfigEntry"]["additionalProperties"] is False
 
 

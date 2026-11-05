@@ -109,6 +109,7 @@ def inspect_config(config: ProxyConfig) -> dict:
                 "upstream": provider.upstream.base_url,
                 "dialect": declaration.dialect or "native",
                 "rails_config_id": declaration.rails_config_id,
+                "unknown_fields": provider.unknown_fields.value,
                 "operations": operations,
             }
         )

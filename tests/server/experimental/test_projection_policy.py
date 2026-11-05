@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
 import pytest
+from jsonschema import Draft202012Validator
 from pydantic import ConfigDict, Field, ValidationError
 
 from nemoguardrails.server.experimental.provider.payload import GuardedContentModel
@@ -87,7 +88,7 @@ def test_object_policy_uses_model_identity_not_schema_titles(export, export_poli
 
     schema = export_payload_schema(Root, projection_id="test.request") if export else policy_json_schema(Root)
     assert schema["additionalProperties"] is False
-    assert schema[EXTENSION]["unknown_fields"] == "forbid"
+    assert schema[EXTENSION]["unknown_fields"] == "configurable"
     for field, expected in (("left", "left_metadata"), ("right", "right_metadata")):
         node = schema["properties"][field]
         assert node["additionalProperties"] is False
@@ -165,25 +166,57 @@ def test_helpers_reject_unsupported_constraint_names(helper, constraint):
         helper(**{constraint: 1})
 
 
-def test_policy_models_are_closed_unless_configurable_fields_are_allowed():
+def test_policy_models_are_strict_by_default_and_follow_trusted_unknown_field_policy():
     class Message(PolicyModel, GuardedContentModel):
-        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("model",), unknown_fields="configurable")
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(opaque=("model",))
         content: Annotated[str, guarded("user")]
 
     class Root(PolicyModel, GuardedContentModel):
         content: Annotated[str, guarded("user")]
 
+    class Closed(PolicyModel, GuardedContentModel):
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(unknown_fields="forbid")
+        content: Annotated[str, guarded("user")]
+
     allow = UnknownContentFieldPolicy.ALLOW
     Message.model_validate({"content": "q", "model": "m"})
-    for model in (Message, Root):
+    for model in (Message, Root, Closed):
         with pytest.raises(ValidationError, match="unreviewed fields are forbidden: unreviewed"):
             model.model_validate({"content": "q", "unreviewed": "x"})
     Message.validate_payload({"content": "q", "unreviewed": "x"}, unknown_content_fields=allow)
+    Root.validate_payload({"content": "q", "unreviewed": "x"}, unknown_content_fields=allow)
     with pytest.raises(ValidationError, match="unreviewed fields are forbidden"):
-        Root.validate_payload({"content": "q", "unreviewed": "x"}, unknown_content_fields=allow)
+        Closed.validate_payload({"content": "q", "unreviewed": "x"}, unknown_content_fields=allow)
     for variant in ({"Content": "x"}, {"MODEL": "x"}, {"cOnTeNt": "x"}):
         with pytest.raises(ValidationError, match="only by case"):
             Message.validate_payload({"content": "q", **variant}, unknown_content_fields=allow)
+
+
+def test_runtime_schema_follows_selected_policy_without_changing_strict_inventory():
+    class Part(PolicyModel):
+        text: Annotated[str, guarded("user", min_length=1)]
+
+    class Closed(PolicyModel):
+        policy: ClassVar[ObjectPolicy] = ObjectPolicy(unknown_fields="forbid")
+        value: Annotated[str, constrained()]
+
+    class Request(PolicyModel):
+        parts: Annotated[list[Part], guarded(min_length=1, max_length=1)]
+        closed: Annotated[Closed | None, constrained()] = None
+
+    payload = {"parts": [{"text": "q", "future_nested": 1}], "future_root": {"version": 2}}
+    strict = policy_json_schema(Request)
+    permissive = policy_json_schema(Request, unknown_fields=UnknownContentFieldPolicy.ALLOW)
+    assert not Draft202012Validator(strict).is_valid(payload)
+    assert Draft202012Validator(permissive).is_valid(payload)
+    assert permissive["additionalProperties"] is True
+    part = permissive["properties"]["parts"]["items"]
+    assert part["additionalProperties"] is True
+    assert part[EXTENSION]["reject_case_aliases"] is True
+    payload["closed"] = {"value": "v", "future_closed": 1}
+    assert not Draft202012Validator(permissive).is_valid(payload)
+    assert strict == policy_json_schema(Request)
+    assert not Draft202012Validator(export_payload_schema(Request, projection_id="test.request")).is_valid(payload)
 
 
 @pytest.mark.parametrize(
@@ -460,4 +493,4 @@ def test_export_inlines_policy_models_used_as_mapping_values():
     values = export_payload_schema(Root, projection_id="test")["properties"]["parts"]["additionalProperties"]
     assert "$ref" not in values
     assert values["properties"]["text"][EXTENSION]["classification"] == "guarded"
-    assert values[EXTENSION]["unknown_fields"] == "forbid"
+    assert values[EXTENSION]["unknown_fields"] == "configurable"

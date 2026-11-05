@@ -53,8 +53,9 @@ class ChatCompletionsGuardedRequestProjection(PolicyModel, GuardedRequestModel):
 
     The request binding attaches extraction, coverage, and response-mode metadata.
     Recognizing the stream flag does not imply that an endpoint supports streaming.
-    The request is closed to OpenAI's fields: compatible servers render some
-    other fields, such as chat_template_kwargs or documents, into the prompt.
+    Unknown fields follow the selected policy. Compatible servers can render
+    extension fields into prompts; those values are outside the declared
+    guarded input subject when unknown fields are allowed.
     """
 
     policy: ClassVar[ObjectPolicy] = ObjectPolicy(

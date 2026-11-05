@@ -229,7 +229,7 @@ request:
   title: openai.chat_completions.request.text.v1
   type: object
   x-nemo-guardrails:
-    unknown_fields: forbid
+    unknown_fields: configurable
     reject_case_aliases: true
     model: ChatCompletionsGuardedRequest
     stream_selector_field: stream
@@ -269,7 +269,7 @@ response:
               reason: provider_integrity.token_logprobs
           message:
             additionalProperties: false
-            description: Add a closed message extension without changing the guarded
+            description: Add reviewed message extensions without changing the guarded
               text target.
             properties:
               annotations:
@@ -324,8 +324,8 @@ response:
                   classification: constrained
                 oneOf:
                 - additionalProperties: false
-                  description: Allow the recorded null refusal without accepting uninspected
-                    content.
+                  description: Retain null refusal and empty thinking blocks as declared
+                    constraints.
                   properties:
                     refusal:
                       default: null
@@ -347,7 +347,7 @@ response:
                   title: LiteLLMMessageFields
                   type: object
                   x-nemo-guardrails:
-                    unknown_fields: forbid
+                    unknown_fields: configurable
                     reject_case_aliases: true
                 - type: 'null'
               reasoning_content:
@@ -365,8 +365,8 @@ response:
                 oneOf:
                 - items:
                     additionalProperties: false
-                    description: Preserve encrypted metadata while keeping plaintext
-                      and unknown fields closed.
+                    description: Preserve encrypted metadata while retaining the declared
+                      plaintext restrictions.
                     properties:
                       content:
                         default: null
@@ -412,7 +412,7 @@ response:
                         match:
                           type: reasoning
                       source: '#/components/schemas/ReasoningItem'
-                      unknown_fields: forbid
+                      unknown_fields: configurable
                       reject_case_aliases: true
                   type: array
                 - type: 'null'
@@ -455,7 +455,7 @@ response:
             type: object
             x-nemo-guardrails:
               classification: guarded
-              unknown_fields: forbid
+              unknown_fields: configurable
               reject_case_aliases: true
           provider_specific_fields:
             default: null
@@ -472,7 +472,7 @@ response:
               title: LiteLLMChoiceFields
               type: object
               x-nemo-guardrails:
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
         required:
@@ -480,7 +480,7 @@ response:
         title: LiteLLMChoiceProjection
         type: object
         x-nemo-guardrails:
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       maxItems: 1
       minItems: 1
@@ -519,7 +519,7 @@ response:
         type: object
         x-nemo-guardrails:
           source: '#/components/schemas/ResolvedImageOptions'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       - type: 'null'
     metadata:
@@ -556,7 +556,7 @@ response:
   title: openai.litellm.chat_completions.response.text.v1
   type: object
   x-nemo-guardrails:
-    unknown_fields: forbid
+    unknown_fields: configurable
     reject_case_aliases: true
     model: LiteLLMGuardedResponse
 integration:
@@ -640,13 +640,13 @@ stream:
                     classification: constrained
                   oneOf:
                   - additionalProperties: false
-                    description: Recognize an empty extension bag without authorizing
-                      arbitrary contents.
+                    description: Apply the selected unknown-field policy to delta
+                      extension metadata.
                     properties: {}
                     title: LiteLLMStreamFields
                     type: object
                     x-nemo-guardrails:
-                      unknown_fields: forbid
+                      unknown_fields: configurable
                       reject_case_aliases: true
                   - type: 'null'
                 reasoning_content:
@@ -664,8 +664,8 @@ stream:
                   oneOf:
                   - items:
                       additionalProperties: false
-                      description: Preserve encrypted metadata while keeping plaintext
-                        and unknown fields closed.
+                      description: Preserve encrypted metadata while retaining the
+                        declared plaintext restrictions.
                       properties:
                         content:
                           default: null
@@ -711,7 +711,7 @@ stream:
                           match:
                             type: reasoning
                         source: '#/components/schemas/ReasoningItem'
-                        unknown_fields: forbid
+                        unknown_fields: configurable
                         reject_case_aliases: true
                     type: array
                   - type: 'null'
@@ -755,7 +755,7 @@ stream:
               x-nemo-guardrails:
                 classification: guarded
                 source: '#/components/schemas/Delta'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             finish_reason:
               default: null
@@ -780,7 +780,7 @@ stream:
           title: LiteLLMStreamChoiceProjection
           type: object
           x-nemo-guardrails:
-            unknown_fields: forbid
+            unknown_fields: configurable
             reject_case_aliases: true
         maxItems: 1
         type: array
@@ -818,7 +818,7 @@ stream:
           type: object
           x-nemo-guardrails:
             source: '#/components/schemas/ResolvedImageOptions'
-            unknown_fields: forbid
+            unknown_fields: configurable
             reject_case_aliases: true
         - type: 'null'
       model:
@@ -878,7 +878,7 @@ stream:
                 type: object
                 x-nemo-guardrails:
                   source: '#/components/schemas/ResolvedImageOptions'
-                  unknown_fields: forbid
+                  unknown_fields: configurable
                   reject_case_aliases: true
               - type: 'null'
             presence_penalty:
@@ -896,7 +896,7 @@ stream:
           title: LiteLLMTerminalMetadata
           type: object
           x-nemo-guardrails:
-            unknown_fields: forbid
+            unknown_fields: configurable
             reject_case_aliases: true
         - type: 'null'
       service_tier:
@@ -919,7 +919,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ModelResponseStream'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: LiteLLMStreamPayloadProjection
       event:
@@ -975,7 +975,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ErrorResponse'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ChatCompletionsStreamErrorProjection
       event:

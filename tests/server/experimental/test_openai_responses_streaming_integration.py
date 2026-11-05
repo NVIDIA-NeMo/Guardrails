@@ -40,7 +40,7 @@ from tests.server.experimental.test_openai_responses_projections import response
 from tests.server.experimental.test_openai_responses_streaming_projections import event_bytes
 
 
-async def post_stream(chunks, checker, *, failure=None):
+async def post_stream(chunks, checker, *, failure=None, endpoint=RESPONSES_ENDPOINT, unknown_fields="forbid"):
     source = Source(chunks, failure=failure)
     dispatches = []
 
@@ -56,9 +56,10 @@ async def post_stream(chunks, checker, *, failure=None):
         create_http_proxy_router(
             operations=(
                 create_guarded_http_operation(
-                    RESPONSES_ENDPOINT,
+                    endpoint,
                     OPENAI_ERROR_MAPPING,
                     stream_dispatch=dispatch,
+                    unknown_fields=unknown_fields,
                     max_stream_event_bytes=1024 * 1024,
                     max_pending_stream_bytes=1024 * 1024,
                 ),

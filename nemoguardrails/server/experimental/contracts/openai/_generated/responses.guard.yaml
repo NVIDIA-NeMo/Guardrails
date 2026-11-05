@@ -112,7 +112,7 @@ request:
         type: object
         x-nemo-guardrails:
           source: '#/components/schemas/ResponsePromptCacheOptionsParam'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       - type: 'null'
     prompt_cache_retention:
@@ -271,7 +271,7 @@ request:
   type: object
   x-nemo-guardrails:
     source: '#/components/schemas/CreateResponse'
-    unknown_fields: forbid
+    unknown_fields: configurable
     reject_case_aliases: true
     model: ResponsesGuardedRequest
     stream_selector_field: stream
@@ -328,7 +328,7 @@ response:
         type: object
         x-nemo-guardrails:
           source: '#/components/schemas/ResolvedImageOptions'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       - type: 'null'
     incomplete_details:
@@ -585,7 +585,7 @@ response:
   type: object
   x-nemo-guardrails:
     source: '#/components/schemas/Response'
-    unknown_fields: forbid
+    unknown_fields: configurable
     reject_case_aliases: true
     model: ResponsesGuardedResponse
 integration:
@@ -666,7 +666,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseTextDeltaEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesTextDeltaEventProjection
       event:
@@ -743,7 +743,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseTextDoneEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesTextDoneEventProjection
       event:
@@ -849,7 +849,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseContentPartAddedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesContentPartAddedEventProjection
       event:
@@ -955,7 +955,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseContentPartDoneEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesContentPartDoneEventProjection
       event:
@@ -1093,7 +1093,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseOutputItemAddedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesMessageAddedEventProjection
       event:
@@ -1233,7 +1233,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseOutputItemDoneEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesMessageDoneEventProjection
       event:
@@ -1302,7 +1302,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -1562,7 +1562,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -1584,7 +1584,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseCreatedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesCreatedEventProjection
       event:
@@ -1652,7 +1652,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -1912,7 +1912,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -1934,7 +1934,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseInProgressEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesInProgressEventProjection
       event:
@@ -2003,7 +2003,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -2263,7 +2263,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -2285,7 +2285,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseQueuedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesQueuedEventProjection
       event:
@@ -2353,7 +2353,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -2613,7 +2613,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -2635,7 +2635,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseCompletedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesCompletedEventProjection
       event:
@@ -2703,7 +2703,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -2963,7 +2963,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -2985,7 +2985,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseFailedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesFailedEventProjection
       event:
@@ -3053,7 +3053,7 @@ stream:
               type: object
               x-nemo-guardrails:
                 source: '#/components/schemas/ResolvedImageOptions'
-                unknown_fields: forbid
+                unknown_fields: configurable
                 reject_case_aliases: true
             - type: 'null'
           incomplete_details:
@@ -3313,7 +3313,7 @@ stream:
         x-nemo-guardrails:
           classification: guarded
           source: '#/components/schemas/Response'
-          unknown_fields: forbid
+          unknown_fields: configurable
           reject_case_aliases: true
       sequence_number:
         default: null
@@ -3335,7 +3335,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseIncompleteEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesIncompleteEventProjection
       event:
@@ -3428,7 +3428,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseOutputItemAddedEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesReasoningAddedEventProjection
       event:
@@ -3522,7 +3522,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseOutputItemDoneEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesReasoningDoneEventProjection
       event:
@@ -3566,7 +3566,7 @@ stream:
     type: object
     x-nemo-guardrails:
       source: '#/components/schemas/ResponseErrorEvent'
-      unknown_fields: forbid
+      unknown_fields: configurable
       reject_case_aliases: true
       model: ResponsesErrorEventProjection
       event:
