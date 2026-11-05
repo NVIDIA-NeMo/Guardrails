@@ -46,6 +46,7 @@ chat = TestChat(config, llm_completions=["Hello there!"])
 
 
 def _run_in_subprocess(source, disable_nest_asyncio):
+    """Isolate global asyncio patches while checking the requested opt-in setting."""
     env = os.environ.copy()
     if disable_nest_asyncio is None:
         env.pop("DISABLE_NEST_ASYNCIO", None)
