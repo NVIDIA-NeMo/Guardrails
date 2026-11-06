@@ -27,11 +27,17 @@ FILTERED_HEADERS = {
     "cookie",
     "set-cookie",
     "x-xet-access-token",
+    # HiddenLayer request headers that identify a tenant, a project or a conversation. The
+    # HL-Runtime-* response headers are deliberately absent: they carry the verdict.
+    "hl-project-id",
+    "hl-requester-id",
+    "hl-roundtrip-id",
+    "hl-runtime-session-id",
 }
 
 FILTERED_QUERY_PARAMETERS = ("api_key", "key", "token")
 
-FILTERED_HEADER_PREFIXES = ("x-", "cf-", "openai-", "llm_provider-", "hl-")
+FILTERED_HEADER_PREFIXES = ("x-", "cf-", "openai-", "llm_provider-")
 
 ALLOWED_HEADERS = {"content-type"}
 
