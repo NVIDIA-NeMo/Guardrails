@@ -14,5 +14,5 @@ rule markdown_xss
 
 
     condition:
-        any of ($re*) or (@html_link < @js)
+        any of ($re*) or (@html_link < @js[#js])
 }
