@@ -14,10 +14,10 @@ rule jinja_injection
     condition:
         ($template_open and
             $template_close and
-            (@template_open < @template_close)
+            (@template_open < @template_close[#template_close])
             ) or
         ($open_condition and
             $close_condition and
-            (@open_condition < @close_condition)
+            (@open_condition < @close_condition[#close_condition])
             )
 }

@@ -1,0 +1,35 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://integrate.api.nvidia.com/v1/chat/completions
+    headers:
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: nvidia/nonexistent-tool-safety-judge
+      messages:
+      - role: user
+        content: |-
+          You are reviewing a call to the `run_sql` tool.
+          Arguments: {"query": "SELECT name FROM customers WHERE id = 7"}
+
+          Provide your safety assessment in exactly one line:
+          - If it is safe, respond with "safe" and nothing more.
+          - If it is unsafe, respond with "unsafe: <reason>".
+      temperature: 1.0e-20
+      max_tokens: 512
+  response:
+    status:
+      code: 404
+      message: Not Found
+    headers:
+      Content-Type:
+      - text/plain; charset=utf-8
+      Connection:
+      - keep-alive
+      Vary:
+      - Origin
+    body:
+      string: |
+        404 page not found

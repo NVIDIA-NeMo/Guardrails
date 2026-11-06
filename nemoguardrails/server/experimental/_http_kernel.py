@@ -1,0 +1,701 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Create transparent HTTP proxy routes for buffered provider operations."""
+
+import inspect
+import logging
+import re
+from collections.abc import Awaitable, Callable, Collection, Mapping
+from dataclasses import dataclass, replace
+from enum import Enum
+from typing import Any, cast
+from urllib.parse import quote
+
+from fastapi import APIRouter, Request
+from starlette._utils import get_route_path
+from starlette.responses import Response
+from starlette.routing import compile_path
+
+from nemoguardrails.server.experimental._buffered_kernel import (
+    InspectionStage,
+    OperationBlocked,
+    OperationCheckFailed,
+    OperationCompleted,
+    OperationModificationUnsupported,
+    OperationProjectionFailed,
+    PreparedOperationInput,
+    execute_prepared_buffered_operation,
+    prepare_operation_input,
+)
+from nemoguardrails.server.experimental._content_checker import (
+    ContentChecker,
+    ContentCheckerConfigurationUnsupported,
+    ContentCheckerResolutionFailed,
+    ContentCheckerResolver,
+    UnsupportedContentCheckerConfiguration,
+    _ResolvedContentChecker,
+    validate_content_checker,
+)
+from nemoguardrails.server.experimental._guarded_operation import BufferedGuardedOperation, UnsupportedGuardedPayload
+from nemoguardrails.server.experimental._http_paths import (
+    HTTP_METHODS,
+    GuardedOperationPath,
+    HttpRouteOwnership,
+    HttpRouteRejected,
+    HttpRouteRejectionKind,
+    _normalized_route_path,
+    _route_path_candidates,
+    _route_shape,
+    _routes_overlap,
+    _strip_mount_prefix,
+)
+
+log = logging.getLogger(__name__)
+
+DEFAULT_MAX_REQUEST_BODY_BYTES = 1024 * 1024
+DEFAULT_MAX_RESPONSE_BODY_BYTES = 10 * 1024 * 1024
+HttpHeaders = tuple[tuple[bytes, bytes], ...]
+_HOP_BY_HOP_HEADERS = frozenset(
+    {
+        b"connection",
+        b"keep-alive",
+        b"proxy-authenticate",
+        b"proxy-authorization",
+        b"proxy-connection",
+        b"te",
+        b"trailer",
+        b"transfer-encoding",
+        b"upgrade",
+    }
+)
+
+
+class RequestBodyTooLarge(Exception):
+    """Report a buffered downstream body beyond the configured limit."""
+
+
+class ResponseBodyTooLarge(Exception):
+    """Report a buffered upstream body beyond the configured limit."""
+
+
+class InvalidContentLength(ValueError):
+    """Report a malformed or negative request Content-Length header."""
+
+
+class HttpDispatchFailed(Exception):
+    """Report a typed outbound dispatch failure."""
+
+
+class InvalidRequestPath(ValueError):
+    """Reject paths that a sender could reinterpret as a different destination."""
+
+
+class HttpFailureKind(str, Enum):
+    """Classify failures while buffering or dispatching HTTP requests."""
+
+    INVALID_CONTENT_LENGTH = "invalid_content_length"
+    REQUEST_BODY_TOO_LARGE = "request_body_too_large"
+    UPSTREAM_REQUEST_FAILED = "upstream_request_failed"
+    RESPONSE_BODY_TOO_LARGE = "response_body_too_large"
+
+
+@dataclass(frozen=True, slots=True)
+class HttpOperationFailed:
+    """Carry one HTTP failure to the configured response renderer."""
+
+    kind: HttpFailureKind
+    failure: BaseException
+
+
+@dataclass(frozen=True, slots=True)
+class BufferedHttpRequest:
+    """Preserve one fully buffered downstream HTTP request."""
+
+    method: str
+    path: str
+    raw_path: bytes
+    query: bytes
+    headers: HttpHeaders
+    body: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class BufferedHttpResponse:
+    """Preserve one fully buffered upstream HTTP response."""
+
+    status_code: int
+    headers: HttpHeaders
+    body: bytes
+
+    def __post_init__(self) -> None:
+        """Validate status, headers, and body before rendering a response."""
+
+        if not isinstance(self.status_code, int) or not 100 <= self.status_code <= 599:
+            raise ValueError("An HTTP response status code must be between 100 and 599.")
+        if not isinstance(self.body, bytes):
+            raise TypeError("An HTTP response body must be bytes.")
+        if any(not isinstance(name, bytes) or not isinstance(value, bytes) for name, value in self.headers):
+            raise TypeError("HTTP response headers must contain byte pairs.")
+
+
+@dataclass(frozen=True, slots=True)
+class GuardedHttpOperation:
+    """Bind one guarded operation to an owned HTTP path.
+
+    The prepared-request handler is the private response-mode seam used while
+    buffered and streaming transports remain separately injected. It runs only
+    after the shared input projection and check have completed.
+    """
+
+    operation_path: GuardedOperationPath
+    operation: BufferedGuardedOperation[Any, BufferedHttpResponse]
+    prepare_request: Callable[[BufferedHttpRequest], Any] | None = None
+    forward_request: Callable[[Any], BufferedHttpRequest] | None = None
+    prepared_request_handler: (
+        Callable[[PreparedOperationInput[Any]], Awaitable[BufferedHttpResponse | Response | None]] | None
+    ) = None
+    documented_responses: dict[int | str, dict[str, Any]] | None = None
+    guarded_operation_paths: tuple[GuardedOperationPath, ...] = ()
+    openapi_extra: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        """Validate adapters and derive the default guarded route set."""
+
+        if (self.prepare_request is None) != (self.forward_request is None):
+            raise ValueError("Guarded HTTP request preparation and forwarding adapters must be declared together.")
+        if not self.guarded_operation_paths:
+            object.__setattr__(self, "guarded_operation_paths", (self.operation_path,))
+
+
+HttpDispatch = Callable[[BufferedHttpRequest], Awaitable[BufferedHttpResponse]]
+PolicyHttpDispatch = Callable[[BufferedHttpRequest, bool], Awaitable[BufferedHttpResponse]]
+OutcomeRenderer = Callable[
+    [
+        ContentCheckerConfigurationUnsupported
+        | ContentCheckerResolutionFailed
+        | OperationBlocked
+        | OperationCheckFailed
+        | OperationModificationUnsupported
+        | OperationProjectionFailed
+        | HttpOperationFailed
+        | HttpRouteRejected
+    ],
+    BufferedHttpResponse,
+]
+
+
+def _validate_operations(
+    operations: Collection[GuardedHttpOperation],
+) -> tuple[GuardedHttpOperation, ...]:
+    """Require at least one operation with unique names and routes."""
+
+    resolved = tuple(operations)
+    if not resolved:
+        raise ValueError("At least one guarded HTTP operation is required.")
+    names = [operation.operation.name for operation in resolved]
+    if len(names) != len(set(names)):
+        raise ValueError("Guarded operation names must be unique.")
+    routes = [
+        (method, _route_shape(operation.operation_path.route_path))
+        for operation in resolved
+        for method in operation.operation_path.methods
+    ]
+    if len(routes) != len(set(routes)):
+        raise ValueError("Guarded operation routes must be unique.")
+    for index, left in enumerate(resolved):
+        for right in resolved[index + 1 :]:
+            if left.operation_path.methods & right.operation_path.methods and _routes_overlap(
+                left.operation_path.route_path,
+                right.operation_path.route_path,
+            ):
+                raise ValueError("Guarded operation routes must not overlap for the same method.")
+    return resolved
+
+
+def _request_path(request: Request) -> bytes:
+    """Return the application-relative raw path without reencoding its suffix."""
+
+    raw_path = request.scope.get("raw_path")
+    if not isinstance(raw_path, bytes):
+        raw_path = quote(request.scope["path"], safe="/").encode("ascii")
+    if get_route_path(request.scope) != request.scope["path"]:
+        try:
+            raw_path = _strip_mount_prefix(request.scope["path"], raw_path, request.scope["root_path"])
+        except ValueError as failure:
+            raise InvalidRequestPath("The encoded request path does not match the application mount.") from failure
+    return raw_path
+
+
+def _validate_request_path(request: Request) -> None:
+    """Reject network references, backslashes, and path control characters."""
+
+    path = request.scope["path"]
+    raw_path = _request_path(request)
+    if (
+        not path.startswith("/")
+        or path.startswith("//")
+        or "\\" in path
+        or any(ord(character) < 32 or ord(character) == 127 for character in path)
+        or not raw_path.startswith(b"/")
+        or raw_path.startswith(b"//")
+        or any(character < 32 or character == 127 for character in raw_path)
+        or any(character in raw_path for character in (b"\\", b"?", b"#"))
+    ):
+        raise InvalidRequestPath("The request must contain an unambiguous absolute path.")
+
+
+def _validate_reserved_routes(
+    routes: Mapping[str, Collection[str]],
+) -> tuple[tuple[re.Pattern[str], frozenset[str]], ...]:
+    """Validate application route reservations, including root and trailing slash routes."""
+
+    resolved = []
+    for path, methods in routes.items():
+        if (
+            not isinstance(path, str)
+            or not path.startswith("/")
+            or "//" in path
+            or any(character in path for character in ("\\", "?", "#"))
+            or any(segment in {".", ".."} for segment in path.split("/"))
+        ):
+            raise ValueError("A reserved HTTP path must be an unambiguous absolute route template.")
+        try:
+            path_regex, _, _ = compile_path(path.rstrip("/") or "/")
+        except (AssertionError, KeyError, ValueError) as error:
+            raise ValueError("A reserved HTTP path must be a valid route template.") from error
+        if isinstance(methods, (str, bytes)) or not methods or any(method not in HTTP_METHODS for method in methods):
+            raise ValueError("Reserved HTTP methods must be supported uppercase methods.")
+        resolved.append((path_regex, frozenset(methods)))
+    return tuple(resolved)
+
+
+async def _buffer_request(request: Request, max_body_bytes: int) -> BufferedHttpRequest:
+    """Read and preserve one request within the configured body limit."""
+
+    _validate_request_path(request)
+    content_lengths = request.headers.getlist("content-length")
+    parsed_content_length = None
+    if len(content_lengths) > 1:
+        raise InvalidContentLength("Content-Length must not be repeated.")
+    if content_lengths:
+        if request.headers.getlist("transfer-encoding"):
+            raise InvalidContentLength("Content-Length must not accompany Transfer-Encoding.")
+        if re.fullmatch(r"[0-9]+", content_lengths[0]) is None:
+            raise InvalidContentLength("Content-Length must contain only decimal digits.")
+        digits = content_lengths[0].lstrip("0") or "0"
+        limit = str(max_body_bytes)
+        if len(digits) > len(limit) or (len(digits) == len(limit) and digits > limit):
+            raise RequestBodyTooLarge
+        parsed_content_length = int(digits)
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > max_body_bytes:
+            raise RequestBodyTooLarge
+        body.extend(chunk)
+    if parsed_content_length is not None and parsed_content_length != len(body):
+        raise InvalidContentLength("Content-Length must match the buffered request body.")
+    buffered_body = bytes(body)
+    request._body = buffered_body
+    return BufferedHttpRequest(
+        method=request.method,
+        path=get_route_path(request.scope),
+        raw_path=_request_path(request),
+        query=request.scope.get("query_string", b""),
+        headers=tuple(request.scope.get("headers", ())),
+        body=buffered_body,
+    )
+
+
+def _end_to_end_headers(headers: HttpHeaders) -> list[tuple[bytes, bytes]]:
+    """Remove connection-specific metadata from buffered and streamed responses."""
+
+    connection_tokens = {
+        token.strip().lower()
+        for name, content in headers
+        if name.lower() == b"connection"
+        for token in content.split(b",")
+    }
+    excluded = _HOP_BY_HOP_HEADERS | connection_tokens
+    return [(name, content) for name, content in headers if name.lower() not in excluded]
+
+
+def _render_response(value: BufferedHttpResponse, request_method: str | None = None) -> Response:
+    """Preserve end-to-end values while generating safe downstream framing."""
+
+    headers = [
+        (name, content) for name, content in _end_to_end_headers(value.headers) if name.lower() != b"content-length"
+    ]
+    bodyless = request_method == "HEAD" or value.status_code < 200 or value.status_code in {204, 205, 304}
+    response = Response(content=b"" if bodyless else value.body, status_code=value.status_code)
+    if value.status_code == 205:
+        headers.append((b"content-length", b"0"))
+    elif value.status_code == 304 or (
+        request_method == "HEAD" and value.status_code >= 200 and value.status_code != 204
+    ):
+        lengths = [content for name, content in value.headers if name.lower() == b"content-length"]
+        if len(lengths) == 1 and re.fullmatch(rb"[0-9]+", lengths[0]) is not None:
+            headers.append((b"content-length", lengths[0]))
+    elif request_method != "HEAD":
+        headers.extend(response.raw_headers)
+    response.raw_headers = headers
+    return response
+
+
+def _has_media_type(headers: HttpHeaders, expected: bytes) -> bool:
+    """Require one Content-Type with the expected lowercase media type.
+
+    Header names and media types are case-insensitive; parameters are ignored.
+    Reject even identical duplicates so readers cannot select different values.
+    """
+    values = [value for name, value in headers if name.lower() == b"content-type"]
+    return len(values) == 1 and values[0].partition(b";")[0].strip().lower() == expected
+
+
+def _has_identity_encoding(headers: HttpHeaders) -> bool:
+    """Return whether every Content-Encoding coding is identity.
+
+    Duplicate headers and comma lists combine into one coding list, so a body
+    is unencoded only when no coding other than identity appears anywhere.
+    Empty list elements carry no coding and are ignored.
+    """
+    return all(
+        token.strip().lower() == b"identity"
+        for name, value in headers
+        if name.lower() == b"content-encoding"
+        for token in value.split(b",")
+        if token.strip()
+    )
+
+
+def _request_identity_encoding(headers: HttpHeaders) -> HttpHeaders:
+    """Ask the provider for an unencoded response that output checks can read.
+
+    Clients such as the OpenAI SDK accept gzip, and an encoded successful
+    response cannot be inspected. Without output checks the response is relayed
+    unchanged, so the client's own preference is kept.
+    """
+    return (
+        *((name, value) for name, value in headers if name.lower() != b"accept-encoding"),
+        (b"accept-encoding", b"identity"),
+    )
+
+
+def _render_failure(
+    failure: (
+        ContentCheckerConfigurationUnsupported
+        | ContentCheckerResolutionFailed
+        | OperationBlocked
+        | OperationCheckFailed
+        | OperationModificationUnsupported
+        | OperationProjectionFailed
+        | HttpOperationFailed
+        | HttpRouteRejected
+    ),
+    render_outcome: OutcomeRenderer,
+    request_method: str | None = None,
+) -> Response:
+    """Render one operation failure through the configured response mapping."""
+
+    response = _render_response(render_outcome(failure), request_method)
+    if isinstance(failure, HttpRouteRejected) and failure.allowed_methods:
+        response.headers["allow"] = ", ".join(sorted(failure.allowed_methods))
+    return response
+
+
+def _guarded_handler(
+    declaration: GuardedHttpOperation,
+    checker: _ResolvedContentChecker | None,
+    resolve_checker: ContentCheckerResolver | None,
+    provider_type: str,
+    provider_instance_id: str,
+    dispatch: HttpDispatch,
+    policy_dispatch: PolicyHttpDispatch | None,
+    render_outcome: OutcomeRenderer,
+    max_request_body_bytes: int,
+    max_response_body_bytes: int,
+) -> Callable[[Request], Awaitable[Response]]:
+    """Create the HTTP handler for one guarded operation."""
+
+    async def handle(request: Request) -> Response:
+        """Buffer, check, dispatch, and render one guarded request."""
+
+        route_path = get_route_path(request.scope)
+        if _normalized_route_path(route_path) != route_path:
+            return _render_failure(
+                HttpRouteRejected(HttpRouteRejectionKind.NON_CANONICAL_PATH), render_outcome, request.method
+            )
+        try:
+            buffered_request = await _buffer_request(request, max_request_body_bytes)
+            try:
+                operation_request = (
+                    declaration.prepare_request(buffered_request)
+                    if declaration.prepare_request is not None
+                    else buffered_request
+                )
+            except UnsupportedGuardedPayload as failure:
+                return _render_failure(
+                    OperationProjectionFailed(InspectionStage.INPUT, failure),
+                    render_outcome,
+                    request.method,
+                )
+            resolved_checker = checker
+            if resolve_checker is not None:
+                try:
+                    candidate = resolve_checker(
+                        request,
+                        provider_type,
+                        provider_instance_id,
+                        declaration.operation.name,
+                    )
+                    if inspect.isawaitable(candidate):
+                        candidate = await candidate
+                    resolved_checker = validate_content_checker(candidate)
+                except UnsupportedContentCheckerConfiguration as failure:
+                    return _render_failure(
+                        ContentCheckerConfigurationUnsupported(failure),
+                        render_outcome,
+                    )
+                except Exception as failure:
+                    log.warning(
+                        "Rails config resolution failed for %s.%s (%s): %s",
+                        provider_instance_id,
+                        declaration.operation.name,
+                        provider_type,
+                        type(failure).__name__,
+                    )
+                    return _render_failure(ContentCheckerResolutionFailed(failure), render_outcome)
+            if resolved_checker is None:
+                raise AssertionError("A guarded operation requires a resolved content checker.")
+            prepared = await prepare_operation_input(
+                declaration.operation,
+                resolved_checker,
+                operation_request,
+            )
+            if not isinstance(prepared, PreparedOperationInput):
+                return _render_failure(prepared, render_outcome, request.method)
+            if declaration.prepared_request_handler is not None:
+                response = await declaration.prepared_request_handler(prepared)
+                if isinstance(response, BufferedHttpResponse):
+                    return _render_response(response, request.method)
+                if response is not None:
+                    return response
+
+            async def bounded_dispatch(operation_request: Any) -> BufferedHttpResponse:
+                forwarded = (
+                    declaration.forward_request(operation_request)
+                    if declaration.forward_request is not None
+                    else cast(BufferedHttpRequest, operation_request)
+                )
+                if prepared.resolved.policy.inspect_output:
+                    forwarded = replace(forwarded, headers=_request_identity_encoding(forwarded.headers))
+                if policy_dispatch is None:
+                    response = await dispatch(forwarded)
+                else:
+                    response = await policy_dispatch(forwarded, prepared.resolved.policy.inspect_output)
+                if len(response.body) > max_response_body_bytes:
+                    raise ResponseBodyTooLarge
+                return response
+
+            outcome = await execute_prepared_buffered_operation(
+                declaration.operation,
+                prepared,
+                bounded_dispatch,
+            )
+        except RequestBodyTooLarge as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.REQUEST_BODY_TOO_LARGE, failure),
+                render_outcome,
+                request.method,
+            )
+        except InvalidContentLength as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.INVALID_CONTENT_LENGTH, failure),
+                render_outcome,
+                request.method,
+            )
+        except InvalidRequestPath:
+            return _render_failure(
+                HttpRouteRejected(HttpRouteRejectionKind.INVALID_REQUEST_PATH), render_outcome, request.method
+            )
+        except HttpDispatchFailed as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.UPSTREAM_REQUEST_FAILED, failure),
+                render_outcome,
+                request.method,
+            )
+        except ResponseBodyTooLarge as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.RESPONSE_BODY_TOO_LARGE, failure),
+                render_outcome,
+                request.method,
+            )
+        if isinstance(outcome, OperationCompleted):
+            return _render_response(outcome.response, request.method)
+        return _render_failure(outcome, render_outcome, request.method)
+
+    return handle
+
+
+def create_http_proxy_router(
+    *,
+    operations: Collection[GuardedHttpOperation],
+    checker: ContentChecker | None = None,
+    resolve_checker: ContentCheckerResolver | None = None,
+    provider_type: str = "",
+    provider_instance_id: str = "",
+    dispatch: HttpDispatch,
+    policy_dispatch: PolicyHttpDispatch | None = None,
+    render_outcome: OutcomeRenderer,
+    reserved_routes: Mapping[str, Collection[str]] | None = None,
+    operation_ids: Mapping[str, str] | None = None,
+    guarded_path_prefix: str = "",
+    route_ownership: HttpRouteOwnership | None = None,
+    include_passthrough: bool = True,
+    max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
+    max_response_body_bytes: int = DEFAULT_MAX_RESPONSE_BODY_BYTES,
+) -> APIRouter:
+    """Create guarded routes followed by a transparent provider catch-all.
+
+    Application-owned routes must be registered before this router because its
+    catch-all owns every path not handled by an earlier route.
+    Route ownership classifies local and mapped paths before body reads.
+    """
+
+    resolved_operations = _validate_operations(operations)
+    if any(type(limit) is not int or limit <= 0 for limit in (max_request_body_bytes, max_response_body_bytes)):
+        raise ValueError("Buffered HTTP body limits must be positive integers.")
+    resolved_operation_ids = dict(operation_ids or {})
+    operation_names = {operation.operation.name for operation in resolved_operations}
+    if resolved_operation_ids.keys() - operation_names:
+        raise ValueError("HTTP operation ids must refer to declared guarded operations.")
+    normalized_guarded_prefix = guarded_path_prefix.rstrip("/")
+    if normalized_guarded_prefix and not normalized_guarded_prefix.startswith("/"):
+        raise ValueError("A guarded path prefix must be empty or absolute.")
+    if (checker is None) == (resolve_checker is None):
+        raise ValueError("Exactly one static checker or request checker resolver is required.")
+    if resolve_checker is not None and (not provider_type or not provider_instance_id):
+        raise ValueError("Resolved checkers require provider type and instance identities.")
+    validated_checker = validate_content_checker(checker) if checker is not None else None
+    ownership = (
+        route_ownership
+        if route_ownership is not None
+        else HttpRouteOwnership(
+            local_paths=tuple(
+                replace(operation_path, route_path=f"{normalized_guarded_prefix}{operation_path.route_path}")
+                for declaration in resolved_operations
+                for operation_path in declaration.guarded_operation_paths
+            )
+        )
+    )
+    reserved_matchers = _validate_reserved_routes(reserved_routes or {})
+    router = APIRouter()
+
+    for declaration in resolved_operations:
+        router.add_api_route(
+            declaration.operation_path.route_path,
+            _guarded_handler(
+                declaration,
+                validated_checker,
+                resolve_checker,
+                provider_type,
+                provider_instance_id,
+                dispatch,
+                policy_dispatch,
+                render_outcome,
+                max_request_body_bytes,
+                max_response_body_bytes,
+            ),
+            methods=sorted(declaration.operation_path.methods),
+            name=declaration.operation.name,
+            operation_id=resolved_operation_ids.get(declaration.operation.name, declaration.operation.name),
+            response_class=Response,
+            responses=declaration.documented_responses,
+            openapi_extra=declaration.openapi_extra,
+        )
+
+    async def passthrough(request: Request, path: str) -> Response:
+        """Forward provider-owned routes without content checking."""
+
+        try:
+            _validate_request_path(request)
+        except InvalidRequestPath:
+            return _render_failure(
+                HttpRouteRejected(HttpRouteRejectionKind.INVALID_REQUEST_PATH), render_outcome, request.method
+            )
+        ownership_path = get_route_path(request.scope) if normalized_guarded_prefix else f"/{path}"
+        candidates = _route_path_candidates(ownership_path)
+        reserved_candidates = candidates | _route_path_candidates(get_route_path(request.scope))
+        reserved_methods = next(
+            (
+                methods
+                for path_regex, methods in reserved_matchers
+                if any(path_regex.fullmatch(candidate) is not None for candidate in reserved_candidates)
+            ),
+            None,
+        )
+        if reserved_methods is not None:
+            return _render_failure(
+                HttpRouteRejected(HttpRouteRejectionKind.METHOD_NOT_ALLOWED, reserved_methods),
+                render_outcome,
+                request.method,
+            )
+        rejection = ownership.reject_passthrough(request.method, ownership_path, _request_path(request))
+        if rejection is not None:
+            return _render_failure(rejection, render_outcome, request.method)
+        try:
+            buffered_request = await _buffer_request(request, max_request_body_bytes)
+            response = await dispatch(buffered_request)
+        except RequestBodyTooLarge as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.REQUEST_BODY_TOO_LARGE, failure),
+                render_outcome,
+                request.method,
+            )
+        except InvalidContentLength as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.INVALID_CONTENT_LENGTH, failure),
+                render_outcome,
+                request.method,
+            )
+        except HttpDispatchFailed as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.UPSTREAM_REQUEST_FAILED, failure),
+                render_outcome,
+                request.method,
+            )
+        except ResponseBodyTooLarge as failure:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.RESPONSE_BODY_TOO_LARGE, failure),
+                render_outcome,
+                request.method,
+            )
+        if len(response.body) > max_response_body_bytes:
+            return _render_failure(
+                HttpOperationFailed(HttpFailureKind.RESPONSE_BODY_TOO_LARGE, ResponseBodyTooLarge()),
+                render_outcome,
+                request.method,
+            )
+        return _render_response(response, request.method)
+
+    if include_passthrough:
+        router.add_api_route(
+            "/{path:path}",
+            passthrough,
+            methods=list(HTTP_METHODS),
+            include_in_schema=False,
+        )
+
+    return router

@@ -1,0 +1,68 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-nonexistent-test-model
+      messages:
+      - role: user
+        content: Get Paris weather.
+      - role: assistant
+        tool_calls:
+        - id: call_weather
+          type: function
+          function:
+            name: get_weather
+            arguments: '{"city": "Paris"}'
+      - role: tool
+        content: 'WX-4827: sunny'
+        tool_call_id: call_weather
+      chat_template_kwargs:
+        enable_thinking: false
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: none
+  response:
+    status:
+      code: 403
+      message: Forbidden
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+        error:
+          message: The requested model 'gpt-nonexistent-test-model' is not available for this API key, or the model name is
+            invalid. Check the models available to you and try again.
+          type: key_model_access_denied
+          param: model
+          code: '403'

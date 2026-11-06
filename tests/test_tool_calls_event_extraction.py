@@ -45,7 +45,9 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
 
 
 @pytest.mark.asyncio
-async def test_tool_calls_preserved_when_rails_block():
+@pytest.mark.parametrize("passthrough", [False, True])
+async def test_tool_calls_omitted_when_rails_block(passthrough):
+    """Verify rejected provider calls are absent from the returned refusal."""
     test_tool_calls = [
         ToolCall(
             id="call_dangerous",
@@ -70,12 +72,13 @@ async def test_tool_calls_preserved_when_rails_block():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
     )
 
+    config.passthrough = passthrough
     fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="", tool_calls=test_tool_calls)])
     rails = LLMRails(config, llm=fake_llm)
 
@@ -83,9 +86,7 @@ async def test_tool_calls_preserved_when_rails_block():
     rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
     result = await rails.generate_async(messages=[{"role": "user", "content": "Execute dangerous tool"}])
 
-    assert result["tool_calls"] is not None, "tool_calls should be preserved in final response"
-    assert len(result["tool_calls"]) == 1
-    assert result["tool_calls"][0]["function"]["name"] == "dangerous_tool"
+    assert "tool_calls" not in result
     assert "cannot execute this tool request" in result["content"]
 
 
@@ -114,7 +115,7 @@ async def test_generation_action_pops_tool_calls_once():
         return None
 
     with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar",
+        "nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar",
         side_effect=mock_get_and_clear,
     ):
         chat = TestChat(config, llm_completions=[""])
@@ -250,7 +251,7 @@ async def test_complete_fix_integration():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
@@ -265,9 +266,7 @@ async def test_complete_fix_integration():
 
     assert "security concerns" in result["content"]
 
-    assert result["tool_calls"] is not None, "tool_calls preserved despite being blocked"
-    assert len(result["tool_calls"]) == 1
-    assert result["tool_calls"][0]["function"]["name"] == "dangerous_function"
+    assert "tool_calls" not in result
 
 
 @pytest.mark.asyncio
@@ -383,7 +382,7 @@ async def test_tool_calls_preserve_metadata():
 
 
 @pytest.mark.asyncio
-async def test_tool_output_rails_blocking_behavior():
+async def test_tool_call_rails_blocking_behavior():
     dangerous_tool_calls = [
         ToolCall(
             id="call_dangerous_exec",
@@ -408,7 +407,7 @@ async def test_tool_output_rails_blocking_behavior():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
@@ -422,9 +421,7 @@ async def test_tool_output_rails_blocking_behavior():
     result = await rails.generate_async(messages=[{"role": "user", "content": "Execute dangerous command"}])
 
     assert "security reasons" in result["content"]
-    assert result["tool_calls"] is not None
-    assert result["tool_calls"][0]["function"]["name"] == "dangerous_exec"
-    assert "rm -rf" in result["tool_calls"][0]["function"]["arguments"]["command"]
+    assert "tool_calls" not in result
 
 
 @pytest.mark.asyncio

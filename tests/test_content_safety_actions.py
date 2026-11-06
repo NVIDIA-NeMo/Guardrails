@@ -141,25 +141,39 @@ class TestDetectLanguageUnit:
     def test_detect_language_uses_detect_result(self):
         detect = MagicMock(return_value=[{"lang": "es", "score": 0.99}])
 
-        with patch.dict("sys.modules", {"fast_langdetect": _fast_langdetect_module(detect)}):
+        module = _fast_langdetect_module(detect, None)
+        with (
+            patch.dict("sys.modules", {"fast_langdetect": module}),
+            patch.dict("nemoguardrails.library.utils.language_detection._DETECTORS", {}, clear=True),
+        ):
             assert _detect_language("Hola") == "es"
 
-        detect.assert_called_once_with("Hola", k=1)
+        module.LangDetector.assert_called_once_with(None)
+        detect.assert_called_once_with("Hola", model=None, k=1, threshold=0.0)
 
     def test_detect_language_empty_result(self):
         detect = MagicMock(return_value=[])
 
-        with patch.dict("sys.modules", {"fast_langdetect": _fast_langdetect_module(detect)}):
+        with (
+            patch.dict("sys.modules", {"fast_langdetect": _fast_langdetect_module(detect, None)}),
+            patch.dict("nemoguardrails.library.utils.language_detection._DETECTORS", {}, clear=True),
+        ):
             assert _detect_language("Hello") is None
 
     def test_detect_language_import_error(self):
-        with patch.dict("sys.modules", {"fast_langdetect": None}):
+        with (
+            patch.dict("sys.modules", {"fast_langdetect": None}),
+            patch.dict("nemoguardrails.library.utils.language_detection._DETECTORS", {}, clear=True),
+        ):
             assert _detect_language("Hello") is None
 
     def test_detect_language_exception(self):
         detect = MagicMock(side_effect=Exception("Detection failed"))
 
-        with patch.dict("sys.modules", {"fast_langdetect": _fast_langdetect_module(detect)}):
+        with (
+            patch.dict("sys.modules", {"fast_langdetect": _fast_langdetect_module(detect, None)}),
+            patch.dict("nemoguardrails.library.utils.language_detection._DETECTORS", {}, clear=True),
+        ):
             assert _detect_language("Hello") is None
 
 
@@ -291,7 +305,8 @@ class TestSupportedLanguagesAndDefaults:
             assert len(message) > 0
 
 
-def _fast_langdetect_module(detect):
+def _fast_langdetect_module(detect, config):
     module = ModuleType("fast_langdetect")
-    module.__dict__["detect"] = detect
+    module.__dict__["LangDetector"] = MagicMock(return_value=MagicMock(detect=detect))
+    module.__dict__["LangDetectConfig"] = config
     return module

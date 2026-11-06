@@ -698,10 +698,10 @@ def set_llm_response_attributes(
 
 def set_request_content(
     span: Optional["Span"],
-    input_messages: LLMMessages,
+    input_messages: Optional[LLMMessages],
     output_text: Optional[str] = None,
 ) -> None:
-    """Capture caller-facing input/output on the ``guardrails.request`` SERVER span.
+    """Capture the request's input/output on the ``guardrails.request`` SERVER span.
 
     Uses ``guardrails.request.input`` (JSON-encoded input messages) and
     ``guardrails.request.output`` (the text actually returned to the caller)
@@ -712,17 +712,22 @@ def set_request_content(
     different values and confuse backends correlating the two.
 
     ``guardrails.request.input`` is always a JSON-encoded list of role/content
-    message objects matching the caller's input.  ``guardrails.request.output``
-    is the plain string that IORails returned (REFUSAL_MESSAGE on block paths,
-    the model's response text on the success path).  ``output_text=None``
-    suppresses the output attribute entirely — used by the streaming path when
-    the stream produced no content, so an empty output is not falsely recorded.
+    message objects, as the rails left them: after any rewrite, such as a mask,
+    rather than as the caller sent them.  ``input_messages=None`` suppresses the
+    input attribute entirely — used while a configured mask has not decided on
+    the text, so the span withholds it rather than record it unmasked.
+    ``guardrails.request.output`` is the plain string that IORails returned
+    (REFUSAL_MESSAGE on block paths, the model's response text on the success
+    path).  ``output_text=None`` suppresses the output attribute entirely — used
+    by the streaming path when the stream produced no content, so an empty output
+    is not falsely recorded, and while a configured mask has not decided on it.
 
     Safe to call with ``span=None`` (no-op).
     """
     if span is None:
         return
-    span.set_attribute(GuardrailsAttributes.REQUEST_INPUT, json.dumps(input_messages))
+    if input_messages is not None:
+        span.set_attribute(GuardrailsAttributes.REQUEST_INPUT, json.dumps(input_messages))
     if output_text is not None:
         span.set_attribute(GuardrailsAttributes.REQUEST_OUTPUT, output_text)
 

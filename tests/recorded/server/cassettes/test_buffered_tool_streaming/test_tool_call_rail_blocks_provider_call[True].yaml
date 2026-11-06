@@ -1,0 +1,95 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: Call get_weather for Paris.
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice:
+        type: function
+        function:
+          name: get_weather
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: null
+            tool_calls:
+            - id: call_Z6ajHzdSgpl6J3YEhG7woec6
+              type: function
+              function:
+                name: get_weather
+                arguments: '{"city":"Paris"}'
+            refusal: null
+            annotations: []
+          finish_reason: tool_calls
+        usage:
+          prompt_tokens: 132
+          completion_tokens: 17
+          total_tokens: 149
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null

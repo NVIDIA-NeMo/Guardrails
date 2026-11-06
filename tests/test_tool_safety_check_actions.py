@@ -20,7 +20,7 @@ import pytest
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
-from nemoguardrails.library.tool_safety_check.actions import tool_safety_check_input, tool_safety_check_output
+from nemoguardrails.library.tool_safety_check.actions import tool_safety_check_tool_call, tool_safety_check_tool_result
 from nemoguardrails.testing.fake_model import FakeLLMModel
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_outcome_blocked
@@ -63,7 +63,7 @@ def _weather_tool() -> Tool:
 async def test_output_blocks_undeclared_tool_before_llm_call():
     task_manager = _FakeTaskManager()
 
-    outcome = await tool_safety_check_output(
+    outcome = await tool_safety_check_tool_call(
         llms={"llama_guard": FakeLLMModel(responses=[])},
         llm_task_manager=task_manager,
         tool_call=_weather_call({"city": "Paris"}),
@@ -80,7 +80,7 @@ async def test_output_blocks_undeclared_tool_before_llm_call():
 async def test_output_blocks_schema_violation_before_llm_call():
     task_manager = _FakeTaskManager()
 
-    outcome = await tool_safety_check_output(
+    outcome = await tool_safety_check_tool_call(
         llms={"llama_guard": FakeLLMModel(responses=[])},
         llm_task_manager=task_manager,
         tool_call=_weather_call({}),  # missing required "city"
@@ -98,7 +98,7 @@ async def test_output_missing_model_name_raises_before_llm_call():
     task_manager = _FakeTaskManager()
 
     with pytest.raises(ValueError, match="Model name is required"):
-        await tool_safety_check_output(
+        await tool_safety_check_tool_call(
             llms={},
             llm_task_manager=task_manager,
             tool_call=_weather_call({"city": "Paris"}),
@@ -115,7 +115,7 @@ async def test_output_unknown_model_name_raises():
     task_manager = _FakeTaskManager()
 
     with pytest.raises(ValueError, match="not found in the list of available models"):
-        await tool_safety_check_output(
+        await tool_safety_check_tool_call(
             llms={},
             llm_task_manager=task_manager,
             tool_call=_weather_call({"city": "Paris"}),
@@ -129,7 +129,7 @@ async def test_output_unknown_model_name_raises():
 async def test_output_builds_task_name_from_model_and_variant():
     task_manager = _FakeTaskManager()
 
-    await tool_safety_check_output(
+    await tool_safety_check_tool_call(
         llms={"llama_guard": FakeLLMModel(responses=["safe"])},
         llm_task_manager=task_manager,
         tool_call=_weather_call({"city": "Paris"}),
@@ -138,14 +138,14 @@ async def test_output_builds_task_name_from_model_and_variant():
         variant="weather_check",
     )
 
-    assert task_manager.rendered_task == "tool_safety_check_output $model=llama_guard $variant=weather_check"
+    assert task_manager.rendered_task == "tool_safety_check_tool_call $model=llama_guard $variant=weather_check"
 
 
 @pytest.mark.asyncio
 async def test_output_scopes_arguments_to_the_named_field():
     task_manager = _FakeTaskManager()
 
-    await tool_safety_check_output(
+    await tool_safety_check_tool_call(
         llms={"llama_guard": FakeLLMModel(responses=["safe"])},
         llm_task_manager=task_manager,
         tool_call=_weather_call({"city": "Paris", "units": "metric"}),
@@ -170,7 +170,7 @@ async def test_output_scopes_arguments_to_the_named_field():
 async def test_output_allows_safe_response():
     task_manager = _FakeTaskManager(parsed=[True])
 
-    outcome = await tool_safety_check_output(
+    outcome = await tool_safety_check_tool_call(
         llms={"llama_guard": FakeLLMModel(responses=["safe"])},
         llm_task_manager=task_manager,
         tool_call=_weather_call({"city": "Paris"}),
@@ -187,7 +187,7 @@ async def test_output_blocks_unsafe_response_without_recording_its_reason():
     """The judge's reason may quote the flagged content, so the block carries none of it."""
     task_manager = _FakeTaskManager(parsed=[False, "leaks credentials"])
 
-    outcome = await tool_safety_check_output(
+    outcome = await tool_safety_check_tool_call(
         llms={"llama_guard": FakeLLMModel(responses=["unsafe: leaks credentials"])},
         llm_task_manager=task_manager,
         tool_call=_weather_call({"city": "Paris"}),
@@ -208,7 +208,7 @@ async def test_output_unregistered_output_parser_raises():
     task_manager = _FakeTaskManager(parsed="unsafe: leaks credentials")
 
     with pytest.raises(ValueError, match="could not be parsed into a safety verdict"):
-        await tool_safety_check_output(
+        await tool_safety_check_tool_call(
             llms={"llama_guard": FakeLLMModel(responses=["unsafe: leaks credentials"])},
             llm_task_manager=task_manager,
             tool_call=_weather_call({"city": "Paris"}),
@@ -225,7 +225,7 @@ async def test_output_truncated_response_raises():
     task_manager = _FakeTaskManager()
 
     with pytest.raises(ValueError, match="truncated"):
-        await tool_safety_check_output(
+        await tool_safety_check_tool_call(
             llms={"llama_guard": FakeLLMModel(llm_responses=[LLMResponse(content="", finish_reason="length")])},
             llm_task_manager=task_manager,
             tool_call=_weather_call({"city": "Paris"}),
@@ -242,7 +242,7 @@ async def test_input_missing_model_name_raises():
     task_manager = _FakeTaskManager()
 
     with pytest.raises(ValueError, match="Model name is required"):
-        await tool_safety_check_input(
+        await tool_safety_check_tool_result(
             llms={},
             llm_task_manager=task_manager,
             tool_call=_weather_call({"city": "Paris"}),
@@ -256,7 +256,7 @@ async def test_input_missing_model_name_raises():
 async def test_input_builds_task_name_from_model_and_variant():
     task_manager = _FakeTaskManager()
 
-    await tool_safety_check_input(
+    await tool_safety_check_tool_result(
         llms={"llama_guard": FakeLLMModel(responses=["safe"])},
         llm_task_manager=task_manager,
         tool_call=_weather_call({"city": "Paris"}),
@@ -265,7 +265,7 @@ async def test_input_builds_task_name_from_model_and_variant():
         variant="weather_check",
     )
 
-    assert task_manager.rendered_task == "tool_safety_check_input $model=llama_guard $variant=weather_check"
+    assert task_manager.rendered_task == "tool_safety_check_tool_result $model=llama_guard $variant=weather_check"
     assert task_manager.rendered_context == {"tool_name": "get_weather", "tool_result_content": "18C"}
 
 
@@ -274,7 +274,7 @@ async def test_input_serializes_list_content_to_json():
     task_manager = _FakeTaskManager()
     blocks = [{"type": "text", "text": "18C"}]
 
-    await tool_safety_check_input(
+    await tool_safety_check_tool_result(
         llms={"llama_guard": FakeLLMModel(responses=["safe"])},
         llm_task_manager=task_manager,
         tool_call=_weather_call({"city": "Paris"}),
@@ -291,7 +291,7 @@ async def test_input_serializes_list_content_to_json():
 async def test_input_allows_safe_response():
     task_manager = _FakeTaskManager(parsed=[True])
 
-    outcome = await tool_safety_check_input(
+    outcome = await tool_safety_check_tool_result(
         llms={"llama_guard": FakeLLMModel(responses=["safe"])},
         llm_task_manager=task_manager,
         tool_call=_weather_call({"city": "Paris"}),
@@ -308,7 +308,7 @@ async def test_input_blocks_unsafe_response_without_recording_its_reason():
     """The judge's reason may quote the flagged content, so the block carries none of it."""
     task_manager = _FakeTaskManager(parsed=[False, "contains ssn"])
 
-    outcome = await tool_safety_check_input(
+    outcome = await tool_safety_check_tool_result(
         llms={"llama_guard": FakeLLMModel(responses=["unsafe: contains ssn"])},
         llm_task_manager=task_manager,
         tool_call=_weather_call({"city": "Paris"}),

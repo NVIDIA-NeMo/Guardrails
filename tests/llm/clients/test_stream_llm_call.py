@@ -18,11 +18,13 @@ import pytest
 from nemoguardrails.context import (
     llm_call_info_var,
     llm_response_metadata_var,
+    llm_stats_var,
     reasoning_trace_var,
     tool_calls_var,
 )
 from nemoguardrails.llm.call import _stream_llm_call
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.logging.stats import LLMStats
 from nemoguardrails.streaming import StreamingHandler
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 
@@ -35,11 +37,13 @@ def reset_context_vars():
     # Production sets llm_call_info_var and never resets it, so a record left behind here
     # would be inherited by the next test.
     call_info_token = llm_call_info_var.set(None)
+    stats_token = llm_stats_var.set(None)
     yield
     reasoning_trace_var.reset(reasoning_token)
     tool_calls_var.reset(tool_calls_token)
     llm_response_metadata_var.reset(metadata_token)
     llm_call_info_var.reset(call_info_token)
+    llm_stats_var.reset(stats_token)
 
 
 def _make_chunk_model(chunks):
@@ -209,3 +213,43 @@ class TestStreamLlmCallAccumulation:
         await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
 
         assert llm_response_metadata_var.get() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("include_metadata", [False, True])
+@pytest.mark.parametrize("content", ["", "Checking weather first."])
+async def test_tool_calls_are_structured_and_do_not_pollute_completion(include_metadata, content):
+    from nemoguardrails.testing.fake_model import FakeLLMModel
+    from nemoguardrails.types import ToolCallChunk
+
+    calls = [
+        ToolCall(id="call_1", function=ToolCallFunction(name="weather", arguments={"city": "Paris", "label": "User:"})),
+        ToolCall(id="call_2", function=ToolCallFunction(name="time", arguments={"city": "Boston"})),
+    ]
+    usage = UsageInfo(input_tokens=10, output_tokens=5, total_tokens=15)
+    model = FakeLLMModel(llm_responses=[LLMResponse(content=content, tool_calls=calls, usage=usage)])
+    handler = StreamingHandler(include_metadata=include_metadata)
+    call_info = LLMCallInfo()
+    llm_call_info_var.set(call_info)
+    stats = LLMStats()
+    llm_stats_var.set(stats)
+
+    response = await _stream_llm_call(model, "test", handler, stop=["Paris", "User:"])
+    chunks = [chunk async for chunk in handler]
+
+    assert response.content == handler.completion == call_info.completion == content
+    assert response.tool_calls == calls
+    assert tool_calls_var.get() == [call.to_dict() for call in calls]
+    assert response.usage == usage
+    assert call_info.total_tokens == stats.get_stat("total_tokens") == 15
+    assert call_info.prompt_tokens == stats.get_stat("total_prompt_tokens") == 10
+    assert call_info.completion_tokens == stats.get_stat("total_completion_tokens") == 5
+    assert [chunk for chunk in chunks if isinstance(chunk, ToolCallChunk)] == [ToolCallChunk(calls)]
+    text = [
+        chunk["text"] if isinstance(chunk, dict) else chunk for chunk in chunks if not isinstance(chunk, ToolCallChunk)
+    ]
+    assert "".join(text) == content
+    event_index = next(i for i, chunk in enumerate(chunks) if isinstance(chunk, ToolCallChunk))
+    assert all(not (chunk["text"] if isinstance(chunk, dict) else chunk) for chunk in chunks[event_index + 1 :])
+    if include_metadata:
+        assert chunks[-1]["metadata"]["usage"] == {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}

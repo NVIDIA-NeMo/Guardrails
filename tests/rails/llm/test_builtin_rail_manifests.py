@@ -172,27 +172,27 @@ def test_every_manifested_action_is_declared_in_its_manifest():
     assert not undeclared, "Manifested actions missing from every manifest's refs:\n" + "\n".join(undeclared)
 
 
-def test_every_tool_output_action_validates_arguments():
-    """Every action bound to a TOOL_OUTPUT surface must carry @tool_output_validation and
+def test_every_tool_call_action_validates_arguments():
+    """Every action bound to a TOOL_CALL surface must carry @tool_call_validation and
     bind tool_call/tool_definition as context.
 
     The decorator indexes ``kwargs["tool_call"]``/``kwargs["tool_definition"]``
     unconditionally, so this catches a surface missing either binding here, at
     catalog-validation time, rather than as a ``KeyError`` on its first real request.
     """
-    surfaces = default_rail_catalog().surfaces(RailDirection.TOOL_OUTPUT)
+    surfaces = default_rail_catalog().surfaces(RailDirection.TOOL_CALL)
     violations = []
 
     for (_, surface_name), surface in surfaces.items():
         action = resolve_import_ref(surface.action)
-        if not getattr(action, "_has_tool_output_validation", False):
-            violations.append(f"{surface_name}: missing @tool_output_validation")
+        if not getattr(action, "_has_tool_call_validation", False):
+            violations.append(f"{surface_name}: missing @tool_call_validation")
         if Binding.context("tool_call", "tool_call") not in surface.bindings:
             violations.append(f"{surface_name}: missing Binding.context('tool_call', 'tool_call')")
         if Binding.context("tool_definition", "tool_definition") not in surface.bindings:
             violations.append(f"{surface_name}: missing Binding.context('tool_definition', 'tool_definition')")
 
-    assert not violations, "TOOL_OUTPUT surface problems:\n" + "\n".join(violations)
+    assert not violations, "TOOL_CALL surface problems:\n" + "\n".join(violations)
 
 
 def test_self_check_surfaces_bind_optional_variant():
@@ -232,8 +232,8 @@ def test_model_dependent_surfaces_declare_model_bindings():
         (RailDirection.OUTPUT, "llama guard check output"),
         (RailDirection.OUTPUT, "patronus lynx check output hallucination"),
         (RailDirection.INPUT, "topic safety check input"),
-        (RailDirection.TOOL_OUTPUT, "tool safety check output"),
-        (RailDirection.TOOL_INPUT, "tool safety check input"),
+        (RailDirection.TOOL_CALL, "tool safety check tool call"),
+        (RailDirection.TOOL_RESULT, "tool safety check tool result"),
     }
     declared = {
         surface_key

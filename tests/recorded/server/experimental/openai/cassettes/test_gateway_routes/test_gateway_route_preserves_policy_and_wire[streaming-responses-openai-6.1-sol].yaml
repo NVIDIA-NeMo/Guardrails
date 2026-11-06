@@ -1,0 +1,278 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/responses
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-6.1-sol
+      stream: true
+      input: 'Reply with exactly: Hello.'
+      store: false
+      max_output_tokens: 1024
+      reasoning:
+        effort: low
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      cache-control:
+      - no-cache
+      content-type:
+      - text/event-stream; charset=utf-8
+      content-security-policy:
+      - frame-ancestors 'none'
+      transfer-encoding:
+      - chunked
+    body:
+      parsed_body:
+      - type: response.created
+        response:
+          id: resp_Tvst2AcKOjrNuVvVfwIYsJFAMo1TICRJWZ_W0GsexzOQpQL3qvr5PXpzmWvx9ZXCLuesYFOinYxojdF-liW4Y8aPcRjJYmHvXsN4dciaYeN6lknvL1ukAQ4haIYO6SWjnRsaGm690iyDp25xCFP_036n-hW75zNKmidkLltf16M6j4aDvZdz8jEY49_RdC8eoxByqKuV6peRw0pfiPJ85kWv9c0oZpnVs4KMoyN6TjHIEb-FDGgK_c8TY1akfYIQxCL2MJOb2Wqhk9e6qZJEVGuaLkxAOlqf5Y1Q6xJkzOXKkKzDQJxQC94dTVLxAdzNjf9umy_fDsXsWhiLdKaUtCk5t3r07ewZ8LgunUiRpZNsEosA64uPJagtkVi7F76L_VL_nZ2kCTlKgCqUxilGpSZzMvhDUY9b5dRASImvQ31mTcg=
+          created_at: 1793270958
+          metadata: {}
+          model: gpt-6.1-sol
+          object: response
+          output: []
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 0.98
+          max_output_tokens: 1024
+          reasoning:
+            context: all_turns
+            effort: low
+            mode: standard
+            summary: null
+          status: in_progress
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          store: false
+          background: false
+          frequency_penalty: 0.0
+          presence_penalty: 0.0
+          prompt_cache_retention: 24h
+          service_tier: auto
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 0
+        model: openai/openai/gpt-6.1-sol
+      - type: response.in_progress
+        response:
+          id: resp_Tvst2AcKOjrNuVvVfwIYsJFAMo1TICRJWZ_W0GsexzOQpQL3qvr5PXpzmWvx9ZXCLuesYFOinYxojdF-liW4Y8aPcRjJYmHvXsN4dciaYeN6lknvL1ukAQ4haIYO6SWjnRsaGm690iyDp25xCFP_036n-hW75zNKmidkLltf16M6j4aDvZdz8jEY49_RdC8eoxByqKuV6peRw0pfiPJ85kWv9c0oZpnVs4KMoyN6TjHIEb-FDGgK_c8TY1akfYIQxCL2MJOb2Wqhk9e6qZJEVGuaLkxAOlqf5Y1Q6xJkzOXKkKzDQJxQC94dTVLxAdzNjf9umy_fDsXsWhiLdKaUtCk5t3r07ewZ8LgunUiRpZNsEosA64uPJagtkVi7F76L_VL_nZ2kCTlKgCqUxilGpSZzMvhDUY9b5dRASImvQ31mTcg=
+          created_at: 1793270958
+          metadata: {}
+          model: gpt-6.1-sol
+          object: response
+          output: []
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 0.98
+          max_output_tokens: 1024
+          reasoning:
+            context: all_turns
+            effort: low
+            mode: standard
+            summary: null
+          status: in_progress
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          store: false
+          background: false
+          frequency_penalty: 0.0
+          presence_penalty: 0.0
+          prompt_cache_retention: 24h
+          service_tier: auto
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 1
+        model: openai/openai/gpt-6.1-sol
+      - type: response.output_item.added
+        output_index: 0
+        item:
+          id: msg_053471b8e31c4f7e016ae324afea6487d099624d66912e1204
+          type: message
+          status: in_progress
+          content: []
+          phase: final_answer
+          role: assistant
+        sequence_number: 2
+        model: openai/openai/gpt-6.1-sol
+      - type: response.content_part.added
+        item_id: msg_053471b8e31c4f7e016ae324afea6487d099624d66912e1204
+        output_index: 0
+        content_index: 0
+        part:
+          type: output_text
+          annotations: []
+          logprobs: []
+          text: ''
+        sequence_number: 3
+        model: openai/openai/gpt-6.1-sol
+      - type: response.output_text.delta
+        item_id: msg_053471b8e31c4f7e016ae324afea6487d099624d66912e1204
+        output_index: 0
+        content_index: 0
+        delta: Hello
+        logprobs: []
+        obfuscation: hxAwrE6qtmw
+        sequence_number: 4
+        model: openai/openai/gpt-6.1-sol
+      - type: response.output_text.delta
+        item_id: msg_053471b8e31c4f7e016ae324afea6487d099624d66912e1204
+        output_index: 0
+        content_index: 0
+        delta: .
+        logprobs: []
+        obfuscation: 0InIg51v6JJ4ffj
+        sequence_number: 5
+        model: openai/openai/gpt-6.1-sol
+      - type: response.output_text.done
+        item_id: msg_053471b8e31c4f7e016ae324afea6487d099624d66912e1204
+        output_index: 0
+        content_index: 0
+        text: Hello.
+        logprobs: []
+        sequence_number: 6
+        model: openai/openai/gpt-6.1-sol
+      - type: response.content_part.done
+        item_id: msg_053471b8e31c4f7e016ae324afea6487d099624d66912e1204
+        output_index: 0
+        content_index: 0
+        part:
+          type: output_text
+          text: Hello.
+          annotations: []
+          logprobs: []
+        sequence_number: 7
+        model: openai/openai/gpt-6.1-sol
+      - type: response.output_item.done
+        output_index: 0
+        sequence_number: 8
+        item:
+          id: msg_053471b8e31c4f7e016ae324afea6487d099624d66912e1204
+          type: message
+          status: completed
+          content:
+          - type: output_text
+            annotations: []
+            logprobs: []
+            text: Hello.
+          phase: final_answer
+          role: assistant
+        model: openai/openai/gpt-6.1-sol
+      - type: response.completed
+        response:
+          id: resp_Tvst2AcKOjrNuVvVfwIYsJFAMo1TICRJWZ_W0GsexzOQpQL3qvr5PXpzmWvx9ZXCLuesYFOinYxojdF-liW4Y8aPcRjJYmHvXsN4dciaYeN6lknvL1ukAQ4haIYO6SWjnRsaGm690iyDp25xCFP_036n-hW75zNKmidkLltf16M6j4aDvZdz8jEY49_RdC8eoxByqKuV6peRw0pfiPJ85kWv9c0oZpnVs4KMoyN6TjHIEb-FDGgK_c8TY1akfYIQxCL2MJOb2Wqhk9e6qZJEVGuaLkxAOlqf5Y1Q6xJkzOXKkKzDQJxQC94dTVLxAdzNjf9umy_fDsXsWhiLdKaUtCk5t3r07ewZ8LgunUiRpZNsEosA64uPJagtkVi7F76L_VL_nZ2kCTlKgCqUxilGpSZzMvhDUY9b5dRASImvQ31mTcg=
+          created_at: 1793270958
+          metadata: {}
+          model: gpt-6.1-sol
+          object: response
+          output:
+          - id: msg_053471b8e31c4f7e016ae324afea6487d099624d66912e1204
+            content:
+            - annotations: []
+              text: Hello.
+              type: output_text
+              logprobs: []
+            role: assistant
+            status: completed
+            type: message
+            phase: final_answer
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 0.98
+          max_output_tokens: 1024
+          reasoning:
+            context: all_turns
+            effort: low
+            mode: standard
+            summary: null
+          status: completed
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          usage:
+            input_tokens: 12
+            input_tokens_details:
+              cached_tokens: 0
+              cache_write_tokens: 0
+            output_tokens: 6
+            output_tokens_details:
+              reasoning_tokens: 0
+            total_tokens: 18
+            cost: 6.165600000000001e-05
+          store: false
+          background: false
+          completed_at: 1793270960
+          frequency_penalty: 0.0
+          presence_penalty: 0.0
+          prompt_cache_retention: 24h
+          service_tier: default
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 9
+        model: openai/openai/gpt-6.1-sol
+      - '[DONE]'

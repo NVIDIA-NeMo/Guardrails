@@ -1,0 +1,195 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: system
+        content: Use the supplied tool results to answer the user. Quote requested results exactly.
+      - role: user
+        content: 'Call get_weather once for each city: Paris. After tools, quote their results exactly.'
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice:
+        type: function
+        function:
+          name: get_weather
+      parallel_tool_calls: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: null
+            tool_calls:
+            - id: call_AzNUacpj40KH6RK6HQABIBBW
+              type: function
+              function:
+                name: get_weather
+                arguments: '{"city":"Paris"}'
+            refusal: null
+            annotations: []
+          finish_reason: tool_calls
+        usage:
+          prompt_tokens: 162
+          completion_tokens: 17
+          total_tokens: 179
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: system
+        content: Use the supplied tool results to answer the user. Quote requested results exactly.
+      - role: user
+        content: 'Call get_weather once for each city: Paris. After tools, quote their results exactly.'
+      - role: assistant
+        tool_calls:
+        - id: call_AzNUacpj40KH6RK6HQABIBBW
+          type: function
+          function:
+            name: get_weather
+            arguments: '{"city": "Paris"}'
+      - role: tool
+        content: 'Paris: WX-4827, sunny.'
+        tool_call_id: call_AzNUacpj40KH6RK6HQABIBBW
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: auto
+      parallel_tool_calls: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: 'Paris: WX-4827, sunny.'
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 199
+          completion_tokens: 12
+          total_tokens: 211
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null

@@ -9,9 +9,9 @@ judge model.
 
 The structure of the config folder is the following:
 
-- `config.yml` - The config file declaring the main and judge models; `rails.tool_output.flows`
-  / `rails.tool_input.flows` run the structural validation for every tool, and
-  `rails.tool_output.per_tool` / `rails.tool_input.per_tool` additionally scope the judged
+- `config.yml` - The config file declaring the main and judge models; `rails.tool_call.flows`
+  / `rails.tool_result.flows` run the structural validation for every tool, and
+  `rails.tool_call.per_tool` / `rails.tool_result.per_tool` additionally scope the judged
   safety check to `run_sql`.
 - `prompts.yml` - The per-tool judge prompts, one for the tool's call arguments and one for
   its result content.

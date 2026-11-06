@@ -1,0 +1,25 @@
+# INPUT RAILS
+
+define subflow zscaler aiguard moderation on input
+  $result = execute call_zscaler_aiguard_api(text=$user_message, direction="IN")
+
+  if $result.is_blocked
+    if $config.enable_rails_exceptions
+      $message = $result.reason
+      create event ZscalerAiguardInputRailException(message=$message)
+    else
+      bot inform answer unknown
+    stop
+
+# OUTPUT RAILS
+
+define subflow zscaler aiguard moderation on output
+  $result = execute call_zscaler_aiguard_api(text=$bot_message, direction="OUT")
+
+  if $result.is_blocked
+    if $config.enable_rails_exceptions
+      $message = $result.reason
+      create event ZscalerAiguardOutputRailException(message=$message)
+    else
+      bot inform answer unknown
+    stop

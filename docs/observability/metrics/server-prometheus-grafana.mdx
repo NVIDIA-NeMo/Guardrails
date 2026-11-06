@@ -11,6 +11,7 @@ The server configures the OpenTelemetry SDK and serves the endpoint on a dedicat
 This exporter includes only the three non-streaming admission-queue metrics listed below.
 The server drops every other metric the IORails engine records, so the scrape output stays small and stable while the GenAI semantic conventions are still evolving.
 For application-side setups that export every metric, refer to [OpenTelemetry Metrics Integration](/observability/metrics/opentelemetry-integration).
+The Guardrails hooks server, `nemoguardrails hooks-server`, exports the same metrics with its own defaults, as described in [The Hooks Server](#the-hooks-server).
 
 <Warning title="Experimental Feature">
 Metrics currently require the opt-in IORails engine.
@@ -197,6 +198,64 @@ To connect an existing Grafana instance instead:
 A useful alert rule is any sustained non-zero rejection rate: it means the server is shedding load and clients are receiving HTTP `503` responses with a `Retry-After` header.
 `guardrails_nonstream_queued` approaching the queue depth (default `256`) is the leading indicator.
 
+## The Hooks Server
+
+The [Guardrails hooks server](/run-guardrailed-inference/using-hooks-server/overview) (`nemoguardrails hooks-server`) exports the same three metrics with the same flags and environment variables.
+The following defaults let both servers export metrics on the same host:
+
+| Setting | Guardrails API Server Default | Hooks Server Default |
+|---|---|---|
+| Listen interface | `0.0.0.0` | `127.0.0.1` |
+| Listen port | `9464` | `9465` |
+| `service.name` resource attribute | `nemoguardrails-server` | `nemoguardrails-hooks-server` |
+
+The hooks server also differs from the Guardrails API server in the following ways:
+
+- It always runs on `IORails`, so it needs no `NEMO_GUARDRAILS_IORAILS_ENGINE`.
+- It serves one configuration, which must set `metrics.enabled: true`.
+  When the exporter runs and the configuration does not set it, the server logs a warning at startup, and the scrape endpoint shows no `guardrails_` series.
+- Its engine starts with the server, so the queue gauges appear before the first request.
+- Only calls that run per-tool rails pass through the admission queue.
+  A call that the tool policy decides, or a call to a tool with no per-tool rails, does not change the metrics.
+
+Start it with the exporter:
+
+```bash
+nemoguardrails hooks-server --config ./hooks-config --metrics-exporter prometheus
+```
+
+Check the scrape endpoint with the following command:
+
+```bash
+curl -s http://127.0.0.1:9465/metrics | grep guardrails_
+```
+
+The environment variables override the hooks server's defaults as they override the Guardrails API server's, and both servers read the same variables.
+A variable exported for one server in a shell, a container, or a service unit therefore also applies to a hooks server started from it:
+
+- `NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER=prometheus` turns on the hooks server's export too.
+  Pass `--metrics-exporter none` to turn it off for one server.
+- `NEMO_GUARDRAILS_SERVER_METRICS_HOST=0.0.0.0` moves the hooks server's scrape endpoint off `127.0.0.1`, onto every interface.
+- `NEMO_GUARDRAILS_SERVER_METRICS_PORT=9464` gives both servers the same port, so the one that starts second exits with `Cannot bind the Prometheus metrics endpoint`.
+- `NEMO_GUARDRAILS_SERVER_METRICS_SERVICE_NAME` or `OTEL_SERVICE_NAME` replaces the hooks server's `service.name`, which has no flag.
+
+Configure each server's exporter with its own flags rather than exported variables, since a flag applies to one server only.
+
+To scrape both servers on one host, add a target for each:
+
+```yaml
+scrape_configs:
+  - job_name: nemoguardrails
+    static_configs:
+      - targets: ["localhost:9464"]
+  - job_name: nemoguardrails-hooks
+    static_configs:
+      - targets: ["localhost:9465"]
+```
+
+The hooks server has no authentication, and neither does its scrape endpoint.
+Keep the endpoint on `127.0.0.1` unless Prometheus runs on another host, and then restrict who can reach the port.
+
 ## Troubleshooting
 
 - **The gauges read `0` while the server is clearly busy.**
@@ -214,9 +273,14 @@ A useful alert rule is any sustained non-zero rejection rate: it means the serve
   The port is in use. Pick another one with `--metrics-port` or `NEMO_GUARDRAILS_SERVER_METRICS_PORT`.
 - **`requires the OpenTelemetry SDK and Prometheus exporter`.**
   The server extra is not installed in this environment. Run `pip install "nemoguardrails[server]"`.
+- **`A Prometheus metrics endpoint is already running on <URL>; serving it instead of <host>:<port> (service.name=<name>)`.**
+  Two applications run in one process with different exporter settings, for example when an application or a test serves both the Guardrails API server's app and the hooks server's app.
+  A process has one scrape endpoint, so the first application's exporter serves the metrics of both, with its own port and `service.name`.
+  Run each server as its own process, or give both applications the same exporter settings.
 
 ## Related Topics
 
 - [Run the Guardrails Server](/run-guardrailed-inference/using-fastapi-server/run-guardrails-server)
+- [Run the Hooks Server](/run-guardrailed-inference/using-hooks-server/run-hooks-server)
 - [Metric Reference](/observability/metrics/reference)
 - [OpenTelemetry Metrics Integration](/observability/metrics/opentelemetry-integration)

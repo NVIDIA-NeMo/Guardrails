@@ -1,0 +1,180 @@
+---
+title: "Check Codex Tool Calls with the Hooks Server"
+sidebar-title: "Codex"
+description: "Connect Codex to the Guardrails hooks server with a PreToolUse command hook, so every tool call is checked before it runs."
+keywords: ["Codex hooks", "PreToolUse", "nemoguardrails hooks-server", "/v1/hooks/codex", "config.toml hooks", "requirements.toml", "Codex guardrails"]
+content:
+  type: "how_to"
+---
+
+Codex runs a `PreToolUse` hook before each tool call.
+Codex has no HTTP hook type, so the hook is a command that sends the call to the Guardrails hooks server (`nemoguardrails hooks-server`) at `/v1/hooks/codex` with `curl`, and prints the answer for Codex to read.
+When the hooks server denies a call, Codex blocks it and shows the reason to its model.
+
+## Prerequisites
+
+Before you configure the hook, meet the following prerequisites:
+
+- Codex 0.124.0 or later, the first release with hooks enabled by default, configured in `config.toml`, and run for `apply_patch` and MCP tools.
+- A running hooks server.
+  To start one with the [Codex example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/codex), run the following command from a clone of the repository:
+
+    ```bash
+    nemoguardrails hooks-server --config examples/configs/agent_hooks/codex
+    ```
+
+    To write your own configuration, refer to [Run the Hooks Server: Write a Hooks Configuration](/run-guardrailed-inference/using-hooks-server/run-hooks-server#write-a-hooks-configuration).
+- `curl` on the machine that runs Codex.
+
+## Add the Hook
+
+Add a `PreToolUse` command hook to your Codex `config.toml`, such as `~/.codex/config.toml`:
+
+```toml
+[[hooks.PreToolUse]]
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "curl -sSf --max-time 25 --data-binary @- -H 'Content-Type: application/json' http://localhost:8100/v1/hooks/codex || exit 2"
+timeout = 30
+```
+
+The command sends the hook input from standard input to the hooks server, and prints the response for Codex to read.
+The hook has no `matcher`, so Codex runs it for every tool.
+If the hooks server runs on another port, for example because you [run one server for each agent](/run-guardrailed-inference/using-hooks-server/run-hooks-server#one-server-for-each-agent), change the port in the URL.
+
+Codex blocks a call only when the hook exits `2` with a reason on standard error, or prints a deny.
+For any other failure, including a hook that runs past its `timeout`, Codex marks the hook as failed and runs the tool.
+So the command turns every failure into exit code `2`:
+
+- `-f` makes `curl` exit with an error on any HTTP error status, such as `500` when a rail fails.
+  Without `-f`, `curl` exits `0` and prints the error body as the hook's output, which Codex rejects, and the tool runs.
+- `--max-time 25` makes `curl` give up before Codex's `timeout` of 30 seconds, so a slow or hung hooks server ends in a `curl` error rather than a timed-out hook.
+- `|| exit 2` turns every `curl` failure, including a refused connection or `--max-time` running out, into exit code `2`.
+- `-sS` keeps progress output off standard error, but still prints `curl`'s error message, which becomes the reason Codex reports.
+
+Set `timeout`, in seconds, to how long your slowest rail can take, and `--max-time` a few seconds below it.
+A rail that calls a model, such as a tool safety check, takes longer than a regular expression.
+Leave the hook synchronous: an `async` hook cannot block a call.
+
+## Trust the Hook
+
+From Codex 0.129.0, Codex runs a new or changed hook only after you review and trust it, except a managed hook.
+Until you do, Codex skips the hook, and every tool call runs unchecked.
+Follow [Review and trust hooks](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks) in the Codex documentation.
+
+For automated tests only, Codex 0.131.0 and later accept `--dangerously-bypass-hook-trust`, which runs hooks without the review.
+Do not use it for real sessions.
+
+## Deploy the Hook with Managed Settings
+
+Anyone who can edit a user's `config.toml` can remove the hook, point it at another server, or drop `|| exit 2`.
+To enforce the hook for every user, install it as a managed hook in `requirements.toml`:
+
+- Codex trusts hooks in `requirements.toml` by policy, and users cannot disable them.
+- Pin `[features].hooks = true` in `requirements.toml` too, so the hook runs even for users who turned hooks off.
+- `allow_managed_hooks_only = true`, from Codex 0.131.0, makes Codex ignore hooks from user, project, and session configuration.
+
+For the file locations and format, refer to [Managed hooks from requirements.toml](https://learn.chatgpt.com/docs/hooks#managed-hooks-from-requirementstoml) in the Codex documentation.
+
+## Verify the Hook
+
+Send a tool call through the same command, the way Codex does, and check the output and the exit code.
+
+1. Send a destructive command, which the example configuration blocks:
+
+    ```bash
+    echo '{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "rm -rf /tmp/build"}, "tool_use_id": "call_01"}' \
+      | sh -c "curl -sSf --max-time 25 --data-binary @- -H 'Content-Type: application/json' http://localhost:8100/v1/hooks/codex || exit 2"
+    echo "exit=$?"
+    ```
+
+    The command prints the deny response and exits `0`, and Codex reads the deny from the output:
+
+    ```text
+    {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"NeMo Guardrails: regex check tool call"}}exit=0
+    ```
+
+1. Stop the hooks server and send the call again.
+   The command prints `curl`'s error and exits `2`, so Codex blocks the call:
+
+    ```text
+    curl: (7) Failed to connect to localhost port 8100 after 0 ms: Couldn't connect to server
+    exit=2
+    ```
+
+1. Start the hooks server again, then ask Codex to run a command that your configuration blocks.
+   Codex reports the call as blocked, with the reason.
+
+## Codex Tool Names
+
+The hooks server matches tool names exactly as Codex sends them:
+
+| Tool | Name in the Hook | Argument to Check |
+|---|---|---|
+| Shell commands | `Bash` | `command` |
+| File edits, creation, and deletion | `apply_patch` | `command`, which holds the whole patch, including `*** Add File:`, `*** Update File:`, `*** Delete File:`, and `*** Move to:` headers |
+| Plan updates | `update_plan` | No per-tool argument check in the example configuration |
+| Model Context Protocol (MCP) tools | `mcp__<server>__<tool>` | The tool's own arguments |
+
+Codex reports file edits as `apply_patch` even when a hook's matcher names `Edit` or `Write`.
+To check the files a patch touches, match the file headers in the patch text, as the example configuration does.
+From Codex 0.135.0, hooks cover most local function tools, so with `allow_unlisted_tools: false`, list each one you use in `allowed_tools`.
+Some specialized tool paths can bypass hooks.
+Sending input to an existing command with `write_stdin` does not run `PreToolUse` again.
+
+Hosted tools that run on the model provider's side, such as web search, never reach the hook.
+For the full list, refer to [Tool coverage](https://learn.chatgpt.com/docs/hooks#tool-coverage) in the Codex documentation.
+Codex's own documentation recommends treating tool hooks as a useful guardrail rather than a complete enforcement boundary.
+
+## Request and Response
+
+The hooks server reads four fields from the Codex `PreToolUse` input: `hook_event_name`, `tool_name`, `tool_input`, and `tool_use_id`.
+Codex also sends fields such as `session_id`, `cwd`, `model`, and `turn_id`, which the hooks server accepts and ignores.
+A request without one of the four fields gets HTTP `422`.
+
+The following example is a file edit, with placeholder values in angle brackets:
+
+```json
+{
+  "session_id": "<session id>",
+  "transcript_path": null,
+  "cwd": "<working directory>",
+  "hook_event_name": "PreToolUse",
+  "model": "<active model slug>",
+  "permission_mode": "default",
+  "turn_id": "<turn id>",
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "command": "*** Begin Patch\n*** Update File: modify.txt\n@@\n-line2\n+changed\n*** End Patch\n"
+  },
+  "tool_use_id": "<tool call id>"
+}
+```
+
+An allowed call gets an empty object, which carries no decision, so Codex runs the tool under its own approval settings:
+
+```json
+{}
+```
+
+A denied call gets a deny decision, with the reason prefixed with `NeMo Guardrails: `:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "NeMo Guardrails: tool call 'Write' is not an allowed tool"
+  }
+}
+```
+
+For every outcome and error, refer to [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors).
+For the endpoint's full reference, refer to [Hooks Server API: Check a Codex Tool Call](/reference/hooks-server-api/codex).
+
+## Related Topics
+
+- [Run the Hooks Server](/run-guardrailed-inference/using-hooks-server/run-hooks-server)
+- [Check Claude Code Tool Calls with the Hooks Server](/run-guardrailed-inference/using-hooks-server/claude-code)
+- [Hooks](https://learn.chatgpt.com/docs/hooks) in the Codex documentation

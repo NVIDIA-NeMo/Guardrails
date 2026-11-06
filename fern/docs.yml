@@ -60,6 +60,8 @@ versions:
     slug: v0.22.0
 
 redirects:
+  - source: "/nemo/guardrails/latest/reference/hooks-server-api"
+    destination: "/nemo/guardrails/latest/reference/hooks-server-api/overview"
   # Paths are relative to the site root; subpath prefix matches instances + custom-domain.
   # Legacy HTML URLs used .../path/to/page.html and .../path/to/page/index.html;
   # Fern canonical URLs omit those suffixes.

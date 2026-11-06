@@ -1,0 +1,237 @@
+---
+title: "Customize Request and Response Policies"
+sidebar-title: "Request and Response Policies"
+description: "Customize accepted request values and response metadata for buffered and streaming traffic, then export the bound guard contract."
+content:
+  type: "how_to"
+---
+
+Each provider binding defines which fields and values the proxy accepts and
+which text reaches Rails checks. Use the built-in binding for its documented
+request and response shapes. Customize it in Python when you need stricter
+request values or your gateway adds metadata that the binding rejects.
+
+This guide restricts `reasoning_effort` and allows a diagnostic
+`gateway_trace_id` on buffered Chat Completions responses and streamed chunks.
+Assistant text remains guarded; the metadata value is opaque and is not checked.
+
+| Policy | Applied to |
+| --- | --- |
+| Request model | Requests for both buffered and streaming responses |
+| Buffered response model | Successful JSON responses when output inspection runs |
+| Stream classifier | SSE payloads when output inspection runs |
+
+Changing one binding does not update the others. Accepted payloads retain their
+original bytes; these models validate and locate text rather than rewrite JSON.
+The YAML launcher's native and LiteLLM bindings remain unchanged.
+
+<Warning>
+Allowing a previously disabled field does not implement a new guarded capability.
+Nonempty tool calls, tool-result conversations, multimodal content, and additional
+generated-content channels need suitable extraction, checking, and protocol
+support. Declaring their contents opaque would let them pass unchecked. This
+walkthrough keeps those restrictions in place.
+</Warning>
+
+## Restrict an Existing Request Field
+
+Use the installed library environment from the
+[quickstart](/run-guardrailed-inference/using-proxy/quickstart). Create
+`custom_binding.py` in your application directory:
+
+```python
+from dataclasses import replace
+from typing import Annotated, ClassVar, Literal
+
+from nemoguardrails.server.experimental.provider.projection_policy import (
+    ObjectPolicy,
+    constrained,
+    field_coverage,
+    payload_contract,
+    text_location,
+)
+from nemoguardrails.server.experimental.provider.stream import StreamBinding
+from nemoguardrails.server.experimental.provider.stream_classifier import StreamClassifierDefinition
+from nemoguardrails.server.experimental.provider.stream_policy import build_policy_stream_classifier, stream_text_path
+from nemoguardrails.server.experimental.providers.openai.chat_completions.endpoint import CHAT_COMPLETIONS_ENDPOINT
+from nemoguardrails.server.experimental.providers.openai.chat_completions.request_binding import (
+    ChatCompletionsGuardedRequest,
+)
+from nemoguardrails.server.experimental.providers.openai.chat_completions.response_projection import (
+    ChatCompletionsGuardedResponseProjection,
+)
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_classifier import (
+    STREAM_CONTRACT,
+    STREAM_NON_DATA_SHAPE,
+    STREAM_RULES,
+    STREAM_SENTINELS,
+)
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_hooks import ChatCompletionsStreamHooks
+from nemoguardrails.server.experimental.providers.openai.chat_completions.stream_projection import (
+    ChatCompletionsStreamPayloadProjection,
+)
+
+
+class CustomRequestProjection(ChatCompletionsGuardedRequest):
+    reasoning_effort: Annotated[Literal["low", "medium", "high"] | None, constrained()] = None
+
+
+class CustomGuardedRequest(CustomRequestProjection):
+    guarded_text_location = text_location(CustomRequestProjection)
+    projection_contract = payload_contract(
+        CustomRequestProjection,
+        projection_id="example.gateway.chat_completions.request.text.v1",
+        direction="request",
+    )
+```
+
+The override accepts omission, null, or one of the three declared values. Other
+values are rejected before upstream dispatch. The inherited `stream` selector
+still chooses buffered or streaming output; the same request restriction applies
+to both. All other request restrictions, including the single user-text message
+and disabled tools, remain in effect. Your upstream provider and model must also
+support the values you allow. A binding does not add provider support.
+
+## Allow Custom Buffered Response Metadata
+
+Append this code to `custom_binding.py`:
+
+```python
+class CustomResponseProjection(ChatCompletionsGuardedResponseProjection):
+    policy: ClassVar[ObjectPolicy] = replace(
+        ChatCompletionsGuardedResponseProjection.policy,
+        opaque=(*ChatCompletionsGuardedResponseProjection.policy.opaque, "gateway_trace_id"),
+    )
+
+
+class CustomGuardedResponse(CustomResponseProjection):
+    guarded_text_location = text_location(CustomResponseProjection)
+    projection_contract = payload_contract(
+        CustomResponseProjection,
+        projection_id="example.gateway.chat_completions.response.text.v1",
+        direction="response",
+    )
+```
+
+This allows the root-level name `gateway_trace_id` without requiring it or
+constraining its value. Use this allowance only for diagnostic metadata.
+Assistant text at `choices[0].message.content` remains the checked
+subject, and other unknown root fields remain rejected.
+
+Rebuilding the text location and payload contract binds the full inherited and
+customized model declarations. An exported YAML file alone cannot change them.
+
+## Allow the Metadata on Streamed Chunks
+
+Streaming has its own payload model and classifier. Append the following to
+`custom_binding.py` to allow the same root-level metadata on Chat chunks:
+
+```python
+class CustomStreamProjection(ChatCompletionsStreamPayloadProjection):
+    policy: ClassVar[ObjectPolicy] = replace(
+        ChatCompletionsStreamPayloadProjection.policy,
+        opaque=(*ChatCompletionsStreamPayloadProjection.policy.opaque, "gateway_trace_id"),
+    )
+
+
+custom_stream_rules = tuple(
+    replace(rule, model=CustomStreamProjection, text_path=stream_text_path(CustomStreamProjection))
+    if rule.model is ChatCompletionsStreamPayloadProjection
+    else rule
+    for rule in STREAM_RULES
+)
+custom_stream_contract = replace(
+    STREAM_CONTRACT,
+    projection_id="example.gateway.chat_completions.stream.text.v1",
+    fields=field_coverage(CustomStreamProjection),
+)
+custom_stream_classifier = build_policy_stream_classifier(
+    StreamClassifierDefinition(
+        subject=custom_stream_contract.projection_id,
+        contract=custom_stream_contract,
+        rules=custom_stream_rules,
+        sentinels=STREAM_SENTINELS,
+        non_data_shape=STREAM_NON_DATA_SHAPE,
+    )
+)
+
+CUSTOM_ENDPOINT = replace(
+    CHAT_COMPLETIONS_ENDPOINT,
+    contract_name="example_gateway_chat_completions",
+    guarded_request_model=CustomGuardedRequest,
+    guarded_response_model=CustomGuardedResponse,
+    stream=StreamBinding(custom_stream_classifier, ChatCompletionsStreamHooks),
+)
+```
+
+The new classifier uses the extended model for chunk validation and derives its
+text path and field coverage from that model. Content at
+`choices[0].delta.content` stays guarded. Metadata-only chunks, errors, keepalives,
+and `[DONE]` retain their existing roles. The unchanged OpenAI lifecycle hooks
+still enforce completion and ordering. Reuse them only when your gateway follows
+those protocol semantics; other event formats need corresponding rules and hooks.
+
+## Select the Customized Endpoint
+
+After copying `proxy-example` as described in the quickstart, create
+`custom_app.py` beside `custom_binding.py`:
+
+```python
+from dataclasses import replace
+from pathlib import Path
+
+from custom_binding import CUSTOM_ENDPOINT
+
+from nemoguardrails.server.experimental.application import ConfigEntry, create_proxy_application
+from nemoguardrails.server.experimental.providers.openai.integration import create_openai_chat_integration
+
+integration = replace(
+    create_openai_chat_integration(base_url="https://gateway.example/v1"),
+    endpoints=(CUSTOM_ENDPOINT,),
+)
+app = create_proxy_application(
+    providers=(integration,),
+    rails_configs=(ConfigEntry("standard", Path("proxy-example/rails")),),
+)
+```
+
+Replace `https://gateway.example/v1` with your gateway's API base, then run
+`uvicorn custom_app:app --host 127.0.0.1 --port 8000` from that directory.
+This app guards only Chat Completions. Responses requests pass through without
+Rails checks.
+
+Send the quickstart's
+[buffered Chat Completions request](/run-guardrailed-inference/using-proxy/quickstart#chat-completions)
+or [streaming Chat Completions request](/run-guardrailed-inference/using-proxy/quickstart#stream-chat-completions)
+using your gateway's model ID and authorization header. The endpoint accepts the
+optional `gateway_trace_id` in both response modes; ordinary OpenAI does not
+return that field. The proxy needs no gateway SDK; any configured detector
+services retain their own dependencies and credentials.
+
+When output checks are disabled, successful upstream response bodies pass through
+without these response-policy checks.
+
+## Export and Review Your Customized Guard Contract
+
+Export from the endpoint selected by your application, using only a trusted
+local Python reference:
+
+```bash
+python -m nemoguardrails.server.experimental.provider.contract_export \
+  custom_binding:CUSTOM_ENDPOINT --output custom.guard.yaml
+python -m nemoguardrails.server.experimental.provider.contract_export \
+  custom_binding:CUSTOM_ENDPOINT --check custom.guard.yaml
+```
+
+The export includes the restricted request values and opaque metadata allowance
+in both buffered and streaming policies. `--check` fails when the file differs
+from the current export. Regenerate it after changing the Python declaration
+and review the diff.
+
+The Python bindings remain authoritative. The export does not configure the
+proxy, enable additional content handling, or serialize arbitrary Python
+validators, stateful stream hooks, or transport behavior. Refer to
+[guard contracts](/run-guardrailed-inference/using-proxy/guard-contracts) for the
+format's limits and the
+[Chat reference](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/chat_completions/README.md)
+for nested projections and streaming declarations.

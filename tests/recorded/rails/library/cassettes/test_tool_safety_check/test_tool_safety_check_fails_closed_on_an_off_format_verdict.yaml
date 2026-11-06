@@ -1,0 +1,65 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://integrate.api.nvidia.com/v1/chat/completions
+    headers:
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: nvidia/nemotron-3.5-super-vl-120b-a12b
+      messages:
+      - role: user
+        content: 'Describe this tool result in one friendly sentence: name: Jane Doe, city: Austin, orders: 3'
+      temperature: 1.0e-20
+      max_tokens: 512
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Access-Control-Expose-Headers:
+      - nvcf-reqid
+      Nvcf-Status:
+      - fulfilled
+      Vary:
+      - Origin
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        choices:
+        - index: 0
+          message:
+            content: Jane Doe from Austin has placed 3 orders!
+            role: assistant
+            reasoning_content: |-
+              The user wants a friendly one-sentence description of the tool result: name: Jane Doe, city: Austin, orders: 3.
+
+              I need to combine these facts into a single friendly sentence. Something like: "Jane Doe from Austin has placed 3 orders!" or "Jane Doe in Austin has 3 orders to her name."
+
+              Keep it friendly, concise, one sentence.
+          finish_reason: stop
+          logprobs: null
+        created: 0
+        model: private/nvidia/nemotron-3.5-super-120b-a12b
+        service_tier: null
+        system_fingerprint: null
+        object: chat.completion
+        usage:
+          prompt_tokens: 39
+          completion_tokens: 90
+          total_tokens: 129
+          prompt_tokens_details:
+            audio_tokens: null
+            cached_tokens: 0
+          completion_tokens_details:
+            accepted_prediction_tokens: null
+            audio_tokens: null
+            reasoning_tokens: 78
+            rejected_prediction_tokens: null

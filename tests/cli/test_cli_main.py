@@ -13,15 +13,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import logging
 import os
+import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
-from nemoguardrails import __version__
-from nemoguardrails.cli import app
+from nemoguardrails import __version__, telemetry
+from nemoguardrails.cli import _HOOKS_SERVER_INFO_LOGGERS, app
 
 runner = CliRunner()
+
+HOOKS_CONFIG_YML = """
+models: []
+rails:
+  tool_call:
+    per_tool:
+      Bash: [regex check tool call]
+"""
+
+JUDGE_URL = "http://judge.invalid/v1/chat/completions"
+
+HOOKS_JUDGE_CONFIG_YML = """
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+    parameters:
+      base_url: http://judge.invalid/v1
+rails:
+  tool_call:
+    per_tool:
+      Bash: [tool safety check tool call $model=main $variant=bash]
+prompts:
+  - task: tool_safety_check_tool_call $model=main $variant=bash
+    content: "Is this call to {{ tool_name }} safe? {{ tool_call_arguments }}"
+    output_parser: parse_tool_safety_verdict
+"""
+
+METRICS_VARIABLES = (
+    "NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER",
+    "NEMO_GUARDRAILS_SERVER_METRICS_HOST",
+    "NEMO_GUARDRAILS_SERVER_METRICS_PORT",
+)
 
 
 def test_app():
@@ -399,6 +436,337 @@ class TestActionsServerCommand:
         mock_uvicorn.assert_called_once()
         call_args = mock_uvicorn.call_args
         assert call_args[1]["port"] == 9001
+
+
+class TestHooksServerCommand:
+    @pytest.fixture(autouse=True)
+    def _hooks_server_env(self, monkeypatch):
+        """Provider credentials, no metrics variables, and the process's deployment type restored after the test."""
+        monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+        for name in (*METRICS_VARIABLES, "NEMO_GUARDRAILS_SERVER_METRICS_SERVICE_NAME", "OTEL_SERVICE_NAME"):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setattr(telemetry, "_deployment_type_override", None)
+
+    @pytest.fixture(autouse=True)
+    def _restore_logging(self):
+        """The levels the command sets, and the root handlers basicConfig may add, restored after the test."""
+        root = logging.getLogger()
+        loggers = [root, *(logging.getLogger(name) for name in _HOOKS_SERVER_INFO_LOGGERS)]
+        saved_levels = [(logger, logger.level) for logger in loggers]
+        saved_handlers = list(root.handlers)
+        yield
+        for logger, level in saved_levels:
+            logger.setLevel(level)
+        for handler in list(root.handlers):
+            if handler not in saved_handlers:
+                root.removeHandler(handler)
+
+    @staticmethod
+    def _config_dir(tmp_path, config_yml: str) -> str:
+        """A config directory holding *config_yml* as its `config.yml`."""
+        (tmp_path / "config.yml").write_text(config_yml)
+        return str(tmp_path)
+
+    @patch("uvicorn.run")
+    def test_hooks_server_serves_the_config_on_loopback_port_8100_by_default(self, mock_uvicorn, tmp_path):
+        """With only `--config`, the hooks app is served on `127.0.0.1:8100`."""
+        from fastapi import FastAPI
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}"])
+
+        assert result.exit_code == 0, result.output
+        (server_app,), kwargs = mock_uvicorn.call_args
+        assert isinstance(server_app, FastAPI)
+        assert kwargs == {"host": "127.0.0.1", "port": 8100, "log_level": "info"}
+
+    @patch("uvicorn.run")
+    def test_hooks_server_logs_its_checks_at_info_but_not_llm_calls(self, mock_uvicorn, tmp_path):
+        """Whatever root was, it ends at WARNING; the hooks app and IORails log at INFO, and the LLM call log does not."""
+        from nemoguardrails.guardrails.iorails import log as iorails_log
+        from nemoguardrails.llm.call import logger as llm_call_log
+        from nemoguardrails.server.hooks.app import log as hooks_log
+
+        root = logging.getLogger()
+        root.setLevel(logging.INFO)
+        root.addHandler(handler := logging.NullHandler())
+        try:
+            result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}"])
+        finally:
+            root.removeHandler(handler)
+
+        assert result.exit_code == 0, result.output
+        assert root.level == logging.WARNING
+        assert hooks_log.isEnabledFor(logging.INFO)
+        assert iorails_log.isEnabledFor(logging.INFO)
+        assert not llm_call_log.isEnabledFor(logging.INFO)
+
+    @pytest.mark.parametrize(
+        ("verdict", "answer", "outcome", "rail"),
+        [
+            ("safe", {}, "allow", None),
+            (
+                "unsafe: echoes secret-7f3a",
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": "NeMo Guardrails: tool safety check tool call",
+                    }
+                },
+                "deny",
+                "tool safety check tool call",
+            ),
+        ],
+        ids=["allow", "deny"],
+    )
+    @patch("uvicorn.run")
+    def test_hooks_server_logs_a_judged_check_without_the_tool_input(
+        self, mock_uvicorn, tmp_path, caplog, verdict, answer, outcome, rail
+    ):
+        """A judged check's arguments reach the judge, and its verdict and timing are logged, but the arguments never are."""
+        from aioresponses import aioresponses
+        from fastapi.testclient import TestClient
+
+        from nemoguardrails.guardrails.iorails import log as iorails_log
+        from nemoguardrails.guardrails.model_engine import log as model_engine_log
+        from nemoguardrails.server.hooks.app import log as hooks_log
+
+        caplog.set_level(logging.INFO, logger=hooks_log.name)
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_JUDGE_CONFIG_YML)}"])
+        assert result.exit_code == 0, result.output
+        (server_app,), _ = mock_uvicorn.call_args
+        with aioresponses() as judge, TestClient(server_app) as client:
+            judge.post(
+                JUDGE_URL,
+                payload={
+                    "id": "chatcmpl-judge",
+                    "model": "meta/llama-3.3-70b-instruct",
+                    "choices": [{"message": {"role": "assistant", "content": verdict}, "finish_reason": "stop"}],
+                },
+            )
+            response = client.post(
+                "/v1/hooks/claude-code",
+                json={
+                    "hook_event_name": "PreToolUse",
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "echo secret-7f3a"},
+                    "tool_use_id": "privacy-probe",
+                },
+            )
+
+        def messages(logger: logging.Logger) -> list[str]:
+            return [record.getMessage() for record in caplog.records if record.name == logger.name]
+
+        assert response.status_code == 200
+        assert response.json() == answer
+        [judge_request] = [call.kwargs["json"] for calls in judge.requests.values() for call in calls]
+        assert "secret-7f3a" in json.dumps(judge_request)
+        assert messages(hooks_log) == [
+            "Hook check on /v1/hooks/claude-code: event=PreToolUse tool_name='Bash' "
+            f"tool_use_id='privacy-probe' outcome={outcome} code=None rail={rail!r}"
+        ]
+        assert any("HTTP POST" in message for message in messages(model_engine_log))
+        assert any("check completed" in message for message in messages(iorails_log))
+        assert "secret-7f3a" not in caplog.text
+
+    @patch("uvicorn.run")
+    def test_hooks_server_honors_host_and_port(self, mock_uvicorn, tmp_path):
+        """`--host` and `--port` set where the server listens."""
+        config = self._config_dir(tmp_path, HOOKS_CONFIG_YML)
+
+        result = runner.invoke(app, ["hooks-server", f"--config={config}", "--host=0.0.0.0", "--port=9100"])
+
+        assert result.exit_code == 0, result.output
+        assert (mock_uvicorn.call_args.kwargs["host"], mock_uvicorn.call_args.kwargs["port"]) == ("0.0.0.0", 9100)
+
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_an_invalid_config_without_quoting_it(self, mock_uvicorn, tmp_path):
+        """A config that fails validation exits 1 with each failure, before binding, and without its values."""
+        config_yml = (
+            "models:\n"
+            "  - type: main\n"
+            "    engine: nim\n"
+            "    model: meta/llama-3.3-70b-instruct\n"
+            "    parameters:\n"
+            "      api_key: sk-secret-7f3a\n"
+            "rails:\n"
+            "  input:\n"
+            "    flows: [content safety check input $model=content_safety]\n"
+        )
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
+
+        assert result.exit_code == 1
+        assert "Invalid configuration: config: Value error, Missing a `content_safety_check_input" in result.output
+        assert "sk-secret-7f3a" not in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_an_unset_api_key_variable(self, mock_uvicorn, tmp_path, monkeypatch):
+        """A model whose `api_key_env_var` isn't set exits 1 with the variable's name, before binding."""
+        monkeypatch.delenv("HOOKS_SERVER_TEST_API_KEY", raising=False)
+        config_yml = (
+            "models:\n"
+            "  - type: main\n"
+            "    engine: nim\n"
+            "    model: meta/llama-3.3-70b-instruct\n"
+            "    api_key_env_var: HOOKS_SERVER_TEST_API_KEY\n"
+            "rails:\n"
+            "  tool_call:\n"
+            "    per_tool:\n"
+            "      Bash: [regex check tool call]\n"
+        )
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
+
+        assert result.exit_code == 1
+        assert (
+            "Invalid configuration: models: Value error, "
+            "Model API Key environment variable 'HOOKS_SERVER_TEST_API_KEY' not set." in result.output
+        )
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_a_config_it_cannot_serve(self, mock_uvicorn, tmp_path):
+        """A config that can deny no tool call exits 1 with the reason, before binding."""
+        config_yml = "models:\n  - type: main\n    engine: nim\n    model: meta/llama-3.3-70b-instruct\n"
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
+
+        assert result.exit_code == 1
+        assert "The hooks server needs a tool policy in the hooks_server section, or per-tool rails" in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_a_config_that_is_not_yaml(self, mock_uvicorn, tmp_path):
+        """A `config.yml` that isn't YAML exits 1 with the parser's message, before binding."""
+        config = self._config_dir(tmp_path, "models: [\n")
+
+        result = runner.invoke(app, ["hooks-server", f"--config={config}"])
+
+        assert result.exit_code == 1
+        assert "while parsing a flow node" in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_refuses_a_second_config(self, mock_uvicorn, tmp_path):
+        """A second `--config` exits 1, rather than one of the two policies being dropped."""
+        config = self._config_dir(tmp_path, HOOKS_CONFIG_YML)
+
+        result = runner.invoke(app, ["hooks-server", f"--config={config}", f"--config={config}"])
+
+        assert result.exit_code == 1
+        assert "exactly one --config" in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_a_config_that_sets_hooks_server_twice(self, mock_uvicorn, tmp_path):
+        """A config with two files that set hooks_server exits 1 with the loader's message, before binding."""
+        config = self._config_dir(tmp_path, HOOKS_CONFIG_YML + "hooks_server:\n  blocked_tools: [WebFetch]\n")
+        (tmp_path / "extra.yml").write_text("hooks_server:\n  allowed_tools: [Read]\n")
+
+        result = runner.invoke(app, ["hooks-server", f"--config={config}"])
+
+        assert result.exit_code == 1
+        assert "The hooks_server section is set in more than one file of this config" in result.output
+        mock_uvicorn.assert_not_called()
+
+    def test_hooks_server_without_the_server_extra_prints_the_install_hint(self, tmp_path, monkeypatch):
+        """Without the `server` extra's packages, the command exits 1 with the install hint."""
+        monkeypatch.setitem(sys.modules, "uvicorn", None)
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}"])
+
+        assert result.exit_code == 1
+        assert "Install them with: pip install nemoguardrails[server]" in result.output
+
+    @patch("uvicorn.run")
+    def test_hooks_server_requires_an_existing_config(self, mock_uvicorn, tmp_path):
+        """A `--config` path that doesn't exist is a usage error."""
+        result = runner.invoke(app, ["hooks-server", f"--config={tmp_path / 'missing'}"])
+
+        assert result.exit_code == 2
+        mock_uvicorn.assert_not_called()
+
+    @patch("nemoguardrails.server.metrics.shutdown_metrics_exporter")
+    @patch("nemoguardrails.server.metrics.start_metrics_exporter")
+    @patch("uvicorn.run")
+    def test_hooks_server_metrics_flags_start_the_exporter_around_the_server(
+        self, mock_uvicorn, mock_start, mock_shutdown, tmp_path
+    ):
+        """The flags reach the variables; the exporter starts with them once the app is built, and stops after the server."""
+        from nemoguardrails.server.hooks import app as hooks_app
+        from nemoguardrails.server.metrics import MetricsExporter, MetricsExporterSettings
+
+        events = []
+        build_app = hooks_app.create_hooks_app
+
+        def create_hooks_app(config):
+            """Record that the app is built, and build it."""
+            events.append("build")
+            return build_app(config)
+
+        mock_start.side_effect = lambda settings: events.append(("start", settings))
+        mock_uvicorn.side_effect = lambda *args, **kwargs: events.append("serve")
+        mock_shutdown.side_effect = lambda: events.append("stop")
+        flags = ["--metrics-exporter=prometheus", "--metrics-host=0.0.0.0", "--metrics-port=9500"]
+
+        with patch.dict(os.environ), patch.object(hooks_app, "create_hooks_app", create_hooks_app):
+            result = runner.invoke(
+                app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}", *flags]
+            )
+            variables = {name: os.environ.get(name) for name in METRICS_VARIABLES}
+
+        assert result.exit_code == 0, result.output
+        assert variables == dict(zip(METRICS_VARIABLES, ["prometheus", "0.0.0.0", "9500"]))
+        settings = MetricsExporterSettings(MetricsExporter.PROMETHEUS, "0.0.0.0", 9500, "nemoguardrails-hooks-server")
+        assert events == ["build", ("start", settings), "serve", "stop"]
+
+    @patch("nemoguardrails.server.metrics.shutdown_metrics_exporter")
+    @patch("nemoguardrails.server.metrics.start_metrics_exporter")
+    @patch("uvicorn.run")
+    def test_hooks_server_without_metrics_flags_uses_the_hooks_defaults(
+        self, mock_uvicorn, mock_start, mock_shutdown, tmp_path
+    ):
+        """Without the metrics flags, the variables stay unset, and the exporter gets the hooks server's defaults."""
+        from nemoguardrails.server.metrics import MetricsExporterSettings
+
+        with patch.dict(os.environ):
+            result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}"])
+            variables = {name: os.environ.get(name) for name in METRICS_VARIABLES}
+
+        assert result.exit_code == 0, result.output
+        assert variables == dict.fromkeys(METRICS_VARIABLES)
+        mock_start.assert_called_once_with(
+            MetricsExporterSettings(host="127.0.0.1", port=9465, service_name="nemoguardrails-hooks-server")
+        )
+        mock_shutdown.assert_called_once_with()
+
+    @patch("uvicorn.run")
+    def test_hooks_server_exits_on_an_invalid_metrics_setting_before_binding(self, mock_uvicorn, tmp_path):
+        """An exporter setting the server can't use exits 1 with the reason, before the server starts."""
+        config = self._config_dir(tmp_path, HOOKS_CONFIG_YML)
+
+        with patch.dict(os.environ):
+            result = runner.invoke(app, ["hooks-server", f"--config={config}", "--metrics-exporter=otlp"])
+
+        assert result.exit_code == 1
+        assert "Unsupported NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER='otlp'" in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch("nemoguardrails.server.metrics.start_metrics_exporter")
+    @patch("uvicorn.run")
+    def test_hooks_server_refuses_a_config_before_starting_the_exporter(self, mock_uvicorn, mock_start, tmp_path):
+        """A config the server can't serve exits 1 before the exporter starts, so no metrics port is bound."""
+        config_yml = "models:\n  - type: main\n    engine: nim\n    model: meta/llama-3.3-70b-instruct\n"
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, config_yml)}"])
+
+        assert result.exit_code == 1
+        assert "The hooks server needs a tool policy in the hooks_server section, or per-tool rails" in result.output
+        mock_start.assert_not_called()
+        mock_uvicorn.assert_not_called()
 
 
 class TestFindProvidersCommand:

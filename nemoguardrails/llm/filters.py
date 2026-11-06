@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import re
 import textwrap
 from typing import List
@@ -260,25 +261,100 @@ def verbose_v1(colang_history: str) -> str:
     return "\n".join(lines)
 
 
+def apply_input_rail_updates(messages: List[dict], events: List[dict]) -> List[dict]:
+    """Copy messages and replace user content with the input-rail event history.
+
+    Align user turns from the end so a message suffix can use a longer cached
+    event history. Retain a placeholder for blocked turns to preserve alignment,
+    and ignore synthetic user events used to resume tool-result generation.
+    The caller's message dictionaries are not modified.
+    """
+    user_contents = []
+    pending_user_message = False
+    for event in events:
+        if event["type"] == "UtteranceUserActionFinished":
+            user_contents.append("[User message blocked by guardrails.]")
+            pending_user_message = True
+        elif event["type"] == "UserMessage" and not event.get("is_tool_result"):
+            if pending_user_message:
+                user_contents[-1] = event["text"]
+            else:
+                user_contents.append(event["text"])
+            pending_user_message = False
+    updated = [message.copy() for message in messages]
+    approved_contents = iter(reversed(user_contents))
+    for message in reversed(updated):
+        if message["role"] == "user":
+            message["content"] = next(approved_contents, message["content"])
+    return updated
+
+
+def apply_tool_result_updates(messages: List[dict], events: List[dict]) -> List[dict]:
+    """Copy messages with tool results approved or rewritten by tool-result rails.
+
+    Track each ToolMessage occurrence separately, since later turns may reuse
+    a tool_call_id. Validation updates only the occurrences in its current batch;
+    unapproved results retain a blocked-result placeholder. Match messages from
+    the end so a prompt suffix can use a longer event history. Unchecked results
+    retain their content, and caller messages and events are not modified.
+    """
+    updates: dict[str, List[dict]] = {}
+    pending: dict[str, dict] = {}
+    for event in events:
+        if event["type"] == "ToolMessage":
+            tool_call_id = event["message"].get("tool_call_id", "")
+            updates.setdefault(tool_call_id, []).append({})
+        elif event["type"] == "StartToolResultRails":
+            pending = {}
+            for message in event.get("tool_messages", []):
+                tool_call_id = message.get("tool_call_id", "")
+                occurrences = updates.get(tool_call_id)
+                if occurrences:
+                    pending[tool_call_id] = occurrences[-1]
+                    pending[tool_call_id]["content"] = "[Tool result blocked by guardrails.]"
+        elif event["type"] == "ToolMessageUpdated":
+            tool_call_id = event["tool_call_id"]
+            if tool_call_id in pending:
+                pending[tool_call_id]["content"] = event["content"]
+        elif event["type"] == "ToolResultRailsFinished":
+            pending = {}
+
+    updated = [message.copy() for message in messages]
+    for message in reversed(updated):
+        if message["role"] == "tool":
+            occurrences = updates.get(message.get("tool_call_id", ""))
+            if occurrences:
+                message.update(occurrences.pop())
+    return updated
+
+
 def to_chat_messages(events: List[dict]) -> List[dict]:
-    """Filter that turns an array of events into a sequence of user/assistant messages.
+    """Convert events to chat messages with native assistant tool calls and tool results.
 
     Properly handles multimodal content by preserving the structure when the content
     is in the format of a Message object with potential image_url content.
+    Synthetic user events that resume tool generation are omitted, and tool-result
+    rail updates are applied before returning the messages.
     """
     messages = []
     for event in events:
         if event["type"] == "UserMessage":
+            if event.get("is_tool_result"):
+                continue
             # Preserve the original structure when possible to support multimodal content
             content = event["text"]
             messages.append({"role": "user", "content": content})
         elif event["type"] == "StartUtteranceBotAction":
             messages.append({"role": "assistant", "content": event["script"]})
+        elif event["type"] == "BotToolCalls":
+            messages.append({"role": "assistant", "content": None, "tool_calls": event["tool_calls"]})
+        elif event["type"] == "ToolMessage":
+            messages.append(event["message"].copy())
         elif event["type"] == "SystemMessage" and "content" in event:
             # Handle system messages that might contain multimodal content
             messages.append({"role": "system", "content": event["content"]})
 
-    return messages
+    return apply_tool_result_updates(messages, events)
 
 
 def user_assistant_sequence(events: List[dict]) -> str:
@@ -293,10 +369,17 @@ def user_assistant_sequence(events: List[dict]) -> str:
        ```
 
     For multimodal content, it extracts text content and indicates if there were images.
+    Tool calls and rail-processed results are serialized as labeled JSON lines;
+    synthetic user events that resume tool generation are omitted.
     """
     history_items = []
+    tool_messages = iter(
+        apply_tool_result_updates([event["message"] for event in events if event["type"] == "ToolMessage"], events)
+    )
     for event in events:
         if event["type"] == "UserMessage":
+            if event.get("is_tool_result"):
+                continue
             content = event["text"]
             # Handle multimodal content by extracting text
             if isinstance(content, list):
@@ -317,6 +400,10 @@ def user_assistant_sequence(events: List[dict]) -> str:
                 history_items.append("User: " + str(content))
         elif event["type"] == "StartUtteranceBotAction":
             history_items.append("Assistant: " + event["script"])
+        elif event["type"] == "BotToolCalls":
+            history_items.append("Assistant tool calls: " + json.dumps(event["tool_calls"]))
+        elif event["type"] == "ToolMessage":
+            history_items.append("Tool: " + json.dumps(next(tool_messages)))
 
     return "\n".join(history_items)
 

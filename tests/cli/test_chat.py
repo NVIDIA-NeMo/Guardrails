@@ -296,3 +296,22 @@ class TestRunChatV1Async:
             pass
 
         assert mock_session.post.called
+
+
+@pytest.mark.asyncio
+async def test_chat_cli_rejects_structured_tool_calls(monkeypatch):
+    from nemoguardrails import LLMRails, RailsConfig
+    from nemoguardrails.cli.chat import _run_chat_v1_0
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+    from nemoguardrails.testing.fake_model import FakeLLMModel
+    from nemoguardrails.types import LLMResponse, ToolCall
+
+    config = RailsConfig.from_content(config={"models": [], "passthrough": True})
+    rails = LLMRails(
+        config, llm=FakeLLMModel(llm_responses=[LLMResponse(content="", tool_calls=[ToolCall(id="call_1")])])
+    )
+    monkeypatch.setattr(chat_module.RailsConfig, "from_path", lambda _: config)
+    monkeypatch.setattr(chat_module, "LLMRails", lambda *args, **kwargs: rails)
+    monkeypatch.setattr("builtins.input", lambda _: "Weather?")
+    with pytest.raises(StreamingNotSupportedError, match="chat CLI does not support streamed tool calls"):
+        await _run_chat_v1_0(config_path="test_config", streaming=True)

@@ -1,0 +1,66 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-5.4
+      stream: false
+      messages:
+      - role: user
+        content: 'Reply with exactly: Hello.'
+      max_completion_tokens: 1024
+      reasoning_effort: low
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      content-security-policy:
+      - frame-ancestors 'none'
+      vary:
+      - Accept-Encoding
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: openai/openai/gpt-5.4
+        object: chat.completion
+        choices:
+        - finish_reason: stop
+          index: 0
+          message:
+            content: Hello.
+            role: assistant
+            provider_specific_fields:
+              refusal: null
+            annotations: []
+          provider_specific_fields: {}
+        usage:
+          completion_tokens: 15
+          prompt_tokens: 12
+          total_tokens: 27
+          completion_tokens_details:
+            accepted_prediction_tokens: 0
+            audio_tokens: 0
+            reasoning_tokens: 4
+            rejected_prediction_tokens: 0
+          prompt_tokens_details:
+            audio_tokens: 0
+            cached_tokens: 0
+        service_tier: default

@@ -36,8 +36,8 @@ RailCategory = Literal[
     "retrieval",
     "dialog",
     "execution",
-    "tool_input",
-    "tool_output",
+    "tool_call",
+    "tool_result",
     "config",
 ]
 RailCapability = Literal[
@@ -64,8 +64,8 @@ class RailDirection(str, Enum):
     INPUT = "input"
     OUTPUT = "output"
     RETRIEVAL = "retrieval"
-    TOOL_OUTPUT = "tool_output"
-    TOOL_INPUT = "tool_input"
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
 
 
 class RailMetadata(BaseModel):
@@ -348,8 +348,8 @@ class RailPrivacy(BaseModel):
     sends_user_text: bool = False
     sends_bot_text: bool = False
     sends_retrieved_chunks: bool = False
-    sends_tool_output_text: bool = False
-    sends_tool_input_text: bool = False
+    sends_tool_call_text: bool = False
+    sends_tool_result_text: bool = False
     remote_services: Tuple[str, ...] = ()
     data_retention: Optional[str] = None
 

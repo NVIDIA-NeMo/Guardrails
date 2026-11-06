@@ -1,0 +1,56 @@
+---
+title: "Hooks Server API Overview"
+sidebar-title: "Overview"
+description: "API reference for the Guardrails hooks server, nemoguardrails hooks-server: the agent hook endpoints and the health checks."
+keywords: ["hooks server API", "nemoguardrails hooks-server", "/v1/hooks", "PreToolUse", "API reference"]
+content:
+  type: "reference"
+---
+
+The Guardrails hooks server (`nemoguardrails hooks-server`) checks coding agents' tool calls before they run.
+It is a separate server from the [Guardrails API Server](/run-guardrailed-inference/using-fastapi-server), with its own endpoints.
+For running it and connecting agents, refer to [Use the Guardrails Hooks Server](/run-guardrailed-inference/using-hooks-server).
+
+## Base URL
+
+The default base URL is:
+
+```text
+http://localhost:8100
+```
+
+The server listens on `127.0.0.1:8100` by default. Set `--host` and `--port` to change it.
+
+## Authentication
+
+The hooks server has no authentication.
+Keep it on `127.0.0.1`, or on a private network that restricts who can reach the port.
+
+## Endpoints
+
+The server exposes the following endpoints:
+
+| Endpoint | Description |
+|---|---|
+| [`POST /v1/hooks/claude-code`](/reference/hooks-server-api/claude-code) | Check a tool call from a Claude Code `PreToolUse` hook |
+| [`POST /v1/hooks/codex`](/reference/hooks-server-api/codex) | Check a tool call from a Codex `PreToolUse` hook |
+| [`POST /v1/hooks/nemo-relay`](/reference/hooks-server-api/nemo-relay) | Check a tool call from a NeMo Relay tool conditional-execution guardrail |
+| [`GET /v1/health`](/reference/hooks-server-api/get-health) | Liveness health check |
+| [`GET /healthz`](/reference/hooks-server-api/get-healthz) | Liveness health check (alias) |
+
+Every other path returns `404`, and the server serves no OpenAPI document or docs pages.
+
+Each hook endpoint applies the same configuration: the path selects only the agent's request and response format.
+The server reads the request body as JSON whatever its `Content-Type` header says.
+
+## Outcomes
+
+A hook endpoint answers each check with one of three outcomes:
+
+| Outcome | Status | Body |
+|---|---|---|
+| Allow | `200` | `{}` for Claude Code and Codex; `{"decision": "allow"}` for NeMo Relay |
+| Deny | `200` | The agent's deny shape, with the reason |
+| Error | `422`, `500`, or `503` | The OpenAI error envelope |
+
+For error codes and when they occur, refer to [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors#errors).

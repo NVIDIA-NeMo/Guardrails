@@ -20,7 +20,7 @@ from typing import List, Optional, TypedDict
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, scope_arguments, tool_output_validation
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, scope_arguments, tool_call_validation
 from nemoguardrails.library.regex.rail_config import RegexDetectionOptions
 from nemoguardrails.types import ToolCall
 
@@ -46,8 +46,8 @@ def _regex_outcome(source: str, result: RegexDetectionResult) -> RailOutcome:
 def _match_patterns(source: str, text: str, options: RegexDetectionOptions) -> RegexDetectionResult:
     """Match *text* against a pattern group's pre-compiled patterns, logging as each miss/hit occurs.
 
-    Extracted from detect_regex_pattern's own matching loop so detect_tool_output_regex_pattern
-    and detect_tool_input_regex_pattern don't duplicate it. detect_regex_pattern's inline loop
+    Extracted from detect_regex_pattern's own matching loop so detect_tool_call_regex_pattern
+    and detect_tool_result_regex_pattern don't duplicate it. detect_regex_pattern's inline loop
     below is left as-is for now. TODO: refactor it to call this helper too.
     """
     compiled_patterns = options.compiled_patterns
@@ -124,8 +124,8 @@ async def detect_regex_pattern(
 
 
 @action(is_system_action=True)
-@tool_output_validation
-async def detect_tool_output_regex_pattern(
+@tool_call_validation
+async def detect_tool_call_regex_pattern(
     source: str,
     tool_call: ToolCall,
     tool_definition: Optional[Tool],
@@ -136,9 +136,9 @@ async def detect_tool_output_regex_pattern(
     """Checks a tool call's arguments against that tool's regex patterns.
 
     Args:
-        source: Fixed per surface, always "tool_output".
+        source: Fixed per surface, always "tool_call".
         tool_call: The tool call to check.
-        tool_definition: The declared tool, used only by @tool_output_validation to check
+        tool_definition: The declared tool, used only by @tool_call_validation to check
             the call's arguments against its schema before this function runs.
         config: The rails configuration object.
         argument_name: Narrows the checked arguments to one named argument, from
@@ -147,8 +147,8 @@ async def detect_tool_output_regex_pattern(
     Returns:
         RailOutcome with RegexDetectionResult fields in metadata (see detect_regex_pattern).
     """
-    if source != "tool_output":
-        raise ValueError("source must be 'tool_output'")
+    if source != "tool_call":
+        raise ValueError("source must be 'tool_call'")
 
     tool_name = tool_call.function.name or tool_call.type
     text = json.dumps(scope_arguments(tool_call.function.arguments, argument_name))
@@ -163,7 +163,7 @@ async def detect_tool_output_regex_pattern(
 
 
 @action(is_system_action=True)
-async def detect_tool_input_regex_pattern(
+async def detect_tool_result_regex_pattern(
     source: str,
     tool_call: ToolCall,
     tool_result: ToolResult,
@@ -173,7 +173,7 @@ async def detect_tool_input_regex_pattern(
     """Checks a tool result's content against that tool's regex patterns.
 
     Args:
-        source: Fixed per surface, always "tool_input".
+        source: Fixed per surface, always "tool_result".
         tool_call: The prior call this result answers, used to resolve the tool name.
         tool_result: The tool result to check.
         config: The rails configuration object.
@@ -181,8 +181,8 @@ async def detect_tool_input_regex_pattern(
     Returns:
         RailOutcome with RegexDetectionResult fields in metadata (see detect_regex_pattern).
     """
-    if source != "tool_input":
-        raise ValueError("source must be 'tool_input'")
+    if source != "tool_result":
+        raise ValueError("source must be 'tool_result'")
 
     tool_name = tool_call.function.name or tool_call.type
     content = tool_result.content

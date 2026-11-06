@@ -108,8 +108,8 @@ def mock_config():
     config.rails.input.flows = ["check_jailbreak"]
     config.rails.output.flows = ["check_output"]
     config.rails.retrieval.flows = []
-    config.rails.tool_output.flows = []
-    config.rails.tool_input.flows = []
+    config.rails.tool_call.flows = []
+    config.rails.tool_result.flows = []
     config.rails.dialog.single_call.enabled = False
     config.rails.output.streaming.enabled = True
 
@@ -1241,8 +1241,8 @@ class TestBuiltinFeatures:
         config.rails.input.flows = []
         config.rails.output.flows = []
         config.rails.retrieval.flows = []
-        config.rails.tool_output.flows = []
-        config.rails.tool_input.flows = []
+        config.rails.tool_call.flows = []
+        config.rails.tool_result.flows = []
         config.rails.dialog.single_call.enabled = False
         config.rails.output.streaming.enabled = False
         config.tracing.enabled = False

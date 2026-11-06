@@ -15,20 +15,23 @@
 
 """Unit tests for ToolCallRailAction (allowlist + argument-schema validation)."""
 
+from typing import Any
+
 import pytest
 
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.tool_schema import Tool, Toolset
+from nemoguardrails.rails.llm.options import ToolViolationType
 from nemoguardrails.types import ToolCall, ToolCallFunction
-from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_outcome_blocked
+from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_outcome_blocked, call_violation, violations_in
 
 
 def _toolset() -> Toolset:
     return Toolset(tools=[Tool(name="get_weather", arguments_schema=WEATHER_SCHEMA), Tool(name="ping")])
 
 
-def _call(name: str, arguments: dict) -> ToolCall:
-    return ToolCall(id="c1", function=ToolCallFunction(name=name, arguments=arguments))
+def _call(name: str, arguments: dict, call_id: str = "c1") -> ToolCall:
+    return ToolCall(id=call_id, function=ToolCallFunction(name=name, arguments=arguments))
 
 
 class TestToolCallRailAction:
@@ -42,6 +45,15 @@ class TestToolCallRailAction:
         """A function tool that declares no parameters accepts no arguments, so a call supplying any is blocked."""
         result = await ToolCallRailAction().run(_toolset(), [_call("ping", {"anything": 1})])
         assert_outcome_blocked(result, "ping", "no arguments")
+        assert violations_in(result) == [
+            call_violation(
+                "unexpected_arguments",
+                "tool 'ping' accepts no arguments but the call supplied 1 argument",
+                tool_call_id="c1",
+                tool_name="ping",
+                index=0,
+            )
+        ]
 
     @pytest.mark.asyncio
     async def test_no_parameter_function_tool_without_arguments_is_safe(self):
@@ -51,13 +63,55 @@ class TestToolCallRailAction:
 
     @pytest.mark.asyncio
     async def test_undeclared_tool_is_blocked(self):
+        """A call to an undeclared tool blocks with a ``tool_not_allowed`` violation naming the call."""
         result = await ToolCallRailAction().run(_toolset(), [_call("rm_rf", {})])
         assert_outcome_blocked(result, "rm_rf", "not an allowed tool")
+        assert violations_in(result) == [
+            call_violation(
+                "tool_not_allowed",
+                "tool call 'rm_rf' is not an allowed tool",
+                tool_call_id="c1",
+                tool_name="rm_rf",
+                index=0,
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_undeclared_tool_name_is_capped(self):
+        """An undeclared name, which the model made up, is cut to 64 characters in the reason and the violation."""
+        capped = "x" * 64 + "..."
+
+        result = await ToolCallRailAction().run(_toolset(), [_call("x" * 200, {})])
+
+        assert result.reason == f"tool call '{capped}' is not an allowed tool"
+        assert [violation.tool_name for violation in violations_in(result)] == [capped]
 
     @pytest.mark.asyncio
     async def test_invalid_arguments_are_blocked(self):
+        """Schema-invalid arguments block with an ``arguments_invalid`` violation pointing at the failing argument."""
         result = await ToolCallRailAction().run(_toolset(), [_call("get_weather", {})])
         assert_outcome_blocked(result, "get_weather")
+        assert violations_in(result) == [
+            call_violation(
+                "arguments_invalid",
+                "arguments for tool 'get_weather' do not match its schema: 'required' failed at '/city'",
+                tool_call_id="c1",
+                tool_name="get_weather",
+                index=0,
+                argument_path="/city",
+                schema_keyword="required",
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_undeclared_call_with_a_non_string_id_is_still_reported(self):
+        """A call whose id is not a string blocks as ``tool_not_allowed`` with no id, rather than breaking the rail."""
+        non_string_id: Any = 5
+        call = ToolCall(id=non_string_id, function=ToolCallFunction(name="rm_rf", arguments={}))
+        result = await ToolCallRailAction().run(_toolset(), [call])
+        assert violations_in(result) == [
+            call_violation("tool_not_allowed", "tool call 'rm_rf' is not an allowed tool", tool_name="rm_rf", index=0)
+        ]
 
     @pytest.mark.asyncio
     async def test_empty_tool_calls_is_safe(self):
@@ -65,10 +119,19 @@ class TestToolCallRailAction:
         assert result.is_blocked is False
 
     @pytest.mark.asyncio
-    async def test_one_bad_call_blocks_the_batch(self):
-        calls = [_call("get_weather", {"city": "Paris"}), _call("rm_rf", {})]
+    async def test_every_bad_call_is_reported_in_order(self):
+        """Each bad call in the list gets its own violation, in list order, and the reason is the first one's."""
+        calls = [
+            _call("rm_rf", {}, call_id="c1"),
+            _call("get_weather", {"city": "Paris"}, call_id="c2"),
+            _call("ping", {"anything": 1}, call_id="c3"),
+        ]
         result = await ToolCallRailAction().run(_toolset(), calls)
-        assert_outcome_blocked(result, "rm_rf")
+        assert [(v.violation_type, v.index, v.tool_call_id) for v in violations_in(result)] == [
+            (ToolViolationType.TOOL_NOT_ALLOWED, 0, "c1"),
+            (ToolViolationType.UNEXPECTED_ARGUMENTS, 2, "c3"),
+        ]
+        assert result.reason == "tool call 'rm_rf' is not an allowed tool"
 
     @pytest.mark.asyncio
     async def test_hosted_tool_matched_by_type_when_name_is_empty(self):

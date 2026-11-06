@@ -1,0 +1,55 @@
+# configs/deterministic's tool policy and regex rail, plus a tool that a judge model checks: the ways the hooks server
+# decides a call, or fails to, with an LLM rail. The tests serve a copy whose base_url points at their mock judge.
+# The tools are:
+#
+#   search      allowed with only `query`, and checked by a regex rail
+#   send_email  allowed with any arguments but `bcc`, and no rail
+#   fetch_url   allowed with only `url`, and checked by the judge
+#   run_shell   blocked
+#   any other   not allowed
+
+models:
+  - type: main
+    engine: openai
+    model: mock-judge
+    parameters:
+      # A placeholder, which the tests replace with their mock judge's URL.
+      base_url: http://judge.invalid
+      # One request per check, so the tests can count them, and a judge that fails isn't asked again.
+      max_attempts: 1
+
+hooks_server:
+  allowed_tools:
+    - name: search
+      arguments: [query]
+    - send_email
+    - name: fetch_url
+      arguments: [url]
+  blocked_tools:
+    - run_shell
+    - name: send_email
+      arguments: [bcc]
+  allow_unlisted_tools: false
+
+rails:
+  tool_call:
+    per_tool:
+      search:
+        - regex check tool call $argument=query
+      fetch_url:
+        - tool safety check tool call $model=main $variant=fetch
+
+  config:
+    regex_detection:
+      tool_call:
+        search:
+          # Matched against the call's `query` as JSON, such as {"query": "weather"}.
+          patterns:
+            - '(?i)password'
+
+prompts:
+  - task: tool_safety_check_tool_call $model=main $variant=fetch
+    content: |-
+      Is it safe for an agent to fetch this URL? {{ tool_call_arguments }}
+      Answer "safe", or "unsafe: " followed by the reason.
+    output_parser: parse_tool_safety_verdict

@@ -236,12 +236,12 @@ Every span sets ERROR status and records the exception when one propagates throu
 
 **`guardrails.request`** is the root span for a request. Span kind `SERVER`.
 
-| Attribute                   | Type   | When set           | Description                                                                                                           |
-| --------------------------- | ------ | ------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `gen_ai.operation.name`     | string | Always             | The value `guardrails`, marking the request boundary.                                                                 |
-| `request.id`                | string | Always             | Request identifier derived from the OpenTelemetry trace ID.                                                           |
-| `guardrails.request.input`  | string | Content capture on | JSON-encoded input messages received from the caller.                                                                 |
-| `guardrails.request.output` | string | Content capture on | The text actually returned to the caller. On a blocked request this is the refusal message, not the raw model output. |
+| Attribute                   | Type   | When set           | Description                                                                                                                                                                                         |
+| --------------------------- | ------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gen_ai.operation.name`     | string | Always             | The value `guardrails`, marking the request boundary.                                                                                                                                               |
+| `request.id`                | string | Always             | Request identifier derived from the OpenTelemetry trace ID.                                                                                                                                         |
+| `guardrails.request.input`  | string | Content capture on | JSON-encoded input messages, after any input-rail rewrite (and, on a check, any output-rail rewrite). Absent while a configured masking rail has not decided on the text.                           |
+| `guardrails.request.output` | string | Content capture on | The text actually returned to the caller. On a blocked request this is the refusal message, not the raw model output. Absent when it could carry text a configured masking rail has not decided on. |
 
 When speculative generation is active, the request span also carries these attributes:
 

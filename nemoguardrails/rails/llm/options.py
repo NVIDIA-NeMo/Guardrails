@@ -77,10 +77,11 @@ To get more details on the LLM calls that were executed, including the raw respo
 
 """
 
+import warnings
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -88,6 +89,12 @@ from nemoguardrails.logging.explain import LLMCallInfo
 class RailType(str, Enum):
     INPUT = "input"
     OUTPUT = "output"
+    # Tool rail types run on the IORails engine only; LLMRails check() rejects them.
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+
+
+TOOL_RAIL_TYPES = frozenset({RailType.TOOL_CALL, RailType.TOOL_RESULT})
 
 
 class RailStatus(str, Enum):
@@ -100,6 +107,89 @@ class RailsResult(BaseModel):
     status: RailStatus = Field(description="Status of the rails check: passed, modified, or blocked.")
     content: str = Field(description="The content after rails processing.")
     rail: Optional[str] = Field(default=None, description="Name of the rail that blocked the content.")
+    reason: Optional[str] = Field(
+        default=None,
+        description="Why the rail blocked the content, when the engine reports it (IORails).",
+    )
+    tool_violations: Optional[List["ToolViolation"]] = Field(
+        default=None,
+        description="The tool calls or tool results a tool rail blocked (IORails). None unless a tool rail blocked.",
+    )
+
+
+class ToolViolationType(str, Enum):
+    """What a blocked tool call or tool result violated; callers switch on this, never on the reason text."""
+
+    # Tool calls
+    TOOL_NOT_ALLOWED = "tool_not_allowed"
+    ARGUMENTS_INVALID = "arguments_invalid"
+    UNEXPECTED_ARGUMENTS = "unexpected_arguments"
+    INVALID_TOOL_SCHEMA = "invalid_tool_schema"
+    MALFORMED_ARGUMENTS = "malformed_arguments"
+    MALFORMED_TOOL_CALL = "malformed_tool_call"
+    LEGACY_FUNCTION_CALL = "legacy_function_call"
+    INVALID_TOOLSET = "invalid_toolset"
+    # Tool results
+    MISSING_CALL_ID = "missing_call_id"
+    UNKNOWN_CALL_ID = "unknown_call_id"
+    DUPLICATE_RESULT = "duplicate_result"
+    DUPLICATE_PRIOR_CALL_ID = "duplicate_prior_call_id"
+    NAME_MISMATCH = "name_mismatch"
+    MALFORMED_CONTENT = "malformed_content"
+    UNLINKABLE_RESULT = "unlinkable_result"
+    # Either direction
+    EXTRACTION_FAILED = "extraction_failed"
+    RAIL_FAILED = "rail_failed"
+    PER_TOOL_RAIL = "per_tool_rail"
+
+
+# A tool name or call id is text the model or the caller chose, so a reason or violation keeps at most this much of it.
+MAX_QUOTED_IDENTITY_LENGTH = 64
+
+
+class ToolViolation(BaseModel):
+    """One tool call or tool result a tool rail blocked, identified so a caller can act on it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["tool_call", "tool_result"] = Field(description="Whether a tool call or a tool result was blocked.")
+    violation_type: ToolViolationType = Field(
+        description="What the call or result violated. Switch on this, never on `reason`."
+    )
+    reason: str = Field(description="Why it was blocked. Never contains argument values or tool-result content.")
+    tool_call_id: Optional[str] = Field(default=None, description="The call's id, or the id the result links to.")
+    tool_name: Optional[str] = Field(
+        default=None, description="The tool called. For a result, taken from the call it links to."
+    )
+    index: Optional[int] = Field(
+        default=None,
+        description="For a call, its position in the last assistant message's `tool_calls`. "
+        "For a result, its message's position in `messages`.",
+    )
+    argument_path: Optional[str] = Field(
+        default=None, description="JSON Pointer to the failing argument (`arguments_invalid` only)."
+    )
+    schema_keyword: Optional[str] = Field(
+        default=None, description="The JSON Schema keyword that failed (`arguments_invalid` only)."
+    )
+    rail: Optional[str] = Field(
+        default=None, description="The rail that blocked or failed (`per_tool_rail` and `rail_failed` only)."
+    )
+
+    @field_validator("tool_call_id", "tool_name", mode="before")
+    @classmethod
+    def _string_identity_or_none(cls, value: Any) -> Optional[str]:
+        """Store a non-string id or name as None, so a malformed message cannot break building its violation."""
+        return value if isinstance(value, str) else None
+
+    @field_validator("tool_name")
+    @classmethod
+    def _capped_tool_name(cls, value: Optional[str]) -> Optional[str]:
+        """Cut a tool name to ``MAX_QUOTED_IDENTITY_LENGTH`` characters, since an undeclared one is model-made."""
+        # The call id stays whole: it is the identity a harness matches the violation on.
+        if value is None or len(value) <= MAX_QUOTED_IDENTITY_LENGTH:
+            return value
+        return value[:MAX_QUOTED_IDENTITY_LENGTH] + "..."
 
 
 class GenerationLogOptions(BaseModel):
@@ -124,6 +214,9 @@ class GenerationLogOptions(BaseModel):
     )
 
 
+DEPRECATED_TOOL_RAIL_FIELDS = {"tool_output": "tool_call", "tool_input": "tool_result"}
+
+
 class GenerationRailsOptions(BaseModel):
     """Options for what rails should be used during the generation."""
 
@@ -146,16 +239,71 @@ class GenerationRailsOptions(BaseModel):
         default=True,
         description="Whether the dialog rails are enabled or not.",
     )
+    tool_call: Union[bool, List[str]] = Field(
+        default=True,
+        description="Whether the tool call rails are enabled or not. "
+        "If a list of names is specified, then only the specified tool call rails will be applied.",
+    )
+    tool_result: Union[bool, List[str]] = Field(
+        default=True,
+        description="Whether the tool result rails are enabled or not. "
+        "If a list of names is specified, then only the specified tool result rails will be applied.",
+    )
     tool_output: Union[bool, List[str]] = Field(
         default=True,
-        description="Whether the tool output rails are enabled or not. "
-        "If a list of names is specified, then only the specified tool output rails will be applied.",
+        deprecated="Use 'tool_call' instead. This field will be removed in a future version.",
+        description="DEPRECATED: Use tool_call instead.",
+        exclude=True,
     )
     tool_input: Union[bool, List[str]] = Field(
         default=True,
-        description="Whether the tool input rails are enabled or not. "
-        "If a list of names is specified, then only the specified tool input rails will be applied.",
+        deprecated="Use 'tool_result' instead. This field will be removed in a future version.",
+        description="DEPRECATED: Use tool_result instead.",
+        exclude=True,
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_deprecated_tool_rail_fields(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+
+        values = dict(values)
+        for deprecated_name, canonical_name in DEPRECATED_TOOL_RAIL_FIELDS.items():
+            if deprecated_name not in values:
+                continue
+            if canonical_name in values:
+                raise ValueError(
+                    f"Cannot configure both rails.{deprecated_name} and rails.{canonical_name}; "
+                    f"use rails.{canonical_name}."
+                )
+            warnings.warn(
+                f"rails.{deprecated_name} is deprecated; use rails.{canonical_name} instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            values[canonical_name] = values.pop(deprecated_name)
+        return values
+
+    @model_validator(mode="after")
+    def sync_deprecated_tool_rail_fields(self) -> "GenerationRailsOptions":
+        self._sync_deprecated_tool_rail_fields()
+        return self
+
+    def _sync_deprecated_tool_rail_fields(self) -> None:
+        for deprecated_name, canonical_name in DEPRECATED_TOOL_RAIL_FIELDS.items():
+            self.__dict__[deprecated_name] = self.__dict__[canonical_name]
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # The engine reads only the canonical fields, so a write to a deprecated name must land there.
+        canonical_name = DEPRECATED_TOOL_RAIL_FIELDS.get(name)
+        if canonical_name is not None:
+            warnings.warn(
+                f"rails.{name} is deprecated; use rails.{canonical_name} instead.", DeprecationWarning, stacklevel=2
+            )
+            name = canonical_name
+        super().__setattr__(name, value)
+        self._sync_deprecated_tool_rail_fields()
 
 
 class GenerationOptions(BaseModel):
@@ -206,10 +354,18 @@ class GenerationOptions(BaseModel):
                 "dialog": False,
                 "retrieval": False,
                 "output": False,
-                "tool_output": False,
-                "tool_input": False,
+                "tool_call": False,
+                "tool_result": False,
             }
             for rail_type in values["rails"]:
+                canonical_name = DEPRECATED_TOOL_RAIL_FIELDS.get(rail_type)
+                if canonical_name is not None:
+                    warnings.warn(
+                        f"rails.{rail_type} is deprecated; use rails.{canonical_name} instead.",
+                        DeprecationWarning,
+                        stacklevel=3,
+                    )
+                    rail_type = canonical_name
                 _rails[rail_type] = True
             values["rails"] = _rails
 

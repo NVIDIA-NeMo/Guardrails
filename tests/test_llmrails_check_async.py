@@ -18,7 +18,7 @@ import logging
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.exceptions import RailTypeNotConfiguredError
+from nemoguardrails.exceptions import RailTypeNotConfiguredError, RailTypeNotSupportedError
 from nemoguardrails.rails.llm.llmrails import (
     _determine_rails_from_messages,
     _get_blocking_rail,
@@ -27,6 +27,7 @@ from nemoguardrails.rails.llm.llmrails import (
     _normalize_messages_for_rails,
 )
 from nemoguardrails.rails.llm.options import ActivatedRail, GenerationLog, GenerationResponse, RailStatus, RailType
+from tests.utils import check_entry_points, run_check
 
 
 class TestDetermineRailsFromMessages:
@@ -277,6 +278,14 @@ class TestCheckAsyncIntegration:
         result = await mock_rails.check_async(messages)
         assert result.status == RailStatus.BLOCKED
         assert result.rail is not None
+
+    @pytest.mark.asyncio
+    async def test_blocked_has_no_reason(self, mock_rails):
+        """LLMRails names the blocking rail but reports no reason for the block."""
+        messages = [{"role": "user", "content": "block"}]
+        result = await mock_rails.check_async(messages)
+        assert result.status == RailStatus.BLOCKED
+        assert result.reason is None
 
     @pytest.mark.asyncio
     async def test_input_modified(self, mock_rails):
@@ -577,6 +586,37 @@ class TestUnsatisfiableRailTypes:
         ]
         result = await input_only_rails.check_async(messages)
         assert result.status == RailStatus.PASSED
+
+
+_TOOL_RAIL_TYPE_REQUESTS = pytest.mark.parametrize(
+    ("rail_types", "unsupported"),
+    [
+        ([RailType.TOOL_CALL], "tool_call"),
+        ([RailType.TOOL_RESULT], "tool_result"),
+        ([RailType.INPUT, RailType.TOOL_CALL], "tool_call"),
+        ([RailType.TOOL_RESULT, RailType.TOOL_CALL, RailType.TOOL_CALL], "tool_call, tool_result"),
+    ],
+    ids=["tool_call", "tool_result", "input_and_tool_call", "both_tool_types_repeated"],
+)
+
+
+class TestToolRailTypesAreNotSupported:
+    """LLMRails check() runs input and output rails only, so a tool rail type fails loud instead of passing."""
+
+    @check_entry_points
+    @_TOOL_RAIL_TYPE_REQUESTS
+    def test_tool_rail_types_raise(self, mock_rails, entry_point, rail_types, unsupported):
+        """``check`` and ``check_async`` name each unsupported tool rail type once, in sorted order."""
+        with pytest.raises(RailTypeNotSupportedError) as excinfo:
+            run_check(mock_rails, entry_point, [{"role": "user", "content": "hello"}], rail_types=rail_types)
+        assert str(excinfo.value) == f"LLMRails supports input and output rails only, not {unsupported}"
+
+    @check_entry_points
+    @pytest.mark.parametrize("rail_types", [None, [RailType.INPUT]], ids=["auto_detected", "input"])
+    def test_tools_raise(self, mock_rails, entry_point, rail_types):
+        """Both entry points raise ``RailTypeNotSupportedError`` for ``tools``, which only a tool-call check reads."""
+        with pytest.raises(RailTypeNotSupportedError, match="tools"):
+            run_check(mock_rails, entry_point, [{"role": "user", "content": "hello"}], rail_types=rail_types, tools=[])
 
 
 @pytest.fixture

@@ -19,6 +19,14 @@ on:
       - "scripts/tests/**"
       - "scripts/watch-fern-preview.mjs"
       - "scripts/fix-empty-fern-links.mjs"
+      - "scripts/export_openapi.py"
+      - "scripts/export_hooks_openapi.py"
+      - "scripts/export_proxy_openapi.py"
+      - "scripts/proxy_guard_contract_docs.py"
+      - "nemoguardrails/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/actions/setup-uv/**"
   push:
     branches: [develop]
     tags:
@@ -39,6 +47,14 @@ on:
       - "scripts/tests/**"
       - "scripts/watch-fern-preview.mjs"
       - "scripts/fix-empty-fern-links.mjs"
+      - "scripts/export_openapi.py"
+      - "scripts/export_hooks_openapi.py"
+      - "scripts/export_proxy_openapi.py"
+      - "scripts/proxy_guard_contract_docs.py"
+      - "nemoguardrails/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/actions/setup-uv/**"
   workflow_dispatch:
 
 defaults:
@@ -61,6 +77,13 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: ./.github/actions/setup-uv
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -94,6 +117,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: ./.github/actions/setup-uv
+
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
@@ -111,10 +141,10 @@ jobs:
           restore-keys: |
             fern-ref-sdk-${{ runner.os }}-
 
-      - name: Generate Python SDK reference
+      - name: Generate API references
         env:
           FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
-        run: make docs-fern-generate-sdk
+        run: make docs-fern-generate-references
 
       - name: Publish Fern preview
         env:
@@ -162,6 +192,13 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: ./.github/actions/setup-uv
 
       - name: Set up Node.js
         uses: actions/setup-node@v7

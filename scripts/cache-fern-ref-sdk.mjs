@@ -29,6 +29,12 @@ const generatorInputPaths = [
   "scripts/normalize-fern-sdk-reference.mjs",
 ];
 const minimumPageCount = 10;
+const historicalImagePages = [
+  "docs/reference/guardrails-sequence-diagrams.mdx",
+  "docs/configure-rails/guardrail-catalog/self-check.mdx",
+  "docs/configure-rails/colang/colang-1/tutorials/2-core-colang-concepts/README.mdx",
+  "docs/configure-rails/colang/colang-1/tutorials/4-input-rails/README.mdx",
+];
 
 export function main(args = process.argv.slice(2), environment = process.env) {
   const [worktreeRootArgument, expectedCommit] = args;
@@ -49,6 +55,38 @@ export function main(args = process.argv.slice(2), environment = process.env) {
   }).trim();
   if (actualCommit !== expectedCommit) {
     throw new Error(`Fern ref worktree is at ${actualCommit}, expected ${expectedCommit}`);
+  }
+
+  // Fern 5.167 misreads duplicate image titles in immutable older snapshots.
+  // Normalize only the temporary checkout, including when the SDK cache is warm.
+  for (const relativePath of historicalImagePages) {
+    const pagePath = path.join(worktreeRoot, relativePath);
+    let original;
+    try {
+      original = readFileSync(pagePath, "utf8");
+    } catch (error) {
+      if (error.code === "ENOENT") continue;
+      throw error;
+    }
+    const normalized = original.replace(
+      /^!\[([^\r\n]+)\]\((\S+\/_static\/puml\/\S+\.png) "([^"\r\n]+)"\)$/gm,
+      (image, alt, source, title) => alt === title ? `![${alt}](${source})` : image,
+    );
+    if (normalized !== original) writeFileSync(pagePath, normalized);
+  }
+
+  // New snapshots omit the build artifact; older snapshots retain their own spec.
+  for (const exporter of ["export_openapi.py", "export_hooks_openapi.py", "export_proxy_openapi.py"]) {
+    if (!existsSync(path.join(worktreeRoot, "scripts", exporter))) continue;
+    const exportEnvironment = { ...environment, FERN_REF_SDK_HOOK: "0" };
+    delete exportEnvironment.FERN_TOKEN;
+    delete exportEnvironment.DOCS_FERN_TOKEN;
+    exportEnvironment.UV_PROJECT_ENVIRONMENT = path.join(worktreeRoot, ".venv");
+    execFileSync("uv", ["run", "--locked", "--extra", "server", "python", `scripts/${exporter}`], {
+      cwd: worktreeRoot,
+      env: exportEnvironment,
+      stdio: "inherit",
+    });
   }
 
   const fernRoot = path.join(worktreeRoot, "fern");
@@ -102,13 +140,18 @@ export function main(args = process.argv.slice(2), environment = process.env) {
   fernConfig.version = fernVersion;
   writeFileSync(fernConfigPath, `${JSON.stringify(fernConfig, null, 2)}\n`);
 
+  // A redirected parent CLI exports its own project path and redirect guard.
+  // The historical build needs its own project and organization-required CLI.
+  const generationEnvironment = { ...environment, FERN_REF_SDK_HOOK: "0", FERN_CWD: fernRoot };
+  delete generationEnvironment.FERN_NO_VERSION_REDIRECTION;
+
   try {
     execFileSync(
       "npx",
       ["--yes", `fern-api@${fernVersion}`, "docs", "md", "generate", "--library", libraryName],
       {
         cwd: fernRoot,
-        env: { ...environment, FERN_REF_SDK_HOOK: "0" },
+        env: generationEnvironment,
         stdio: "inherit",
       },
     );

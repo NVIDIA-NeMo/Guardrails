@@ -15,11 +15,13 @@
 
 """Module for the configuration of rails."""
 
+import importlib.metadata
 import logging
 import os
 import warnings
+from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Set, Tuple, Union
 
 import yaml
 from pydantic import (
@@ -36,6 +38,7 @@ from nemoguardrails.exceptions import (
     InvalidRailsConfigurationError,
 )
 from nemoguardrails.library.self_check.utils import get_self_check_prompt_task
+from nemoguardrails.rails.llm.options import DEPRECATED_TOOL_RAIL_FIELDS
 from nemoguardrails.rails.llm.rails_config_fields import (
     build_rails_config_data,
     config_exported_names,
@@ -43,6 +46,9 @@ from nemoguardrails.rails.llm.rails_config_fields import (
     validate_no_config_export_shadowing,
 )
 from nemoguardrails.utils import _get_flow_params, _normalize_flow_id
+
+if TYPE_CHECKING:
+    from nemoguardrails.manifests import RailSurface
 
 log = logging.getLogger(__name__)
 
@@ -107,7 +113,7 @@ class Model(BaseModel):
     {
         "type": "main",
         "engine": "openai",
-        "model": "gpt-3.5-turbo-instruct"
+        "model": "gpt-4o-mini"
     }
     """
 
@@ -434,16 +440,87 @@ class ActionRails(BaseModel):
     )
 
 
-class ToolOutputRails(BaseModel):
-    """Configuration of tool output rails.
+class ToolEntry(BaseModel):
+    """A tool in `hooks_server.allowed_tools` or `blocked_tools`, named with the arguments its entry is about."""
 
-    Tool output rails are applied to tool calls before they are executed.
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description="The tool's name, exactly as a tool call spells it.")
+    arguments: List[str] = Field(
+        min_length=1,
+        description="Argument names. In `allowed_tools`, a call may pass only these; "
+        "in `blocked_tools`, a call that passes any of them is blocked.",
+    )
+
+    @field_validator("arguments")
+    @classmethod
+    def check_arguments_are_unique(cls, arguments: List[str]) -> List[str]:
+        """Refuse an entry that names an argument twice."""
+        repeated = sorted({argument for argument in arguments if arguments.count(argument) > 1})
+        if repeated:
+            raise ValueError(f"arguments names {repeated} more than once; list each argument once")
+        return arguments
+
+
+class HooksServerConfig(BaseModel):
+    """The tool policy `nemoguardrails hooks-server` applies to each hook's call; no engine reads it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    allowed_tools: List[Union[str, ToolEntry]] = Field(
+        default_factory=list,
+        description="Tools a call may use: a name, which allows any arguments, or a `{name, arguments}` entry, "
+        "which allows only those arguments.",
+    )
+    blocked_tools: List[Union[str, ToolEntry]] = Field(
+        default_factory=list,
+        description="Tools a call may not use: a name, which blocks every call to the tool, or a `{name, arguments}` "
+        "entry, which blocks a call that passes any of those arguments.",
+    )
+    allow_unlisted_tools: bool = Field(
+        default=True,
+        description="Whether a call to a tool `allowed_tools` doesn't name is allowed.",
+    )
+
+    @model_validator(mode="after")
+    def check_tool_lists(self) -> "HooksServerConfig":
+        """Refuse tool lists that name a tool twice, or that allow a tool they block by name."""
+        for list_name in ("allowed_tools", "blocked_tools"):
+            repeated = _first_repeated_tool_name(getattr(self, list_name))
+            if repeated is not None:
+                raise InvalidRailsConfigurationError(
+                    f"hooks_server.{list_name} names tool '{repeated}' more than once; list each tool once."
+                )
+        blocked_by_name = {entry for entry in self.blocked_tools if isinstance(entry, str)}
+        contradicted = [
+            _tool_entry_name(entry) for entry in self.allowed_tools if _tool_entry_name(entry) in blocked_by_name
+        ]
+        if contradicted:
+            raise InvalidRailsConfigurationError(
+                f"hooks_server.allowed_tools allows tool '{contradicted[0]}', which hooks_server.blocked_tools blocks "
+                "by name; remove it from one of the two lists."
+            )
+        return self
+
+    @property
+    def can_deny(self) -> bool:
+        """Whether the policy can deny a call: it blocks something, denies unlisted tools, or limits a tool's arguments."""
+        # Bare names in allowed_tools deny nothing while unlisted tools are allowed.
+        if self.blocked_tools or not self.allow_unlisted_tools:
+            return True
+        return any(isinstance(entry, ToolEntry) for entry in self.allowed_tools)
+
+
+class ToolCallRails(BaseModel):
+    """Configuration of tool call rails.
+
+    Tool call rails are applied to tool calls before they are executed.
     They can validate tool names, parameters, and context to ensure safe tool usage.
     """
 
     flows: List[str] = Field(
         default_factory=list,
-        description="The names of all the flows that implement tool output rails.",
+        description="The names of all the flows that implement tool call rails.",
     )
     per_tool: Dict[str, List[str]] = Field(
         default_factory=dict,
@@ -451,20 +528,36 @@ class ToolOutputRails(BaseModel):
     )
     parallel: Optional[bool] = Field(
         default=False,
-        description="If True, the tool output rails are executed in parallel.",
+        description="If True, the tool call rails are executed in parallel.",
     )
 
 
-class ToolInputRails(BaseModel):
-    """Configuration of tool input rails.
+def _tool_entry_name(entry: Union[str, ToolEntry]) -> str:
+    """The tool a list entry names."""
+    return entry if isinstance(entry, str) else entry.name
 
-    Tool input rails are applied to tool results before they are processed.
-    They can validate, filter, or transform tool outputs for security and safety.
+
+def _first_repeated_tool_name(tool_list: List[Union[str, ToolEntry]]) -> Optional[str]:
+    """The first tool *tool_list* names a second time, or None when it names each tool once."""
+    seen: Set[str] = set()
+    for entry in tool_list:
+        name = _tool_entry_name(entry)
+        if name in seen:
+            return name
+        seen.add(name)
+    return None
+
+
+class ToolResultRails(BaseModel):
+    """Configuration of tool result rails.
+
+    Tool result rails are applied to tool results before they are processed.
+    They can validate, filter, or transform tool results for security and safety.
     """
 
     flows: List[str] = Field(
         default_factory=list,
-        description="The names of all the flows that implement tool input rails.",
+        description="The names of all the flows that implement tool result rails.",
     )
     per_tool: Dict[str, List[str]] = Field(
         default_factory=dict,
@@ -472,8 +565,12 @@ class ToolInputRails(BaseModel):
     )
     parallel: Optional[bool] = Field(
         default=False,
-        description="If True, the tool input rails are executed in parallel.",
+        description="If True, the tool result rails are executed in parallel.",
     )
+
+
+ToolOutputRails = ToolCallRails
+ToolInputRails = ToolResultRails
 
 
 class SingleCallConfig(BaseModel):
@@ -559,14 +656,69 @@ class Rails(BaseModel):
     )
     dialog: DialogRails = Field(default_factory=DialogRails, description="Configuration of the dialog rails.")
     actions: ActionRails = Field(default_factory=ActionRails, description="Configuration of action rails.")
-    tool_output: ToolOutputRails = Field(
-        default_factory=ToolOutputRails,
-        description="Configuration of tool output rails.",
+    tool_call: ToolCallRails = Field(
+        default_factory=ToolCallRails,
+        description="Configuration of tool call rails.",
     )
-    tool_input: ToolInputRails = Field(
-        default_factory=ToolInputRails,
-        description="Configuration of tool input rails.",
+    tool_result: ToolResultRails = Field(
+        default_factory=ToolResultRails,
+        description="Configuration of tool result rails.",
     )
+    tool_output: ToolCallRails = Field(
+        default_factory=ToolCallRails,
+        deprecated="Use 'tool_call' instead. This field will be removed in a future version.",
+        description="DEPRECATED: Use tool_call instead.",
+        exclude=True,
+    )
+    tool_input: ToolResultRails = Field(
+        default_factory=ToolResultRails,
+        deprecated="Use 'tool_result' instead. This field will be removed in a future version.",
+        description="DEPRECATED: Use tool_result instead.",
+        exclude=True,
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_deprecated_tool_rail_fields(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+
+        values = dict(values)
+        for deprecated_name, canonical_name in DEPRECATED_TOOL_RAIL_FIELDS.items():
+            if deprecated_name not in values:
+                continue
+            if canonical_name in values:
+                raise ValueError(
+                    f"Cannot configure both rails.{deprecated_name} and rails.{canonical_name}; "
+                    f"use rails.{canonical_name}."
+                )
+            warnings.warn(
+                f"rails.{deprecated_name} is deprecated; use rails.{canonical_name} instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            values[canonical_name] = values.pop(deprecated_name)
+        return values
+
+    @model_validator(mode="after")
+    def sync_deprecated_tool_rail_fields(self) -> "Rails":
+        self._sync_deprecated_tool_rail_fields()
+        return self
+
+    def _sync_deprecated_tool_rail_fields(self) -> None:
+        for deprecated_name, canonical_name in DEPRECATED_TOOL_RAIL_FIELDS.items():
+            self.__dict__[deprecated_name] = self.__dict__[canonical_name]
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # The engine reads only the canonical fields, so a write to a deprecated name must land there.
+        canonical_name = DEPRECATED_TOOL_RAIL_FIELDS.get(name)
+        if canonical_name is not None:
+            warnings.warn(
+                f"rails.{name} is deprecated; use rails.{canonical_name} instead.", DeprecationWarning, stacklevel=2
+            )
+            name = canonical_name
+        super().__setattr__(name, value)
+        self._sync_deprecated_tool_rail_fields()
 
 
 def merge_two_dicts(dict_1: dict, dict_2: dict, ignore_keys: Set[str]) -> None:
@@ -585,8 +737,8 @@ def merge_two_dicts(dict_1: dict, dict_2: dict, ignore_keys: Set[str]) -> None:
                 dict_1[key] = value
 
 
-def _join_config(dest_config: dict, additional_config: dict):
-    """Helper to join two configuration."""
+def _join_config(dest_config: dict, additional_config: dict, source: Optional[str] = None):
+    """Helper to join two configuration; *source* names where *additional_config* was read from, for errors."""
 
     dest_config["user_messages"] = {
         **dest_config.get("user_messages", {}),
@@ -616,6 +768,16 @@ def _join_config(dest_config: dict, additional_config: dict):
         **dest_config.get("sensitive_data_detection", {}),
         **additional_config.get("sensitive_data_detection", {}),
     }
+
+    if "hooks_server" in additional_config:
+        # Replacing one section with another would drop restrictions, and joining them would widen the allowlists.
+        if "hooks_server" in dest_config:
+            found_again = f" (found again in {source})" if source else ""
+            raise ValueError(
+                "The hooks_server section is set in more than one file of this config, or of a config it imports; "
+                f"set it in one file only{found_again}."
+            )
+        dest_config["hooks_server"] = additional_config["hooks_server"]
 
     dest_config["embedding_search_provider"] = dest_config.get(
         "embedding_search_provider", {}
@@ -664,6 +826,7 @@ def _join_config(dest_config: dict, additional_config: dict):
             "sensitive_data_detection",
             "embedding_search_provider",
             "import_paths",
+            "hooks_server",
         }
     )
 
@@ -726,7 +889,7 @@ def _load_path(
                 elif file.endswith(".co"):
                     colang_files.append((file, full_path))
 
-                _join_config(raw_config, _raw_config)
+                _join_config(raw_config, _raw_config, source=full_path)
 
     # If it's just a .co file, we append it as is to the config.
     elif config_path.endswith(".co"):
@@ -778,7 +941,7 @@ def _load_imported_paths(raw_config: dict, colang_files: List[Tuple[str, str]]):
             _raw_config, _colang_files = _load_path(actual_path)
 
             # Join them.
-            _join_config(raw_config, _raw_config)
+            _join_config(raw_config, _raw_config, source=actual_path)
             colang_files.extend(_colang_files)
 
             # And mark the path as imported.
@@ -931,7 +1094,7 @@ class RailsConfig(BaseModel):
         description="The lowest temperature that should be used for the LLM.",
     )
 
-    # This should only be enabled for highly capable LLMs i.e. gpt-3.5-turbo-instruct or similar.
+    # This should only be enabled for highly capable LLMs that reliably follow the multi-line output format.
     enable_multi_step_generation: Optional[bool] = Field(
         default=False,
         description="Whether to enable multi-step generation for the LLM.",
@@ -957,6 +1120,11 @@ class RailsConfig(BaseModel):
     rails: Rails = Field(
         default_factory=Rails,
         description="Configuration for the various rails (input, output, etc.).",
+    )
+
+    hooks_server: HooksServerConfig = Field(
+        default_factory=HooksServerConfig,
+        description="The tool policy of `nemoguardrails hooks-server`, which only that server reads.",
     )
 
     streaming: bool = Field(
@@ -1044,6 +1212,40 @@ class RailsConfig(BaseModel):
                     f"Output flow '{flow_id}' references model type '{flow_model}' that is not defined in the configuration. Detected model types: {available_types}."
                 )
         return values
+
+    # An "after" validator, unlike its input/output twins, reads the typed `rails` fields,
+    # so it also covers configs that still use the deprecated `tool_output`/`tool_input` keys.
+    @model_validator(mode="after")
+    def check_model_exists_for_tool_rails(self) -> "RailsConfig":
+        """Make sure we have every model a tool rail's manifest binds, such as the judge named by `$model=`"""
+        from nemoguardrails.manifests import RailDirection, default_rail_catalog, parse_configured_surface
+
+        tool_rail_flows = list(_tool_rail_flows(self.rails))
+        if not tool_rail_flows:
+            return self
+
+        model_types = {model.type for model in self.models}
+        surfaces = default_rail_catalog().surfaces()
+        for tool_rail_flow in tool_rail_flows:
+            try:
+                name, params = parse_configured_surface(tool_rail_flow.flow)
+            except ValueError:
+                # A malformed flow reference isn't a model check's to report; the engine
+                # rejects it as an invalid flow reference when it compiles the rail.
+                continue
+            surface = surfaces.get((RailDirection(tool_rail_flow.direction), name))
+            # An unknown flow is a custom or Colang-defined rail, which declares no model bindings here.
+            if surface is None:
+                continue
+            for model_type in _bound_model_types(surface, params):
+                if model_type in model_types:
+                    continue
+                tool_clause = f" for tool '{tool_rail_flow.tool_name}'" if tool_rail_flow.tool_name is not None else ""
+                available_types = ", ".join(f"'{str(t)}'" for t in sorted(model_types)) if model_types else "none"
+                raise InvalidRailsConfigurationError(
+                    f"{tool_rail_flow.section} flow '{name}'{tool_clause} references model type '{model_type}' that is not defined in the configuration. Detected model types: {available_types}."
+                )
+        return self
 
     @model_validator(mode="before")
     @classmethod
@@ -1195,6 +1397,14 @@ class RailsConfig(BaseModel):
 
         # Case B: "jailbreak detection model" flow is enabled
         if has_model_flow:
+            try:
+                importlib.metadata.distribution("tokenizers")
+            except importlib.metadata.PackageNotFoundError as exc:
+                raise InvalidRailsConfigurationError(
+                    "The 'jailbreak detection model' rail requires tokenizers for all backends. "
+                    "Install it with: pip install tokenizers"
+                ) from exc
+
             nim_base_url = jailbreak_config.get("nim_base_url")
             nim_url = jailbreak_config.get("nim_url")  # deprecated, migrated later
             server_endpoint = jailbreak_config.get("server_endpoint")
@@ -1429,7 +1639,19 @@ def _join_rails_configs(base_rails_config: RailsConfig, updated_rails_config: Ra
     if base_rails_config.actions_server_url != updated_rails_config.actions_server_url:
         raise ValueError("Both config files should have the same actions_server_url")
 
+    # A section can't be told apart from an unset one after validation, so "set" means "not the default".
+    hooks_servers = [
+        config.hooks_server
+        for config in (base_rails_config, updated_rails_config)
+        if config.hooks_server != HooksServerConfig()
+    ]
+    if len(hooks_servers) > 1:
+        raise ValueError("Both configs set a hooks_server section, which only one of them may set")
+
     combined_rails_config_dict = _join_dict(base_rails_config.model_dump(), updated_rails_config.model_dump())
+    if hooks_servers:
+        # Every dump carries the section's defaults, which the join would mix into the set section.
+        combined_rails_config_dict["hooks_server"] = hooks_servers[0].model_dump()
     # filter out empty strings to avoid leading/trailing commas
     config_paths = [
         base_rails_config.model_dump()["config_path"] or "",
@@ -1515,6 +1737,39 @@ def _get_flow_model(flow_text) -> Optional[str]:
 
     _, parameters = parse_configured_surface(flow_text)
     return parameters.get("model")
+
+
+@dataclass(frozen=True)
+class _ToolRailFlow:
+    """A configured tool rail flow, with its section, its direction and, for a per-tool flow, its tool."""
+
+    section: str
+    direction: str
+    tool_name: Optional[str]
+    flow: str
+
+
+def _tool_rail_flows(rails: Rails) -> Iterator[_ToolRailFlow]:
+    """Yield each tool rail flow, global flows before per-tool ones."""
+    # Read the canonical fields: the deprecated `tool_output`/`tool_input` attributes warn when read.
+    sections = (("Tool call", "tool_call", rails.tool_call), ("Tool result", "tool_result", rails.tool_result))
+    for section, direction, tool_rails in sections:
+        for flow in tool_rails.flows:
+            yield _ToolRailFlow(section=section, direction=direction, tool_name=None, flow=flow)
+        for tool_name, flows in tool_rails.per_tool.items():
+            for flow in flows:
+                yield _ToolRailFlow(section=section, direction=direction, tool_name=tool_name, flow=flow)
+
+
+def _bound_model_types(surface: "RailSurface", params: Dict[str, str]) -> Iterator[str]:
+    """Yield the model types *surface* binds for a flow's *params*: baked-in literals and model `$params` it sets."""
+    for binding in surface.bindings:
+        if binding.resource != "model":
+            continue
+        if binding.kind == "literal":
+            yield str(binding.value)
+        elif binding.key in params:
+            yield params[binding.key]
 
 
 def _validate_self_check_rail_prompts(

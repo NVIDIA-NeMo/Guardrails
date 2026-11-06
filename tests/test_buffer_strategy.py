@@ -15,12 +15,14 @@
 
 import pytest
 
+from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.rails.llm.buffer import (
     BufferStrategy,
     RollingBuffer,
     get_buffer_strategy,
 )
 from nemoguardrails.rails.llm.config import OutputRailsStreamingConfig
+from nemoguardrails.types import ToolCall, ToolCallChunk, ToolCallFunction
 
 
 async def fake_streaming_handler():
@@ -272,7 +274,10 @@ async def test_process_stream_with_metadata_dicts():
 
     async def metadata_streaming_handler():
         for token in ["Hello", " ", "world", "!"]:
-            yield {"text": token, "metadata": {"response_metadata": {"model_provider": "openai"}}}
+            yield {
+                "text": token,
+                "metadata": {"response_metadata": {"model_provider": "openai"}},
+            }
 
     buffer_strategy = RollingBuffer(buffer_context_size=1, buffer_chunk_size=2)
 
@@ -294,8 +299,14 @@ async def test_process_stream_with_mixed_chunk_types():
 
     async def mixed_streaming_handler():
         yield "Hello"
-        yield {"text": " ", "metadata": {"response_metadata": {"model_provider": "openai"}}}
-        yield {"text": "world", "metadata": {"response_metadata": {"model_provider": "openai"}}}
+        yield {
+            "text": " ",
+            "metadata": {"response_metadata": {"model_provider": "openai"}},
+        }
+        yield {
+            "text": "world",
+            "metadata": {"response_metadata": {"model_provider": "openai"}},
+        }
         yield "!"
 
     buffer_strategy = RollingBuffer(buffer_context_size=1, buffer_chunk_size=2)
@@ -534,3 +545,34 @@ async def test_complete_implementation_works():
     assert results[0].user_output_chunks == ["a", "b"]
     assert results[1].processing_context == ["c"]
     assert results[1].user_output_chunks == ["c"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("include_metadata", [False, True])
+async def test_rolling_buffer_rejects_tool_calls(include_metadata):
+    event = ToolCallChunk([ToolCall(id="call_1", function=ToolCallFunction(name="weather", arguments={}))])
+
+    async def handler():
+        yield {"text": "BLOCK"} if include_metadata else "BLOCK"
+        yield {"text": event} if include_metadata else event
+
+    buffer = RollingBuffer(buffer_context_size=1, buffer_chunk_size=10)
+    emitted = []
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output-rail streaming"):
+        async for batch in buffer.process_stream(handler()):
+            emitted.append(batch)
+    assert emitted == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("include_metadata", [False, True])
+async def test_tool_shaped_text_stays_in_processing_context(include_metadata):
+    text = '{"type":"tool_call_delta","tool_calls":[]}'
+
+    async def handler():
+        yield {"text": text} if include_metadata else text
+
+    buffer = RollingBuffer(buffer_context_size=0, buffer_chunk_size=10)
+    batches = [batch async for batch in buffer.process_stream(handler())]
+    assert batches[0].processing_context == [text]
+    assert batches[0].user_output_chunks == [text]

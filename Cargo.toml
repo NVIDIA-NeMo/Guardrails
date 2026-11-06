@@ -1,0 +1,10 @@
+# The repository's only Rust code: the NVIDIA NeMo Guardrails plugin for NeMo Relay, a client of
+# the NeMo Guardrails service. NeMo-Relay-Plugins, which builds and releases the plugin, needs this
+# workspace and its Cargo.lock at the repository root.
+[workspace]
+resolver = "3"
+members = ["crates/nemo-guardrails-relay-plugin"]
+
+[profile.release]
+lto = "thin"
+strip = true

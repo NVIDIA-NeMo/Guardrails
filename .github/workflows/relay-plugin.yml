@@ -1,0 +1,71 @@
+name: Relay Plugin
+
+# The Rust checks of the NeMo Relay plugin in crates/. integration-tests.yml runs its packaging script's tests and its
+# end-to-end tests, which need Guardrails' Python environment.
+
+on:
+  pull_request:
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".cargo/**"
+      - ".github/workflows/relay-plugin.yml"
+      - "!**/*.md"
+  push:
+    branches:
+      - develop
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".cargo/**"
+      - ".github/workflows/relay-plugin.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  checks:
+    name: Rust checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # With no arguments, rustup installs the channel and components that rust-toolchain.toml pins.
+      - name: Install the Rust toolchain
+        run: rustup toolchain install
+
+      # Only develop saves the cache, so pull requests restore develop's and don't fill the repository's cache quota.
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/develop' }}
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      # The host tests build the plugin library and load it into a Relay host. The end-to-end job covers the release build.
+      - name: Run the Rust tests
+        run: cargo test --locked

@@ -27,39 +27,39 @@ from nemoguardrails.manifests import (
 )
 
 TOOL_SAFETY_CHECK_OUTPUT = ActionRef(
-    name="tool_safety_check_output",
-    target="nemoguardrails.library.tool_safety_check.actions:tool_safety_check_output",
+    name="tool_safety_check_tool_call",
+    target="nemoguardrails.library.tool_safety_check.actions:tool_safety_check_tool_call",
 )
 TOOL_SAFETY_CHECK_INPUT = ActionRef(
-    name="tool_safety_check_input",
-    target="nemoguardrails.library.tool_safety_check.actions:tool_safety_check_input",
+    name="tool_safety_check_tool_result",
+    target="nemoguardrails.library.tool_safety_check.actions:tool_safety_check_tool_result",
 )
 RAIL = RailManifest(
     name="tool_safety_check",
     metadata=RailMetadata(
         display_name="Tool Safety Check",
         description="Checks a tool call's arguments or a tool result's content for safety policy violations using an LLM prompt.",
-        categories=("tool_output", "tool_input"),
+        categories=("tool_call", "tool_result"),
         capabilities=("allow", "block", "moderate"),
         tags=("moderation", "safety", "tool-calling"),
         docs_url="docs/configure-rails/guardrail-catalog/tool-safety-check.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(
-            # Every surface here is TOOL_OUTPUT/TOOL_INPUT (IORails-only), so this rail
+            # Every surface here is TOOL_CALL/TOOL_RESULT (IORails-only), so this rail
             # ships no Colang flow definitions at all.
             files=(),
             v1_files=(),
             flow_names=(
-                "tool safety check output",
-                "tool safety check input",
+                "tool safety check tool call",
+                "tool safety check tool result",
             ),
         ),
         actions=RailActions(refs=(TOOL_SAFETY_CHECK_OUTPUT, TOOL_SAFETY_CHECK_INPUT)),
         surfaces=(
             RailSurface(
-                name="tool safety check output",
-                direction=RailDirection.TOOL_OUTPUT,
+                name="tool safety check tool call",
+                direction=RailDirection.TOOL_CALL,
                 action=TOOL_SAFETY_CHECK_OUTPUT,
                 bindings=(
                     Binding.model_param("model_name", "model"),
@@ -70,8 +70,8 @@ RAIL = RailManifest(
                 ),
             ),
             RailSurface(
-                name="tool safety check input",
-                direction=RailDirection.TOOL_INPUT,
+                name="tool safety check tool result",
+                direction=RailDirection.TOOL_RESULT,
                 action=TOOL_SAFETY_CHECK_INPUT,
                 bindings=(
                     Binding.model_param("model_name", "model"),
@@ -81,6 +81,6 @@ RAIL = RailManifest(
                 ),
             ),
         ),
-        privacy=RailPrivacy(sends_tool_output_text=True, sends_tool_input_text=True),
+        privacy=RailPrivacy(sends_tool_call_text=True, sends_tool_result_text=True),
     ),
 )

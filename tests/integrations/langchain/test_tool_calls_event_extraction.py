@@ -50,7 +50,8 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
 
 
 @pytest.mark.asyncio
-async def test_tool_calls_preserved_when_rails_block():
+async def test_tool_calls_omitted_when_rails_block():
+    """Verify rejected provider calls are absent from the returned refusal."""
     test_tool_calls = [
         {
             "name": "dangerous_tool",
@@ -76,17 +77,21 @@ async def test_tool_calls_preserved_when_rails_block():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
     )
 
     class MockLLMWithDangerousTools:
+        """Return a tool call with unsafe arguments for the rail-rejection test."""
+
         def invoke(self, messages, **kwargs):
+            """Return the unsafe tool call synchronously."""
             return AIMessage(content="", tool_calls=test_tool_calls)
 
         async def ainvoke(self, messages, **kwargs):
+            """Return the same unsafe tool call through the asynchronous interface."""
             return self.invoke(messages, **kwargs)
 
     rails = RunnableRails(config, llm=MockLLMWithDangerousTools())
@@ -95,9 +100,7 @@ async def test_tool_calls_preserved_when_rails_block():
     rails.rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
     result = await rails.ainvoke(HumanMessage(content="Execute dangerous tool"))
 
-    assert result.tool_calls is not None, "tool_calls should be preserved in final response"
-    assert len(result.tool_calls) == 1
-    assert result.tool_calls[0]["name"] == "dangerous_tool"
+    assert result.tool_calls == []
     assert "cannot execute this tool request" in result.content
 
 
@@ -126,7 +129,7 @@ async def test_generation_action_pops_tool_calls_once():
         return None
 
     with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar",
+        "nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar",
         side_effect=mock_get_and_clear,
     ):
         chat = TestChat(config, llm_completions=[""])
@@ -218,7 +221,7 @@ async def test_complete_fix_integration():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
@@ -239,9 +242,7 @@ async def test_complete_fix_integration():
 
     assert "security concerns" in result.content
 
-    assert result.tool_calls is not None, "tool_calls preserved despite being blocked"
-    assert len(result.tool_calls) == 1
-    assert result.tool_calls[0]["name"] == "dangerous_function"
+    assert result.tool_calls == []
 
 
 @pytest.mark.asyncio
@@ -380,7 +381,7 @@ async def test_tool_calls_preserve_metadata():
 
 
 @pytest.mark.asyncio
-async def test_tool_output_rails_blocking_behavior():
+async def test_tool_call_rails_blocking_behavior():
     dangerous_tool_calls = [
         {
             "name": "dangerous_exec",
@@ -406,7 +407,7 @@ async def test_tool_output_rails_blocking_behavior():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
@@ -426,9 +427,7 @@ async def test_tool_output_rails_blocking_behavior():
     result = await rails.ainvoke(HumanMessage(content="Execute dangerous command"))
 
     assert "security reasons" in result.content
-    assert result.tool_calls is not None
-    assert result.tool_calls[0]["name"] == "dangerous_exec"
-    assert "rm -rf" in result.tool_calls[0]["args"]["command"]
+    assert result.tool_calls == []
 
 
 @pytest.mark.asyncio

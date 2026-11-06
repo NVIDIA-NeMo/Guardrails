@@ -14,6 +14,7 @@
 # limitations under the License.
 import json
 import os.path
+from typing import Any
 
 import pytest
 
@@ -26,6 +27,8 @@ from nemoguardrails.rails.llm.options import (
     GenerationLog,
     GenerationResponse,
     GenerationStats,
+    ToolViolation,
+    ToolViolationType,
 )
 from tests.utils import TestChat
 
@@ -488,7 +491,7 @@ def _dummy_activated_rails(durations: list[float | None]) -> list[ActivatedRail]
 def test_generation_log_print_summary_no_total_duration(capsys):
     """Missing total_duration must not crash, and activated rails still print."""
     generation_log = GenerationLog(
-        activated_rails=[ActivatedRail(type="tool_output", name="tool output check", duration=0.5)],
+        activated_rails=[ActivatedRail(type="tool_call", name="tool output check", duration=0.5)],
         stats=GenerationStats(),
     )
 
@@ -497,7 +500,7 @@ def test_generation_log_print_summary_no_total_duration(capsys):
 
     assert "No stats available" in lines
     assert "- Total time: 10.00s" not in lines
-    assert "- [0.50s] TOOL_OUTPUT (tool output check): 0 actions (n/a), 0 llm calls [n/a]" in lines
+    assert "- [0.50s] TOOL_CALL (tool output check): 0 actions (n/a), 0 llm calls [n/a]" in lines
 
 
 def test_generation_log_print_summary_zero_total_duration(capsys):
@@ -669,3 +672,32 @@ async def test_rails_options_combinations(input_opt, output_opt, dialog_opt, exp
 
     assert input_rails_ran == expect_input, f"Input rails: expected {expect_input}, got {rail_names}"
     assert output_rails_ran == expect_output, f"Output rails: expected {expect_output}, got {rail_names}"
+
+
+def test_tool_violation_stores_non_string_identity_as_none():
+    """A non-string call id or tool name is stored as None rather than failing to build the violation."""
+    non_string_id: Any = 5
+    non_string_name: Any = ["run_sql"]
+
+    violation = ToolViolation(
+        kind="tool_call",
+        violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+        reason="tool call is not an allowed tool",
+        tool_call_id=non_string_id,
+        tool_name=non_string_name,
+    )
+
+    assert (violation.tool_call_id, violation.tool_name) == (None, None)
+
+
+def test_tool_violation_caps_the_tool_name_but_keeps_the_call_id_whole():
+    """A tool name, which the model can make up, is cut to 64 characters; the call id stays whole as identity."""
+    violation = ToolViolation(
+        kind="tool_call",
+        violation_type=ToolViolationType.TOOL_NOT_ALLOWED,
+        reason="tool call is not an allowed tool",
+        tool_call_id="i" * 200,
+        tool_name="n" * 200,
+    )
+
+    assert (violation.tool_call_id, violation.tool_name) == ("i" * 200, "n" * 64 + "...")

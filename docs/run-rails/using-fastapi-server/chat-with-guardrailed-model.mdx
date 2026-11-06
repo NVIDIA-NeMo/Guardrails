@@ -278,6 +278,49 @@ for line in response.iter_lines():
         print(line.decode())
 ```
 
+## Tool Calling
+
+Send `tools`, `tool_choice`, and `parallel_tool_calls` at the top level of your
+request. Tool requests require a Colang 1.0 configuration without user-intent
+definitions (`user_messages`). Both LLMRails and IORails support this path;
+`passthrough: true` is not required. Unsupported configurations return HTTP 422.
+
+You can set `stream: true` for these requests. When the request includes a
+non-empty `tools` list, `tool_choice`, or `parallel_tool_calls`, the server waits
+for the complete answer and all enabled rail checks before sending any SSE.
+This includes text returned instead of, or alongside, tool calls. After approval,
+the server splits text and tool arguments into successive SSE deltas. These are
+fragments of the completed answer, not live model tokens. The server adds no
+artificial delay between fragments; clients or intermediaries may deliver them
+in batches.
+
+The response uses the OpenAI streaming format:
+
+- The first delta identifies the assistant role. Later deltas contain text or
+  indexed `tool_calls`. Each call identifies its ID, type, and function name once;
+  subsequent deltas carry fragments of its JSON argument string. Accumulate
+  argument fragments by tool index before parsing them.
+- A separate terminal choice has `finish_reason: "tool_calls"` when calls are
+  returned, or `"stop"` for a textual answer or refusal.
+- `[DONE]` ends the response.
+
+The selected engine applies the same configured rails as a non-streaming request.
+Text output rails do not substitute for tool-call rails. A blocked call is omitted
+from the response; a generation or rail failure returns the usual HTTP error
+before SSE begins. Invalid provider responses, including malformed tool arguments,
+return HTTP 502. This status does not disable client retries.
+This path does not require output-rail streaming to be enabled.
+
+After receiving the complete response, execute approved calls in your application
+and send their results as `role: tool` messages with matching `tool_call_id`
+values. Include the assistant tool-call message in the next request's history,
+or use `guardrails.thread_id` to retain it on the server. Continue supplying the
+tool parameters on subsequent streaming requests to use delayed, checked delivery.
+
+Requests without these tool parameters retain the existing incremental streaming
+behavior. For rail configuration and engine differences, see
+[Tools Integration](/integration-with-third-party-libraries/tools-integration).
+
 ## Conversation Threads
 
 Use `thread_id` inside the `guardrails` object to maintain conversation history on the server.
@@ -341,7 +384,7 @@ To use `RedisStore`, install `aioredis >= 2.0.1`.
 
 ### Thread Limitations
 
-- Threads are not supported in streaming mode.
+- Incremental text streams do not save the generated response to thread history. Delayed tool streams save it through the same path as non-streaming requests.
 - Threads are stored indefinitely with no automatic cleanup.
 
 ## Add Context
@@ -388,7 +431,7 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
 
 ### Standard OpenAI Parameters
 
-You can also pass standard OpenAI parameters such as `temperature`, `max_tokens`, `top_p`, `stop`, `presence_penalty`, and `frequency_penalty` at the top level:
+You can also pass standard OpenAI parameters such as `temperature`, `max_tokens`, `max_completion_tokens`, `top_p`, `stop`, `presence_penalty`, and `frequency_penalty` at the top level:
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
@@ -401,6 +444,10 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
     }
 })
 ```
+
+Use `max_completion_tokens` to set a completion-token budget, including reasoning tokens, when your provider supports it.
+Both LLMRails and IORails forward this parameter for streaming and non-streaming requests.
+A non-null top-level value overrides the same parameter in `guardrails.options.llm_params`.
 
 For complete details on generation options, see [Create Chat Completion](api:POST/v1/chat/completions).
 

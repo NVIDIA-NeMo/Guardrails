@@ -28,6 +28,9 @@ import { createFernRefSdkEnvironment } from "../fern-ref-sdk-environment.mjs";
 
 const libraryName = "guardrails-python-sdk";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const historicalImagePage = "docs/configure-rails/guardrail-catalog/self-check.mdx";
+const historicalImages = '![Sequence (step 1)](../../_static/puml/dialog_rails_flow.png "Sequence (step 1)")\n![Other](../../_static/puml/other.png "Useful title")\n';
+const normalizedHistoricalImages = '![Sequence (step 1)](../../_static/puml/dialog_rails_flow.png)\n![Other](../../_static/puml/other.png "Useful title")\n';
 const generatorInputPaths = [
   "package.json",
   "package-lock.json",
@@ -124,50 +127,108 @@ test("SDK output must stay inside the historical worktree", (t) => {
   assert.throws(() => assertInsideWorktree(path.resolve(root, "..", "outside"), root), /must stay inside/);
 });
 
-test("cache helper restores a reference through its command entrypoint", (t) => {
-  const root = temporaryDirectory(t);
-  const repoRoot = path.join(root, "repo-root");
-  const worktreeRoot = path.join(root, "historical-worktree");
-  const cacheRoot = path.join(root, "cache");
-  const sdkInputCommit = "c".repeat(40);
-  const fernVersion = "5.91.0";
+for (const generatedOpenapi of [false, true]) {
+  test(`cache helper restores SDK references with ${generatedOpenapi ? "build-time" : "legacy"} OpenAPI`, (t) => {
+    const root = temporaryDirectory(t);
+    const repoRoot = path.join(root, "repo-root");
+    const worktreeRoot = path.join(root, "historical-worktree");
+    const cacheRoot = path.join(root, "cache");
+    const sdkInputCommit = "c".repeat(40);
+    const fernVersion = "5.91.0";
 
-  for (const inputPath of generatorInputPaths) {
-    writeFile(repoRoot, inputPath, inputPath);
+    for (const inputPath of generatorInputPaths) {
+      writeFile(repoRoot, inputPath, inputPath);
+    }
+    writeFile(
+      worktreeRoot,
+      "fern/docs.yml",
+      `libraries:\n  ${libraryName}:\n    input:\n      git: https://example.com/repo.git\n      ref: ${sdkInputCommit}\n    output:\n      path: ../docs/_static/python-sdk-reference\n`,
+    );
+    writeFile(worktreeRoot, "fern/fern.config.json", `${JSON.stringify({ version: fernVersion })}\n`);
+    writeFile(worktreeRoot, historicalImagePage, historicalImages);
+    if (generatedOpenapi) {
+      writeFile(worktreeRoot, "scripts/export_openapi.py", "# exporter supplied by this snapshot\n");
+      writeFile(worktreeRoot, "scripts/export_hooks_openapi.py", "# exporter supplied by this snapshot\n");
+      writeFile(worktreeRoot, "scripts/export_proxy_openapi.py", "# exporter supplied by this snapshot\n");
+    } else {
+      writeFile(worktreeRoot, "fern/openapi.yml", "legacy\n");
+    }
+    initializeGitRepository(worktreeRoot);
+    const snapshotCommit = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: worktreeRoot,
+      encoding: "utf8",
+    }).trim();
+    const fingerprint = computeGeneratorFingerprint(repoRoot);
+    const cacheDirectory = path.join(
+      cacheRoot,
+      "v2",
+      fingerprint,
+      fernVersion,
+      snapshotCommit,
+      sdkInputCommit,
+      libraryName,
+    );
+    createCompleteReference(cacheDirectory, "restored");
+
+    writeFile(root, "bin/uv", `#!${process.execPath}
+  const assert = require("node:assert/strict");
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const args = process.argv.slice(2);
+  assert.deepEqual(args.slice(0, 5), ["run", "--locked", "--extra", "server", "python"]);
+  const spec = {
+    "scripts/export_openapi.py": "openapi",
+    "scripts/export_hooks_openapi.py": "hooks-openapi",
+    "scripts/export_proxy_openapi.py": "proxy-openapi",
+  }[args[5]];
+  assert.ok(spec);
+  assert.equal(process.env.FERN_TOKEN, undefined);
+  assert.equal(process.env.DOCS_FERN_TOKEN, undefined);
+  assert.equal(process.env.FERN_REF_SDK_HOOK, "0");
+  assert.equal(fs.realpathSync(path.dirname(process.env.UV_PROJECT_ENVIRONMENT)), process.cwd());
+  fs.writeFileSync("fern/" + spec + ".yml", "generated from snapshot\\n");
+  if (spec === "hooks-openapi") {
+    fs.mkdirSync("docs/reference/hooks-server-api/_generated", { recursive: true });
+    fs.writeFileSync("docs/reference/hooks-server-api/_generated/get-health.mdx", "generated from snapshot\\n");
   }
-  writeFile(
-    worktreeRoot,
-    "fern/docs.yml",
-    `libraries:\n  ${libraryName}:\n    input:\n      git: https://example.com/repo.git\n      ref: ${sdkInputCommit}\n    output:\n      path: ../docs/_static/python-sdk-reference\n`,
-  );
-  writeFile(worktreeRoot, "fern/fern.config.json", `${JSON.stringify({ version: fernVersion })}\n`);
-  initializeGitRepository(worktreeRoot);
-  const snapshotCommit = execFileSync("git", ["rev-parse", "HEAD"], {
-    cwd: worktreeRoot,
-    encoding: "utf8",
-  }).trim();
-  const fingerprint = computeGeneratorFingerprint(repoRoot);
-  const cacheDirectory = path.join(
-    cacheRoot,
-    "v2",
-    fingerprint,
-    fernVersion,
-    snapshotCommit,
-    sdkInputCommit,
-    libraryName,
-  );
-  createCompleteReference(cacheDirectory, "restored");
+  if (spec === "proxy-openapi") {
+    fs.mkdirSync("fern/proxy-guard-contracts", { recursive: true });
+    for (const slug of ["chat-completions", "responses"]) {
+      fs.writeFileSync("fern/proxy-guard-contracts/" + slug + ".mdx", "generated from snapshot\\n");
+    }
+  }
+  `);
+    chmodSync(path.join(root, "bin/uv"), 0o755);
 
-  main([worktreeRoot, snapshotCommit], {
-    FERN_REF_SDK_CACHE_ROOT: cacheRoot,
-    FERN_REF_SDK_REPO_ROOT: repoRoot,
-    FERN_REF_SDK_VERSION: fernVersion,
+    main([worktreeRoot, snapshotCommit], {
+      FERN_REF_SDK_CACHE_ROOT: cacheRoot,
+      FERN_REF_SDK_REPO_ROOT: repoRoot,
+      FERN_REF_SDK_VERSION: fernVersion,
+      PATH: `${path.join(root, "bin")}${path.delimiter}${process.env.PATH}`,
+      FERN_TOKEN: "test-publishing-credential",
+      DOCS_FERN_TOKEN: "test-publishing-credential",
+    });
+
+    const outputRoot = path.join(worktreeRoot, "docs/_static/python-sdk-reference");
+    assert.equal(isCompleteReference(outputRoot), true);
+    assert.equal(readFileSync(path.join(outputRoot, libraryName, "page-0.mdx"), "utf8"), "restored-0");
+    assert.equal(readFileSync(path.join(worktreeRoot, "fern/openapi.yml"), "utf8"),
+      generatedOpenapi ? "generated from snapshot\n" : "legacy\n");
+    if (generatedOpenapi) {
+      assert.equal(readFileSync(path.join(worktreeRoot, "fern/hooks-openapi.yml"), "utf8"), "generated from snapshot\n");
+      assert.equal(readFileSync(path.join(worktreeRoot, "docs/reference/hooks-server-api/_generated/get-health.mdx"), "utf8"), "generated from snapshot\n");
+    }
+    assert.equal(existsSync(path.join(worktreeRoot, "fern/proxy-openapi.yml")), generatedOpenapi);
+    for (const slug of ["chat-completions", "responses"]) {
+      assert.equal(existsSync(path.join(worktreeRoot, "fern/proxy-guard-contracts", `${slug}.mdx`)), generatedOpenapi);
+    }
+    assert.equal(readFileSync(path.join(worktreeRoot, historicalImagePage), "utf8"), normalizedHistoricalImages);
+    assert.equal(execFileSync("git", ["show", `${snapshotCommit}:${historicalImagePage}`], {
+      cwd: worktreeRoot,
+      encoding: "utf8",
+    }), historicalImages);
   });
-
-  const outputRoot = path.join(worktreeRoot, "docs/_static/python-sdk-reference");
-  assert.equal(isCompleteReference(outputRoot), true);
-  assert.equal(readFileSync(path.join(outputRoot, libraryName, "page-0.mdx"), "utf8"), "restored-0");
-});
+}
 
 test("invalid Git configuration is rejected before Fern starts", (t) => {
   const root = temporaryDirectory(t);
@@ -175,6 +236,55 @@ test("invalid Git configuration is rejected before Fern starts", (t) => {
     () => createFernRefSdkEnvironment(root, { GIT_CONFIG_COUNT: "invalid" }),
     /Invalid GIT_CONFIG_COUNT: invalid/,
   );
+});
+
+test("cold historical generation resets the parent Fern working directory and redirect guard", (t) => {
+  const root = temporaryDirectory(t);
+  const repoRoot = path.join(root, "parent");
+  const worktreeRoot = path.join(root, "snapshot");
+  for (const input of generatorInputPaths) writeFile(repoRoot, input, input);
+  writeFile(repoRoot, "scripts/normalize-fern-sdk-reference.mjs", `
+import assert from "node:assert/strict";
+import fs from "node:fs";
+assert.ok(fs.existsSync(process.env.FERN_SDK_REFERENCE_ROOT));
+`);
+  writeFile(worktreeRoot, "fern/docs.yml", `libraries:
+  ${libraryName}:
+    input:
+      git: https://example.com/repo.git
+      ref: ${"c".repeat(40)}
+    output:
+      path: ../docs/_static/python-sdk-reference
+`);
+  const originalConfig = '{"version":"5.91.0"}\n';
+  writeFile(worktreeRoot, "fern/fern.config.json", originalConfig);
+  writeFile(worktreeRoot, historicalImagePage, historicalImages);
+  initializeGitRepository(worktreeRoot);
+  const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: worktreeRoot, encoding: "utf8" }).trim();
+  writeFile(root, "bin/npx", `#!${process.execPath}
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+assert.equal(fs.readFileSync(path.join("..", ${JSON.stringify(historicalImagePage)}), "utf8"), ${JSON.stringify(normalizedHistoricalImages)});
+assert.equal(fs.realpathSync(process.env.FERN_CWD), process.cwd());
+assert.equal(process.env.FERN_NO_VERSION_REDIRECTION, undefined);
+assert.equal(process.env.FERN_REF_SDK_HOOK, "0");
+const output = path.resolve("../docs/_static/python-sdk-reference");
+fs.mkdirSync(path.join(output, "${libraryName}"), {recursive: true});
+fs.writeFileSync(path.join(output, "_navigation.yml"), "navigation: []\\n");
+for (let i = 0; i < 10; i++) fs.writeFileSync(path.join(output, "${libraryName}", i + ".mdx"), "page\\n");
+`);
+  chmodSync(path.join(root, "bin/npx"), 0o755);
+  main([worktreeRoot, commit], {
+    FERN_REF_SDK_REPO_ROOT: repoRoot,
+    FERN_REF_SDK_CACHE_ROOT: path.join(root, "cache"),
+    FERN_REF_SDK_VERSION: "5.123.0",
+    FERN_CWD: path.join(repoRoot, "fern"),
+    FERN_NO_VERSION_REDIRECTION: "true",
+    PATH: `${path.join(root, "bin")}${path.delimiter}${process.env.PATH}`,
+  });
+  assert.ok(isCompleteReference(path.join(worktreeRoot, "docs/_static/python-sdk-reference")));
+  assert.equal(readFileSync(path.join(worktreeRoot, "fern/fern.config.json"), "utf8"), originalConfig);
 });
 
 test("preview watcher reports invalid Git configuration without crashing", async (t) => {
@@ -207,6 +317,53 @@ test("preview watcher reports invalid Git configuration without crashing", async
   assert.doesNotMatch(errorOutput, /\+0/);
   assert.equal(child.exitCode, null);
 
+  child.kill("SIGTERM");
+  await once(child, "exit");
+});
+
+test("preview watcher regenerates on source changes and ignores generated reference artifacts", async (t) => {
+  const root = temporaryDirectory(t);
+  for (const script of ["watch-fern-preview.mjs", "fern-ref-sdk-environment.mjs"]) {
+    writeFile(root, `scripts/${script}`, readFileSync(path.join(repoRoot, "scripts", script), "utf8"));
+  }
+  writeFile(root, "fern/fern.config.json", '{"version":"5.123.0"}\n');
+  writeFile(root, "docs/index.yml", "navigation: []\n");
+  writeFile(root, "docs/reference/hooks-server-api/_generated/get-health.mdx", "stale\n");
+  writeFile(root, "nemoguardrails/api.py", "original\n");
+  writeFile(root, "pyproject.toml", "");
+  writeFile(root, "uv.lock", "");
+  writeFile(root, "bin/git", "#!/bin/sh\nprintf '%s\\n' 'test-preview-branch'\n");
+  writeFile(root, "bin/make", `#!${process.execPath}
+const fs = require("node:fs");
+require("node:assert/strict").deepEqual(process.argv.slice(2), ["docs-fern-generate-references"]);
+fs.appendFileSync("events", "generate\\n");
+fs.writeFileSync("fern/openapi.yml", "generated\\n");
+fs.writeFileSync("fern/hooks-openapi.yml", "generated\\n");
+fs.mkdirSync("docs/reference/hooks-server-api/_generated", { recursive: true });
+fs.writeFileSync("docs/reference/hooks-server-api/_generated/get-health.mdx", "generated\\n");
+fs.writeFileSync("fern/proxy-openapi.yml", "generated\\n");
+fs.mkdirSync("fern/proxy-guard-contracts", { recursive: true });
+fs.writeFileSync("fern/proxy-guard-contracts/responses.mdx", "generated\\n");
+`);
+  writeFile(root, "bin/npx", `#!${process.execPath}
+require("node:fs").appendFileSync("../events", "publish\\n");
+`);
+  for (const name of ["git", "make", "npx"]) {
+    chmodSync(path.join(root, "bin", name), 0o755);
+  }
+  const child = spawn(process.execPath, [path.join(root, "scripts/watch-fern-preview.mjs")], {
+    cwd: root,
+    env: { ...process.env, PATH: `${path.join(root, "bin")}${path.delimiter}${process.env.PATH}` },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  t.after(() => {
+    if (child.exitCode === null) child.kill("SIGTERM");
+  });
+  await waitForOutput(child, "Fern preview generation completed.");
+  writeFile(root, "nemoguardrails/api.py", "changed\n");
+  await waitForOutput(child, "Fern preview generation completed.");
+  await new Promise((resolve) => setTimeout(resolve, 1_000));
+  assert.equal(readFileSync(path.join(root, "events"), "utf8"), "generate\npublish\ngenerate\npublish\n");
   child.kill("SIGTERM");
   await once(child, "exit");
 });

@@ -17,9 +17,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.rails.llm.options import RailType
 from tests.recorded.rails.helpers import async_chunks, build_rails
-from tests.recorded.rails_config import RailsConfigSource
+from tests.recorded.rails_config import RailsConfigSource, load_config
 from tests.utils import FakeLLMModel
 
 
@@ -31,6 +32,19 @@ async def check_rails(
 ):
     rails = build_rails(config)
     return await rails.check_async(messages, rail_types=list(rail_types) if rail_types is not None else None)
+
+
+async def check_iorails(config: RailsConfigSource, messages: list[dict], rail_types: tuple[RailType, ...]):
+    """Run rails through Guardrails, asserting IORails is the engine that served them.
+
+    Entered as a context manager so shutdown closes the engine's aiohttp session. Left open,
+    the session is closed by ``__del__`` instead, which logs an error through the asyncio
+    exception handler at whatever moment the collector runs -- landing in an unrelated test's
+    log capture and failing it.
+    """
+    async with Guardrails(load_config(config)) as guardrails:
+        assert guardrails.use_iorails_engine, f"{config.name!r} routed to LLMRails, so this test proves nothing"
+        return await guardrails.check_async(messages, rail_types=list(rail_types))
 
 
 async def generate_with_fake_main(

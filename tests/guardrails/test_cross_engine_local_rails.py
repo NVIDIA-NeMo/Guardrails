@@ -32,6 +32,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.compiled_rail import RailCompilationError, RailDependencies, compile_rail
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
@@ -145,6 +146,50 @@ class TestLocalRailsAgreeAcrossEngines:
         assert IORails.unsupported_reason(config, llm=None) is None
 
 
+@pytest.mark.asyncio
+async def test_iorails_returns_custom_language_detector_refusal():
+    """A compiled language detector rail's configured refusal reaches IORails callers."""
+    custom_refusal = "Solo inglés, por favor."
+    config_dict = _local_config(
+        LocalRail(
+            rail_id="language_detector_input",
+            flow="language detector check input",
+            direction="input",
+            rails_config={
+                "language_detector": {
+                    "allowed_languages": ["en"],
+                    "refusal_messages": {"es": custom_refusal},
+                }
+            },
+        )
+    )
+
+    config = RailsConfig.from_content(config=config_dict)
+    with patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"}):
+        guardrails = Guardrails(config, use_iorails=True, require_iorails=True)
+        with patch("nemoguardrails.library.language_detector.actions.detect_language", return_value="es"):
+            async with guardrails:
+                iorails = guardrails.rails_engine
+                assert isinstance(iorails, IORails)
+                main = iorails.engine_registry._engines["main"]
+                assert isinstance(main, ModelEngine)
+                main.chat_completion = AsyncMock(return_value=LLMResponse(content="unused"))
+                response = await guardrails.generate_async(messages=[{"role": "user", "content": "Hola"}])
+
+    assert isinstance(response, dict)
+    assert response["content"] == custom_refusal
+
+
+def test_missing_fast_langdetect():
+    with patch("nemoguardrails.guardrails.compiled_rail._is_installed", return_value=False):
+        with pytest.raises(RailCompilationError, match="fast-langdetect.*'multilingual' extra"):
+            compile_rail(
+                "language detector check input",
+                SurfaceDirection.INPUT,
+                RailDependencies(llms={"main": None}, llm_task_manager=None, config=None),
+            )
+
+
 SENSITIVE_DATA_CONFIG = {"sensitive_data_detection": {"input": {"entities": ["PERSON"]}}}
 
 
@@ -195,6 +240,57 @@ class TestARailWhoseDependencyIsMissing:
 SQL_OUTPUT = "This is a SELECT * FROM users; -- malicious comment in text"
 SANITIZED_OUTPUT = "This is a  * FROM usersmalicious comment in text"
 INJECTION_OMIT_CONFIG = {"injection_detection": {"injections": ["sqli"], "action": "omit"}}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("partial_removal", [False, True])
+async def test_iorails_removes_full_injection_ranges(partial_removal):
+    """Truncated match data still produces complete rewrites through IORails."""
+    text = "<script>/*" + "a" * 501 + "é" + "*/alert(1)</script>"
+    if partial_removal:
+        text = "<script>alert(2)</script> " + text
+    config_dict = _local_config(
+        LocalRail(
+            rail_id="injection_detection_omit",
+            flow="injection detection",
+            direction="output",
+            rails_config={"injection_detection": {"injections": ["xss"], "action": "omit"}},
+        )
+    )
+    with patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=config_dict))
+
+    async with iorails:
+        result = await iorails.check_async(
+            [{"role": "user", "content": BENIGN_INPUT}, {"role": "assistant", "content": text}],
+            rail_types=[RailType.OUTPUT],
+        )
+
+    expected = " " if partial_removal else ""
+    assert result.status == RailStatus.MODIFIED
+    assert result.content == expected
+    assert await _iorails_reply(config_dict, BENIGN_INPUT, text) == expected
+
+
+@pytest.mark.asyncio
+async def test_iorails_blocks_injection_without_removable_ranges():
+    config_dict = _local_config(
+        LocalRail(
+            rail_id="injection_detection_omit",
+            flow="injection detection",
+            direction="output",
+            rails_config={
+                "injection_detection": {
+                    "injections": ["test"],
+                    "action": "omit",
+                    "yara_rules": {"test": "rule test { condition: true }"},
+                }
+            },
+        )
+    )
+
+    assert await _iorails_reply(config_dict, BENIGN_INPUT, "no removable ranges") == REFUSAL_MESSAGE
+
 
 BLOAT_LIMIT = 40
 BLOATED_INPUT = "tell me about guardrails and every option they support, at length, in detail"

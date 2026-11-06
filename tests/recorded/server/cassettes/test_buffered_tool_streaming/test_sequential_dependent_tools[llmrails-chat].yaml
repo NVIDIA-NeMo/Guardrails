@@ -1,0 +1,329 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: system
+        content: Use the supplied tool results to answer the user. Quote requested results exactly.
+      - role: user
+        content: Look up a token, use that exact token to look up weather, then quote both results.
+      tools:
+      - type: function
+        function:
+          name: lookup_token
+          parameters:
+            type: object
+            properties: {}
+            additionalProperties: false
+      - type: function
+        function:
+          name: lookup_weather
+          parameters:
+            type: object
+            properties:
+              token: '[REDACTED]'
+            required:
+            - token
+            additionalProperties: false
+      tool_choice:
+        type: function
+        function:
+          name: lookup_token
+      parallel_tool_calls: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: null
+            tool_calls:
+            - id: call_gsi7nAhOOxn4erzcpRRNVuyk
+              type: function
+              function:
+                name: lookup_token
+                arguments: '{}'
+            refusal: null
+            annotations: []
+          finish_reason: tool_calls
+        usage:
+          prompt_tokens: 162
+          completion_tokens: 13
+          total_tokens: 175
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: system
+        content: Use the supplied tool results to answer the user. Quote requested results exactly.
+      - role: user
+        content: Look up a token, use that exact token to look up weather, then quote both results.
+      - role: assistant
+        tool_calls:
+        - id: call_gsi7nAhOOxn4erzcpRRNVuyk
+          type: function
+          function:
+            name: lookup_token
+            arguments: '{}'
+      - role: tool
+        content: DEP-6912
+        tool_call_id: call_gsi7nAhOOxn4erzcpRRNVuyk
+      tools:
+      - type: function
+        function:
+          name: lookup_token
+          parameters:
+            type: object
+            properties: {}
+            additionalProperties: false
+      - type: function
+        function:
+          name: lookup_weather
+          parameters:
+            type: object
+            properties:
+              token: '[REDACTED]'
+            required:
+            - token
+            additionalProperties: false
+      tool_choice:
+        type: function
+        function:
+          name: lookup_weather
+      parallel_tool_calls: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: null
+            tool_calls:
+            - id: call_3zPGx9rqXLV0KW3eDbiwBvl1
+              type: function
+              function:
+                name: lookup_weather
+                arguments: '{"token":"DEP-6912"}'
+            refusal: null
+            annotations: []
+          finish_reason: tool_calls
+        usage:
+          prompt_tokens: 190
+          completion_tokens: 20
+          total_tokens: 210
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: system
+        content: Use the supplied tool results to answer the user. Quote requested results exactly.
+      - role: user
+        content: Look up a token, use that exact token to look up weather, then quote both results.
+      - role: assistant
+        tool_calls:
+        - id: call_gsi7nAhOOxn4erzcpRRNVuyk
+          type: function
+          function:
+            name: lookup_token
+            arguments: '{}'
+      - role: tool
+        content: DEP-6912
+        tool_call_id: call_gsi7nAhOOxn4erzcpRRNVuyk
+      - role: assistant
+        tool_calls:
+        - id: call_3zPGx9rqXLV0KW3eDbiwBvl1
+          type: function
+          function:
+            name: lookup_weather
+            arguments: '{"token": "DEP-6912"}'
+      - role: tool
+        content: 'WX-4827: sunny'
+        tool_call_id: call_3zPGx9rqXLV0KW3eDbiwBvl1
+      tools:
+      - type: function
+        function:
+          name: lookup_token
+          parameters:
+            type: object
+            properties: {}
+            additionalProperties: false
+      - type: function
+        function:
+          name: lookup_weather
+          parameters:
+            type: object
+            properties:
+              token: '[REDACTED]'
+            required:
+            - token
+            additionalProperties: false
+      tool_choice: auto
+      parallel_tool_calls: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: |-
+              Token result: **"DEP-6912"**
+
+              Weather result: **"WX-4827: sunny"**
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 227
+          completion_tokens: 27
+          total_tokens: 254
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null

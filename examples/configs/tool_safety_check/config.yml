@@ -8,13 +8,13 @@ models:
     model: meta/llama-guard-3-8b
 
 rails:
-  tool_output:
+  tool_call:
     flows:
       - tool call validation
     per_tool:
-      run_sql: ["tool safety check output $model=llama_guard $variant=run_sql_check $argument=query"]
-  tool_input:
+      run_sql: ["tool safety check tool call $model=llama_guard $variant=run_sql_check $argument=query"]
+  tool_result:
     flows:
       - tool result validation
     per_tool:
-      run_sql: ["tool safety check input $model=llama_guard $variant=run_sql_check"]
+      run_sql: ["tool safety check tool result $model=llama_guard $variant=run_sql_check"]

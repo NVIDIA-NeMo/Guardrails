@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NVIDIA NeMo Guardrails Plugin for NeMo Relay",
+  "description": "Configures the NVIDIA NeMo Guardrails plugin, a client of the NeMo Guardrails service: a hooks server, started with nemoguardrails hooks-server, whose /v1/hooks/nemo-relay endpoint checks tool calls. The rails are configured in the service, not here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["endpoint"],
+  "properties": {
+    "endpoint": {
+      "type": "string",
+      "description": "Base URL of the NeMo Guardrails service (its hooks server), using http or https, such as http://127.0.0.1:8100. It must not contain a username or password: send credentials in headers. The plugin rather than this schema checks the URL, because a schema error would quote it."
+    },
+    "headers": {
+      "default": {},
+      "description": "Headers sent with every call to the service, as an object of header names and string values, for a proxy or gateway in front of it, such as authorization. Values are treated as sensitive, so the plugin rather than this schema checks them: a schema error would quote the value. Headers the plugin's HTTP client controls, such as content-type and content-length, are rejected."
+    },
+    "timeout_millis": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 25000,
+      "description": "Time limit for one call to the service, in milliseconds. Keep it under the host's hook limit: 30 seconds for Claude Code and Codex hooks, 5 seconds by default for pi."
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647,
+      "default": 0,
+      "description": "NeMo Relay tool conditional-execution guardrail priority. Lower values run earlier."
+    },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional NeMo Relay SDK executor override.",
+      "properties": {
+        "worker_threads": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of worker threads for the plugin's SDK-owned executor."
+        }
+      }
+    }
+  }
+}

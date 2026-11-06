@@ -22,6 +22,7 @@ import json
 import pytest
 
 from nemoguardrails.http import HTTPConnectionError, HTTPResponse, HTTPTimeoutError
+from nemoguardrails.library.jailbreak_detection.model_based.errors import JailbreakInputTooLongError
 from nemoguardrails.library.jailbreak_detection.request import (
     jailbreak_detection_heuristics_request,
     jailbreak_detection_model_request,
@@ -50,6 +51,24 @@ def _response(payload=None, *, status: int = 200, content: bytes | None = None) 
 )
 def test_join_nim_url(base_url, classification_path, expected):
     assert join_nim_url(base_url, classification_path) == expected
+
+
+@pytest.mark.parametrize("backend", ["model", "nim"])
+@pytest.mark.asyncio
+async def test_jailbreak_model_request_rejects_oversized_input(backend):
+    client = RecordingHTTPClient([_response(status=413, content=b"untrusted response body")])
+
+    with pytest.raises(JailbreakInputTooLongError, match="input limit"):
+        if backend == "model":
+            await jailbreak_detection_model_request(prompt="long input", http_client=client)
+        else:
+            await jailbreak_nim_request(
+                prompt="long input",
+                nim_url="https://nim.example",
+                nim_auth_token=None,
+                nim_classification_path="classify",
+                http_client=client,
+            )
 
 
 @pytest.mark.parametrize(

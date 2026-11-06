@@ -28,6 +28,8 @@ Options:
 Commands:
   chat             Start an interactive chat session.
   server           Start a NeMo Guardrails server.
+  hooks-server     Start a NeMo Guardrails hooks server, which checks
+                   agents' tool calls before they run.
   convert          Convert Colang files and configs from older version to
                    the latest.
   actions-server   Start a NeMo Guardrails actions server.
@@ -96,6 +98,29 @@ nemoguardrails server --config examples/configs --port 8000
 | `--metrics-exporter` | Expose the IORails non-streaming admission-queue metrics (`guardrails.nonstream.*`) on a scrape endpoint. Supported values: `prometheus` and `none`. Use `none` to disable export. Overrides `NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER`. Default: `none`. |
 | `--metrics-host` | Interface for the Prometheus scrape endpoint. Overrides `NEMO_GUARDRAILS_SERVER_METRICS_HOST`. Default: `0.0.0.0`. |
 | `--metrics-port` | Port for the Prometheus scrape endpoint. Overrides `NEMO_GUARDRAILS_SERVER_METRICS_PORT`. Default: `9464`. |
+
+---
+
+## `hooks-server`
+
+Start the Guardrails hooks server, which checks coding agents' tool calls from their pre-tool hooks.
+It is a separate server from `server`, with its own endpoints and defaults.
+For details, refer to [Run the Hooks Server](/run-guardrailed-inference/using-hooks-server/run-hooks-server).
+
+```bash
+nemoguardrails hooks-server --config examples/configs/agent_hooks/claude_code --port 8100
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--config` | Path to the configuration directory or file. Required, exactly once. |
+| `--host` | The interface to listen on. Default: `127.0.0.1`. The server has no authentication, so the default is loopback only. |
+| `--port` | The port the server listens on. Default: `8100`. |
+| `--metrics-exporter` | Expose the IORails non-streaming admission-queue metrics (`guardrails.nonstream.*`) on a scrape endpoint. Supported values: `prometheus` and `none`. Overrides `NEMO_GUARDRAILS_SERVER_METRICS_EXPORTER`. Default: `none`. |
+| `--metrics-host` | Interface for the Prometheus scrape endpoint. Overrides `NEMO_GUARDRAILS_SERVER_METRICS_HOST`. Default: `127.0.0.1`. |
+| `--metrics-port` | Port for the Prometheus scrape endpoint. Overrides `NEMO_GUARDRAILS_SERVER_METRICS_PORT`. Default: `9465`. |
 
 ---
 

@@ -1,0 +1,195 @@
+---
+title: "Check Claude Code Tool Calls with the Hooks Server"
+sidebar-title: "Claude Code"
+description: "Connect Claude Code to the Guardrails hooks server with an HTTP PreToolUse hook, so every tool call is checked before it runs."
+keywords: ["Claude Code hooks", "PreToolUse", "http hook", "onFailure", "nemoguardrails hooks-server", "/v1/hooks/claude-code", "managed settings", "Claude Code guardrails"]
+content:
+  type: "how_to"
+---
+
+Claude Code runs a `PreToolUse` hook before each tool call.
+An HTTP hook sends the call to the Guardrails hooks server (`nemoguardrails hooks-server`) at `/v1/hooks/claude-code`, and Claude Code acts on the answer.
+When the hooks server denies a call, Claude Code cancels it and shows the reason to Claude.
+
+## Prerequisites
+
+Before you configure the hook, meet the following prerequisites:
+
+- Claude Code 2.1.295 or later, the first release with `onFailure: "block"`, which makes a failed check block the call.
+- A running hooks server.
+  To start one with the [Claude Code example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/claude_code), run the following command from a clone of the repository:
+
+    ```bash
+    nemoguardrails hooks-server --config examples/configs/agent_hooks/claude_code
+    ```
+
+    To write your own configuration, refer to [Run the Hooks Server: Write a Hooks Configuration](/run-guardrailed-inference/using-hooks-server/run-hooks-server#write-a-hooks-configuration).
+
+## Add the Hook
+
+Add an `http` hook on `PreToolUse` to a Claude Code settings file:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://localhost:8100/v1/hooks/claude-code",
+            "timeout": 30,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The hook settings have the following effects:
+
+- The hook has no `matcher`, so Claude Code runs it for every tool.
+- `onFailure: "block"` blocks the call when the hook fails: an error status from the hooks server, a refused connection, or no answer within `timeout`.
+  Without it, Claude Code treats a failure as a non-blocking error and runs the tool.
+- `timeout` is in seconds.
+  Without it, Claude Code waits up to 600 seconds.
+  Set it to how long your slowest rail can take: a rail that calls a model, such as a tool safety check, takes longer than a regular expression.
+
+If the hooks server runs on another port, for example because you [run one server for each agent](/run-guardrailed-inference/using-hooks-server/run-hooks-server#one-server-for-each-agent), change the port in `url`.
+
+Choose the settings file by who the hook should cover:
+
+| Settings File | Applies To |
+|---|---|
+| `~/.claude/settings.json` | You, in every project |
+| `.claude/settings.json` in a project | Everyone who works in the project, through version control |
+| `.claude/settings.local.json` in a project | You, in that project |
+| Managed settings | Every user on the machine. Refer to [Deploy the Hook with Managed Settings](#deploy-the-hook-with-managed-settings). |
+
+Claude Code watches its settings files and applies hook changes to a running session.
+Type `/hooks` in Claude Code to list the hooks it has loaded.
+
+### Allow the Hook URL
+
+When any settings file, including managed settings, defines `allowedHttpHookUrls`, Claude Code runs an HTTP hook only if its URL matches one of the patterns.
+If your organization sets it, add the hooks server's URL:
+
+```json
+{
+  "allowedHttpHookUrls": ["http://localhost:8100/*"]
+}
+```
+
+Otherwise Claude Code does not run the hook, and no tool call reaches the hooks server.
+
+## Deploy the Hook with Managed Settings
+
+Anyone who can edit a user's or a project's settings can remove the hook, point it at another server, or drop `onFailure: "block"`.
+To enforce the hook for every user, add it to Claude Code's managed settings, such as `managed-settings.json`:
+
+- Settings in other files cannot remove a managed hook, and a user's `disableAllHooks` cannot turn it off.
+- `"allowManagedHooksOnly": true` in managed settings stops every hook that does not come from managed settings.
+
+For file locations and deployment through mobile device management (MDM) or server-managed settings, refer to [managed settings](https://code.claude.com/docs/en/managed-settings) in the Claude Code documentation.
+
+## Verify the Hook
+
+1. In Claude Code, type `/hooks` and check that the `PreToolUse` HTTP hook is listed.
+1. Ask Claude to run `echo 'rm -rf /tmp/guardrails-hook-check'`.
+   The example configuration blocks the command because its text matches the `rm -rf` pattern.
+   If the hook is missing or misconfigured, the command only prints text.
+   Claude Code cancels the call, and Claude reports the reason, `NeMo Guardrails: regex check tool call`.
+1. Stop the hooks server and ask Claude to run any command.
+   With `onFailure: "block"`, Claude Code blocks the call because the hook fails.
+1. Start the hooks server again.
+
+The hooks server [logs one line for each tool call it checks](/run-guardrailed-inference/using-hooks-server/run-hooks-server#logs), so you can follow the checks in its output.
+
+## What Claude Code Does with Each Outcome
+
+Claude Code handles each hooks server response as follows:
+
+| Hooks Server Response | Claude Code Behavior |
+|---|---|
+| Allow: `200` with `{}` | Has no decision from the hook, so it continues with its normal permission flow, which can still prompt you |
+| Deny: `200` with `permissionDecision: "deny"` | Cancels the call, and shows the reason to Claude |
+| Error: a non-`2xx` status | Blocks the call with `onFailure: "block"`; runs it without |
+
+The hooks server never returns `permissionDecision: "allow"`, which would skip Claude Code's permission prompt.
+Your permission rules keep applying to every call the hooks server allows.
+
+## Claude Code Tool Names
+
+The hooks server matches tool names exactly as Claude Code sends them:
+
+| Tool | Name in the Hook | Argument to Check |
+|---|---|---|
+| Shell commands | `Bash` | `command` |
+| Read, create, and edit files | `Read`, `Write`, `Edit` | `file_path`, always an absolute path, with backslash separators on Windows |
+| Search files | `Glob`, `Grep` | `pattern` |
+| Web access | `WebFetch`, `WebSearch` | `url` for `WebFetch`, `query` for `WebSearch` |
+| Model Context Protocol (MCP) tools | `mcp__<server>__<tool>` | The tool's own arguments |
+
+An MCP tool from a plugin is named `mcp__plugin_<plugin>_<server>__<tool>`.
+Claude Code also sends an `mcp_server` field with MCP calls, which says where the server's definition came from.
+The hooks server does not read it, so it identifies an MCP server only by the tool name's prefix.
+
+Some tool uses never reach the hook:
+
+- Files you reference with `@` in a prompt are added without a tool call, so no `PreToolUse` hook runs for them, including a check on `Read`.
+  In Claude Code 2.1.299 or later, set `CLAUDE_CODE_DISABLE_FILE_MENTIONS=1` in user or managed settings to disable this automatic insertion.
+  Claude then receives the paths with a note to read them using file tools, which run the hook.
+- `EndConversation` calls skip hooks.
+
+## Request and Response
+
+The hooks server reads four fields from the Claude Code `PreToolUse` input: `hook_event_name`, `tool_name`, `tool_input`, and `tool_use_id`.
+Claude Code also sends fields such as `session_id`, `cwd`, and `permission_mode`, which the hooks server accepts and ignores.
+A request without one of the four fields gets HTTP `422`.
+
+The following example is the input Claude Code sends for a `Bash` command:
+
+```json
+{
+  "session_id": "abc123",
+  "transcript_path": "/home/user/.claude/projects/.../transcript.jsonl",
+  "cwd": "/home/user/my-project",
+  "permission_mode": "default",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "npm test",
+    "description": "Run test suite"
+  },
+  "tool_use_id": "toolu_01ABC123"
+}
+```
+
+An allowed call gets an empty object, which carries no decision:
+
+```json
+{}
+```
+
+A denied call gets a deny decision, with the reason prefixed with `NeMo Guardrails: `:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "NeMo Guardrails: tool call 'TodoWrite' is not an allowed tool"
+  }
+}
+```
+
+For every outcome and error, refer to [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors).
+For the endpoint's full reference, refer to [Hooks Server API: Check a Claude Code Tool Call](/reference/hooks-server-api/claude-code).
+
+## Related Topics
+
+- [Run the Hooks Server](/run-guardrailed-inference/using-hooks-server/run-hooks-server)
+- [Check Codex Tool Calls with the Hooks Server](/run-guardrailed-inference/using-hooks-server/codex)
+- [Hooks reference](https://code.claude.com/docs/en/hooks) in the Claude Code documentation

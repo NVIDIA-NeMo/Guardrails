@@ -18,6 +18,28 @@ This guide demonstrates how to integrate the NeMo Guardrails library into LangCh
 
 ---
 
+## Prerequisites
+
+The examples on this page use OpenAI chat models through LangChain.
+Set up your environment before you run them.
+
+1. Install the NVIDIA NeMo Guardrails library and the LangChain OpenAI integration:
+
+    ```bash
+    pip install nemoguardrails langchain-openai
+    ```
+
+    `RunnableRails` requires `langchain-core`, which the NVIDIA NeMo Guardrails library does not install by default.
+    The `langchain-openai` package installs it.
+
+1. Set your OpenAI API key:
+
+    ```bash
+    export OPENAI_API_KEY="your_openai_api_key"
+    ```
+
+---
+
 ## Getting Started
 
 To get started, load a guardrail configuration and create a `RunnableRails` instance.
@@ -109,6 +131,11 @@ async def stream_example():
 
 **Metadata in Streaming**: `RunnableRails` preserves all metadata during streaming, including `response_metadata`, `usage_metadata`, and `additional_kwargs` in `AIMessageChunk` objects.
 
+**Latency and Cost**: Guardrails add latency and token usage to streamed responses.
+Input rails finish before the first token streams, so every input rail that calls a model adds to the time to first token.
+If you enable output rail streaming, output rails check the response in chunks while it streams.
+See [Output Rail Streaming](/configure-guardrails/yaml-schema/streaming/output-rail-streaming) for the settings that control the chunk size.
+
 ---
 
 ## Batch Processing
@@ -133,6 +160,8 @@ from langchain_core.runnables import RunnableConfig
 config = RunnableConfig(max_concurrency=3)
 results = await guardrails.abatch(inputs, config=config)
 ```
+
+Each input in a batch runs through the full set of rails, so the rail model calls, latency, and token usage scale with the number of inputs, the same as calling `invoke()` once per input.
 
 ---
 
@@ -199,14 +228,82 @@ The `passthrough` parameter controls this behavior.
 - **`passthrough=False`**: Allows guardrails to modify prompts for enhanced protection.
 
 ```python
-# Minimal intervention (required for tool calling)
+# Minimal intervention
 guardrails = RunnableRails(config, passthrough=True)
 
 # Enhanced guardrails (modifies prompts as needed)
 guardrails = RunnableRails(config, passthrough=False)
 ```
 
-**Tool Calling Requirement**: Set `passthrough=True` for proper tool call handling.
+**Tool Calling**: Tool calls work with either `passthrough` setting when the guardrails configuration has no user-intent definitions (`user_messages`). Enabling `rails.dialog.single_call.enabled` alone does not block tool calls.
+
+**What `passthrough=False` changes about the prompt**: instead of sending your original messages to the LLM, the library renders its own prompt from the `general` task template, which prepends general instructions and reformats the conversation as a completion-style transcript. For example, a `ChatPromptValue` built from `HumanMessage(content="Hello!")` is not sent to the LLM as-is. The library instead sends a prompt similar to the following:
+
+```text
+Below is a conversation between a helpful AI assistant and a user. The bot is
+designed to generate human-like text based on the input that it receives. The
+bot is talkative and provides lots of specific details. If the bot does not
+know the answer to a question, it truthfully says it does not know.
+
+User: Hello!
+Assistant:
+```
+
+The exact instructions and format depend on your configuration and enabled rails. To inspect the transformed prompt for debugging, set `verbose=True` when creating `RunnableRails`. See [Verbose Logging](/integration-with-third-party-libraries/langchain/langgraph-integration#2-verbose-logging), which logs every `Prompt ::` and `Completion ::` pair sent to the LLM.
+
+### Rejection Behavior
+
+When an input or output rail blocks a request, `RunnableRails` does not raise an exception. It returns the rail's configured refusal message in the same output shape you would otherwise get back.
+
+This behavior applies when `enable_rails_exceptions` is off, which is the default.
+If you set `enable_rails_exceptions: true`, the result depends on what you wrap and which rail blocks:
+
+- A blocked LLM-wrapping call raises a pydantic `ValidationError`, a `ValueError` subclass, because the exception dictionary is not valid `AIMessage` content.
+- A chain-wrapping call blocked by an input rail returns the rail exception dictionary under the output key instead of refusal text.
+- A chain-wrapping call blocked by an output rail returns the chain's original output unchanged, with no exception dictionary and no refusal text.
+
+<Warning>
+
+Do not set `enable_rails_exceptions: true` when you use `RunnableRails` to wrap a chain with output rails.
+A response that an output rail blocks reaches your caller as if it had passed, and nothing in the result marks it as blocked.
+
+</Warning>
+
+See [Exceptions](/configure-guardrails/exceptions) for the exception format.
+
+For chain-wrapping (dict) inputs, only a dictionary with the output key is returned:
+
+```json
+{"answer": "I can't assist with that request."}
+```
+
+For LLM-wrapping inputs, such as a `list[BaseMessage]` or `ChatPromptValue`, an `AIMessage` is returned with the refusal text as `content`, no `tool_calls`, and empty `response_metadata`/`additional_kwargs`, since no underlying model call for a final answer was made:
+
+```python
+from langchain_core.messages import HumanMessage
+
+result = guarded_model.invoke([HumanMessage(content="You are stupid")])
+
+print(result)
+# AIMessage(content="I'm sorry, I can't respond to that.")
+print(result.tool_calls)            # []
+print(result.response_metadata)     # {}
+```
+
+`RunnableRails` does not report which rail blocked a request.
+If your application must tell a rejection apart from a normal answer, for example to return a structured error to a client, call `LLMRails.generate()` with the `log.activated_rails` generation option instead.
+See [Detailed Logging Information](/run-guardrailed-inference/using-python-apis/generation-options#detailed-logging-information).
+
+### Error Handling
+
+`RunnableRails.invoke()`/`ainvoke()` wrap the underlying rails call in a `try`/`except`, but whether a failure reaches that `except` block depends on where the failure happens:
+
+- **Failures that `RunnableRails` itself surfaces** raise a `ValueError`, with the original exception chained through `from e`. This covers LLM provider failures (the main model or a safety-check model call fails, for example a timeout or an API error), unsupported input types, and any other error that escapes the underlying rails call. Some recognized errors are re-raised with a more specific message.
+- **A tool or guardrail action registered with the guardrail configuration that raises** (a bug in your tool function, a non-LLM network call failing, and so on) does not propagate. The action dispatcher catches it, and the runtime returns an ordinary-looking response with the content `"I'm sorry, an internal error has occurred."` This response has the same shape as a normal, non-blocked answer. LLM call failures are the exception: the dispatcher forwards those, so they surface as in the first case.
+
+Because this second response is indistinguishable from a normal answer, do not use its content as an error sentinel; a legitimate model or rail response can contain the same text. If you need a distinguishable outcome, handle the failure inside the tool or action itself. Your calling code still needs to catch the exceptions that do propagate; `RunnableRails` does not return a structured error payload for those.
+
+In a LangGraph node, an uncaught exception from `runnable_with_guardrails.invoke(state)` propagates as a normal Python exception through `graph.invoke()`. LangGraph does not catch node exceptions for you. Wrap the node body in a `try`/`except ValueError` if you want the graph to continue with a fallback message instead of raising. See [Failure Handling in Tool-Calling Graphs](/integration-with-third-party-libraries/langchain/langgraph-integration#failure-handling-in-tool-calling-graphs) for an example, including how tools executed by a LangGraph `ToolNode` differ from tools registered with the guardrail configuration.
 
 ### Custom Input/Output Keys
 
@@ -238,28 +335,41 @@ When a guardrail is triggered and predefined messages must be returned instead o
 
 ## Tool Calling
 
-`RunnableRails` supports LangChain tool calling with full metadata preservation and streaming. Tool calling requires `passthrough=True` to work properly.
+`RunnableRails` supports LangChain tool calling with full metadata preservation and streaming. Tool calling works with or without `passthrough` when the guardrails configuration has no user-intent definitions (`user_messages`). Configurations with user-intent definitions drop tool calls and return only the generated text.
 
-The following steps are required to use tool calling with `RunnableRails`:
+`bind_tools()` is a LangChain method that attaches tool/function definitions to a chat model so the model can request tool calls in its response instead of only returning text. `ToolMessage` is LangChain's message type for returning a tool's result back to the model, keyed to the originating call through `tool_call_id`. See the [LangChain tool calling documentation](https://python.langchain.com/docs/concepts/tool_calling/) for the full concept. The NVIDIA NeMo Guardrails library does not change either of these; `RunnableRails` only adds safety checks around the model calls that use them.
 
-- Set `passthrough=True` when creating `RunnableRails` instance.
+To use tool calling with `RunnableRails`:
+
 - Use `bind_tools()` to attach tools to your model.
 - Handle tool execution in your application logic.
+- Avoid guardrail configurations that define dialog flows if you need tool calls to surface in the response.
 
 ### Basic Tool Setup
+
+<Note>
+
+Avoid Python's built-in `eval()` for evaluating LLM-provided expressions, even with a `__builtins__` whitelist. Sandbox-escape techniques (for example, attribute traversal through `__class__`) can bypass a manually constructed whitelist. Use a restricted expression evaluator such as [`simpleeval`](https://github.com/danthedeckie/simpleeval) instead. `simpleeval` is already an NVIDIA NeMo Guardrails library dependency, so no extra install is required.
+
+Do not map a custom `pow` function into `functions`. `simpleeval`'s built-in `**` operator is guarded by `simpleeval.MAX_POWER` against oversized exponents, but that guard does not apply to a function you supply yourself, so a mapped `pow` lets an expression like `pow(2, 999999999)` consume seconds of CPU time and hundreds of megabytes of memory. Let callers use `**` for exponentiation instead.
+
+</Note>
 
 ```python
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+from simpleeval import SimpleEval
+import math
+
 from nemoguardrails import RailsConfig
 from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
 
 @tool
 def calculator(expression: str) -> str:
     """Evaluates mathematical expressions like '2 + 2' or 'sqrt(16)'."""
+    evaluator = SimpleEval(functions={"sqrt": math.sqrt})
     try:
-        safe_dict = {'sqrt': __import__('math').sqrt, 'pow': pow, '__builtins__': {}}
-        return str(eval(expression, safe_dict))
+        return str(evaluator.eval(expression))
     except Exception as e:
         return f"Error: {e}"
 

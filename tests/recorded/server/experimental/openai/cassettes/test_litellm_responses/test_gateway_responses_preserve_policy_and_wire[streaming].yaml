@@ -1,0 +1,300 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/responses
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-5-nano
+      input: 'Reply with exactly: Hello.'
+      stream: true
+      store: false
+      max_output_tokens: 256
+      reasoning:
+        effort: minimal
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      cache-control:
+      - no-cache
+      content-type:
+      - text/event-stream; charset=utf-8
+      content-security-policy:
+      - frame-ancestors 'none'
+      transfer-encoding:
+      - chunked
+    body:
+      parsed_body:
+      - type: response.created
+        response:
+          id: resp_SoSS-EM2MI313Kq8bM5fhzlbbZNcn20PTpRDoLj_9CgNJDxCJ6keDMnIMzuGw_4KZkXZFS4zSQ1sLYXnY_uPwBPOv6ajUwwyu2ReRCEK1rKfxgP9E_kuGEqvcU46k4mo6yA9y7SpZiaaHyX-ZLsUMyoOlVx2dq0r6uRBo6mFt3esLh3mDe9u0MXNVVKfnGL2NAzAnS7A5aKj3HY2VHitw-StlkJP8oit_dJyz3N_84fShvN6GN9ytMMqvYN-v7fDnEuu1s9wek77BC3m5lJsH0y3Np5fwbyrDKal6NgzTITeQYvVjZ_99mrmZMqcaPhuV26Vv-CMbrHgxI8fxKAApKEZ6PWiNlSbEQj7OzTqDbnbgo_qOEobta7EsudQjN5wXtzvOFRbG7f09_XI7SxWRfiHuYvBrPahC98jbLXCAwq6ofY=
+          created_at: 1792052982
+          metadata: {}
+          model: gpt-5-nano-2025-08-07
+          object: response
+          output: []
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 1.0
+          max_output_tokens: 256
+          reasoning:
+            context: current_turn
+            effort: minimal
+            mode: standard
+            summary: null
+          status: in_progress
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          store: false
+          background: false
+          frequency_penalty: 0.0
+          presence_penalty: 0.0
+          prompt_cache_retention: in_memory
+          service_tier: auto
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 0
+        model: openai/openai/gpt-5-nano
+      - type: response.in_progress
+        response:
+          id: resp_SoSS-EM2MI313Kq8bM5fhzlbbZNcn20PTpRDoLj_9CgNJDxCJ6keDMnIMzuGw_4KZkXZFS4zSQ1sLYXnY_uPwBPOv6ajUwwyu2ReRCEK1rKfxgP9E_kuGEqvcU46k4mo6yA9y7SpZiaaHyX-ZLsUMyoOlVx2dq0r6uRBo6mFt3esLh3mDe9u0MXNVVKfnGL2NAzAnS7A5aKj3HY2VHitw-StlkJP8oit_dJyz3N_84fShvN6GN9ytMMqvYN-v7fDnEuu1s9wek77BC3m5lJsH0y3Np5fwbyrDKal6NgzTITeQYvVjZ_99mrmZMqcaPhuV26Vv-CMbrHgxI8fxKAApKEZ6PWiNlSbEQj7OzTqDbnbgo_qOEobta7EsudQjN5wXtzvOFRbG7f09_XI7SxWRfiHuYvBrPahC98jbLXCAwq6ofY=
+          created_at: 1792052982
+          metadata: {}
+          model: gpt-5-nano-2025-08-07
+          object: response
+          output: []
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 1.0
+          max_output_tokens: 256
+          reasoning:
+            context: current_turn
+            effort: minimal
+            mode: standard
+            summary: null
+          status: in_progress
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          store: false
+          background: false
+          frequency_penalty: 0.0
+          presence_penalty: 0.0
+          prompt_cache_retention: in_memory
+          service_tier: auto
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 1
+        model: openai/openai/gpt-5-nano
+      - type: response.output_item.added
+        output_index: 0
+        item:
+          id: rs_07a564c4e2337089016ad08ef64ac887d1aa52acdf7c08e73b
+          type: reasoning
+          content: []
+          encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1uYW5v;gAAAAABq0I7215IoHaKySxQ_3LvcowiS6wczpRKov6OBWAmaYJXrS0l1fR1juXyzE0ta13Lv4gBdmfB1neTYTLm4tEcfCV2xlCSLLep6RVy9ZDjLAyIoXZLnuT9A7W7aloUxeWk9K-3FdWRjhvkK3iqSjDFWwZef5K_z6-nGR8MA8lrcYaGVU3HFEpydh6Xx8oQfqIaHErCpYYEeow1cSI61cREz5ibKbGUXo6Gxi5OZ2ITm4zoTMCjQv5jPzo4CSoJYhOMgdMunMnWlxFsIWAClwWtUN1GjZJANYlHU_reB9lYuMBZnEvxRTwdJImij-SpiP6obvrT6ovpovfmxBxtOtlPMUqyIZUaqXwtYJbbTH4sCdD73LJLbHSeQ9eoPEJeksFiFR3KnhUZcDTbQzCGhb-J1E-4nxgq2hQ1e3Y7bMkx0dRCK99h1VtcNDLbCac9aF_tBKujQjXIQWvPomsRGHvgIZqvd5POq539XMWnW3PAOVKDb1Tj1nUVZTosAomjdspzu8j2KFs9DSZIyCn09fuqox6BGdBVe3asWzexOpk4ra2Cp-K8nq3nsjziAeWlXnIdnx-8SpVLXtBYIOh3wx95S7XbvtXsc9PrPRXk21zyAYkiNlmZuKip_h8MifdOEy-YaL0PsX2BOM2JEHI0rqehYzP67wMrGsX9_xf6QK9kLkFpbMic-h2I-63hMuNCwqGRQllkGSnVL7kxWkGMkZjGB8RdDqCN3uS5vwORU5IdywzRVCpAjF_F6Wf1jxWbeXuK-Pr62w3mivYceXA5hsd9IYgUWuIDbMvE_q7Tc_3TQ3vSuP-5PVP2dp3JVh3ho7VyH_nv8KarD2_aqeGsKh9kDR5Zn5iiAHUh-8X9PbBILOM34dWJlD5REN5baxhrH3AOK9q5arWPkAly023jmP5ITEkcwnA93fj135S-XfMsKs568kMbz_KRPfnoYlsaq4zEYlFPbcLTIJAZkTY_h3xHhA1wBt2sRqCSySzK96Smcmje9TGoMK1WhfEjwK4IaOCYBJBCYMMIwxB89-bY-Wsv_0a79o_gx0SdnbieEEjRMwMz_-yRcNydPAPfOyNDGb-ChFkRhlgJxpLfNIw-gTM5W8UtPbmyImv0-JcG2InV8oaHtrlNcdHe4RQCQWLgjNyZvSKpycAuEHJ4OKhK0tcaM2qZ1vfw4O_6kmtdVVTDxf-iu4lnAyTnX_mk0bkGOsq7Xztwj
+          summary: []
+        sequence_number: 2
+        model: openai/openai/gpt-5-nano
+      - type: response.output_item.done
+        output_index: 0
+        sequence_number: 3
+        item:
+          id: rs_07a564c4e2337089016ad08ef64ac887d1aa52acdf7c08e73b
+          type: reasoning
+          content: []
+          encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1uYW5v;gAAAAABq0I72nJtVAvxlORNN-HM1TMXwCezYge_75H4fhD_lnvN8X2pYAGQlAF4mMjxMSmGm2BUA_qevAG0tleBGeCVLD498CbtLCibMSEm2Qx16XS5tSyw6x16OUMorCrves6-pLkTon_4DvQGoMvm51gLCMxdAhGuWYY7KCTEfuiTx3IVRGQvX0oALzT-Y8Ha1WYu-oGJAcX3v4fKwhcn7AZ3fTJZgzajfuYaEh78-CuwpccNEv_C2MZDH2-QKy8k3LA8VbOTnuEF9frtm9BnxtixHRN0pEDaZbjoFRVccGmXm5x4nMkeeLZky5LkYQoBI07LWIOd207Mm-0dAW5zeO-DbYlcMWgQaTPw1wc0JrsGK7Xc69RVQcN3RiXBXDuE4oyERd_m_3ksf1L9F0hoqBu-Gx1F6hWYWsKQt8RHk3i1Zlm8zrfrJ1BguJJB4BuzpSnnMaeQf3Rb7K8R5-Ab1JqRwYc6jg7oHwk04RmHQefL3lCXsnW_Z6nxh8PFWPodo0L1m5byFQN-yddIgzUY5hghFxZtmQWaTamq5ExomgidJ5mH-c2AKYJYdG6uzTydm7peoXeLRHC8GeTixD1w1ykKDAV4_BsXa4otLPv0rnULrf965JYM-45pXmItPnHTGG6IXBytPr3sh6diq59lIv5jV9S3j3gU9rShU1DETRslDhhzDOz8yIc7v3gF1vLYdzoZE7OPoNBxuwmAxRkv8v_QDT_xapT9cnif81h5XyBj4ieoPDbYQBoq2O0zhzn_bLUSjd-d_sp3axOGt82Cv681j3J8DwCC8Lt-_Tw8BP7CDIQ0YV6KZLNNOQAyE7jMgeiwDtMOswZbNOo07tAe7NQvLlHTn_dBBRr8MjI8lj2XTVBwgMIJJRhSbMilHVnDKkeCPwPrRU9aTlWxGNBVR_bkDAan_AsOG5ACEIshaPImnHPXaO5y21-jSCG9s6QjiMj2jr5E_kh1u4hfzbwCV3tEC2dvhuoYys9pNf5WCkVMVOqOd8tpdkH6PnVtbUINnK-CZmLsNg7p4TPMbPwOqwF0de4tT_aLsbTUGwi6dvk2T2bGRW15bOK9QZYLeGpTKuz1yPdNFG3-ZjLf-HtHRtHtsQKZ_oy-tW800NNbn5zCsYEz8pzDD-khU8Q5NNOAop6rdVzpLyBlkPoweIc7OVrBQa9vu11dSLra-c3oZr0_F0yVqRbyfSkQLaTJC_GUHMUTGFbTnBu93qJVkSxG3iPEZkSaLrizGElxkvByVqjT7wgiUMUHRneN50WfEOs3PyKrurBVbvLx6nh5dw9QGpd5oiA1xRinN7b71pup-TJAeckLcvNdix8oUqNzgo9ZrH9AEmB10Kom8Cw-ynTcEfWTvQZEQxvoTBrcvzg20OG6rQcej-L_VS8xXw7mrJbdEk6jfWHwwoZrPLBvXboplSuwamMsDkZeAbYH5ONQJsFmFf9yhuQ-pPdqKQ78sWa1xOKbALgjLY39OOHzFBM2sabGqMk7TkpkW73HeATIanHBfS9W07dJKgjBnt1Y1d8oooF6dbQ9s25Hlm0Zrv9C9Cu4f-PhEB7aKCtg1UoPiNfoeV5mbjOTxOo6D00tup1RVt43OxlURPVE_hR2rt_vOJjARjxOKOdqE4JXbNs7sLnF0IHdKQ8E=
+          summary: []
+        model: openai/openai/gpt-5-nano
+      - type: response.output_item.added
+        output_index: 1
+        item:
+          id: msg_07a564c4e2337089016ad08ef65f3c87d18c862c13f7ea43c2
+          type: message
+          status: in_progress
+          content: []
+          role: assistant
+        sequence_number: 4
+        model: openai/openai/gpt-5-nano
+      - type: response.content_part.added
+        item_id: msg_07a564c4e2337089016ad08ef65f3c87d18c862c13f7ea43c2
+        output_index: 1
+        content_index: 0
+        part:
+          type: output_text
+          annotations: []
+          logprobs: []
+          text: ''
+        sequence_number: 5
+        model: openai/openai/gpt-5-nano
+      - type: response.output_text.delta
+        item_id: msg_07a564c4e2337089016ad08ef65f3c87d18c862c13f7ea43c2
+        output_index: 1
+        content_index: 0
+        delta: Hello
+        logprobs: []
+        obfuscation: bj28IlODqhb
+        sequence_number: 6
+        model: openai/openai/gpt-5-nano
+      - type: response.output_text.delta
+        item_id: msg_07a564c4e2337089016ad08ef65f3c87d18c862c13f7ea43c2
+        output_index: 1
+        content_index: 0
+        delta: .
+        logprobs: []
+        obfuscation: 21EZpykDzlXEYs2
+        sequence_number: 7
+        model: openai/openai/gpt-5-nano
+      - type: response.output_text.done
+        item_id: msg_07a564c4e2337089016ad08ef65f3c87d18c862c13f7ea43c2
+        output_index: 1
+        content_index: 0
+        text: Hello.
+        logprobs: []
+        sequence_number: 8
+        model: openai/openai/gpt-5-nano
+      - type: response.content_part.done
+        item_id: msg_07a564c4e2337089016ad08ef65f3c87d18c862c13f7ea43c2
+        output_index: 1
+        content_index: 0
+        part:
+          type: output_text
+          text: Hello.
+          annotations: []
+          logprobs: []
+        sequence_number: 9
+        model: openai/openai/gpt-5-nano
+      - type: response.output_item.done
+        output_index: 1
+        sequence_number: 10
+        item:
+          id: msg_07a564c4e2337089016ad08ef65f3c87d18c862c13f7ea43c2
+          type: message
+          status: completed
+          content:
+          - type: output_text
+            annotations: []
+            logprobs: []
+            text: Hello.
+          role: assistant
+        model: openai/openai/gpt-5-nano
+      - type: response.completed
+        response:
+          id: resp_SoSS-EM2MI313Kq8bM5fhzlbbZNcn20PTpRDoLj_9CgNJDxCJ6keDMnIMzuGw_4KZkXZFS4zSQ1sLYXnY_uPwBPOv6ajUwwyu2ReRCEK1rKfxgP9E_kuGEqvcU46k4mo6yA9y7SpZiaaHyX-ZLsUMyoOlVx2dq0r6uRBo6mFt3esLh3mDe9u0MXNVVKfnGL2NAzAnS7A5aKj3HY2VHitw-StlkJP8oit_dJyz3N_84fShvN6GN9ytMMqvYN-v7fDnEuu1s9wek77BC3m5lJsH0y3Np5fwbyrDKal6NgzTITeQYvVjZ_99mrmZMqcaPhuV26Vv-CMbrHgxI8fxKAApKEZ6PWiNlSbEQj7OzTqDbnbgo_qOEobta7EsudQjN5wXtzvOFRbG7f09_XI7SxWRfiHuYvBrPahC98jbLXCAwq6ofY=
+          created_at: 1792052982
+          metadata: {}
+          model: gpt-5-nano-2025-08-07
+          object: response
+          output:
+          - id: encitem_bGl0ZWxsbTptb2RlbF9pZDpvcGVuYWkvb3BlbmFpL2dwdC01LW5hbm87aXRlbV9pZDpyc18wN2E1NjRjNGUyMzM3MDg5MDE2YWQwOGVmNjRhYzg4N2QxYWE1MmFjZGY3YzA4ZTczYg==
+            summary: []
+            type: reasoning
+            content: []
+            encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1uYW5v;gAAAAABq0I72zysi-6j_rjlrjCxbklwEzLP2ILzeQAZaN2OtWXa84risdrn9RYyzhHTXbdyRRyWxFELgsEujouhw6FnL-juidX6fdPXmeYKCcUQ20EGKo1H8c2TjAQuZXTwG8b7zQKjYxlf58yjrLDaaa0WvmYJmkV1FQvzW8pRqAmtDW-FVFQPz5j9JItvzqqdRrJAAv_mPYLeNVuFsMZCDlmduP9brgD8q2zfnHQv_S-McWig_UMLvfsG1ubBrZYNa3U8Zg66wrzKuZDSgc7UdzorXSRhLmkyMtiwYDx0NCHU8J-rZ8R0Scifos9chtv0qMzZB5BnWli6S2I_3trqLY1GkWzDIkrQisF-0kpynmouMArqR3qPgkj35jxgnCAeXxfHrASQKE4fpGnTwccH9bJA2YxMvAr_L2aqHHKoPbcfIAGHUC7zxF0IC7HuuirBgmY7S9I_SVOObQpNAJOUsaXBIeyd80GoPJEKwfKcpx3Rtjw8JZ2dv39-9OhTLgi75UhypTPIPXjiiNXubBNCTYfvihw9vueLOtGEIKrcY8UH6Uy3xkEcKQiYv1jdr_DX0PofM6rkef5-F_X2_36luL6FMlmykSa0Qvk-r8-DpAbJqGH4KabeH8bMBqIesPCFjQx_QHHCYkXfz-FwM9agJegIQ19Gz6yl307H0nfIdfXtObncIX5lhcwtToGILhM0ilSQLC4eEshAXyEdCOJjgzuwx562Lj-G8MyGsb38ZwcUNFSWn2FzF2ea7CIlJ0EeJulJELt80cbDbOww-Jyn6Uu9BiTWr-znJf4_KJM7bAjlLC1TCefPdhcgXEzl0CMUtVXBaO8bqoqDktTRZjjCDwpU6-QELSaXd1pghKzjk1LmcUWO-ICrHW5vD3n3-PD_ri8JQeoB0yUwNy5RpLoYjC7WpIlUbkXguCFzRRNPsgHwfe-s0E2SJHeLwhDHKNOnWPZr7z-sICb9piaexl05gtTC0LSna5wrij8jpIvFs71mOx78Aj_nWZ1gUNWgm3HBLcFKD_22_PmElbYVTo16B7tpERUIy50D2qpvF5A9x8G-GqeveFfQef3-MBOZy1H7Mw4Tv6A2voL8V3XeYKQjcW-CdMvLJDoODbo7mpyokg_jLkTAvCch7xwrojTw2b06y3QiZX8ynjGoTlRgp_MG4UQTb7BAzmLEk_J85xIP7GyISrbB5dFdGbpVh0qUMxp9uZiaSJVelvE1NsTv30SMNYCYxk-Ges7Uca16OfaQV36CXcNAjJaO6rZzkUOthO9ui7rzOfNC3dEXQiwf9-2PPwAVbZjSekJk1Q61Swt69AUmOvwErBu5ESeCmZP7ZkRcvnSHqB_o3q_Z3dFtOu7i5aTQowyEeLimQOuQp44jqOvn8ftEeab5X0d_EKudPaSw_beEZ6s7n60nKsFKXjSOaNkcQZDIO-26hHwyT_T7CfilpGzn6kbY67Tk8OpWSwCkqA-SZDxLvoWc4hIiJFkYRLBXi1UKmEHv1sfiCHuX_0hLdf1WLbYGvyTeDhbvvaDlz_TP8Wv9hcnYF030k5OBYIV1RkpdWr3IQvXDn8N76GHR2_XjaHVVJ6S2RZeTBOMGkeO7qBuV3IlJCYoVloMCSSYPBPKOAvHbdpXDArzKCb8JF76_4PPo=
+          - id: msg_07a564c4e2337089016ad08ef65f3c87d18c862c13f7ea43c2
+            content:
+            - annotations: []
+              text: Hello.
+              type: output_text
+              logprobs: []
+            role: assistant
+            status: completed
+            type: message
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 1.0
+          max_output_tokens: 256
+          reasoning:
+            context: current_turn
+            effort: minimal
+            mode: standard
+            summary: null
+          status: completed
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          usage:
+            input_tokens: 12
+            input_tokens_details:
+              cached_tokens: 0
+              cache_write_tokens: 0
+            output_tokens: 20
+            output_tokens_details:
+              reasoning_tokens: 0
+            total_tokens: 32
+            cost: 6.312399999999999e-06
+          store: false
+          background: false
+          completed_at: 1792052982
+          frequency_penalty: 0.0
+          presence_penalty: 0.0
+          prompt_cache_retention: in_memory
+          service_tier: default
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 11
+        model: openai/openai/gpt-5-nano
+      - '[DONE]'

@@ -1,0 +1,89 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      connection:
+      - keep-alive
+      accept:
+      - '*/*'
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+      accept-encoding:
+      - identity
+    parsed_body:
+      model: openai/openai/gpt-5-nano
+      messages:
+      - role: user
+        content: Hello! Can you help me with a short greeting?
+      temperature: 0.7
+      max_tokens: 1024
+      n: 1
+      stream: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      server:
+      - uvicorn
+      content-type:
+      - application/json
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: openai/openai/gpt-5-nano
+        object: chat.completion
+        choices:
+        - finish_reason: stop
+          index: 0
+          message:
+            content: |-
+              Sure! Here are some short greeting options you can use, depending on the vibe:
+
+              Casual
+              - Hey there!
+              - Hi!
+              - Hi there!
+
+              Friendly/cheerful
+              - Hello there!
+              - Hi, nice to meet you!
+
+              Neutral/professional (email or meeting)
+              - Hello,
+              - Hi [Name],
+              - Good morning/afternoon,
+
+              General short
+              - Hello!
+              - Hi there!
+              - Hey!
+
+              If you share who it’s for and the tone you want (casual, professional, etc.), I can tailor a version for you. Want it in another language too?
+            role: assistant
+            provider_specific_fields:
+              refusal: null
+            annotations: []
+          provider_specific_fields: {}
+        usage:
+          completion_tokens: 898
+          prompt_tokens: 17
+          total_tokens: 915
+          completion_tokens_details:
+            accepted_prediction_tokens: 0
+            audio_tokens: 0
+            reasoning_tokens: 768
+            rejected_prediction_tokens: 0
+          prompt_tokens_details:
+            audio_tokens: 0
+            cached_tokens: 0
+        service_tier: default

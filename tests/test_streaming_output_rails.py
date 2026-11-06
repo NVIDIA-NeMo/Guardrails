@@ -706,3 +706,62 @@ async def test_streaming_output_rails_substitutes_user_message_param():
     assert all(text == user_message for text, user_message in seen)
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream_first", [False, True])
+@pytest.mark.parametrize("include_metadata", [False, True])
+async def test_tool_calls_with_output_streaming_are_explicitly_unsupported(stream_first, include_metadata):
+    from nemoguardrails.testing.fake_model import FakeLLMModel
+    from nemoguardrails.types import LLMResponse, ToolCall
+
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "passthrough": True,
+            "streaming": True,
+            "rails": {
+                "output": {
+                    "flows": ["self check output"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 10,
+                        "stream_first": stream_first,
+                    },
+                }
+            },
+            "prompts": [{"task": "self_check_output", "content": "Check {{ bot_response }}"}],
+        }
+    )
+    rails = LLMRails(
+        config,
+        llm=FakeLLMModel(llm_responses=[LLMResponse(content="BLOCK", tool_calls=[ToolCall(id="call_1")])]),
+    )
+    emitted = []
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails.*during streaming"):
+        async for chunk in rails.stream_async(prompt="test", include_metadata=include_metadata):
+            emitted.append(chunk)
+    assert emitted == []
+
+
+@pytest.mark.asyncio
+async def test_direct_generation_handler_cannot_release_tool_calls_with_output_rails():
+    from nemoguardrails.testing.fake_model import FakeLLMModel
+    from nemoguardrails.types import LLMResponse, ToolCall
+
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "passthrough": True,
+            "streaming": True,
+            "rails": {"output": {"flows": ["self check output"], "streaming": {"enabled": True}}},
+            "prompts": [{"task": "self_check_output", "content": "Check {{ bot_response }}"}],
+        }
+    )
+    model = FakeLLMModel(llm_responses=[LLMResponse(content="", tool_calls=[ToolCall(id="call_1")])])
+    rails = LLMRails(config, llm=model)
+    handler = StreamingHandler()
+    await rails.generate_async(prompt="test", streaming_handler=handler)
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails.*during streaming"):
+        async for chunk in handler:
+            assert chunk == ""

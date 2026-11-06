@@ -1,0 +1,120 @@
+---
+title: "Troubleshoot Guardrails Proxy"
+sidebar-title: "Troubleshooting"
+description: "Diagnose startup failures, rejected payloads, checker errors, delayed streams, disconnects, and incomplete cleanup."
+content:
+  type: "how_to"
+---
+
+Start with the failing phase: application startup, a request before response
+headers, a stream after headers, or shutdown. Record the operation, selected
+provider instance, dialect, HTTP status, and error code. For a stream, record
+whether an error event followed the headers and whether any text had already
+arrived. Use a minimal synthetic request when reproducing a failure; exclude
+credentials and private request or response content from shared diagnostics.
+
+## Startup Fails or the Embedded Runtime Is Unavailable
+
+From the directory containing your manifest, run:
+
+```bash
+python -m nemoguardrails.server.experimental validate proxy.yaml
+python -m nemoguardrails.server.experimental inspect proxy.yaml
+python -m nemoguardrails.server.experimental serve proxy.yaml
+```
+
+Use the command result to identify the failing startup phase:
+
+| Observation | Diagnosis and Next Step |
+| --- | --- |
+| `validate` fails | Read its error and check manifest fields, distinct mounts, upstream URL, and Rails paths. Relative Rails paths resolve against the manifest directory. |
+| `validate` passes but `serve` fails | Inspect the startup exception. Rails contents, actions, model dependencies, and credentials are initialized only during startup. Every catalog entry loads, including unused entries. |
+| An embedded request reports `The experimental proxy runtime is not available.` | Enter the proxy lifespan from the parent lifespan. Mounting the application alone does not initialize its owners. |
+| Startup gets slower as the catalog grows | Account for every Rails ID in every replica. Different IDs create separate engines even when they use the same directory. |
+| Startup rejects a rail or engine configuration | The current proxy requires IORails-compatible Colang 1.0 input and output checks; it does not fall back to LLMRails. Retrieval/tool rails and nonempty per-tool checks are unsupported. Refer to [Rails compatibility](/run-guardrailed-inference/using-proxy/configuration#choose-compatible-rails-checks). |
+
+`inspect` describes routes, profiles, and fixed Rails selections. It does not
+execute checks or establish upstream compatibility. Compare its output with the
+actual deployed manifest, then use the [embedding recipe](/run-guardrailed-inference/using-proxy/python-integration#lifespan-and-embedding)
+if a parent application owns startup. Treat inspected deployment addresses as
+operational metadata when sharing output.
+
+## A Request Is Rejected or a Check Fails
+
+For the shipped OpenAI bindings, use the error code as well as the status:
+
+| Symptom | What to Check |
+| --- | --- |
+| HTTP 400, `content_blocked` | A policy block or an internally handled Rails execution failure. Check detector or service diagnostics before treating this as a successful detection; see the [failure-classification limitation](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle#caller-visible-outcomes). |
+| HTTP 502, `config_resolution_failed` | A Python resolver failed or returned an invalid or unregistered ID. Check the trusted identity or state it uses and the preloaded catalog. Fixed per-provider IDs bypass the resolver. |
+| HTTP 422, `unsupported_rail_types` | A resolved checker uses unsupported rails. In normal application assembly, all entries are preloaded, so this incompatibility usually prevents startup instead of producing a request-time response. |
+| HTTP 422, `unsupported_stream_inspection_policy` | With output checks enabled, configure streaming checks with `stream_first: false`. |
+| HTTP 502, `guardrails_input_check_failed` or `guardrails_output_check_failed` | Checking could not complete. Inspect the checking service's dependencies, credentials, availability, and application-side diagnostics. The client error deliberately omits internal exception details. |
+| HTTP 422 request-shape rejection or HTTP 502 response-shape rejection | Compare the payload with the selected operation and dialect's coverage. A valid upstream API payload can contain unsupported history, tools, generated content, or unknown fields. |
+| HTTP 415 representation rejection | Check request media type and content encoding against the binding. Use the JSON request shown in the quickstart to isolate framing from content. |
+| HTTP 422, `request_content_not_replaceable`, or HTTP 502, `response_content_not_replaceable` | A check requested replacement. Current integrations reject replacement outcomes. Choose checks compatible with allow and block behavior. |
+| Upstream authentication or model error | Check destination credentials, upstream model ID, and routing. Inference credentials and optional checking-service credentials serve separate roles. |
+| Responses request rejected before dispatch | Supply one nonempty input string and explicit boolean `store: false`. Input arrays, conversation histories, instructions, tools, background execution, and stored-conversation references are outside the profile. |
+| HTTP 502, `config_resolution_failed`, after a delay | Check `config_resolution_timeout` (default five seconds), resolver dependencies, and selected ID. Keep synchronous callbacks nonblocking; their cooperative deadline cannot interrupt blocking code. |
+
+The [error mapping](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/errors.py) defines
+additional routing and size-limit codes. Unsupported content on a guarded route
+does not fall back to pass-through. Conversely, unselected operations can pass
+through without inspection: verify the route as well as the enabled Rails checks
+when a request unexpectedly avoids blocking.
+
+Use the [coverage table](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles)
+and [contract exports](/run-guardrailed-inference/using-proxy/guard-contracts#inspect-a-contract) to identify a field
+mismatch. Add a deliberate [binding extension](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings) only
+when you have established how the new field should be handled.
+
+## Streaming Is Delayed or Ends With an Error
+
+Reproduce with `curl -N -i` using the [streaming request](/run-guardrailed-inference/using-proxy/quickstart#stream-output).
+`-N` disables curl's output buffering; `-i` shows when response headers arrive.
+If your deployment permits direct access, compare the same synthetic request
+through the ingress and directly to the proxy to isolate gateway buffering.
+
+Use the following observations to locate the failure:
+
+| Observation | Diagnosis and Next Step |
+| --- | --- |
+| Headers arrive, but text waits until completion | Windows count nonempty provider text deltas. A response shorter than `chunk_size` waits for the final partial-window check. Check the Rails window size and ingress buffering. |
+| Text arrives in batches | Each approved window releases its retained bytes. Smaller windows increase check frequency; measure latency and checking cost before changing them. |
+| HTTP 200 followed by an SSE error | Headers were committed before the failure. Read the provider-shaped error event; HTTP success alone does not establish successful completion. |
+| SSE error with type `unsupported_response` | Inspect a minimal reproduction for invalid SSE, unsupported events, inconsistent snapshots, missing terminal behavior, or event-size or pending-byte limits. The binding determines the error code. |
+| `stream_processing_failed` | An unexpected stream-processing exception occurred. Inspect application-side diagnostics and custom hooks; this generic code does not identify the cause. |
+| `upstream_stream_failed` | Investigate upstream body delivery and read/idle timeouts. Compare upstream and ingress behavior with the same request. |
+| A late block follows visible text | Earlier approved windows cannot be retracted. Define how the application presents partial output and stream errors. |
+
+Accepted upstream headers do not validate the event body; even the first event
+can fail after downstream headers are sent. Refer to [streaming lifecycle](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle#streaming-errors-and-cleanup)
+for release and cleanup ordering.
+
+## A Client Disconnects or Shutdown Reports Incomplete Cleanup
+
+Exercise disconnect behavior through the actual ingress using a stream long
+enough to interrupt. Start the request with `curl -N`, interrupt it, and observe
+the upstream connection and proxy cleanup diagnostics.
+
+These warning messages identify different cleanup owners:
+
+| Warning Prefix | Logger | Investigate |
+| --- | --- | --- |
+| `Stream cleanup timed out` or `Stream cleanup failed` | `nemoguardrails.server.experimental._stream_cleanup` | The request's upstream iterator and response owner, including a custom transport's response stream. |
+| `HTTP client cleanup timed out` or `HTTP client cleanup failed` | `nemoguardrails.server.experimental._runtime` | The lifespan's shared client and its outbound transport. |
+| `Guardrails cleanup timed out` or `Guardrails cleanup failed` | `nemoguardrails.server.experimental.rails._repository` | Rails engines and their checking dependencies during rollback or shutdown. |
+
+Each message ends with `resources may remain open.` Configure the host's Python
+logging handlers to retain these warnings. A timeout means cleanup was not
+confirmed; a finished HTTP response does not prove release. Cleanup attempts
+are shielded and cooperatively bounded, so blocking or cancellation-suppressing
+code can defeat the intended budget. Custom owners must support repeatable,
+cancellation-cooperative closing.
+
+Check resource behavior after repeated disconnects and shutdown, including open
+connections and tasks owned by your transport or checking services. Keep network
+read/idle timeouts separate from cleanup budgets; changing the manifest's
+`timeout` is not a cleanup fix. Follow the [transport ownership reference](/run-guardrailed-inference/using-proxy/advanced/http-transport#constraints-and-ownership)
+and [shutdown behavior](/run-guardrailed-inference/using-proxy/deployment#streaming-and-resource-ownership)
+when investigating a resource leak.

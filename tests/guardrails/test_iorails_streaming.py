@@ -19,13 +19,14 @@ import asyncio
 import json
 import logging
 import warnings
+from contextlib import suppress
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 
 from nemoguardrails.exceptions import StreamingCapacityExceededError, StreamingNotSupportedError
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
     STREAM_MAX_CONCURRENCY,
@@ -34,11 +35,18 @@ from nemoguardrails.guardrails.iorails import (
     _TurnConversation,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
-from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
+from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallChunk, ToolCallFunction, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
-from tests.guardrails.rail_stubs import bot_message_rewrite, user_message_rewrite
+from tests.guardrails.rail_stubs import (
+    allow_with_mask_pending,
+    bot_message_rewrite,
+    declare_masking_rails,
+    failed_mask,
+    user_message_rewrite,
+)
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -715,8 +723,8 @@ class TestStreamAsyncToolCalling:
         assert captured_kwargs.get("tool_choice") == "auto"
 
     @pytest.mark.asyncio
-    async def test_tool_call_only_yields_terminal_json(self, iorails_input_only):
-        """A tool-call-only response yields a single terminal JSON chunk containing tool_calls."""
+    async def test_tool_call_only_yields_terminal_event(self, iorails_input_only):
+        """A tool-call-only response yields a single terminal structured chunk containing tool_calls."""
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
         main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
@@ -725,14 +733,13 @@ class TestStreamAsyncToolCalling:
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         assert len(chunks) == 1
-        parsed = json.loads(chunks[0])
-        assert "tool_calls" in parsed
-        assert parsed["tool_calls"][0]["function"]["name"] == "get_weather"
-        assert parsed["tool_calls"][0]["function"]["arguments"] == '{"city": "Paris"}'
+        assert isinstance(chunks[0], ToolCallChunk)
+        assert chunks[0].tool_calls[0].function.name == "get_weather"
+        assert chunks[0].tool_calls[0].function.arguments == {"city": "Paris"}
 
     @pytest.mark.asyncio
-    async def test_text_and_tool_calls_text_first_then_terminal_json(self, iorails_input_only):
-        """Content chunks come first; terminal tool-call JSON follows after all text."""
+    async def test_text_and_tool_calls_text_first_then_terminal_event(self, iorails_input_only):
+        """Content chunks come first; terminal tool-call event follows after all text."""
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
         main_engine._client = _build_tool_call_sse_mock(
@@ -743,15 +750,15 @@ class TestStreamAsyncToolCalling:
 
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
-        tool_json_chunks = [c for c in chunks if isinstance(c, str) and '"tool_calls"' in c]
-        text_chunks = [c for c in chunks if c not in tool_json_chunks]
+        tool_chunks = [c for c in chunks if isinstance(c, ToolCallChunk)]
+        text_chunks = [c for c in chunks if c not in tool_chunks]
         assert "".join(text_chunks) == "Checking weather"
-        assert len(tool_json_chunks) == 1
-        assert json.loads(tool_json_chunks[0])["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert len(tool_chunks) == 1
+        assert tool_chunks[0].tool_calls[0].function.name == "get_weather"
 
     @pytest.mark.asyncio
-    async def test_fragmented_args_assembled_into_complete_json_string(self, iorails_input_only):
-        """OpenAI-style argument fragments are concatenated and parsed into a complete JSON string."""
+    async def test_fragmented_args_assembled_into_complete_call(self, iorails_input_only):
+        """OpenAI-style argument fragments are concatenated and parsed into complete arguments."""
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
 
@@ -784,8 +791,8 @@ class TestStreamAsyncToolCalling:
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         assert len(chunks) == 1
-        parsed = json.loads(chunks[0])
-        assert parsed["tool_calls"][0]["function"]["arguments"] == '{"city": "Paris"}'
+        assert isinstance(chunks[0], ToolCallChunk)
+        assert chunks[0].tool_calls[0].function.arguments == {"city": "Paris"}
 
     @pytest.mark.asyncio
     async def test_tool_call_only_does_not_invoke_output_rails(self, iorails_stream_first):
@@ -799,10 +806,10 @@ class TestStreamAsyncToolCalling:
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         iorails_stream_first.rails_manager.is_output_safe.assert_not_called()
-        assert any('"tool_calls"' in c for c in chunks if isinstance(c, str))
+        assert any(isinstance(c, ToolCallChunk) for c in chunks)
 
     @pytest.mark.asyncio
-    async def test_forced_tool_choice_finish_reason_stop_surfaces_terminal_json(self, iorails_input_only):
+    async def test_forced_tool_choice_finish_reason_stop_surfaces_terminal_event(self, iorails_input_only):
         """Forced tool_choice yields finish_reason='stop'; the tool call must still surface.
         If tool_choice is `auto`, the finish_reason is `tool_calls`
         """
@@ -831,9 +838,9 @@ class TestStreamAsyncToolCalling:
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         assert len(chunks) == 1
-        parsed = json.loads(chunks[0])
-        assert parsed["tool_calls"][0]["function"]["name"] == "get_weather"
-        assert parsed["tool_calls"][0]["function"]["arguments"] == '{"city": "Paris"}'
+        assert isinstance(chunks[0], ToolCallChunk)
+        assert chunks[0].tool_calls[0].function.name == "get_weather"
+        assert chunks[0].tool_calls[0].function.arguments == {"city": "Paris"}
 
     @pytest.mark.asyncio
     async def test_model_engine_accumulates_tool_calls(self, iorails_input_only):
@@ -854,8 +861,8 @@ class TestStreamAsyncToolCalling:
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         assert len(chunks) == 1
-        parsed = json.loads(chunks[0])
-        names = [tc["function"]["name"] for tc in parsed["tool_calls"]]
+        assert isinstance(chunks[0], ToolCallChunk)
+        names = [call.function.name for call in chunks[0].tool_calls]
         assert names == ["fn_a", "fn_b"]
 
     @pytest.mark.asyncio
@@ -875,27 +882,20 @@ class TestStreamAsyncToolCalling:
         # The block surfaces a guardrails_violation error chunk ...
         assert any(isinstance(c, str) and "guardrails_violation" in c for c in chunks)
         # ... and the terminal tool-call chunk must NOT follow it.
-        assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
+        assert not any(isinstance(c, ToolCallChunk) for c in chunks)
 
     @pytest.mark.asyncio
-    async def test_include_metadata_tool_call_only_yields_dict_frame(self, iorails_input_only):
-        """With include_metadata=True the terminal tool-call chunk is a dict frame."""
+    async def test_include_metadata_tool_call_only_yields_structured_event(self, iorails_input_only):
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
         main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
         main_engine._running = True
-
         chunks = await _collect(
             iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
         )
-
-        # No raw-string tool-call chunk leaked into a metadata stream.
-        assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
-        # The tool calls arrive as a dict frame with the payload under "text".
-        tool_frames = [c for c in chunks if isinstance(c, dict) and '"tool_calls"' in (c.get("text") or "")]
+        tool_frames = [c for c in chunks if isinstance(c, ToolCallChunk)]
         assert len(tool_frames) == 1
-        parsed = json.loads(tool_frames[0]["text"])
-        assert parsed["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert tool_frames[0].tool_calls[0].function.name == "get_weather"
 
     @pytest.mark.asyncio
     async def test_tool_calls_recorded_in_captured_content(self, iorails_input_only):
@@ -981,6 +981,12 @@ class TestIsStreamErrorChunk:
 
     def test_metadata_frame_with_error(self):
         assert _is_stream_error_chunk({"text": '{"error": {"type": "generation_error"}}'}) is True
+
+    @pytest.mark.parametrize("include_metadata", [False, True])
+    def test_internal_rail_error_is_terminal(self, include_metadata):
+        error = '{"error": {"type": "internal_error", "code": "rail_execution_failure"}}'
+        chunk = {"text": error} if include_metadata else error
+        assert _is_stream_error_chunk(chunk) is True
 
     def test_non_error_json_string(self):
         assert _is_stream_error_chunk('{"tool_calls": []}') is False
@@ -1215,6 +1221,25 @@ class TestBlockReasonDisplay:
         assert not any("S1: Violence" in chunk for chunk in chunks if isinstance(chunk, str))
 
     @pytest.mark.asyncio
+    async def test_failed_input_rail_payload_carries_no_exception_text(self, iorails_input_only):
+        """A rail that raised an unclassified error reaches the client by name only, with no upstream text."""
+        _wire_mocks(iorails_input_only)
+        exc = ValueError("Details: see https://internal.example/debug token nvapi-abc123secret")
+        failure = rail_error_outcome(None, "content safety check input", exc)
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(
+            return_value=RailResult(failure, triggered_rail="content safety check input")
+        )
+
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        _assert_error_chunk(
+            chunks,
+            code="content_blocked",
+            message_contains="Blocked by input rails: content safety check input error",
+        )
+        assert not any("internal.example" in chunk for chunk in chunks if isinstance(chunk, str))
+
+    @pytest.mark.asyncio
     async def test_output_block_payload_falls_back_to_the_rail_name(self, iorails_stream_first):
         """An output rail blocking with neither reason nor evidence names itself to the client."""
         _wire_mocks(iorails_stream_first)
@@ -1303,3 +1328,80 @@ class TestStreamingContentCapture:
             )
 
         assert capture.call_args.args[1][-1]["content"] == "my ssn is <SSN>"
+
+    @pytest.mark.asyncio
+    async def test_a_failed_input_mask_withholds_the_input(self, iorails_input_only):
+        """The mask raised, so the streamed request's span records no input rather than the message as sent."""
+        iorails_input_only._content_capture_enabled = True
+        declare_masking_rails(iorails_input_only, RailDirection.INPUT)
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=failed_mask("gliner mask pii on input"))
+        iorails_input_only.engine_registry.stream_model_call = _mock_stream
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await _collect(
+                iorails_input_only.stream_async(messages=[{"role": "user", "content": "my ssn is 123-45-6789"}])
+            )
+
+        assert capture.call_args.args[1] is None
+
+    @pytest.mark.asyncio
+    async def test_a_stream_closed_before_its_input_rails_finish_withholds_the_input(self, iorails_input_only):
+        """The caller left before any mask decided, so the span records no input rather than the message as sent."""
+        iorails_input_only._content_capture_enabled = True
+        declare_masking_rails(iorails_input_only, RailDirection.INPUT)
+        input_rails_reached = asyncio.Event()
+
+        async def input_rails_that_never_finish(messages, **kwargs):
+            input_rails_reached.set()
+            await asyncio.Event().wait()
+
+        iorails_input_only.rails_manager.is_input_safe = input_rails_that_never_finish
+        stream = iorails_input_only.stream_async(messages=[{"role": "user", "content": "my ssn is 123-45-6789"}])
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            first_chunk = asyncio.create_task(anext(stream))
+            await input_rails_reached.wait()
+            first_chunk.cancel()
+            with suppress(asyncio.CancelledError):
+                await first_chunk
+
+        assert capture.call_args.args[1] is None
+
+    @pytest.mark.asyncio
+    async def test_a_response_to_an_unmasked_turn_is_withheld(self, iorails_input_only):
+        """The model read the turn the input mask never decided on, so the streamed response may repeat it."""
+        iorails_input_only._content_capture_enabled = True
+        declare_masking_rails(iorails_input_only, RailDirection.INPUT)
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=allow_with_mask_pending())
+        iorails_input_only.engine_registry.stream_model_call = _mock_stream
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await _collect(
+                iorails_input_only.stream_async(messages=[{"role": "user", "content": "my ssn is 123-45-6789"}])
+            )
+
+        assert capture.call_args.args[2] is None
+
+    @pytest.mark.asyncio
+    async def test_a_batch_sent_with_an_output_mask_off_withholds_the_output(self, iorails_stream_check_first):
+        """A batch the output mask never decided on has already reached the caller, so the span records no output."""
+        iorails_stream_check_first._content_capture_enabled = True
+        declare_masking_rails(iorails_stream_check_first, RailDirection.OUTPUT)
+        iorails_stream_check_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails_stream_check_first.rails_manager.is_output_safe = AsyncMock(return_value=allow_with_mask_pending())
+        iorails_stream_check_first.engine_registry.stream_model_call = _mock_stream
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert capture.call_args.args[2] is None
+
+    @pytest.mark.asyncio
+    async def test_a_malformed_message_does_not_fail_the_call(self, iorails_input_only):
+        """Looking for text to mask waits for the stream to run, so the call itself still only builds the stream."""
+        iorails_input_only._content_capture_enabled = True
+        declare_masking_rails(iorails_input_only, RailDirection.INPUT)
+
+        stream = iorails_input_only.stream_async(messages=[None])
+
+        await stream.aclose()

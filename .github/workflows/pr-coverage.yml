@@ -1,10 +1,9 @@
 name: PR Coverage
 
+# Runs on every pull request, so the PR Coverage Summary check always reports. Coverage itself runs only when
+# _code-changes.yml finds a change the tests depend on.
 on:
   pull_request:
-    paths-ignore:
-      - "**/*.md"
-      - ".github/**"
 
 permissions:
   contents: read
@@ -14,14 +13,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    uses: ./.github/workflows/_code-changes.yml
+    permissions:
+      pull-requests: read
   pr-coverage:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     uses: ./.github/workflows/_coverage.yml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  # Without always(), a failed coverage run would skip this job, and a skipped check counts as passed.
   pr-coverage-summary:
     name: PR Coverage Summary
-    needs: pr-coverage
+    needs: [changes, pr-coverage]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-      - name: Confirm PR coverage passed
-        run: echo "PR coverage completed successfully"
+      - name: Check the PR coverage result
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CODE_CHANGED: ${{ needs.changes.outputs.code }}
+          COVERAGE_RESULT: ${{ needs.pr-coverage.result }}
+        run: |
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "Couldn't tell whether the pull request needs coverage: the changed-files job ended as $CHANGES_RESULT."
+            exit 1
+          fi
+          if [ "$CODE_CHANGED" = "true" ]; then
+            if [ "$COVERAGE_RESULT" != "success" ]; then
+              echo "PR coverage didn't pass: $COVERAGE_RESULT."
+              exit 1
+            fi
+            echo "PR coverage passed."
+          elif [ "$CODE_CHANGED" = "false" ]; then
+            if [ "$COVERAGE_RESULT" != "skipped" ]; then
+              echo "The pull request needs no coverage run, but it ended as $COVERAGE_RESULT."
+              exit 1
+            fi
+            echo "Coverage skipped: the pull request changes nothing the tests depend on."
+          else
+            echo "The changed-files job gave no answer (code='$CODE_CHANGED')."
+            exit 1
+          fi

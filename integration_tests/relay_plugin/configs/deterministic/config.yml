@@ -1,0 +1,34 @@
+# The tool policy and regex rail that the NeMo Relay plugin's end-to-end tests check calls against, with no model:
+# every way the hooks server decides a call without an LLM. The tools are:
+#
+#   search      allowed with only `query`, and checked by a regex rail
+#   send_email  allowed with any arguments but `bcc`, and no rail
+#   run_shell   blocked
+#   any other   not allowed
+
+models: []
+
+hooks_server:
+  allowed_tools:
+    - name: search
+      arguments: [query]
+    - send_email
+  blocked_tools:
+    - run_shell
+    - name: send_email
+      arguments: [bcc]
+  allow_unlisted_tools: false
+
+rails:
+  tool_call:
+    per_tool:
+      search:
+        - regex check tool call $argument=query
+
+  config:
+    regex_detection:
+      tool_call:
+        search:
+          # Matched against the call's `query` as JSON, such as {"query": "weather"}.
+          patterns:
+            - '(?i)password'

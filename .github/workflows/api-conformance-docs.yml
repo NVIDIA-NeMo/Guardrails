@@ -1,4 +1,4 @@
-# Docs conformance: diffs the hand-written Fern spec (fern/openapi.yml)
+# Docs conformance: diffs the build-time OpenAPI spec with its Fern overlay
 # against the upstream OpenAI spec.  Runs on PRs that touch the spec and
 # weekly to surface upstream drift.
 #
@@ -10,8 +10,16 @@ name: "API Conformance: Docs"
 on:
   pull_request:
     paths:
-      - "fern/openapi.yml"
+      - "nemoguardrails/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/export_openapi.py"
+      - "fern/openapi-overlay.yml"
+      - "fern/generators.yml"
+      - "fern/fern.config.json"
+      - "Makefile"
       - "scripts/openai_coverage.py"
+      - ".github/workflows/api-conformance-docs.yml"
 
   schedule:
     - cron: "23 9 * * 1"
@@ -28,7 +36,7 @@ env:
 
 jobs:
   docs:
-    name: fern/openapi.yml vs OpenAI spec
+    name: Generated Fern API vs OpenAI spec
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,6 +51,19 @@ jobs:
 
       - uses: ./.github/actions/setup-uv
       - run: uv sync --locked --group dev
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Generate published API contract
+        run: |
+          make docs-fern-generate-openapi
+          FERN_VERSION=$(node -p "require('./fern/fern.config.json').version")
+          cd fern
+          npx --yes "fern-api@${FERN_VERSION}" export "$RUNNER_TEMP/openapi-current.yml"
 
       - name: Install oasdiff
         run: |
@@ -61,15 +82,37 @@ jobs:
 
       - name: Check for breaking changes
         if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: origin/${{ github.base_ref }}
         run: |
-          uv run --locked python scripts/openai_coverage.py \
-            --openai-spec /tmp/openai-spec.yml --check-breaking \
-            --base-ref "$BASE_REF"
+          # actions/checkout uses GitHub's test merge, whose first parent is
+          # the actual target revision; the PR event's base SHA can be stale.
+          BASE_REF=$(git rev-parse HEAD^1)
+          # Initialize the generated baseline only when runtime sources are unchanged.
+          # The legacy handwritten schema has drifted from the implementation.
+          if ! git cat-file -e "$BASE_REF:scripts/export_openapi.py" 2>/dev/null &&
+             git diff --quiet "$BASE_REF" HEAD -- nemoguardrails pyproject.toml uv.lock; then
+            echo "::notice::Initializing generated OpenAPI baseline from unchanged runtime sources."
+          else
+            BASE_DIR="$RUNNER_TEMP/openapi-base"
+            trap 'git worktree remove --force "$BASE_DIR"' EXIT
+            git -c core.hooksPath=/dev/null worktree add --detach "$BASE_DIR" "$BASE_REF"
+            if [ -f "$BASE_DIR/scripts/export_openapi.py" ]; then
+              (cd "$BASE_DIR" && env -u FERN_TOKEN -u DOCS_FERN_TOKEN \
+                UV_PROJECT_ENVIRONMENT="$BASE_DIR/.venv" \
+                uv run --locked --extra server python scripts/export_openapi.py)
+            fi
+            FERN_VERSION=$(node -p "require('./fern/fern.config.json').version")
+            (cd "$BASE_DIR/fern" && npx --yes "fern-api@${FERN_VERSION}" \
+              export "$RUNNER_TEMP/openapi-base.yml")
+            uv run --locked python scripts/openai_coverage.py \
+              --openai-spec /tmp/openai-spec.yml --check-breaking \
+              --guardrails-spec "$RUNNER_TEMP/openapi-current.yml" \
+              --base-spec "$RUNNER_TEMP/openapi-base.yml" \
+              --base-ref "$BASE_REF"
+          fi
 
       - name: Check conformance
         run: |
           uv run --locked python scripts/openai_coverage.py \
             --openai-spec /tmp/openai-spec.yml \
+            --guardrails-spec "$RUNNER_TEMP/openapi-current.yml" \
             --summary "$GITHUB_STEP_SUMMARY"

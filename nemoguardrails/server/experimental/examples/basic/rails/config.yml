@@ -1,0 +1,21 @@
+models: []
+rails:
+  config:
+    regex_detection:
+      input:
+        patterns:
+          - '\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}\b'
+      output:
+        patterns:
+          - '\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}\b'
+  input:
+    flows:
+      - regex check input
+  output:
+    flows:
+      - regex check output
+    streaming:
+      enabled: true
+      chunk_size: 200
+      context_size: 50
+      stream_first: false

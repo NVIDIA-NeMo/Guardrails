@@ -1,0 +1,113 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/responses
+    headers:
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-5-nano
+      stream: false
+      input: 'Reply with exactly: Hello.'
+      store: false
+      max_output_tokens: 256
+      reasoning:
+        effort: minimal
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created_at: 1793266597
+        error: null
+        incomplete_details: null
+        instructions: null
+        metadata: {}
+        model: openai/openai/gpt-5-nano
+        object: response
+        output:
+        - id: encitem_bGl0ZWxsbTptb2RlbF9pZDpvcGVuYWkvb3BlbmFpL2dwdC01LW5hbm87aXRlbV9pZDpyc18wMGVmYWUyNDg1ZTgwY2Q3MDE2YWUzMTNhNjJiMjA4N2QwOTAyNzRjNDVmZGEwNjAzZQ==
+          summary: []
+          type: reasoning
+          content: []
+          encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1uYW5v;gAAAAABq4xOmcoIlHP5r6j64Qic9L3YAEGOV15Ua8fhyiLR4hflBupQyEAH-9AXOb4tz4rNIuMYhCueK0rdj2gA_gLtboSZ9y4fMG3O9zUcC544mnXjjs6rIBStUzEkR4KpM9kB5rXVTX0ypUj5a92GvyOyxKuqKhDrksv_J8Y_ZubiZmS9p6cObBt7VeEX0QxS2BoY7Clo_4zOP-DScUru8FtE0at3bq7YR8UPwxowqtbvw6Rfbb-JWvtBCIvTyD36MP_xviW7zbdXDTJOQ3SD86luFyFgzJBfEYEXZYe6cjhR0Nta4sogm-cvbGAI-PehDbqRgqAMk8mhfB7crxugoyjNbJ3MLhug_iw4uqVQm_vEmE1lWoNSMo12KpgKomaYkV_FeaTLCXs_ulcjirPBnYQCiA4xwqrGxLUPl4rdkMRby85UkqDZoGBcWzM2ZzlruyFj-2U2YkC5PcMX7quR5gKJDMmgbfDNw41V8v4bv3uBjj03q_Ihlf2mAmoUKmbTv4Lo5P4gnOXgzcMsf5KXJiwQxXIXWSCelLHSjkSZHbYngbNSZFsabLci03WjLWlaHAB8gjfUTh7WoGI-DQ-v3QoZmsGr8flmWP9v9-dcQFcBeG3X_DKecpfS07PJYyhhKqglZpxI6KsiWedw73EVfo7rm-SsqwP0KLF9bI9aoMzKdTWTVd9-cxdSoOiGLnqxcsfbY76ZGYia0J1ijI20TEGXKo-8xyYhx47b94XgcIT2qE-v44FhCS_kqpAIAFaBKPprJGhmzwW3PAN2CNf_3MrrzJhs2UDPqWvyK4fIsZj21ztNGAJ0fKQTaOVg95YGd22klxM2YvKCQDueQSQ6oxlqEDAyTUyf9lmrmyte50nsbCxz0Bimif5f9ctggeMIzfhCk7MDEpOGOVVKqC4R4yt2MxCCdTnTbqqwOMqlmjl-rrXuTOk9BUYuCIZlvwM88r0Ys8ROj6GdYtQoVRouvFnFqFr90YBWKo2RQ8oO5upd77WjP-4iSVC9ix5mSwOfuYUoflV5S5TgYxS0d0ut4R7pJhkUhjXRpx6w91vV8fBV9-Kc4KAGvEAXbtll2j8uqWQjopGsiTaEJjmR_KL9LmwymgftsSwnel2zpWafjGGftXlC80-ImI2_oqtK3pm2pUKZofXNNkhH0A69gjVUT14UK6hInM0r7TJONG3eMeBbkP99SryU-jP2B8PxEuOEmUua_2FMIaSvkmhBxybPIBy_7NRpXEgBnCcenP1oYS3S6YIbFOtSYpuROqLPKM62sy7LCf0HMDf9qtAJXxTVzf-EmWFnWaMlWcxs43nhF6jLKDq94YN5gPKrWUv0jovC_AHsv9I1a-lQtpB_3NDCtu6Xuf6Hd4jFRzDI1WMoqqtwJUR0tb25QWh1E_NqjGhO4k3Grh8Kq2nQV37KmgWv2zdZ-TAmpjru0YZBo-g7u5bpPcfZ4svG7nrJZ7e3w4zLuveToc-XlVapY0ZzVd2KPLZ0SnpUma2nU1n5mNQnz6jQT4WyEqBrrJViNEONS0h2htxJqWJd5ybDhk0Y1Sv46UECLSi_xRa8NsVGjOiY95-W9AqEvXL7do7SoMQHng1Bqfb_2njaUBvlII-scBKvj5hkWARCB6bjF3SDZhQ6hD6sB_ouZnF4=
+        - id: msg_00efae2485e80cd7016ae313a648d887d0b2c718ffc6fb4eac
+          content:
+          - annotations: []
+            text: Hello.
+            type: output_text
+            logprobs: []
+          role: assistant
+          status: completed
+          type: message
+          phase: null
+        parallel_tool_calls: true
+        temperature: 1.0
+        tool_choice: auto
+        tools: []
+        top_p: 1.0
+        max_output_tokens: 256
+        previous_response_id: null
+        reasoning:
+          context: current_turn
+          effort: minimal
+          mode: standard
+          summary: null
+        status: completed
+        text:
+          format:
+            type: text
+          verbosity: medium
+        truncation: disabled
+        usage:
+          input_tokens: 12
+          input_tokens_details:
+            audio_tokens: null
+            cached_tokens: 0
+            cached_tokens_details: null
+            image_tokens: null
+            text_tokens: null
+            video_tokens: null
+            cache_write_tokens: 0
+          output_tokens: 20
+          output_tokens_details:
+            audio_tokens: null
+            reasoning_tokens: 0
+            text_tokens: null
+          total_tokens: 32
+          cost: null
+        user: null
+        store: false
+        access_programs: null
+        background: false
+        billing:
+          payer: developer
+        completed_at: 1793266598
+        frequency_penalty: 0.0
+        max_tool_calls: null
+        moderation: null
+        presence_penalty: 0.0
+        prompt_cache_key: null
+        prompt_cache_retention: in_memory
+        safety_identifier: null
+        service_tier: default
+        tool_usage:
+          image_gen:
+            input_tokens: 0
+            input_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            output_tokens: 0
+            output_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            total_tokens: 0
+          web_search:
+            num_requests: 0
+        top_logprobs: 0
