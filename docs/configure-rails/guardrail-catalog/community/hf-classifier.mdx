@@ -129,7 +129,10 @@ scores are not averaged. Short inputs keep the original Hugging Face behavior.
 
 Configured truncation is preserved: text beyond the truncation limit is discarded and
 is **not** checked by this rail. Hugging Face also enables truncation implicitly when
-`parameters.max_length` is supplied without `parameters.truncation`.
+`parameters.max_length` is supplied without `parameters.truncation` and
+`parameters.padding` is omitted or set to `false`. Other padding settings do not
+implicitly enable truncation; oversized inputs still use automatic windows unless
+truncation is explicitly enabled.
 
 Local `token-classification` uses the native Hugging Face pipeline after the version check. It normally
 truncates to the tokenizer limit by default, so text beyond that limit is not checked.

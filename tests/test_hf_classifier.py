@@ -1155,6 +1155,27 @@ class TestLocalPipeline:
         ]
         assert chunked(text, stride=3, **options) == expected
 
+    @pytest.mark.parametrize("padding", [True, "longest", "max_length", "do_not_pad"])
+    @pytest.mark.parametrize("batch_size", [1, 2])
+    def test_max_length_with_padding_preserves_full_input(self, classifiers, padding, batch_size):
+        original, chunked = classifiers
+        text = " ".join(["w0"] * 59 + ["w24"])
+        options = {"max_length": 12, "padding": padding}
+        assert original.preprocess(text, **options)["input_ids"].shape[-1] == 62
+
+        with mock.patch.object(chunked, "_forward", wraps=chunked._forward) as forward:
+            assert chunked(text, **options, batch_size=batch_size)
+
+        content = []
+        for call in forward.call_args_list:
+            inputs = call.args[0]
+            assert inputs["input_ids"].shape[-1] <= 32
+            for ids, mask in zip(inputs["input_ids"], inputs["attention_mask"]):
+                content.append(ids[mask.bool()].tolist()[1:-1])
+        assert len(content) > 1
+        reconstructed = content[0] + [token for window in content[1:] for token in window[7:]]
+        assert reconstructed == chunked.tokenizer.encode(text, add_special_tokens=False)
+
     @pytest.mark.parametrize("direction", ["left", "right"])
     @pytest.mark.parametrize("stride,special_tokens,overlap", [(None, True, 7), (0, True, 0), (3, False, 3)])
     def test_windows_cover_all_tokens(self, classifiers, stride, special_tokens, overlap, direction):

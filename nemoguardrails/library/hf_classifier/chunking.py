@@ -158,7 +158,7 @@ class ChunkedTextClassificationPipeline(ChunkPipeline, TextClassificationPipelin
         limit = _input_limit(self, kwargs.get("max_length"))
         truncation = kwargs.get("truncation")
         truncates = truncation not in (None, False, "do_not_truncate") or (
-            truncation is None and kwargs.get("max_length") is not None
+            truncation is None and kwargs.get("max_length") is not None and kwargs.get("padding", False) is False
         )
         if truncates or limit is None or prepared["input_ids"].shape[-1] <= limit:
             return _PreparedInput(prepared)
