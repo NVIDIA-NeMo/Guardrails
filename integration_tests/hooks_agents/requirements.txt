@@ -121,14 +121,14 @@ cffi==2.1.1 ; platform_python_implementation != 'PyPy' \
     --hash=sha256:fb92203a88b3d3053034db775110081c49d28be6551923805e039924093761e4 \
     --hash=sha256:fcd22650c908d7b7da162bbfaab594a1227a15d1643a98c68b122ac642fa2264
     # via cryptography
-claude-agent-sdk==0.2.168 \
-    --hash=sha256:2ef1e7fc442c5abdc1e698027bf1b5faa8ea2130134a14364e2ae3c53bf31fdd \
-    --hash=sha256:653fc7bbe56630e6ddd9601a7cfe50586667e74102da3fb90571456c63655a62 \
-    --hash=sha256:77ae66b10edfd07b6ea3dec2af106ad47a9d616f8eb52d4f9b385e1b00bb2a27 \
-    --hash=sha256:80388054a09c137d76fc29caa6e46bc90d2ae2ef09fac5ee1c38fc36d2762fda \
-    --hash=sha256:be197be92549909ec62a2cee04c27f4b0a38c80f723735538a3efc352507f81d \
-    --hash=sha256:ed1814b0dd1c113bdaf3e51e6a67aa5b96b8f5c5839a43aeb6ae1e6ed23a5b35
-    # via -r integration_tests/hooks_agents/requirements.in
+claude-agent-sdk==0.2.175 \
+    --hash=sha256:5f1fa909d9885a8af2992e1146c7d1cfc2947602d64f0d3ee0275e8465a9a7a9 \
+    --hash=sha256:5f7401b9057face095334e0858ef98ed5b458c2a1852f63df515d5edd49c1ffd \
+    --hash=sha256:6ba57680f57b340b007f0c735e747d7361373866c1966a104b7517e510140bde \
+    --hash=sha256:8fee8a293863176e718135da974adf762038157c6721cf21b3d09a2e9ccfe967 \
+    --hash=sha256:cb4739bd91ace43b9a52810a6f1821b9043f1964a40e154b28f6c39c6700337c \
+    --hash=sha256:f4b2aaa8f5d0b363ec5f8e4fe87fdcf1d46ced8e5787c6a685cf5eb177ea3f2a
+    # via -r requirements.in
 click==8.5.0 ; sys_platform != 'emscripten' \
     --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360 \
     --hash=sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34
@@ -245,7 +245,7 @@ openai-codex-cli-bin==0.163.0 \
     --hash=sha256:b759f212cc0deec6da9f297800797232c73d3f0d963842deaa02df965ee0b8b6 \
     --hash=sha256:bb2b0d117eeb02608738cf2bcdf51f6a036343d0028272e11a94e72b0d23b141 \
     --hash=sha256:dd0e6570930167f0e15ec94c5fb494a4a5a9dceb0a97113176c7b47c826cda05
-    # via -r integration_tests/hooks_agents/requirements.in
+    # via -r requirements.in
 opentelemetry-api==1.45.1 \
     --hash=sha256:aa38ed19bcc084ba42782a73255b3582283eced7ad6dddbd6695189e69adfb75 \
     --hash=sha256:b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb
