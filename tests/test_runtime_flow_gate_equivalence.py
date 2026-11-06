@@ -1255,13 +1255,14 @@ def _injection_detection_outcome(
     action: str,
     detections: list[str] | None = None,
 ) -> RailOutcome:
+    """Construct the outcome shared by Colang and IORails equivalence cases."""
     metadata = {
         "is_injection": is_injection,
         "text": text,
         "detections": detections or [],
         "action": action,
     }
-    if action == "reject" and is_injection:
+    if is_injection and (action == "reject" or (action == "omit" and text == NORMAL_OUTPUT)):
         return RailOutcome.block(metadata=metadata)
     if text != NORMAL_OUTPUT:
         return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, text)], metadata=metadata)
@@ -2115,6 +2116,19 @@ FIXTURES = [
         expected_content="injection detection normalized output",
     ),
     _case(
+        "injection_detection_omit_blocks_unremoved_injection",
+        INJECTION_DETECTION_OMIT,
+        _injection_detection_outcome(
+            is_injection=True,
+            text=NORMAL_OUTPUT,
+            action="omit",
+            detections=["xss"],
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content=f"{INJECTION_DETECTION_REFUSAL_PREFIX}xss.",
+    ),
+    _case(
         "injection_detection_omit_transforms_injection_text",
         INJECTION_DETECTION_OMIT,
         _injection_detection_outcome(
@@ -2868,7 +2882,10 @@ def test_colang_2_detailed_moderation_renders_action_verdict(module, flow, actio
             "reject",
             f"{INJECTION_DETECTION_REFUSAL_PREFIX}SQL injection, XSS.",
         ),
-        ("omit", ""),
+        (
+            "omit",
+            f"{INJECTION_DETECTION_REFUSAL_PREFIX}SQL injection, XSS.",
+        ),
     ],
 )
 def test_colang_2_injection_detection_preserves_blocked_verdict(action, expected):
