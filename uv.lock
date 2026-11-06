@@ -1551,17 +1551,16 @@ wheels = [
 
 [[package]]
 name = "langchain-nvidia-ai-endpoints"
-version = "1.4.1"
+version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
-    { name = "filetype" },
     { name = "langchain-core" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f9/26/cae8babfecb9b7b503dbf5d6c0d98df74149c3151247d20e7bbfd17ca461/langchain_nvidia_ai_endpoints-1.4.1.tar.gz", hash = "sha256:8835f7e56d559b370b87164f937c1eb048ab837f25de91598f00555a705c2d16", size = 58092, upload-time = "2026-06-03T19:34:15.117Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a7/e8/eae73c346c4a849321ebeff68f42a5a9a6fa8f1d3cf7146975b71e4279aa/langchain_nvidia_ai_endpoints-1.5.0.tar.gz", hash = "sha256:9c76d5507fd6a4905073611b03127b3423b88d2692af8bfce04b20c4ec161ed5", size = 85162, upload-time = "2026-10-14T23:17:44.202Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/50/9dcb23c73270e775c38e8d264ccbf8b1b352dbac089bce3746756d895e46/langchain_nvidia_ai_endpoints-1.4.1-py3-none-any.whl", hash = "sha256:3edd1678a3e2c55789128e53ba32aab3dffe94cb201c70e6cea521fab7c261ff", size = 63203, upload-time = "2026-06-03T19:34:11.08Z" },
+    { url = "https://files.pythonhosted.org/packages/98/bf/fd4da17062dd55f38a3f1f7585e72f13424368e4fe77e564b5c73be82834/langchain_nvidia_ai_endpoints-1.5.0-py3-none-any.whl", hash = "sha256:98e7e8e677a522bd9c48c7a606af2a949bf682b6cce4e62449e38bc6f485a4cd", size = 89302, upload-time = "2026-10-14T23:17:43.002Z" },
 ]
 
 [[package]]
@@ -2208,7 +2207,7 @@ requires-dist = [
     { name = "aiofiles", marker = "extra == 'all'", specifier = ">=24.1.0" },
     { name = "aiofiles", marker = "extra == 'server'", specifier = ">=24.1.0" },
     { name = "aiofiles", marker = "extra == 'tracing'", specifier = ">=24.1.0" },
-    { name = "aiohttp", specifier = ">=3.10.11" },
+    { name = "aiohttp", specifier = ">=3.14.4" },
     { name = "aiohttp-retry", specifier = ">=2.9.0" },
     { name = "chainlit", marker = "extra == 'all'", specifier = ">=2.11.0,<3.0.0" },
     { name = "chainlit", marker = "extra == 'chat-ui'", specifier = ">=2.11.0,<3.0.0" },
@@ -2289,7 +2288,7 @@ dev = [
     { name = "langchain", specifier = ">=0.2.14,<2.0.0" },
     { name = "langchain-community", specifier = ">=0.2.5,<2.0.0" },
     { name = "langchain-core", specifier = ">=0.2.14,<2.0.0" },
-    { name = "langchain-nvidia-ai-endpoints", specifier = ">=0.2.0" },
+    { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.5.0,<2.0.0" },
     { name = "langchain-openai", specifier = ">=0.1.0" },
     { name = "openai", specifier = ">=1.0.0,<3.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.34.1,<2.0.0" },
@@ -2332,7 +2331,7 @@ test-integration = [
     { name = "langchain", specifier = ">=0.2.14,<2.0.0" },
     { name = "langchain-community", specifier = ">=0.2.5,<2.0.0" },
     { name = "langchain-core", specifier = ">=0.2.14,<2.0.0" },
-    { name = "langchain-nvidia-ai-endpoints", specifier = ">=0.2.0" },
+    { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.5.0,<2.0.0" },
     { name = "langchain-openai", specifier = ">=0.1.0" },
     { name = "openai", specifier = ">=1.0.0,<3.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.34.1,<2.0.0" },
@@ -4402,11 +4401,11 @@ wheels = [
 
 [[package]]
 name = "setuptools"
-version = "83.0.0"
+version = "84.1.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/34/26/f5d29e25ffdb535afef2d35cdb55b325298f96debd670da4c325e08d70f4/setuptools-83.0.0.tar.gz", hash = "sha256:025bccbbf0fa05b6192bc64ae1e7b16e001fd6d6d4d5de03c97b1c1ade523bef", size = 1154254, upload-time = "2026-07-04T15:31:22.699Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/73/eb/7e5f628ee2eb168fecbf8026de7856b2543d6d609cc85f086b9a91ac93d6/setuptools-84.1.0.tar.gz", hash = "sha256:23657205b63d4d31395ab917815247f694aafad28cd21316bf5fd45a51048ea0", size = 1171783, upload-time = "2026-10-19T20:11:43.489Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/40/e1e72872c6354b306daef1703549e8e83b4d43cfea356311bf722a043752/setuptools-83.0.0-py3-none-any.whl", hash = "sha256:29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3", size = 1008090, upload-time = "2026-07-04T15:31:20.885Z" },
+    { url = "https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl", hash = "sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9", size = 819380, upload-time = "2026-10-19T20:11:41.684Z" },
 ]
 
 [[package]]
@@ -5068,11 +5067,11 @@ wheels = [
 
 [[package]]
 name = "urllib3"
-version = "2.7.0"
+version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/53/0c/06f8b233b8fd13b9e5ee11424ef85419ba0d8ba0b3138bf360be2ff56953/urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c", size = 433602, upload-time = "2026-05-07T16:13:18.596Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz", hash = "sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63", size = 458972, upload-time = "2026-09-15T19:29:36.253Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897", size = 131087, upload-time = "2026-05-07T16:13:17.151Z" },
+    { url = "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl", hash = "sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3", size = 135717, upload-time = "2026-09-15T19:29:34.577Z" },
 ]
 
 [[package]]
