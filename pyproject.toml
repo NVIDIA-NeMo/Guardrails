@@ -161,6 +161,9 @@ dev = [
 [tool.uv]
 package = true
 exclude-newer = "7 days"
+# Newer Python 3.10-compatible filelock releases expose additional affected lock
+# protocols. Keep the existing 3.29 line until compatible backports are available.
+constraint-dependencies = ["filelock<3.30 ; python_version<'3.11'"]
 
 # Flat layout: the importable package is ./nemoguardrails (not under ./src).
 # uv_build ships everything under the module dir (Python plus the .co/.lark/.yml
