@@ -24,6 +24,7 @@ from typing import Any, Dict, Literal, Optional, Tuple
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.http.retry import _header
+from nemoguardrails.library.hiddenlayer.errs import HiddenLayerActionError, HiddenLayerVerdictError
 
 Surface = Literal["input", "output", "tool_call", "tool_result"]
 
@@ -50,14 +51,6 @@ class _Evaluation:
 
     headers: Mapping[str, str]
     body: Any
-
-
-class HiddenLayerActionError(Exception):
-    """The response carries no action to apply. The message never quotes the response."""
-
-
-class HiddenLayerVerdictError(Exception):
-    """The action cannot be applied to what was sent. The message never quotes the response."""
 
 
 def _action(headers: Mapping[str, str]) -> str:

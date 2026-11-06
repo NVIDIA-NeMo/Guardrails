@@ -22,24 +22,24 @@ entry points deep-copy and pickle the config.
 import base64
 import hashlib
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
-from nemoguardrails.http import HTTPClient, HTTPResponse, HTTPResponseDecodeError
+from nemoguardrails.http import (
+    ClosableHTTPClient,
+    HTTPClient,
+    HTTPResponse,
+    HTTPResponseDecodeError,
+    http_call,
+)
+from nemoguardrails.library.hiddenlayer.errs import HiddenLayerTransportError
 
 REQUEST_TIMEOUT_SECONDS = 30.0
 
 _TOKEN_PATH = "/oauth2/token"
 _DEFAULT_EXPIRES_IN_SECONDS = 3600.0
 _EXPIRY_MARGIN_SECONDS = 10.0
-
-
-class HiddenLayerTransportError(Exception):
-    """A HiddenLayer request failed. The message holds only status, content type and length."""
-
-    def __init__(self, message: str, status_code: Optional[int] = None):
-        super().__init__(message)
-        self.status_code = status_code
 
 
 def _describe(response: HTTPResponse) -> str:
@@ -65,9 +65,16 @@ def _now() -> float:
     return time.monotonic()
 
 
-async def _fetch(client: HTTPClient, api_url: str, client_id: str, client_secret: str) -> Tuple[str, float]:
+async def _fetch(
+    client: Optional[HTTPClient],
+    api_url: str,
+    client_id: str,
+    client_secret: str,
+    factory: Callable[[], ClosableHTTPClient],
+) -> Tuple[str, float]:
     credentials = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-    response = await client.request(
+    response = await http_call(
+        client,
         "POST",
         f"{api_url}{_TOKEN_PATH}",
         headers={
@@ -76,6 +83,8 @@ async def _fetch(client: HTTPClient, api_url: str, client_id: str, client_secret
         },
         content="grant_type=client_credentials",
         timeout=REQUEST_TIMEOUT_SECONDS,
+        raise_for_status=False,
+        factory=factory,
     )
     if response.status_code != 200:
         raise HiddenLayerTransportError(
@@ -99,18 +108,20 @@ async def _fetch(client: HTTPClient, api_url: str, client_id: str, client_secret
 
 
 async def _access_token(
-    client: HTTPClient,
+    client: Optional[HTTPClient],
     api_url: str,
     client_id: str,
     client_secret: str,
+    factory: Callable[[], ClosableHTTPClient],
     *,
     rejected: Optional[str] = None,
 ) -> str:
     """Return a bearer token for the credentials, fetching one when none is cached and fresh.
 
     Args:
-        client: Client used for the token request.
+        client: Caller-owned client, or None to let factory supply one for the request.
         api_url: HiddenLayer API base URL, without a trailing slash.
+        factory: Builds the client used when client is None.
         client_id: OAuth2 client ID.
         client_secret: OAuth2 client secret.
         rejected: Set when the API answered 401, which drops the cached token so this call
@@ -130,7 +141,7 @@ async def _access_token(
     cached = _tokens.get(key)
     if cached is not None and _now() < cached.refresh_at:
         return cached.token
-    token, expires_in = await _fetch(client, api_url, client_id, client_secret)
+    token, expires_in = await _fetch(client, api_url, client_id, client_secret, factory)
     _tokens[key] = _CachedToken(token, _now() + expires_in - _EXPIRY_MARGIN_SECONDS)
     return token
 

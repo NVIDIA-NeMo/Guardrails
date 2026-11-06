@@ -8,7 +8,7 @@ Each check sends the content to one of two HiddenLayer routes, and the rail appl
 A check before the model is called, the input check and each tool-result check, goes to `/detection/v2/nemo-guardrails/request-evaluations`; a check of what the model answered, the output check and each tool-call check, goes to `/detection/v2/nemo-guardrails/response-evaluations`.
 Each body carries one check in the shape the library hands a rail, named by a `check` field: a user message, a bot message, a tool call, or a tool result with the call it answers.
 HiddenLayer maps it onto its own interaction model, so the library performs no translation of its own.
-A body carries the current turn only, and the verdict comes back in the `HL-Runtime-Action` and `HL-Runtime-Protection-Mode` response headers.
+A body carries the current turn only, and the verdict comes back in the `HL-Runtime-Action` response header.
 
 ## Surfaces
 
@@ -33,7 +33,7 @@ A `BLOCK` returns the check as sent rather than a refusal message: the library r
 
 ### Protection Mode
 
-`HL-Runtime-Protection-Mode` says whether the action is the one the policy selected, and if not, why.
+A deployment may also send `HL-Runtime-Protection-Mode`, saying whether the action is the one the policy selected and if not why. The rail passes it through in the outcome metadata when it is present and does not require it.
 
 | Protection mode | Meaning |
 |---|---|
@@ -186,14 +186,14 @@ An `api_url` field that is not `https://` outside a loopback host fails the conf
 Missing credentials, or such a URL in `HIDDENLAYER_BASE_URL`, raise an error on every request regardless of `fail_open`.
 On IORails this blocks each request with the internal-error response rather than failing at startup.
 
-The rail retries HTTP 429, 502, 503, and 504 up to `max_retries` times and retries a connection error once.
+The rail retries HTTP 429, 502, 503, and 504 up to `max_retries` times.
 It refreshes the access token once after an HTTP 401.
-It does not retry a timeout or HTTP 400, 403, 413, or 422.
+It does not retry a timeout, a connection error, or HTTP 400, 403, 413, or 422. A rail runs inline, and the retry setting covers timeouts and connection errors together, so retrying either would cost another full request timeout before the caller hears anything.
 When the call still does not produce a verdict, the rail blocks the request, or allows it when `fail_open` is `true`.
 An allow under `fail_open` logs one warning; HiddenLayer has no record that the library allowed the request.
 
 `fail_open` covers every call that ends without a verdict, whatever ended it: a timeout, a connection failure, a rejection by the server such as an HTTP 400, 413, or 422, a response that is not valid JSON, and a 200 whose `HL-Runtime-Action` is missing or unrecognized.
-An evaluation HiddenLayer itself could not complete is none of those: it returns a 200 whose action is the one your HiddenLayer deployment's fail setting chose, `NONE` when it fails open and `BLOCK` when it fails closed, with `HL-Runtime-Protection-Mode: AS_CONFIGURED`.
+An evaluation HiddenLayer itself could not complete is none of those: it returns a 200 whose action is the one your HiddenLayer deployment's fail setting chose, `NONE` when it fails open and `BLOCK` when it fails closed.
 That is a verdict, so the rail applies it whatever `fail_open` says.
 A `REDACT` whose body carries no usable redacted text blocks, because the action is valid and the rail cannot carry it out.
 
@@ -202,8 +202,15 @@ An empty user or bot message is allowed without a call, because a check carrying
 
 Each request has a 30-second timeout, and each retry waits up to `max_retry_after_seconds`.
 With the defaults, one HTTP call can take up to about 150 seconds, and a check that exhausts the retries on both the token request and the evaluation can take about 5 minutes.
-A connection-error retry or a token refresh adds another full retry budget.
+A token refresh adds another full retry budget.
 The library has no per-rail timeout, so set the retry fields lower when you need a tighter bound.
+
+## Limitations
+
+- A `tool_call` or `tool_result` check is never returned redacted. The engine honors a transform only on the conversational surfaces, so `_REDACTABLE` in `_verdict.py` covers `input` and `output` alone and a redaction on a tool surface is enforced as a block instead.
+- A timeout or connection error is not retried, by the `retry_transport_errors=False` in `_retry_policy`, for the inline-latency reason above.
+- With `fail_open` set, a revoked or misscoped credential leaves the rail unguarded rather than erroring, because a 401 and a 403 are covered like any other non-success status.
+- Without a conversation ID in scope, each check is evaluated on its own. `send_session_id` has nothing to send, and HiddenLayer reconstructs the conversation heuristically rather than from a stable session.
 
 ## Streaming
 

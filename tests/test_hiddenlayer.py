@@ -30,13 +30,6 @@ from nemoguardrails.context import conversation_id, roundtrip_id
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
 from nemoguardrails.http import HTTPConnectionError, HTTPTimeoutError, create_http_client
 from nemoguardrails.library.hiddenlayer import actions
-from nemoguardrails.library.hiddenlayer._payloads import (
-    _REQUEST_PATH,
-    _RESPONSE_PATH,
-    MAX_ROUNDTRIP_ID_BYTES,
-    MAX_SESSION_ID_BYTES,
-    _reset_warnings,
-)
 from nemoguardrails.library.hiddenlayer._token import _reset_token_cache
 from nemoguardrails.library.hiddenlayer._verdict import BLOCK_REASON, FAIL_OPEN_REASON
 from nemoguardrails.library.hiddenlayer.actions import (
@@ -48,7 +41,15 @@ from nemoguardrails.library.hiddenlayer.actions import (
     hiddenlayer_evaluate_tool_call,
     hiddenlayer_evaluate_tool_result,
 )
+from nemoguardrails.library.hiddenlayer.errs import HiddenLayerCheckError
 from nemoguardrails.library.hiddenlayer.rail_config import HiddenLayerRailConfig
+from nemoguardrails.library.hiddenlayer.request import (
+    _REQUEST_PATH,
+    _RESPONSE_PATH,
+    MAX_ROUNDTRIP_ID_BYTES,
+    MAX_SESSION_ID_BYTES,
+    _reset_warnings,
+)
 from nemoguardrails.testing import RecordingHTTPClient
 from nemoguardrails.types import ToolCall, ToolCallFunction
 from tests.fixtures.hiddenlayer import (
@@ -153,13 +154,13 @@ def _assert_failure_policy(outcome_or_error, fail_open: bool) -> None:
         assert outcome_or_error.metadata == {"fail_open": True}
         assert outcome_or_error.reason == FAIL_OPEN_REASON
     else:
-        assert isinstance(outcome_or_error, RuntimeError)
+        assert isinstance(outcome_or_error, HiddenLayerCheckError)
 
 
 async def _outcome_or_error(client, fail_open: bool, **fields):
     try:
         return await _check_input(client, fail_open=fail_open, **fields)
-    except RuntimeError as error:
+    except HiddenLayerCheckError as error:
         return error
 
 
@@ -226,12 +227,11 @@ class TestTokenPath:
     """The token request uses the same retrying client and the same single connection-error retry."""
 
     @pytest.mark.asyncio
-    async def test_connection_error_then_success(self):
+    async def test_connection_error_is_a_single_attempt(self, fail_open):
         with RecordedHTTPResponses() as responses:
             responses.post(TOKEN_URL, exception=HTTPConnectionError("refused"))
-            _token(responses)
-            _verdict(responses, INPUT_NONE)
-            assert (await _check_input(responses.client)).decision is RailDecision.ALLOW
+            _assert_failure_policy(await _outcome_or_error(responses.client, fail_open), fail_open)
+            assert len(responses.client.requests) == 1
 
     @pytest.mark.asyncio
     async def test_503_then_success(self):
@@ -240,12 +240,6 @@ class TestTokenPath:
             _token(responses)
             _verdict(responses, INPUT_NONE)
             assert (await _check_input(responses.client)).decision is RailDecision.ALLOW
-
-    @pytest.mark.asyncio
-    async def test_two_connection_errors_apply_the_failure_policy(self, fail_open):
-        with RecordedHTTPResponses() as responses:
-            responses.post(TOKEN_URL, exception=HTTPConnectionError("refused"), times=2)
-            _assert_failure_policy(await _outcome_or_error(responses.client, fail_open), fail_open)
 
     @pytest.mark.asyncio
     async def test_timeout_is_a_single_attempt(self, fail_open):
@@ -262,19 +256,12 @@ class TestTokenPath:
 
 class TestFailures:
     @pytest.mark.asyncio
-    async def test_connection_error_then_success_retries_once(self):
+    async def test_connection_error_is_not_retried(self, fail_open):
         with RecordedHTTPResponses() as responses:
             _token(responses)
             responses.post(REQUEST_URL, exception=HTTPConnectionError("reset"))
-            _verdict(responses, INPUT_NONE)
-            assert (await _check_input(responses.client)).decision is RailDecision.ALLOW
-
-    @pytest.mark.asyncio
-    async def test_connection_error_twice_applies_the_failure_policy(self, fail_open):
-        with RecordedHTTPResponses() as responses:
-            _token(responses)
-            responses.post(REQUEST_URL, exception=HTTPConnectionError("reset"), times=2)
             _assert_failure_policy(await _outcome_or_error(responses.client, fail_open), fail_open)
+            assert len(_evaluations(responses.client)) == 1
 
     @pytest.mark.asyncio
     async def test_timeout_is_not_retried(self, fail_open):
@@ -305,7 +292,7 @@ class TestFailures:
         with RecordedHTTPResponses() as responses:
             _token(responses)
             responses.post(REQUEST_URL, status=503, body="")
-            with pytest.raises(RuntimeError, match="status=503"):
+            with pytest.raises(HiddenLayerCheckError, match="status=503"):
                 await _check_input(responses.client, max_retries=0)
 
     @pytest.mark.asyncio
@@ -525,14 +512,16 @@ class TestRoundtripId:
 class TestClientOwnership:
     @pytest.mark.asyncio
     async def test_injected_client_is_never_closed(self):
-        client = RecordingHTTPClient()
-        with pytest.raises(RuntimeError):
-            await _check_input(client)
-        assert client.close_calls == 0
+        # A failing check, so the close would happen on the error path if it happened at all.
+        with RecordedHTTPResponses() as responses:
+            responses.post(TOKEN_URL, status=503, body="", times=3)
+            with pytest.raises(HiddenLayerCheckError):
+                await _check_input(responses.client)
+        assert responses.client.close_calls == 0
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("succeeds", [True, False])
-    async def test_owned_client_is_shared_and_closed(self, monkeypatch, succeeds):
+    async def test_every_owned_client_is_closed(self, monkeypatch, succeeds):
         responses = RecordedHTTPResponses()
         _token(responses)
         if succeeds:
@@ -551,11 +540,13 @@ class TestClientOwnership:
             if succeeds:
                 await _check_input(None)
             else:
-                with pytest.raises(RuntimeError):
+                with pytest.raises(HiddenLayerCheckError):
                     await _check_input(None)
 
-        assert created == [{"timeout": 30.0}]
-        assert responses.client.close_calls == 1
+        # http_call builds a client per request and closes each one, so the count follows the
+        # number of requests rather than being one shared client for the whole check.
+        assert created and all(kwargs == {"timeout": 30.0} for kwargs in created)
+        assert responses.client.close_calls == len(created)
 
 
 class TestActions:
@@ -755,6 +746,18 @@ class TestColang1:
         assert response["role"] == "exception"
         assert response["content"]["type"] == "HiddenlayerRailException"
 
+    def test_output_block_raises_an_exception_when_enabled(self):
+        chat = _v1_chat(llm_completions=[OUTPUT_TEXT], enable_rails_exceptions=True)
+        with RecordedHTTPResponses() as responses:
+            _token(responses)
+            _verdict(responses, INPUT_NONE)
+            _verdict(responses, OUTPUT_BLOCK, url=RESPONSE_URL)
+            chat.app.register_action_param("http_client", responses.client)
+            response = chat.app.generate(messages=[{"role": "user", "content": INPUT_TEXT}])
+
+        assert response["role"] == "exception"
+        assert response["content"]["type"] == "HiddenlayerRailException"
+
     def test_input_redact_replaces_the_user_message(self):
         chat = _v1_chat(llm_completions=["Hello!"])
         with RecordedHTTPResponses() as responses:
@@ -804,21 +807,35 @@ class TestColang1:
 
 class TestColang2:
     @staticmethod
-    def _chat() -> TestChat:
-        return TestChat(RailsConfig.from_content(yaml_content=V2_CONFIG, colang_content=V2_FLOWS))
+    def _chat(enable_rails_exceptions: bool = False) -> TestChat:
+        yaml_content = V2_CONFIG + ("enable_rails_exceptions: true\n" if enable_rails_exceptions else "")
+        return TestChat(RailsConfig.from_content(yaml_content=yaml_content, colang_content=V2_FLOWS))
 
-    def test_input_block_refuses(self):
-        chat = self._chat()
+    def test_input_block_sends_an_exception_instead_of_refusing_when_enabled(self):
+        chat = self._chat(enable_rails_exceptions=True)
         with RecordedHTTPResponses() as responses:
             _token(responses)
             _verdict(responses, INPUT_BLOCK)
-            # Colang 2 runs the output rail on the refusal too.
-            _verdict(responses, OUTPUT_NONE, url=RESPONSE_URL)
             chat.app.register_action_param("http_client", responses.client)
-            chat >> INPUT_TEXT
-            chat << REFUSAL
+            response = chat.app.generate(messages=[{"role": "user", "content": INPUT_TEXT}])
 
-        assert _evaluation_bodies(responses.client)[1]["bot_message"] == REFUSAL
+        # The flow takes the exception branch rather than `bot refuse to respond`, so no refusal
+        # is uttered and the output rail never runs. Colang 2 does not promote a rail exception
+        # to a message role the way Colang 1 does, so the absence of the refusal is what is
+        # observable here.
+        assert REFUSAL not in response["content"]
+        assert len(_evaluations(responses.client)) == 1
+
+    def test_output_block_sends_an_exception_instead_of_refusing_when_enabled(self):
+        chat = self._chat(enable_rails_exceptions=True)
+        with RecordedHTTPResponses() as responses:
+            _token(responses)
+            _verdict(responses, INPUT_NONE)
+            _verdict(responses, OUTPUT_BLOCK, url=RESPONSE_URL)
+            chat.app.register_action_param("http_client", responses.client)
+            response = chat.app.generate(messages=[{"role": "user", "content": INPUT_TEXT}])
+
+        assert REFUSAL not in response["content"]
 
     def test_input_redact_replaces_the_user_message(self):
         chat = self._chat()
