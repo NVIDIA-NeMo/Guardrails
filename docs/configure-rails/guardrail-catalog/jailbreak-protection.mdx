@@ -112,6 +112,13 @@ It blocks longer inputs before cache lookup, local inference, or a remote detect
 This limit applies to in-process, `server_endpoint`, and NIM-backed model checks.
 The bundled detector server returns HTTP 413 from `/model`, which the rail also treats as a block.
 
+<Warning>
+
+This is a breaking behavior change for oversized messages. Earlier versions classified only a truncated prefix and could allow the full message to proceed.
+The model rail now rejects the message. Applications must keep each submitted message within the detector's limit, including special tokens.
+
+</Warning>
+
 Input validation uses a bundled, revision-pinned tokenizer and runs offline.
 All model checks, including NIM-backed and `server_endpoint` checks, require the `tokenizers` package for this validation.
 The standard installation currently includes it through FastEmbed. If it is missing from your environment, install it before enabling the model rail:
