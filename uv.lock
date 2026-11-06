@@ -1816,17 +1816,16 @@ wheels = [
 
 [[package]]
 name = "langchain-nvidia-ai-endpoints"
-version = "1.4.1"
+version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
-    { name = "filetype" },
     { name = "langchain-core" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f9/26/cae8babfecb9b7b503dbf5d6c0d98df74149c3151247d20e7bbfd17ca461/langchain_nvidia_ai_endpoints-1.4.1.tar.gz", hash = "sha256:8835f7e56d559b370b87164f937c1eb048ab837f25de91598f00555a705c2d16", size = 58092, upload-time = "2026-06-03T19:34:15.117Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a7/e8/eae73c346c4a849321ebeff68f42a5a9a6fa8f1d3cf7146975b71e4279aa/langchain_nvidia_ai_endpoints-1.5.0.tar.gz", hash = "sha256:9c76d5507fd6a4905073611b03127b3423b88d2692af8bfce04b20c4ec161ed5", size = 85162, upload-time = "2026-10-14T23:17:44.202Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/50/9dcb23c73270e775c38e8d264ccbf8b1b352dbac089bce3746756d895e46/langchain_nvidia_ai_endpoints-1.4.1-py3-none-any.whl", hash = "sha256:3edd1678a3e2c55789128e53ba32aab3dffe94cb201c70e6cea521fab7c261ff", size = 63203, upload-time = "2026-06-03T19:34:11.08Z" },
+    { url = "https://files.pythonhosted.org/packages/98/bf/fd4da17062dd55f38a3f1f7585e72f13424368e4fe77e564b5c73be82834/langchain_nvidia_ai_endpoints-1.5.0-py3-none-any.whl", hash = "sha256:98e7e8e677a522bd9c48c7a606af2a949bf682b6cce4e62449e38bc6f485a4cd", size = 89302, upload-time = "2026-10-14T23:17:43.002Z" },
 ]
 
 [[package]]
@@ -2548,7 +2547,7 @@ requires-dist = [
     { name = "aiofiles", marker = "extra == 'all'", specifier = ">=24.1.0" },
     { name = "aiofiles", marker = "extra == 'server'", specifier = ">=24.1.0" },
     { name = "aiofiles", marker = "extra == 'tracing'", specifier = ">=24.1.0" },
-    { name = "aiohttp", specifier = ">=3.10.11" },
+    { name = "aiohttp", specifier = ">=3.14.4" },
     { name = "aiohttp-retry", specifier = ">=2.9.0" },
     { name = "chainlit", marker = "extra == 'all'", specifier = ">=2.11.0,<3.0.0" },
     { name = "chainlit", marker = "extra == 'chat-ui'", specifier = ">=2.11.0,<3.0.0" },
@@ -2632,7 +2631,7 @@ dev = [
     { name = "langchain", specifier = ">=0.2.14,<2.0.0" },
     { name = "langchain-community", specifier = ">=0.2.5,<2.0.0" },
     { name = "langchain-core", specifier = ">=0.2.14,<2.0.0" },
-    { name = "langchain-nvidia-ai-endpoints", specifier = ">=0.2.0" },
+    { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.5.0,<2.0.0" },
     { name = "langchain-openai", specifier = ">=0.1.0" },
     { name = "openai", specifier = ">=1.0.0,<3.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.34.1,<2.0.0" },
@@ -2675,7 +2674,7 @@ test-integration = [
     { name = "langchain", specifier = ">=0.2.14,<2.0.0" },
     { name = "langchain-community", specifier = ">=0.2.5,<2.0.0" },
     { name = "langchain-core", specifier = ">=0.2.14,<2.0.0" },
-    { name = "langchain-nvidia-ai-endpoints", specifier = ">=0.2.0" },
+    { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.5.0,<2.0.0" },
     { name = "langchain-openai", specifier = ">=0.1.0" },
     { name = "openai", specifier = ">=1.0.0,<3.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.34.1,<2.0.0" },
