@@ -1,0 +1,14 @@
+flow atr detection
+  """
+  Block user input that matches Agent Threat Rules (prompt injection, jailbreak,
+  tool poisoning, MCP attacks, skill compromise). This rail operates on the
+  $user_message.
+  """
+  $response = await AtrDetectionAction(text=$user_message)
+
+  if $response.is_blocked
+    if $system.config.enable_rails_exceptions
+      send AtrDetectionRailException(message="Input not allowed. The input was blocked by the 'atr detection' flow.")
+    else
+      bot refuse to respond
+    abort
