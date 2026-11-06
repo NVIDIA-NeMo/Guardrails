@@ -202,11 +202,14 @@ def _load_rules(
 
 def _omit_injection(text: str, matches: list["yara.Match"]) -> Tuple[bool, str]:
     """
-    Attempts to strip the offending injection attempts from the provided text.
+    Remove the union of matched byte ranges from the original UTF-8 text.
 
     Note:
         This method may not be completely effective and could still result in
         malicious activity.
+        The caller must re-scan the result because deletion can assemble new
+        injection patterns. Offsets and full match lengths remain usable even
+        when YARA truncates the returned match data or decodes it with XOR.
 
     Args:
         text (str): The text to check for command injection.
@@ -214,45 +217,41 @@ def _omit_injection(text: str, matches: list["yara.Match"]) -> Tuple[bool, str]:
 
     Returns:
         Tuple[bool, str]: A tuple containing:
-            - bool: True if any YARA rule matched, regardless of removal success.
-            - str: The text with detected strings removed, or the original text
-                   if any match cannot be fully removed. The caller must block
-                   detected injections when the text is unchanged and recheck
-                   modified text for remaining matches.
+            - bool: True if matches were provided, False otherwise.
+            - str: The text with all matched byte ranges removed.
 
     Raises:
-        ImportError: If the yara module is not installed.
+        AttributeError: If a match is missing its range information.
+        TypeError: If range information has unusable types.
+        ValueError: If any match has no removable ranges, a range is invalid,
+                    or the result is not valid UTF-8.
     """
 
-    modified_text = text
+    if not matches:
+        return False, text
+
+    data = text.encode("utf-8")
+    ranges = []
     for match in matches:
         if not match.strings:
-            log.warning("Cannot omit an injection match without matched strings; blocking output.")
-            return True, text
+            raise ValueError("Injection match has no removable ranges.")
         for match_string in match.strings:
             if not match_string.instances:
-                log.warning("Cannot omit an injection match without string instances; blocking output.")
-                return True, text
-            for instance in match_string.instances:
-                try:
-                    matched_bytes = instance.plaintext()
-                    # YARA can truncate returned data before the end of the match or a UTF-8 character.
-                    if len(matched_bytes) != instance.matched_length:
-                        log.warning("Cannot omit a truncated injection match; blocking output.")
-                        return True, text
-                    if matched_bytes != instance.matched_data:
-                        log.warning("Cannot omit a decoded injection match; blocking output.")
-                        return True, text
-                    plaintext = matched_bytes.decode("utf-8")
-                except (AttributeError, UnicodeDecodeError):
-                    log.warning("Cannot decode an injection match for omission; blocking output.")
-                    return True, text
-                if not plaintext or plaintext not in text:
-                    log.warning("Cannot locate an injection match in the original text; blocking output.")
-                    return True, text
-                modified_text = modified_text.replace(plaintext, "")
+                raise ValueError("Injection string match has no removable ranges.")
+            ranges.extend(
+                (instance.offset, instance.offset + instance.matched_length) for instance in match_string.instances
+            )
 
-    return bool(matches), modified_text
+    parts = []
+    cursor = 0
+    for start, end in sorted(ranges):
+        if not 0 <= start < end <= len(data):
+            raise ValueError("Injection match has an invalid byte range.")
+        if start > cursor:
+            parts.append(data[cursor:start])
+        cursor = max(cursor, end)
+    parts.append(data[cursor:])
+    return True, b"".join(parts).decode("utf-8")
 
 
 def _sanitize_injection(text: str, matches: list["yara.Match"]) -> Tuple[bool, str]:
@@ -382,13 +381,23 @@ async def injection_detection(text: str, config: RailsConfig) -> RailOutcome:
             log.info(f"Input matched on rule {', '.join(detected_rules_list)}.")
 
             if action_option == "omit":
-                is_injection, result_text = _omit_injection(text, matches)
-                if result_text != text and rules.match(data=result_text):
-                    log.warning("Injection omission left matching content; blocking output.")
-                    result_text = text
+                result_text = text
+                try:
+                    _, candidate_text = _omit_injection(text, matches)
+                    remaining_matches = rules.match(data=candidate_text)
+                except (AttributeError, TypeError, ValueError, yara.Error):
+                    log.warning("Injection omission or validation failed; blocking output.")
+                else:
+                    if remaining_matches:
+                        log.warning("Injection omission left matching content; blocking output.")
+                        detected_rules_list = list(
+                            dict.fromkeys(detected_rules_list + [match.rule for match in remaining_matches])
+                        )
+                    else:
+                        result_text = candidate_text
                 return _injection_detection_outcome(
                     InjectionDetectionResult(
-                        is_injection=is_injection,
+                        is_injection=True,
                         text=result_text,
                         detections=detected_rules_list,
                     ),

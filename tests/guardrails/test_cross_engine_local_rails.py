@@ -244,8 +244,8 @@ INJECTION_OMIT_CONFIG = {"injection_detection": {"injections": ["sqli"], "action
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("partial_removal", [False, True])
-async def test_iorails_blocks_incomplete_injection_omission(partial_removal):
-    """Incomplete omission blocks both checking and generation through IORails."""
+async def test_iorails_removes_full_injection_ranges(partial_removal):
+    """Truncated match data still produces complete rewrites through IORails."""
     text = "<script>/*" + "a" * 501 + "é" + "*/alert(1)</script>"
     if partial_removal:
         text = "<script>alert(2)</script> " + text
@@ -266,9 +266,30 @@ async def test_iorails_blocks_incomplete_injection_omission(partial_removal):
             rail_types=[RailType.OUTPUT],
         )
 
-    assert result.status == RailStatus.BLOCKED
-    assert result.content == REFUSAL_MESSAGE
-    assert await _iorails_reply(config_dict, BENIGN_INPUT, text) == REFUSAL_MESSAGE
+    expected = " " if partial_removal else ""
+    assert result.status == RailStatus.MODIFIED
+    assert result.content == expected
+    assert await _iorails_reply(config_dict, BENIGN_INPUT, text) == expected
+
+
+@pytest.mark.asyncio
+async def test_iorails_blocks_injection_without_removable_ranges():
+    config_dict = _local_config(
+        LocalRail(
+            rail_id="injection_detection_omit",
+            flow="injection detection",
+            direction="output",
+            rails_config={
+                "injection_detection": {
+                    "injections": ["test"],
+                    "action": "omit",
+                    "yara_rules": {"test": "rule test { condition: true }"},
+                }
+            },
+        )
+    )
+
+    assert await _iorails_reply(config_dict, BENIGN_INPUT, "no removable ranges") == REFUSAL_MESSAGE
 
 
 BLOAT_LIMIT = 40

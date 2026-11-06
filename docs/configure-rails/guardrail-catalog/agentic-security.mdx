@@ -23,8 +23,8 @@ The second part of injection detection is specifying the action to take when a r
 You can specify to *reject* the text and return "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {detections}."
 Rejecting the output is the safest action and most appropriate for production deployments.
 As an alternative to rejecting the output, you can specify to *omit* the triggering text from the response.
-If any detected content cannot be fully removed, or the modified response still matches a configured rule, `omit` blocks the output.
-For XOR-decoded matches, `omit` blocks the output if the decoded bytes differ from the matched bytes in the response.
+The rail removes the full matched byte ranges, including XOR-encoded matches and matches whose returned data is truncated, then checks the modified response against all configured rules.
+If any match has a missing or invalid range, the result is not valid UTF-8, validation fails, or the modified response still matches a rule, `omit` blocks the output.
 
 ### About the Default Rules
 
@@ -84,7 +84,7 @@ Refer to the following table for the `rails.config.injection_detection` field sy
     Refer to the following actions:
 
     - `reject` returns a message to the user indicating that the query could not be handled and they should try again.
-    - `omit` returns the model response, removing the offending detected content.
+    - `omit` removes the detected content and returns the modified response if it passes a second check. Otherwise, it rejects the output.
   - None (required)
 
 * - `yara_path`
