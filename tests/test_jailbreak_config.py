@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib.metadata
 import logging
 import os
 from unittest.mock import patch
@@ -227,7 +228,72 @@ def _make_rails_config(**kwargs):
     return RailsConfig(**defaults)
 
 
+def _hide_distributions(monkeypatch, *names):
+    distribution = importlib.metadata.distribution
+
+    def lookup(name):
+        if name in names:
+            raise importlib.metadata.PackageNotFoundError(name)
+        return distribution(name)
+
+    monkeypatch.setattr(importlib.metadata, "distribution", lookup)
+
+
 class TestJailbreakDetectionCrossValidation:
+    @pytest.mark.parametrize("colang_version", ["1.0", "2.x"])
+    @pytest.mark.parametrize(
+        "detector_config",
+        [
+            pytest.param({}, id="local"),
+            pytest.param({"server_endpoint": "https://detector.example/model"}, id="server"),
+            pytest.param({"nim_base_url": "https://detector.example"}, id="nim"),
+            pytest.param({"nim_url": "detector.example"}, id="deprecated-nim"),
+        ],
+    )
+    def test_model_flow_requires_tokenizers_at_config_creation(self, detector_config, colang_version, monkeypatch):
+        _hide_distributions(monkeypatch, "tokenizers")
+
+        with pytest.raises(ValueError, match="pip install tokenizers"):
+            RailsConfig.from_content(
+                config={
+                    "colang_version": colang_version,
+                    "rails": {
+                        "input": {"flows": ["jailbreak detection model"]},
+                        "config": {"jailbreak_detection": detector_config},
+                    },
+                }
+            )
+
+    @pytest.mark.parametrize("flow", [None, "jailbreak detection heuristics"])
+    def test_tokenizers_is_not_required_when_model_flow_is_disabled(self, flow, monkeypatch):
+        _hide_distributions(monkeypatch, "tokenizers")
+
+        config = RailsConfig.from_content(
+            config={
+                "rails": {
+                    "input": {"flows": [flow] if flow else []},
+                    "config": {"jailbreak_detection": {"server_endpoint": "https://detector.example/heuristics"}},
+                }
+            }
+        )
+
+        assert config.rails.input.flows == ([flow] if flow else [])
+
+    @pytest.mark.parametrize("endpoint", ["server_endpoint", "nim_base_url"])
+    def test_remote_model_flow_does_not_require_torch_or_transformers(self, endpoint, monkeypatch):
+        _hide_distributions(monkeypatch, "torch", "transformers")
+
+        config = RailsConfig.from_content(
+            config={
+                "rails": {
+                    "input": {"flows": ["jailbreak detection model"]},
+                    "config": {"jailbreak_detection": {endpoint: "https://detector.example"}},
+                }
+            }
+        )
+
+        assert config.rails.input.flows == ["jailbreak detection model"]
+
     def test_model_flow_with_nim_url_but_no_endpoint_raises(self):
         """nim_base_url set but nim_server_endpoint empty should raise."""
         with pytest.raises(Exception, match="nim_server_endpoint is empty"):

@@ -121,7 +121,8 @@ pip install tokenizers
 ```
 
 NIM-backed checks need no Torch, Transformers, Hugging Face credentials, or model downloads.
-If `tokenizers` is missing, the bundled tokenizer cannot be loaded, or input coverage cannot be verified, the rail blocks the request without calling the detector.
+Configuration loading raises an error with installation instructions if the model rail is enabled and `tokenizers` is missing.
+If the bundled tokenizer cannot be loaded or input coverage cannot be verified at runtime, the rail blocks the request without calling the detector.
 Remote requests are sent unchanged only after they pass validation; the model rail also blocks an HTTP 413 returned by the endpoint.
 
 This client-side limit protects calls made through the NVIDIA NeMo Guardrails library.
