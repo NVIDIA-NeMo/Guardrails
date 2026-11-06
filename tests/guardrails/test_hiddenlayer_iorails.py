@@ -35,8 +35,8 @@ from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_ME
 from nemoguardrails.guardrails.telemetry import request_span
 from nemoguardrails.http import HTTPResponse
 from nemoguardrails.http.types import HTTPRequest
-from nemoguardrails.library.hiddenlayer._payloads import _REQUEST_PATH, _RESPONSE_PATH
 from nemoguardrails.library.hiddenlayer._token import _reset_token_cache
+from nemoguardrails.library.hiddenlayer.request import _REQUEST_PATH, _RESPONSE_PATH
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType, ToolViolationType
 from tests.fixtures.hiddenlayer import INPUT_BLOCK, OUTPUT_BLOCK, TOOL_PROMOTED

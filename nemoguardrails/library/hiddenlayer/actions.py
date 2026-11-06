@@ -15,7 +15,7 @@
 
 import logging
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple, TypeVar
 
@@ -25,15 +25,40 @@ from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import get_conversation_id
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, tool_call_validation
 from nemoguardrails.http import (
+    ClosableHTTPClient,
     HTTPClient,
     HTTPClientError,
-    HTTPConnectionError,
     HTTPResponseDecodeError,
-    RetryingHTTPClient,
     RetryPolicy,
     create_http_client,
+    http_call,
 )
-from nemoguardrails.library.hiddenlayer._payloads import (
+from nemoguardrails.http.composition import ensure_retrying_http_client
+from nemoguardrails.library.hiddenlayer._token import (
+    REQUEST_TIMEOUT_SECONDS,
+    _access_token,
+    _describe,
+)
+from nemoguardrails.library.hiddenlayer._verdict import (
+    BLOCK_REASON,
+    FAIL_OPEN_REASON,
+    Surface,
+    _Evaluation,
+    _outcome,
+)
+from nemoguardrails.library.hiddenlayer.errs import (
+    HiddenLayerActionError,
+    HiddenLayerCheckError,
+    HiddenLayerTransportError,
+    HiddenLayerVerdictError,
+)
+from nemoguardrails.library.hiddenlayer.rail_config import (
+    DEFAULT_API_URL,
+    DEFAULT_REQUESTER_ID,
+    HiddenLayerRailConfig,
+    _check_api_url,
+)
+from nemoguardrails.library.hiddenlayer.request import (
     _SURFACE_PATH,
     _headers,
     _input_check,
@@ -41,27 +66,6 @@ from nemoguardrails.library.hiddenlayer._payloads import (
     _roundtrip_id,
     _tool_call_check,
     _tool_result_check,
-)
-from nemoguardrails.library.hiddenlayer._token import (
-    REQUEST_TIMEOUT_SECONDS,
-    HiddenLayerTransportError,
-    _access_token,
-    _describe,
-)
-from nemoguardrails.library.hiddenlayer._verdict import (
-    BLOCK_REASON,
-    FAIL_OPEN_REASON,
-    HiddenLayerActionError,
-    HiddenLayerVerdictError,
-    Surface,
-    _Evaluation,
-    _outcome,
-)
-from nemoguardrails.library.hiddenlayer.rail_config import (
-    DEFAULT_API_URL,
-    DEFAULT_REQUESTER_ID,
-    HiddenLayerRailConfig,
-    _check_api_url,
 )
 from nemoguardrails.types import ToolCall
 
@@ -157,8 +161,14 @@ def _credentials() -> Tuple[str, str]:
 
 
 def _retry_policy(settings: _Settings) -> RetryPolicy:
-    # Transport errors are left out of the policy because it would spend the status budget on
-    # timeouts too; a connection error gets one extra attempt in _with_connection_retry instead.
+    # POST is resent because an evaluation is a stateless scan: HiddenLayer records the
+    # interaction but a repeat of the same body changes nothing server-side, and the round-trip
+    # ID is resolved once per check so a resend reports as the same evaluation.
+    #
+    # Transport errors are not retried. The setting covers timeouts and connection errors
+    # together, and a rail runs inline, so retrying a timeout would cost another full
+    # REQUEST_TIMEOUT_SECONDS before the caller hears anything. A connection error resolves to
+    # the fail setting instead.
     max_delay = settings.max_retry_after_seconds
     return RetryPolicy(
         max_attempts=settings.max_retries + 1,
@@ -173,15 +183,9 @@ def _retry_policy(settings: _Settings) -> RetryPolicy:
     )
 
 
-async def _with_connection_retry(send: Callable[[], Awaitable[_T]]) -> _T:
-    try:
-        return await send()
-    except HTTPConnectionError:
-        return await send()
-
-
 async def _request_evaluation(
-    client: HTTPClient,
+    client: Optional[HTTPClient],
+    factory: Callable[[], ClosableHTTPClient],
     surface: Surface,
     settings: _Settings,
     provider: Optional[str],
@@ -196,26 +200,25 @@ async def _request_evaluation(
     session_id = get_conversation_id() if settings.send_session_id else None
 
     async def token(rejected: Optional[str] = None) -> str:
-        return await _with_connection_retry(
-            lambda: _access_token(client, settings.api_url, client_id, client_secret, rejected=rejected)
-        )
+        return await _access_token(client, settings.api_url, client_id, client_secret, factory, rejected=rejected)
 
     async def evaluate(bearer: str):
-        return await _with_connection_retry(
-            lambda: client.request(
-                "POST",
-                url,
-                headers=_headers(
-                    bearer,
-                    roundtrip_id,
-                    settings.requester_id,
-                    provider,
-                    session_id=session_id,
-                    project_id=settings.project_id,
-                ),
-                json=body,
-                timeout=REQUEST_TIMEOUT_SECONDS,
-            )
+        return await http_call(
+            client,
+            "POST",
+            url,
+            headers=_headers(
+                bearer,
+                roundtrip_id,
+                settings.requester_id,
+                provider,
+                session_id=session_id,
+                project_id=settings.project_id,
+            ),
+            json=body,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            raise_for_status=False,
+            factory=factory,
         )
 
     bearer = await token()
@@ -255,15 +258,23 @@ async def _evaluate(
     Missing credentials raise ``ValueError`` regardless of ``fail_open``: a config defect never
     fails open. A transport failure, which includes any response that carries no action to apply,
     allows the request with a ``fail_open`` marker when ``fail_open`` is set, and raises
-    ``RuntimeError`` otherwise. An evaluation HiddenLayer could not complete is not a transport
+    :class:`HiddenLayerCheckError` otherwise. An evaluation HiddenLayer could not complete is not a transport
     failure: it comes back as a 200 carrying the verdict its deployment's fail setting chose, and
     that verdict is applied. So is an action the rail cannot carry out, which blocks.
     """
     client_id, client_secret = _credentials()
-    owned_client = create_http_client(timeout=REQUEST_TIMEOUT_SECONDS) if http_client is None else None
-    client = RetryingHTTPClient(http_client if owned_client is None else owned_client, _retry_policy(settings))
+    policy = _retry_policy(settings)
+
+    def factory() -> ClosableHTTPClient:
+        return ensure_retrying_http_client(create_http_client(timeout=REQUEST_TIMEOUT_SECONDS), policy)
+
+    # Wrapping an injected client adds retry without taking ownership of it; http_call closes
+    # only what factory builds.
+    client = ensure_retrying_http_client(http_client, policy) if http_client is not None else None
     try:
-        evaluation = await _request_evaluation(client, surface, settings, provider, body, client_id, client_secret)
+        evaluation = await _request_evaluation(
+            client, factory, surface, settings, provider, body, client_id, client_secret
+        )
         return _outcome(surface, evaluation, checked_text)
     except HiddenLayerVerdictError as error:
         log.warning("HiddenLayer %s check returned an unusable REDACT (%s); blocking.", surface, error)
@@ -279,10 +290,7 @@ async def _evaluate(
                 status,
             )
             return RailOutcome.allow(reason=FAIL_OPEN_REASON, metadata={"fail_open": True})
-        raise RuntimeError(f"HiddenLayer {surface} check failed: {_failure_text(error)}") from None
-    finally:
-        if owned_client is not None:
-            await owned_client.close()
+        raise HiddenLayerCheckError(f"HiddenLayer {surface} check failed: {_failure_text(error)}") from None
 
 
 @action(name="hiddenlayer_evaluate", is_system_action=True)

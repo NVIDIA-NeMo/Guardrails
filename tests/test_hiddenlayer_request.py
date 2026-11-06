@@ -20,7 +20,7 @@ import pytest
 from nemoguardrails.context import roundtrip_id
 from nemoguardrails.guardrails.guardrails_types import _set_request_id, reset_request_id
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
-from nemoguardrails.library.hiddenlayer._payloads import (
+from nemoguardrails.library.hiddenlayer.request import (
     _NO_REQUEST_ID,
     _REQUEST_PATH,
     _RESPONSE_PATH,

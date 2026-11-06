@@ -66,8 +66,12 @@ def clock(monkeypatch):
     return clock
 
 
+def _unused_factory():
+    raise AssertionError("the factory is only for the path where no client is injected")
+
+
 def _get(client, secret: str = CLIENT_SECRET, **kwargs) -> str:
-    return asyncio.run(_access_token(client, API_URL, CLIENT_ID, secret, **kwargs))
+    return asyncio.run(_access_token(client, API_URL, CLIENT_ID, secret, _unused_factory, **kwargs))
 
 
 def test_request_uses_basic_auth_and_form_body():

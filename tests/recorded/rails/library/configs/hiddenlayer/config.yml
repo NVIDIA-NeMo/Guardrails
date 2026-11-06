@@ -1,0 +1,13 @@
+models: []
+
+rails:
+  config:
+    hiddenlayer:
+      api_url: https://api.us.hiddenlayer.ai
+      retry_backoff_seconds: 0
+  input:
+    flows:
+      - hiddenlayer check input
+  output:
+    flows:
+      - hiddenlayer check output

@@ -31,7 +31,7 @@ FILTERED_HEADERS = {
 
 FILTERED_QUERY_PARAMETERS = ("api_key", "key", "token")
 
-FILTERED_HEADER_PREFIXES = ("x-", "cf-", "openai-", "llm_provider-")
+FILTERED_HEADER_PREFIXES = ("x-", "cf-", "openai-", "llm_provider-", "hl-")
 
 ALLOWED_HEADERS = {"content-type"}
 
