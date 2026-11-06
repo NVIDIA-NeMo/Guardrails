@@ -160,7 +160,7 @@ build, preview, or publishing commands. The Fern CLI version is pinned in
 dependency group is required.
 
 Valid optional extras are `sdd`, `eval`, `gcp`, `tracing`, `jailbreak`,
-`multilingual`, `server`, `chat-ui`, and `all`. For example:
+`multilingual`, `server`, `chat-ui`, `nest-asyncio`, and `all`. For example:
 
 ```bash
 uv sync --locked --extra server --extra tracing
