@@ -27,7 +27,10 @@ NVIDIA NeMo Guardrails library is an open-source toolkit for easily adding *prog
 
 ## Requirements
 
-Python 3.10, 3.11, 3.12 or 3.13.
+Python 3.11, 3.12 or 3.13.
+
+Starting with version 0.25.0, Python 3.10 is no longer supported. Upgrade your
+Python environment before upgrading the library.
 
 ## Installation
 

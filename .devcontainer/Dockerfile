@@ -1,8 +1,8 @@
-# See here for image contents: https://github.com/microsoft/vscode-dev-containers/tree/v0.245.2/containers/python-3/.devcontainer/base.Dockerfile
+# See here for image contents: https://github.com/devcontainers/images/tree/main/src/python
 
-# [Choice] Python version (use -bullseye variants on local arm64/Apple Silicon): 3, 3.13, 3.12, 3.11, 3.10, 3-bullseye, 3.13-bullseye, 3.12-bullseye, 3.11-bullseye, 3.10-bullseye, 3-buster, 3.13-buster, 3.12-buster, 3.11-buster, 3.10-buster
-ARG VARIANT="3.10-bullseye"
-FROM mcr.microsoft.com/vscode/devcontainers/python:0-${VARIANT}
+# [Choice] Python version: 3.13-bookworm, 3.12-bookworm, 3.11-bookworm
+ARG VARIANT="3.11-bookworm"
+FROM mcr.microsoft.com/devcontainers/python:1-${VARIANT}
 
 # [Choice] Node.js version: none, lts/*, 16, 14, 12, 10
 ARG NODE_VERSION="none"

@@ -127,9 +127,13 @@ See [AI_POLICY.md](./AI_POLICY.md) for the full policy.
 
 ## Development Setup
 
-NeMo Guardrails supports Python 3.10 through 3.13. Install Git and uv. Follow the
+NeMo Guardrails supports Python 3.11 through 3.13. Install Git and uv. Follow the
 [uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/)
 for your platform.
+
+Review the Python support matrix before each release. Supported versions must
+receive upstream maintenance and pass CI. Announce removal of an end-of-life
+version as a breaking change at a release boundary.
 
 GitHub Actions uses the uv version pinned in
 [`.github/actions/setup-uv/action.yml`](./.github/actions/setup-uv/action.yml)
