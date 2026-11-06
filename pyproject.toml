@@ -23,7 +23,8 @@ dependencies = [
   "aiohttp (>=3.10.11)",
   "aiohttp-retry (>=2.9.0)",
   "dataclasses-json (>=0.6.7,<0.7.0)",
-  "fastembed (>=0.2.2)",
+  "fastembed (>=0.9.1)",
+  "pillow (>=13.0.0,<14.0.0) ; python_version>='3.11'",
   "onnxruntime (>=1.17.0,<1.24) ; python_version>='3.10' and python_version<'3.11'",
   "onnxruntime (>=1.17.0) ; python_version>='3.11'",
   "httpx (>=0.24.1)",
@@ -78,7 +79,8 @@ chat-ui = ["chainlit (>=2.11.0,<3.0.0)"]
 # eval
 eval = [
   "tqdm (>=4.65,<5.0)",
-  "streamlit (>=1.37.0,<2.0.0) ; python_version>='3.10' and python_version<'3.14'",
+  "streamlit (>=1.37.0,<2.0.0) ; python_version<'3.11'",
+  "streamlit (>=1.66.1,<2.0.0) ; python_version>='3.11' and python_version<'3.14'",
   "tornado (>=6.5.0) ; python_version>='3.10' and python_version<'3.14'",
   "pandas (>=1.4.0,<3.0.0)",
   "numpy (>=1.21) ; python_version>='3.10' and python_version<'3.12'",
@@ -90,7 +92,8 @@ all = [
   "presidio-analyzer (>=2.2) ; python_version<'3.13'",
   "presidio-anonymizer (>=2.2) ; python_version<'3.13'",
   "tqdm (>=4.65,<5.0)",
-  "streamlit (>=1.37.0,<2.0.0) ; python_version>='3.10' and python_version<'3.14'",
+  "streamlit (>=1.37.0,<2.0.0) ; python_version<'3.11'",
+  "streamlit (>=1.66.1,<2.0.0) ; python_version>='3.11' and python_version<'3.14'",
   "tornado (>=6.5.0) ; python_version>='3.10' and python_version<'3.14'",
   "pandas (>=1.4.0,<3.0.0)",
   "numpy (>=1.21) ; python_version>='3.10' and python_version<'3.12'",
@@ -128,7 +131,8 @@ test = [
 ]
 test_integration = [
   "aioresponses>=0.7.6",
-  "streamlit>=1.37.0",
+  "streamlit>=1.37.0,<2.0.0 ; python_version<'3.11'",
+  "streamlit>=1.66.1,<2.0.0 ; python_version>='3.11'",
   "yara-python>=4.5.1,<5.0.0",
   "common-expression-language>=0.10.0,<0.11.0 ; python_version>='3.11'",
   "opentelemetry-api>=1.34.1,<2.0.0",
