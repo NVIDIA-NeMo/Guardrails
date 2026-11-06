@@ -26,8 +26,8 @@ In this context, a *session* is the lifetime of a single Python process running 
 | `osName` | string | `"Linux"` | Operating system name (`"Darwin"`, `"Linux"`, `"Windows"`). |
 | `colangVersion` | string | `"1.0"` | Colang configuration language version (`"1.0"`, `"2.x"`, or `"unknown"` when no config context exists). This describes the loaded guardrails config, not the runtime rails engine. |
 | `llmProviders` | array of strings | `["nim", "openai"]` | LLM engine names, sorted. Engine identifiers, not model names. |
-| `numRailsConfigured` | integer | `4` | Count of configured rail flows for input, output, retrieval, tool input, and tool output rails. Dialog usage is represented in `railTypesInUse` but not counted as a flow. |
-| `railTypesInUse` | array of strings | `["input", "output"]` | Active rail categories from `input`, `output`, `retrieval`, `tool_input`, `tool_output`, `dialog`. |
+| `numRailsConfigured` | integer | `4` | Count of configured rail flows for input, output, retrieval, tool call, and tool result rails. Dialog usage is represented in `railTypesInUse` but not counted as a flow. |
+| `railTypesInUse` | array of strings | `["input", "output"]` | Active rail categories from `input`, `output`, `retrieval`, `tool_call`, `tool_result`, `dialog`. |
 | `tracingEnabled` | boolean | `false` | Whether the tracing subsystem is enabled. |
 | `deploymentType` | string | `"library"` | How you deployed guardrails: `"library"` (direct `LLMRails`, `IORails`, or `Guardrails` use), `"api"` (FastAPI server), or `"cli"` (interactive `nemoguardrails chat`). |
 | `nemoSource` | string | `"guardrails"` | The NVIDIA NeMo product that produced the event. Always `"guardrails"` for this event type. |
@@ -43,7 +43,7 @@ In this context, a *session* is the lifetime of a single Python process running 
 
 Each value identifies a built-in library feature. The built-in rail manifests are the authoritative source. Related manifests can share a stable feature identifier so telemetry remains comparable across releases.
 
-`activefence`, `ai_defense`, `autoalign`, `clavata`, `cleanlab`, `content_safety`, `context_bloat_detection`, `crowdstrike_aidr`, `f5`, `factchecking`, `fiddler`, `gcp_moderate_text`, `gliner`, `guardrails_ai`, `hallucination`, `hf_classifier`, `injection_detection`, `jailbreak_detection`, `llama_guard`, `pangea`, `patronusai`, `policyai`, `polygraf`, `prompt_security`, `regex`, `self_check`, `sensitive_data_detection`, `tool_safety_check`, `topic_safety`, `trend_micro`.
+`activefence`, `ai_defense`, `autoalign`, `cel`, `clavata`, `cleanlab`, `content_safety`, `context_bloat_detection`, `crowdstrike_aidr`, `f5`, `factchecking`, `fiddler`, `gcp_moderate_text`, `gliner`, `guardrails_ai`, `hallucination`, `hf_classifier`, `injection_detection`, `jailbreak_detection`, `language_detector`, `llama_guard`, `pangea`, `patronusai`, `policyai`, `polygraf`, `prompt_security`, `regex`, `self_check`, `sensitive_data_detection`, `tool_safety_check`, `topic_safety`, `trend_micro`, `zscaler_aiguard`.
 
 ## Data Not Collected by Telemetry
 

@@ -15,6 +15,7 @@
 
 import logging
 import os
+import warnings
 from typing import Optional
 from unittest.mock import patch
 
@@ -23,6 +24,7 @@ import pytest
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
+from nemoguardrails.rails.llm.llmrails import LLMRails as LLMRailsEngine
 from nemoguardrails.rails.llm.options import GenerationOptions
 from tests.conftest import REASONING_TRACE_MOCK_PATH
 from tests.utils import FakeLLMModel, clean_events, event_sequence_conforms
@@ -1613,3 +1615,50 @@ def test_load_library_sorts_files_for_deterministic_overrides(tmp_path, monkeypa
     rails = LLMRails(config, llm=FakeLLMModel(responses=["unused"]))
 
     assert rails.config.bot_messages["test det msg"] == ["from_a"]
+
+
+IGNORED_SETTINGS_WARNING = (
+    "LLMRails ignores {}, which only the IORails engine runs; use Guardrails to run them, "
+    "or set NEMO_GUARDRAILS_IORAILS_ENGINE=true for nemoguardrails server."
+)
+
+
+def _ignored_settings_warnings(record) -> list[str]:
+    """The messages of the recorded warnings about settings LLMRails ignores."""
+    return [str(item.message) for item in record if str(item.message).startswith("LLMRails ignores")]
+
+
+@pytest.mark.parametrize(
+    "rails, settings",
+    [
+        ({"tool_call": {"per_tool": {"Bash": ["regex check tool call"]}}}, "rails.tool_call.per_tool"),
+        ({"tool_result": {"per_tool": {"Bash": ["regex check tool result"]}}}, "rails.tool_result.per_tool"),
+        (
+            {
+                "tool_call": {"per_tool": {"Bash": ["regex check tool call"]}},
+                "tool_result": {"per_tool": {"Bash": ["regex check tool result"]}},
+            },
+            "rails.tool_call.per_tool, rails.tool_result.per_tool",
+        ),
+    ],
+    ids=["per-tool-call", "per-tool-result", "both"],
+)
+def test_iorails_only_tool_settings_are_warned_about(rails, settings):
+    """LLMRails warns, naming each one, when a config sets per-tool rails, which it ignores."""
+    config = RailsConfig.from_content(config={"models": [], "rails": rails})
+
+    with pytest.warns(UserWarning) as record:
+        LLMRailsEngine(config, llm=FakeLLMModel(responses=[]))
+
+    assert _ignored_settings_warnings(record) == [IGNORED_SETTINGS_WARNING.format(settings)]
+
+
+def test_config_without_iorails_only_tool_settings_is_not_warned_about():
+    """LLMRails raises no such warning for a config with no per-tool rails."""
+    config = RailsConfig.from_content(config={"models": [], "rails": {"tool_call": {"per_tool": {"Bash": []}}}})
+
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        LLMRailsEngine(config, llm=FakeLLMModel(responses=[]))
+
+    assert _ignored_settings_warnings(record) == []

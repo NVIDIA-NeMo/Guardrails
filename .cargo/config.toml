@@ -1,0 +1,6 @@
+# The Relay plugin's host tests pass their own plugins.toml, but Relay still
+# merges the machine-wide /etc/nemo-relay/plugins.toml over it. Only the
+# `__skip-implicit-config` feature of the `nemo-relay` test dependency reads
+# this variable, and it then skips that file.
+[env]
+NEMO_RELAY_TEST_SKIP_IMPLICIT_CONFIG = "1"

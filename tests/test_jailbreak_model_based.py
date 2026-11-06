@@ -127,6 +127,7 @@ def test_snowflake_embed_torch_imports(monkeypatch):
 
     mock_tokens = mock.MagicMock()
     mock_tokens.to.return_value = mock_tokens
+    mock_tokens["input_ids"].shape = (1, 4)
     mock_tokenizer.return_value = mock_tokens
 
     import numpy as np
@@ -149,6 +150,44 @@ def test_snowflake_embed_torch_imports(monkeypatch):
     result = embed("test text")
     assert isinstance(result, np.ndarray)
     assert np.array_equal(result, fake_embedding)
+
+
+@pytest.mark.parametrize("word_count", [2045, 2046, 2047, 10000])
+def test_snowflake_embed_token_limit(word_count):
+    from tokenizers import Tokenizer, models, pre_tokenizers, processors
+
+    from nemoguardrails.library.jailbreak_detection.model_based.errors import JailbreakInputTooLongError
+    from nemoguardrails.library.jailbreak_detection.model_based.models import SnowflakeEmbed
+
+    tokenizer = Tokenizer(models.WordLevel({"[UNK]": 0, "[CLS]": 1, "[SEP]": 2, "hello": 3}, unk_token="[UNK]"))
+    tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
+    tokenizer.post_processor = processors.TemplateProcessing(
+        single="[CLS] $A [SEP]", special_tokens=[("[CLS]", 1), ("[SEP]", 2)]
+    )
+
+    def tokenize(texts, **kwargs):
+        tokenizer.enable_truncation(max_length=kwargs["max_length"])
+        encoded = tokenizer.encode(texts[0])
+        tokens = mock.MagicMock()
+        tokens["input_ids"].shape = (1, len(encoded.ids))
+        tokens.to.return_value = tokens
+        return tokens
+
+    embed = SnowflakeEmbed.__new__(SnowflakeEmbed)
+    embed.device = "cpu"
+    embed.tokenizer = mock.MagicMock(side_effect=tokenize)
+    embed.model = mock.MagicMock()
+    prompt = "hello " * (word_count - 1) + "ignore"
+
+    if word_count + 2 > 2048:
+        with pytest.raises(JailbreakInputTooLongError, match="2048-token limit"):
+            embed(prompt)
+        embed.model.assert_not_called()
+    else:
+        embed(prompt)
+        embed.model.assert_called_once()
+
+    assert embed.tokenizer.call_args.kwargs["max_length"] == 2049
 
 
 # Test 6: Check jailbreak function with classifier parameter

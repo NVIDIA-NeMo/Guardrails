@@ -37,7 +37,6 @@ from pathlib import Path
 import pytest
 
 from nemoguardrails.exceptions import LLMCallException
-from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.recorded.rails.library.configs import (
     CONTENT_SAFETY_INVALID_MODEL_CONFIG,
@@ -50,7 +49,7 @@ from tests.recorded.rails.library.configs import (
     NIM_NEMOTRON_35_CONTENT_SAFETY_CONFIG,
     NIM_TOPIC_CONTROL_CONFIG,
 )
-from tests.recorded.rails_config import load_config
+from tests.recorded.rails.library.helpers import check_iorails
 
 pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
 
@@ -80,7 +79,9 @@ CASSETTE_SOURCE = {
     "test_nemotron_35_content_safety_output_blocks_unsafe_assistant_message": "test_content_safety",
     "test_topic_control_input_allows_on_topic_user_message": "test_topic_control",
     "test_topic_control_input_blocks_off_topic_user_message": "test_topic_control",
+    "test_jailbreak_detection_input_allows_benign_prompt": "test_jailbreak",
     "test_jailbreak_detection_input_blocks_jailbreak_prompt": "test_jailbreak",
+    "test_jailbreak_detection_input_invalid_key_fails_open": "test_jailbreak",
     "test_f5_guardrails_input_allows_benign_user_message": "test_f5_guardrails",
     "test_f5_guardrails_input_blocks_violating_user_message": "test_f5_guardrails",
     "test_f5_guardrails_output_blocks_violating_assistant_message": "test_f5_guardrails",
@@ -129,19 +130,6 @@ def rail_ran_cleanly(caplog: pytest.LogCaptureFixture):
         assert not errors, f"a rail errored, so the cassette did not replay: {errors}"
     finally:
         package_logger.propagate = was_propagating
-
-
-async def check_iorails(config, messages: list[dict], rail_types: tuple[RailType, ...]):
-    """Run rails through Guardrails, asserting IORails is the engine that served them.
-
-    Entered as a context manager so shutdown closes the engine's aiohttp session. Left open,
-    the session is closed by ``__del__`` instead, which logs an error through the asyncio
-    exception handler at whatever moment the collector runs -- landing in an unrelated test's
-    log capture and failing it.
-    """
-    async with Guardrails(load_config(config)) as guardrails:
-        assert guardrails.use_iorails_engine, f"{config.name!r} routed to LLMRails, so this test proves nothing"
-        return await guardrails.check_async(messages, rail_types=list(rail_types))
 
 
 async def test_content_safety_input_allows_safe_user_message(nvidia_api_key, rail_ran_cleanly):
@@ -287,6 +275,29 @@ async def test_jailbreak_detection_input_blocks_jailbreak_prompt(nvidia_api_key,
     assert result.status is RailStatus.BLOCKED
     assert result.rail == "jailbreak detection model"
     assert result.content == REFUSAL
+
+
+async def test_jailbreak_detection_input_allows_benign_prompt(nvidia_api_key, rail_ran_cleanly, vcr):
+    prompt = "what can you do?"
+    result = await check_iorails(NIM_JAILBREAK_CONFIG, [{"role": "user", "content": prompt}], (RailType.INPUT,))
+
+    assert result.status is RailStatus.PASSED
+    assert result.rail is None
+    assert result.content == prompt
+    assert len(vcr.responses) == 1 and vcr.responses[0]["status"]["code"] == 200
+    assert vcr.play_count == 1 and vcr.all_played
+
+
+async def test_jailbreak_detection_input_invalid_key_fails_open(nvidia_api_key, monkeypatch, vcr):
+    monkeypatch.setenv("NVIDIA_API_KEY", "invalid-recorded-replay")
+    prompt = "What is the capital of France?"
+    result = await check_iorails(NIM_JAILBREAK_CONFIG, [{"role": "user", "content": prompt}], (RailType.INPUT,))
+
+    assert result.status is RailStatus.PASSED
+    assert result.rail is None
+    assert result.content == prompt
+    assert len(vcr.responses) == 1 and vcr.responses[0]["status"]["code"] == 401
+    assert vcr.play_count == 1 and vcr.all_played
 
 
 async def test_f5_guardrails_input_allows_benign_user_message(f5_api_key, rail_ran_cleanly):

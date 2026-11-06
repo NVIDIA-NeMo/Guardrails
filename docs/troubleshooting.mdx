@@ -14,6 +14,64 @@ This page covers common issues you may encounter when configuring, running, or m
 If your issue is not listed here, [open an issue](https://github.com/NVIDIA-NeMo/Guardrails/issues) on GitHub.
 </Warning>
 
+## Tutorial and Model Deployment
+
+### A Hosted NIM Returns an Authentication Error
+
+For a `401` or `403` response, confirm that the key is available to the process running the library and has access to the requested service.
+The built-in `nim` engine uses `NVIDIA_API_KEY` by default. If a model or rail specifies `api_key_env_var`, set the variable named in that configuration instead.
+Restart a notebook kernel, server, or container after changing its environment.
+
+Check the endpoint and model ID against the service's current documentation. A hosted inference key and an NGC registry/model-download key serve different operations; use the permissions required for the operation that failed.
+For local NIM startup errors, inspect the container logs and verify the NGC key's download permissions.
+See [Installation](/get-started/installation-guide) and [Model Configuration](/configure-guardrails/yaml-schema/model-configuration).
+
+### vLLM Does Not Start or the Model Is Not Ready
+
+Inspect the vLLM startup log before sending requests from the library:
+
+- For a CUDA out-of-memory error, check available GPU memory and other processes using the device. Reduce context length or concurrency, or use hardware that supports the selected model and serving configuration.
+- For an import, driver, or CUDA error, use a separate serving environment and follow the [vLLM GPU installation requirements](https://docs.vllm.ai/en/stable/getting_started/installation/gpu/). Match the vLLM, PyTorch, CUDA, and driver versions; do not assume that the library's CPU installation requirements also cover the model server.
+- For a model-download error, verify model access, any required license acceptance, network access, and available cache storage.
+
+After startup completes, query the model server, using the host and port from your deployment:
+
+```bash
+curl --fail http://localhost:8000/v1/models
+```
+
+Use the returned model ID and the server's `/v1` base URL in your model configuration.
+With the default framework in 0.22 and later, use `parameters.base_url`; see [Migrating to 0.22](/reference/0-22#mixed-shape-configs) for legacy parameter names.
+
+### A Safety Model Returns Unexpected Classifications
+
+Confirm that the configuration selects the intended safety model, prompt template, output parser, and token limit.
+Enable [LLM call logging](/observability/logging) to inspect the rendered classification prompt and verdict. Keep these logs private when they contain user content.
+An empty or truncated verdict may be treated as unsafe by the parser; raising the task's `max_tokens` can help when the model needs more tokens to produce its final verdict.
+
+Test labeled safe and unsafe cases, including benign requests that were incorrectly blocked. Compare the safety model's direct response with the decision returned through the configured rail to distinguish model behavior from prompt or parser issues.
+See [Evaluate Configuration](/evaluation/evaluate-configuration) and the [Guardrail Catalog](/configure-guardrails/guardrail-catalog) for the selected rail's prompt and parser requirements.
+
+### A Response Contains Raw Reasoning Tags
+
+A safety classifier may produce a reasoning trace wrapped in `<think>` tags before its verdict. That classifier output is separate from the assistant response returned to the user.
+For the Nemotron Content Safety Reasoning 4B model, use `nemotron_reasoning_parse_prompt_safety` and `nemotron_reasoning_parse_response_safety` with the corresponding input and output tasks.
+These parsers remove complete reasoning blocks before reading the safety verdict; the content safety flows produce the configured refusal when a check blocks.
+
+If reasoning appears in user-visible content, inspect which model produced it and whether the application is returning classifier output or diagnostic logs as the assistant response.
+If the main model itself produces reasoning, check that model and provider's response format separately.
+Report a reproducible case if reasoning still appears in the configured refusal. Disabling reasoning can help isolate the problem, but does not establish that the response-handling issue is fixed.
+
+### GLiNER Model Download Times Out
+
+For the repository's [GLiNER reference server](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server), model loading happens at startup.
+Inspect the server log for download, model-access, or storage errors, and confirm that the server can reach the model repository.
+Allow the initial download to complete before testing the rail, and preserve the model cache between restarts.
+
+Query `http://localhost:1235/health` and confirm that `status` is `healthy` before sending extraction requests.
+This reference server uses `POST /v1/extract`; a GLiNER NIM uses a different API. Match `rails.config.gliner.server_endpoint` to the server you deployed.
+See [GLiNER Integration](/configure-guardrails/guardrail-catalog/third-party/gliner) for the two endpoint formats and local deployment instructions.
+
 ## Runtime
 
 ### Nested AsyncIO Loop

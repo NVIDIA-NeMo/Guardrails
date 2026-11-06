@@ -39,7 +39,7 @@ from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse, RailsResult, RailType
-from nemoguardrails.types import LLMModel
+from nemoguardrails.types import LLMModel, ToolCallChunk, ToolCallDeltaChunk
 
 log = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class Guardrails(BaseGuardrails):
         LLMRails and logs a warning. Set ``require_iorails=True`` to raise a
         ``ValueError`` instead — use this when IORails-only features such as
         OpenTelemetry metrics are required. A config with per-tool rails
-        (``rails.tool_output.per_tool`` / ``rails.tool_input.per_tool``) always raises
+        (``rails.tool_call.per_tool`` / ``rails.tool_result.per_tool``) always raises
         instead of falling back, since LLMRails does not run them at all.
 
         ``verbose=True`` also routes this package's logs to stderr through ``configure_logging``;
@@ -89,10 +89,10 @@ class Guardrails(BaseGuardrails):
                 self._rails_engine = IORails(config)
                 self.use_iorails_engine = True
             else:
-                if config.rails.tool_output.per_tool or config.rails.tool_input.per_tool:
+                if config.rails.tool_call.per_tool or config.rails.tool_result.per_tool:
                     raise ValueError(
                         f"IORails cannot be used: {fallback_reason}. Configured per-tool rails "
-                        "(rails.tool_output.per_tool / rails.tool_input.per_tool) are IORails-only; "
+                        "(rails.tool_call.per_tool / rails.tool_result.per_tool) are IORails-only; "
                         "LLMRails does not run them, so falling back would silently disable them."
                     )
                 message = (
@@ -109,8 +109,7 @@ class Guardrails(BaseGuardrails):
             self._rails_engine = LLMRails(config, llm, verbose)
             self.use_iorails_engine = False
 
-        # Track whether startup() has been called (supports lazy initialization)
-        self._started = False
+        self._legacy_started = False
 
     @property
     def rails_engine(self) -> IORails | LLMRails:
@@ -192,6 +191,13 @@ class Guardrails(BaseGuardrails):
         llmrails = cast(LLMRails, self.rails_engine)
         llmrails.passthrough_fn = fn
 
+    @property
+    def _started(self) -> bool:
+        """Read IORails readiness from its owner; retain legacy startup state."""
+        if isinstance(self.rails_engine, IORails):
+            return self.rails_engine.is_running
+        return self._legacy_started
+
     async def _ensure_started(self) -> None:
         """Lazy initialization: call startup() on first use if not already started."""
         if not self._started:
@@ -225,13 +231,15 @@ class Guardrails(BaseGuardrails):
 
     def stream_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
-    ) -> AsyncIterator[str | dict]:
+    ) -> AsyncIterator[str | dict | ToolCallChunk | ToolCallDeltaChunk]:
         """Generate an LLM response asynchronously with streaming support."""
 
         # TODO: Move prompt/message normalization into IORails when streaming GenerationOptions added
         stream_messages = IORails._convert_to_messages(prompt, messages)
 
-        async def _with_startup(iterator: AsyncIterator[str | dict]) -> AsyncIterator[str | dict]:
+        async def _with_startup(
+            iterator: AsyncIterator[str | dict | ToolCallChunk | ToolCallDeltaChunk],
+        ) -> AsyncIterator[str | dict | ToolCallChunk | ToolCallDeltaChunk]:
             await self._ensure_started()
             async for chunk in iterator:
                 yield chunk
@@ -353,22 +361,26 @@ class Guardrails(BaseGuardrails):
         self,
         messages: List[dict],
         rail_types: Optional[List[RailType]] = None,
+        *,
+        tools: Optional[List[dict]] = None,
     ) -> RailsResult:
         """Run rails on messages based on their content (asynchronous).
-        Supported by both LLMRails and IORails.
+        Supported by both LLMRails and IORails; tool rail types and ``tools`` by IORails only.
         """
         await self._ensure_started()
-        return await self.rails_engine.check_async(messages, rail_types=rail_types)
+        return await self.rails_engine.check_async(messages, rail_types=rail_types, tools=tools)
 
     def check(
         self,
         messages: List[dict],
         rail_types: Optional[List[RailType]] = None,
+        *,
+        tools: Optional[List[dict]] = None,
     ) -> RailsResult:
         """Synchronous version of check_async.
-        Supported by both LLMRails and IORails.
+        Supported by both LLMRails and IORails; tool rail types and ``tools`` by IORails only.
         """
-        return self.rails_engine.check(messages, rail_types=rail_types)
+        return self.rails_engine.check(messages, rail_types=rail_types, tools=tools)
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration.
@@ -482,18 +494,19 @@ class Guardrails(BaseGuardrails):
             return
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.start()
-        self._started = True
+        else:
+            self._legacy_started = True
 
     async def shutdown(self) -> None:
         """Lifecycle method to stop the rails engine.
 
-        Idempotent: safe to call multiple times.
+        Idempotent after successful cleanup. Failed or cancelled IORails startup
+        and shutdown may retain resources; call again to retry their cleanup.
         """
-        if not self._started:
-            return
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.stop()
-        self._started = False
+        else:
+            self._legacy_started = False
 
     async def __aenter__(self):
         """Async context manager entry."""

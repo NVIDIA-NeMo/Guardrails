@@ -38,14 +38,14 @@ RUN_SQL_TOOL = {
     "function": {"name": "run_sql", "parameters": {"type": "object", "additionalProperties": True}},
 }
 
-_OUTPUT_TASK = "tool_safety_check_output $model=llama_guard $variant=run_sql_check"
-_INPUT_TASK = "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
+_OUTPUT_TASK = "tool_safety_check_tool_call $model=llama_guard $variant=run_sql_check"
+_INPUT_TASK = "tool_safety_check_tool_result $model=llama_guard $variant=run_sql_check"
 
 JUDGE_MODEL = {"type": "llama_guard", "engine": "nim", "model": "meta/llama-guard-3-8b"}
 
-# @tool_output_validation blocks a call to an undeclared tool, so run_sql is declared here
+# @tool_call_validation blocks a call to an undeclared tool, so run_sql is declared here
 # with a permissive schema, matching CONFIG_TOOLS_CONFIG in test_tool_rails_iorails.py.
-TOOL_OUTPUT_CONFIG = {
+TOOL_CALL_CONFIG = {
     "models": [
         {
             "type": "main",
@@ -56,7 +56,9 @@ TOOL_OUTPUT_CONFIG = {
         JUDGE_MODEL,
     ],
     "rails": {
-        "tool_output": {"per_tool": {"run_sql": ["tool safety check output $model=llama_guard $variant=run_sql_check"]}}
+        "tool_call": {
+            "per_tool": {"run_sql": ["tool safety check tool call $model=llama_guard $variant=run_sql_check"]}
+        }
     },
     "prompts": [
         {
@@ -67,15 +69,17 @@ TOOL_OUTPUT_CONFIG = {
     ],
 }
 
-# No tools declared on the model, so run_sql is unresolvable -> @tool_output_validation
+# No tools declared on the model, so run_sql is unresolvable -> @tool_call_validation
 # blocks before the judge model is ever called.
-TOOL_OUTPUT_UNDECLARED_CONFIG = {
+TOOL_CALL_UNDECLARED_CONFIG = {
     "models": [
         {"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"},
         JUDGE_MODEL,
     ],
     "rails": {
-        "tool_output": {"per_tool": {"run_sql": ["tool safety check output $model=llama_guard $variant=run_sql_check"]}}
+        "tool_call": {
+            "per_tool": {"run_sql": ["tool safety check tool call $model=llama_guard $variant=run_sql_check"]}
+        }
     },
     "prompts": [
         {
@@ -86,13 +90,15 @@ TOOL_OUTPUT_UNDECLARED_CONFIG = {
     ],
 }
 
-TOOL_INPUT_CONFIG = {
+TOOL_RESULT_CONFIG = {
     "models": [
         {"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"},
         JUDGE_MODEL,
     ],
     "rails": {
-        "tool_input": {"per_tool": {"run_sql": ["tool safety check input $model=llama_guard $variant=run_sql_check"]}}
+        "tool_result": {
+            "per_tool": {"run_sql": ["tool safety check tool result $model=llama_guard $variant=run_sql_check"]}
+        }
     },
     "prompts": [
         {
@@ -153,19 +159,19 @@ def _inject_forbidden_transport(iorails: IORails, model_type: str) -> MagicMock:
 
 @pytest_asyncio.fixture
 async def output_iorails():
-    async with started_iorails(TOOL_OUTPUT_CONFIG) as engine:
+    async with started_iorails(TOOL_CALL_CONFIG) as engine:
         yield engine
 
 
 @pytest_asyncio.fixture
 async def output_undeclared_iorails():
-    async with started_iorails(TOOL_OUTPUT_UNDECLARED_CONFIG) as engine:
+    async with started_iorails(TOOL_CALL_UNDECLARED_CONFIG) as engine:
         yield engine
 
 
 @pytest_asyncio.fixture
 async def input_iorails():
-    async with started_iorails(TOOL_INPUT_CONFIG) as engine:
+    async with started_iorails(TOOL_RESULT_CONFIG) as engine:
         yield engine
 
 
@@ -190,7 +196,7 @@ class TestToolSafetyCheckOutput:
 
     @pytest.mark.asyncio
     async def test_undeclared_tool_blocks_before_judge_call(self, output_undeclared_iorails):
-        """@tool_output_validation blocks before the judge model is ever called."""
+        """@tool_call_validation blocks before the judge model is ever called."""
         _inject_json_response(output_undeclared_iorails, "main", _tool_call_payload("run_sql", '{"query": "SELECT 1"}'))
         forbidden_post = _inject_forbidden_transport(output_undeclared_iorails, "llama_guard")
 
@@ -238,13 +244,13 @@ class TestUnsupportedReasonRouting:
     which never calls unsupported_reason, so this path needs its own coverage."""
 
     def test_explicit_output_parser_does_not_crash_routing_check(self):
-        config = RailsConfig.from_content(config=TOOL_OUTPUT_CONFIG)
+        config = RailsConfig.from_content(config=TOOL_CALL_CONFIG)
         assert IORails.can_handle(config) is True
 
     def test_missing_output_parser_reported_as_unsupported(self):
         config = RailsConfig.from_content(
             config={
-                **TOOL_OUTPUT_CONFIG,
+                **TOOL_CALL_CONFIG,
                 "prompts": [{"task": _OUTPUT_TASK, "content": "check {{ tool_call_arguments }}"}],
             }
         )

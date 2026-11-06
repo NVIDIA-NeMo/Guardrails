@@ -1,0 +1,193 @@
+---
+title: "Configure the Proxy"
+sidebar-title: "Configuration"
+description: "Choose provider instances, operations, dialects, and Rails configurations without coupling routing to inspection policy."
+content:
+  type: "how_to"
+---
+
+Configure where requests go and which checks apply in separate places. This lets
+you reuse a Rails configuration across upstreams or apply different checks to
+the same provider operation.
+
+The following artifacts control routing, checks, and coverage review:
+
+| Configuration | Purpose |
+| --- | --- |
+| Proxy manifest or Python `ProxyConfig` | Select instances, upstreams, bound operations, dialects, and Rails IDs. |
+| Rails directory | Define the input and output checks and their models, actions, and streaming settings. |
+| Exported guard contract | Describe the selected binding's coverage for review. It is not loaded as runtime configuration. |
+
+## Declare a Deployment
+
+Declare an OpenAI provider instance and its Rails configuration in a YAML manifest:
+
+```yaml
+version: 1
+rails_configs:
+  - id: standard
+    config_path: ./rails
+providers:
+  - provider: openai
+    instance_id: openai
+    base_url: https://api.openai.com/v1
+    mount_path: /openai
+    operations: [chat_completions, responses]
+    rails_config_id: standard
+```
+
+Save this manifest beside the quickstart's `rails` directory. It mounts native
+OpenAI operations at `/openai/v1/chat/completions` and `/openai/v1/responses`.
+Use the same key and model as the quickstart, with those mounted client paths.
+For a verified LiteLLM service, change `base_url` to its deployed API base and
+set `dialect: litellm`. Do not apply that dialect to OpenAI itself; a hostname
+does not determine compatibility.
+
+`instance_id` is the application's identity for this deployment declaration;
+`mount_path` determines how incoming requests reach it. A model name inside a
+provider request is a separate value. Refer to [deployment](/run-guardrailed-inference/using-proxy/deployment) for
+multiple upstreams and one-route routing.
+
+## Keep Rails Configuration Separate
+
+Keep `proxy.yaml` outside every Rails directory. The library loads YAML files
+from its Rails directory recursively; the deployment manifest and Rails YAML
+are different formats.
+
+Relative `config_path` values resolve against the manifest's directory. A
+symlinked manifest uses its target directory. The manifest does not expand
+`~` or environment-variable expressions. Declare credential-free upstream URLs
+and manage authentication through request headers or an application transport.
+
+Rails directories are trusted application code: their actions can execute
+Python. They must not be accepted as caller-supplied uploads.
+
+## Choose Operations and Dialects
+
+Use the following provider fields to select routing, bindings, and Rails checks:
+
+| Field | Meaning |
+| --- | --- |
+| `provider` | Built-in protocol family; currently `openai`. |
+| `instance_id` | Unique instance identity within the application. |
+| `base_url` | Explicit HTTP(S) API base, without userinfo, query, or fragment. |
+| `mount_path` | Optional unique local prefix; defaults to the root mount. |
+| `operations` | Nonempty ordered selection of `chat_completions`, `responses`, or both. |
+| `dialect` | Omit for native bindings; use `litellm` for the reviewed dialect. |
+| `rails_config_id` | A declared Rails ID. Required for each provider in YAML. |
+
+Unknown names and conflicting routes are rejected. There is no implicit addition
+of future operations and no automatic dialect detection. Declarative upstreams
+must be explicit; provider-specific environment defaults are not used.
+
+Operation selection installs guard bindings. It does not create an HTTP route
+allowlist: unselected operations can still pass through. Enforce an inbound route
+allowlist separately if your deployment needs one. Enabling a binding also does
+not activate checks disabled in the selected Rails configuration.
+
+## Share a Rails Catalog
+
+Declare each configuration once in `rails_configs`. Several providers can use
+the same `rails_config_id`, or each can choose a different entry. YAML makes a
+fixed selection per provider. Use [Python resolution](/run-guardrailed-inference/using-proxy/advanced/configuration-resolution)
+when selection depends on authenticated request context or the operation.
+
+A resolver selects one configuration, not a sequence of configurations. All
+catalog entries initialize before application readiness, including unused ones.
+Requests look up ready checkers; they do not load configuration files. An
+initialization failure prevents readiness and triggers cleanup attempts.
+
+Preloading increases startup work and resource use as you add configurations.
+Different IDs create independent Rails owners even when they refer to the same
+path. The catalog is fixed for an application lifespan; hot reload and dynamic
+configuration discovery are not implemented by this interface.
+
+## Choose Compatible Rails Checks
+
+The proxy currently constructs `Guardrails` with `require_iorails=True`. Use
+Colang 1.0 configurations whose input and output flows the
+[IORails engine supports](/reference/rail-engine-support).
+An incompatible flow prevents startup rather than falling back to LLMRails.
+The library's top-level engine environment switch does not change the proxy's
+construction path.
+
+The proxy adapter rejects configured retrieval, tool-call, and tool-result rails,
+including nonempty per-tool checks. Do not assume that every rail supported by
+another library interface works here. The bundled local regex example requires
+no model, optional integration, or API key. Model-backed or service-backed checks require
+their own model configuration, packages, and credentials, separately from the
+provider-generation authorization forwarded in the HTTP request.
+
+Only configured input and output flow lists activate their checks. Even with input
+checks disabled, the current binding still requires the supported user input
+shape to supply context to output checks. Modification decisions, such as
+masking, are rejected by the proxy rather than applied to the provider body.
+
+## Inspect Before Serving
+
+With the installed environment active, run from your deployment directory
+(see the [quickstart](/run-guardrailed-inference/using-proxy/quickstart)):
+
+```bash
+python -m nemoguardrails.server.experimental validate proxy.yaml
+python -m nemoguardrails.server.experimental inspect proxy.yaml
+python -m nemoguardrails.server.experimental schema > proxy.schema.json
+```
+
+The launcher commands perform the following validation and initialization:
+
+| Command | What It Establishes |
+| --- | --- |
+| `validate` | Data, directory availability, URL rules, and route composition. It does not read Rails contents, establish checker compatibility, or contact providers. |
+| `inspect` | JSON with effective routes, bound profiles, fixed Rails IDs, limits, and pass-through behavior. It does not report enabled checks or establish upstream compatibility. |
+| `schema` | JSON Schema for the manifest, derived from its model. Semantic checks still require `validate`. |
+| `serve` | Initializes resources and Rails, then serves the same assembled application. |
+
+Inspection includes deployment metadata such as upstream addresses. Treat that
+output according to your deployment's access policy.
+
+## Set Limits
+
+The following optional manifest fields apply to the application:
+
+| Field | Default | Purpose |
+| --- | --- | --- |
+| `path_prefix` | Empty | Prefix all provider mounts. |
+| `max_request_body_bytes` | `1048576` | Bound guarded request bodies. |
+| `max_response_body_bytes` | `10485760` | Bound guarded buffered responses, including when output checks are off, and supply inspected stream event/pending limits. |
+| `timeout` | `30.0` seconds | Outbound HTTPX phase timeouts, including pool acquisition and read waits. |
+| `config_resolution_timeout` | `5.0` seconds | Cooperative deadline for selecting a registered Rails ID. |
+
+These are not global upload or response limits for unrelated pass-through
+operations. Stream limits are also not a complete process memory budget. Read
+and idle timeouts are separate from cooperative cleanup budgets.
+
+`serve` defaults to `127.0.0.1:8000`. Override with `--host` and `--port`.
+Access logging and automatic forwarded-header trust are disabled by the launcher.
+
+`timeout` is not a total generation or checker deadline. A provider can keep a
+long stream active by sending data within each read timeout. Configure checker
+service deadlines in their own model/client settings. An asynchronous resolver
+can be cancelled at its selection deadline; blocking synchronous code cannot be
+interrupted cooperatively.
+
+The launcher drains in-flight requests for up to 30 seconds on shutdown, then
+cancels remaining requests before application cleanup. Set
+`--timeout-graceful-shutdown` to change this positive integer deadline. Budget
+additional time for cooperative resource cleanup in your deployment's kill grace.
+
+## Manifest Validation Rules
+
+Use one UTF-8 YAML document with `version: 1`. The parser rejects duplicate keys,
+unknown fields, explicit tags, aliases, anchors, merges, and non-string mapping
+keys. It bounds the document to 1 MiB, depth 32, and 10,000 nodes including keys.
+There are no callback imports or dynamic resolver expressions in YAML.
+
+Python configuration models are frozen and snapshot their input collections.
+An assembled application does not track later edits to a caller's lists or
+manifest. `inspect` includes `routes` for guarded paths and
+`reserved_route_patterns` for rejected aliases. Manifest validation diagnostics
+omit source values and excerpts, but inspection still contains upstream addresses.
+
+For Python path semantics and callbacks, refer to [Python integration](/run-guardrailed-inference/using-proxy/python-integration).
+For the exact bound content coverage, refer to [providers and streaming](/run-guardrailed-inference/using-proxy/providers-and-streaming).

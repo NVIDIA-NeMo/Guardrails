@@ -19,6 +19,7 @@ __all__ = [
     "ConfigurationError",
     "InvalidModelConfigurationError",
     "InvalidRailsConfigurationError",
+    "InvalidCheckRequestError",
     "InvalidStateError",
     "LLMCallException",
     "LLMClientError",
@@ -35,6 +36,8 @@ __all__ = [
     "StreamingCapacityExceededError",
     "StreamingNotSupportedError",
     "RailTypeNotConfiguredError",
+    "RailTypeNotSupportedError",
+    "ToolConversationTooLongError",
 ]
 
 
@@ -77,6 +80,18 @@ class RailTypeNotConfiguredError(InvalidRailsConfigurationError):
     pass
 
 
+class RailTypeNotSupportedError(InvalidRailsConfigurationError):
+    """Raised when an explicitly requested rail type cannot run on the serving engine."""
+
+    pass
+
+
+class InvalidCheckRequestError(ValueError):
+    """Raised when a check's arguments contradict each other, such as `tools` without a `tool_call` check."""
+
+    pass
+
+
 class InvalidStateError(ValueError):
     """Raised when a caller-supplied `state` argument is not valid public input.
 
@@ -87,6 +102,26 @@ class InvalidStateError(ValueError):
     """
 
     pass
+
+
+class ToolConversationTooLongError(ValueError):
+    """Raised when a rendered tool conversation exceeds the general prompt limit.
+
+    Tool exchanges are rejected intact rather than truncated, which could orphan
+    calls or discard the results needed to answer the user. Lengths are measured
+    in serialized characters, with structured inline image payloads discounted.
+    """
+
+    def __init__(self, actual_length: int, max_length: int):
+        """Store the measured and configured lengths without including conversation content."""
+        self.actual_length = actual_length
+        self.max_length = max_length
+        super().__init__(
+            f"Tool conversation length {actual_length} characters exceeds the general prompt max_length of "
+            f"{max_length} characters. Tool calls and results are not truncated. "
+            "Reduce the conversation or tool-result size, or increase the configured max_length "
+            "within your model's context capacity."
+        )
 
 
 class NonStreamingWorkQueueFullError(asyncio.QueueFull):

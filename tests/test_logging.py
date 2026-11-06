@@ -30,19 +30,44 @@ def test_compute_generation_log_includes_tool_rails():
     generation_log = compute_generation_log(
         [
             {"type": "step", "flow_id": "process bot tool call", "timestamp": 0.0, "next_steps": []},
-            {"type": "event", "timestamp": 1.0, "data": {"type": "StartToolOutputRail", "flow_id": "check tool call"}},
-            {"type": "event", "timestamp": 1.25, "data": {"type": "ToolOutputRailFinished"}},
+            {"type": "event", "timestamp": 1.0, "data": {"type": "StartToolCallRail", "flow_id": "check tool call"}},
+            {"type": "event", "timestamp": 1.25, "data": {"type": "ToolCallRailFinished"}},
             {"type": "step", "flow_id": "process user tool messages", "timestamp": 2.0, "next_steps": []},
-            {"type": "event", "timestamp": 3.0, "data": {"type": "StartToolInputRail", "flow_id": "check tool result"}},
-            {"type": "event", "timestamp": 3.5, "data": {"type": "ToolInputRailFinished"}},
+            {
+                "type": "event",
+                "timestamp": 3.0,
+                "data": {"type": "StartToolResultRail", "flow_id": "check tool result"},
+            },
+            {"type": "event", "timestamp": 3.5, "data": {"type": "ToolResultRailFinished"}},
         ]
     )
 
     activated_rails = generation_log.activated_rails
 
-    assert [rail.type for rail in activated_rails] == ["tool_output", "tool_input"]
+    assert [rail.type for rail in activated_rails] == ["tool_call", "tool_result"]
     assert [rail.name for rail in activated_rails] == ["check tool call", "check tool result"]
     assert [rail.duration for rail in activated_rails] == [0.25, 0.5]
+
+
+def test_compute_generation_log_accepts_deprecated_tool_rail_events():
+    generation_log = compute_generation_log(
+        [
+            {
+                "type": "event",
+                "timestamp": 1.0,
+                "data": {"type": "StartToolOutputRail", "flow_id": "check tool call"},
+            },
+            {"type": "event", "timestamp": 1.25, "data": {"type": "ToolOutputRailFinished"}},
+            {
+                "type": "event",
+                "timestamp": 2.0,
+                "data": {"type": "StartToolInputRail", "flow_id": "check tool result"},
+            },
+            {"type": "event", "timestamp": 2.5, "data": {"type": "ToolInputRailFinished"}},
+        ]
+    )
+
+    assert [rail.type for rail in generation_log.activated_rails] == ["tool_call", "tool_result"]
 
 
 @pytest.mark.asyncio

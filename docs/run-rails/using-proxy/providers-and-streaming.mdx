@@ -1,0 +1,172 @@
+---
+title: "Providers, Profiles, and Streaming"
+sidebar-title: "Providers and Streaming"
+description: "Check supported request shapes, select a provider dialect, and tune streamed output checks."
+content:
+  type: "concept"
+---
+
+A provider binding connects an API operation to the content the proxy can inspect.
+It identifies request and response text, accounts for other fields, and describes
+stream events. You choose that binding independently of the upstream URL and
+the Rails configuration that checks its content.
+
+## Built-In Operation Bindings
+
+The built-in bindings support buffered JSON and server-sent events (SSE):
+
+| Operation | Native Binding | LiteLLM Dialect | Buffered | Streaming |
+| --- | --- | --- | --- | --- |
+| Chat Completions | OpenAI | Explicit `dialect: litellm` | JSON | SSE |
+| Responses | OpenAI | Explicit `dialect: litellm` | JSON | SSE |
+
+Select either operation or both through `operations`. Omit `dialect` for the
+native binding. The LiteLLM dialect accepts specific gateway field variations
+without requiring the LiteLLM SDK. Check the dialect's coverage against your
+deployed model route, including whether it uses a native or bridged API.
+
+## Coverage of the Shipped Profiles
+
+These restrictions describe the current built-in bindings. Check them when
+connecting an application; do not treat the operation name as coverage of its
+entire upstream API.
+
+| Area | Chat Completions | Responses |
+| --- | --- | --- |
+| Input | Exactly one `user` message with a nonempty string `content`. | One nonempty `input` string, foreground execution, and explicit boolean `store: false`. |
+| Buffered output | One assistant choice; string content, or empty/null message content with no other generated content. | One assistant message with one nonempty output-text part, optionally alongside reasoning metadata without plaintext reasoning. |
+| Streamed text | At most one choice, index zero, with assistant content deltas. | Supported output-text delta events and consistent text snapshots for one assistant target. |
+| Additional content | Conversation histories, additional roles, tools, audio, images, separate reasoning text, and token logprobs are not supported as guarded content in these profiles. | Input arrays/history, instructions, tools, background execution, plaintext reasoning summaries, citations, and token logprobs are not supported as guarded content in these profiles. |
+| Replacement | Replacement outcomes are not applied by the current integration. | Replacement outcomes are not applied by the current integration. |
+
+Declared opaque metadata can pass without inspection of its contents. For
+example, accounting metadata is different from another assistant text channel.
+Empty or null values have field-specific rules; an empty container is not
+universally interchangeable with null.
+
+For Responses, non-null `reasoning.summary`, `reasoning.generate_summary`,
+`reasoning.context`, and `reasoning.mode` values are rejected before dispatch.
+
+For exact accepted fields and nullability, consult the
+[Chat boundary](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/chat_completions/README.md#guarded-boundary),
+[Responses boundary](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/responses/README.md#supported-content),
+and [bound exports](/run-guardrailed-inference/using-proxy/guard-contracts#inspect-a-contract).
+
+### Responses Storage and Retrieval
+
+Every guarded Responses creation request must include `"store": false`, in
+buffered and streaming modes. Omitted, `true`, `null`, or non-boolean values reject
+before dispatch. The proxy forwards the original body; projection defaults do
+not insert this field. Input-item arrays, additional `instructions`, stored
+conversation references, and background execution remain unsupported.
+
+The creation constraint relies on the provider honoring `store: false`; it is
+not a guarantee about provider logging or data retention. Blocking output cannot
+undo upstream storage. `GET /v1/responses/{response_id}` remains unguarded
+passthrough, including for responses created elsewhere or previously stored.
+Restrict exposed unguarded routes and direct upstream access before using the
+proxy as a policy boundary, especially with application-owned credentials.
+
+## Generation Parameters
+
+The proxy forwards supported generation parameters to the upstream service.
+Available parameters and values depend on your provider and model. Configure
+input and output checks separately in Rails.
+
+## Capability Profiles
+
+A capability profile names the content-handling capability a binding requires.
+It gives the binding and execution pipeline a shared, versioned description of
+what they can process. A profile is separate from a provider, dialect, model,
+and Rails configuration.
+
+The shipped bindings use `single_text.v1` for payloads and
+`single_text_delta.v1` for streams. Use the coverage table above to decide
+whether they fit your application. Supporting additional content requires
+matching binding, execution, and checking support.
+
+Use `python -m nemoguardrails.server.experimental inspect proxy.yaml` to see the profiles of your selected bindings.
+The current manifest has no profile selector. Editing a guard-contract export,
+changing Rails, or renaming a profile does not enable new content handling.
+
+## Dialects and Unknown Fields
+
+Select a dialect that matches your upstream's fields. The LiteLLM
+[Chat dialect](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/dialects/litellm/README.md)
+accepts specific extension containers; its
+[Responses dialect](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/dialects/litellm/responses.md)
+accepts different metadata. Their allowances are operation-specific.
+
+By default, unknown fields and case aliases of declared fields are rejected.
+To restrict request values or allow reviewed response metadata,
+[customize the binding policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings)
+for buffered and streaming responses. The
+[contract reference](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/README.md#object-and-stream-metadata)
+describes lower-level unknown-field overrides and their limits.
+
+Reviewed source revisions describe the field-policy baseline. Select the binding
+for your gateway's protocol and version, including whether the operation uses a
+native or bridged API. Compatibility can vary between model routes.
+
+## Streaming Windows
+
+When output inspection is enabled, the proxy accumulates text deltas, checks a
+window, and releases its approved bytes in provider order. It does not reconstruct
+SSE from validated models. Pending snapshots and keepalives cannot overtake
+content still waiting for a check.
+
+The bundled Rails example uses:
+
+```yaml
+rails:
+  output:
+    streaming:
+      enabled: true
+      chunk_size: 200
+      context_size: 50
+      stream_first: false
+```
+
+This is a streaming-settings excerpt, not a complete Rails configuration.
+In this proxy, the sizes count nonempty text deltas, not tokens, bytes, or all
+SSE events. A final partial window is checked at completion, so short answers
+can be held until the end. Smaller windows can reduce delay while increasing
+check frequency. Tune against your provider and checks.
+
+Output checking requires streaming checks to be enabled and
+`stream_first: false`. An unsupported checker configuration fails before
+upstream dispatch. The example's settings are not a throughput recommendation.
+
+Context lets a later check consider already approved text. It cannot retract
+that text. Finite context can also miss sufficiently long or fragmented
+patterns. For whole-answer inspection before any text is returned, use buffered
+output; the selected detector's own limitations still apply.
+
+## Completion and Errors
+
+Chat uses its completion/error handling and `[DONE]` sentinel. Responses requires
+a native terminal event; an optional `[DONE]` is not a replacement for it. Responses
+snapshots must agree with the accumulated text where declared.
+
+Before response headers are sent, a proxy failure can return an HTTP error.
+After streaming begins, failures use the operation's error-event format and
+withhold pending content. Already released windows remain delivered. Upstream
+HTTP errors and supported error events follow the provider-aware forwarding path.
+
+A truncated guarded SSE event fails rather than releasing its unfinished bytes.
+Response parsing, framing, and completion checks apply to inspected streams;
+they are not a full validator of every provider field or lifecycle transition.
+
+## Disabled Checks and Pass-Through
+
+Disabling output inspection relays response bytes without output projections or
+stream classification. Guarded request validation still applies. Selecting an
+operation does not enable input or output checks absent from its Rails configuration.
+
+Unselected operations can pass through inside the provider mount without content
+inspection. Unsupported content on a checked guarded operation does not retry
+as pass-through. Route restrictions and enabled checks should both be part of
+your deployment review.
+
+For field-policy meaning, refer to [guard contracts](/run-guardrailed-inference/using-proxy/guard-contracts). For extending
+bindings, refer to [Python integration](/run-guardrailed-inference/using-proxy/python-integration#extend-provider-coverage).

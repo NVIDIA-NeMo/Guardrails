@@ -1,0 +1,155 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: user
+        content: 'Call get_weather once for each city: Paris. After tools, quote their results exactly.'
+      chat_template_kwargs:
+        enable_thinking: false
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice:
+        type: function
+        function:
+          name: get_weather
+      parallel_tool_calls: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+      Vary:
+      - Accept-Encoding
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion
+        system_fingerprint: '[RECORDED_SYSTEM_FINGERPRINT]'
+        choices:
+        - finish_reason: tool_calls
+          index: 0
+          message:
+            content: ''
+            role: assistant
+            tool_calls:
+            - function:
+                arguments: '{"city": "Paris"}'
+                name: get_weather
+              id: chatcmpl-tool-83d9018aaa224b63
+              type: function
+            provider_specific_fields:
+              refusal: null
+              reasoning: null
+          provider_specific_fields:
+            stop_reason: null
+            routed_experts: null
+            token_ids: null
+        usage:
+          completion_tokens: 25
+          prompt_tokens: 297
+          total_tokens: 322
+          completion_tokens_details:
+            reasoning_tokens: 0
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: user
+        content: 'Call get_weather once for each city: Paris. After tools, quote their results exactly.'
+      - role: assistant
+        tool_calls:
+        - id: chatcmpl-tool-83d9018aaa224b63
+          function:
+            arguments: '{"city": "Paris"}'
+            name: get_weather
+          type: function
+      - role: tool
+        tool_call_id: chatcmpl-tool-83d9018aaa224b63
+        content: 'Paris: WX-4827, sunny.'
+      chat_template_kwargs:
+        enable_thinking: false
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: auto
+      parallel_tool_calls: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+      Vary:
+      - Accept-Encoding
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion
+        system_fingerprint: '[RECORDED_SYSTEM_FINGERPRINT]'
+        choices:
+        - finish_reason: stop
+          index: 0
+          message:
+            content: The weather in Paris is **sunny** with the condition code **WX-4827**.
+            role: assistant
+            provider_specific_fields:
+              reasoning: null
+              refusal: null
+          provider_specific_fields:
+            routed_experts: null
+            token_ids: null
+            stop_reason: null
+        usage:
+          completion_tokens: 23
+          prompt_tokens: 350
+          total_tokens: 373
+          completion_tokens_details:
+            reasoning_tokens: 0

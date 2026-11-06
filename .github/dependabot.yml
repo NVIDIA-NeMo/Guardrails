@@ -21,3 +21,47 @@ updates:
       pre-commit-hooks:
         patterns:
           - "*"
+
+  # No versioning-strategy: GitHub rejects increase-if-necessary for Cargo, and it's already the Cargo default.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    # Relay's plugin ABI changes with each minor release, so those upgrades are done by hand.
+    ignore:
+      - dependency-name: "nemo-relay*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
+    groups:
+      cargo:
+        patterns:
+          - "*"
+
+  - package-ecosystem: uv
+    directory: /integration_tests/relay_plugin
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: nemo-relay
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
+    groups:
+      relay-plugin-tests:
+        patterns:
+          - "*"
+
+  - package-ecosystem: uv
+    directory: /integration_tests/hooks_agents
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    allow:
+      - dependency-name: claude-agent-sdk
+      - dependency-name: openai-codex-cli-bin

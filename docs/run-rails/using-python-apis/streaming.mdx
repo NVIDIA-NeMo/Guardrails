@@ -154,7 +154,7 @@ async for chunk in rails.stream_async(messages=messages, include_metadata=True):
     print(chunk)
 ```
 
-With `include_metadata=True`, each chunk is a `dict` with a mandatory `"text"` key.
+With `include_metadata=True`, each text chunk is a `dict` with a mandatory `"text"` key.
 A chunk that carries metadata also has a `"metadata"` key, which can hold the following:
 
 - `provider_metadata`: nonstandard fields the provider returned with the chunk, such as `response_headers` and vendor extensions.
@@ -182,9 +182,9 @@ They are retained for backward compatibility, and the internal `stream_async()` 
 Read token counts from `usage` instead.
 If you use `StreamingHandler` directly, the handler can still push these keys and accumulate them onto the terminal frame.
 
-An `IORails` tool-call response adds an assembled tool-call JSON frame after this empty frame, so the tool-call frame is the final frame in that stream.
+An `IORails` tool-call response adds a completed `ToolCallChunk` event after this empty frame, so the tool-call frame is the final frame in that stream.
 
-Without `include_metadata`, chunks are plain strings (default behavior).
+Without `include_metadata`, text chunks are plain strings (default behavior).
 
 <Warning>
 
@@ -222,7 +222,8 @@ This behavior prevents repeated response headers from flooding the stream.
 
 `stream_async()` accepts an `options` argument on both engines.
 Unlike `generate()` and `generate_async()`, passing it does not change what the iterator yields.
-The chunk shape is governed solely by `include_metadata`: plain strings when it is `False`, and `{"text": ..., "metadata": ...}` dictionaries when it is `True`.
+Text chunk shapes are governed by `include_metadata`: plain strings when it is `False`, and `{"text": ..., "metadata": ...}` dictionaries when it is `True`.
+`LLMRails` emits tool-call fragments as `ToolCallDeltaChunk` objects in either metadata mode. Backends without delta support emit completed `ToolCallChunk` objects.
 Neither engine yields or returns a `GenerationResponse` from a stream.
 
 This behavior applies when the engine generates the stream.
@@ -246,7 +247,7 @@ The following table shows what each engine reads from `options` while streaming:
 | Option | LLMRails | IORails |
 |---|---|---|
 | `llm_params` | Applied to the main model call | Applied to the main model call |
-| `rails.input`, `rails.output`, `rails.tool_input`, `rails.tool_output` | Applied | Applied |
+| `rails.input`, `rails.output`, `rails.tool_result`, `rails.tool_call` | Applied | Applied |
 | `output_vars`, `log.*` | Computed, then discarded with the `GenerationResponse` | Not read |
 
 `LLMRails` runs `generate_async()` in a background task and forwards `options` to it.
@@ -262,18 +263,99 @@ Do not rely on a stream rejecting an option that the non-streaming call refuses.
 
 </Warning>
 
-Two `GenerationResponse` fields have no streamed equivalent:
+Two `GenerationResponse` fields have engine-specific streaming behavior:
 
 - `reasoning_content`: Neither engine emits provider reasoning deltas as chunk text.
   A model that embeds `<think>` tags in its content streams them as ordinary text, so output rails process the reasoning.
   `IORails` logs one warning per request when it detects this.
-- `tool_calls`: `IORails` emits assembled tool calls as a terminal chunk whose text is a `{"tool_calls": [...]}` JSON string.
-  The string uses the OpenAI wire shape with `function.arguments` as a JSON string, while the non-streaming `GenerationResponse.tool_calls` uses dictionary arguments.
-  `LLMRails` does not push tool calls into the stream, so they reach only the discarded `GenerationResponse`.
+- `tool_calls`: `IORails` emits assembled tool calls as a terminal `ToolCallChunk` event in either metadata mode, after any enabled tool-call checks allow them.
+  Its `ToolCall` objects use dictionary-valued `function.arguments`, like non-streaming `GenerationResponse.tool_calls`.
+  `LLMRails` forwards provider fragments as `ToolCallDeltaChunk` events and retains assembled calls for its internal response. Backends without delta support emit completed `ToolCallChunk` events, as described below.
 
 To obtain a `GenerationResponse` for a request, use `generate_async()`.
 To obtain token usage while streaming, read the `usage` metadata frame described above.
 For the non-streaming option and field tables, refer to [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options#iorails-and-llmrails-differences).
+
+## Tool Calls in LLMRails Streams
+
+The incremental path in the default OpenAI-compatible backend
+forwards provider fragments as `ToolCallDeltaChunk` events. Each event contains
+`ToolCallDelta` objects with a required call `index` and optional `id`, `type`,
+and `function` fields. The function contains optional `name` and `arguments`
+string fragments. Missing fields remain absent; arguments can be incomplete JSON.
+
+Group fragments by index, concatenate their ID, name, and argument strings, and
+wait for a terminal event before parsing or executing calls. The terminal event
+carries the provider's `finish_reason`, normally `tool_calls` or `stop`. It
+usually contains no deltas, but a provider can attach the last fragment to that
+same event. Treat `length`, `content_filter`, an error, or a disconnected stream
+as incomplete; receiving fragments does not authorize tool execution.
+
+The adapter also accumulates fragments into canonical `ToolCall` objects for the
+final internal `LLMResponse`, context, and subsequent conversation processing.
+On normal completion, non-empty argument buffers must decode to JSON objects;
+malformed JSON, arrays, and scalar values fail validation instead of becoming
+empty arguments. Buffered and streamed calls use the same argument validation:
+absent or empty argument strings become `{}`, while whitespace-only strings fail.
+This validation does not check required parameters against the tool's schema.
+Earlier fragments may already have reached the caller when validation fails.
+The adapter does not emit completed calls again after emitting deltas.
+`stream_async()` still yields events rather than returning the internal response.
+
+Backends without incremental support retain `ToolCallChunk`, containing completed
+`ToolCall` objects with dictionary-valued `function.arguments`. The optional
+LangChain adapter retains this completed-call behavior. `IORails` emits the same completed-call event after its tool-call rails allow the calls; incremental delivery applies to `LLMRails`.
+
+Both event types remain structured objects with `include_metadata=True`; neither
+is wrapped in a text dictionary. They do not contribute to assistant text and are
+not processed by text stop sequences or prefix/suffix filters.
+
+```python
+from nemoguardrails.types import ToolCallChunk, ToolCallDeltaChunk
+
+async for chunk in app.stream_async(messages=history):
+    if isinstance(chunk, ToolCallDeltaChunk):
+        for delta in chunk.tool_calls:
+            print(delta.index, delta.to_dict())
+        if chunk.finish_reason is not None:
+            print("Tool stream finished:", chunk.finish_reason)
+    elif isinstance(chunk, ToolCallChunk):
+        for call in chunk.tool_calls:
+            print(call.function.name, call.function.arguments)
+    else:
+        print(chunk, end="", flush=True)
+```
+
+<Warning>
+
+`LLMRails` output-rail streaming does not support tool calls. Receiving a tool-call
+event raises `StreamingNotSupportedError` before that event is released, regardless
+of `stream_first`. Configured tool-call rails also prevent tool-call events from
+being released unless explicitly disabled with `options.rails.tool_call: false`.
+Tool-call rails need the complete call to validate or rewrite it; streamed fragments
+would reach the caller before those checks. Text-only responses can still stream.
+Buffered dialog generation, `RunnableRails`, and the chat CLI also reject streamed
+tool-call events explicitly.
+Use the supported non-streaming tool-calling path when these checks are required.
+
+The Guardrails server accepts `stream: true` with a non-empty `tools` list,
+`tool_choice`, or `parallel_tool_calls` for supported Colang 1.0 configurations.
+For these requests it runs non-streaming generation and all enabled checks first,
+then delivers the approved answer as successive SSE deltas. Text and tool-argument
+fragments start only after generation and checking finish; they are not live
+model tokens. This applies to both LLMRails and
+IORails; it does not change either engine's `stream_async()` behavior.
+See [Server Tool Calling](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model#tool-calling).
+
+Without these request-level tool parameters, the existing incremental server
+path remains unchanged. Its formatter can serialize backend-produced
+`ToolCallDeltaChunk` and `ToolCallChunk` events, subject to the engine restrictions
+above.
+For config-declared tools, `IORails` runs configured tool-call checks when enabled
+before releasing its completed event. Setting `options.rails.tool_call` to `false`
+bypasses these checks; receiving a completed event does not guarantee validation ran.
+
+</Warning>
 
 ## Token Usage Tracking
 

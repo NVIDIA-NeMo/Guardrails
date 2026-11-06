@@ -30,7 +30,7 @@ from pydantic import (
     model_validator,
 )
 
-from nemoguardrails.rails.llm.options import GenerationOptions, RailType
+from nemoguardrails.rails.llm.options import GenerationOptions, RailType, ToolViolation
 
 
 class GuardrailsDataOutput(BaseModel):
@@ -262,6 +262,10 @@ class OpenAIChatCompletionRequest(BaseModel):
         default=None,
         description="The maximum number of tokens to generate.",
     )
+    max_completion_tokens: Optional[int] = Field(
+        default=None,
+        description="The maximum number of completion tokens to generate, including reasoning tokens.",
+    )
     temperature: Optional[float] = Field(
         default=None,
         description="Sampling temperature to use.",
@@ -383,13 +387,21 @@ class GuardrailCheckDataInput(GuardrailsDataInput):
 
     rail_types: Optional[List[RailType]] = Field(
         default=None,
-        description="Rail types to run. When omitted, auto-detected from message roles.",
+        description="Rail types to run. When omitted, input and output rails are auto-detected from message roles. "
+        "`tool_call` and `tool_result` run only when named, and only on the IORails engine.",
     )
 
 
 class GuardrailCheckRequest(OpenAIChatCompletionRequest):
     """Request body for the /v1/checks endpoint."""
 
+    tools: Optional[list[dict]] = Field(
+        default=None,
+        description="Tools that `tool_call` rails validate calls against: the allowlist and each tool's argument "
+        "schema. Each entry is a Chat Completions function tool, with a `function` object and a non-empty `name`; "
+        "any other entry returns 422. Only the IORails engine runs tool checks; on LLMRails a request with `tools` "
+        "returns 422.",
+    )
     guardrails: GuardrailCheckDataInput = Field(
         default_factory=GuardrailCheckDataInput,
         description="Guardrails specific options for the request.",
@@ -402,3 +414,11 @@ class GuardrailCheckResponse(BaseModel):
     status: str = Field(..., description="Overall check result: passed, modified, or blocked.")
     content: str = Field(..., description="Content after rails processing.")
     rail: Optional[str] = Field(default=None, description="Name of the blocking rail, if any.")
+    reason: Optional[str] = Field(
+        default=None, description="Why the rail blocked the content, if the engine reports it."
+    )
+    tool_violations: Optional[List[ToolViolation]] = Field(
+        default=None,
+        description="The tool calls or tool results a tool rail blocked, each with a `violation_type` to switch on. "
+        "Present only when a tool rail blocked (IORails).",
+    )

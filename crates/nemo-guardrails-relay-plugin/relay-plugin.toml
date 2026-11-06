@@ -1,0 +1,31 @@
+manifest_version = 1
+description = "Calls the NeMo Guardrails service to check each tool call that Relay manages."
+
+[plugin]
+id = "nvidia.nemo_guardrails"
+name = "NVIDIA NeMo Guardrails Plugin"
+kind = "rust_dynamic"
+
+[compat]
+relay = ">=0.11.0-rc.1,<1.0"
+native_api = "1"
+
+[defaults]
+enabled = false
+
+[capabilities]
+items = ["plugin_native", "config_schema"]
+
+[config_schema]
+path = "config.schema.json"
+
+# scripts/package_bundle.py fills in the placeholders below.
+[source]
+artifact = "<platform-library-file>"
+
+[integrity]
+sha256 = "sha256:<artifact-sha256>"
+
+[load]
+library = "<platform-library-file>"
+symbol = "nemo_relay_register_plugin"

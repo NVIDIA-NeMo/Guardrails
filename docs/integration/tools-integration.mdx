@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Tools Integration with the NeMo Guardrails Library"
 sidebar-title: "Tools Integration"
-description: "Integrate LangChain tools with guardrails using passthrough mode and output rail validation."
+description: "Integrate LangChain tools with guardrails and output rail validation."
 content:
   type: "how_to"
 ---
@@ -13,6 +13,8 @@ This guide provides comprehensive instructions for integrating and using tools w
 ## Overview
 
 The NeMo Guardrails library supports the integration of tools to enhance the capabilities of language models while maintaining safety controls. Tools can be used to extend the functionality of your AI applications by enabling interaction with external services, APIs, databases, and custom functions.
+
+For a diagram of the request and tool-call loop and the points where tool rails validate it, see [How Function Calling Works](/configure-guardrails/guardrail-catalog/tool-calling#how-function-calling-works).
 
 ## Supported Version
 
@@ -50,11 +52,55 @@ def get_stock_price(symbol: str) -> str:
 
 For detailed information on creating custom tools, refer to the [LangChain Tools Documentation](https://python.langchain.com/docs/concepts/tools/).
 
+## Tool Call Schema
+
+The NVIDIA NeMo Guardrails library does not define its own tool-call schema, but the shape you get back depends on how you call it.
+
+`RunnableRails` converts tool calls into LangChain's `ToolCall` `TypedDict` shape:
+
+| Field | Type | Role |
+|-------|------|------|
+| `name` | `str` | The name of the tool to invoke, matching a registered tool's `name`. |
+| `args` | `dict` | The arguments to pass to the tool, keyed by parameter name. |
+| `id` | `str` | A unique identifier for this tool call, used to match a later `ToolMessage` result back to it via `tool_call_id`. |
+| `type` | `"tool_call"` | A fixed literal that identifies the dict as a tool call. |
+
+Calling `rails.generate()` directly does not go through this conversion. `response.tool_calls` retains the model-native, OpenAI-style function-call structure instead:
+
+```python
+[
+    {
+        "id": "...",
+        "type": "function",
+        "function": {"name": "...", "arguments": {...}},
+    }
+]
+```
+
+If your code reads `tool_call["name"]` or `tool_call["args"]` against a direct `rails.generate()` response, it is reading the wrong keys; use `tool_call["function"]["name"]` and `tool_call["function"]["arguments"]` instead, or wrap the model with `RunnableRails` to get the normalized LangChain shape.
+
+When the model response contains tool calls, the library runs any tool call rails configured under `rails.tool_call`, which can block the calls, instead of the output rails.
+Only approved calls are returned for execution. If a tool call rail blocks the request, the response contains the configured refusal and omits executable tool calls. If a rail changes the calls, the returned calls and cached conversation history use the approved values. Without such changes, the library preserves tool-call names and arguments, apart from parsing a JSON `arguments` string into a dictionary.
+
 ## Configuration Settings
 
-### Passthrough Mode
+### Passthrough Mode and Dialog Flows
 
-When using tools with the NeMo Guardrails library, it's recommended to use **passthrough mode**. This mode is essential because:
+With Colang 1.0, tool calls are supported with or without `passthrough` when the guardrails configuration has no user-intent definitions (`user_messages`). Configurations with user-intent definitions drop tool calls and return only the generated text. Enabling `rails.dialog.single_call.enabled` alone does not block tool calls.
+
+The `/v1/chat/completions` endpoint accepts `tools`, `tool_choice`, and `parallel_tool_calls` for Colang 1.0 configurations without user-intent definitions. Unsupported combinations return HTTP 422 with an OpenAI-compatible `error` object whose `type` is `invalid_request_error`. Colang 2.x configurations do not propagate provider tool calls through this endpoint. With `stream: true`, the server completes generation and enabled rail checks before delivering the approved answer as successive SSE deltas. Tool-argument fragments are emitted only after the complete call passes validation. See [Server Tool Calling](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model#tool-calling).
+
+For a tool round trip, append the returned assistant tool calls and a `role: tool` result for each call, preserving its `tool_call_id`. Results can arrive in a different order from the calls. The next generation can return another set of tool calls or a final answer. Your model and provider must support the requested tool options.
+
+When you pass generation options to `LLMRails.generate_async`, the returned `GenerationResponse` stores tool calls in its `tool_calls` field. Include that field when building the assistant history message:
+
+```python
+messages.append({**response.response[0], "tool_calls": response.tool_calls})
+```
+
+For a custom chat `general` prompt, include `{{ history | to_chat_messages }}` to retain native assistant and tool roles. The default text prompt also preserves tool calls and results as native messages after its initial rendered instructions and conversation prefix.
+
+If your configuration does not use dialog flows, using **passthrough mode** is still recommended because:
 
 - Internal NeMo Guardrails library tasks do not require tool use and might provide erroneous results if tools are enabled
 - It ensures that the LLM can properly handle tool calls and responses
@@ -141,6 +187,26 @@ The key differences between configurations:
 
 We will use these configurations in the examples below.
 
+### Tool Result Rails
+
+Configure `rails.tool_result.flows` to validate tool results before the next model call. Each result in the latest batch passes through the configured flows. A flow can inspect `$tool_message`, `$tool_name`, and `$tool_call_id`, and replace `$tool_message` with sanitized content. When a tool result omits `name`, as server requests do, the library resolves it from the matching assistant call.
+
+After all results pass, generation resumes using the approved content. If a flow blocks a result with `abort`, generation stops and returns its refusal without calling the main model. In subsequent turns using the cached event history, unapproved results are replaced by `[Tool result blocked by guardrails.]`. Tool-result rails apply in both passthrough modes; input rails process user messages, and output rails process the generated textual answer. Setting `options.rails.tool_result` to `false` explicitly bypasses tool-result validation for that request.
+
+The library leaves caller-supplied messages unchanged. Sanitized values are retained in the `LLMRails` event history, so the raw input list is not a sanitized transcript. Passthrough prompts also retain earlier input-rail rewrites from that history; blocked user turns become `[User message blocked by guardrails.]`. If you reconstruct history independently of that event history, preserve approved content yourself rather than replaying raw results as already validated history.
+
+### Prompt Length for Tool Conversations
+
+For Colang 1.0 `LLMRails` configurations with `passthrough: false`, the selected `general` prompt's `max_length` applies to the complete assembled tool conversation. Both text and chat prompt templates preserve tool calls and their results without automatically trimming history or truncating tool data.
+
+The limit counts characters in the JSON-serialized prompt messages, including instructions, tool arguments, results, and message metadata. For this calculation, inline base64 image URLs in structured message content are replaced with `[IMAGE_CONTENT]`; the original image data is still sent to the model. Text content and tool arguments count in full, even if they contain image data URLs. The limit is separate from the model provider's token context limit and does not measure the entire provider request, such as the `tools` definitions. Task prompts default to `16000` characters unless configured otherwise.
+
+If the conversation exceeds the limit, generation raises `ToolConversationTooLongError` before calling the generation model. The `/v1/chat/completions` endpoint returns HTTP 422 before any SSE delivery with an OpenAI-compatible error object: `type: invalid_request_error`, `code: tool_conversation_too_long`, and `param: messages`. The error reports the measured size and configured limit without including conversation content.
+
+Reduce the tool-result size or remove complete older conversation turns, keeping tool calls and their matching results together. Alternatively, increase `max_length` on your selected `general` prompt within your model's context capacity. Setting `max_length: null` disables this local length check; the provider's context limit still applies.
+
+Text-only conversations retain the existing history-trimming behavior. Passthrough mode does not render the `general` prompt, so this prompt-length check does not apply to passthrough requests.
+
 ## Implementation Examples
 
 ### Example 1: Multi-Tool Implementation
@@ -188,8 +254,8 @@ messages_with_tools = [
 ]
 
 for tool_call in result["tool_calls"]:
-    tool_name = tool_call["name"]
-    tool_args = tool_call["args"]
+    tool_name = tool_call["function"]["name"]
+    tool_args = tool_call["function"]["arguments"]
     tool_id = tool_call["id"]
 
     selected_tool = tools_by_name[tool_name]
@@ -284,7 +350,7 @@ print(f"Final response: {result['content']}")
 
 ### Recommended Safety Measures
 
-To mitigate these risks, we **strongly recommend** using output rails to validate LLM responses.
+Use tool-result rails to validate or sanitize tool results before the model receives them, and output rails to validate the generated answer.
 
 ## Tool Security: Unsafe Content in Tool Results
 
@@ -338,11 +404,12 @@ def execute_with_tools(rails_instance, config_name):
     ]
 
     for tool_call in result["tool_calls"]:
-        tool_result = tools_by_name[tool_call["name"]].invoke(tool_call["args"])
+        tool_name = tool_call["function"]["name"]
+        tool_result = tools_by_name[tool_name].invoke(tool_call["function"]["arguments"])
         messages_with_tools.append({
             "role": "tool",
             "content": str(tool_result),
-            "name": tool_call["name"],
+            "name": tool_name,
             "tool_call_id": tool_call["id"]
         })
 

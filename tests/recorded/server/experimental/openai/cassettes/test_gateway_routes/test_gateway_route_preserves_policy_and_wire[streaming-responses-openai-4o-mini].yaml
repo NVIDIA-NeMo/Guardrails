@@ -1,0 +1,254 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/responses
+    headers:
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-4o-mini
+      stream: true
+      input: 'Reply with exactly: Hello.'
+      store: false
+      max_output_tokens: 256
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - text/event-stream; charset=utf-8
+    body:
+      parsed_body:
+      - type: response.created
+        response:
+          id: resp_8h97wHVaem3Z3z4dnsXpvSMXh-KzAv-Fp0YLtlyzfNofYXRD0GH5sMoiVDvzrjQJsThnNww9ybbPznc3LbOW0EArMgHcEBqyi4zyNqbYa2HKAnoWaB8S-2yLoXRn9a9kFyl_9NtoA9sqZ86qMw_urZY3Fh4fpyORnQRaa4pSpw9zidie19ek1Ra1Pf4Dz_3I5wtIKPUb9_brA7T-4f9vxKKt6PBy2WBAXJN7QOivMq8qBtukhTxCa5Nv8GlV5mL9m0BRv9LuSTVty5o-I3UDa24KQQnOl9UiyalcwwZ0aPboimI6RmuILeBpx8Wwg65mkYY2r1DSYHgykLPNs3dpB_Ap7oBUrZ5VBRboUPzngwgXeZkoyRHhP4Y61DeKaF8Wg_sRsEWSl6v4vdDcBoJJ5usyx74qn9fiOIzSYBrQiHnhGFs=
+          created_at: 1793266682
+          metadata: {}
+          model: gpt-4o-mini-2024-07-18
+          object: response
+          output: []
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 1.0
+          max_output_tokens: 256
+          reasoning:
+            context: null
+            effort: null
+            summary: null
+          status: in_progress
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          store: false
+          background: false
+          frequency_penalty: 0.0
+          presence_penalty: 0.0
+          prompt_cache_retention: in_memory
+          service_tier: auto
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 0
+        model: openai/openai/gpt-4o-mini
+      - type: response.in_progress
+        response:
+          id: resp_8h97wHVaem3Z3z4dnsXpvSMXh-KzAv-Fp0YLtlyzfNofYXRD0GH5sMoiVDvzrjQJsThnNww9ybbPznc3LbOW0EArMgHcEBqyi4zyNqbYa2HKAnoWaB8S-2yLoXRn9a9kFyl_9NtoA9sqZ86qMw_urZY3Fh4fpyORnQRaa4pSpw9zidie19ek1Ra1Pf4Dz_3I5wtIKPUb9_brA7T-4f9vxKKt6PBy2WBAXJN7QOivMq8qBtukhTxCa5Nv8GlV5mL9m0BRv9LuSTVty5o-I3UDa24KQQnOl9UiyalcwwZ0aPboimI6RmuILeBpx8Wwg65mkYY2r1DSYHgykLPNs3dpB_Ap7oBUrZ5VBRboUPzngwgXeZkoyRHhP4Y61DeKaF8Wg_sRsEWSl6v4vdDcBoJJ5usyx74qn9fiOIzSYBrQiHnhGFs=
+          created_at: 1793266682
+          metadata: {}
+          model: gpt-4o-mini-2024-07-18
+          object: response
+          output: []
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 1.0
+          max_output_tokens: 256
+          reasoning:
+            context: null
+            effort: null
+            summary: null
+          status: in_progress
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          store: false
+          background: false
+          frequency_penalty: 0.0
+          presence_penalty: 0.0
+          prompt_cache_retention: in_memory
+          service_tier: auto
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 1
+        model: openai/openai/gpt-4o-mini
+      - type: response.output_item.added
+        output_index: 0
+        item:
+          id: msg_0281dfcc0ea8c072016ae313fafa5087d09823cd8f1b7eaebd
+          type: message
+          status: in_progress
+          content: []
+          role: assistant
+        sequence_number: 2
+        model: openai/openai/gpt-4o-mini
+      - type: response.content_part.added
+        item_id: msg_0281dfcc0ea8c072016ae313fafa5087d09823cd8f1b7eaebd
+        output_index: 0
+        content_index: 0
+        part:
+          type: output_text
+          annotations: []
+          logprobs: []
+          text: ''
+        sequence_number: 3
+        model: openai/openai/gpt-4o-mini
+      - type: response.output_text.delta
+        item_id: msg_0281dfcc0ea8c072016ae313fafa5087d09823cd8f1b7eaebd
+        output_index: 0
+        content_index: 0
+        delta: Hello
+        logprobs: []
+        obfuscation: 0HWCgJ2xNMH
+        sequence_number: 4
+        model: openai/openai/gpt-4o-mini
+      - type: response.output_text.delta
+        item_id: msg_0281dfcc0ea8c072016ae313fafa5087d09823cd8f1b7eaebd
+        output_index: 0
+        content_index: 0
+        delta: .
+        logprobs: []
+        obfuscation: eDXGUg6ucEaFRIx
+        sequence_number: 5
+        model: openai/openai/gpt-4o-mini
+      - type: response.output_text.done
+        item_id: msg_0281dfcc0ea8c072016ae313fafa5087d09823cd8f1b7eaebd
+        output_index: 0
+        content_index: 0
+        text: Hello.
+        logprobs: []
+        sequence_number: 6
+        model: openai/openai/gpt-4o-mini
+      - type: response.content_part.done
+        item_id: msg_0281dfcc0ea8c072016ae313fafa5087d09823cd8f1b7eaebd
+        output_index: 0
+        content_index: 0
+        part:
+          type: output_text
+          text: Hello.
+          annotations: []
+          logprobs: []
+        sequence_number: 7
+        model: openai/openai/gpt-4o-mini
+      - type: response.output_item.done
+        output_index: 0
+        sequence_number: 8
+        item:
+          id: msg_0281dfcc0ea8c072016ae313fafa5087d09823cd8f1b7eaebd
+          type: message
+          status: completed
+          content:
+          - type: output_text
+            annotations: []
+            logprobs: []
+            text: Hello.
+          role: assistant
+        model: openai/openai/gpt-4o-mini
+      - type: response.completed
+        response:
+          id: resp_8h97wHVaem3Z3z4dnsXpvSMXh-KzAv-Fp0YLtlyzfNofYXRD0GH5sMoiVDvzrjQJsThnNww9ybbPznc3LbOW0EArMgHcEBqyi4zyNqbYa2HKAnoWaB8S-2yLoXRn9a9kFyl_9NtoA9sqZ86qMw_urZY3Fh4fpyORnQRaa4pSpw9zidie19ek1Ra1Pf4Dz_3I5wtIKPUb9_brA7T-4f9vxKKt6PBy2WBAXJN7QOivMq8qBtukhTxCa5Nv8GlV5mL9m0BRv9LuSTVty5o-I3UDa24KQQnOl9UiyalcwwZ0aPboimI6RmuILeBpx8Wwg65mkYY2r1DSYHgykLPNs3dpB_Ap7oBUrZ5VBRboUPzngwgXeZkoyRHhP4Y61DeKaF8Wg_sRsEWSl6v4vdDcBoJJ5usyx74qn9fiOIzSYBrQiHnhGFs=
+          created_at: 1793266682
+          metadata: {}
+          model: gpt-4o-mini-2024-07-18
+          object: response
+          output:
+          - id: msg_0281dfcc0ea8c072016ae313fafa5087d09823cd8f1b7eaebd
+            content:
+            - annotations: []
+              text: Hello.
+              type: output_text
+              logprobs: []
+            role: assistant
+            status: completed
+            type: message
+          parallel_tool_calls: true
+          temperature: 1.0
+          tool_choice: auto
+          tools: []
+          top_p: 1.0
+          max_output_tokens: 256
+          reasoning:
+            context: null
+            effort: null
+            summary: null
+          status: completed
+          text:
+            format:
+              type: text
+            verbosity: medium
+          truncation: disabled
+          usage:
+            input_tokens: 13
+            input_tokens_details:
+              cached_tokens: 0
+              cache_write_tokens: 0
+            output_tokens: 3
+            output_tokens_details:
+              reasoning_tokens: 0
+            total_tokens: 16
+            cost: 2.7524999999999995e-06
+          store: false
+          background: false
+          completed_at: 1793266683
+          frequency_penalty: 0.0
+          presence_penalty: 0.0
+          prompt_cache_retention: in_memory
+          service_tier: default
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+          top_logprobs: 0
+        sequence_number: 9
+        model: openai/openai/gpt-4o-mini
+      - '[DONE]'

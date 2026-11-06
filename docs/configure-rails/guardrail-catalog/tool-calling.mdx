@@ -12,7 +12,7 @@ It forwards your tool definitions to the model unchanged and applies two structu
 - **Tool call validation** checks every tool call the model emits against the tools you declared.
   A call must name an allowed tool and supply arguments that satisfy that tool's JSON Schema.
 - **Tool result validation** checks the tool results your application returns to the model.
-  Each result must link to a tool call the model previously made, name a consistent tool, and carry well-formed content.
+  Each result must link to a tool call the model previously made, must not name a different tool than that call, and must carry well-formed content.
 
 Both rails are local checks.
 They do not make extra LLM or API calls.
@@ -26,11 +26,14 @@ They run on every request and fail closed: a violation, a parsing error, or a ma
 </Note>
 
 <Warning>
-    Tool-calling rails run only on the IORails engine, which is opt-in and
-    experimental. They are not available on the default `LLMRails` engine. See
-    [Enable the IORails engine](#enable-the-iorails-engine) below. This feature
-    supports only the OpenAI Chat Completions wire format (the `openai` and
-    `nim` engines).
+    `LLMRails` supports custom Colang flows in the `rails.tool_call` and
+    `rails.tool_result` sections. The built-in structural validation flows
+    described on this page require the opt-in, experimental IORails engine. See
+    [Enable the IORails engine](#enable-the-iorails-engine) below. In
+    generation, these flows support only the OpenAI Chat Completions wire
+    format (the `openai` and `nim` engines). A check reads tool calls and
+    tools in that format whatever the `main` model's engine, and needs no
+    `main` model.
 </Warning>
 
 ## How Function Calling Works
@@ -85,8 +88,8 @@ Tool-calling rails mirror the input and output rails, with one rail per directio
 
 | Rail                   | Config section      | Flow name                | Direction     | What it checks                                                                                       |
 | ---------------------- | ------------------- | ------------------------ | ------------- | ---------------------------------------------------------------------------------------------------- |
-| Tool call validation   | `rails.tool_output` | `tool call validation`   | Model output  | Tool calls the model emits: allowed name plus schema-valid arguments.                                |
-| Tool result validation | `rails.tool_input`  | `tool result validation` | Request input | Tool results sent back to the model: linkage to a prior call, name consistency, well-formed content. |
+| Tool call validation   | `rails.tool_call`   | `tool call validation`   | Model output  | Tool calls the model emits: allowed name plus schema-valid arguments.                                |
+| Tool result validation | `rails.tool_result` | `tool result validation` | Request input | Tool results sent back to the model: linkage to a prior call, name consistency, well-formed content. |
 
 For each request, IORails runs the rails in the following order:
 
@@ -102,7 +105,7 @@ That distinction lets a caller tell a provider outage, which is worth retrying, 
 
 ## Enable the IORails Engine
 
-Tool-calling rails require the IORails engine.
+The built-in validation flows described on this page require the IORails engine.
 Enable it in one of two ways.
 
 Set the `NEMO_GUARDRAILS_IORAILS_ENGINE` environment variable so the top-level `LLMRails` import resolves to the IORails-backed engine.
@@ -135,7 +138,7 @@ A configuration is IORails-compatible only when it uses Colang version `1.0`, de
 ## Configure the Rails
 
 Add the tool-calling flows to your `config.yml`.
-Each `tool_*` section accepts only its own flow name:
+When you use IORails, each `tool_*` section accepts only its own built-in flow name:
 
 ```yaml
 models:
@@ -144,33 +147,44 @@ models:
       model: meta/llama-3.3-70b-instruct
 
 rails:
-    tool_output:
+    tool_call:
         flows:
             - tool call validation
-    tool_input:
+    tool_result:
         flows:
             - tool result validation
 ```
 
 You can enable either rail independently.
-To validate only the model's tool calls, configure `rails.tool_output` and leave `rails.tool_input` empty.
+To validate only the model's tool calls, configure `rails.tool_call` and leave `rails.tool_result` empty.
+
+<Note>
+    `rails.tool_output` and `rails.tool_input` are deprecated aliases for
+    `rails.tool_call` and `rails.tool_result`, respectively.
+</Note>
 
 <Warning>
-    The flow names are fixed and direction-specific. `rails.tool_output` accepts
-    only `tool call validation`, and `rails.tool_input` accepts only `tool
-    result validation`. A misdirected, unknown, or duplicated tool flow name
+    The IORails flow names are fixed and direction-specific. `rails.tool_call`
+    accepts only `tool call validation`, and `rails.tool_result` accepts only
+    `tool result validation`. A misdirected, unknown, or duplicated tool flow name
     makes the configuration ineligible for IORails: the `Guardrails` facade
     silently falls back to `LLMRails`, and none of the IORails tool rails run. A
     typo in a flow name disables the tool rails you configured, with only a log
     warning to signal it. Pass `require_iorails=True` to the `Guardrails`
-    constructor to raise instead of falling back silently.
+    constructor to raise instead of falling back silently. A configuration
+    with `per_tool` rails always raises instead of falling back, and `LLMRails`
+    issues a `UserWarning` when it loads one, because it does not run them.
 </Warning>
 
 <Note>
-    IORails accepts the `parallel` field on the `tool_output` and `tool_input`
-    sections for symmetry with other rails, but does not honor it for tool rails
-    and emits a warning if you set it to `true`. Tool rails are local checks
-    with no I/O to overlap, so they always run sequentially.
+    IORails honors the `parallel` field on the `tool_call` and `tool_result`
+    sections, but `tool call validation` and `tool result validation` each
+    name at most one flow, so `parallel` has no observable effect on them:
+    they always run one at a time. `parallel` matters for per-tool checks
+    configured under `tool_call.per_tool` / `tool_result.per_tool`, where a
+    request can run several checks at once; refer to
+    [Rail Engine Support](/reference/rail-engine-support) for per-tool
+    configuration.
 </Note>
 
 ## Declare Tools
@@ -276,12 +290,14 @@ models:
 
 ## Tool Call Validation
 
-The `tool call validation` rail inspects every tool call in the model's response and blocks the request on the first violation.
+The `tool call validation` rail inspects every tool call in the model's response and blocks the request when any call breaks a rule.
 
 - **Allowlist.** The call must name a tool you declared.
   IORails blocks a call to a tool that is not in the declared set, for example `tool call 'delete_database' is not an allowed tool`.
 - **Argument schema.** The call's arguments must validate against the tool's declared JSON Schema (the `function.parameters` block).
-  IORails blocks arguments that violate the schema, for example `arguments for tool 'get_weather' do not match its schema: 'city' is a required property`.
+  IORails blocks arguments that violate the schema, for example `arguments for tool 'get_weather' do not match its schema: 'required' failed at '/city'`.
+  The reason names the failing argument as the schema declares it, and the JSON Schema keyword.
+  It never quotes an argument's value or a key the model chose, which appears as `*`.
 - **No-argument tools.** A function tool that declares no parameters must receive no arguments.
   IORails blocks any supplied argument.
 - **Hosted tools.** IORails allowlists a hosted or server-side tool that only `type` identifies (for example a built-in web search) by type, and does not schema-validate its arguments because the provider owns the call shape.
@@ -299,8 +315,11 @@ The rail blocks the request when a tool result:
 - Is missing a `tool_call_id`, or that id does not correspond to a tool call earlier in the conversation.
 - Reuses a `tool_call_id` that another result in the same turn already used.
   Each call must have exactly one result.
-- Names a different tool than the call it links to, or omits a name when the call's tool name is known.
+- Names a different tool than the call it links to.
 - Carries content that is not a string or a list of content-block objects.
+
+A tool result doesn't need a `name`.
+The OpenAI tool message has none, so the rail identifies the tool from the result's `tool_call_id`.
 
 <Note>
     This rail validates structural well-formedness only. It confirms that the
@@ -317,7 +336,7 @@ The rail blocks the request when a tool result:
     application truncates or prunes older turns (for example a sliding context
     window), and a truncated turn held the call a later result answers, that
     result becomes unresolvable. With a per-tool policy enabled
-    (`rails.tool_input.per_tool`), an unresolvable result fails closed and blocks
+    (`rails.tool_result.per_tool`), an unresolvable result fails closed and blocks
     the request, since which policy applies can no longer be verified.
 </Warning>
 
@@ -331,9 +350,77 @@ response = await rails.generate_async(
     messages=messages,
     options={
         "llm_params": {"tools": tools},
-        "rails": {"tool_output": True, "tool_input": False},
+        "rails": {"tool_call": True, "tool_result": False},
     },
 )
+```
+
+## Check Tool Calls and Results Without Generation
+
+An agent harness that calls its own model can use the same rails to validate tool traffic without IORails generating a response.
+Run a check with `RailType.TOOL_CALL` on the conversation that ends in the model's tool calls, and with `RailType.TOOL_RESULT` after appending the tool results:
+
+```python
+from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.rails.llm.options import RailStatus, RailType
+
+rails = Guardrails(RailsConfig.from_path("./config"), require_iorails=True)
+
+call_check = await rails.check_async(messages, rail_types=[RailType.TOOL_CALL], tools=tools)
+if call_check.status == RailStatus.BLOCKED:
+    ...  # Drop or re-request the calls named in call_check.tool_violations.
+
+messages.append({"role": "tool", "tool_call_id": "call_1", "content": "18C"})
+result_check = await rails.check_async(messages, rail_types=[RailType.TOOL_RESULT])
+```
+
+A `tool_call` check validates the tool calls on the last assistant message against `tools`, which replace the tools declared on the main model.
+Only a `tool_call` check reads `tools`, so passing them to any other check raises `InvalidCheckRequestError`, or returns HTTP 422 from the server.
+Each `tools` entry must be a Chat Completions function tool, with a `function` object and a non-empty `name`; any other entry raises `InvalidCheckRequestError` rather than being dropped.
+A tool check reads the messages and `tools` in the Chat Completions format whatever the `main` model's engine, and needs no `main` model.
+The allowlist and argument schemas are enforced for every call by `tool call validation`, and for the calls a `per_tool` rail checks by that rail; `per_tool` rails check only the tools they are listed under.
+A `tool_result` check validates every `tool` message against the calls it answers.
+Both run the global validator and any `per_tool` rails, and neither calls the model.
+A blocked check reports each failing call or result in `tool_violations`, with a `violation_type` to switch on.
+For the full behavior, the violation types, and the engine requirements, refer to [Checking Messages Against Rails: Tool Rails](/run-guardrailed-inference/using-python-apis/check-messages#tool-rails-iorails-only).
+
+<Tip>
+
+To check the tool calls of a coding agent such as Claude Code or Codex from the agent's own hooks, use the [Guardrails hooks server](/run-guardrailed-inference/using-hooks-server/overview) (`nemoguardrails hooks-server`).
+It applies a tool policy of its own to each call, then runs the called tool's `per_tool` rails in this check.
+
+</Tip>
+
+The Guardrails API server (`nemoguardrails server`) exposes the same check through `/v1/checks`.
+Run the server with `NEMO_GUARDRAILS_IORAILS_ENGINE=1` so the configuration is served by IORails; on `LLMRails`, the tool rail types return HTTP 422.
+Pass the tools in the request's top-level `tools` field:
+
+```json
+{
+  "model": "meta/llama-3.3-70b-instruct",
+  "messages": [
+    {"role": "user", "content": "What's the weather in Paris?"},
+    {"role": "assistant", "content": null, "tool_calls": [
+      {"id": "call_1", "type": "function", "function": {"name": "delete_files", "arguments": "{}"}}
+    ]}
+  ],
+  "tools": [{"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}}}],
+  "guardrails": {"config_id": "tools", "rail_types": ["tool_call"]}
+}
+```
+
+The call names a tool that is not declared, so the response is:
+
+```json
+{
+  "status": "blocked",
+  "content": "I'm sorry, I can't respond to that.",
+  "rail": "tool call validation",
+  "reason": "tool call 'delete_files' is not an allowed tool",
+  "tool_violations": [
+    {"kind": "tool_call", "violation_type": "tool_not_allowed", "reason": "tool call 'delete_files' is not an allowed tool", "tool_call_id": "call_1", "tool_name": "delete_files", "index": 0}
+  ]
+}
 ```
 
 ## Streaming
@@ -347,20 +434,21 @@ IORails streams the text response as it arrives, accumulates the tool-call fragm
 
 ## Limitations
 
-- **Wire format.** The tool-calling rails support only the OpenAI Chat Completions shape, through the `openai` and `nim` engines.
+- **Wire format.** In generation, the tool-calling rails support only the OpenAI Chat Completions shape, through the `openai` and `nim` engines.
   They do not yet support the OpenAI Responses API, Anthropic, Gemini, or Bedrock.
+  A check takes messages and tools in the Chat Completions shape, whatever the `main` model's engine.
 - **Structural result validation.** Tool result validation checks structure and linkage only.
   It does not enforce response schemas or apply content-safety checks to tool results.
 - **Intra-request consistency.** The linkage check verifies consistency within a single request, not cross-turn provenance.
 - **Schema dialect.** Argument validation uses JSON Schema.
   Tool schemas written in a different dialect are not validated against that dialect.
-- **Engine requirement.** Tool-calling rails require the IORails engine and a Colang `1.0` configuration.
+- **Engine requirement.** The built-in structural validation flows described on this page require the IORails engine and a Colang `1.0` configuration.
 
 ## Related Tool Features
 
 The NVIDIA NeMo Guardrails library includes other tool-related capabilities that are distinct from the IORails tool-calling rails described here:
 
-- [Tools Integration](/integration-with-third-party-libraries/tools-integration) covers LangChain tool passthrough and output-rail validation on the `LLMRails` engine.
+- [Tools Integration](/integration-with-third-party-libraries/tools-integration) covers LangChain tool calling and output-rail validation on the `LLMRails` engine.
 - [Rail types](/about-nemo-guardrails-library/rail-types) describes Colang execution rails, which run actions before and after execution within the `LLMRails` event-driven pipeline.
 
 The rails on this page operate at the request and response boundary of the IORails engine and do not execute tools.

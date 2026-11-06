@@ -1,0 +1,6 @@
+# Dependabot recompiles requirements.txt in this directory, out of reach of the repository's pyproject.toml. uv reads
+# this file instead, so Dependabot chooses versions under the same 7-day exclude-newer window that applies when
+# `make test-hooks-agents` installs the file from the repository root. Without it, an update can pull in a release that
+# the install then refuses until it's a week old.
+[tool.uv]
+exclude-newer = "7 days"

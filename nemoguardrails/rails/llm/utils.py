@@ -36,7 +36,10 @@ def get_history_cache_key(messages: List[dict]) -> str:
         if msg["role"] == "user":
             # Check if content is a string or a list (multimodal content)
             if isinstance(msg["content"], list):
-                # For multimodal content, join all text parts
+                if any(part.get("type") != "text" for part in msg["content"]):
+                    key_items.append(json.dumps(msg["content"], sort_keys=True))
+                    continue
+                # For text-only content lists, join all text parts.
                 text_parts = []
                 for item in msg["content"]:
                     if item.get("type") == "text":
@@ -46,9 +49,30 @@ def get_history_cache_key(messages: List[dict]) -> str:
                 # Use the content directly without json.dumps
                 key_items.append(msg["content"])
         elif msg["role"] == "assistant":
-            key_items.append(msg["content"])
+            key_items.append(msg.get("content") or "")
+            if msg.get("tool_calls"):
+                calls = []
+                for call in msg["tool_calls"]:
+                    function = call.get("function", {}).copy()
+                    if isinstance(function.get("arguments"), str):
+                        try:
+                            function["arguments"] = json.loads(function["arguments"])
+                        except ValueError:
+                            pass
+                    calls.append({**call, "function": function} if function else call)
+                key_items.append(json.dumps(calls, sort_keys=True))
+        elif msg["role"] == "tool":
+            key_items.append(json.dumps(msg, sort_keys=True))
         elif msg["role"] == "context":
-            key_items.append(json.dumps(msg["content"]))
+            context = {key: value for key, value in msg["content"].items() if key != "generation_options"}
+            options = msg["content"].get("generation_options") or {}
+            rail_options = {key: value for key, value in options.get("rails", {}).items() if value is not True}
+            if rail_options:
+                context["generation_options"] = {"rails": rail_options}
+            if context:
+                key_items.append(json.dumps(context))
+        elif msg["role"] in ("system", "developer"):
+            key_items.append(json.dumps(msg, sort_keys=True))
         elif msg["role"] == "event":
             key_items.append(json.dumps(msg["event"]))
 

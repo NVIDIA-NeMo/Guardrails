@@ -79,6 +79,8 @@ class AsyncWorkQueue(Generic[T]):
         """Starts the worker pool. Call this during service startup."""
         if self._running:
             return
+        if self._workers:
+            raise RuntimeError("Worker cleanup is incomplete; call stop() before restarting.")
 
         self._busy_count = 0
         self._workers = []
@@ -98,23 +100,18 @@ class AsyncWorkQueue(Generic[T]):
         self._running = True
 
     async def stop(self, wait_for_completion: bool = True) -> None:
-        """Stops the worker pool. Call this during service shutdown."""
-        if not self._running:
-            return
+        """Stop admission and workers; interrupted cleanup can be retried."""
+        self._running = False
+        if wait_for_completion and any(not task.done() for task in self._workers):
+            await self._queue.join()
 
-        try:
-            if wait_for_completion:
-                await self._queue.join()
+        for task in self._workers:
+            task.cancel()
 
-            for task in self._workers:
-                task.cancel()
-
-            # Swallow cancellations to prevent noise during shutdown
-            await asyncio.gather(*self._workers, return_exceptions=True)
-            self._workers = []
-            self._busy_count = 0
-        finally:
-            self._running = False
+        # Swallow cancellations to prevent noise during shutdown
+        await asyncio.gather(*self._workers, return_exceptions=True)
+        self._workers = []
+        self._busy_count = 0
 
     async def submit(self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any) -> T:
         """

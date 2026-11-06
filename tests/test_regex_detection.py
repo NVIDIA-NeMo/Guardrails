@@ -22,8 +22,8 @@ from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult
 from nemoguardrails.library.regex.actions import (
     detect_regex_pattern,
-    detect_tool_input_regex_pattern,
-    detect_tool_output_regex_pattern,
+    detect_tool_call_regex_pattern,
+    detect_tool_result_regex_pattern,
 )
 from nemoguardrails.types import ToolCall, ToolCallFunction
 from tests.utils import TestChat
@@ -35,7 +35,7 @@ def _tool_call(name: str, arguments: dict, call_id: str = "call_1") -> ToolCall:
 
 def _permissive_tool(name: str) -> Tool:
     """A declared tool whose schema accepts any arguments, for tests that aren't
-    exercising @tool_output_validation's own schema check."""
+    exercising @tool_call_validation's own schema check."""
     return Tool(name=name, arguments_schema={"type": "object", "additionalProperties": True})
 
 
@@ -714,11 +714,11 @@ def test_regex_output_verdict_blocks_on_match():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_detect_tool_output_regex_pattern_rejects_invalid_source():
+async def test_detect_tool_call_regex_pattern_rejects_invalid_source():
     config = RailsConfig.from_content(yaml_content="models: []", colang_content="")
 
-    with pytest.raises(ValueError, match="source must be 'tool_output'"):
-        await detect_tool_output_regex_pattern(
+    with pytest.raises(ValueError, match="source must be 'tool_call'"):
+        await detect_tool_call_regex_pattern(
             source="bogus",
             tool_call=_tool_call("run_sql", {"query": "hi"}),
             tool_definition=_permissive_tool("run_sql"),
@@ -728,12 +728,12 @@ async def test_detect_tool_output_regex_pattern_rejects_invalid_source():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_detect_tool_output_regex_pattern_blocks_undeclared_tool():
-    """@tool_output_validation blocks before the regex check itself runs."""
+async def test_detect_tool_call_regex_pattern_blocks_undeclared_tool():
+    """@tool_call_validation blocks before the regex check itself runs."""
     config = RailsConfig.from_content(yaml_content="models: []", colang_content="")
 
-    result = await detect_tool_output_regex_pattern(
-        source="tool_output",
+    result = await detect_tool_call_regex_pattern(
+        source="tool_call",
         tool_call=_tool_call("run_sql", {"query": "hi"}),
         tool_definition=None,
         config=config,
@@ -744,13 +744,13 @@ async def test_detect_tool_output_regex_pattern_blocks_undeclared_tool():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_detect_tool_output_regex_pattern_blocks_schema_violation():
-    """@tool_output_validation blocks arguments that don't match the declared schema."""
+async def test_detect_tool_call_regex_pattern_blocks_schema_violation():
+    """@tool_call_validation blocks arguments that don't match the declared schema."""
     config = RailsConfig.from_content(yaml_content="models: []", colang_content="")
     tool = Tool(name="run_sql", arguments_schema={"type": "object", "properties": {"query": {"type": "string"}}})
 
-    result = await detect_tool_output_regex_pattern(
-        source="tool_output",
+    result = await detect_tool_call_regex_pattern(
+        source="tool_call",
         tool_call=_tool_call("run_sql", {"query": 123}),
         tool_definition=tool,
         config=config,
@@ -761,11 +761,11 @@ async def test_detect_tool_output_regex_pattern_blocks_schema_violation():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_detect_tool_input_regex_pattern_rejects_invalid_source():
+async def test_detect_tool_result_regex_pattern_rejects_invalid_source():
     config = RailsConfig.from_content(yaml_content="models: []", colang_content="")
 
-    with pytest.raises(ValueError, match="source must be 'tool_input'"):
-        await detect_tool_input_regex_pattern(
+    with pytest.raises(ValueError, match="source must be 'tool_result'"):
+        await detect_tool_result_regex_pattern(
             source="bogus",
             tool_call=_tool_call("run_sql", {}),
             tool_result=ToolResult(call_id="call_1", name="run_sql", content="hi"),
@@ -775,7 +775,7 @@ async def test_detect_tool_input_regex_pattern_rejects_invalid_source():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_detect_tool_output_regex_pattern_allows_when_regex_detection_section_absent():
+async def test_detect_tool_call_regex_pattern_allows_when_regex_detection_section_absent():
     """No `regex_detection` section at all: fails open.
 
     `RailsConfig` always populates `regex_detection` via a Pydantic default_factory, so
@@ -785,8 +785,8 @@ async def test_detect_tool_output_regex_pattern_allows_when_regex_detection_sect
     """
     config = RailsConfig.from_content(yaml_content="models: []", colang_content="")
 
-    result = await detect_tool_output_regex_pattern(
-        source="tool_output",
+    result = await detect_tool_call_regex_pattern(
+        source="tool_call",
         tool_call=_tool_call("run_sql", {"query": "DROP TABLE users"}),
         tool_definition=_permissive_tool("run_sql"),
         config=config,
@@ -798,7 +798,7 @@ async def test_detect_tool_output_regex_pattern_allows_when_regex_detection_sect
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_detect_tool_output_regex_pattern_allows_no_regex_configured_tool():
+async def test_detect_tool_call_regex_pattern_allows_no_regex_configured_tool():
     """A tool name with no configured pattern group fails open, rather than refusing.
 
     This is the known gap load-time validation would close: a typo'd tool name in
@@ -810,7 +810,7 @@ async def test_detect_tool_output_regex_pattern_allows_no_regex_configured_tool(
             rails:
               config:
                 regex_detection:
-                  tool_output:
+                  tool_call:
                     run_sql:
                       patterns:
                         - "DROP\\\\s+TABLE"
@@ -818,8 +818,8 @@ async def test_detect_tool_output_regex_pattern_allows_no_regex_configured_tool(
         colang_content="",
     )
 
-    result = await detect_tool_output_regex_pattern(
-        source="tool_output",
+    result = await detect_tool_call_regex_pattern(
+        source="tool_call",
         tool_call=_tool_call("other_tool", {"query": "DROP TABLE users"}),
         tool_definition=_permissive_tool("other_tool"),
         config=config,
@@ -831,21 +831,21 @@ async def test_detect_tool_output_regex_pattern_allows_no_regex_configured_tool(
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_detect_tool_output_regex_pattern_allows_when_no_patterns_configured_for_tool():
+async def test_detect_tool_call_regex_pattern_allows_when_no_patterns_configured_for_tool():
     config = RailsConfig.from_content(
         yaml_content="""
             models: []
             rails:
               config:
                 regex_detection:
-                  tool_output:
+                  tool_call:
                     run_sql: {}
         """,
         colang_content="",
     )
 
-    result = await detect_tool_output_regex_pattern(
-        source="tool_output",
+    result = await detect_tool_call_regex_pattern(
+        source="tool_call",
         tool_call=_tool_call("run_sql", {"query": "DROP TABLE users"}),
         tool_definition=_permissive_tool("run_sql"),
         config=config,
@@ -857,14 +857,14 @@ async def test_detect_tool_output_regex_pattern_allows_when_no_patterns_configur
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_detect_tool_input_regex_pattern_allows_no_regex_configured_tool():
+async def test_detect_tool_result_regex_pattern_allows_no_regex_configured_tool():
     config = RailsConfig.from_content(
         yaml_content="""
             models: []
             rails:
               config:
                 regex_detection:
-                  tool_input:
+                  tool_result:
                     run_sql:
                       patterns:
                         - "ssn:\\\\s*\\\\d{3}-\\\\d{2}-\\\\d{4}"
@@ -872,8 +872,8 @@ async def test_detect_tool_input_regex_pattern_allows_no_regex_configured_tool()
         colang_content="",
     )
 
-    result = await detect_tool_input_regex_pattern(
-        source="tool_input",
+    result = await detect_tool_result_regex_pattern(
+        source="tool_result",
         tool_call=_tool_call("other_tool", {}),
         tool_result=ToolResult(call_id="call_1", name="other_tool", content="ssn: 123-45-6789"),
         config=config,
@@ -885,14 +885,14 @@ async def test_detect_tool_input_regex_pattern_allows_no_regex_configured_tool()
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_detect_tool_input_regex_pattern_allows_empty_content():
+async def test_detect_tool_result_regex_pattern_allows_empty_content():
     config = RailsConfig.from_content(
         yaml_content="""
             models: []
             rails:
               config:
                 regex_detection:
-                  tool_input:
+                  tool_result:
                     run_sql:
                       patterns:
                         - "DROP\\\\s+TABLE"
@@ -900,8 +900,8 @@ async def test_detect_tool_input_regex_pattern_allows_empty_content():
         colang_content="",
     )
 
-    result = await detect_tool_input_regex_pattern(
-        source="tool_input",
+    result = await detect_tool_result_regex_pattern(
+        source="tool_result",
         tool_call=_tool_call("run_sql", {}),
         tool_result=ToolResult(call_id="call_1", name="run_sql", content=""),
         config=config,

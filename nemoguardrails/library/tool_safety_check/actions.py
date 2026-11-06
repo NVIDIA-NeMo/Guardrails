@@ -19,7 +19,7 @@ from typing import Dict, Optional
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm_judge import require_llm, run_llm_judged_check
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, scope_arguments, tool_output_validation
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, scope_arguments, tool_call_validation
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.types import LLMModel, ToolCall
 
@@ -27,8 +27,8 @@ _DEFAULT_TEMPERATURE = 1e-20
 
 
 @action(is_system_action=True)
-@tool_output_validation
-async def tool_safety_check_output(
+@tool_call_validation
+async def tool_safety_check_tool_call(
     llms: Dict[str, LLMModel],
     llm_task_manager: LLMTaskManager,
     tool_call: ToolCall,
@@ -42,16 +42,16 @@ async def tool_safety_check_output(
 
     Args:
         tool_call: The tool call to check.
-        tool_definition: The declared tool, used only by @tool_output_validation.
+        tool_definition: The declared tool, used only by @tool_call_validation.
         model_name: The judge model, from `$model=` on the flow.
         variant: Selects which `config.prompts` task to render, from `$variant=` on the flow.
         argument_name: Narrows the arguments sent to the judge to one named argument, from
             `$argument=` on the flow. Absent, the full arguments dict is sent.
     """
-    llm = require_llm(llms, model_name, rail_name="tool safety check output")
+    llm = require_llm(llms, model_name, rail_name="tool safety check tool call")
 
     tool_name = tool_call.function.name or tool_call.type
-    task = f"tool_safety_check_output $model={model_name} $variant={variant}"
+    task = f"tool_safety_check_tool_call $model={model_name} $variant={variant}"
     arguments = scope_arguments(tool_call.function.arguments, argument_name)
     prompt = llm_task_manager.render_task_prompt(
         task=task,
@@ -61,7 +61,7 @@ async def tool_safety_check_output(
 
 
 @action(is_system_action=True)
-async def tool_safety_check_input(
+async def tool_safety_check_tool_result(
     llms: Dict[str, LLMModel],
     llm_task_manager: LLMTaskManager,
     tool_call: ToolCall,
@@ -78,12 +78,12 @@ async def tool_safety_check_input(
         model_name: The judge model, from `$model=` on the flow.
         variant: Selects which `config.prompts` task to render, from `$variant=` on the flow.
     """
-    llm = require_llm(llms, model_name, rail_name="tool safety check input")
+    llm = require_llm(llms, model_name, rail_name="tool safety check tool result")
 
     tool_name = tool_call.function.name or tool_call.type
     content = tool_result.content
     text = content if isinstance(content, str) else json.dumps(content)
-    task = f"tool_safety_check_input $model={model_name} $variant={variant}"
+    task = f"tool_safety_check_tool_result $model={model_name} $variant={variant}"
     prompt = llm_task_manager.render_task_prompt(
         task=task,
         context={"tool_name": tool_name, "tool_result_content": text},

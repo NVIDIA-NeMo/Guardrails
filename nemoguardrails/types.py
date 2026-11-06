@@ -40,7 +40,11 @@ __all__ = [
     "LLMResponseChunk",
     "Role",
     "ToolCall",
+    "ToolCallChunk",
+    "ToolCallDelta",
+    "ToolCallDeltaChunk",
     "ToolCallFunction",
+    "ToolCallFunctionDelta",
     "UsageInfo",
 ]
 
@@ -73,6 +77,47 @@ class ToolCall:
                 "arguments": self.function.arguments,
             },
         }
+
+
+@dataclass
+class ToolCallChunk:
+    """A structured stream event containing completed tool calls, not argument fragments."""
+
+    tool_calls: List[ToolCall]
+
+
+@dataclass
+class ToolCallFunctionDelta:
+    name: Optional[str] = None
+    arguments: Optional[str] = None
+
+
+@dataclass
+class ToolCallDelta:
+    index: int
+    id: Optional[str] = None
+    type: Optional[str] = None
+    function: Optional[ToolCallFunctionDelta] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        result: Dict[str, Any] = {"index": self.index}
+        if self.id is not None:
+            result["id"] = self.id
+        if self.type is not None:
+            result["type"] = self.type
+        if self.function is not None:
+            result["function"] = {
+                key: value
+                for key, value in (("name", self.function.name), ("arguments", self.function.arguments))
+                if value is not None
+            }
+        return result
+
+
+@dataclass
+class ToolCallDeltaChunk:
+    tool_calls: List[ToolCallDelta] = field(default_factory=list)
+    finish_reason: Optional["FinishReason"] = None
 
 
 @dataclass
@@ -239,6 +284,7 @@ class LLMResponseChunk:
     request_id: Optional[str] = None
     usage: Optional[UsageInfo] = None
     provider_metadata: Optional[Dict[str, Any]] = None
+    tool_call_deltas: Optional[List[ToolCallDelta]] = None
 
 
 @runtime_checkable

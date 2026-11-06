@@ -74,7 +74,11 @@ from nemoguardrails.types import (  # noqa: E402
     LLMResponseChunk,
     Role,
     ToolCall,
+    ToolCallChunk,
+    ToolCallDelta,
+    ToolCallDeltaChunk,
     ToolCallFunction,
+    ToolCallFunctionDelta,
     UsageInfo,
 )
 
@@ -92,6 +96,10 @@ __all__ = [
     "RailsConfig",
     "Role",
     "ToolCall",
+    "ToolCallChunk",
+    "ToolCallDelta",
+    "ToolCallDeltaChunk",
+    "ToolCallFunctionDelta",
     "ToolCallFunction",
     "UsageInfo",
     "get_default_framework",

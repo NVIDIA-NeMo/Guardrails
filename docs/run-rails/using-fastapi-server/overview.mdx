@@ -16,6 +16,19 @@ The NVIDIA NeMo Guardrails library API server provides the following capabilitie
 - Works with the [OpenAI Python SDK](https://github.com/openai/openai-python). Use `OpenAI(base_url="http://localhost:8000/v1")`.
 - Includes a built-in chat UI for testing.
 - Supports multiple configurations and combines them for each request.
+- Checks messages, tool calls, and tool results against rails without generating a response, through `POST /v1/checks`.
+  For more information, refer to [Checking Messages Against Rails](/run-guardrailed-inference/using-python-apis/check-messages#guardrails-server).
+
+<Tip>
+
+To check the tool calls and tool results of an application that calls its own model, send them to this server's `/v1/checks` endpoint.
+Tool checks need a configuration that the IORails engine serves, which requires starting the server with `NEMO_GUARDRAILS_IORAILS_ENGINE=1`.
+For an example, refer to [Tool Calling: Check Tool Calls and Results Without Generation](/configure-guardrails/guardrail-catalog/tool-calling#check-tool-calls-and-results-without-generation).
+
+To check a coding agent's tool calls from its own hooks, use the [Guardrails hooks server](/run-guardrailed-inference/using-hooks-server/overview) (`nemoguardrails hooks-server`) instead.
+It is a separate server, with its own command, port, and configuration.
+
+</Tip>
 
 ## Quick Start
 
@@ -89,4 +102,5 @@ Open `http://localhost:8000` in your browser to access the built-in chat UI for 
 ## Related Topics
 
 - [Create Chat Completion](api:POST/v1/chat/completions)
+- [Check Content](api:POST/v1/checks)
 - [Introduction to LLM Benchmarking](https://docs.nvidia.com/nim/benchmarking/llm/latest/overview.html)

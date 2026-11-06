@@ -12,6 +12,9 @@ Product documentation for the toolkit is available at
 
 1. Make sure Node.js 22 is installed.
 
+1. Install Python 3.10 through 3.13 and [uv](https://docs.astral.sh/uv/getting-started/installation/)
+   for OpenAPI generation. The first generation run installs the locked Python dependencies.
+
 1. Install the documentation dependencies:
 
    ```console
@@ -25,6 +28,49 @@ Product documentation for the toolkit is available at
    ```
 
    The Fern docs configuration is validated with the pinned Fern CLI.
+
+## Updating the API Reference
+
+`fern/openapi.yml` is a build artifact generated from the stable FastAPI server
+routes and Pydantic models. It is ignored by Git, just like the generated Python
+SDK reference. Commit source and documentation changes; do not commit the generated
+specification.
+
+`make docs-fern`, `make docs-fern-live`, and both publish targets generate the
+OpenAPI specification and Python SDK reference through
+`make docs-fern-generate-references`. You can also run that target directly, or run
+`make docs-fern-generate-openapi` to generate only the OpenAPI file. Generation
+imports the application without starting its lifespan or calling model providers.
+It disables the optional chat UI so installed extras do not change the contract.
+
+Keep API reference summaries, examples, and streaming or error documentation in
+`fern/openapi-overlay.yml`. Fern applies this overlay to the generated specification
+through `fern/generators.yml`. Change request and response model fields in Python
+instead of overriding them in the overlay.
+
+Validate your source and documentation changes with:
+
+```bash
+make docs-fern
+```
+
+The `Guardrails API specification` workflow in `.github/workflows/guardrails-api-spec.yml`
+generates the specification and tests the exporter on pull requests and `develop`
+pushes affecting the contract or its generation inputs. The documentation build and
+deployment jobs generate their own references from the source revision being built;
+they do not depend on a committed OpenAPI file or a previous job's generated output.
+
+The documentation conformance workflow compares the overlay-applied specifications
+from the base and current revisions. It generates the base specification from that
+revision's source when the exporter is available. The initial migration skips the
+legacy handwritten baseline only when the base has no exporter and the runtime
+sources and dependency files are unchanged.
+
+`npm run test:docs-scripts` also compiles the API reference with Fern and checks
+existing endpoint identities and curated examples against the pre-generation
+baseline in `scripts/tests/fixtures/openapi-reference.json`. Update that baseline
+only when an intentional documentation change modifies those public examples or
+endpoint identities.
 
 ## Live Documentation Server
 
@@ -44,11 +90,16 @@ The Fern development server starts locally and updates as you edit docs files.
 make docs-fern-preview-watch
 ```
 
-This watches local docs and Fern configuration changes and publishes a preview for the current Git branch.
+This watches local docs, Fern configuration, server source, and dependency changes
+and publishes a preview for the current Git branch. Source changes regenerate the
+OpenAPI and SDK references before publishing.
 
 ### Option 3: Direct Fern Command
 
+Generate the references before invoking Fern directly:
+
 ```bash
+make docs-fern-generate-references
 cd fern
 npx --yes fern-api@$(node -p "require('./fern.config.json').version") docs dev
 ```
@@ -63,6 +114,13 @@ Once the server is running:
 Press `Ctrl+C` to stop the server.
 
 ## Publishing the Documentation
+
+Both `make docs-fern-publish-staging` and `make docs-fern-publish-public` regenerate
+the OpenAPI specification and Python SDK reference before publishing. If either
+generation step fails, publishing stops. The GitHub Actions staging job and PR
+preview job use the same preparation target. OpenAPI generation runs without Fern
+publishing credentials. Generated references remain local build artifacts and are
+never committed.
 
 Tag the commit to publish with `docs-v<semver>`.
 Push the tag to GitHub.
@@ -121,7 +179,7 @@ git worktree add -b "$SNAPSHOT_BRANCH" "$SNAPSHOT_WORKTREE" "$VERSION"
 In the snapshot worktree:
 
 1. Make only the changes required to render that historical version.
-1. Do not commit generated SDK reference pages. The documentation build generates and caches those pages from the snapshot source.
+1. Do not commit generated SDK reference pages or `fern/openapi.yml`. The documentation build generates references from the snapshot source, including OpenAPI for snapshots that contain the exporter. Older snapshots keep their existing handwritten specification.
 1. Run pre-commit on the changed files.
 1. Create a DCO-signed snapshot commit.
 

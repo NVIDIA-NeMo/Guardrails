@@ -36,11 +36,11 @@ class TestToolRailActionGuarded:
         assert result.reason == "bad call"
 
     def test_exception_fails_closed(self):
+        """A tool rail that raises blocks, with a reason naming the rail and none of the exception text."""
+
         def boom() -> RailOutcome:
             raise ValueError("kaboom")
 
         result = _ProbeRail()._guarded(boom)
         assert result.is_blocked
-        assert result.reason is not None
-        assert "probe tool rail" in result.reason
-        assert "kaboom" in result.reason
+        assert result.reason == "probe tool rail error"

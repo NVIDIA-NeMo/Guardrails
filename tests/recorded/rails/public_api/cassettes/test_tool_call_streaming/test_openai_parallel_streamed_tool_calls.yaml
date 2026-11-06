@@ -1,0 +1,278 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: Call get_weather once for Paris and once for Boston. Do not answer in prose.
+      stream: true
+      stream_options:
+        include_usage: true
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: required
+      parallel_tool_calls: true
+      max_completion_tokens: 1024
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - text/event-stream; charset=utf-8
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            role: assistant
+            content: null
+          finish_reason: null
+        obfuscation: ''
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - index: 0
+              id: call_XvG8rJkB4piOzyfFsQg9vXxJ
+              type: function
+              function:
+                name: get_weather
+                arguments: ''
+          finish_reason: null
+        obfuscation: KMgqr6nttQABlie
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - index: 0
+              function:
+                arguments: '{"ci'
+          finish_reason: null
+        obfuscation: kdWVTs
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - index: 0
+              function:
+                arguments: 'ty": '
+          finish_reason: null
+        obfuscation: tX0cA
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - index: 0
+              function:
+                arguments: '"Paris'
+          finish_reason: null
+        obfuscation: vCUR
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - index: 0
+              function:
+                arguments: '"}'
+          finish_reason: null
+        obfuscation: EFKHY6PH
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - index: 1
+              id: call_beHNiyyD9PJROTKlBSD7DSZR
+              type: function
+              function:
+                name: get_weather
+                arguments: ''
+          finish_reason: null
+        obfuscation: ZtKhCSYbjXyaIDs
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - index: 1
+              function:
+                arguments: '{"ci'
+          finish_reason: null
+        obfuscation: vqxD7d
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - index: 1
+              function:
+                arguments: 'ty": '
+          finish_reason: null
+        obfuscation: F2DtZ
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - index: 1
+              function:
+                arguments: '"Bosto'
+          finish_reason: null
+        obfuscation: 1QYz
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        usage: null
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - index: 1
+              function:
+                arguments: n"}
+          finish_reason: null
+        obfuscation: cyOHMGT
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta: {}
+          finish_reason: tool_calls
+        usage: null
+        obfuscation: vR3tRSQV5
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        service_tier: default
+        system_fingerprint: null
+        choices: []
+        usage:
+          prompt_tokens: 143
+          completion_tokens: 47
+          total_tokens: 190
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        obfuscation: nm
+      - '[DONE]'

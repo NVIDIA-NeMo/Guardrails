@@ -64,6 +64,24 @@ def test_with_context():
     )
 
 
+def test_tool_history_cache_keys_distinguish_calls_and_results():
+    """Give distinct tool calls and results distinct history cache keys."""
+    user = {"role": "user", "content": "Weather?"}
+    calls = [
+        {"role": "assistant", "content": "", "tool_calls": [{"id": call_id, "name": "weather", "args": {}}]}
+        for call_id in ("call_1", "call_2")
+    ]
+    result = {"role": "tool", "content": "sunny", "tool_call_id": "call_1"}
+    histories = [
+        [user, calls[0]],
+        [user, calls[1]],
+        [user, calls[0], result],
+        [user, calls[0], {**result, "content": "rainy"}],
+        [user, calls[0], {**result, "tool_call_id": "call_2"}],
+    ]
+    assert len({get_history_cache_key(history) for history in histories}) == len(histories)
+
+
 def test_multimodal_content():
     """Test get_history_cache_key with multimodal content (list-based content)."""
     multimodal_messages = [
@@ -78,7 +96,10 @@ def test_multimodal_content():
             ],
         }
     ]
-    assert get_history_cache_key(multimodal_messages) == "What's in this image?"
+    image_key = get_history_cache_key(multimodal_messages)
+    assert image_key != get_history_cache_key([{"role": "user", "content": "What's in this image?"}])
+    multimodal_messages[0]["content"][1]["image_url"]["url"] = "data:image/png;base64,another-image"
+    assert get_history_cache_key(multimodal_messages) != image_key
 
     multi_text_messages = [
         {
@@ -104,7 +125,9 @@ def test_multimodal_content():
             ],
         }
     ]
-    assert get_history_cache_key(mixed_content_messages) == "Hello World"
+    assert get_history_cache_key(mixed_content_messages) != get_history_cache_key(
+        [{"role": "user", "content": "Hello World"}]
+    )
 
     empty_text_messages = [
         {
@@ -118,7 +141,7 @@ def test_multimodal_content():
             ],
         }
     ]
-    assert get_history_cache_key(empty_text_messages) == ""
+    assert get_history_cache_key(empty_text_messages) != get_history_cache_key([{"role": "user", "content": ""}])
 
 
 def test_get_action_details_from_flow_id_exact_match():
@@ -375,3 +398,44 @@ def test_get_action_details_no_match(dummy_flows):
     with pytest.raises(ValueError) as exc_info:
         get_action_details_from_flow_id("non_existing_flow", dummy_flows)
     assert "No action found for flow_id" in str(exc_info.value)
+
+
+@pytest.mark.parametrize("role", ["system", "developer"])
+def test_history_cache_keys_distinguish_instructions(role):
+    """Keep histories with different system or developer instructions in separate cache entries."""
+    histories = [
+        [{"role": role, "content": text}, {"role": "user", "content": "Hello"}]
+        for text in ("First policy", "Second policy")
+    ]
+    assert get_history_cache_key(histories[0]) != get_history_cache_key(histories[1])
+
+
+def test_tool_history_cache_key_normalizes_arguments_without_mutating_messages():
+    """Normalize equivalent wire and native tool arguments for caching without rewriting caller data."""
+    call = {"id": "call_1", "type": "function", "function": {"name": "weather", "arguments": '{ "city": "Paris" }'}}
+    wire = [{"role": "assistant", "content": None, "tool_calls": [call]}]
+    native = [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{**call, "function": {"name": "weather", "arguments": {"city": "Paris"}}}],
+        }
+    ]
+    assert get_history_cache_key(wire) == get_history_cache_key(native)
+    assert call["function"]["arguments"] == '{ "city": "Paris" }'
+    call["function"]["arguments"] = "malformed"
+    assert get_history_cache_key(wire) != get_history_cache_key(native)
+
+
+@pytest.mark.parametrize("rail", ["input", "output", "retrieval", "dialog", "tool_call", "tool_result"])
+def test_history_cache_key_separates_rail_policies(rail):
+    """Separate disabled or selected rail policies while treating enabled defaults like omitted options."""
+    history = [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "OK"}]
+    keys = [
+        get_history_cache_key(
+            [{"role": "context", "content": {"generation_options": {"rails": {rail: setting}}}}, *history]
+        )
+        for setting in (True, False, ["selected rail"])
+    ]
+    assert len(set(keys)) == 3
+    assert keys[0] == get_history_cache_key(history)

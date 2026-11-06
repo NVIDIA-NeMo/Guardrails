@@ -127,12 +127,18 @@ navigation:
           - page: Tool Safety Check
             path: configure-rails/guardrail-catalog/tool-safety-check.mdx
             slug: tool-safety-check
+          - page: Common Expression Language (CEL)
+            path: configure-rails/guardrail-catalog/cel.mdx
+            slug: cel
           - page: Hallucinations & Fact-Checking
             path: configure-rails/guardrail-catalog/fact-checking.mdx
             slug: fact-checking
           - page: LLM Self-Check
             path: configure-rails/guardrail-catalog/self-check.mdx
             slug: self-check
+          - page: Language Detector
+            path: configure-rails/guardrail-catalog/language-detector.mdx
+            slug: language-detector
           - section: Third-Party APIs
             path: configure-rails/guardrail-catalog/third-party.mdx
             slug: third-party
@@ -209,6 +215,9 @@ navigation:
               - page: Trend Micro
                 path: configure-rails/guardrail-catalog/community/trend-micro.mdx
                 slug: trend-micro
+              - page: Zscaler AI Guard
+                path: configure-rails/guardrail-catalog/community/zscaler-aiguard.mdx
+                slug: zscaler-aiguard
       - section: Custom Actions
         path: configure-rails/actions/index.mdx
         slug: actions
@@ -470,6 +479,81 @@ navigation:
           - page: Actions Server
             path: run-rails/using-fastapi-server/actions-server.mdx
             slug: actions-server
+      - section: Experimental Proxy
+        path: run-rails/using-proxy/index.mdx
+        slug: using-proxy
+        contents:
+          - page: Quickstart
+            path: run-rails/using-proxy/quickstart.mdx
+            slug: quickstart
+          - page: Configuration
+            path: run-rails/using-proxy/configuration.mdx
+            slug: configuration
+          - page: Providers and Streaming
+            path: run-rails/using-proxy/providers-and-streaming.mdx
+            slug: providers-and-streaming
+          - page: Guard Contracts
+            path: run-rails/using-proxy/guard-contracts.mdx
+            slug: guard-contracts
+          - page: Python Integration
+            path: run-rails/using-proxy/python-integration.mdx
+            slug: python-integration
+          - page: Deployment
+            path: run-rails/using-proxy/deployment.mdx
+            slug: deployment
+          - page: Troubleshooting
+            path: run-rails/using-proxy/troubleshooting.mdx
+            slug: troubleshooting
+          - section: Advanced Configuration
+            slug: advanced
+            contents:
+              - page: Rails Configuration Resolution
+                path: run-rails/using-proxy/advanced/configuration-resolution.mdx
+                slug: configuration-resolution
+              - page: HTTP Transport Customization
+                path: run-rails/using-proxy/advanced/http-transport.mdx
+                slug: http-transport
+              - page: Multiple Provider Instances and Routing
+                path: run-rails/using-proxy/advanced/multiple-provider-instances.mdx
+                slug: multiple-provider-instances
+              - page: Request and Response Policies
+                path: run-rails/using-proxy/advanced/extend-provider-bindings.mdx
+                slug: extend-provider-bindings
+          - section: Architecture
+            path: run-rails/using-proxy/architecture/index.mdx
+            slug: architecture
+            contents:
+              - page: Request Lifecycle
+                path: run-rails/using-proxy/architecture/request-lifecycle.mdx
+                slug: request-lifecycle
+              - page: Framework Internals
+                path: run-rails/using-proxy/architecture/framework-internals.mdx
+                slug: framework-internals
+      - section: Hooks Server
+        path: run-rails/using-hooks-server/index.mdx
+        slug: using-hooks-server
+        contents:
+          - page: Overview
+            path: run-rails/using-hooks-server/overview.mdx
+            slug: overview
+          - page: Run the Hooks Server
+            path: run-rails/using-hooks-server/run-hooks-server.mdx
+            slug: run-hooks-server
+          - page: Claude Code
+            path: run-rails/using-hooks-server/claude-code.mdx
+            slug: claude-code
+          - page: Codex
+            path: run-rails/using-hooks-server/codex.mdx
+            slug: codex
+          - page: NeMo Relay Plugin
+            path: run-rails/using-hooks-server/nemo-relay-plugin.mdx
+            slug: nemo-relay-plugin
+          - page: NeMo Relay Endpoint
+            path: run-rails/using-hooks-server/nemo-relay.mdx
+            slug: nemo-relay
+          - page: Results and Errors
+            path: run-rails/using-hooks-server/results-and-errors.mdx
+            slug: results-and-errors
   - section: Evaluation
     slug: evaluation
     collapsed: open-by-default
@@ -613,6 +697,10 @@ navigation:
               - endpoint: POST /v1/chat/completions
                 title: Create Chat Completion
                 slug: chat-completions
+          - checks:
+              - endpoint: POST /v1/checks
+                title: Check Content
+                slug: check-content
           - models:
               - endpoint: GET /v1/models
                 title: List Models
@@ -635,6 +723,57 @@ navigation:
               - endpoint: GET /
                 title: Get Server Health or Chat UI
                 slug: get-root
+      - api: Experimental Proxy API
+        slug: proxy-api
+        specs:
+          - type: openapi
+            path: ../fern/proxy-openapi.yml
+            overlays: ../fern/proxy-openapi-overlay.yml
+        display-errors: true
+        layout:
+          - endpoint: POST /v1/chat/completions
+            title: Create a Guarded Chat Completion
+            slug: chat-completions
+          - endpoint: POST /v1/responses
+            title: Create a Guarded Response
+            slug: responses
+      - section: Proxy Guard Contracts
+        slug: proxy-guard-contracts
+        contents:
+          - page: Chat Completions
+            path: ../fern/proxy-guard-contracts/chat-completions.mdx
+            slug: chat-completions
+          - page: Responses
+            path: ../fern/proxy-guard-contracts/responses.mdx
+            slug: responses
+      - api: Hooks Server API
+        slug: hooks-server-api
+        # The main API uses fern/generators.yml; select the hooks server's separate contract here.
+        specs:
+          - type: openapi
+            path: ../fern/hooks-openapi.yml
+            overlays: ../fern/hooks-openapi-overlay.yml
+        # Show the hooks endpoints' validation, failure, and overload responses.
+        display-errors: true
+        layout:
+          - page: Overview
+            path: reference/hooks-server-api/index.mdx
+            slug: overview
+          - endpoint: POST /v1/hooks/claude-code
+            title: Check a Claude Code Tool Call
+            slug: claude-code
+          - endpoint: POST /v1/hooks/codex
+            title: Check a Codex Tool Call
+            slug: codex
+          - endpoint: POST /v1/hooks/nemo-relay
+            title: Check a NeMo Relay Tool Call
+            slug: nemo-relay
+          - page: Health Check
+            path: reference/hooks-server-api/_generated/get-health.mdx
+            slug: get-health
+          - page: Health Check (Alias)
+            path: reference/hooks-server-api/_generated/get-healthz.mdx
+            slug: get-healthz
       - page: Migrating to 0.22
         path: migration/0.22.mdx
         slug: 0-22

@@ -191,6 +191,9 @@ Run the smallest meaningful test set first, then broaden validation when the
 change touches shared runtime behavior, public APIs, packaging, server behavior,
 tracing, or docs.
 
+The suites in `integration_tests/` run NeMo Guardrails against real agents and clients, and `make test` doesn't run them.
+See [`integration_tests/README.md`](integration_tests/README.md) for what each suite checks, what it needs, and how to run it.
+
 Set up local pre-commit hooks if you want checks to run before every commit:
 
 ```bash

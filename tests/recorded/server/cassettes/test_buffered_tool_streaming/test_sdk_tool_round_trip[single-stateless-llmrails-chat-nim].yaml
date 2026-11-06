@@ -1,0 +1,188 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: system
+        content: Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like
+          text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot
+          does not know the answer to a question, it truthfully says it does not know.
+      - role: user
+        content: 'Call get_weather once for each city: Paris. After tools, quote their results exactly.'
+      stop:
+      - 'User:'
+      chat_template_kwargs:
+        enable_thinking: false
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice:
+        type: function
+        function:
+          name: get_weather
+      parallel_tool_calls: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+      vary:
+      - Accept-Encoding
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion
+        system_fingerprint: '[RECORDED_SYSTEM_FINGERPRINT]'
+        choices:
+        - finish_reason: tool_calls
+          index: 0
+          message:
+            content: ''
+            role: assistant
+            tool_calls:
+            - function:
+                arguments: '{"city": "Paris"}'
+                name: get_weather
+              id: chatcmpl-tool-af3b2c172593de25
+              type: function
+            provider_specific_fields:
+              reasoning: null
+              refusal: null
+          provider_specific_fields:
+            routed_experts: null
+            token_ids: null
+            stop_reason: null
+        usage:
+          completion_tokens: 23
+          prompt_tokens: 360
+          total_tokens: 383
+          completion_tokens_details:
+            reasoning_tokens: 0
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: system
+        content: Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like
+          text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot
+          does not know the answer to a question, it truthfully says it does not know.
+      - role: user
+        content: 'Call get_weather once for each city: Paris. After tools, quote their results exactly.'
+      - role: assistant
+        tool_calls:
+        - id: chatcmpl-tool-af3b2c172593de25
+          type: function
+          function:
+            name: get_weather
+            arguments: '{"city": "Paris"}'
+      - role: tool
+        content: 'Paris: WX-4827, sunny.'
+        tool_call_id: chatcmpl-tool-af3b2c172593de25
+      stop:
+      - 'User:'
+      chat_template_kwargs:
+        enable_thinking: false
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: auto
+      parallel_tool_calls: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+      vary:
+      - Accept-Encoding
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion
+        system_fingerprint: '[RECORDED_SYSTEM_FINGERPRINT]'
+        choices:
+        - finish_reason: stop
+          index: 0
+          message:
+            content: "The current weather in **Paris** is:  \n- **Condition**: sunny  \n\nWould you like to check another\
+              \ city or need additional details about Paris's weather? \U0001F60A"
+            role: assistant
+            provider_specific_fields:
+              refusal: null
+              reasoning: null
+          provider_specific_fields:
+            stop_reason: null
+            routed_experts: null
+            token_ids: null
+        usage:
+          completion_tokens: 38
+          prompt_tokens: 413
+          total_tokens: 451
+          completion_tokens_details:
+            reasoning_tokens: 0

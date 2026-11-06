@@ -19,7 +19,7 @@
 Compares the NeMo Guardrails API spec against the upstream OpenAI spec using
 oasdiff. Supports two spec sources for the guardrails side:
 
-  --guardrails-spec fern/openapi.yml   (default, the hand-written docs spec)
+  --guardrails-spec fern/openapi.yml   (default, the generated Fern base spec)
   --fastapi                            (exports app.openapi() at runtime)
 
 The OpenAI spec can be a local file or fetched from upstream:
@@ -63,11 +63,15 @@ def _run_oasdiff(subcommand: str, base: str, revision: str, *, extra_flags: list
     return json.loads(result.stdout) if result.stdout else {}
 
 
-def _check_breaking(spec: str, base_ref: str = "HEAD~1") -> bool:
+def _check_breaking(spec: str, base_ref: str = "HEAD~1", base_spec: Path | None = None) -> bool:
+    if base_spec is not None:
+        for required in (Path(spec), base_spec):
+            if not required.is_file():
+                raise FileNotFoundError(f"Generated comparison specification is missing: {required}")
     if not Path(spec).exists():
         print(f"warning: {spec} not in working tree, skipping breaking-change check")
         return True
-    base_exists = (
+    base_exists = base_spec is not None or (
         subprocess.run(
             ["git", "cat-file", "-e", f"{base_ref}:{spec}"],
             capture_output=True,
@@ -81,7 +85,7 @@ def _check_breaking(spec: str, base_ref: str = "HEAD~1") -> bool:
         [
             "oasdiff",
             "breaking",
-            f"{base_ref}:{spec}",
+            str(base_spec) if base_spec is not None else f"{base_ref}:{spec}",
             spec,
             "--fail-on",
             "ERR",
@@ -223,7 +227,12 @@ def main():
     parser.add_argument(
         "--check-breaking",
         action="store_true",
-        help="Fail on breaking API changes vs a base ref (fern spec only)",
+        help="Fail on breaking API changes vs --base-spec or a base ref (fern spec only)",
+    )
+    parser.add_argument(
+        "--base-spec",
+        type=Path,
+        help="Generated base specification for --check-breaking, including documentation overlays",
     )
     parser.add_argument(
         "--base-ref",
@@ -252,7 +261,7 @@ def main():
 
         if args.check_breaking and not args.fastapi:
             print(f"Breaking changes ({args.base_ref} vs working tree):", end=" ")
-            if _check_breaking(str(args.guardrails_spec), base_ref=args.base_ref):
+            if _check_breaking(str(args.guardrails_spec), base_ref=args.base_ref, base_spec=args.base_spec):
                 print("none")
             else:
                 sys.exit(1)

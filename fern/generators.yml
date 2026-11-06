@@ -4,3 +4,13 @@
 api:
   specs:
     - openapi: ./openapi.yml
+      overlays: ./openapi-overlay.yml
+      settings:
+        # Preserve explicit message examples through literal-valued unions.
+        prefer-undiscriminated-unions-with-literals: true
+        # Keep curated examples concise as generated models gain optional fields.
+        example-generation:
+          request:
+            max-depth: 0
+          response:
+            max-depth: 0

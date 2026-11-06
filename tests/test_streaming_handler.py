@@ -792,9 +792,13 @@ async def test_push_chunk_unsupported_type():
     """Test push_chunk with an unsupported data type."""
 
     streaming_handler = StreamingHandler()
-    with pytest.raises(TypeError, match="StreamingHandler.push_chunk\\(\\) expects str, got int"):
+    with pytest.raises(
+        TypeError, match="StreamingHandler.push_chunk\\(\\) expects str, ToolCallChunk, or ToolCallDeltaChunk, got int"
+    ):
         await streaming_handler.push_chunk(123)
-    with pytest.raises(TypeError, match="StreamingHandler.push_chunk\\(\\) expects str, got list"):
+    with pytest.raises(
+        TypeError, match="StreamingHandler.push_chunk\\(\\) expects str, ToolCallChunk, or ToolCallDeltaChunk, got list"
+    ):
         await streaming_handler.push_chunk([1, 2])
 
 
@@ -834,3 +838,149 @@ async def test_finish_with_suffix():
         assert chunks == ["Hello World"]
     finally:
         await consumer.cancel()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("include_metadata", [False, True])
+@pytest.mark.parametrize("piped", [False, True])
+async def test_tool_events_follow_pending_text_without_text_filters(include_metadata, piped):
+    from nemoguardrails.types import ToolCall, ToolCallChunk, ToolCallFunction
+
+    handler = StreamingHandler(include_metadata=include_metadata)
+    consumer = StreamingHandler(include_metadata=include_metadata) if piped else handler
+    if piped:
+        handler.set_pipe_to(consumer)
+    handler.stop = ["User:"]
+    handler.suffix = '"'
+    event = ToolCallChunk([ToolCall(id="call_1", function=ToolCallFunction(name="User:", arguments={"text": '"'}))])
+    await handler.push_chunk('Hello"')
+    await handler.push_chunk(event)
+    await handler.finish()
+    chunks = [chunk async for chunk in consumer]
+    assert chunks[:2] == ([{"text": "Hello"}, event] if include_metadata else ["Hello", event])
+    assert handler.completion == consumer.completion == "Hello"
+
+
+@pytest.mark.asyncio
+async def test_stop_suppresses_subsequent_tool_events():
+    from nemoguardrails.types import ToolCall, ToolCallChunk
+
+    handler = StreamingHandler()
+    handler.stop = ["STOP"]
+    await handler.push_chunk("STOP")
+    await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
+    await handler.finish()
+    assert [chunk async for chunk in handler] == []
+
+
+@pytest.mark.asyncio
+async def test_buffered_dialog_rejects_tool_events():
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+    from nemoguardrails.types import ToolCall, ToolCallChunk
+
+    handler = StreamingHandler(enable_buffer=True)
+    with pytest.raises(StreamingNotSupportedError, match="buffered dialog"):
+        await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
+    assert handler.queue.empty()
+    assert handler.buffer == handler.completion == ""
+
+
+@pytest.mark.asyncio
+async def test_anext_rejects_tool_calls_when_disabled():
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+    from nemoguardrails.types import ToolCall, ToolCallChunk
+
+    handler = StreamingHandler(allow_tool_calls=False)
+    await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails.*during streaming"):
+        await anext(handler)
+
+
+@pytest.mark.asyncio
+async def test_pipe_cannot_bypass_disabled_tool_calls():
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+    from nemoguardrails.types import ToolCall, ToolCallChunk
+
+    handler = StreamingHandler(allow_tool_calls=False)
+    target = StreamingHandler()
+    handler.set_pipe_to(target)
+    with pytest.raises(StreamingNotSupportedError, match="Tool calls.*output rails.*during streaming"):
+        await handler.push_chunk(ToolCallChunk([ToolCall(id="call_1")]))
+    assert target.queue.empty()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("after_prefix", [False, True])
+@pytest.mark.parametrize("producer_first", [False, True])
+async def test_buffered_wait_observes_producer_failure(after_prefix, producer_first):
+    from nemoguardrails.exceptions import StreamingNotSupportedError
+
+    handler = StreamingHandler(enable_buffer=True)
+    release = asyncio.Event()
+    error = StreamingNotSupportedError("buffered tool calls are unsupported")
+    prefix_ready = asyncio.Event()
+
+    async def produce():
+        if after_prefix:
+            await handler.push_chunk('user greeting\nbot greeting\n"Hello')
+        prefix_ready.set()
+        await release.wait()
+        raise error
+
+    producer = asyncio.create_task(produce())
+    handler.set_producer_task(producer)
+    try:
+        if producer_first:
+            await asyncio.wait_for(prefix_ready.wait(), 2)
+        if after_prefix:
+            assert await asyncio.wait_for(handler.wait_top_k_nonempty_lines(2), 2) == "user greeting\nbot greeting"
+            assert not producer.done()
+            await handler.disable_buffering()
+            waiting = handler.wait()
+        else:
+            waiting = handler.wait_top_k_nonempty_lines(2)
+        release.set()
+        with pytest.raises(StreamingNotSupportedError) as raised:
+            await asyncio.wait_for(waiting, 2)
+        assert raised.value is error
+    finally:
+        producer.cancel()
+        await asyncio.gather(producer, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_completed_buffered_producer_preserves_short_response():
+    handler = StreamingHandler(enable_buffer=True)
+
+    async def produce():
+        await handler.push_chunk("short response")
+        await handler.finish()
+
+    producer = asyncio.create_task(produce())
+    handler.set_producer_task(producer)
+    assert await asyncio.wait_for(handler.wait_top_k_nonempty_lines(2), 2) == "short response"
+    assert producer.done()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_buffer_wait_cancels_producer():
+    handler = StreamingHandler(enable_buffer=True)
+    started = asyncio.Event()
+    closed = asyncio.Event()
+
+    async def produce():
+        try:
+            started.set()
+            await asyncio.Event().wait()
+        finally:
+            closed.set()
+
+    producer = asyncio.create_task(produce())
+    handler.set_producer_task(producer)
+    waiter = asyncio.create_task(handler.wait_top_k_nonempty_lines(2))
+    await asyncio.wait_for(started.wait(), 2)
+    waiter.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiter
+    assert producer.cancelled()
+    assert closed.is_set()

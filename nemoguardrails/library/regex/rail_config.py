@@ -74,11 +74,11 @@ class RegexDetection(RailConfigBaseModel):
         default_factory=RegexDetectionOptions,
         description="Configuration for regex patterns to detect on retrieved relevant chunks.",
     )
-    tool_output: Dict[str, RegexDetectionOptions] = Field(
+    tool_call: Dict[str, RegexDetectionOptions] = Field(
         default_factory=dict,
         description="Per-tool regex patterns to detect in a tool call's arguments, keyed by tool name.",
     )
-    tool_input: Dict[str, RegexDetectionOptions] = Field(
+    tool_result: Dict[str, RegexDetectionOptions] = Field(
         default_factory=dict,
         description="Per-tool regex patterns to detect in a tool result's content, keyed by tool name.",
     )

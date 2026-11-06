@@ -15,9 +15,316 @@
 
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
-from nemoguardrails.rails.llm.config import Model, RailsConfig, RailsConfigData, TaskPrompt
+from nemoguardrails.rails.llm.config import (
+    HooksServerConfig,
+    Model,
+    Rails,
+    RailsConfig,
+    RailsConfigData,
+    TaskPrompt,
+    ToolCallRails,
+    ToolEntry,
+    ToolResultRails,
+)
+
+
+def test_tool_rail_fields_use_canonical_names():
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "tool_call": {"flows": ["tool call validation"]},
+                "tool_result": {"flows": ["tool result validation"]},
+            },
+        }
+    )
+    rails = config.rails
+
+    assert rails.tool_call.flows == ["tool call validation"]
+    assert rails.tool_result.flows == ["tool result validation"]
+    assert set(rails.model_dump()) >= {"tool_call", "tool_result"}
+    assert "tool_output" not in rails.model_dump()
+    assert "tool_input" not in rails.model_dump()
+
+
+def test_deprecated_tool_rail_fields_migrate():
+    with pytest.warns(DeprecationWarning) as warnings:
+        config = RailsConfig.from_content(
+            config={
+                "models": [],
+                "rails": {
+                    "tool_output": {"flows": ["tool call validation"]},
+                    "tool_input": {"flows": ["tool result validation"]},
+                },
+            }
+        )
+    rails = config.rails
+
+    tool_warnings = {str(item.message) for item in warnings if str(item.message).startswith("rails.tool_")}
+    assert tool_warnings == {
+        "rails.tool_output is deprecated; use rails.tool_call instead.",
+        "rails.tool_input is deprecated; use rails.tool_result instead.",
+    }
+    assert rails.tool_call.flows == ["tool call validation"]
+    assert rails.tool_result.flows == ["tool result validation"]
+
+    with pytest.warns(DeprecationWarning, match="Use 'tool_call' instead"):
+        assert rails.tool_output is rails.tool_call
+    with pytest.warns(DeprecationWarning, match="Use 'tool_result' instead"):
+        assert rails.tool_input is rails.tool_result
+
+
+@pytest.mark.parametrize(
+    ("canonical_name", "deprecated_name"),
+    [("tool_call", "tool_output"), ("tool_result", "tool_input")],
+)
+def test_tool_rail_fields_reject_canonical_and_deprecated_names(canonical_name, deprecated_name):
+    with pytest.raises(
+        ValidationError, match=f"Cannot configure both rails.{deprecated_name} and rails.{canonical_name}"
+    ):
+        RailsConfig.from_content(config={"models": [], "rails": {canonical_name: {}, deprecated_name: {}}})
+
+
+def test_non_dict_rails_input_is_left_to_pydantic_validation():
+    with pytest.raises(ValidationError):
+        Rails.model_validate(None)
+
+
+def test_assigning_deprecated_tool_rail_fields_sets_canonical_fields():
+    rails = Rails()
+    tool_call = ToolCallRails(flows=["tool call validation"])
+    tool_result = ToolResultRails(flows=["tool result validation"])
+
+    with pytest.warns(DeprecationWarning, match="rails.tool_output is deprecated"):
+        rails.tool_output = tool_call
+    with pytest.warns(DeprecationWarning, match="rails.tool_input is deprecated"):
+        rails.tool_input = tool_result
+
+    assert rails.tool_call is tool_call
+    assert rails.tool_result is tool_result
+
+
+def test_assigning_canonical_tool_rail_fields_updates_deprecated_aliases():
+    rails = Rails()
+    rails.tool_call = ToolCallRails(flows=["tool call validation"])
+    rails.tool_result = ToolResultRails(flows=["tool result validation"])
+
+    with pytest.warns(DeprecationWarning, match="Use 'tool_call' instead"):
+        assert rails.tool_output is rails.tool_call
+    with pytest.warns(DeprecationWarning, match="Use 'tool_result' instead"):
+        assert rails.tool_input is rails.tool_result
+
+
+def test_deprecated_tool_rail_fields_are_marked_in_schema():
+    properties = Rails.model_json_schema()["properties"]
+
+    assert properties["tool_output"]["deprecated"] is True
+    assert properties["tool_input"]["deprecated"] is True
+
+
+def _hooks_server_config(hooks_server: dict) -> RailsConfig:
+    """A config with *hooks_server* as its hooks_server section, and no models."""
+    return RailsConfig.from_content(config={"models": [], "hooks_server": hooks_server})
+
+
+def test_hooks_server_section_takes_names_and_entries_with_arguments():
+    """The hooks_server section's tool lists take bare names and names with argument lists, and load as written."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            hooks_server:
+              allowed_tools:
+                - Read
+                - name: Bash
+                  arguments: [command, description]
+              blocked_tools:
+                - WebFetch
+                - name: Read
+                  arguments: [pages]
+              allow_unlisted_tools: false
+        """
+    )
+
+    assert config.hooks_server.allowed_tools == ["Read", ToolEntry(name="Bash", arguments=["command", "description"])]
+    assert config.hooks_server.blocked_tools == ["WebFetch", ToolEntry(name="Read", arguments=["pages"])]
+    assert config.hooks_server.allow_unlisted_tools is False
+    assert config.hooks_server.can_deny is True
+
+
+def test_hooks_server_section_defaults_to_allowing_every_tool():
+    """Without a hooks_server section, both lists are empty, unlisted tools are allowed, and nothing can be denied."""
+    hooks_server = RailsConfig.from_content(config={"models": []}).hooks_server
+
+    assert (hooks_server.allowed_tools, hooks_server.blocked_tools, hooks_server.allow_unlisted_tools) == ([], [], True)
+    assert hooks_server.can_deny is False
+
+
+@pytest.mark.parametrize(
+    ("hooks", "can_deny"),
+    [
+        pytest.param({"blocked_tools": ["Bash"]}, True, id="blocked-by-name"),
+        pytest.param({"blocked_tools": [{"name": "Bash", "arguments": ["sandbox"]}]}, True, id="blocked-argument"),
+        pytest.param({"allow_unlisted_tools": False}, True, id="unlisted-denied"),
+        pytest.param({"allowed_tools": [{"name": "search", "arguments": ["query"]}]}, True, id="allowed-entry"),
+        pytest.param({"allowed_tools": ["Bash", "Read"]}, False, id="allowed-bare-names"),
+        pytest.param({}, False, id="defaults"),
+    ],
+)
+def test_hooks_server_policy_can_deny_only_when_a_setting_restricts_a_call(hooks, can_deny):
+    """The policy can deny a call only by blocking, denying unlisted tools, or restricting a tool's arguments."""
+    assert _hooks_server_config(hooks).hooks_server.can_deny is can_deny
+
+
+def test_hooks_server_section_with_an_unknown_key_is_refused():
+    """An unknown key in the hooks_server section fails validation rather than being ignored."""
+    with pytest.raises(ValidationError, match=r"hooks_server\.alowed_tools"):
+        _hooks_server_config({"alowed_tools": ["Bash"]})
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        pytest.param({"name": "Bash", "arguments": ["command"], "values": ["ls"]}, id="unknown-key"),
+        pytest.param({"name": "Bash"}, id="no-arguments"),
+        pytest.param({"name": "Bash", "arguments": []}, id="empty-arguments"),
+    ],
+)
+def test_hooks_server_tool_entry_that_is_not_a_name_with_arguments_is_refused(entry):
+    """A hooks tool list entry with an unknown key, or without a non-empty argument list, fails validation."""
+    with pytest.raises(ValidationError, match=r"hooks_server\.allowed_tools\.0\.ToolEntry"):
+        _hooks_server_config({"allowed_tools": [entry]})
+
+
+def test_hooks_server_tool_entry_naming_an_argument_twice_is_refused():
+    """A hooks tool list entry that lists the same argument twice fails validation, naming the argument."""
+    with pytest.raises(ValidationError, match=r"arguments names \['command'\] more than once"):
+        _hooks_server_config({"blocked_tools": [{"name": "Bash", "arguments": ["command", "command"]}]})
+
+
+@pytest.mark.parametrize("list_name", ["allowed_tools", "blocked_tools"])
+@pytest.mark.parametrize(
+    "entries",
+    [
+        pytest.param(["Bash", "Bash"], id="bare-twice"),
+        pytest.param(["Bash", {"name": "Bash", "arguments": ["command"]}], id="bare-and-entry"),
+    ],
+)
+def test_hooks_server_tool_named_twice_in_one_list_is_refused(list_name, entries):
+    """A hooks list that names a tool twice, in either shape, fails validation naming the list and the tool."""
+    with pytest.raises(ValidationError, match=f"hooks_server.{list_name} names tool 'Bash' more than once"):
+        _hooks_server_config({list_name: entries})
+
+
+@pytest.mark.parametrize(
+    "allowed",
+    [pytest.param("Bash", id="bare"), pytest.param({"name": "Bash", "arguments": ["command"]}, id="entry")],
+)
+def test_hooks_server_tool_allowed_and_blocked_by_name_is_refused(allowed):
+    """A tool that hooks_server.blocked_tools blocks by name and allowed_tools also lists fails validation."""
+    with pytest.raises(
+        ValidationError,
+        match="hooks_server.allowed_tools allows tool 'Bash', which hooks_server.blocked_tools blocks by name",
+    ):
+        _hooks_server_config({"allowed_tools": [allowed], "blocked_tools": ["Bash"]})
+
+
+def test_hooks_server_argument_entry_in_blocked_tools_beside_an_allowed_name_loads():
+    """Blocking one argument of a tool that hooks_server.allowed_tools allows by name is a valid config."""
+    config = _hooks_server_config(
+        {
+            "allowed_tools": ["Bash"],
+            "blocked_tools": [{"name": "Bash", "arguments": ["dangerouslyDisableSandbox"]}],
+            "allow_unlisted_tools": False,
+        }
+    )
+
+    assert config.hooks_server.blocked_tools == [ToolEntry(name="Bash", arguments=["dangerouslyDisableSandbox"])]
+
+
+STRICT_HOOKS_SERVER = {"blocked_tools": ["WebFetch"], "allow_unlisted_tools": False}
+SECTION_SET_TWICE = "The hooks_server section is set in more than one file of this config"
+
+
+def _config_dir(path, content: dict):
+    """A config directory at *path* holding *content* as its `config.yml`."""
+    path.mkdir()
+    (path / "config.yml").write_text(yaml.safe_dump(content))
+    return path
+
+
+@pytest.mark.parametrize("strict_first", [True, False], ids=["strict-first", "strict-last"])
+def test_added_configs_keep_the_one_hooks_server_section_either_sets(strict_first):
+    """Adding a config without a hooks_server section to one with it keeps that section, whichever comes first."""
+    strict = _hooks_server_config(STRICT_HOOKS_SERVER)
+    plain = RailsConfig.from_content(config={"models": []})
+
+    merged = strict + plain if strict_first else plain + strict
+
+    assert merged.hooks_server == strict.hooks_server
+
+
+def test_added_configs_that_both_set_hooks_server_are_refused():
+    """Adding two configs that both set a hooks_server section fails, rather than widening either's allowlist."""
+    only_read = _hooks_server_config({"allowed_tools": ["Read"], "allow_unlisted_tools": False})
+    only_bash = _hooks_server_config({"allowed_tools": ["Bash"], "allow_unlisted_tools": False})
+
+    with pytest.raises(ValueError, match="Both configs set a hooks_server section"):
+        only_read + only_bash
+
+
+def test_hooks_server_section_set_in_two_files_of_a_directory_is_refused(tmp_path):
+    """A config directory where two files set hooks_server fails to load, naming whichever file is found second."""
+    _config_dir(tmp_path / "config", {"models": [], "hooks_server": STRICT_HOOKS_SERVER})
+    (tmp_path / "config" / "extra.yml").write_text(yaml.safe_dump({"hooks_server": {"allowed_tools": ["Read"]}}))
+
+    with pytest.raises(ValueError, match=SECTION_SET_TWICE) as error:
+        RailsConfig.from_path(str(tmp_path / "config"))
+
+    assert any(
+        f"found again in {tmp_path / 'config' / name}" in str(error.value) for name in ("config.yml", "extra.yml")
+    )
+
+
+def test_hooks_server_section_set_in_a_config_and_its_import_is_refused(tmp_path):
+    """A config that sets hooks_server and imports a config that sets it too fails to load, naming the import."""
+    shared = _config_dir(tmp_path / "shared", {"hooks_server": STRICT_HOOKS_SERVER})
+    local = _config_dir(
+        tmp_path / "local",
+        {"models": [], "import_paths": [str(shared)], "hooks_server": {"allowed_tools": ["Read"]}},
+    )
+
+    with pytest.raises(ValueError, match=SECTION_SET_TWICE) as error:
+        RailsConfig.from_path(str(local))
+
+    assert f"found again in {shared}" in str(error.value)
+
+
+def test_hooks_server_section_set_in_both_contents_is_refused():
+    """from_content() with a hooks_server section in both the config dict and the YAML content fails to load."""
+    with pytest.raises(ValueError, match=SECTION_SET_TWICE):
+        RailsConfig.from_content(
+            config={"models": [], "hooks_server": STRICT_HOOKS_SERVER},
+            yaml_content=yaml.safe_dump({"hooks_server": {"allowed_tools": ["Read"]}}),
+        )
+
+
+def test_hooks_server_section_in_one_file_of_a_directory_loads_as_written(tmp_path):
+    """A hooks_server section in one file of a config directory loads as written beside the other files."""
+    config_dir = _config_dir(tmp_path / "config", {"models": []})
+    (config_dir / "policy.yml").write_text(yaml.safe_dump({"hooks_server": STRICT_HOOKS_SERVER}))
+
+    assert RailsConfig.from_path(str(config_dir)).hooks_server == HooksServerConfig(**STRICT_HOOKS_SERVER)
+
+
+def test_hooks_server_section_only_in_an_imported_config_loads_as_written(tmp_path):
+    """A hooks_server section set only in a config that another imports loads as written."""
+    shared = _config_dir(tmp_path / "shared", {"hooks_server": STRICT_HOOKS_SERVER})
+    local = _config_dir(tmp_path / "local", {"models": [], "import_paths": [str(shared)]})
+
+    assert RailsConfig.from_path(str(local)).hooks_server == HooksServerConfig(**STRICT_HOOKS_SERVER)
 
 
 @pytest.mark.parametrize(
@@ -133,6 +440,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
     expected_exports = {
         "ai_defense": ("AIDefenseRailConfig",),
         "autoalign": ("AutoAlignOptions", "AutoAlignRailConfig"),
+        "cel": ("CelConfig", "CelOptions"),
         "clavata": ("ClavataRailConfig", "ClavataRailOptions"),
         "content_safety": ("ContentSafetyConfig", "MultilingualConfig", "ReasoningConfig"),
         "context_bloat_detection": ("ContextBloatDetectionConfig",),
@@ -149,6 +457,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
         ),
         "injection_detection": ("InjectionDetection",),
         "jailbreak_detection": ("JailbreakDetectionConfig",),
+        "language_detector": ("LanguageDetectorConfig",),
         "pangea": ("PangeaRailConfig", "PangeaRailOptions"),
         "patronusai": (
             "PatronusEvaluationSuccessStrategy",
@@ -179,10 +488,12 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
         "self_check.output_check",
         "tool_safety_check",
         "topic_safety",
+        "zscaler_aiguard",
     }
     expected_config_keys = {
         "ai_defense",
         "autoalign",
+        "cel",
         "clavata",
         "content_safety",
         "context_bloat_detection",
@@ -195,6 +506,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
         "hf_classifier",
         "injection_detection",
         "jailbreak_detection",
+        "language_detector",
         "pangea",
         "patronus",
         "polygraf",

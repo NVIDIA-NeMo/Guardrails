@@ -1,0 +1,142 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-5-mini
+      stream: true
+      messages:
+      - role: user
+        content: 'Reply with exactly: Hello.'
+      max_completion_tokens: 1024
+      stream_options:
+        include_usage: true
+      reasoning_effort: low
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - text/event-stream; charset=utf-8
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      cache-control:
+      - no-cache
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-mini
+        service_tier: auto
+        choices:
+        - index: 0
+          delta:
+            role: assistant
+            content: Hello
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-mini
+        service_tier: auto
+        choices:
+        - index: 0
+          delta:
+            content: .
+      - id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: openai/openai/gpt-5-mini
+        object: chat.completion.chunk
+        choices:
+        - index: 0
+          delta:
+            reasoning_items:
+            - id: rs_0a0bb5b639e73d52016aec43fe7cd087d18dcf4baefc2496e0
+              type: reasoning
+              encrypted_content: gAAAAABq7EP-N5JWKU7fyVld0qyYqQRivG51_xcG2AiutILXzDBIOuWbqcLEzJZ6YCpt1lrPu-8l-hEoZUa-QIcpJsPKw5lOAdFsUe_849TPSXzjjXeD7LMCoixcGc4DAH55LaltIkpqvTOFSl_JL8m_eN4SCYx6I_q9zqa0_VaCsuQl8ttdzRTME7Ic3ig66G9t_JUwzokwozmFJGfu_A-zD3EyaunTdr9gBU9el72zW4xpazxtzIDz9gngwGRQzZbd8Txjg13PMBjTWV88fWiACi8b6riXljVw4w5t02wTzk3opJb0NCusoAHuqWRwmxTovsO1K0XYcifxTVoCogA8G9HHuo-yeEsMDxpXMa6DI-IEC8VXJ6AJY8vou5moH7VUU9CpahxNwk8A78xWmlI5fia8sACZDI1WBGoeqMZPTYNdV7zk3jvoXB6bfbM2SkjoW8ZgUlsZz23PCxT3qSynKFvyunrX6rxrC29dFU37Whp5zyoXHx_FEuqT-8DfwyC_oJCfFpGYU4m5ZkwQxKP-FpuDedNudrBZNKLldL6WGV5WdBEwP25FvgBKLW4LwNhvb-A6JnC8azdZCY5rQlrcJpwmP0WdXDOm2gr2RwB5n1KIoXwvfsjIPcVOA6C-GkuWjOjzNypVfVHhZmQAlsKoZrVT8Y8bOy1pAeIHhOstNRXPJUvuvilUPIYxRYLjZKv2JMH-AoRVQKoad56sfV50zhGKsmh6Sw6AXt2osR8Za7V2iLsZZkC4cwqBFn1sehjwuZiX85MWoEF8aryPptyY9DvRwH4jWMiYsirmlBSlnNBQQCCbCFv7BPdKhhsLvr5SbStg6Bc9OMIKW1wsE8fkbfLeciKYq87mu9Iw33c-DA-8SicnEpG-IPES1S4HaacXIEGlDlbGmVV-x-bkfrTXGwxuzwieJyIzJHiCldrXV03g6HA9oRQPt_FbnS1h9YVAYRQ3p2CNatGGOUGtitbrukzXefkTA7FOiHVcYrgzYDbBdCr0BuBf5R0fcc7gRbaqWIJVEJzm05S35qzMldG9xfyX0iAZn3QKv__Bc_A1W1_iw3XwNqEdqgblB-fO-lDdZ4aC2DJIty9BvBkhaZjmh3PlXfx5xkN_TycRDO4uMv_u8wTaDyk5GR7HnxywyoqdNp9BM3PEsB_D0HhgkjkLBcsTCJjJElpvZS5N8BqUWaKsQMbKQpU33cuO_Ct7ipc9tm3c6LiR61RMEJ8A2wFV6vePjiZ7XfE6YuH4AQOlm4bt2pqce42hNFt74mBo15_umq8TgXlp9PFIPp2uOwtY6MFwgcyIb3kdVNZe3IRbl6lpnxf2860QI-X7g3NGdja1IbBGEUkrzeeM9GypJEF5T518EvlJw1baR-kObIOnxlrYw9QYblmj8IpPBkUG6HzU9rVCG3ffpRm2nJWYBHRq6Q7Sq2DlgTOczHF97EL87ZWZalEhDUSndaTJz5LcckhFWa6_j3-zVz6Tw7kZYEytLWe2eHNTrDzZ000dBd4OiSIJMRGp-RuzkVflFWwufKlvjYKw3mAOlxe0tctysuhJrfv9C88y2q9bs2yr1wseUcD8U2FjaMie4PkD4FbMiZDC5-jNobNJQBh5Ke-eIfH5XOzoCw8Q7_G5G6umXzZmoKILwZg3bg64n4-NDT0t17vlhXLjEh-BdWHKH9dCcD2N5WuEYZj6ZTra0V3XkQpUoQDlri1gMty70zXN40Ey_k8BBjtJD0JrDuI_kK6JTqfwewzZ1YZ1FB4zFhvoVIfjunX-puCR0rw82qU36ydcN42N_0ny1jd62_5K6yfZ2zXCQCNWlqbANlkTlu6cM96sz2Mnz46YJAQGBULrsVIedV0oAf-RAcm_rPQffk8_qlWHrlomT76FtRALds-cknqTKh8Y7I3TmQV2qV15oqrD-7aWLy8wqv3Mm4O0uSDmEDRzmFV44RX1uCiEDTboapxAqdtL_gbeHVXYA-m4KNKNgJvxS7t9ID-a_GCtb_QNBPt0KnsjsLMnaS40GWPWS5cQoAcCFruSPCOWXZml3yz_yvrHuQ3TsXY6fDvjnkrf0tk_3aU9KlmMAg==
+              summary: []
+            content: ''
+        provider_specific_fields:
+          frequency_penalty: 0.0
+          image:
+            context_compression: disabled
+          presence_penalty: 0.0
+          service_tier: default
+          tool_usage:
+            image_gen:
+              input_tokens: 0
+              input_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              output_tokens: 0
+              output_tokens_details:
+                image_tokens: 0
+                text_tokens: 0
+              total_tokens: 0
+            web_search:
+              num_requests: 0
+        frequency_penalty: 0.0
+        image:
+          context_compression: disabled
+        presence_penalty: 0.0
+        service_tier: default
+        tool_usage:
+          image_gen:
+            input_tokens: 0
+            input_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            output_tokens: 0
+            output_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            total_tokens: 0
+          web_search:
+            num_requests: 0
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: openai/openai/gpt-5-mini
+        choices:
+        - index: 0
+          delta: {}
+          finish_reason: stop
+      - id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: openai/openai/gpt-5-mini
+        object: chat.completion.chunk
+        choices:
+        - index: 0
+          delta: {}
+        usage:
+          completion_tokens: 52
+          prompt_tokens: 12
+          total_tokens: 64
+          completion_tokens_details:
+            reasoning_tokens: 0
+          prompt_tokens_details:
+            cached_tokens: 0
+            cache_write_tokens: 0
+            cache_creation_tokens: 0
+          cost: 7.8538e-05
+        service_tier: default
+      - '[DONE]'

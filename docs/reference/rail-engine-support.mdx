@@ -9,13 +9,13 @@ content:
   type: "reference"
 ---
 
-The NVIDIA NeMo Guardrails library ships 34 built-in rails under `nemoguardrails/library`.
+The NVIDIA NeMo Guardrails library ships 36 built-in rails under `nemoguardrails/library`.
 Each rail declares its behavior in a [rail manifest](/reference/rail-manifests), and each manifest exposes one or more *surfaces*.
 A surface is the flow name you list under `rails.input.flows`, `rails.output.flows`, or `rails.retrieval.flows` in `config.yml`.
 
-The 34 manifests declare 82 surfaces in total.
-`LLMRails` runs 78 of them through its Colang runtime, in both Colang 1.0 and Colang 2.x.
-`IORails` runs 63 of them by compiling the manifest directly, without Colang.
+The 36 manifests declare 86 surfaces in total.
+`LLMRails` runs 80 of them through its Colang runtime, in both Colang 1.0 and Colang 2.x.
+`IORails` runs 67 of them by compiling the manifest directly, without Colang.
 
 This page lists every surface and the engine that can run it.
 For capability areas that are not tied to a specific rail, such as streaming, observability, and the generation API, refer to [Engine Feature Support](/reference/engine-feature-support).
@@ -37,12 +37,12 @@ The following table summarizes surface support by direction:
 
 | Direction | Surfaces | LLMRails | IORails |
 |---|---:|---:|---:|
-| Input | 32 | 32 | 31 |
-| Output | 35 | 35 | 28 |
+| Input | 34 | 34 | 33 |
+| Output | 36 | 36 | 29 |
 | Retrieval | 11 | 11 | 0 |
-| Tool_output | 2 | 0 | 2 |
-| Tool_input | 2 | 0 | 2 |
-| **Total** | **82** | **78** | **63** |
+| Tool_call | 3 | 0 | 3 |
+| Tool_result | 3 | 0 | 3 |
+| **Total** | **87** | **81** | **68** |
 
 `IORails` does not accept a `rails.retrieval` section at all, so every retrieval surface is an `LLMRails` capability.
 A configuration that declares one routes to `LLMRails` by default.
@@ -76,6 +76,7 @@ The following table lists the input surfaces:
 | `hf classifier check input` | Hugging Face Classifier | ✓ | ✓ | |
 | `jailbreak detection heuristics` | Jailbreak Detection | ✓ | ✗ | Backend ambiguity, [issue #2285](https://github.com/NVIDIA-NeMo/Guardrails/issues/2285) |
 | `jailbreak detection model` | Jailbreak Detection | ✓ | ✓ | |
+| `language detector check input` | Language Detector | ✓ | ✓ | |
 | `llama guard check input` | Llama Guard | ✓ | ✓ | |
 | `pangea ai guard input` | Pangea AI Guard | ✓ | ✓ | Rewrites `user_message`. Deprecated rail |
 | `policyai moderation on input` | PolicyAI | ✓ | ✓ | |
@@ -90,6 +91,7 @@ The following table lists the input surfaces:
 | `mask sensitive data on input` | Sensitive Data Detection | ✓ | ✓ | Rewrites `user_message` |
 | `topic safety check input` | Topic Safety | ✓ | ✓ | |
 | `trend ai guard input` | Trend Micro Vision One AI Guard | ✓ | ✓ | |
+| `zscaler aiguard moderation on input` | Zscaler AI Guard | ✓ | ✓ | |
 
 ### Output Surfaces
 
@@ -132,6 +134,7 @@ The following table lists the output surfaces:
 | `detect sensitive data on output` | Sensitive Data Detection | ✓ | ✓ | |
 | `mask sensitive data on output` | Sensitive Data Detection | ✓ | ✓ | Rewrites `bot_message` |
 | `trend ai guard output` | Trend Micro Vision One AI Guard | ✓ | ✓ | |
+| `zscaler aiguard moderation on output` | Zscaler AI Guard | ✓ | ✓ | |
 
 ### Retrieval Surfaces
 
@@ -152,28 +155,30 @@ Retrieval surfaces run against the knowledge-base chunks retrieved for a turn.
 | `detect sensitive data on retrieval` | Sensitive Data Detection | ✓ | ✗ | Reads `relevant_chunks` |
 | `mask sensitive data on retrieval` | Sensitive Data Detection | ✓ | ✗ | Rewrites `relevant_chunks` |
 
-### Tool Output Surfaces
+### Tool Call Surfaces
 
-Tool output surfaces run against one tool call at a time, configured under `rails.tool_output.per_tool` and keyed by tool name.
+Tool call surfaces run against one tool call at a time, configured under `rails.tool_call.per_tool` and keyed by tool name.
 Unlike the [Tool Surfaces](#tool-surfaces) below, these are manifest surfaces like any input, output, or retrieval rail.
 Per-tool checks are an `IORails`-only capability by design:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
-| `regex check tool output` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
-| `tool safety check output` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
+| `cel check tool call` | Common Expression Language (CEL) | ✗ | ✓ | IORails-only capability by design |
+| `regex check tool call` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
+| `tool safety check tool call` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
 
-### Tool Input Surfaces
+### Tool Result Surfaces
 
-Tool input surfaces run against one tool result at a time, configured under `rails.tool_input.per_tool` and keyed by tool name.
+Tool result surfaces run against one tool result at a time, configured under `rails.tool_result.per_tool` and keyed by tool name.
 Per-tool checks are an `IORails`-only capability by design:
 
 | Flow | Rail | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
-| `regex check tool input` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
-| `tool safety check input` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
+| `cel check tool result` | Common Expression Language (CEL) | ✗ | ✓ | IORails-only capability by design |
+| `regex check tool result` | Regex Detection | ✗ | ✓ | IORails-only capability by design |
+| `tool safety check tool result` | Tool Safety Check | ✗ | ✓ | IORails-only capability by design |
 
-For worked per-tool configuration examples, refer to [Regular Expression Detection Integration](/configure-guardrails/guardrail-catalog/community/regex) (includes the `$argument=` scoping option) and [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check) (an LLM-judged check with `$model=`/`$variant=`).
+For worked per-tool configuration examples, refer to [Regular Expression Detection Integration](/configure-guardrails/guardrail-catalog/third-party/regex) (includes the `$argument=` scoping option), [Tool Safety Check](/configure-guardrails/guardrail-catalog/tool-safety-check) (an LLM-judged check with `$model=`/`$variant=`), and [Common Expression Language (CEL)](/configure-guardrails/guardrail-catalog/cel) (deterministic expressions over a tool call's arguments or a tool result's content).
 
 ### Tool Surfaces
 
@@ -182,8 +187,8 @@ Tool rails are not manifest surfaces.
 
 | Flow | Section | LLMRails | IORails | Notes |
 |---|---|:---:|:---:|---|
-| `tool call validation` | `rails.tool_output.flows` | ✓ | ✓ | Validates model-emitted tool calls |
-| `tool result validation` | `rails.tool_input.flows` | ✓ | ✓ | Validates application-returned tool results |
+| `tool call validation` | `rails.tool_call.flows` | ✗ | ✓ | Validates model-emitted tool calls, in generation and in a `tool_call` check |
+| `tool result validation` | `rails.tool_result.flows` | ✗ | ✓ | Validates application-returned tool results, in generation and in a `tool_result` check |
 
 For configuration and behavior, refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
 
@@ -205,7 +210,7 @@ The checks run in the order the table lists them and report the first reason tha
 As a result, a retrieval surface that both rewrites and reads `relevant_chunks` is reported under the rewrite reason.
 
 A third structural constraint applies to the configuration as a whole rather than to any one surface.
-`IORails` accepts only the `input`, `output`, `config`, `tool_input`, and `tool_output` rail sections, so a configuration that declares `rails.retrieval`, `rails.dialog`, or any other section routes to `LLMRails` by default, regardless of which flows it names.
+`IORails` accepts only the `input`, `output`, `config`, `tool_call`, and `tool_result` rail sections, so a configuration that declares `rails.retrieval`, `rails.dialog`, or any other section routes to `LLMRails` by default, regardless of which flows it names.
 
 The engine checks that constraint first, so it does not report a per-surface reason for a retrieval flow.
 `IORails.unsupported_reason()` reports the unsupported rail section and stops, so a configuration with a `rails.retrieval` section reports `config has rails outside the IORails-supported set: ['retrieval']` rather than the rewrite or read reason its surfaces would give.
@@ -250,6 +255,7 @@ The rails that declare an optional dependency are the following:
 | Injection Detection | `yara-python` | |
 | Jailbreak Detection | `torch`, `transformers` | |
 | Sensitive Data Detection | `presidio-analyzer`, `presidio-anonymizer`, `spacy` | `sdd` |
+| Zscaler AI Guard | `zscaler-sdk-python` | |
 
 Hugging Face Classifier and Jailbreak Detection each offer an in-process backend and a remote endpoint.
 `IORails` enforces the dependency only when the configuration selects the in-process backend.

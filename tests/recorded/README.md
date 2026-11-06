@@ -2,6 +2,12 @@
 
 Recorded tests replay provider traffic through pytest-recording cassettes and must run without live network access by default.
 
+Most tests belong in this suite because they send at least one real provider
+request. Two repository policies also keep selected deterministic tests here:
+public-API equivalence/validation contracts and the mandatory public entry for
+each library rail. Those exceptions do not invent cassettes. See
+`.agents/skills/recorded-tests/SKILL.md` for the placement rules.
+
 ## Adding a test
 
 Markers are applied once per module via `pytestmark`; do not stack `@pytest.mark.recorded` / `vcr` / `asyncio` on each test. Use a module-level list, and fold in `vcr`/`asyncio` only when every test in the module needs them:
@@ -27,7 +33,12 @@ Config constants (``OPENAI_BASELINE_CONFIG`` and friends) live in the suite-loca
 ``configs.py`` next to the tests; ``snapshot`` is the suite-local re-export in
 ``tests/recorded/snapshots.py``, not ``inline_snapshot`` directly.
 
-Request credentials as fixture parameters (`openai_api_key`, `nvidia_api_key`) rather than calling `request.getfixturevalue(...)`. In modules that mix sync/async tests or vcr/non-vcr tests, keep only `recorded` in `pytestmark` and apply `@pytest.mark.vcr` / `@pytest.mark.asyncio` per test. Then use the Makefile refresh workflow to record once with credentials, fill the snapshot offline, and verify the replay:
+Request credentials as fixture parameters (`openai_api_key`, `nvidia_api_key`,
+or `nvidia_inference_key`) rather than calling
+`request.getfixturevalue(...)`. In modules that mix sync/async tests or
+vcr/non-vcr tests, keep only `recorded` in `pytestmark` and apply
+`@pytest.mark.vcr` / `@pytest.mark.asyncio` per test. For a test whose snapshots
+already contain values, use the Makefile refresh workflow:
 
 ```bash
 OPENAI_API_KEY=... make record-cassettes \
@@ -35,12 +46,31 @@ OPENAI_API_KEY=... make record-cassettes \
   RECORDED_REQUIRED_KEYS=OPENAI_API_KEY
 ```
 
+For a brand-new test with an empty `snapshot()`, use the explicit two-pass
+workflow. The first command records the cassette and exits nonzero at snapshot
+teardown; the cassette is the expected artifact. The second command fills the
+snapshot from that cassette offline, and also reports the expected creation
+teardown error. The third command must pass:
+
+```bash
+OPENAI_API_KEY=... uv run --locked pytest path::test_my_case \
+  --record-mode=once -m "not fake_cassette"
+uv run --locked pytest path::test_my_case --block-network \
+  --inline-snapshot=create
+uv run --locked pytest path::test_my_case --block-network
+```
+
+`make record-cassettes` cannot perform this initial creation in one invocation:
+its record pass runs before its snapshot pass, so the empty-snapshot teardown
+stops Make. After the snapshot contains a value, the target works normally.
+
 ## Negative paths
 
-This suite owns **pipeline-level** failures (how `LLMRails` behaves when a model call
-fails) and **public-API input validation**. Client/wire-level conditions (status code to
-exception mapping, retries, SSE, malformed bodies) belong in `tests/llm/clients/`, which
-covers them with `httpx.MockTransport` + JSON fixtures; do not duplicate them here.
+This suite owns **pipeline-level** failures (how an engine behaves when a model call
+fails) and selected **public-API input validation** contracts. Synthetic client/wire-level
+conditions (status code to exception mapping, retries, SSE, malformed bodies) belong in
+`tests/llm/clients/`, which covers them with `httpx.MockTransport` + JSON fixtures. Real
+provider happy paths and recordable error shapes belong in `tests/recorded/clients/`.
 
 Prefer mechanisms in this order:
 
@@ -52,41 +82,113 @@ Prefer mechanisms in this order:
 3. **Fake cassette** (`@pytest.mark.fake_cassette`) only as a last resort, for a synthetic
    response that must flow through the full pipeline and cannot be reproduced by 1 or 2.
 
-Observed behavior these tests pin: a failing model call (main *or* a rail's own model)
-propagates as `LLMCallException` — a safety-model failure does not let content through
-silently. Name negative tests `test_<surface>_<failure>_<behavior>` with the suffixes
+Recorded provider HTTP errors propagate rather than becoming policy refusals.
+Calls through `llm_call` raise `LLMCallException` on LLMRails and IORails;
+IORails direct model-engine calls can raise `ModelEngineError`. IORails converts
+ordinary rail-action errors without an upstream HTTP status to a blocking
+failed outcome; those synthetic failures belong in unit tests. See
+`rails/library/test_iorails_parity.py` for the recorded
+safety-model 404 and vendor-error blocking contracts. Name negative tests
+`test_<surface>_<failure>_<behavior>` with the suffixes
 `_raises` / `_fails_closed` / `_invalid_*` so they are greppable
 (`pytest -k "raises or invalid"`), and co-locate each with its happy-path sibling module.
 
 ## Replay
 
+### Tool-calling coverage
+
+The tool-calling modules under `rails/public_api/` and `server/` record the default OpenAI-compatible framework with Colang 1.0 and no user-intent definitions. Tool conversations use `passthrough: false`; an additional ordinary conversation checks sanitized input history with `passthrough: true`. These recordings establish the OpenAI path; they do not establish equivalent behavior for every provider or for streaming.
+
+| Scenario | Recorded contract |
+| --- | --- |
+| Default text prompt, one tool | Native assistant/tool roles, matching IDs, result used in the final answer |
+| Custom chat prompt through HTTP | OpenAI argument serialization, tool finish reason, final answer |
+| Parallel tools with input, result, and output rails | Input rewrite, two calls, reversed result order, sanitization, final output processing, later-turn history; `single_call` enabled without intents |
+| Sequential dependent tools | A second tool uses a token returned by the first; both results reach the final answer |
+| Tool-call rejection | Provider actually emits a call; the public response contains only the refusal |
+| Server thread history | A result-only follow-up and later user turn recover stored tool calls and results |
+| Provider error on a tool follow-up | Library raises `LLMCallException`; server preserves the current OpenAI-compatible error envelope and HTTP status |
+| Passthrough input sanitization across turns | The provider receives the sanitized earlier user message on both turns, while the caller's history remains unchanged |
+
+Deterministic checks in `tests/test_tool_calling_config_matrix.py`, `tests/test_tool_calling_passthrough_integration.py`, and `tests/server/test_api.py` cover both passthrough modes, text/chat prompts, allow/sanitize/block/disabled result rails, every result in successive batches, caller-message immutability, cache reuse across generation options and wire formats, approved call history, prompt-length boundaries, and unsupported server configurations. LangChain tests also require rejected calls to be omitted. Local validation and rail decisions do not need fabricated provider recordings.
+
+Reused tool-call IDs across turns are covered by deterministic tests: each occurrence retains its own sanitized or blocked result. Filter tests also cover unchecked occurrences and message suffixes, so an earlier rail outcome cannot overwrite a later unvalidated result or vice versa.
+
+`tests/test_history_cache_regressions.py` also checks evolving context, explicit context updates, isolation between enabled and bypassed input rails, and sanitized user history across ordinary, tool, and blocked turns. Cache keys distinguish rail policies and multimodal inputs even when their text matches.
+
+### Commands
+
 ```bash
-uv run pytest tests/recorded --block-network -v --durations=10
+uv run --locked pytest tests/recorded --block-network -v --durations=10
 ```
 
 Focused rails replay:
 
 ```bash
-uv run pytest tests/recorded/rails/public_api --block-network -v
-uv run pytest tests/recorded/rails/library --block-network -v
+uv run --locked pytest tests/recorded/rails/public_api --block-network -v
+uv run --locked pytest tests/recorded/rails/library --block-network -v
 ```
 
 Replay mode installs dummy API keys from `tests/recorded/utils.py`. A cassette miss with `--block-network` is a test failure.
 
+### Incremental tool-call streams
+
+`rails/public_api/test_tool_call_streaming.py` records the default framework's
+native tool-call path through `LLMRails.stream_async`. It pins canonical
+`ToolCallDeltaChunk` events, single and parallel calls, metadata and usage, text-only
+completion bookkeeping, and a real invalid-model error. Replay also reconstructs
+the calls from the recorded provider fragments and compares their IDs, names,
+and arguments with the public events. It also compares every emitted delta with
+the recorded fragment, preserving missing fields and parallel-call indices. Only volatile IDs are normalized in the
+snapshots; the cassettes retain the provider's tool-call IDs.
+
+The OpenAI cases use `OPENAI_API_KEY`. The NIM-engine cases use
+`NVIDIA_INFERENCE_KEY` and an explicit `https://inference-api.nvidia.com/v1`
+base URL with `nvidia/nvidia/nemotron-3-nano-30b-a3b`. They cover the NVIDIA
+gateway's observed `finish_reason: stop` on tool calls; they do not establish
+behavior at the public `integrate.api.nvidia.com` endpoint. Neither path uses
+the optional LangChain integration.
+
+`server/test_tool_call_streaming.py` runs the Guardrails ASGI application with
+a real `LLMRails` backend and configured tools. It validates the returned SSE
+with the OpenAI SDK, including string arguments and `finish_reason: tool_calls`.
+The in-process HTTP request is excluded from VCR, and each test requires exactly
+one provider exchange so replay cannot bypass the application. This checks
+assembled SSE responses, not socket timing. The gated-provider tests in
+`tests/test_incremental_tool_streaming.py` separately prove that the server sends
+a delta before the provider is allowed to finish, and cover interruption,
+cancellation, and unsupported output rails. Incremental streaming reuses
+the original real cassettes unchanged and updates only public-output snapshots.
+
+The HTTP request restriction on combining `tools` with `stream`, and rejection
+of tool calls with output rails or dialog buffering, remain deterministic unit
+tests. These recordings do not claim support for those modes.
+
+```bash
+make replay-cassettes \
+  RECORDED_TESTS="tests/recorded/rails/public_api/test_tool_call_streaming.py tests/recorded/server/test_tool_call_streaming.py"
+```
+
+Refresh these files with both `OPENAI_API_KEY` and `NVIDIA_INFERENCE_KEY`, setting
+`RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_INFERENCE_KEY"`. Review changed
+provider payloads before updating snapshots.
+
 ## Refresh
 
-Refresh only in a trusted environment with real provider credentials. The
-record -> fill-snapshots -> verify loop is wrapped in make targets.
+Refresh only in a trusted environment with real provider credentials. For
+tests whose inline snapshots already contain values, the
+record -> update-snapshots -> verify loop is wrapped in make targets.
 
 ```bash
 OPENAI_API_KEY=... NVIDIA_API_KEY=... make record-cassettes
 ```
 
 `record-cassettes` defaults to `RECORDED_RECORD_MODE=once` and
-`RECORDED_SNAPSHOT_MODE=create`, which records missing cassettes, fills empty
-snapshots, and replays existing cassettes. This is the safest mode when adding
-new tests because it will not rewrite unrelated existing cassettes selected by
-the same path.
+`RECORDED_SNAPSHOT_MODE=create`. It records missing cassettes without rewriting
+existing ones, then runs snapshot creation and offline replay only when the
+record pass succeeds. A brand-new empty snapshot makes that first pass exit
+nonzero, so use the explicit workflow under Adding a test before returning to
+the Make target.
 
 For a focused new cassette that only touches one provider, pass the test node and
 override the preflight list:
@@ -96,6 +198,45 @@ OPENAI_API_KEY=... make record-cassettes \
   RECORDED_TESTS=tests/recorded/rails/public_api/test_generate.py::test_new_case \
   RECORDED_REQUIRED_KEYS=OPENAI_API_KEY
 ```
+
+The OpenAI Chat proxy recordings use the OpenAI protocol through NVIDIA's
+inference endpoint and explicitly bind the
+[LiteLLM dialect](../../nemoguardrails/server/experimental/providers/openai/dialects/litellm/README.md).
+The default OpenAI endpoint is not silently widened to accept this gateway.
+Refresh them with the dedicated credential and no OpenAI key:
+
+```bash
+NVIDIA_INFERENCE_KEY=... make record-cassettes \
+  RECORDED_TESTS=tests/recorded/server/experimental/openai/test_chat_completions.py \
+  RECORDED_REQUIRED_KEYS=NVIDIA_INFERENCE_KEY
+```
+
+Replay the Chat pipeline and the archived-field inventory together:
+
+```bash
+make replay-cassettes RECORDED_TESTS=tests/recorded/server/experimental/openai
+```
+
+The [proxy integration guide](server/experimental/README.md) describes the
+allow/block scenarios, reusable checker helper, single-use replay assertions,
+and the pattern for another operation. These tests combine recorded provider
+exchanges with synthetic checker decisions, not real Rails configuration.
+Replayed-body equality is not a claim of original provider-wire byte fidelity
+or live streaming delivery. Real-config and socket coverage is separate.
+
+The six Chat proxy cassettes contain two buffered successes with message
+`provider_specific_fields: {refusal: null}` and empty choice extensions, two
+streaming successes without extension bags, and two provider errors. Inventory
+tests check successful payloads against runtime declarations and export.
+Native finish metadata and empty stream containers have separate source-backed
+unit fixtures. These recordings do not establish the serving LiteLLM version or
+support for arbitrary backend fields; review new fields when refreshing them.
+
+For LiteLLM Responses, refresh
+`tests/recorded/server/experimental/openai/test_litellm_responses.py` with
+`RECORDED_REQUIRED_KEYS=NVIDIA_INFERENCE_KEY`. The
+[Responses dialect guide](../../nemoguardrails/server/experimental/providers/openai/dialects/litellm/responses.md)
+documents the two cassettes, compatibility limits, and required offline replay.
 
 `RECORDED_TESTS` is passed directly to pytest, so it can be a single test, a
 test class, several files, or a directory:
@@ -139,6 +280,12 @@ Rails tests use pytest-recording's default names:
 tests/recorded/rails/<suite>/cassettes/<test_module>/<test_name>.yaml
 ```
 
+Experimental server proxy recordings are grouped by provider:
+
+```text
+tests/recorded/server/experimental/<provider>/cassettes/<test_module>/<test_name>.yaml
+```
+
 Parameterized tests include the parameter id in the cassette filename. Every test (rails and clients) uses this default naming; do not add `@pytest.mark.default_cassette(...)`.
 
 JSON request and response bodies are stored as `parsed_body` and rehydrated by `ReadableYamlSerializer` during replay. SSE responses also use parseable `parsed_body` events.
@@ -153,19 +300,38 @@ uv run python -m tests.recorded.inspect_cassette tests/recorded/rails/public_api
 
 ## Snapshots
 
-Rails replay outputs are pinned with inline snapshots after normalization. Create or fix snapshots with:
+Rails replay outputs are pinned with inline snapshots, normalizing composite or
+volatile structures as needed. Create or fix snapshots with:
 
 ```bash
-uv run pytest tests/recorded/rails --block-network --inline-snapshot=create
-uv run pytest tests/recorded/rails --block-network --inline-snapshot=fix
-uv run pytest tests/recorded/rails --block-network --inline-snapshot=review
+uv run --locked pytest tests/recorded/rails --block-network --inline-snapshot=create
+uv run --locked pytest tests/recorded/rails --block-network --inline-snapshot=fix
+uv run --locked pytest tests/recorded/rails --block-network --inline-snapshot=review
 ```
 
 Snapshot formatting uses `ruff format` through `[tool.inline-snapshot]` in `pyproject.toml`.
-Snapshot create/fix/review runs must be serial. Use `make record-cassettes` or a
-direct `uv run pytest ... --inline-snapshot=<mode>` command; the default
+Snapshot create/fix/review runs must be serial. Use a direct
+`uv run --locked pytest ... --inline-snapshot=<mode>` command for a new empty
+snapshot; use `make record-cassettes` once snapshot values exist. The default
 `make test` path uses xdist, where inline-snapshot disables update and report
 modes.
+
+How inline snapshots actually behave (so the workflow does not surprise you):
+
+- `--inline-snapshot=create` REWRITES THE TEST FILE in place, filling an empty
+  `snapshot()` with the observed value. `--inline-snapshot=fix` updates an
+  incorrect existing value; it does not create an empty one. Review the
+  resulting diff, do not revert it. A creation run still reports a teardown
+  error ("the value is now created and you can ignore this message"); a
+  `1 passed, 1 error` result is normal.
+- An unfilled `snapshot()` never passes silently: under serial runs the test
+  passes but errors at teardown ("your snapshot is missing one value");
+  under xdist (`make test`) the comparison itself fails. Either way, fill it
+  serially with `--inline-snapshot=create`.
+- Normalize composite or volatile response structures before snapshotting
+  (`assert normalize_*(...) == snapshot(...)`, helpers in
+  `tests/recorded/normalization.py`). Stable scalar public outputs such as a
+  generated string may be snapshotted directly.
 
 Volatile response fields (ids, timestamps, fingerprints) are scrubbed to fixed sentinels in the cassette, so snapshots assert them directly without needing loose matchers.
 
@@ -181,3 +347,57 @@ Use a fake cassette only when runtime injection cannot model the behavior clearl
 - include YAML header metadata with `reason`, `frozen_fields`, and `fake_llm_model_considered`.
 
 The fake-cassette metadata validator is in `tests/recorded/fake_cassettes.py`.
+
+### Buffered server tool streams
+
+`server/test_buffered_tool_streaming.py` exercises top-level `tools`,
+`tool_choice`, and `parallel_tool_calls` with `stream: true` through the ASGI
+server and the OpenAI SDK. These requests generate and check a complete answer
+before emitting SSE. The recordings contain buffered provider JSON, not provider
+SSE; the SDK consumes the SSE produced by the server and reconstructs approved
+messages from successive text and tool-argument deltas. The provider cassettes
+and reconstructed-answer snapshots also serve as the equivalence check for
+changes to the server's fragment boundaries.
+
+| Scenario | Coverage |
+| --- | --- |
+| Single call and stateless result continuation | OpenAI and NVIDIA inference gateway; LLMRails passthrough, LLMRails with a chat prompt, and IORails |
+| Parallel calls and thread continuation | Matching IDs and indices, reversed result order, result-only follow-up, and a later user turn |
+| Sequential dependent calls | A second tool receives the first result's token; both results reach the answer |
+| Tool-call rejection | LLMRails checks an actual provider call and emits only the refusal |
+| Sanitized history | Input rewrite, tool-result sanitization, output processing, and later thread replay in both LLMRails passthrough modes |
+| Provider failure | Invalid-model requests after a tool result return an HTTP JSON error before SSE starts |
+| Model-backed tool checks | IORails tool-safety checker allows, blocks, or fails for both call arguments and results |
+
+`server/test_buffered_tool_streaming_safety.py` uses the existing tool-safety
+policy with an OpenAI main model and judge. That library rail uses IORails;
+LLMRails coverage uses its supported Colang tool-call and tool-result flows.
+The server stores original caller history; the sanitization cases check that
+later provider requests still contain only the checked messages.
+
+Assertions compare public call IDs, names, and parsed arguments to the actual
+provider response, validate request history and completion framing, and require
+all recorded provider exchanges to be consumed during offline replay. ASGI
+requests are excluded from recording so replay always executes the server route.
+Inline snapshots pin both the reconstructed answers and the complete downstream
+SSE event sequences for every successful stream, including refusals. The SSE
+snapshots preserve event order, fragment boundaries, argument strings, tool
+indices, finish reasons, metadata, and `[DONE]`. Only completion IDs, timestamps,
+and tool-call IDs are normalized. Provider cassettes remain buffered JSON;
+regenerate the downstream snapshots offline from those cassettes.
+
+Record with `OPENAI_API_KEY` and `NVIDIA_INFERENCE_KEY`; gateway coverage uses
+`https://inference-api.nvidia.com/v1`, not the public NIM endpoint. The parallel gateway cases use
+`tool_choice: auto`; attempts with `required` timed out during recording, so
+these cassettes do not establish that gateway combination. OpenAI parallel
+cases use `required`. Invalid-model cases preserve OpenAI's 404 and the
+gateway's 403. Follow the record/create/replay procedure above. Replay must pass with `--block-network`.
+
+Synthetic malformed argument JSON, cancellation before generation completes,
+local input/output rejection, structural validation, unsupported configurations,
+HTTP error variants, and metadata/usage serialization remain in
+`tests/server/test_buffered_tool_stream.py` and `tests/server/test_api.py`.
+Existing incremental server and public-API tool-stream recordings remain the
+regression coverage for requests that do not select this buffered path. This
+matrix does not establish LangChain, Colang 2, dialog-flow, or every provider's
+compatibility.

@@ -72,6 +72,7 @@ from nemoguardrails.exceptions import (
     InvalidRailsConfigurationError,
     InvalidStateError,
     RailTypeNotConfiguredError,
+    RailTypeNotSupportedError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.kb.kb import KnowledgeBase
@@ -93,6 +94,7 @@ from nemoguardrails.rails.llm.config import (
     RailsConfig,
 )
 from nemoguardrails.rails.llm.options import (
+    TOOL_RAIL_TYPES,
     GenerationLog,
     GenerationOptions,
     GenerationResponse,
@@ -105,7 +107,7 @@ from nemoguardrails.rails.llm.utils import (
     get_history_cache_key,
 )
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
-from nemoguardrails.types import LLMModel
+from nemoguardrails.types import LLMModel, ToolCallChunk, ToolCallDeltaChunk
 from nemoguardrails.utils import (
     get_or_create_event_loop,
     new_event_dict,
@@ -276,6 +278,14 @@ class LLMRails(BaseGuardrails):
             verbose: Whether the logging should be verbose or not.
         """
         self.config = config
+        ignored_settings = _iorails_only_tool_settings(config)
+        if ignored_settings:
+            warnings.warn(
+                f"LLMRails ignores {', '.join(ignored_settings)}, which only the IORails engine runs; use Guardrails "
+                "to run them, or set NEMO_GUARDRAILS_IORAILS_ENGINE=true for nemoguardrails server.",
+                UserWarning,
+                stacklevel=2,
+            )
         if llm is not None and not isinstance(llm, LLMModel):
             self.llm = _wrap_legacy_llm(llm)
         else:
@@ -776,6 +786,10 @@ class LLMRails(BaseGuardrails):
                 cache_key = get_history_cache_key(messages[0:p])
                 if cache_key in self.events_history_cache:
                     events = self.events_history_cache[cache_key].copy()
+                    request_context = {"generation_options": None}
+                    if messages[0]["role"] == "context":
+                        request_context["generation_options"] = messages[0]["content"].get("generation_options")
+                    events.append({"type": "ContextUpdate", "data": request_context})
                     break
 
                 p -= 1
@@ -826,6 +840,7 @@ class LLMRails(BaseGuardrails):
                     # Handle system messages - convert them to SystemMessage events
                     events.append({"type": "SystemMessage", "content": msg["content"]})
                 elif msg["role"] == "tool":
+                    events.append({"type": "ToolMessage", "message": msg.copy()})
                     # For the last tool message, create grouped tool event and synthetic UserMessage
                     if idx == len(messages) - 1:
                         # Find the original user message for response generation
@@ -835,30 +850,39 @@ class LLMRails(BaseGuardrails):
                                 user_message = prev_msg["content"]
                                 break
 
-                        if user_message:
-                            # If tool input rails are configured, group all tool messages
-                            if self.config.rails.tool_input.flows:
-                                # Collect all tool messages for grouped processing
-                                tool_messages = []
-                                for tool_idx in range(len(messages)):
-                                    if messages[tool_idx]["role"] == "tool":
-                                        tool_messages.append(
-                                            {
-                                                "content": messages[tool_idx]["content"],
-                                                "name": messages[tool_idx].get("name", "unknown"),
-                                                "tool_call_id": messages[tool_idx].get("tool_call_id", ""),
-                                            }
-                                        )
-
+                        if user_message is not None:
+                            if self.config.rails.tool_result.flows:
+                                # Do not rerun result rails for earlier batches in the supplied history.
+                                batch_start = idx
+                                while batch_start > 0 and messages[batch_start - 1]["role"] == "tool":
+                                    batch_start -= 1
+                                tool_names = {
+                                    call.get("id", ""): call.get("function", {}).get(
+                                        "name", call.get("name", "unknown")
+                                    )
+                                    for previous in messages[:batch_start]
+                                    if previous["role"] == "assistant"
+                                    for call in previous.get("tool_calls", [])
+                                }
+                                tool_messages = [
+                                    {
+                                        "content": tool_message["content"],
+                                        "name": tool_message.get("name")
+                                        or tool_names.get(tool_message.get("tool_call_id", ""), "unknown"),
+                                        "tool_call_id": tool_message.get("tool_call_id", ""),
+                                    }
+                                    for tool_message in messages[batch_start:]
+                                ]
                                 events.append(
                                     {
                                         "type": "UserToolMessages",
                                         "tool_messages": tool_messages,
+                                        "user_message": user_message,
                                     }
                                 )
 
                             else:
-                                events.append({"type": "UserMessage", "text": user_message})
+                                events.append({"type": "UserMessage", "text": user_message, "is_tool_result": True})
 
         else:
             for idx in range(len(messages)):
@@ -1017,6 +1041,11 @@ class LLMRails(BaseGuardrails):
             log.warning("No main LLM specified in the config and no LLM provided via constructor.")
 
         if streaming_handler:
+            tool_call_rails_enabled = self.config.rails.tool_call.flows and (
+                gen_options is None or gen_options.rails.tool_call
+            )
+            if self.config.rails.output.flows or tool_call_rails_enabled:
+                streaming_handler.allow_tool_calls = False
             streaming_handler_var.set(streaming_handler)
 
         # Initialize the object with additional explanation information.
@@ -1039,7 +1068,7 @@ class LLMRails(BaseGuardrails):
         # we move that to the `$bot_message` variable. This is to enable a more
         # convenient interface for text output rails. Tool-call assistant messages
         # must remain in the history so they can be converted into BotToolCalls
-        # events and evaluated by tool output rails.
+        # events and evaluated by tool call rails.
         if (
             messages
             and messages[-1]["role"] == "assistant"
@@ -1169,17 +1198,29 @@ class LLMRails(BaseGuardrails):
         if response_events:
             new_message["events"] = response_events
 
+        tool_calls = extract_tool_calls_from_events(new_events)
+
         if self.config.colang_version == "1.0":
+            history_events = (
+                events
+                + [
+                    {**event, "tool_calls": tool_calls} if event["type"] == "BotToolCalls" else event
+                    for event in new_events
+                    if event["type"] != "BotToolCalls" or tool_calls
+                ]
+                + new_extra_events
+            )
             events.extend(new_events)
             events.extend(new_extra_events)
 
             # If a state object is not used, then we use the implicit caching
             if state is None:
                 # Save the new events in the history and update the cache
-                cache_key = get_history_cache_key((messages) + [new_message])  # type: ignore
-                self.events_history_cache[cache_key] = events
+                cache_message = {**new_message, "tool_calls": tool_calls} if tool_calls else new_message
+                cache_key = get_history_cache_key((messages) + [cache_message])  # type: ignore
+                self.events_history_cache[cache_key] = history_events
             else:
-                output_state = {"events": events}
+                output_state = {"events": history_events}
 
         # If logging is enabled, we log the conversation
         # TODO: add support for logging flag
@@ -1217,7 +1258,6 @@ class LLMRails(BaseGuardrails):
                 gen_options.log.llm_calls = True
                 gen_options.log.internal_events = True
 
-        tool_calls = extract_tool_calls_from_events(new_events)
         llm_metadata = get_and_clear_response_metadata_contextvar()
         reasoning_content = extract_bot_thinking_from_events(new_events)
         # If we have generation options, we prepare a GenerationResponse instance.
@@ -1384,9 +1424,9 @@ class LLMRails(BaseGuardrails):
         options: Optional[Union[dict, GenerationOptions]] = None,
         state: Optional[Union[dict, State]] = None,
         include_metadata: Literal[False] = False,
-        generator: Optional[AsyncIterator[str]] = None,
+        generator: Optional[AsyncIterator[Union[str, ToolCallChunk, ToolCallDeltaChunk]]] = None,
         include_generation_metadata: Optional[bool] = None,
-    ) -> AsyncIterator[str]: ...
+    ) -> AsyncIterator[Union[str, ToolCallChunk, ToolCallDeltaChunk]]: ...
 
     @overload
     def stream_async(
@@ -1396,9 +1436,9 @@ class LLMRails(BaseGuardrails):
         options: Optional[Union[dict, GenerationOptions]] = None,
         state: Optional[Union[dict, State]] = None,
         include_metadata: Literal[True] = ...,
-        generator: Optional[AsyncIterator[str]] = None,
+        generator: Optional[AsyncIterator[Union[str, ToolCallChunk, ToolCallDeltaChunk]]] = None,
         include_generation_metadata: Optional[bool] = None,
-    ) -> AsyncIterator[Union[str, dict]]: ...
+    ) -> AsyncIterator[Union[str, dict, ToolCallChunk, ToolCallDeltaChunk]]: ...
 
     def stream_async(
         self,
@@ -1407,9 +1447,9 @@ class LLMRails(BaseGuardrails):
         options: Optional[Union[dict, GenerationOptions]] = None,
         state: Optional[Union[dict, State]] = None,
         include_metadata: Optional[bool] = False,
-        generator: Optional[AsyncIterator[str]] = None,
+        generator: Optional[AsyncIterator[Union[str, ToolCallChunk, ToolCallDeltaChunk]]] = None,
         include_generation_metadata: Optional[bool] = None,
-    ) -> AsyncIterator[Union[str, dict]]:
+    ) -> AsyncIterator[Union[str, dict, ToolCallChunk, ToolCallDeltaChunk]]:
         """Simplified interface for getting directly the streamed tokens from the LLM."""
 
         if include_generation_metadata is not None:
@@ -1488,7 +1528,11 @@ class LLMRails(BaseGuardrails):
                 async for chunk in base_iterator:
                     if chunk is not None:
                         yield chunk
-            finally:
+            except BaseException:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                raise
+            else:
                 await task
 
         return wrapped_iterator()
@@ -1634,6 +1678,8 @@ class LLMRails(BaseGuardrails):
         self,
         messages: List[dict],
         rail_types: Optional[List[RailType]] = None,
+        *,
+        tools: Optional[List[dict]] = None,
     ) -> RailsResult:
         """Run rails on messages based on their content (asynchronous).
 
@@ -1654,6 +1700,8 @@ class LLMRails(BaseGuardrails):
             rail_types: Optional list of rail types to run, e.g.
                   ``[RailType.INPUT]`` or ``[RailType.OUTPUT]``.
                   When provided, overrides automatic detection.
+            tools: Not supported. Only a tool-call check reads tools, and
+                  only the IORails engine runs one.
 
         Returns:
             RailsResult containing:
@@ -1680,10 +1728,15 @@ class LLMRails(BaseGuardrails):
                 result = await rails.check_async(messages, rail_types=[RailType.INPUT])
 
         Raises:
+            RailTypeNotSupportedError: If ``tools`` is given, or a requested rail
+                type is ``tool_call`` or ``tool_result``, which only the IORails
+                engine runs.
             RailTypeNotConfiguredError: If a requested rail type has no
                 configured flows.
         """
+        _reject_tools(tools)
         if rail_types is not None:
+            _reject_tool_rail_types(rail_types)
             for rt in rail_types:
                 if not getattr(self.config.rails, rt.value).flows:
                     raise RailTypeNotConfiguredError(f"Requested rail type '{rt.value}' has no configured rails.")
@@ -1723,6 +1776,8 @@ class LLMRails(BaseGuardrails):
         self,
         messages: List[dict],
         rail_types: Optional[List[RailType]] = None,
+        *,
+        tools: Optional[List[dict]] = None,
     ) -> RailsResult:
         """Run rails on messages based on their content (synchronous).
 
@@ -1731,11 +1786,15 @@ class LLMRails(BaseGuardrails):
         Args:
             messages: List of message dicts with 'role' and 'content' fields.
             rail_types: Optional list of rail types to run. See check_async() for details.
+            tools: Not supported. See check_async() for details.
 
         Returns:
             RailsResult containing status, content, and optional blocking rail name.
 
         Raises:
+            RailTypeNotSupportedError: If ``tools`` is given, or a requested rail
+                type is ``tool_call`` or ``tool_result``, which only the IORails
+                engine runs.
             RailTypeNotConfiguredError: If a requested rail type has no
                 configured flows.
         """
@@ -1745,7 +1804,7 @@ class LLMRails(BaseGuardrails):
             )
 
         loop = get_or_create_event_loop()
-        return loop.run_until_complete(self.check_async(messages, rail_types=rail_types))
+        return loop.run_until_complete(self.check_async(messages, rail_types=rail_types, tools=tools))
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration."""
@@ -1819,7 +1878,7 @@ class LLMRails(BaseGuardrails):
 
     async def _run_output_rails_in_streaming(
         self,
-        streaming_handler: AsyncIterator[str],
+        streaming_handler: AsyncIterator[Union[str, dict, ToolCallChunk, ToolCallDeltaChunk]],
         output_rails_streaming_config: OutputRailsStreamingConfig,
         prompt: Optional[str] = None,
         messages: Optional[List[dict]] = None,
@@ -2105,6 +2164,37 @@ class LLMRails(BaseGuardrails):
                 # yield the individual chunks directly from the buffer strategy
                 for chunk in user_output_chunks:
                     yield chunk
+
+
+def _reject_tools(tools: Optional[List[dict]]) -> None:
+    """Raise when a check passes tools, which only an IORails tool-call check reads."""
+    # Refused rather than dropped, so a caller relying on tool validation learns it did not run.
+    if tools is not None:
+        raise RailTypeNotSupportedError(
+            "LLMRails check() does not run tool rails, so it does not take tools; "
+            "tool_call checks run on the IORails engine only."
+        )
+
+
+def _iorails_only_tool_settings(config: RailsConfig) -> List[str]:
+    """The tool rail settings *config* sets that only the IORails engine runs."""
+    settings = []
+    if any(config.rails.tool_call.per_tool.values()):
+        settings.append("rails.tool_call.per_tool")
+    if any(config.rails.tool_result.per_tool.values()):
+        settings.append("rails.tool_result.per_tool")
+    return settings
+
+
+def _reject_tool_rail_types(rail_types: List[RailType]) -> None:
+    """Raise when any requested rail type is a tool rail type, which LLMRails check() cannot run."""
+    # Checked before the configured-flows loop: without it a tool rail type raises AttributeError
+    # there, or would pass silently once the config grows a matching section.
+    requested_rail_type = sorted({rail_type.value for rail_type in rail_types if rail_type in TOOL_RAIL_TYPES})
+    if requested_rail_type:
+        raise RailTypeNotSupportedError(
+            f"LLMRails supports input and output rails only, not {', '.join(requested_rail_type)}"
+        )
 
 
 def _determine_rails_from_messages(messages: List[dict]) -> Optional[dict]:

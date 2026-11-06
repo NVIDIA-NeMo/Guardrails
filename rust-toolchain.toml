@@ -1,0 +1,5 @@
+# Matches the toolchain of the Relay release that the plugin's native ABI targets.
+[toolchain]
+channel = "1.96.1"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

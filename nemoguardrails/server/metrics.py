@@ -13,12 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Opt-in metrics export for the Guardrails server.
+"""Opt-in metrics export for the Guardrails servers.
 
 The IORails engine records its metrics through the OpenTelemetry *API* only;
 something has to install an SDK ``MeterProvider`` or every emission is a
 silent no-op.  For library users that "something" is their application.  For
-the packaged ``nemoguardrails server`` command it is this module: it builds a
+the packaged ``nemoguardrails server`` and ``nemoguardrails hooks-server``
+commands it is this module: it builds a
 ``MeterProvider`` backed by a ``PrometheusMetricReader``, serves the scrape
 endpoint on a dedicated port, and stops the listener with the server.
 
@@ -32,7 +33,11 @@ per process and never lets it be replaced, so the provider is installed once
 and kept for the life of the process (the SDK shuts it down at interpreter
 exit).  ``start``/``shutdown`` only manage the HTTP listener, which is what
 lets an embedded application or a test client cycle the server lifespan
-repeatedly without losing metrics export.
+repeatedly without losing metrics export.  The listener is process-wide too,
+so each lifespan holds it through :func:`running_metrics_exporter`: the
+listener stops when the last lifespan holding it exits, if a lifespan started
+it.  One started directly with :func:`start_metrics_exporter`, as the CLIs do,
+is left for its starter to stop.
 
 All OpenTelemetry SDK and Prometheus imports are deferred into
 :func:`_require_otel_sdk` and the functions that use them, so importing this
@@ -42,9 +47,11 @@ module never requires the optional dependencies; they are pulled in by the
 
 import logging
 import os
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, List, Mapping, Optional
+from typing import TYPE_CHECKING, Iterator, List, Mapping, Optional
 
 if TYPE_CHECKING:  # pragma: no cover
     from opentelemetry.sdk.metrics import MeterProvider
@@ -102,11 +109,15 @@ class MetricsExporterSettings:
         return self.exporter != MetricsExporter.NONE
 
     @classmethod
-    def from_env(cls, environ: Optional[Mapping[str, str]] = None) -> "MetricsExporterSettings":
+    def from_env(
+        cls, environ: Optional[Mapping[str, str]] = None, *, defaults: Optional["MetricsExporterSettings"] = None
+    ) -> "MetricsExporterSettings":
         """Resolve settings from environment variables, raising :class:`MetricsExporterConfigError` on invalid values."""
         env = os.environ if environ is None else environ
+        # What a variable leaves unset: the caller's defaults, such as the hooks server's, or the main server's.
+        fallback = cls() if defaults is None else defaults
 
-        raw_exporter = env.get(ENV_EXPORTER, MetricsExporter.NONE.value).strip().lower() or MetricsExporter.NONE.value
+        raw_exporter = env.get(ENV_EXPORTER, fallback.exporter.value).strip().lower() or MetricsExporter.NONE.value
         try:
             exporter = MetricsExporter(raw_exporter)
         except ValueError:
@@ -115,7 +126,7 @@ class MetricsExporterSettings:
                 f"Unsupported {ENV_EXPORTER}={raw_exporter!r}. Supported values: {supported}."
             ) from None
 
-        raw_port = env.get(ENV_PORT, str(DEFAULT_PORT)).strip()
+        raw_port = env.get(ENV_PORT, str(fallback.port)).strip()
         try:
             port = int(raw_port)
         except ValueError:
@@ -123,11 +134,11 @@ class MetricsExporterSettings:
         if not 0 <= port <= 65535:
             raise MetricsExporterConfigError(f"{ENV_PORT} must be between 0 and 65535, got {port}.")
 
-        host = env.get(ENV_HOST, DEFAULT_HOST).strip() or DEFAULT_HOST
+        host = env.get(ENV_HOST, fallback.host).strip() or fallback.host
         # OTEL_SERVICE_NAME is the SDK-standard knob; the NEMO_ variable wins
         # when both are set so server operators have one obvious override.
         service_name = (
-            env.get(ENV_SERVICE_NAME, "").strip() or env.get("OTEL_SERVICE_NAME", "").strip() or DEFAULT_SERVICE_NAME
+            env.get(ENV_SERVICE_NAME, "").strip() or env.get("OTEL_SERVICE_NAME", "").strip() or fallback.service_name
         )
 
         return cls(exporter=exporter, host=host, port=port, service_name=service_name)
@@ -272,7 +283,9 @@ class PrometheusMetricsExporter:
     Create it through :func:`start_metrics_exporter`; the constructor binds
     the listener so a half-built exporter is never handed out.  Only the HTTP
     listener belongs to this object: the ``MeterProvider`` behind it is
-    process-wide (see :func:`_install_meter_provider`).
+    process-wide (see :func:`_install_meter_provider`).  The object also
+    counts the :func:`running_metrics_exporter` blocks holding the listener,
+    so the last of them can stop it.
     """
 
     def __init__(self, settings: MetricsExporterSettings, installed: _InstalledProvider):
@@ -283,6 +296,8 @@ class PrometheusMetricsExporter:
         self.settings = settings
         self.provider = installed.provider
         self.registry = installed.registry
+        self._holders = 0
+        self._started_by_a_holder = False
         try:
             self._server, self._thread = start_http_server(settings.port, addr=settings.host, registry=self.registry)
         except OSError as e:
@@ -300,6 +315,17 @@ class PrometheusMetricsExporter:
     def url(self) -> str:
         """Scrape URL of the running listener, as a client would dial it."""
         return f"http://{_display_host(self.settings.host)}:{self.port}/metrics"
+
+    def hold(self, started_it: bool) -> None:
+        """Count a :func:`running_metrics_exporter` block in, noting whether it started this listener."""
+        self._holders += 1
+        if started_it:
+            self._started_by_a_holder = True
+
+    def release(self) -> bool:
+        """Count a block out; true when it was the last holder and a holder started this listener."""
+        self._holders -= 1
+        return self._holders == 0 and self._started_by_a_holder
 
     def shutdown(self) -> None:
         """Stop the listener and join its thread.  The provider keeps collecting
@@ -355,3 +381,58 @@ def shutdown_metrics_exporter() -> None:
     exporter, _active_exporter = _active_exporter, None
     exporter.shutdown()
     log.info("Prometheus metrics endpoint stopped")
+
+
+# Each app's lifespan may run on its own thread, as under TestClient or two embedded uvicorn servers.
+_holders_lock = threading.Lock()
+
+
+@contextmanager
+def running_metrics_exporter(
+    settings: Optional[MetricsExporterSettings] = None,
+) -> Iterator[Optional[PrometheusMetricsExporter]]:
+    """Yield the running exporter, starting one if none runs; the last holder to exit stops one a holder started."""
+    if settings is None:
+        settings = MetricsExporterSettings.from_env()
+    with _holders_lock:
+        exporter = _hold_metrics_exporter(settings)
+    if exporter is None:
+        yield None
+        return
+    try:
+        yield exporter
+    finally:
+        with _holders_lock:
+            _release_metrics_exporter(exporter)
+
+
+def _hold_metrics_exporter(settings: MetricsExporterSettings) -> Optional[PrometheusMetricsExporter]:
+    """Start or reuse the exporter and count a holder on it; ``None``, uncounted, when export is off and none runs."""
+    running_before = _active_exporter
+    _warn_if_another_exporter_is_running(running_before, settings)
+    exporter = start_metrics_exporter(settings)
+    if exporter is not None:
+        exporter.hold(started_it=exporter is not running_before)
+    return exporter
+
+
+def _release_metrics_exporter(exporter: PrometheusMetricsExporter) -> None:
+    """Count a holder out, and stop the exporter if it was the last, a holder started it, and it still runs."""
+    if exporter.release() and _active_exporter is exporter:
+        shutdown_metrics_exporter()
+
+
+def _warn_if_another_exporter_is_running(
+    running: Optional[PrometheusMetricsExporter], settings: MetricsExporterSettings
+) -> None:
+    """Warn that the running exporter is served in place of the one ``settings`` ask for, when they differ."""
+    if running is None or not settings.enabled:
+        return
+    if settings != running.settings:
+        log.warning(
+            "A Prometheus metrics endpoint is already running on %s; serving it instead of %s:%s (service.name=%s).",
+            running.url,
+            settings.host,
+            settings.port,
+            settings.service_name,
+        )

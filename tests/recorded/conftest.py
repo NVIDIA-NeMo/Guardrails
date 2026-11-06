@@ -47,6 +47,11 @@ DUMMY_SERVICE_API_KEY = "recorded-replay"
 _NON_JSON_BODY = object()
 
 
+class _RedactedCredential(str):
+    def __repr__(self) -> str:
+        return "[REDACTED]"
+
+
 class _ReadableCassetteDumper(yaml.SafeDumper):
     pass
 
@@ -406,12 +411,19 @@ def strip_proxy_env_during_replay(monkeypatch: pytest.MonkeyPatch, record_mode: 
 
 @pytest.fixture
 def openai_api_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> str:
-    return set_api_key_for_record_mode(monkeypatch, "OPENAI_API_KEY", DUMMY_OPENAI_API_KEY, record_mode)
+    value = set_api_key_for_record_mode(monkeypatch, "OPENAI_API_KEY", DUMMY_OPENAI_API_KEY, record_mode)
+    return _RedactedCredential(value)
 
 
 @pytest.fixture
 def nvidia_api_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> str:
     return set_api_key_for_record_mode(monkeypatch, "NVIDIA_API_KEY", DUMMY_NVIDIA_API_KEY, record_mode)
+
+
+@pytest.fixture
+def nvidia_inference_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> str:
+    value = set_api_key_for_record_mode(monkeypatch, "NVIDIA_INFERENCE_KEY", DUMMY_NVIDIA_API_KEY, record_mode)
+    return _RedactedCredential(value)
 
 
 @pytest.fixture

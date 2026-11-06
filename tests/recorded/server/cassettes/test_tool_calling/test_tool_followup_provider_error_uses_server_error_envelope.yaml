@@ -1,0 +1,68 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-nonexistent-test-model
+      messages:
+      - role: user
+        content: |-
+          Below is a conversation between a helpful AI assistant and a user. The bot is designed to generate human-like text based on the input that it receives. The bot is talkative and provides lots of specific details. If the bot does not know the answer to a question, it truthfully says it does not know.
+
+          User: Get the weather.
+          Assistant:
+      - role: assistant
+        tool_calls:
+        - id: call_weather
+          type: function
+          function:
+            name: get_weather
+            arguments: '{}'
+      - role: tool
+        content: 'WX-4827: sunny'
+        tool_call_id: call_weather
+      stop:
+      - 'User:'
+  response:
+    status:
+      code: 404
+      message: Not Found
+    headers:
+      content-type:
+      - application/json; charset=utf-8
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Origin
+      access-control-expose-headers:
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        error:
+          message: The model `gpt-nonexistent-test-model` does not exist or you do not have access to it.
+          type: invalid_request_error
+          param: null
+          code: model_not_found

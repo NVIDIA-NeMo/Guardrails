@@ -1,0 +1,220 @@
+{
+  "endpoints": {
+    "endpoint_challenges.listChallenges": {
+      "displayName": "List red teaming challenges",
+      "docs": "List registered red teaming challenges. The response structure depends\non the challenges registered by the application.",
+      "errors": [],
+      "examples": [
+        {
+          "request": null,
+          "response": [
+            {
+              "category": "jailbreak",
+              "description": "Attempt to bypass safety guardrails.",
+              "id": "jailbreak-1"
+            }
+          ]
+        }
+      ],
+      "fullPath": {
+        "head": "v1/challenges",
+        "parts": []
+      },
+      "method": "GET",
+      "name": "listChallenges"
+    },
+    "endpoint_chatCompletions.createGuardrailsChatCompletion": {
+      "displayName": "Create a guarded chat completion",
+      "docs": "Generate a chat completion with guardrails applied.\n\nThe request shape is compatible with the OpenAI Chat Completions API and\naccepts Guardrails-specific options in the `guardrails` object.",
+      "errors": [
+        "UnprocessableEntityError"
+      ],
+      "examples": [
+        {
+          "request": {
+            "guardrails": {
+              "config_id": "content_safety"
+            },
+            "messages": [
+              {
+                "content": "What is the capital of France?",
+                "role": "user"
+              }
+            ],
+            "model": "meta/llama-3.1-8b-instruct"
+          },
+          "response": {
+            "choices": [
+              {
+                "finish_reason": "stop",
+                "index": 0,
+                "message": {
+                  "content": "Paris is the capital of France.",
+                  "role": "assistant"
+                }
+              }
+            ],
+            "created": 1709424000,
+            "guardrails": {
+              "config_id": "content_safety"
+            },
+            "id": "chatcmpl-abc123",
+            "model": "meta/llama-3.1-8b-instruct",
+            "object": "chat.completion"
+          }
+        },
+        {
+          "request": {
+            "guardrails": {
+              "config_id": "content_safety"
+            },
+            "messages": [
+              {
+                "content": "Tell me a short story.",
+                "role": "user"
+              }
+            ],
+            "model": "meta/llama-3.1-8b-instruct",
+            "stream": true
+          },
+          "response": {
+            "choices": [
+              {
+                "finish_reason": "stop",
+                "index": 0,
+                "message": {
+                  "content": "Paris is the capital of France.",
+                  "role": "assistant"
+                }
+              }
+            ],
+            "created": 1709424000,
+            "guardrails": {
+              "config_id": "content_safety"
+            },
+            "id": "chatcmpl-abc123",
+            "model": "meta/llama-3.1-8b-instruct",
+            "object": "chat.completion"
+          }
+        }
+      ],
+      "fullPath": {
+        "head": "v1/chat/completions",
+        "parts": []
+      },
+      "method": "POST",
+      "name": "createGuardrailsChatCompletion"
+    },
+    "endpoint_configurations.listRailsConfigs": {
+      "displayName": "List guardrails configurations",
+      "docs": "List available guardrails configurations. In single-config mode, the\nresponse contains the single configured ID.",
+      "errors": [],
+      "examples": [
+        {
+          "request": null,
+          "response": [
+            {
+              "id": "content_safety"
+            },
+            {
+              "id": "customer-service"
+            }
+          ]
+        }
+      ],
+      "fullPath": {
+        "head": "v1/rails/configs",
+        "parts": []
+      },
+      "method": "GET",
+      "name": "listRailsConfigs"
+    },
+    "endpoint_health.getHealth": {
+      "displayName": "Liveness health check",
+      "docs": "Shallow liveness check. Returns HTTP 200 while the server process is\nrunning and able to serve requests. It does not verify guardrails\nconfigurations, the model provider, or any datastore.",
+      "errors": [],
+      "examples": [
+        {
+          "request": null,
+          "response": {
+            "status": "pass"
+          }
+        }
+      ],
+      "fullPath": {
+        "head": "v1/health",
+        "parts": []
+      },
+      "method": "GET",
+      "name": "getHealth"
+    },
+    "endpoint_health.getHealthz": {
+      "displayName": "Liveness health check (alias)",
+      "docs": "Kubernetes-style alias for `GET /v1/health`. Returns the same shallow\nliveness response.",
+      "errors": [],
+      "examples": [
+        {
+          "request": null,
+          "response": {
+            "status": "pass"
+          }
+        }
+      ],
+      "fullPath": {
+        "head": "healthz",
+        "parts": []
+      },
+      "method": "GET",
+      "name": "getHealthz"
+    },
+    "endpoint_health.getRoot": {
+      "displayName": "Get server health or chat UI",
+      "docs": "Returns a health payload when the chat UI is disabled. Otherwise, serves\nthe interactive chat interface.",
+      "errors": [],
+      "examples": [
+        {
+          "request": null,
+          "response": {
+            "status": "ok"
+          }
+        }
+      ],
+      "fullPath": {
+        "head": "",
+        "parts": []
+      },
+      "method": "GET",
+      "name": "getRoot"
+    },
+    "endpoint_models.listModels": {
+      "displayName": "List models",
+      "docs": "List available LLM models from the configured upstream provider.\n\nThe server forwards the `Authorization` header to the upstream provider\nwhen the request includes one.",
+      "errors": [
+        "BadGatewayError"
+      ],
+      "examples": [
+        {
+          "request": null,
+          "response": {
+            "data": [
+              {
+                "created": 1700000000,
+                "id": "meta/llama-3.1-8b-instruct",
+                "object": "model",
+                "owned_by": "system"
+              }
+            ]
+          }
+        }
+      ],
+      "fullPath": {
+        "head": "v1/models",
+        "parts": []
+      },
+      "method": "GET",
+      "name": "listModels"
+    }
+  },
+  "fernVersion": "5.143.3",
+  "sourceRevision": "3a6e84f8e35a18803cb4f16e4dde133271b5089b"
+}

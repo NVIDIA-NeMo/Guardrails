@@ -1,0 +1,7214 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LiteLLM API",
+    "description": "Proxy Server to call 100+ LLMs in the OpenAI format. [**Customize Swagger Docs**](https://docs.litellm.ai/docs/proxy/enterprise#swagger-docs---custom-routes--branding)\n\n\ud83d\udc49 [```LiteLLM Admin Panel on /ui```](/ui). Create, Edit Keys with SSO. Having issues? Try [```Fallback Login```](/fallback/login)\n\n\ud83d\udcb8 [```LiteLLM Model Cost Map```](https://models.litellm.ai/).\n\n\ud83d\udd0e [```LiteLLM Model Hub```](/ui/model_hub_table). See available models on the proxy. [**Docs**](https://docs.litellm.ai/docs/proxy/ai_hub)",
+    "version": "1.106.6"
+  },
+  "x-source": {
+    "url": "https://docs.litellm.ai/openapi.json",
+    "sha256": "1fb2254ea7416980dca3c7980cb65f6fb883e991c15db0c0387dcda2d03c5519",
+    "scope": "POST 200 responses only; referenced component schemas copied unchanged"
+  },
+  "paths": {
+    "/v1/chat/completions": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/responses": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsesAPIResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server sent events when stream=true"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ResponsesAPIResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "incomplete_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IncompleteDetails"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "object": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ResponseOutputMessage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseFileSearchToolCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseFunctionToolCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseFunctionToolCallOutputItem"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseFunctionWebSearch"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseComputerToolCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseComputerToolCallOutputItem"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseReasoningItem"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Program"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProgramOutput"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseToolSearchCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseToolSearchOutputItem"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AdditionalTools"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseCompactionItem"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ImageGenerationCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseCodeInterpreterToolCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LocalShellCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LocalShellCallOutput"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseFunctionShellToolCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseFunctionShellToolCallOutput"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseApplyPatchToolCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseApplyPatchToolCallOutput"
+                    },
+                    {
+                      "$ref": "#/components/schemas/McpCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/McpListTools"
+                    },
+                    {
+                      "$ref": "#/components/schemas/McpApprovalRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/McpApprovalResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseCustomToolCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseCustomToolCallOutputItem"
+                    },
+                    {
+                      "additionalProperties": true,
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/GenericResponseOutputItem"
+                    },
+                    {
+                      "$ref": "#/components/schemas/OutputCodeInterpreterCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/OutputFunctionToolCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/OutputImageGenerationCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseFunctionToolCall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseFunctionWebSearch"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CustomToolCallOutputItem"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Output"
+          },
+          "parallel_tool_calls": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parallel Tool Calls"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          },
+          "tool_choice": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "auto",
+                  "required"
+                ]
+              },
+              {
+                "$ref": "#/components/schemas/ToolChoiceAllowedParam"
+              },
+              {
+                "$ref": "#/components/schemas/ToolChoiceTypesParam"
+              },
+              {
+                "$ref": "#/components/schemas/ToolChoiceFunctionParam"
+              },
+              {
+                "$ref": "#/components/schemas/ToolChoiceMcpParam"
+              },
+              {
+                "$ref": "#/components/schemas/ToolChoiceCustomParam"
+              },
+              {
+                "$ref": "#/components/schemas/ToolChoiceSpecificProgrammaticToolCallingParam"
+              },
+              {
+                "$ref": "#/components/schemas/ToolChoiceApplyPatchParam"
+              },
+              {
+                "$ref": "#/components/schemas/ToolChoiceShellParam"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Choice"
+          },
+          "tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/FunctionTool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FileSearchTool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ComputerTool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ComputerUsePreviewTool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/WebSearchTool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Mcp"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CodeInterpreter"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProgrammaticToolCalling"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ImageGeneration"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LocalShell"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FunctionShellTool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CustomTool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NamespaceTool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ToolSearchTool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/WebSearchPreviewTool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApplyPatchTool"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ResponseFunctionToolCall"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tools"
+          },
+          "top_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top P"
+          },
+          "max_output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Tokens"
+          },
+          "previous_response_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Response Id"
+          },
+          "reasoning": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResponseTextConfigParam"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "truncation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "disabled"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Truncation"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResponseAPIUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User"
+          },
+          "store": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "output"
+        ],
+        "title": "ResponsesAPIResponse"
+      },
+      "IncompleteDetails": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "max_output_tokens",
+                  "content_filter"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "IncompleteDetails",
+        "description": "Details about why the response is incomplete."
+      },
+      "ResponseOutputMessage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "content": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ResponseOutputText"
+                },
+                {
+                  "$ref": "#/components/schemas/ResponseOutputRefusal"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Content"
+          },
+          "role": {
+            "type": "string",
+            "const": "assistant",
+            "title": "Role"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "message",
+            "title": "Type"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "commentary",
+                  "final_answer"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "content",
+          "role",
+          "status",
+          "type"
+        ],
+        "title": "ResponseOutputMessage",
+        "description": "An output message from the model."
+      },
+      "ResponseOutputText": {
+        "properties": {
+          "annotations": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AnnotationFileCitation"
+                },
+                {
+                  "$ref": "#/components/schemas/AnnotationURLCitation"
+                },
+                {
+                  "$ref": "#/components/schemas/AnnotationContainerFileCitation"
+                },
+                {
+                  "$ref": "#/components/schemas/AnnotationFilePath"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Annotations"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "type": {
+            "type": "string",
+            "const": "output_text",
+            "title": "Type"
+          },
+          "logprobs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Logprob"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logprobs"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "annotations",
+          "text",
+          "type"
+        ],
+        "title": "ResponseOutputText",
+        "description": "A text output from the model."
+      },
+      "AnnotationFileCitation": {
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "type": {
+            "type": "string",
+            "const": "file_citation",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "file_id",
+          "filename",
+          "index",
+          "type"
+        ],
+        "title": "AnnotationFileCitation",
+        "description": "A citation to a file."
+      },
+      "AnnotationURLCitation": {
+        "properties": {
+          "end_index": {
+            "type": "integer",
+            "title": "End Index"
+          },
+          "start_index": {
+            "type": "integer",
+            "title": "Start Index"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "type": {
+            "type": "string",
+            "const": "url_citation",
+            "title": "Type"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "end_index",
+          "start_index",
+          "title",
+          "type",
+          "url"
+        ],
+        "title": "AnnotationURLCitation",
+        "description": "A citation for a web resource used to generate a model response."
+      },
+      "AnnotationContainerFileCitation": {
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "title": "Container Id"
+          },
+          "end_index": {
+            "type": "integer",
+            "title": "End Index"
+          },
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "start_index": {
+            "type": "integer",
+            "title": "Start Index"
+          },
+          "type": {
+            "type": "string",
+            "const": "container_file_citation",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "container_id",
+          "end_index",
+          "file_id",
+          "filename",
+          "start_index",
+          "type"
+        ],
+        "title": "AnnotationContainerFileCitation",
+        "description": "A citation for a container file used to generate a model response."
+      },
+      "AnnotationFilePath": {
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "type": {
+            "type": "string",
+            "const": "file_path",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "file_id",
+          "index",
+          "type"
+        ],
+        "title": "AnnotationFilePath",
+        "description": "A path to a file."
+      },
+      "Logprob": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "bytes": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Bytes"
+          },
+          "logprob": {
+            "type": "number",
+            "title": "Logprob"
+          },
+          "top_logprobs": {
+            "items": {
+              "$ref": "#/components/schemas/LogprobTopLogprob"
+            },
+            "type": "array",
+            "title": "Top Logprobs"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "token",
+          "bytes",
+          "logprob",
+          "top_logprobs"
+        ],
+        "title": "Logprob",
+        "description": "The log probability of a token."
+      },
+      "LogprobTopLogprob": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "bytes": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Bytes"
+          },
+          "logprob": {
+            "type": "number",
+            "title": "Logprob"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "token",
+          "bytes",
+          "logprob"
+        ],
+        "title": "LogprobTopLogprob",
+        "description": "The top log probability of a token."
+      },
+      "ResponseOutputRefusal": {
+        "properties": {
+          "refusal": {
+            "type": "string",
+            "title": "Refusal"
+          },
+          "type": {
+            "type": "string",
+            "const": "refusal",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "refusal",
+          "type"
+        ],
+        "title": "ResponseOutputRefusal",
+        "description": "A refusal from the model."
+      },
+      "ResponseFileSearchToolCall": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "queries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Queries"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "searching",
+              "completed",
+              "incomplete",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "file_search_call",
+            "title": "Type"
+          },
+          "results": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Result-Output"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "queries",
+          "status",
+          "type"
+        ],
+        "title": "ResponseFileSearchToolCall",
+        "description": "The results of a file search tool call.\n\nSee the\n[file search guide](https://platform.openai.com/docs/guides/tools-file-search) for more information."
+      },
+      "Result-Output": {
+        "properties": {
+          "attributes": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attributes"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Result"
+      },
+      "ResponseFunctionToolCall": {
+        "properties": {
+          "arguments": {
+            "type": "string",
+            "title": "Arguments"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "const": "function_call",
+            "title": "Type"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CallerDirect"
+              },
+              {
+                "$ref": "#/components/schemas/CallerProgram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caller"
+          },
+          "namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Namespace"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "in_progress",
+                  "completed",
+                  "incomplete"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "arguments",
+          "call_id",
+          "name",
+          "type"
+        ],
+        "title": "ResponseFunctionToolCall",
+        "description": "A tool call to run a function.\n\nSee the\n[function calling guide](https://platform.openai.com/docs/guides/function-calling) for more information."
+      },
+      "CallerDirect": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "direct",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "CallerDirect"
+      },
+      "CallerProgram": {
+        "properties": {
+          "caller_id": {
+            "type": "string",
+            "title": "Caller Id"
+          },
+          "type": {
+            "type": "string",
+            "const": "program",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "caller_id",
+          "type"
+        ],
+        "title": "CallerProgram"
+      },
+      "ResponseFunctionToolCallOutputItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ResponseInputText"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseInputImage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseInputFile"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Output"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "function_call_output",
+            "title": "Type"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CallerDirect"
+              },
+              {
+                "$ref": "#/components/schemas/CallerProgram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caller"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Namespace"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "call_id",
+          "output",
+          "status",
+          "type"
+        ],
+        "title": "ResponseFunctionToolCallOutputItem"
+      },
+      "ResponseInputText": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "type": {
+            "type": "string",
+            "const": "input_text",
+            "title": "Type"
+          },
+          "prompt_cache_breakpoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptCacheBreakpoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "text",
+          "type"
+        ],
+        "title": "ResponseInputText",
+        "description": "A text input to the model."
+      },
+      "PromptCacheBreakpoint": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "explicit",
+            "title": "Mode"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "PromptCacheBreakpoint",
+        "description": "Marks the exact end of a reusable prompt prefix.\n\nThe breakpoint inherits its TTL from the request's `prompt_cache_options.ttl`; the boundary is not rounded to a token block."
+      },
+      "ResponseInputImage": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "enum": [
+              "low",
+              "high",
+              "auto",
+              "original"
+            ],
+            "title": "Detail"
+          },
+          "type": {
+            "type": "string",
+            "const": "input_image",
+            "title": "Type"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "prompt_cache_breakpoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptCacheBreakpoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "detail",
+          "type"
+        ],
+        "title": "ResponseInputImage",
+        "description": "An image input to the model.\n\nLearn about [image inputs](https://platform.openai.com/docs/guides/vision)."
+      },
+      "ResponseInputFile": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "input_file",
+            "title": "Type"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "low",
+                  "high"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "file_data": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Data"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "file_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Url"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "prompt_cache_breakpoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptCacheBreakpoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ResponseInputFile",
+        "description": "A file input to the model."
+      },
+      "ResponseFunctionWebSearch": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActionSearch"
+              },
+              {
+                "$ref": "#/components/schemas/ActionOpenPage"
+              },
+              {
+                "$ref": "#/components/schemas/ActionFind"
+              }
+            ],
+            "title": "Action"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "searching",
+              "completed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "web_search_call",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "status",
+          "type"
+        ],
+        "title": "ResponseFunctionWebSearch",
+        "description": "The results of a web search tool call.\n\nSee the\n[web search guide](https://platform.openai.com/docs/guides/tools-web-search) for more information."
+      },
+      "ActionSearch": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "search",
+            "title": "Type"
+          },
+          "queries": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queries"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ActionSearchSource"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sources"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ActionSearch",
+        "description": "Action type \"search\" - Performs a web search query."
+      },
+      "ActionSearchSource": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "url",
+            "title": "Type"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "url"
+        ],
+        "title": "ActionSearchSource",
+        "description": "A source used in the search."
+      },
+      "ActionOpenPage": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "open_page",
+            "title": "Type"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ActionOpenPage",
+        "description": "Action type \"open_page\" - Opens a specific URL from search results."
+      },
+      "ActionFind": {
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "title": "Pattern"
+          },
+          "type": {
+            "type": "string",
+            "const": "find_in_page",
+            "title": "Type"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "pattern",
+          "type",
+          "url"
+        ],
+        "title": "ActionFind",
+        "description": "Action type \"find_in_page\": Searches for a pattern within a loaded page."
+      },
+      "ResponseComputerToolCall": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "pending_safety_checks": {
+            "items": {
+              "$ref": "#/components/schemas/PendingSafetyCheck"
+            },
+            "type": "array",
+            "title": "Pending Safety Checks"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "computer_call",
+            "title": "Type"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActionClick"
+              },
+              {
+                "$ref": "#/components/schemas/ActionDoubleClick"
+              },
+              {
+                "$ref": "#/components/schemas/ActionDrag"
+              },
+              {
+                "$ref": "#/components/schemas/ActionKeypress"
+              },
+              {
+                "$ref": "#/components/schemas/ActionMove"
+              },
+              {
+                "$ref": "#/components/schemas/ActionScreenshot"
+              },
+              {
+                "$ref": "#/components/schemas/ActionScroll"
+              },
+              {
+                "$ref": "#/components/schemas/ActionType"
+              },
+              {
+                "$ref": "#/components/schemas/ActionWait"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "actions": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Click"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DoubleClick"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Drag"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Keypress"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Move"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Screenshot"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Scroll"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Type"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Wait"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actions"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "call_id",
+          "pending_safety_checks",
+          "status",
+          "type"
+        ],
+        "title": "ResponseComputerToolCall",
+        "description": "A tool call to a computer use tool.\n\nSee the\n[computer use guide](https://platform.openai.com/docs/guides/tools-computer-use) for more information."
+      },
+      "PendingSafetyCheck": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "PendingSafetyCheck",
+        "description": "A pending safety check for the computer call."
+      },
+      "ActionClick": {
+        "properties": {
+          "button": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "wheel",
+              "back",
+              "forward"
+            ],
+            "title": "Button"
+          },
+          "type": {
+            "type": "string",
+            "const": "click",
+            "title": "Type"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          },
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "button",
+          "type",
+          "x",
+          "y"
+        ],
+        "title": "ActionClick",
+        "description": "A click action."
+      },
+      "ActionDoubleClick": {
+        "properties": {
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          },
+          "type": {
+            "type": "string",
+            "const": "double_click",
+            "title": "Type"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "x",
+          "y"
+        ],
+        "title": "ActionDoubleClick",
+        "description": "A double click action."
+      },
+      "ActionDrag": {
+        "properties": {
+          "path": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDragPath"
+            },
+            "type": "array",
+            "title": "Path"
+          },
+          "type": {
+            "type": "string",
+            "const": "drag",
+            "title": "Type"
+          },
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "path",
+          "type"
+        ],
+        "title": "ActionDrag",
+        "description": "A drag action."
+      },
+      "ActionDragPath": {
+        "properties": {
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "ActionDragPath",
+        "description": "An x/y coordinate pair, e.g. `{ x: 100, y: 200 }`."
+      },
+      "ActionKeypress": {
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keys"
+          },
+          "type": {
+            "type": "string",
+            "const": "keypress",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "keys",
+          "type"
+        ],
+        "title": "ActionKeypress",
+        "description": "A collection of keypresses the model would like to perform."
+      },
+      "ActionMove": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "move",
+            "title": "Type"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          },
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "x",
+          "y"
+        ],
+        "title": "ActionMove",
+        "description": "A mouse move action."
+      },
+      "ActionScreenshot": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "screenshot",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ActionScreenshot",
+        "description": "A screenshot action."
+      },
+      "ActionScroll": {
+        "properties": {
+          "scroll_x": {
+            "type": "integer",
+            "title": "Scroll X"
+          },
+          "scroll_y": {
+            "type": "integer",
+            "title": "Scroll Y"
+          },
+          "type": {
+            "type": "string",
+            "const": "scroll",
+            "title": "Type"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          },
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "scroll_x",
+          "scroll_y",
+          "type",
+          "x",
+          "y"
+        ],
+        "title": "ActionScroll",
+        "description": "A scroll action."
+      },
+      "ActionType": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "type": {
+            "type": "string",
+            "const": "type",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "text",
+          "type"
+        ],
+        "title": "ActionType",
+        "description": "An action to type in text."
+      },
+      "ActionWait": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "wait",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ActionWait",
+        "description": "A wait action."
+      },
+      "Click": {
+        "properties": {
+          "button": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "wheel",
+              "back",
+              "forward"
+            ],
+            "title": "Button"
+          },
+          "type": {
+            "type": "string",
+            "const": "click",
+            "title": "Type"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          },
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "button",
+          "type",
+          "x",
+          "y"
+        ],
+        "title": "Click",
+        "description": "A click action."
+      },
+      "DoubleClick": {
+        "properties": {
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          },
+          "type": {
+            "type": "string",
+            "const": "double_click",
+            "title": "Type"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "x",
+          "y"
+        ],
+        "title": "DoubleClick",
+        "description": "A double click action."
+      },
+      "Drag": {
+        "properties": {
+          "path": {
+            "items": {
+              "$ref": "#/components/schemas/DragPath"
+            },
+            "type": "array",
+            "title": "Path"
+          },
+          "type": {
+            "type": "string",
+            "const": "drag",
+            "title": "Type"
+          },
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "path",
+          "type"
+        ],
+        "title": "Drag",
+        "description": "A drag action."
+      },
+      "DragPath": {
+        "properties": {
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "DragPath",
+        "description": "An x/y coordinate pair, e.g. `{ x: 100, y: 200 }`."
+      },
+      "Keypress": {
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keys"
+          },
+          "type": {
+            "type": "string",
+            "const": "keypress",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "keys",
+          "type"
+        ],
+        "title": "Keypress",
+        "description": "A collection of keypresses the model would like to perform."
+      },
+      "Move": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "move",
+            "title": "Type"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          },
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "x",
+          "y"
+        ],
+        "title": "Move",
+        "description": "A mouse move action."
+      },
+      "Screenshot": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "screenshot",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "Screenshot",
+        "description": "A screenshot action."
+      },
+      "Scroll": {
+        "properties": {
+          "scroll_x": {
+            "type": "integer",
+            "title": "Scroll X"
+          },
+          "scroll_y": {
+            "type": "integer",
+            "title": "Scroll Y"
+          },
+          "type": {
+            "type": "string",
+            "const": "scroll",
+            "title": "Type"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          },
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "scroll_x",
+          "scroll_y",
+          "type",
+          "x",
+          "y"
+        ],
+        "title": "Scroll",
+        "description": "A scroll action."
+      },
+      "Type": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "type": {
+            "type": "string",
+            "const": "type",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "text",
+          "type"
+        ],
+        "title": "Type",
+        "description": "An action to type in text."
+      },
+      "Wait": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "wait",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "Wait",
+        "description": "A wait action."
+      },
+      "ResponseComputerToolCallOutputItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "output": {
+            "$ref": "#/components/schemas/ResponseComputerToolCallOutputScreenshot"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "incomplete",
+              "failed",
+              "in_progress"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "computer_call_output",
+            "title": "Type"
+          },
+          "acknowledged_safety_checks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AcknowledgedSafetyCheck"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged Safety Checks"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "call_id",
+          "output",
+          "status",
+          "type"
+        ],
+        "title": "ResponseComputerToolCallOutputItem"
+      },
+      "ResponseComputerToolCallOutputScreenshot": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "computer_screenshot",
+            "title": "Type"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ResponseComputerToolCallOutputScreenshot",
+        "description": "A computer screenshot image used with the computer use tool."
+      },
+      "AcknowledgedSafetyCheck": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "AcknowledgedSafetyCheck",
+        "description": "A pending safety check for the computer call."
+      },
+      "ResponseReasoningItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "summary": {
+            "items": {
+              "$ref": "#/components/schemas/Summary"
+            },
+            "type": "array",
+            "title": "Summary"
+          },
+          "type": {
+            "type": "string",
+            "const": "reasoning",
+            "title": "Type"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Content"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "encrypted_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encrypted Content"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "in_progress",
+                  "completed",
+                  "incomplete"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "summary",
+          "type"
+        ],
+        "title": "ResponseReasoningItem",
+        "description": "A description of the chain of thought used by a reasoning model while generating\na response. Be sure to include these items in your `input` to the Responses API\nfor subsequent turns of a conversation if you are manually\n[managing context](https://platform.openai.com/docs/guides/conversation-state)."
+      },
+      "Summary": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "type": {
+            "type": "string",
+            "const": "summary_text",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "text",
+          "type"
+        ],
+        "title": "Summary",
+        "description": "A summary text from the model."
+      },
+      "Content": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "type": {
+            "type": "string",
+            "const": "reasoning_text",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "text",
+          "type"
+        ],
+        "title": "Content",
+        "description": "Reasoning text from the model."
+      },
+      "Program": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint"
+          },
+          "type": {
+            "type": "string",
+            "const": "program",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "call_id",
+          "code",
+          "fingerprint",
+          "type"
+        ],
+        "title": "Program"
+      },
+      "ProgramOutput": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "result": {
+            "type": "string",
+            "title": "Result"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "program_output",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "call_id",
+          "result",
+          "status",
+          "type"
+        ],
+        "title": "ProgramOutput"
+      },
+      "ResponseToolSearchCall": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "arguments": {
+            "title": "Arguments"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          },
+          "execution": {
+            "type": "string",
+            "enum": [
+              "server",
+              "client"
+            ],
+            "title": "Execution"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "tool_search_call",
+            "title": "Type"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "arguments",
+          "execution",
+          "status",
+          "type"
+        ],
+        "title": "ResponseToolSearchCall"
+      },
+      "ResponseToolSearchOutputItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          },
+          "execution": {
+            "type": "string",
+            "enum": [
+              "server",
+              "client"
+            ],
+            "title": "Execution"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "tools": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/FunctionTool"
+                },
+                {
+                  "$ref": "#/components/schemas/FileSearchTool"
+                },
+                {
+                  "$ref": "#/components/schemas/ComputerTool"
+                },
+                {
+                  "$ref": "#/components/schemas/ComputerUsePreviewTool"
+                },
+                {
+                  "$ref": "#/components/schemas/WebSearchTool"
+                },
+                {
+                  "$ref": "#/components/schemas/Mcp"
+                },
+                {
+                  "$ref": "#/components/schemas/CodeInterpreter"
+                },
+                {
+                  "$ref": "#/components/schemas/ProgrammaticToolCalling"
+                },
+                {
+                  "$ref": "#/components/schemas/ImageGeneration"
+                },
+                {
+                  "$ref": "#/components/schemas/LocalShell"
+                },
+                {
+                  "$ref": "#/components/schemas/FunctionShellTool"
+                },
+                {
+                  "$ref": "#/components/schemas/CustomTool"
+                },
+                {
+                  "$ref": "#/components/schemas/NamespaceTool"
+                },
+                {
+                  "$ref": "#/components/schemas/ToolSearchTool"
+                },
+                {
+                  "$ref": "#/components/schemas/WebSearchPreviewTool"
+                },
+                {
+                  "$ref": "#/components/schemas/ApplyPatchTool"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Tools"
+          },
+          "type": {
+            "type": "string",
+            "const": "tool_search_output",
+            "title": "Type"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "execution",
+          "status",
+          "tools",
+          "type"
+        ],
+        "title": "ResponseToolSearchOutputItem"
+      },
+      "FunctionTool": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parameters"
+          },
+          "strict": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strict"
+          },
+          "type": {
+            "type": "string",
+            "const": "function",
+            "title": "Type"
+          },
+          "allowed_callers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "direct",
+                    "programmatic"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Callers"
+          },
+          "defer_loading": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Defer Loading"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "output_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Schema"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "FunctionTool",
+        "description": "Defines a function in your own code the model can choose to call.\n\nLearn more about [function calling](https://platform.openai.com/docs/guides/function-calling)."
+      },
+      "FileSearchTool": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "file_search",
+            "title": "Type"
+          },
+          "vector_store_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Vector Store Ids"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComparisonFilter"
+              },
+              {
+                "$ref": "#/components/schemas/CompoundFilter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filters"
+          },
+          "max_num_results": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Num Results"
+          },
+          "ranking_options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RankingOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "vector_store_ids"
+        ],
+        "title": "FileSearchTool",
+        "description": "A tool that searches for relevant content from uploaded files.\n\nLearn more about the [file search tool](https://platform.openai.com/docs/guides/tools-file-search)."
+      },
+      "ComparisonFilter": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "eq",
+              "ne",
+              "gt",
+              "gte",
+              "lt",
+              "lte",
+              "in",
+              "nin"
+            ],
+            "title": "Type"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "key",
+          "type",
+          "value"
+        ],
+        "title": "ComparisonFilter",
+        "description": "A filter used to compare a specified attribute key to a given value using a defined comparison operation."
+      },
+      "CompoundFilter": {
+        "properties": {
+          "filters": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ComparisonFilter"
+                },
+                {}
+              ]
+            },
+            "type": "array",
+            "title": "Filters"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "and",
+              "or"
+            ],
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "filters",
+          "type"
+        ],
+        "title": "CompoundFilter",
+        "description": "Combine multiple filters using `and` or `or`."
+      },
+      "RankingOptions": {
+        "properties": {
+          "hybrid_search": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RankingOptionsHybridSearch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ranker": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "default-2024-11-15"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ranker"
+          },
+          "score_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Threshold"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "RankingOptions",
+        "description": "Ranking options for search."
+      },
+      "RankingOptionsHybridSearch": {
+        "properties": {
+          "embedding_weight": {
+            "type": "number",
+            "title": "Embedding Weight"
+          },
+          "text_weight": {
+            "type": "number",
+            "title": "Text Weight"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "embedding_weight",
+          "text_weight"
+        ],
+        "title": "RankingOptionsHybridSearch",
+        "description": "Weights that control how reciprocal rank fusion balances semantic embedding matches versus sparse keyword matches when hybrid search is enabled."
+      },
+      "ComputerTool": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "computer",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ComputerTool",
+        "description": "A tool that controls a virtual computer.\n\nLearn more about the [computer tool](https://platform.openai.com/docs/guides/tools-computer-use)."
+      },
+      "ComputerUsePreviewTool": {
+        "properties": {
+          "display_height": {
+            "type": "integer",
+            "title": "Display Height"
+          },
+          "display_width": {
+            "type": "integer",
+            "title": "Display Width"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "windows",
+              "mac",
+              "linux",
+              "ubuntu",
+              "browser"
+            ],
+            "title": "Environment"
+          },
+          "type": {
+            "type": "string",
+            "const": "computer_use_preview",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "display_height",
+          "display_width",
+          "environment",
+          "type"
+        ],
+        "title": "ComputerUsePreviewTool",
+        "description": "A tool that controls a virtual computer.\n\nLearn more about the [computer tool](https://platform.openai.com/docs/guides/tools-computer-use)."
+      },
+      "WebSearchTool": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "web_search",
+              "web_search_2025_08_26"
+            ],
+            "title": "Type"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Filters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "search_context_size": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Context Size"
+          },
+          "user_location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/openai__types__responses__web_search_tool__UserLocation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "WebSearchTool",
+        "description": "Search the Internet for sources related to the prompt.\n\nLearn more about the\n[web search tool](https://platform.openai.com/docs/guides/tools-web-search)."
+      },
+      "Filters": {
+        "properties": {
+          "allowed_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Domains"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Filters",
+        "description": "Filters for the search."
+      },
+      "openai__types__responses__web_search_tool__UserLocation": {
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "approximate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "UserLocation",
+        "description": "The approximate location of the user."
+      },
+      "Mcp": {
+        "properties": {
+          "server_label": {
+            "type": "string",
+            "title": "Server Label"
+          },
+          "type": {
+            "type": "string",
+            "const": "mcp",
+            "title": "Type"
+          },
+          "allowed_callers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "direct",
+                    "programmatic"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Callers"
+          },
+          "allowed_tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/McpAllowedToolsMcpToolFilter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Tools"
+          },
+          "authorization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorization"
+          },
+          "connector_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "connector_dropbox",
+                  "connector_gmail",
+                  "connector_googlecalendar",
+                  "connector_googledrive",
+                  "connector_microsoftteams",
+                  "connector_outlookcalendar",
+                  "connector_outlookemail",
+                  "connector_sharepoint"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Id"
+          },
+          "defer_loading": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Defer Loading"
+          },
+          "headers": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headers"
+          },
+          "require_approval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/McpRequireApprovalMcpToolApprovalFilter"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "always",
+                  "never"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Require Approval"
+          },
+          "server_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Description"
+          },
+          "server_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Url"
+          },
+          "tunnel_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tunnel Id"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "server_label",
+          "type"
+        ],
+        "title": "Mcp",
+        "description": "Give the model access to additional tools via remote Model Context Protocol\n(MCP) servers. [Learn more about MCP](https://platform.openai.com/docs/guides/tools-remote-mcp)."
+      },
+      "McpAllowedToolsMcpToolFilter": {
+        "properties": {
+          "read_only": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Only"
+          },
+          "tool_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Names"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "McpAllowedToolsMcpToolFilter",
+        "description": "A filter object to specify which tools are allowed."
+      },
+      "McpRequireApprovalMcpToolApprovalFilter": {
+        "properties": {
+          "always": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/McpRequireApprovalMcpToolApprovalFilterAlways"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "never": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/McpRequireApprovalMcpToolApprovalFilterNever"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "McpRequireApprovalMcpToolApprovalFilter",
+        "description": "Specify which of the MCP server's tools require approval.\n\nCan be\n`always`, `never`, or a filter object associated with tools\nthat require approval."
+      },
+      "McpRequireApprovalMcpToolApprovalFilterAlways": {
+        "properties": {
+          "read_only": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Only"
+          },
+          "tool_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Names"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "McpRequireApprovalMcpToolApprovalFilterAlways",
+        "description": "A filter object to specify which tools are allowed."
+      },
+      "McpRequireApprovalMcpToolApprovalFilterNever": {
+        "properties": {
+          "read_only": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Only"
+          },
+          "tool_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Names"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "McpRequireApprovalMcpToolApprovalFilterNever",
+        "description": "A filter object to specify which tools are allowed."
+      },
+      "CodeInterpreter": {
+        "properties": {
+          "container": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/CodeInterpreterContainerCodeInterpreterToolAuto"
+              }
+            ],
+            "title": "Container"
+          },
+          "type": {
+            "type": "string",
+            "const": "code_interpreter",
+            "title": "Type"
+          },
+          "allowed_callers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "direct",
+                    "programmatic"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Callers"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "container",
+          "type"
+        ],
+        "title": "CodeInterpreter",
+        "description": "A tool that runs Python code to help generate a response to a prompt."
+      },
+      "CodeInterpreterContainerCodeInterpreterToolAuto": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "auto",
+            "title": "Type"
+          },
+          "file_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Ids"
+          },
+          "memory_limit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "1g",
+                  "4g",
+                  "16g",
+                  "64g"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Limit"
+          },
+          "network_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContainerNetworkPolicyDisabled"
+              },
+              {
+                "$ref": "#/components/schemas/ContainerNetworkPolicyAllowlist"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network Policy"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "CodeInterpreterContainerCodeInterpreterToolAuto",
+        "description": "Configuration for a code interpreter container.\n\nOptionally specify the IDs of the files to run the code on."
+      },
+      "ContainerNetworkPolicyDisabled": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "disabled",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ContainerNetworkPolicyDisabled"
+      },
+      "ContainerNetworkPolicyAllowlist": {
+        "properties": {
+          "allowed_domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Domains"
+          },
+          "type": {
+            "type": "string",
+            "const": "allowlist",
+            "title": "Type"
+          },
+          "domain_secrets": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ContainerNetworkPolicyDomainSecret"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Secrets"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "allowed_domains",
+          "type"
+        ],
+        "title": "ContainerNetworkPolicyAllowlist"
+      },
+      "ContainerNetworkPolicyDomainSecret": {
+        "properties": {
+          "domain": {
+            "type": "string",
+            "title": "Domain"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "domain",
+          "name",
+          "value"
+        ],
+        "title": "ContainerNetworkPolicyDomainSecret"
+      },
+      "ProgrammaticToolCalling": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "programmatic_tool_calling",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ProgrammaticToolCalling"
+      },
+      "ImageGeneration": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "image_generation",
+            "title": "Type"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "generate",
+                  "edit",
+                  "auto"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "background": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "transparent",
+                  "opaque",
+                  "auto"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Background"
+          },
+          "input_fidelity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "low"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Fidelity"
+          },
+          "input_image_mask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageGenerationInputImageMask"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "gpt-image-1",
+                  "gpt-image-1-mini",
+                  "gpt-image-2",
+                  "gpt-image-2-2026-04-21",
+                  "gpt-image-1.5",
+                  "chatgpt-image-latest"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "moderation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "low"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moderation"
+          },
+          "output_compression": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Compression"
+          },
+          "output_format": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "png",
+                  "webp",
+                  "jpeg"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Format"
+          },
+          "partial_images": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial Images"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "auto"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "1024x1024",
+                  "1024x1536",
+                  "1536x1024",
+                  "auto"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ImageGeneration",
+        "description": "A tool that generates images using the GPT image models."
+      },
+      "ImageGenerationInputImageMask": {
+        "properties": {
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "ImageGenerationInputImageMask",
+        "description": "Optional mask for inpainting.\n\nContains `image_url`\n(string, optional) and `file_id` (string, optional)."
+      },
+      "LocalShell": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "local_shell",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "LocalShell",
+        "description": "A tool that allows the model to execute shell commands in a local environment."
+      },
+      "FunctionShellTool": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "shell",
+            "title": "Type"
+          },
+          "allowed_callers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "direct",
+                    "programmatic"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Callers"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContainerAuto"
+              },
+              {
+                "$ref": "#/components/schemas/LocalEnvironment"
+              },
+              {
+                "$ref": "#/components/schemas/ContainerReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "FunctionShellTool",
+        "description": "A tool that allows the model to execute shell commands."
+      },
+      "ContainerAuto": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "container_auto",
+            "title": "Type"
+          },
+          "file_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Ids"
+          },
+          "memory_limit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "1g",
+                  "4g",
+                  "16g",
+                  "64g"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Limit"
+          },
+          "network_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContainerNetworkPolicyDisabled"
+              },
+              {
+                "$ref": "#/components/schemas/ContainerNetworkPolicyAllowlist"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network Policy"
+          },
+          "skills": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SkillReference"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InlineSkill"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skills"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ContainerAuto"
+      },
+      "SkillReference": {
+        "properties": {
+          "skill_id": {
+            "type": "string",
+            "title": "Skill Id"
+          },
+          "type": {
+            "type": "string",
+            "const": "skill_reference",
+            "title": "Type"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "skill_id",
+          "type"
+        ],
+        "title": "SkillReference"
+      },
+      "InlineSkill": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "$ref": "#/components/schemas/InlineSkillSource"
+          },
+          "type": {
+            "type": "string",
+            "const": "inline",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "description",
+          "name",
+          "source",
+          "type"
+        ],
+        "title": "InlineSkill"
+      },
+      "InlineSkillSource": {
+        "properties": {
+          "data": {
+            "type": "string",
+            "title": "Data"
+          },
+          "media_type": {
+            "type": "string",
+            "const": "application/zip",
+            "title": "Media Type"
+          },
+          "type": {
+            "type": "string",
+            "const": "base64",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "data",
+          "media_type",
+          "type"
+        ],
+        "title": "InlineSkillSource",
+        "description": "Inline skill payload"
+      },
+      "LocalEnvironment": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "local",
+            "title": "Type"
+          },
+          "skills": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LocalSkill"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skills"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "LocalEnvironment"
+      },
+      "LocalSkill": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "description",
+          "name",
+          "path"
+        ],
+        "title": "LocalSkill"
+      },
+      "ContainerReference": {
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "title": "Container Id"
+          },
+          "type": {
+            "type": "string",
+            "const": "container_reference",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "container_id",
+          "type"
+        ],
+        "title": "ContainerReference"
+      },
+      "CustomTool": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "const": "custom",
+            "title": "Type"
+          },
+          "allowed_callers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "direct",
+                    "programmatic"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Callers"
+          },
+          "defer_loading": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Defer Loading"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Text"
+              },
+              {
+                "$ref": "#/components/schemas/Grammar"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "CustomTool",
+        "description": "A custom tool that processes input using a specified format.\n\nLearn more about   [custom tools](https://platform.openai.com/docs/guides/function-calling#custom-tools)"
+      },
+      "Text": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "Text",
+        "description": "Unconstrained free-form text."
+      },
+      "Grammar": {
+        "properties": {
+          "definition": {
+            "type": "string",
+            "title": "Definition"
+          },
+          "syntax": {
+            "type": "string",
+            "enum": [
+              "lark",
+              "regex"
+            ],
+            "title": "Syntax"
+          },
+          "type": {
+            "type": "string",
+            "const": "grammar",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "definition",
+          "syntax",
+          "type"
+        ],
+        "title": "Grammar",
+        "description": "A grammar defined by the user."
+      },
+      "NamespaceTool": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "tools": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ToolFunction"
+                },
+                {
+                  "$ref": "#/components/schemas/CustomTool"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Tools"
+          },
+          "type": {
+            "type": "string",
+            "const": "namespace",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "description",
+          "name",
+          "tools",
+          "type"
+        ],
+        "title": "NamespaceTool",
+        "description": "Groups function/custom tools under a shared namespace."
+      },
+      "ToolFunction": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "const": "function",
+            "title": "Type"
+          },
+          "allowed_callers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "direct",
+                    "programmatic"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Callers"
+          },
+          "defer_loading": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Defer Loading"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "output_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Schema"
+          },
+          "parameters": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parameters"
+          },
+          "strict": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strict"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "ToolFunction"
+      },
+      "ToolSearchTool": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "tool_search",
+            "title": "Type"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "server",
+                  "client"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution"
+          },
+          "parameters": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parameters"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ToolSearchTool",
+        "description": "Hosted or BYOT tool search configuration for deferred tools."
+      },
+      "WebSearchPreviewTool": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "web_search_preview",
+              "web_search_preview_2025_03_11"
+            ],
+            "title": "Type"
+          },
+          "search_content_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "text",
+                    "image"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Content Types"
+          },
+          "search_context_size": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Context Size"
+          },
+          "user_location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/openai__types__responses__web_search_preview_tool__UserLocation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "WebSearchPreviewTool",
+        "description": "This tool searches the web for relevant results to use in a response.\n\nLearn more about the [web search tool](https://platform.openai.com/docs/guides/tools-web-search)."
+      },
+      "openai__types__responses__web_search_preview_tool__UserLocation": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "approximate",
+            "title": "Type"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "UserLocation",
+        "description": "The user's location."
+      },
+      "ApplyPatchTool": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "apply_patch",
+            "title": "Type"
+          },
+          "allowed_callers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "direct",
+                    "programmatic"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Callers"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ApplyPatchTool",
+        "description": "Allows the assistant to create, delete, or update files using unified diffs."
+      },
+      "AdditionalTools": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "user",
+              "assistant",
+              "system",
+              "critic",
+              "discriminator",
+              "developer",
+              "tool"
+            ],
+            "title": "Role"
+          },
+          "tools": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/FunctionTool"
+                },
+                {
+                  "$ref": "#/components/schemas/FileSearchTool"
+                },
+                {
+                  "$ref": "#/components/schemas/ComputerTool"
+                },
+                {
+                  "$ref": "#/components/schemas/ComputerUsePreviewTool"
+                },
+                {
+                  "$ref": "#/components/schemas/WebSearchTool"
+                },
+                {
+                  "$ref": "#/components/schemas/Mcp"
+                },
+                {
+                  "$ref": "#/components/schemas/CodeInterpreter"
+                },
+                {
+                  "$ref": "#/components/schemas/ProgrammaticToolCalling"
+                },
+                {
+                  "$ref": "#/components/schemas/ImageGeneration"
+                },
+                {
+                  "$ref": "#/components/schemas/LocalShell"
+                },
+                {
+                  "$ref": "#/components/schemas/FunctionShellTool"
+                },
+                {
+                  "$ref": "#/components/schemas/CustomTool"
+                },
+                {
+                  "$ref": "#/components/schemas/NamespaceTool"
+                },
+                {
+                  "$ref": "#/components/schemas/ToolSearchTool"
+                },
+                {
+                  "$ref": "#/components/schemas/WebSearchPreviewTool"
+                },
+                {
+                  "$ref": "#/components/schemas/ApplyPatchTool"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Tools"
+          },
+          "type": {
+            "type": "string",
+            "const": "additional_tools",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "tools",
+          "type"
+        ],
+        "title": "AdditionalTools"
+      },
+      "ResponseCompactionItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "encrypted_content": {
+            "type": "string",
+            "title": "Encrypted Content"
+          },
+          "type": {
+            "type": "string",
+            "const": "compaction",
+            "title": "Type"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "encrypted_content",
+          "type"
+        ],
+        "title": "ResponseCompactionItem",
+        "description": "A compaction item generated by the [`v1/responses/compact` API](https://platform.openai.com/docs/api-reference/responses/compact)."
+      },
+      "ImageGenerationCall": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "generating",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "image_generation_call",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "type"
+        ],
+        "title": "ImageGenerationCall",
+        "description": "An image generation request made by the model."
+      },
+      "ResponseCodeInterpreterToolCall": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "container_id": {
+            "type": "string",
+            "title": "Container Id"
+          },
+          "outputs": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OutputLogs"
+                    },
+                    {
+                      "$ref": "#/components/schemas/OutputImage"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputs"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete",
+              "interpreting",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "code_interpreter_call",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "container_id",
+          "status",
+          "type"
+        ],
+        "title": "ResponseCodeInterpreterToolCall",
+        "description": "A tool call to run code."
+      },
+      "OutputLogs": {
+        "properties": {
+          "logs": {
+            "type": "string",
+            "title": "Logs"
+          },
+          "type": {
+            "type": "string",
+            "const": "logs",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "logs",
+          "type"
+        ],
+        "title": "OutputLogs",
+        "description": "The logs output from the code interpreter."
+      },
+      "OutputImage": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "image",
+            "title": "Type"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "url"
+        ],
+        "title": "OutputImage",
+        "description": "The image output from the code interpreter."
+      },
+      "LocalShellCall": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "action": {
+            "$ref": "#/components/schemas/LocalShellCallAction"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "local_shell_call",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "call_id",
+          "status",
+          "type"
+        ],
+        "title": "LocalShellCall",
+        "description": "A tool call to run a command on the local shell."
+      },
+      "LocalShellCallAction": {
+        "properties": {
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Command"
+          },
+          "env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Env"
+          },
+          "type": {
+            "type": "string",
+            "const": "exec",
+            "title": "Type"
+          },
+          "timeout_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout Ms"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User"
+          },
+          "working_directory": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Working Directory"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "command",
+          "env",
+          "type"
+        ],
+        "title": "LocalShellCallAction",
+        "description": "Execute a shell command on the server."
+      },
+      "LocalShellCallOutput": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "output": {
+            "type": "string",
+            "title": "Output"
+          },
+          "type": {
+            "type": "string",
+            "const": "local_shell_call_output",
+            "title": "Type"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "in_progress",
+                  "completed",
+                  "incomplete"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "output",
+          "type"
+        ],
+        "title": "LocalShellCallOutput",
+        "description": "The output of a local shell tool call."
+      },
+      "ResponseFunctionShellToolCall": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "action": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResponseLocalEnvironment"
+              },
+              {
+                "$ref": "#/components/schemas/ResponseContainerReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "shell_call",
+            "title": "Type"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CallerDirect"
+              },
+              {
+                "$ref": "#/components/schemas/CallerProgram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caller"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "call_id",
+          "status",
+          "type"
+        ],
+        "title": "ResponseFunctionShellToolCall",
+        "description": "A tool call that executes one or more shell commands in a managed environment."
+      },
+      "Action": {
+        "properties": {
+          "commands": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Commands"
+          },
+          "max_output_length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Length"
+          },
+          "timeout_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout Ms"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "commands"
+        ],
+        "title": "Action",
+        "description": "The shell commands and limits that describe how to run the tool call."
+      },
+      "ResponseLocalEnvironment": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "local",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ResponseLocalEnvironment",
+        "description": "Represents the use of a local environment to perform shell actions."
+      },
+      "ResponseContainerReference": {
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "title": "Container Id"
+          },
+          "type": {
+            "type": "string",
+            "const": "container_reference",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "container_id",
+          "type"
+        ],
+        "title": "ResponseContainerReference",
+        "description": "Represents a container created with /v1/containers."
+      },
+      "ResponseFunctionShellToolCallOutput": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "max_output_length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Length"
+          },
+          "output": {
+            "items": {
+              "$ref": "#/components/schemas/Output"
+            },
+            "type": "array",
+            "title": "Output"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "shell_call_output",
+            "title": "Type"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CallerDirect"
+              },
+              {
+                "$ref": "#/components/schemas/CallerProgram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caller"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "call_id",
+          "output",
+          "status",
+          "type"
+        ],
+        "title": "ResponseFunctionShellToolCallOutput",
+        "description": "The output of a shell tool call that was emitted."
+      },
+      "Output": {
+        "properties": {
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OutputOutcomeTimeout"
+              },
+              {
+                "$ref": "#/components/schemas/OutputOutcomeExit"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "stderr": {
+            "type": "string",
+            "title": "Stderr"
+          },
+          "stdout": {
+            "type": "string",
+            "title": "Stdout"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "outcome",
+          "stderr",
+          "stdout"
+        ],
+        "title": "Output",
+        "description": "The content of a shell tool call output that was emitted."
+      },
+      "OutputOutcomeTimeout": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "timeout",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "OutputOutcomeTimeout",
+        "description": "Indicates that the shell call exceeded its configured time limit."
+      },
+      "OutputOutcomeExit": {
+        "properties": {
+          "exit_code": {
+            "type": "integer",
+            "title": "Exit Code"
+          },
+          "type": {
+            "type": "string",
+            "const": "exit",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "exit_code",
+          "type"
+        ],
+        "title": "OutputOutcomeExit",
+        "description": "Indicates that the shell commands finished and returned an exit code."
+      },
+      "ResponseApplyPatchToolCall": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationCreateFile"
+              },
+              {
+                "$ref": "#/components/schemas/OperationDeleteFile"
+              },
+              {
+                "$ref": "#/components/schemas/OperationUpdateFile"
+              }
+            ],
+            "title": "Operation"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "apply_patch_call",
+            "title": "Type"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CallerDirect"
+              },
+              {
+                "$ref": "#/components/schemas/CallerProgram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caller"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "call_id",
+          "operation",
+          "status",
+          "type"
+        ],
+        "title": "ResponseApplyPatchToolCall",
+        "description": "A tool call that applies file diffs by creating, deleting, or updating files."
+      },
+      "OperationCreateFile": {
+        "properties": {
+          "diff": {
+            "type": "string",
+            "title": "Diff"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "type": {
+            "type": "string",
+            "const": "create_file",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "diff",
+          "path",
+          "type"
+        ],
+        "title": "OperationCreateFile",
+        "description": "Instruction describing how to create a file via the apply_patch tool."
+      },
+      "OperationDeleteFile": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "type": {
+            "type": "string",
+            "const": "delete_file",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "path",
+          "type"
+        ],
+        "title": "OperationDeleteFile",
+        "description": "Instruction describing how to delete a file via the apply_patch tool."
+      },
+      "OperationUpdateFile": {
+        "properties": {
+          "diff": {
+            "type": "string",
+            "title": "Diff"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "type": {
+            "type": "string",
+            "const": "update_file",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "diff",
+          "path",
+          "type"
+        ],
+        "title": "OperationUpdateFile",
+        "description": "Instruction describing how to update a file via the apply_patch tool."
+      },
+      "ResponseApplyPatchToolCallOutput": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "type": {
+            "type": "string",
+            "const": "apply_patch_call_output",
+            "title": "Type"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CallerDirect"
+              },
+              {
+                "$ref": "#/components/schemas/CallerProgram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caller"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "call_id",
+          "status",
+          "type"
+        ],
+        "title": "ResponseApplyPatchToolCallOutput",
+        "description": "The output emitted by an apply patch tool call."
+      },
+      "McpCall": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "arguments": {
+            "type": "string",
+            "title": "Arguments"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "server_label": {
+            "type": "string",
+            "title": "Server Label"
+          },
+          "type": {
+            "type": "string",
+            "const": "mcp_call",
+            "title": "Type"
+          },
+          "approval_request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Request Id"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "in_progress",
+                  "completed",
+                  "incomplete",
+                  "calling",
+                  "failed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "arguments",
+          "name",
+          "server_label",
+          "type"
+        ],
+        "title": "McpCall",
+        "description": "An invocation of a tool on an MCP server."
+      },
+      "McpListTools": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "server_label": {
+            "type": "string",
+            "title": "Server Label"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/McpListToolsTool"
+            },
+            "type": "array",
+            "title": "Tools"
+          },
+          "type": {
+            "type": "string",
+            "const": "mcp_list_tools",
+            "title": "Type"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "server_label",
+          "tools",
+          "type"
+        ],
+        "title": "McpListTools",
+        "description": "A list of tools available on an MCP server."
+      },
+      "McpListToolsTool": {
+        "properties": {
+          "input_schema": {
+            "title": "Input Schema"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "annotations": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annotations"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "input_schema",
+          "name"
+        ],
+        "title": "McpListToolsTool",
+        "description": "A tool available on an MCP server."
+      },
+      "McpApprovalRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "arguments": {
+            "type": "string",
+            "title": "Arguments"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "server_label": {
+            "type": "string",
+            "title": "Server Label"
+          },
+          "type": {
+            "type": "string",
+            "const": "mcp_approval_request",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "arguments",
+          "name",
+          "server_label",
+          "type"
+        ],
+        "title": "McpApprovalRequest",
+        "description": "A request for human approval of a tool invocation."
+      },
+      "McpApprovalResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "approval_request_id": {
+            "type": "string",
+            "title": "Approval Request Id"
+          },
+          "approve": {
+            "type": "boolean",
+            "title": "Approve"
+          },
+          "type": {
+            "type": "string",
+            "const": "mcp_approval_response",
+            "title": "Type"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "approval_request_id",
+          "approve",
+          "type"
+        ],
+        "title": "McpApprovalResponse",
+        "description": "A response to an MCP approval request."
+      },
+      "ResponseCustomToolCall": {
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "input": {
+            "type": "string",
+            "title": "Input"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "const": "custom_tool_call",
+            "title": "Type"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CallerDirect"
+              },
+              {
+                "$ref": "#/components/schemas/CallerProgram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caller"
+          },
+          "namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Namespace"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "call_id",
+          "input",
+          "name",
+          "type"
+        ],
+        "title": "ResponseCustomToolCall",
+        "description": "A call to a custom tool created by the model."
+      },
+      "ResponseCustomToolCallOutputItem": {
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ResponseInputText"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseInputImage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseInputFile"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Output"
+          },
+          "type": {
+            "type": "string",
+            "const": "custom_tool_call_output",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CallerDirect"
+              },
+              {
+                "$ref": "#/components/schemas/CallerProgram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caller"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "call_id",
+          "output",
+          "type",
+          "id",
+          "status"
+        ],
+        "title": "ResponseCustomToolCallOutputItem",
+        "description": "The output of a custom tool call from your code, being sent back to the model."
+      },
+      "GenericResponseOutputItem": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/OutputText"
+            },
+            "type": "array",
+            "title": "Content"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "commentary",
+                  "final_answer"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "status",
+          "role",
+          "content"
+        ],
+        "title": "GenericResponseOutputItem",
+        "description": "Generic response API output item"
+      },
+      "OutputText": {
+        "properties": {
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "annotations": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/GenericResponseOutputItemContentAnnotation"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annotations"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "text",
+          "annotations"
+        ],
+        "title": "OutputText",
+        "description": "Text output content from an assistant message"
+      },
+      "GenericResponseOutputItemContentAnnotation": {
+        "properties": {
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "start_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Index"
+          },
+          "end_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Index"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "start_index",
+          "end_index",
+          "url",
+          "title"
+        ],
+        "title": "GenericResponseOutputItemContentAnnotation",
+        "description": "Annotation for content in a message"
+      },
+      "OutputCodeInterpreterCall": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "code_interpreter_call",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "container_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Container Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "outputs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OutputCodeInterpreterCallLog"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputs"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "code",
+          "container_id",
+          "status",
+          "outputs"
+        ],
+        "title": "OutputCodeInterpreterCall",
+        "description": "A code interpreter / code execution call output"
+      },
+      "OutputCodeInterpreterCallLog": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "logs",
+            "title": "Type"
+          },
+          "logs": {
+            "type": "string",
+            "title": "Logs"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "logs"
+        ],
+        "title": "OutputCodeInterpreterCallLog",
+        "description": "Log output from a code interpreter call"
+      },
+      "OutputFunctionToolCall": {
+        "properties": {
+          "arguments": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arguments"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete"
+            ],
+            "title": "Status"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "commentary",
+                  "final_answer"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "arguments",
+          "call_id",
+          "name",
+          "type",
+          "id",
+          "status"
+        ],
+        "title": "OutputFunctionToolCall",
+        "description": "A tool call to run a function"
+      },
+      "OutputImageGenerationCall": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "image_generation_call",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "incomplete",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "status",
+          "result"
+        ],
+        "title": "OutputImageGenerationCall",
+        "description": "An image generation call output"
+      },
+      "CustomToolCallOutputItem": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "custom_tool_call",
+            "title": "Type"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "input": {
+            "type": "string",
+            "title": "Input"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "in_progress",
+                  "completed",
+                  "incomplete"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "call_id",
+          "name",
+          "input"
+        ],
+        "title": "CustomToolCallOutputItem",
+        "description": "A custom/freeform tool call output item (e.g. apply_patch).\n\nMirrors the ``custom_tool_call`` variant of OpenAI's Responses API output.\nUnlike ``OutputFunctionToolCall`` which uses ``arguments`` (JSON string),\nthis uses ``input`` (raw string) for the tool payload."
+      },
+      "ToolChoiceAllowedParam": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "required"
+            ],
+            "title": "Mode"
+          },
+          "tools": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Tools"
+          },
+          "type": {
+            "type": "string",
+            "const": "allowed_tools",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "mode",
+          "tools",
+          "type"
+        ],
+        "title": "ToolChoiceAllowedParam",
+        "description": "Constrains the tools available to the model to a pre-defined set."
+      },
+      "ToolChoiceTypesParam": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "file_search",
+              "web_search_preview",
+              "computer",
+              "computer_use_preview",
+              "computer_use",
+              "web_search_preview_2025_03_11",
+              "image_generation",
+              "code_interpreter"
+            ],
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ToolChoiceTypesParam",
+        "description": "Indicates that the model should use a built-in tool to generate a response.\n[Learn more about built-in tools](https://platform.openai.com/docs/guides/tools)."
+      },
+      "ToolChoiceFunctionParam": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "const": "function",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "ToolChoiceFunctionParam",
+        "description": "Use this option to force the model to call a specific function."
+      },
+      "ToolChoiceMcpParam": {
+        "properties": {
+          "server_label": {
+            "type": "string",
+            "title": "Server Label"
+          },
+          "type": {
+            "type": "string",
+            "const": "mcp",
+            "title": "Type"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "server_label",
+          "type"
+        ],
+        "title": "ToolChoiceMcpParam",
+        "description": "Use this option to force the model to call a specific tool on a remote MCP server."
+      },
+      "ToolChoiceCustomParam": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "const": "custom",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "ToolChoiceCustomParam",
+        "description": "Use this option to force the model to call a specific custom tool."
+      },
+      "ToolChoiceSpecificProgrammaticToolCallingParam": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "programmatic_tool_calling",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ToolChoiceSpecificProgrammaticToolCallingParam"
+      },
+      "ToolChoiceApplyPatchParam": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "apply_patch",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ToolChoiceApplyPatchParam",
+        "description": "Forces the model to call the apply_patch tool when executing a tool call."
+      },
+      "ToolChoiceShellParam": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "shell",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ToolChoiceShellParam",
+        "description": "Forces the model to call the shell tool when a tool call is required."
+      },
+      "ResponseTextConfigParam": {
+        "properties": {
+          "format": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResponseFormatText"
+              },
+              {
+                "$ref": "#/components/schemas/ResponseFormatTextJSONSchemaConfigParam"
+              },
+              {
+                "$ref": "#/components/schemas/ResponseFormatJSONObject"
+              }
+            ],
+            "title": "Format"
+          },
+          "verbosity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verbosity"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "ResponseTextConfigParam",
+        "description": "Configuration options for a text response from the model.\n\nCan be plain\ntext or structured JSON data. Learn more:\n- [Text inputs and outputs](https://platform.openai.com/docs/guides/text)\n- [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs)"
+      },
+      "ResponseFormatText": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ResponseFormatText",
+        "description": "Default response format. Used to generate text responses."
+      },
+      "ResponseFormatTextJSONSchemaConfigParam": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Schema"
+          },
+          "type": {
+            "type": "string",
+            "const": "json_schema",
+            "title": "Type"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "strict": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strict"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "name",
+          "schema",
+          "type"
+        ],
+        "title": "ResponseFormatTextJSONSchemaConfigParam",
+        "description": "JSON Schema response format.\n\nUsed to generate structured JSON responses.\nLearn more about [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs)."
+      },
+      "ResponseFormatJSONObject": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "json_object",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ResponseFormatJSONObject",
+        "description": "JSON object response format.\n\nAn older method of generating JSON responses.\nUsing `json_schema` is recommended for models that support it. Note that the\nmodel will not generate JSON without a system or user message instructing it\nto do so."
+      },
+      "ResponseAPIUsage": {
+        "properties": {
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "input_tokens_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InputTokensDetails"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "output_tokens_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OutputTokensDetails"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "input_tokens",
+          "output_tokens",
+          "total_tokens"
+        ],
+        "title": "ResponseAPIUsage"
+      },
+      "InputTokensDetails": {
+        "properties": {
+          "audio_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Tokens"
+          },
+          "cached_tokens": {
+            "type": "integer",
+            "title": "Cached Tokens",
+            "default": 0
+          },
+          "cached_tokens_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CachedTokensDetails"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "image_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Tokens"
+          },
+          "text_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Tokens"
+          },
+          "video_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Tokens"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "InputTokensDetails"
+      },
+      "CachedTokensDetails": {
+        "properties": {
+          "text_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Tokens"
+          },
+          "audio_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Tokens"
+          },
+          "image_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Tokens"
+          }
+        },
+        "type": "object",
+        "title": "CachedTokensDetails"
+      },
+      "OutputTokensDetails": {
+        "properties": {
+          "audio_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Tokens"
+          },
+          "reasoning_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Tokens"
+          },
+          "text_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Tokens"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "OutputTokensDetails"
+      }
+    }
+  }
+}

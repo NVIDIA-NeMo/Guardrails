@@ -17,7 +17,7 @@
 
 Structurally validates the tool results carried on an incoming request against
 the tool calls the model previously made: every result must link to a prior
-call by ``call_id``, name a tool consistent with that call, and carry
+call by ``call_id``, must not name a different tool than that call, and must carry
 well-formed content. This PR validates structure only -- there are no declared
 response schemas yet. The rail is local and model-free; it runs through
 :meth:`ToolRailAction._guarded`, so a malformed result or an unexpected error
@@ -29,7 +29,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, List
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
+from nemoguardrails.guardrails.guardrails_types import quoted_identity
+from nemoguardrails.guardrails.tool_rail_action import ToolRailAction, violations_outcome
+from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
 
 if TYPE_CHECKING:
     from nemoguardrails.guardrails.tool_schema import ToolResult
@@ -47,6 +49,33 @@ def _is_well_formed_content(content: object) -> bool:
     return isinstance(content, list) and all(isinstance(block, dict) for block in content)
 
 
+def _names_a_different_tool(result: "ToolResult", prior: "ToolCall") -> bool:
+    """Whether the result's own name contradicts the tool its linked call named."""
+    if not prior.function.name:
+        return False
+    if not result.name:
+        # An OpenAI tool message carries no name; its call_id already binds it to exactly one call.
+        return False
+    return result.name != prior.function.name
+
+
+def _result_violation(
+    result: "ToolResult",
+    violation_type: ToolViolationType,
+    reason: str,
+    prior: "ToolCall | None" = None,
+) -> ToolViolation:
+    """A violation for *result*, naming the tool from its linked call, never from the result itself."""
+    return ToolViolation(
+        kind="tool_result",
+        violation_type=violation_type,
+        reason=reason,
+        tool_call_id=result.call_id or None,
+        tool_name=(prior.function.name or prior.type) if prior is not None else None,
+        index=result.message_index,
+    )
+
+
 class ToolResultRailAction(ToolRailAction):
     """Check incoming tool results link to a prior call and are structurally well-formed."""
 
@@ -57,102 +86,83 @@ class ToolResultRailAction(ToolRailAction):
         return self._guarded(lambda: self._validate(tool_results, prior_calls))
 
     def _validate(self, tool_results: List["ToolResult"], prior_calls: List["ToolCall"]) -> RailOutcome:
-        """Check call_id linkage, name consistency, and content shape for each result."""
-        calls_by_id = self._validate_prior_calls(prior_calls)
-        if isinstance(calls_by_id, RailOutcome):
-            return calls_by_id
-        return self._validate_results(tool_results, calls_by_id)
+        """Check call_id linkage, name consistency and content shape, reporting every result that fails."""
+        prior_violations = self._duplicate_prior_call_violations(prior_calls)
+        if prior_violations:
+            # No result can be linked to an ambiguous call, so checking them would only add noise.
+            return violations_outcome(prior_violations)
+        calls_by_id = {call.id: call for call in prior_calls if call.id}
+        return violations_outcome(self._result_violations(tool_results, calls_by_id))
 
-    def _validate_prior_calls(self, prior_calls: List["ToolCall"]) -> "RailOutcome | dict[str, ToolCall]":
-        """Build a call_id index from prior_calls; return a blocking RailOutcome on duplicate IDs."""
-        calls_by_id: dict[str, "ToolCall"] = {}
+    def _duplicate_prior_call_violations(self, prior_calls: List["ToolCall"]) -> list[ToolViolation]:
+        """One violation per call id that several prior calls share, in first-seen order."""
+        seen: set[str] = set()
+        duplicated: list[str] = []
         for call in prior_calls:
             if not call.id:
                 continue
-            if call.id in calls_by_id:
-                return RailOutcome.block(
-                    reason=f"duplicate prior tool call id '{call.id}' makes tool-result linkage ambiguous",
-                )
-            calls_by_id[call.id] = call
-        return calls_by_id
+            if call.id in seen and call.id not in duplicated:
+                duplicated.append(call.id)
+            seen.add(call.id)
+        return [
+            ToolViolation(
+                kind="tool_result",
+                violation_type=ToolViolationType.DUPLICATE_PRIOR_CALL_ID,
+                reason=f"duplicate prior tool call id '{quoted_identity(call_id)}' makes tool-result linkage ambiguous",
+                tool_call_id=call_id,
+            )
+            for call_id in duplicated
+        ]
 
-    def _validate_results(self, tool_results: List["ToolResult"], calls_by_id: "dict[str, ToolCall]") -> RailOutcome:
-        """Check each result links to a prior call with a consistent name and well-formed content."""
-        outcome = self._validate_tool_result_ids(tool_results)
-        if outcome is not None:
-            return outcome
-
+    def _result_violations(
+        self, tool_results: List["ToolResult"], calls_by_id: "dict[str, ToolCall]"
+    ) -> list[ToolViolation]:
+        """The first check each result fails, in result order."""
+        violations: list[ToolViolation] = []
+        seen_ids: set[str] = set()
         for result in tool_results:
-            outcome = self._validate_result_call_id(result, calls_by_id)
-            if outcome is not None:
-                return outcome
+            violation = self._first_failed_check(result, calls_by_id, seen_ids)
+            if violation is not None:
+                violations.append(violation)
+            if result.call_id:
+                seen_ids.add(result.call_id)
+        return violations
 
-            prior = calls_by_id[result.call_id]  # ty: ignore[invalid-argument-type]
-            outcome = self._validate_result_name(result, prior)
-            if outcome is not None:
-                return outcome
-
-            outcome = self._validate_result_content(result)
-            if outcome is not None:
-                return outcome
-
-        return RailOutcome.allow()
-
-    def _validate_tool_result_ids(self, tool_results: List["ToolResult"]) -> "RailOutcome | None":
-        """Return a blocking RailOutcome if any call_id appears more than once in the result list."""
-        seen: set[str] = set()
-        for result in tool_results:
-            if not result.call_id:
-                continue
-            if result.call_id in seen:
-                return RailOutcome.block(
-                    reason=f"duplicate tool result for call_id '{result.call_id}': each tool call must have exactly one result",
-                )
-            seen.add(result.call_id)
-        return None
-
-    def _validate_result_call_id(
-        self, result: "ToolResult", calls_by_id: "dict[str, ToolCall]"
-    ) -> "RailOutcome | None":
-        """Return a blocking RailOutcome if the result is missing a call_id or it has no prior call."""
+    def _first_failed_check(
+        self, result: "ToolResult", calls_by_id: "dict[str, ToolCall]", seen_ids: set[str]
+    ) -> "ToolViolation | None":
+        """The first check *result* fails: its call_id, a duplicate, linkage, name, then content."""
         call_id = result.call_id
         if not call_id:
-            return RailOutcome.block(reason="tool result is missing a call_id")
-        if calls_by_id.get(call_id) is None:
-            return RailOutcome.block(
-                reason=f"tool result for call_id '{call_id}' does not correspond to a prior tool call",
+            return _result_violation(result, ToolViolationType.MISSING_CALL_ID, "tool result is missing a call_id")
+        prior = calls_by_id.get(call_id)
+        quoted_call_id = quoted_identity(call_id)
+        if call_id in seen_ids:
+            return _result_violation(
+                result,
+                ToolViolationType.DUPLICATE_RESULT,
+                f"duplicate tool result for call_id '{quoted_call_id}': each tool call must have exactly one result",
+                prior,
             )
-        return None
-
-    def _validate_result_name(self, result: "ToolResult", prior: "ToolCall") -> "RailOutcome | None":
-        """Return a blocking RailOutcome unless the result name matches the prior call's function name.
-
-        When the prior call's name is known, the result must carry that exact name: a
-        missing name no longer slips through on call_id linkage alone (it could mislabel a
-        result from a different tool), and a mismatched name is rejected. When the prior
-        call's name is unknown there is nothing to compare against, so the check returns None.
-        """
-        if not prior.function.name:
-            return None
-        if result.name == prior.function.name:
-            return None
-        if not result.name:
-            return RailOutcome.block(
-                reason=(
-                    f"tool result for call_id '{result.call_id}' is missing a name; expected '{prior.function.name}'"
-                ),
+        if prior is None:
+            return _result_violation(
+                result,
+                ToolViolationType.UNKNOWN_CALL_ID,
+                f"tool result for call_id '{quoted_call_id}' does not correspond to a prior tool call",
             )
-        return RailOutcome.block(
-            reason=(
-                f"tool result name '{result.name}' does not match the called tool "
-                f"'{prior.function.name}' for call_id '{result.call_id}'"
-            ),
-        )
-
-    def _validate_result_content(self, result: "ToolResult") -> "RailOutcome | None":
-        """Return a blocking RailOutcome if the result content is not a string or list of dicts."""
+        if _names_a_different_tool(result, prior):
+            return _result_violation(
+                result,
+                ToolViolationType.NAME_MISMATCH,
+                f"tool result name '{quoted_identity(result.name)}' does not match the called tool "
+                f"'{quoted_identity(prior.function.name)}' for call_id '{quoted_call_id}'",
+                prior,
+            )
         if result.content is not None and not _is_well_formed_content(result.content):
-            return RailOutcome.block(
-                reason=f"tool result for call_id '{result.call_id}' has malformed content",
+            return _result_violation(
+                result,
+                ToolViolationType.MALFORMED_CONTENT,
+                f"tool result for call_id '{quoted_call_id}' has malformed content",
+                prior,
             )
         return None

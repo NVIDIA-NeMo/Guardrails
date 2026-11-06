@@ -37,6 +37,9 @@ class AttributeDict(dict):
     """
 
     def __getattr__(self, attr):
+        """Expose data keys while keeping missing Python protocol hooks absent."""
+        if attr.startswith("__") and attr.endswith("__"):
+            raise AttributeError(f"{type(self).__name__!r} object has no attribute {attr!r}")
         val = self.get(attr, None)
         if isinstance(val, dict):
             return AttributeDict(val)

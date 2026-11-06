@@ -53,6 +53,7 @@ OPENAI_INVALID_MODEL_CONFIG = RailsConfigSource.from_content(
 NIM_BASELINE_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nim_baseline")
 NEMOGUARDS_FULL_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nemoguards_full")
 DIALOG_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "dialog")
+DIALOG_GENERATION_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "dialog_generation")
 SINGLE_CALL_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "single_call")
 TASK_MODELS_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "task_models")
 STREAMING_OUTPUT_RAILS_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "streaming_output_rails")
@@ -143,5 +144,123 @@ STREAMING_DISABLED_CONFIG = RailsConfigSource.from_content(
       if $bot_message == "BLOCK"
         bot refuse to respond
         stop
+    """,
+)
+
+TOOL_ROUND_TRIP_RAILS_CONFIG = RailsConfigSource.from_content(
+    name="tool_round_trip_rails",
+    yaml_content=f"""
+    models:
+      - type: main
+        engine: openai
+        model: {OPENAI_MODEL}
+        parameters:
+          max_retries: 0
+    passthrough: false
+    rails:
+      input:
+        flows: [rewrite tool question]
+      tool_result:
+        flows: [sanitize weather]
+      output:
+        flows: [mark checked answer]
+      dialog:
+        single_call:
+          enabled: true
+    prompts:
+      - task: general
+        messages:
+          - type: system
+            content: "Call each requested tool once. After receiving tool results, quote both results exactly."
+          - "{{{{ history | to_chat_messages }}}}"
+    """,
+    colang_content="""
+    define flow rewrite tool question
+      if $user_message == "PRIVATE_USER"
+        $user_message = "Call get_paris and get_berlin, then quote both weather results exactly."
+
+    define flow sanitize weather
+      if $tool_name == "get_paris"
+        $tool_message = "PARIS-4827: sunny"
+      if $tool_name == "get_berlin"
+        $tool_message = "BERLIN-6912: rainy"
+
+    define flow mark checked answer
+      $bot_message = "Checked: " + $bot_message
+    """,
+)
+
+TOOL_CALL_BLOCK_CONFIG = RailsConfigSource.from_content(
+    name="tool_call_block",
+    yaml_content=f"""
+    models:
+      - type: main
+        engine: openai
+        model: {OPENAI_MODEL}
+        parameters:
+          max_retries: 0
+    passthrough: false
+    rails:
+      tool_call:
+        flows: [block tool call]
+    """,
+    colang_content="""
+    define flow block tool call
+      bot refuse tool call
+      abort
+
+    define bot refuse tool call
+      "Tool call rejected."
+    """,
+)
+
+PASSTHROUGH_SANITIZED_HISTORY_CONFIG = RailsConfigSource.from_content(
+    name="passthrough_sanitized_history",
+    yaml_content=f"""
+    models:
+      - type: main
+        engine: openai
+        model: {OPENAI_MODEL}
+        parameters:
+          max_retries: 0
+    passthrough: true
+    rails:
+      input:
+        flows: [sanitize history]
+    """,
+    colang_content="""
+    define flow sanitize history
+      if $user_message == "PRIVATE_USER"
+        $user_message = "The fictional weather station is named MAPLE-4827. Reply exactly: noted"
+    """,
+)
+
+WEATHER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get the current weather for a city.",
+        "parameters": {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+            "additionalProperties": False,
+        },
+    },
+}
+WEATHER_TOOL_CHOICE = {"type": "function", "function": {"name": "get_weather"}}
+
+NIM_TOOL_CALL_MODEL = "nvidia/nvidia/nemotron-3-nano-30b-a3b"
+NIM_TOOL_CALL_CONFIG = RailsConfigSource.from_content(
+    name="nim_gateway_tool_calls",
+    yaml_content=f"""
+    models:
+      - type: main
+        engine: nim
+        model: {NIM_TOOL_CALL_MODEL}
+        parameters:
+          base_url: https://inference-api.nvidia.com/v1
+          max_retries: 0
+    passthrough: true
     """,
 )

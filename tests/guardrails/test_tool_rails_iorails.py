@@ -23,6 +23,8 @@ RailsManager tool rails run end to end. They are the IORails-level companions to
 """
 
 import json
+from dataclasses import dataclass
+from typing import Optional, Union
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -33,6 +35,7 @@ from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.types import ToolCallChunk
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.tool_helpers import (
     WEATHER_SCHEMA,
@@ -46,8 +49,8 @@ BASE_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama
 TOOL_CONFIG = {
     **BASE_CONFIG,
     "rails": {
-        "tool_output": {"flows": ["tool call validation"]},
-        "tool_input": {"flows": ["tool result validation"]},
+        "tool_call": {"flows": ["tool call validation"]},
+        "tool_result": {"flows": ["tool result validation"]},
     },
 }
 
@@ -55,8 +58,8 @@ SPECULATIVE_TOOL_CONFIG = {
     **BASE_CONFIG,
     "rails": {
         "input": {"speculative_generation": True},
-        "tool_output": {"flows": ["tool call validation"]},
-        "tool_input": {"flows": ["tool result validation"]},
+        "tool_call": {"flows": ["tool call validation"]},
+        "tool_result": {"flows": ["tool result validation"]},
     },
 }
 
@@ -85,8 +88,8 @@ CONFIG_TOOLS_CONFIG = {
         }
     ],
     "rails": {
-        "tool_output": {"flows": ["tool call validation"]},
-        "tool_input": {"flows": ["tool result validation"]},
+        "tool_call": {"flows": ["tool call validation"]},
+        "tool_result": {"flows": ["tool result validation"]},
     },
 }
 
@@ -188,42 +191,50 @@ def _sse(chunk: dict) -> bytes:
     return ("data: " + json.dumps(chunk) + "\n\n").encode("utf-8")
 
 
-def _tool_call_sse_lines(name: str, arg_fragments: list, call_id: str = "call_1") -> list:
-    """SSE lines streaming a single tool call: id/name first, then argument fragments, then finish."""
-    chunks = [
-        {
-            "id": "chatcmpl-1",
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {
-                        "role": "assistant",
-                        "tool_calls": [
-                            {"index": 0, "id": call_id, "type": "function", "function": {"name": name, "arguments": ""}}
-                        ],
-                    },
-                    "finish_reason": None,
-                }
-            ],
-        }
+@dataclass(frozen=True)
+class StreamedToolCall:
+    """One tool call for a streamed response; ``call_id`` defaults to ``call_<its index>``."""
+
+    name: str
+    # One string streams the arguments in a single chunk; a list streams one chunk per fragment.
+    arguments: Union[str, list]
+    call_id: Optional[str] = None
+
+
+def _tool_calls_sse_lines(*calls: StreamedToolCall) -> list:
+    """SSE lines streaming *calls* at ``tool_calls`` indexes 0, 1, ...: each id and name, then its arguments."""
+    deltas = []
+    for index, call in enumerate(calls):
+        header = {"index": index, "id": call.call_id or f"call_{index}", "type": "function"}
+        deltas.append({"tool_calls": [{**header, "function": {"name": call.name, "arguments": ""}}]})
+        fragments = [call.arguments] if isinstance(call.arguments, str) else call.arguments
+        deltas += [{"tool_calls": [{"index": index, "function": {"arguments": fragment}}]} for fragment in fragments]
+    deltas[0] = {"role": "assistant", **deltas[0]}
+    lines = [
+        _sse({"id": "chatcmpl-1", "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}) for delta in deltas
     ]
-    for fragment in arg_fragments:
-        chunks.append(
-            {
-                "id": "chatcmpl-1",
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {"tool_calls": [{"index": 0, "function": {"arguments": fragment}}]},
-                        "finish_reason": None,
-                    }
-                ],
-            }
-        )
-    chunks.append({"id": "chatcmpl-1", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})
-    lines = [_sse(chunk) for chunk in chunks]
+    lines.append(_sse({"id": "chatcmpl-1", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}))
     lines.append(b"data: [DONE]\n\n")
     return lines
+
+
+def _tool_call_sse_lines(name: str, arg_fragments: list, call_id: str = "call_1") -> list:
+    """SSE lines streaming a single tool call: id/name first, then argument fragments, then finish."""
+    return _tool_calls_sse_lines(StreamedToolCall(name, arg_fragments, call_id))
+
+
+def _text_sse_lines(text: str) -> list:
+    """SSE lines streaming *text* as a single assistant delta, then finish."""
+    return [
+        _sse(
+            {
+                "id": "c1",
+                "choices": [{"index": 0, "delta": {"role": "assistant", "content": text}, "finish_reason": None}],
+            }
+        ),
+        _sse({"id": "c1", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}),
+        b"data: [DONE]\n\n",
+    ]
 
 
 async def _collect(stream) -> list:
@@ -251,6 +262,13 @@ async def iorails():
         yield engine
 
 
+@pytest_asyncio.fixture
+async def iorails_config_tools():
+    """A started IORails with both tool rails enabled and get_weather declared on the model."""
+    async with started_iorails(CONFIG_TOOLS_CONFIG) as engine:
+        yield engine
+
+
 class TestRouting:
     """A config with tool rails routes to IORails; misconfigured tool flows fall back."""
 
@@ -262,20 +280,20 @@ class TestRouting:
         assert guardrails.use_iorails_engine is True
         assert isinstance(guardrails.rails_engine, IORails)
 
-    def test_unknown_tool_output_flow_falls_back(self):
-        reason = IORails.unsupported_reason(_config({"tool_output": {"flows": ["make a sandwich"]}}))
+    def test_unknown_tool_call_flow_falls_back(self):
+        reason = IORails.unsupported_reason(_config({"tool_call": {"flows": ["make a sandwich"]}}))
         assert reason is not None
-        assert "tool output" in reason
+        assert "tool call" in reason
 
     def test_misdirected_flow_falls_back(self):
-        # The tool-result validator under tool_output is the wrong direction.
-        reason = IORails.unsupported_reason(_config({"tool_output": {"flows": ["tool result validation"]}}))
+        # The tool-result validator under tool_call is the wrong direction.
+        reason = IORails.unsupported_reason(_config({"tool_call": {"flows": ["tool result validation"]}}))
         assert reason is not None
-        assert "tool output" in reason
+        assert "tool call" in reason
 
     def test_duplicate_tool_flow_falls_back(self):
         reason = IORails.unsupported_reason(
-            _config({"tool_output": {"flows": ["tool call validation", "tool call validation"]}})
+            _config({"tool_call": {"flows": ["tool call validation", "tool call validation"]}})
         )
         assert reason is not None
         assert "duplicate" in reason
@@ -285,7 +303,7 @@ class TestRouting:
         # flow (the tool rails ignore the suffix); they must be caught as a duplicate
         # rather than slipping past and running twice.
         reason = IORails.unsupported_reason(
-            _config({"tool_output": {"flows": ["tool call validation", "tool call validation $model=x"]}})
+            _config({"tool_call": {"flows": ["tool call validation", "tool call validation $model=x"]}})
         )
         assert reason is not None
         assert "duplicate" in reason
@@ -294,14 +312,18 @@ class TestRouting:
         # Why unsupported_reason pre-validates duplicates: IORails.__init__ itself would
         # raise on a dup flow, so without the pre-check Guardrails could not fall back.
         with pytest.raises(RuntimeError):
-            IORails(_config({"tool_output": {"flows": ["tool call validation", "tool call validation"]}}))
+            IORails(_config({"tool_call": {"flows": ["tool call validation", "tool call validation"]}}))
 
-    def test_tool_parallel_flag_warns_inert(self):
-        # tool_*.parallel is inert (tool rails run sequentially); construction warns
-        # rather than silently ignoring it.
-        config = _config({"tool_output": {"flows": ["tool call validation"], "parallel": True}})
-        with pytest.warns(UserWarning, match="not honored by IORails"):
-            IORails(config)
+    def test_tool_parallel_flags_are_wired_through(self):
+        config = _config(
+            {
+                "tool_call": {"flows": ["tool call validation"], "parallel": True},
+                "tool_result": {"flows": ["tool result validation"], "parallel": True},
+            }
+        )
+        iorails = IORails(config)
+        assert iorails.rails_manager.tool_call_parallel is True
+        assert iorails.rails_manager.tool_result_parallel is True
 
 
 class TestNonStreamingToolCalls:
@@ -359,11 +381,6 @@ class TestConfigDeclaredTools:
     """Tools declared on the model (models[].parameters.tools) are validated by the tool-call
     rail end to end, even when the request carries no options.llm_params.tools."""
 
-    @pytest_asyncio.fixture
-    async def iorails_config_tools(self):
-        async with started_iorails(CONFIG_TOOLS_CONFIG) as engine:
-            yield engine
-
     @pytest.mark.asyncio
     async def test_config_declared_tool_call_passes(self, iorails_config_tools):
         """A call to a config-declared tool passes the rail when the request carries no llm_params."""
@@ -385,7 +402,7 @@ class TestConfigDeclaredTools:
         chunks = await _collect(iorails_config_tools.stream_async(MESSAGES))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_output_rails"
+        assert violations[0]["error"]["param"] == "tool_call_rails"
 
 
 class TestNonStreamingToolResults:
@@ -405,6 +422,23 @@ class TestNonStreamingToolResults:
         forbidden_post.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_nameless_linked_tool_result_reaches_the_model(self, iorails):
+        """A tool result without a name, linked by its call id, passes the tool-result rail and reaches the model."""
+        _inject_json_response(iorails, _text_payload("It is sunny."))
+        result = await iorails.generate_async(messages=make_tool_conversation(result_name=None))
+        assert result == {"role": "assistant", "content": "It is sunny."}
+
+    @pytest.mark.asyncio
+    async def test_nameless_unlinked_tool_result_blocked_before_generation(self, iorails):
+        """A tool result without a name whose call id links to no prior call is refused without calling the model."""
+        forbidden_post = _inject_forbidden_transport(iorails)
+        result = await iorails.generate_async(
+            messages=make_tool_conversation(result_call_id="call_999", result_name=None)
+        )
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        forbidden_post.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_recycled_call_ids_across_turns_not_blocked(self, iorails):
         """Multi-turn conversation reusing the same call_id across turns is valid"""
 
@@ -420,14 +454,65 @@ class TestNonStreamingToolResults:
         assert result == {"role": "assistant", "content": "It's 12C in London."}
 
 
+class TestToolCallRoundTrip:
+    """A client runs the tool call IORails returned and sends the result back on the next turn."""
+
+    @pytest.mark.asyncio
+    async def test_spec_shaped_result_for_a_returned_tool_call_reaches_the_model(self, iorails_config_tools):
+        """A tool call IORails returned, answered by a tool message without a name, passes both tool rails next turn."""
+        _inject_json_response(iorails_config_tools, _tool_call_payload("get_weather", '{"city": "Paris"}'))
+        assistant_message = await iorails_config_tools.generate_async(messages=MESSAGES)
+        assert assistant_message["tool_calls"][0]["function"]["name"] == "get_weather"
+
+        tool_message = {"role": "tool", "tool_call_id": assistant_message["tool_calls"][0]["id"], "content": "18C"}
+        _inject_json_response(iorails_config_tools, _text_payload("It is 18C in Paris."))
+        result = await iorails_config_tools.generate_async(messages=[*MESSAGES, assistant_message, tool_message])
+        assert result == {"role": "assistant", "content": "It is 18C in Paris."}
+
+
 class TestStreamingToolCalls:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("include_metadata", [False, True])
+    @pytest.mark.parametrize("allowed", [False, True])
+    async def test_config_tools_server_stream(self, iorails_config_tools, include_metadata, allowed):
+        from nemoguardrails.server.api import _format_streaming_response
+
+        name = "get_weather" if allowed else "undeclared_tool"
+        _inject_sse_stream(iorails_config_tools, _tool_call_sse_lines(name, ['{"city": ', '"Paris"}']))
+        stream = iorails_config_tools.stream_async(MESSAGES, include_metadata=include_metadata)
+        frames = await _collect(_format_streaming_response(stream, model_name="stub-model"))
+        assert frames[-1] == "data: [DONE]\n\n"
+        payloads = [json.loads(frame[6:]) for frame in frames[:-1]]
+        calls = [
+            choice for payload in payloads for choice in payload.get("choices", []) if "tool_calls" in choice["delta"]
+        ]
+        if allowed:
+            assert len(calls) == 1
+            assert calls[0]["finish_reason"] == "tool_calls"
+            assert calls[0]["delta"] == {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                    }
+                ]
+            }
+        else:
+            assert calls == []
+            violation = payloads[-1]
+            if include_metadata:
+                violation = json.loads(violation["choices"][0]["delta"]["text"])
+            assert violation["error"]["type"] == "guardrails_violation"
+
     @pytest.mark.asyncio
     async def test_allowed_streamed_tool_call_passes(self, iorails):
         _inject_sse_stream(iorails, _tool_call_sse_lines("get_weather", ['{"city": ', '"Paris"}']))
         chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
 
         assert _stream_violation_chunks(chunks) == []
-        terminal = json.loads(chunks[-1])
+        terminal = {"tool_calls": [call.to_dict() for call in chunks[-1].tool_calls]}
         assert terminal["tool_calls"][0]["function"]["name"] == "get_weather"
 
     @pytest.mark.asyncio
@@ -437,9 +522,32 @@ class TestStreamingToolCalls:
 
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_output_rails"
+        assert violations[0]["error"]["param"] == "tool_call_rails"
         # The tool-call chunk is suppressed: no chunk carries the tool call.
-        assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
+        assert not any(isinstance(c, ToolCallChunk) for c in chunks)
+
+    @pytest.mark.asyncio
+    async def test_undeclared_streamed_tool_call_violation_carries_the_validator_reason(self, iorails):
+        """The violation message carries the validator's reason, not the name of the rail that blocked."""
+        _inject_sse_stream(iorails, _tool_call_sse_lines("rm_rf", ["{}"]))
+        chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
+
+        violations = _stream_violation_chunks(chunks)
+        assert violations[0]["error"]["message"] == (
+            "Blocked by tool call rails: tool call 'rm_rf' is not an allowed tool"
+        )
+
+    @pytest.mark.asyncio
+    async def test_streamed_schema_mismatch_violation_omits_the_argument_value(self, iorails):
+        """A streamed schema-mismatch violation names the failing argument but never quotes its value."""
+        _inject_sse_stream(iorails, _tool_call_sse_lines("get_weather", ['{"city": ["SECRET-VALUE"]}']))
+        chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
+
+        violations = _stream_violation_chunks(chunks)
+        assert violations[0]["error"]["message"] == (
+            "Blocked by tool call rails: "
+            "arguments for tool 'get_weather' do not match its schema: 'type' failed at '/city'"
+        )
 
     @pytest.mark.asyncio
     async def test_truncated_streamed_tool_call_fails_closed(self, iorails):
@@ -448,7 +556,7 @@ class TestStreamingToolCalls:
         _inject_sse_stream(iorails, _tool_call_sse_lines("get_weather", ['{"city": "Par']))
         chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
 
-        assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
+        assert not any(isinstance(c, ToolCallChunk) for c in chunks)
         error_chunks = [c for c in chunks if isinstance(c, str) and '"error"' in c]
         assert error_chunks, f"expected a generation error chunk, got {chunks}"
         assert json.loads(error_chunks[0])["error"]["code"] == "generation_failed"
@@ -457,32 +565,50 @@ class TestStreamingToolCalls:
 class TestStreamingToolResults:
     @pytest.mark.asyncio
     async def test_unlinked_tool_result_blocks_stream(self, iorails):
-        """A guardrails_violation error chunk (param=tool_input_rails) is emitted, and the model is never called."""
+        """A guardrails_violation error chunk (param=tool_result_rails) is emitted, and the model is never called."""
         forbidden_post = _inject_forbidden_transport(iorails)
         chunks = await _collect(iorails.stream_async(make_tool_conversation(result_call_id="call_999")))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_input_rails"
+        assert violations[0]["error"]["param"] == "tool_result_rails"
         assert REFUSAL_MESSAGE not in chunks
         forbidden_post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unlinked_tool_result_violation_carries_the_validator_reason(self, iorails):
+        """The violation message carries the validator's reason, not the name of the rail that blocked."""
+        _inject_forbidden_transport(iorails)
+        chunks = await _collect(iorails.stream_async(make_tool_conversation(result_call_id="call_999")))
+
+        violations = _stream_violation_chunks(chunks)
+        assert violations[0]["error"]["message"] == (
+            "Blocked by tool result rails: tool result for call_id 'call_999' does not correspond to a prior tool call"
+        )
+
+    @pytest.mark.asyncio
+    async def test_nameless_linked_tool_result_streams_the_model_reply(self, iorails):
+        """A tool result without a name, linked by its call id, passes the tool-result rail and the reply streams."""
+        _inject_sse_stream(iorails, _text_sse_lines("It is sunny."))
+        chunks = await _collect(iorails.stream_async(make_tool_conversation(result_name=None)))
+        assert "".join(chunks) == "It is sunny."
 
 
 class TestPerRequestToggles:
     @pytest.mark.asyncio
-    async def test_tool_output_disabled_skips_tool_call_rail(self, iorails):
-        # An undeclared tool call would normally block; disabling tool_output lets it through.
+    async def test_tool_call_disabled_skips_tool_call_rail(self, iorails):
+        # An undeclared tool call would normally block; disabling tool_call lets it through.
         _inject_json_response(iorails, _tool_call_payload("rm_rf", "{}"))
-        options = {"llm_params": LLM_PARAMS, "rails": {"tool_output": False}}
+        options = {"llm_params": LLM_PARAMS, "rails": {"tool_call": False}}
         result = await iorails.generate_async(messages=MESSAGES, options=options)
         assert result.tool_calls[0]["function"]["name"] == "rm_rf"
 
     @pytest.mark.asyncio
-    async def test_tool_input_disabled_skips_tool_result_rail(self, iorails):
-        # An unlinked tool result would normally block; disabling tool_input lets it through.
+    async def test_tool_result_disabled_skips_tool_result_rail(self, iorails):
+        # An unlinked tool result would normally block; disabling tool_result lets it through.
         _inject_json_response(iorails, _text_payload("ok"))
         result = await iorails.generate_async(
             messages=make_tool_conversation(result_call_id="call_999"),
-            options={"rails": {"tool_input": False}},
+            options={"rails": {"tool_result": False}},
         )
         assert result.response == [{"role": "assistant", "content": "ok"}]
 
@@ -509,17 +635,7 @@ class TestPerRequestToggles:
         """In streaming, options.rails.input is forwarded to is_input_safe as the enabled argument."""
         spy = AsyncMock(wraps=iorails.rails_manager.is_input_safe)
         iorails.rails_manager.is_input_safe = spy
-        text_lines = [
-            _sse(
-                {
-                    "id": "c1",
-                    "choices": [{"index": 0, "delta": {"role": "assistant", "content": "ok"}, "finish_reason": None}],
-                }
-            ),
-            _sse({"id": "c1", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}),
-            b"data: [DONE]\n\n",
-        ]
-        _inject_sse_stream(iorails, text_lines)
+        _inject_sse_stream(iorails, _text_sse_lines("ok"))
         await _collect(iorails.stream_async(MESSAGES, options={"rails": {"input": False}}))
         assert spy.await_args.kwargs.get("enabled") is False
 
@@ -573,5 +689,5 @@ class TestToolRailBlockMetrics:
             chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_output_rails"
+        assert violations[0]["error"]["param"] == "tool_call_rails"
         record_blocked.assert_called_once_with(RailDirection.OUTPUT)

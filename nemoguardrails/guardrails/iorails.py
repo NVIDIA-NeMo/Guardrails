@@ -27,17 +27,19 @@ import time
 import warnings
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import nullcontext, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Union
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import (
+    InvalidCheckRequestError,
     NonStreamingWorkQueueFullError,
     RailTypeNotConfiguredError,
     StreamingCapacityExceededError,
     StreamingNotSupportedError,
 )
+from nemoguardrails.guardrails._lifecycle import rollback_startup
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.compiled_rail import (
     RailCompilationError,
@@ -54,12 +56,14 @@ from nemoguardrails.guardrails.guardrails_types import (
     RailResult,
     TimedLLMResponse,
     client_reason,
+    current_user_turn_index,
     display_reason,
     get_request_id,
     rewrite_user_message,
     serialize_prompt,
     truncate,
 )
+from nemoguardrails.guardrails.model_engine import _parse_tools_openai
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.telemetry import (
     are_metrics_enabled,
@@ -90,6 +94,7 @@ from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
 from nemoguardrails.rails.llm.options import (
+    TOOL_RAIL_TYPES,
     ActivatedRail,
     ExecutedAction,
     GenerationLog,
@@ -102,7 +107,7 @@ from nemoguardrails.rails.llm.options import (
 )
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.tracing.constants import GuardrailsAttributes
-from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk, ToolCall
+from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk, ToolCall, ToolCallChunk
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -203,21 +208,6 @@ def _frame_for_stream(payload: str, include_metadata: Optional[bool]) -> Union[s
     strings, so terminal and block chunks that bypass the handler stay shape-consistent.
     """
     return {"text": payload} if include_metadata else payload
-
-
-def _terminal_tool_call_chunk(
-    tool_calls: list[ToolCall], include_metadata: Optional[bool]
-) -> tuple[str, Union[str, dict]]:
-    """Frame assembled tool calls as the stream's terminal chunk.
-
-    Returns ``(payload, framed)``: ``payload`` is the OpenAI-native
-    ``{"tool_calls": ...}`` JSON string used for content capture, and
-    ``framed`` is what to yield — a ``{"text": payload}`` dict under
-    ``include_metadata``, a raw string otherwise — matching the shape of
-    the surrounding stream.
-    """
-    payload = json.dumps({"tool_calls": _serialize_tool_calls(tool_calls)})
-    return payload, _frame_for_stream(payload, include_metadata)
 
 
 def _build_assistant_message(content: str, tool_calls: Optional[list[ToolCall]]) -> LLMMessage:
@@ -338,8 +328,8 @@ def _build_generation_stats(
         return total or None
 
     return GenerationStats(
-        input_rails_duration=_phase_duration("input", "tool_input"),
-        output_rails_duration=_phase_duration("output", "tool_output"),
+        input_rails_duration=_phase_duration("input", "tool_result"),
+        output_rails_duration=_phase_duration("output", "tool_call"),
         generation_rails_duration=_phase_duration("generation"),
         total_duration=total_duration,
         llm_calls_duration=sum((r.duration or 0.0) for r in call_records) or None,
@@ -471,7 +461,7 @@ def _unsupported_flows_reason(flows: list[str], supported: frozenset[str], label
     membership check, so ``"content safety check input $model=x"`` matches the bare
     flow name. A flow whose name normalizes to empty carries no recognizable rail name
     and is ignored. *label* names the rail family in the message (e.g. ``"input"``,
-    ``"tool output"``); offending names are reported sorted and de-duplicated.
+    ``"tool call"``); offending names are reported sorted and de-duplicated.
     """
     unsupported = set()
     for flow in flows:
@@ -547,11 +537,112 @@ def _get_last_content_by_role(messages: list[dict], role: str) -> str:
     return ""
 
 
+def _rail_type_configured(config: RailsConfig, rail_type: RailType) -> bool:
+    """Whether *config* has rails for *rail_type*; for a tool rail type, per-tool rails count too."""
+    section = getattr(config.rails, rail_type.value)
+    if rail_type in TOOL_RAIL_TYPES:
+        # A per_tool entry with no flows runs nothing, so it does not count.
+        return bool(section.flows) or any(section.per_tool.values())
+    return bool(section.flows)
+
+
+def _main_model_tools(config: RailsConfig) -> Optional[list]:
+    """The tools the `main` model's parameters declare, or None without a `main` model."""
+    main = next((model for model in config.models if model.type == "main"), None)
+    return None if main is None else main.parameters.get("tools")
+
+
+def _reject_unread_tools(rail_types: Optional[list[RailType]], tools: Optional[list[dict]]) -> None:
+    """Raise when *tools* is passed to a check that runs no tool_call rails, which would leave it unread."""
+    # Refused rather than ignored, so a caller who expected its tool calls validated learns they were not.
+    if tools is None:
+        return
+    if rail_types is not None and RailType.TOOL_CALL in rail_types:
+        return
+    raise InvalidCheckRequestError(
+        "tools is read only by a tool_call check; include tool_call in rail_types or leave tools out"
+    )
+
+
+def _reject_unreadable_tools(tools: Optional[list[dict]]) -> None:
+    """Raise when *tools* holds entries a check can't read as Chat Completions function tools, which it would drop."""
+    # Refused rather than dropped: a dropped entry would turn the caller's tool into "not an allowed tool".
+    if tools is None:
+        return
+    if not isinstance(tools, list):
+        raise InvalidCheckRequestError("tools must be a list of Chat Completions function tools")
+    # Entries are reported by position only: their content is the caller's, and can be large.
+    unreadable = [str(index) for index, entry in enumerate(tools) if not _parse_tools_openai([entry])]
+    if not unreadable:
+        return
+    if len(unreadable) == 1:
+        which = f"tools entry {unreadable[0]} isn't a Chat Completions function tool"
+    else:
+        which = f"tools entries {', '.join(unreadable)} aren't Chat Completions function tools"
+    raise InvalidCheckRequestError(f"{which}: a function tool needs a `function` object with a non-empty `name`")
+
+
+def _has_tool_traffic(messages: LLMMessages) -> bool:
+    """Whether *messages* carry a tool result or an assistant turn that calls tools."""
+    for message in messages:
+        if message.get("role") == "tool":
+            return True
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            return True
+    return False
+
+
+def _reports_assistant_content(rails_to_run: list[str]) -> bool:
+    """Whether a check reports the assistant turn's text rather than the user's."""
+    if "output" in rails_to_run:
+        return True
+    # A tool-call check reports the turn it checked, unless input rails run, whose rewrite must stay visible.
+    return "tool_call" in rails_to_run and "input" not in rails_to_run
+
+
+def _rewrite_last_assistant_message(messages: LLMMessages, text: str) -> LLMMessages:
+    """Return a copy of *messages* with the last assistant message's content rewritten to *text*."""
+    for index in range(len(messages) - 1, -1, -1):
+        if messages[index].get("role") == "assistant":
+            rewritten = list(messages)
+            rewritten[index] = {**messages[index], "content": text}
+            return rewritten
+    raise ValueError("no assistant message to rewrite")
+
+
+def _apply_input_rewrite_before_block(messages: LLMMessages, blocked: RailResult) -> LLMMessages:
+    """Return *messages* with the user turn as the input rails rewrote it before one of them blocked."""
+    if blocked.rewrite_before_block is None:
+        return messages
+    return rewrite_user_message(messages, blocked.rewrite_before_block)
+
+
+def _apply_output_rewrite_before_block(messages: LLMMessages, blocked: RailResult) -> LLMMessages:
+    """Return *messages* with the checked response as the output rails rewrote it before one of them blocked."""
+    if blocked.rewrite_before_block is None:
+        return messages
+    return _rewrite_last_assistant_message(messages, blocked.rewrite_before_block)
+
+
 def _blocked_message(result: RailResult) -> str:
     """The text a blocked turn returns, which says whether the rail broke or fired."""
     if result.failed:
         return INTERNAL_ERROR_MESSAGE
+    refusal_message = result.outcome.metadata.get("refusal_message")
+    if isinstance(refusal_message, str) and refusal_message:
+        return refusal_message
     return REFUSAL_MESSAGE
+
+
+def _blocked_check_result(result: RailResult) -> RailsResult:
+    """The check result for a block, naming the rail that blocked and why."""
+    return RailsResult(
+        status=RailStatus.BLOCKED,
+        content=_blocked_message(result),
+        rail=result.triggered_rail,
+        reason=client_reason(result),
+        tool_violations=list(result.tool_violations) or None,
+    )
 
 
 def _rewritten_user_message(result: RailResult) -> Optional[str]:
@@ -572,19 +663,77 @@ class _TurnConversation:
     """
 
     messages: LLMMessages
+    # The directions whose configured masks have yet to decide on their text, which the request
+    # span then withholds. Seeded before any rail runs, so an exit nobody foresaw withholds the
+    # text rather than records it unmasked.
+    masks_pending: set[RailDirection] = field(default_factory=set)
+    # Whose text a check reports back, and so which direction's masks its content waits on.
+    reported_direction: Optional[RailDirection] = None
+
+    def record_masks(self, direction: RailDirection, *, pending: bool) -> None:
+        """Note whether *direction*'s masks have all decided on its text, as its rails reported."""
+        if pending:
+            self.masks_pending.add(direction)
+        else:
+            self.masks_pending.discard(direction)
+
+    def withhold(self, direction: RailDirection) -> None:
+        """Keep *direction*'s text off the span, whatever its own masks decide on it later."""
+        self.masks_pending.add(direction)
+
+
+def _carries_text_to_mask(messages: LLMMessages, direction: RailDirection) -> bool:
+    """Whether *messages* hold the text *direction*'s rails check: a user turn, or a response."""
+    if direction is RailDirection.INPUT:
+        return current_user_turn_index(messages) is not None
+    return bool(_get_last_content_by_role(messages, "assistant"))
+
+
+def _generation_input_for_capture(conversation: _TurnConversation) -> Optional[LLMMessages]:
+    """A generation's messages for the span, or None while an input mask has yet to decide on the user turn."""
+    if RailDirection.INPUT in conversation.masks_pending:
+        return None
+    return conversation.messages
+
+
+def _generation_output_for_capture(conversation: _TurnConversation, text: Optional[str]) -> Optional[str]:
+    """The response text for the span, or None when it went out with a configured output mask unrun."""
+    if RailDirection.OUTPUT in conversation.masks_pending:
+        return None
+    return text
+
+
+def _check_input_for_capture(conversation: _TurnConversation) -> Optional[LLMMessages]:
+    """A check's messages for the span, or None while a mask has yet to decide on text in them."""
+    # A check's messages carry the checked response as well as the user turn, so either side pending withholds them.
+    if conversation.masks_pending:
+        return None
+    return conversation.messages
+
+
+def _check_output_for_capture(result: RailsResult, conversation: _TurnConversation) -> Optional[str]:
+    """A check's content for the span, or None while it is text a configured mask has yet to decide on."""
+    # A block's content is IORails' own message, which carries none of the caller's text.
+    if result.status == RailStatus.BLOCKED:
+        return result.content
+    if conversation.reported_direction in conversation.masks_pending:
+        return None
+    return result.content
 
 
 @dataclass(frozen=True, slots=True)
 class _GeneratedTurn:
-    """The main model's response and the messages it read, or no response when the rails blocked.
+    """The main model's response and the messages it read, or on a block no response and the messages the rails left.
 
     ``blocked_by`` carries the verdict that stopped the turn, because the caller renders the
     message from it and a rail that broke reads differently from one that fired.
+    ``input_rewrite_pending`` says a configured input mask never decided on the user turn.
     """
 
     response: Optional[LLMResponse]
     messages: LLMMessages
     blocked_by: Optional[RailResult] = None
+    input_rewrite_pending: bool = False
 
 
 def _compile_only_deps(config: RailsConfig) -> RailDependencies:
@@ -619,13 +768,13 @@ class IORails(BaseGuardrails):
 
     # Rail sections and flows that this engine can handle. Configs using anything
     # outside these sets fall back to LLMRails.
-    SUPPORTED_RAILS = frozenset({"input", "output", "config", "tool_input", "tool_output"})
-    # Tool-rail flows are direction-specific: tool_output may only carry the
-    # tool-call validator and tool_input only the tool-result validator. The
+    SUPPORTED_RAILS = frozenset({"input", "output", "config", "tool_result", "tool_call"})
+    # Tool-rail flows are direction-specific: tool_call may only carry the
+    # tool-call validator and tool_result only the tool-result validator. The
     # supported sets double as the direction check so a misdirected flow falls
     # back to LLMRails rather than raising in RailsManager at construction.
-    SUPPORTED_TOOL_OUTPUT_FLOWS = frozenset({"tool call validation"})
-    SUPPORTED_TOOL_INPUT_FLOWS = frozenset({"tool result validation"})
+    SUPPORTED_TOOL_CALL_FLOWS = frozenset({"tool call validation"})
+    SUPPORTED_TOOL_RESULT_FLOWS = frozenset({"tool result validation"})
 
     @classmethod
     def unsupported_reason(cls, config: RailsConfig, llm: Optional[LLMModel] = None) -> Optional[str]:
@@ -642,7 +791,7 @@ class IORails(BaseGuardrails):
 
         # Each rail family accepts only its own direction-specific flows, so an unknown
         # or misdirected flow routes the config to LLMRails. The supported sets double
-        # as the direction check (tool_output allows only the call validator, etc.).
+        # as the direction check (tool_call allows only the call validator, etc.).
         rail_checks = (
             (config.rails.input.flows, SurfaceDirection.INPUT),
             (config.rails.output.flows, SurfaceDirection.OUTPUT),
@@ -654,8 +803,8 @@ class IORails(BaseGuardrails):
                 return reason
 
         tool_checks = (
-            ("tool output", config.rails.tool_output.flows, cls.SUPPORTED_TOOL_OUTPUT_FLOWS),
-            ("tool input", config.rails.tool_input.flows, cls.SUPPORTED_TOOL_INPUT_FLOWS),
+            ("tool call", config.rails.tool_call.flows, cls.SUPPORTED_TOOL_CALL_FLOWS),
+            ("tool result", config.rails.tool_result.flows, cls.SUPPORTED_TOOL_RESULT_FLOWS),
         )
         for label, flows, supported in tool_checks:
             reason = _unsupported_flows_reason(flows, supported, label)
@@ -665,8 +814,8 @@ class IORails(BaseGuardrails):
         # Per-tool flows are manifest surfaces, like input/output, so check them the same
         # way rather than let a bad one raise in RailsManager at construction.
         per_tool_checks = (
-            (config.rails.tool_output.per_tool, SurfaceDirection.TOOL_OUTPUT),
-            (config.rails.tool_input.per_tool, SurfaceDirection.TOOL_INPUT),
+            (config.rails.tool_call.per_tool, SurfaceDirection.TOOL_CALL),
+            (config.rails.tool_result.per_tool, SurfaceDirection.TOOL_RESULT),
         )
         for per_tool, direction in per_tool_checks:
             flows = [flow for tool_flows in per_tool.values() for flow in tool_flows]
@@ -679,8 +828,8 @@ class IORails(BaseGuardrails):
         # cleanly instead of failing IORails init (matching how unsupported flows
         # are handled).
         for label, tool_flows in (
-            ("tool output", config.rails.tool_output.flows),
-            ("tool input", config.rails.tool_input.flows),
+            ("tool call", config.rails.tool_call.flows),
+            ("tool result", config.rails.tool_result.flows),
         ):
             reason = _duplicate_flows_reason(tool_flows, label)
             if reason is not None:
@@ -719,9 +868,18 @@ class IORails(BaseGuardrails):
         """Return True iff IORails can handle the given config and llm argument."""
         return cls.unsupported_reason(config, llm) is None
 
+    @classmethod
+    def unconfigured_rail_type_reason(cls, config: RailsConfig, rail_type: RailType) -> Optional[str]:
+        """Return why ``check_async()`` refuses to run *rail_type* on *config*, or None when it can run it."""
+        if not _rail_type_configured(config, rail_type):
+            return f"Requested rail type '{rail_type.value}' has no configured rails."
+        return None
+
     def __init__(self, config: RailsConfig, *, _report_usage: bool = True) -> None:
         """Build the engine registry and rails manager from the given config."""
         self._running = False
+        self._owned_components: set[str] = set()
+        self._lifecycle_lock = asyncio.Lock()
         self.config = config
 
         # Create the OTEL tracer (if enabled in config).
@@ -740,14 +898,6 @@ class IORails(BaseGuardrails):
             metrics_enabled=self._metrics_enabled,
             content_capture_enabled=self._content_capture_enabled,
         )
-        # Tool rails are CPU-bound, run sequentially since we're not waiting on IO to complete
-        if config.rails.tool_output.parallel or config.rails.tool_input.parallel:
-            warnings.warn(
-                "rails.tool_output.parallel / rails.tool_input.parallel are not honored by IORails; "
-                "tool rails run sequentially.",
-                stacklevel=2,
-            )
-
         self.rails_manager = RailsManager(
             engine_registry=self.engine_registry,
             task_manager=LLMTaskManager(config),
@@ -755,10 +905,12 @@ class IORails(BaseGuardrails):
             output_flows=config.rails.output.flows,
             input_parallel=config.rails.input.parallel or False,
             output_parallel=config.rails.output.parallel or False,
-            tool_call_flows=config.rails.tool_output.flows,
-            tool_result_flows=config.rails.tool_input.flows,
-            per_tool_call_flows=config.rails.tool_output.per_tool,
-            per_tool_result_flows=config.rails.tool_input.per_tool,
+            tool_call_parallel=config.rails.tool_call.parallel or False,
+            tool_result_parallel=config.rails.tool_result.parallel or False,
+            tool_call_flows=config.rails.tool_call.flows,
+            tool_result_flows=config.rails.tool_result.flows,
+            per_tool_call_flows=config.rails.tool_call.per_tool,
+            per_tool_result_flows=config.rails.tool_result.per_tool,
             tracer=self._tracer,
             content_capture_enabled=self._content_capture_enabled,
         )
@@ -787,6 +939,18 @@ class IORails(BaseGuardrails):
 
             report_usage(config, deployment_type="library", rails_engine=RailsEngineEnum.IORAILS.value)
 
+    def _masks_awaiting(self, messages: LLMMessages, directions: tuple[RailDirection, ...]) -> set[RailDirection]:
+        """Which of *directions* have configured masks yet to decide on text *messages* carry."""
+        if not self._content_capture_enabled:
+            return set()
+        # Malformed entries are left for the request itself to reject, inside its span and its error log.
+        well_formed = [message for message in messages if isinstance(message, dict)]
+        return {
+            direction
+            for direction in directions
+            if self.rails_manager.transform_flows[direction] and _carries_text_to_mask(well_formed, direction)
+        }
+
     def _speculative_generation_allowed(self, config: RailsConfig) -> bool:
         """Whether input rails may race the main call, which a rewriting input rail rules out.
 
@@ -811,65 +975,78 @@ class IORails(BaseGuardrails):
         streaming = self.config.rails.output.streaming
         return streaming is not None and streaming.enabled and len(self.config.rails.output.flows) > 0
 
+    @property
+    def is_running(self) -> bool:
+        """Report readiness independently of resources still owned for cleanup."""
+        return self._running
+
     async def start(self) -> None:
-        """Start the IORails engine. Call this during service startup."""
+        """Start components, rolling back failures and cancellation.
+
+        Incomplete cleanup is retained and must finish before restarting.
+        Rollback is best effort under a cooperative, shielded timeout; stop()
+        remains available to retry resources it could not release.
+        """
+        async with self._lifecycle_lock:
+            await self._start()
+
+    async def _start(self) -> None:
         if self._running:
             return
+        if self._owned_components:
+            await self._stop()
 
-        #  The EngineRegistry cleans up all its Engines if there's an exception on startup
-        #  so no need to catch exceptions and clean up here
-        await self.engine_registry.start()
+        self._owned_components.add("registry")
         try:
+            await self.engine_registry.start()
+            self._owned_components.add("queue")
             await self._generate_async_queue.start()
-            try:
-                # Queue is now live; register the state-observing ObservableGauges.
-                # ``lambda: self._running`` is checked at collect time so the gauges
-                # report empty lists once the engine has been stopped.
-                if self._metrics_enabled and not self._gauges_registered:
-                    register_nonstream_saturation_gauges(
-                        self._generate_async_queue,
-                        is_running=lambda: self._running,
-                    )
-                    self._gauges_registered = True
-            except BaseException:
-                # Gauge registration failed after the queue was started — roll
-                # the queue back so a retry of start() comes from a clean state
-                # rather than leaving the queue running with ``_running=False``
-                # (which would make stop() a no-op and leak worker tasks).
-                try:
-                    await self._generate_async_queue.stop()
-                except BaseException:
-                    log.exception("queue rollback failed during IORails.start()")
-                raise
+            # Queue is now live; register the state-observing ObservableGauges.
+            # ``lambda: self._running`` is checked at collect time so the gauges
+            # report empty lists once the engine has been stopped.
+            if self._metrics_enabled and not self._gauges_registered:
+                register_nonstream_saturation_gauges(
+                    self._generate_async_queue,
+                    is_running=lambda: self._running,
+                )
+                self._gauges_registered = True
         except BaseException:
-            # Log but suppress rollback failures so we propagate the original
-            # queue-start (or gauge-registration) error as the actionable root cause.
-            try:
-                await self.engine_registry.stop()
-            except BaseException:
-                log.exception("engine_registry rollback failed during IORails.start()")
+            await rollback_startup(self._stop)
             raise
 
+        self._owned_components.add("rails")
         self._running = True
 
     async def stop(self) -> None:
-        """Stop the IORails engine. Call this during service shutdown."""
-        if not self._running:
-            return
+        """Stop owned components, retaining failed or interrupted ones for retry.
 
-        # Each shutdown step runs independently so a failure in one does not
-        # leak the other. _running is cleared regardless so a retry of stop()
-        # is a no-op and we don't leak worker tasks.
-        try:
+        Readiness is cleared immediately. Successful components are not closed
+        again on retry; cancellation takes precedence over ordinary failures.
+        """
+        async with self._lifecycle_lock:
+            await self._stop()
+
+    async def _stop(self) -> None:
+        self._running = False
+        failure: BaseException | None = None
+        for name, stop in (
+            ("queue", self._generate_async_queue.stop),
+            ("rails", self.rails_manager.stop),
+            ("registry", self.engine_registry.stop),
+        ):
+            if name not in self._owned_components:
+                continue
             try:
-                await self._generate_async_queue.stop()
-            finally:
-                try:
-                    await self.rails_manager.stop()
-                finally:
-                    await self.engine_registry.stop()
-        finally:
-            self._running = False
+                await stop()
+            except BaseException as error:
+                if isinstance(error, Exception):
+                    log.warning("Failed to stop IORails component %s", name, exc_info=True)
+                if failure is None or not isinstance(error, Exception):
+                    failure = error
+            else:
+                self._owned_components.discard(name)
+        if failure is not None:
+            raise failure
 
     async def __aenter__(self):
         """Context manager (used for testing rather than long-lived instance)"""
@@ -984,7 +1161,10 @@ class IORails(BaseGuardrails):
         lifecycle scope by ``generate_async``, not here.
         """
         tracer = self._tracer if self._tracing_enabled else None
-        conversation = _TurnConversation(messages=messages)
+        # A generation's messages carry no response to mask, only the user turn.
+        conversation = _TurnConversation(
+            messages=messages, masks_pending=self._masks_awaiting(messages, (RailDirection.INPUT,))
+        )
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
@@ -996,10 +1176,15 @@ class IORails(BaseGuardrails):
                 log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
             # Captured at the traced_request boundary, so a future early-return in _do_generate
-            # is covered. The messages are the ones the model read: a span carrying the text a
-            # mask removed would defeat the mask.
+            # is covered. The messages are the ones the rails left, which the model read unless a
+            # rail blocked: a span carrying the text a mask removed would defeat the mask, and
+            # text a configured mask never decided on is withheld rather than recorded as sent.
             if self._content_capture_enabled:
-                set_request_content(request_span, conversation.messages, _response_content_for_capture(result))
+                set_request_content(
+                    request_span,
+                    _generation_input_for_capture(conversation),
+                    _generation_output_for_capture(conversation, _response_content_for_capture(result)),
+                )
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
             return result
@@ -1010,7 +1195,7 @@ class IORails(BaseGuardrails):
 
         Shared by every streaming block path so they all surface the same
         ``guardrails_violation`` / ``content_blocked`` shape; ``param`` distinguishes which
-        rail family blocked (``input_rails`` / ``tool_input_rails`` / ``tool_output_rails`` /
+        rail family blocked (``input_rails`` / ``tool_result_rails`` / ``tool_call_rails`` /
         ``output_rails``).
         """
         return json.dumps(
@@ -1047,8 +1232,8 @@ class IORails(BaseGuardrails):
         llm_kwargs = options.llm_params if (options and options.llm_params) else {}
         input_enabled = options.rails.input if options else True
         output_enabled = options.rails.output if options else True
-        tool_input_enabled = options.rails.tool_input if options else True
-        tool_output_enabled = options.rails.tool_output if options else True
+        tool_result_enabled = options.rails.tool_result if options else True
+        tool_call_enabled = options.rails.tool_call if options else True
 
         # Per-rail + generation records accumulated for the GenerationLog (built only when
         # options.log requests it). Each rail check and the main call append their record.
@@ -1065,7 +1250,7 @@ class IORails(BaseGuardrails):
         # Agent/client executes tool-calls and sends results to Main LLM with prior conversation history.
         # Symmetric with INPUT rails
         log.info("[%s] Running tool result rails", req_id)
-        tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
+        tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_result_enabled)
         records.extend(tool_result.records)
         if not tool_result.is_safe:
             log.info("[%s] Tool result blocked: %s", req_id, display_reason(tool_result))
@@ -1082,6 +1267,10 @@ class IORails(BaseGuardrails):
                 messages, req_id, llm_kwargs, input_enabled=input_enabled, records_out=records
             )
 
+        # Before the blocked return, so a block behind a mask still records the masked messages.
+        if conversation is not None:
+            conversation.messages = turn.messages
+            conversation.record_masks(RailDirection.INPUT, pending=turn.input_rewrite_pending)
         if turn.blocked_by is not None:
             return _blocked_return(turn.blocked_by)
 
@@ -1093,8 +1282,6 @@ class IORails(BaseGuardrails):
             # generation bug to the caller as a guardrail decision.
             raise RuntimeError("generation returned no response without naming a blocking rail")
         messages = turn.messages
-        if conversation is not None:
-            conversation.messages = messages
 
         # Log raw content before reasoning extraction and think-token removal
         log.debug("[%s] Raw LLM response: %s", req_id, truncate(response.content))
@@ -1109,7 +1296,7 @@ class IORails(BaseGuardrails):
         # Symmetric with OUTPUT rails
         if response.tool_calls:
             tool_call = await self.rails_manager.are_tool_calls_safe(
-                response.tool_calls, llm_kwargs, enabled=tool_output_enabled
+                response.tool_calls, llm_kwargs, enabled=tool_call_enabled
             )
             records.extend(tool_call.records)
             if not tool_call.is_safe:
@@ -1122,7 +1309,7 @@ class IORails(BaseGuardrails):
         # Reasoning is re-attached as <think> tags only below so reasoning intentionally bypasses output
         # rails, matching LLMRails.
         # A tool-call-only response skips output rails (no text to check)
-        # Tool calls have their own `ToolOutputRails` set of rails separate to `OutputRails`
+        # Tool calls have their own `ToolCallRails` set of rails separate to `OutputRails`
         is_tool_call_only = bool(response.tool_calls) and not response_text
         if not is_tool_call_only:
             log.info("[%s] Running output rails", req_id)
@@ -1133,6 +1320,9 @@ class IORails(BaseGuardrails):
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
                 return _blocked_return(output_result)
+            # The model read a turn the input mask never decided on, so its response may repeat it.
+            if conversation is not None and (turn.input_rewrite_pending or output_result.rewrite_pending):
+                conversation.withhold(RailDirection.OUTPUT)
 
             rewritten = _rewritten_bot_message(output_result)
             if rewritten is not None:
@@ -1148,6 +1338,9 @@ class IORails(BaseGuardrails):
         # reasoning_content field and keeps the message content clean.
         if reasoning_content:
             response_text = f"<think>{reasoning_content}</think>\n" + response_text
+            # The output masks ran on the answer alone, so the text returned holds reasoning none of them saw.
+            if conversation is not None and self.rails_manager.transform_flows[RailDirection.OUTPUT]:
+                conversation.withhold(RailDirection.OUTPUT)
 
         return _build_assistant_message(response_text, response.tool_calls)
 
@@ -1185,7 +1378,13 @@ class IORails(BaseGuardrails):
             log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.INPUT)
-            return _GeneratedTurn(response=None, messages=messages, blocked_by=input_result)
+            rewritten_messages = _apply_input_rewrite_before_block(messages, input_result)
+            return _GeneratedTurn(
+                response=None,
+                messages=rewritten_messages,
+                blocked_by=input_result,
+                input_rewrite_pending=input_result.rewrite_pending,
+            )
 
         rewritten = _rewritten_user_message(input_result)
         if rewritten is not None:
@@ -1198,7 +1397,11 @@ class IORails(BaseGuardrails):
             provider = self.engine_registry.provider_name("main")
             prompt = serialize_prompt(messages)
             records_out.append(_make_generation_record(timed_llm_response, provider, prompt))
-        return _GeneratedTurn(response=timed_llm_response.response, messages=messages)
+        return _GeneratedTurn(
+            response=timed_llm_response.response,
+            messages=messages,
+            input_rewrite_pending=input_result.rewrite_pending,
+        )
 
     async def _do_generate_speculative(
         self,
@@ -1298,7 +1501,12 @@ class IORails(BaseGuardrails):
                 set_speculative_span_attrs(
                     request_span, first_completed, GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS
                 )
-                return _GeneratedTurn(response=None, messages=messages, blocked_by=input_result)
+                return _GeneratedTurn(
+                    response=None,
+                    messages=messages,
+                    blocked_by=input_result,
+                    input_rewrite_pending=input_result.rewrite_pending,
+                )
 
             # Rails passed — wait for generation to finish
             timed = await gen_task
@@ -1319,15 +1527,28 @@ class IORails(BaseGuardrails):
                 set_speculative_span_attrs(
                     request_span, first_completed, GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS
                 )
-                return _GeneratedTurn(response=None, messages=messages, blocked_by=input_result)
+                return _GeneratedTurn(
+                    response=None,
+                    messages=messages,
+                    blocked_by=input_result,
+                    input_rewrite_pending=input_result.rewrite_pending,
+                )
 
             set_speculative_span_attrs(request_span, first_completed, "none")
 
         log.debug("[%s] Main LLM response: %s", req_id, truncate(timed.response.content))
         _record_generation(timed)
-        return _GeneratedTurn(response=timed.response, messages=messages)
+        return _GeneratedTurn(
+            response=timed.response, messages=messages, input_rewrite_pending=input_result.rewrite_pending
+        )
 
-    def check(self, messages: LLMMessages, rail_types: Optional[list[RailType]] = None) -> RailsResult:
+    def check(
+        self,
+        messages: LLMMessages,
+        rail_types: Optional[list[RailType]] = None,
+        *,
+        tools: Optional[list[dict]] = None,
+    ) -> RailsResult:
         """Synchronous version of ``check_async``.
 
         Mirrors ``generate``: spins up a short-lived IORails engine with tracing
@@ -1336,7 +1557,7 @@ class IORails(BaseGuardrails):
 
         Raises:
             RailTypeNotConfiguredError: If a requested rail type has no
-                configured flows.
+                configured rails.
         """
         if check_sync_call_from_async_loop():
             raise RuntimeError(
@@ -1352,31 +1573,53 @@ class IORails(BaseGuardrails):
         async def _run_sync_iorails():
             """Spin up a short-lived IORails engine for one synchronous check call."""
             async with IORails(sync_config, _report_usage=False) as iorails_engine:
-                return await iorails_engine.check_async(messages, rail_types=rail_types)
+                return await iorails_engine.check_async(messages, rail_types=rail_types, tools=tools)
 
         return asyncio.run(_run_sync_iorails())
 
-    async def check_async(self, messages: LLMMessages, rail_types: Optional[list[RailType]] = None) -> RailsResult:
-        """Run input and/or output rails on messages without main-LLM generation.
+    async def check_async(
+        self,
+        messages: LLMMessages,
+        rail_types: Optional[list[RailType]] = None,
+        *,
+        tools: Optional[list[dict]] = None,
+    ) -> RailsResult:
+        """Run input, output and tool rails on messages without main-LLM generation.
 
         When ``rail_types`` is None the rails to run are auto-detected from the
         message roles (user-only -> input, assistant-only -> output, both ->
-        input and output). When provided, exactly the named rail types run; an
-        empty list (``[]``) runs no rails and returns PASSED.
+        input and output); tool rails never run unless named. When provided,
+        exactly the named rail types run, in the order generation runs them:
+        tool_result, input, tool_call, output. An empty list (``[]``) runs no
+        rails and returns PASSED.
+
+        ``tools`` declares the tools a ``tool_call`` check validates calls
+        against, in the Chat Completions format. It replaces the tools declared
+        on the ``main`` model's parameters, rather than adding to them; ``[]``
+        declares none. Tool checks read messages and tools as Chat Completions,
+        whatever the ``main`` model is, and need no ``main`` model.
 
         Submitted through the same admission queue as ``generate_async`` so the
         check path shares non-streaming concurrency limits, request metrics, and
         the per-request trace span.
 
         Raises:
+            InvalidCheckRequestError: If ``tools`` is given but ``rail_types``
+                does not include ``RailType.TOOL_CALL``, or ``tools`` holds an
+                entry that isn't a Chat Completions function tool.
             RailTypeNotConfiguredError: If a requested rail type has no
-                configured flows.
+                configured rails.
         """
+        # Before queueing: a request the check cannot serve takes no queue slot and is not logged as a failed check.
+        _reject_unread_tools(rail_types, tools)
+        _reject_unreadable_tools(tools)
+        if rail_types is not None:
+            self._validate_requested_rail_types(rail_types)
         await self.start()
         metrics_ctx = request_metrics() if self._metrics_enabled else nullcontext()
         with metrics_ctx:
             try:
-                return await self._generate_async_queue.submit(self._run_check, messages, rail_types)
+                return await self._generate_async_queue.submit(self._run_check, messages, rail_types, tools)
             except asyncio.QueueFull as e:
                 if self._metrics_enabled:
                     record_nonstream_rejected()
@@ -1384,19 +1627,32 @@ class IORails(BaseGuardrails):
                 # this apart from a full streaming semaphore.
                 raise NonStreamingWorkQueueFullError(*e.args) from e
 
-    async def _run_check(self, messages: LLMMessages, rail_types: Optional[list[RailType]]) -> RailsResult:
+    async def _run_check(
+        self, messages: LLMMessages, rail_types: Optional[list[RailType]], tools: Optional[list[dict]]
+    ) -> RailsResult:
         """Queue-worker entry for ``check_async``: wrap the rails in a request span."""
         tracer = self._tracer if self._tracing_enabled else None
+        conversation = _TurnConversation(
+            messages=messages,
+            masks_pending=self._masks_awaiting(messages, (RailDirection.INPUT, RailDirection.OUTPUT)),
+        )
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
-                result = await self._do_check(messages, rail_types, req_id)
+                result = await self._do_check(messages, rail_types, req_id, tools=tools, conversation=conversation)
             except Exception:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] check failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
+            # The messages as the rails masked them, as _run_generate captures them. A check's
+            # messages carry the checked response too, so an output mask must reach them as well,
+            # and text a configured mask never decided on is withheld rather than recorded as sent.
             if self._content_capture_enabled:
-                set_request_content(request_span, messages, result.content)
+                set_request_content(
+                    request_span,
+                    _check_input_for_capture(conversation),
+                    _check_output_for_capture(result, conversation),
+                )
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info(
                 "[%s] check completed time=%.1fms status=%s",
@@ -1411,17 +1667,18 @@ class IORails(BaseGuardrails):
         messages: LLMMessages,
         rail_types: Optional[list[RailType]],
         req_id: str,
+        *,
+        tools: Optional[list[dict]] = None,
+        conversation: "_TurnConversation",
     ) -> RailsResult:
-        """Core check pipeline: run the requested input/output rails on messages."""
+        """Core check pipeline: run the requested input, output and tool rails on messages."""
         log.info("[%s] check called", req_id)
         log.debug("[%s] check messages=%s", req_id, truncate(messages))
 
         if rail_types is not None:
-            for rt in rail_types:
-                if not getattr(self.config.rails, rt.value).flows:
-                    raise RailTypeNotConfiguredError(f"Requested rail type '{rt.value}' has no configured rails.")
             rails_to_run = [rail_type.value for rail_type in rail_types]
         else:
+            self._log_unrequested_tool_rails(messages, req_id)
             determined = _determine_rails_from_messages(messages)
             if determined is None:
                 last = messages[-1].get("content") if messages else ""
@@ -1431,12 +1688,19 @@ class IORails(BaseGuardrails):
         # Which direction's text the caller gets back, and so which rewrites it can observe: with
         # output rails in play the answer is the response, and an input rewrite is internal to the
         # check. Matches how LLMRails decides what ``check`` reports.
-        reports_output = "output" in rails_to_run
+        reports_output = _reports_assistant_content(rails_to_run)
         if reports_output:
             pass_content = _get_last_content_by_role(messages, "assistant")
+            conversation.reported_direction = RailDirection.OUTPUT
         else:
             pass_content = _get_last_content_by_role(messages, "user")
+            conversation.reported_direction = RailDirection.INPUT
         original_content = pass_content
+
+        if "tool_result" in rails_to_run:
+            blocked = await self._check_tool_results(messages, req_id)
+            if blocked is not None:
+                return blocked
 
         if "input" in rails_to_run:
             user_content = _get_last_content_by_role(messages, "user")
@@ -1445,44 +1709,48 @@ class IORails(BaseGuardrails):
             if user_content:
                 log.info("[%s] Running input rails", req_id)
                 input_result = await self.rails_manager.is_input_safe(messages)
+                conversation.record_masks(RailDirection.INPUT, pending=input_result.rewrite_pending)
                 if not input_result.is_safe:
                     log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
-                    return RailsResult(
-                        status=RailStatus.BLOCKED,
-                        content=_blocked_message(input_result),
-                        rail=input_result.triggered_rail,
-                    )
+                    conversation.messages = _apply_input_rewrite_before_block(messages, input_result)
+                    return _blocked_check_result(input_result)
                 rewritten = _rewritten_user_message(input_result)
                 if rewritten is not None:
                     log.info("[%s] Input rails rewrote the user message", req_id)
                     messages = rewrite_user_message(messages, rewritten)
+                    conversation.messages = messages
                     if not reports_output:
                         pass_content = rewritten
             else:
                 log.info("[%s] Input rails requested but no user content to check; skipping", req_id)
 
-        if reports_output:
+        if "tool_call" in rails_to_run:
+            blocked = await self._check_latest_tool_calls(messages, tools, req_id)
+            if blocked is not None:
+                return blocked
+
+        if "output" in rails_to_run:
             bot_response = _get_last_content_by_role(messages, "assistant")
             # Skip when there is no assistant content: the content-safety action requires
             # bot_response and would otherwise raise, surfacing a false BLOCK.
             if bot_response:
                 log.info("[%s] Running output rails", req_id)
                 output_result = await self.rails_manager.is_output_safe(messages, bot_response)
+                conversation.record_masks(RailDirection.OUTPUT, pending=output_result.rewrite_pending)
                 if not output_result.is_safe:
                     log.info("[%s] Output blocked: %s", req_id, display_reason(output_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.OUTPUT)
-                    return RailsResult(
-                        status=RailStatus.BLOCKED,
-                        content=_blocked_message(output_result),
-                        rail=output_result.triggered_rail,
-                    )
+                    conversation.messages = _apply_output_rewrite_before_block(messages, output_result)
+                    return _blocked_check_result(output_result)
                 rewritten = _rewritten_bot_message(output_result)
                 if rewritten is not None:
                     log.info("[%s] Output rails rewrote the response", req_id)
                     pass_content = rewritten
+                    messages = _rewrite_last_assistant_message(messages, rewritten)
+                    conversation.messages = messages
             else:
                 log.info("[%s] Output rails requested but no assistant content to check; skipping", req_id)
 
@@ -1491,6 +1759,48 @@ class IORails(BaseGuardrails):
         if pass_content != original_content:
             return RailsResult(status=RailStatus.MODIFIED, content=pass_content)
         return RailsResult(status=RailStatus.PASSED, content=pass_content)
+
+    def _validate_requested_rail_types(self, rail_types: list[RailType]) -> None:
+        """Raise when a requested rail type has no rails to run."""
+        for rail_type in rail_types:
+            reason = self.unconfigured_rail_type_reason(self.config, rail_type)
+            if reason is not None:
+                raise RailTypeNotConfiguredError(reason)
+
+    def _log_unrequested_tool_rails(self, messages: LLMMessages, req_id: str) -> None:
+        """Say at INFO when auto-detection skips tool rails that could check this conversation."""
+        tool_rails_configured = any(_rail_type_configured(self.config, rail_type) for rail_type in TOOL_RAIL_TYPES)
+        if tool_rails_configured and _has_tool_traffic(messages):
+            log.info(
+                "[%s] tool rails are configured but were not requested; "
+                "name tool_call or tool_result in rail_types to run them",
+                req_id,
+            )
+
+    async def _check_tool_results(self, messages: LLMMessages, req_id: str) -> Optional[RailsResult]:
+        """Run the tool-result rails, returning the blocked check result or None to continue."""
+        log.info("[%s] Running tool result rails", req_id)
+        result = await self.rails_manager.are_tool_results_safe(messages, model_type=None)
+        if result.is_safe:
+            return None
+        log.info("[%s] Tool results blocked: %s", req_id, display_reason(result))
+        if self._metrics_enabled:
+            record_request_blocked(RailDirection.INPUT)
+        return _blocked_check_result(result)
+
+    async def _check_latest_tool_calls(
+        self, messages: LLMMessages, tools: Optional[list[dict]], req_id: str
+    ) -> Optional[RailsResult]:
+        """Run the tool-call rails on the last assistant turn, returning the blocked check result or None."""
+        log.info("[%s] Running tool call rails", req_id)
+        llm_params = {"tools": tools if tools is not None else _main_model_tools(self.config)}
+        result = await self.rails_manager.are_latest_tool_calls_safe(messages, llm_params)
+        if result.is_safe:
+            return None
+        log.info("[%s] Tool calls blocked: %s", req_id, display_reason(result))
+        if self._metrics_enabled:
+            record_request_blocked(RailDirection.OUTPUT)
+        return _blocked_check_result(result)
 
     def _validate_streaming_with_output_rails(self) -> None:
         """Raise if output rails exist but streaming is not enabled for them."""
@@ -1507,12 +1817,12 @@ class IORails(BaseGuardrails):
         messages: LLMMessages,
         options: Optional[Union[dict, GenerationOptions]] = None,
         include_metadata: Optional[bool] = False,
-    ) -> AsyncIterator[Union[str, dict]]:
+    ) -> AsyncIterator[Union[str, dict, ToolCallChunk]]:
         """Stream LLM response tokens with input/output rails applied.
 
         Returns an async iterator that yields string chunks (or dicts when
-        ``include_metadata=True``).  Input rails run before any tokens are
-        streamed.  If output rails are configured and streaming is enabled,
+        ``include_metadata=True``) and completed ``ToolCallChunk`` events.
+        Input rails run before any tokens are streamed.  If output rails are configured and streaming is enabled,
         tokens are buffered and checked using the same ``RollingBuffer`` /
         ``stream_first`` semantics as LLMRails.
 
@@ -1524,7 +1834,7 @@ class IORails(BaseGuardrails):
                 ``metadata`` keys instead of plain strings.
 
         Returns:
-            An async iterator of string chunks (or dicts).
+            An async iterator of text chunks and completed ``ToolCallChunk`` events.
 
         Raises:
             StreamingNotSupportedError: If output rails are present but
@@ -1555,13 +1865,15 @@ class IORails(BaseGuardrails):
         llm_kwargs: dict = options.llm_params if (options and options.llm_params) else {}
         input_enabled = options.rails.input if options else True
         output_enabled = options.rails.output if options else True
-        tool_input_enabled = options.rails.tool_input if options else True
-        tool_output_enabled = options.rails.tool_output if options else True
+        tool_result_enabled = options.rails.tool_result if options else True
+        tool_call_enabled = options.rails.tool_call if options else True
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
         # The output-rail wrapper is built before the generation task runs, so it cannot be handed
         # the messages by value: an input rail may rewrite them after that point.
-        conversation = _TurnConversation(messages=messages)
+        conversation = _TurnConversation(
+            messages=messages, masks_pending=self._masks_awaiting(messages, (RailDirection.INPUT,))
+        )
         # Tool calls assembled by the stream: _generation_task rebinds this (via
         # nonlocal) to the engine's finalized list and _wrapped_iterator reads it
         # after the content stream drains. The engine emits the complete list once
@@ -1587,14 +1899,14 @@ class IORails(BaseGuardrails):
                 # results of execution to Main LLM along with prior conversation history
                 # Symmetric with INPUT rails for dialog use-case
                 log.info("[%s] Running tool result rails", req_id)
-                tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
+                tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_result_enabled)
                 if not tool_result.is_safe:
                     log.info("[%s] Tool result blocked: %s", req_id, display_reason(tool_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
                     await streaming_handler.push_chunk(
                         self._guardrails_violation_payload(
-                            f"Blocked by tool input rails: {client_reason(tool_result)}", "tool_input_rails"
+                            f"Blocked by tool result rails: {client_reason(tool_result)}", "tool_result_rails"
                         )
                     )
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
@@ -1607,6 +1919,11 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
+                    # The request span records ``conversation`` once the stream ends, so a mask applied
+                    # ahead of the block has to reach it before the caller can see the stream close.
+                    messages = _apply_input_rewrite_before_block(messages, input_result)
+                    conversation.messages = messages
+                    conversation.record_masks(RailDirection.INPUT, pending=input_result.rewrite_pending)
                     await streaming_handler.push_chunk(
                         self._guardrails_violation_payload(
                             f"Blocked by input rails: {client_reason(input_result)}", "input_rails"
@@ -1622,10 +1939,14 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Input rails rewrote the user message", req_id)
                     messages = rewrite_user_message(messages, rewritten)
                 conversation.messages = messages
+                conversation.record_masks(RailDirection.INPUT, pending=input_result.rewrite_pending)
+                # The model reads a turn the input mask never decided on, so its response may repeat it.
+                if input_result.rewrite_pending:
+                    conversation.withhold(RailDirection.OUTPUT)
 
                 # Step 2: Stream main LLM content from structured response.
                 # delta_content is forwarded as text chunks; delta_tool_calls are
-                # accumulated and surfaced as a terminal JSON chunk after the text
+                # accumulated and surfaced as a terminal ToolCallChunk after the text
                 # stream ends. Reasoning is dropped for LLMRails compatibility.
                 log.info("[%s] Streaming main LLM", req_id)
                 content_parts: list[str] = []
@@ -1781,7 +2102,7 @@ class IORails(BaseGuardrails):
                                     if accumulated_tool_calls and not error_emitted:
                                         # ToolCallRail checks tool calls from the main LLM (OUTPUT)
                                         tool_call = await self.rails_manager.are_tool_calls_safe(
-                                            accumulated_tool_calls, llm_kwargs, enabled=tool_output_enabled
+                                            accumulated_tool_calls, llm_kwargs, enabled=tool_call_enabled
                                         )
                                         if not tool_call.is_safe:
                                             log.info(
@@ -1792,19 +2113,20 @@ class IORails(BaseGuardrails):
                                             if self._metrics_enabled:
                                                 record_request_blocked(RailDirection.OUTPUT)
                                             violation = self._guardrails_violation_payload(
-                                                f"Blocked by tool output rails: {client_reason(tool_call)}",
-                                                "tool_output_rails",
+                                                f"Blocked by tool call rails: {client_reason(tool_call)}",
+                                                "tool_call_rails",
                                             )
                                             if self._content_capture_enabled:
                                                 delivered.append(violation)
                                             yield _frame_for_stream(violation, include_metadata)
                                         else:
-                                            payload, framed = _terminal_tool_call_chunk(
-                                                accumulated_tool_calls, include_metadata
-                                            )
                                             if self._content_capture_enabled:
-                                                delivered.append(payload)
-                                            yield framed
+                                                delivered.append(
+                                                    json.dumps(
+                                                        {"tool_calls": _serialize_tool_calls(accumulated_tool_calls)}
+                                                    )
+                                                )
+                                            yield ToolCallChunk(accumulated_tool_calls)
                                 finally:
                                     if not task.done():
                                         task.cancel()
@@ -1823,9 +2145,14 @@ class IORails(BaseGuardrails):
                                 # stream still records whatever reached the caller.
                                 # Empty `delivered` -> output_text=None so we don't
                                 # falsely claim an "" assistant message was produced.
+                                # Text a configured mask never decided on is withheld.
                                 if self._content_capture_enabled:
                                     output_text = "".join(delivered) if delivered else None
-                                    set_request_content(request_span, messages, output_text)
+                                    set_request_content(
+                                        request_span,
+                                        _generation_input_for_capture(conversation),
+                                        _generation_output_for_capture(conversation, output_text),
+                                    )
                 finally:
                     self._stream_semaphore.release()
 
@@ -1895,6 +2222,9 @@ class IORails(BaseGuardrails):
                 )
                 yield _frame_for_stream(violation, include_metadata)
                 return
+            if output_result.rewrite_pending:
+                # This batch goes out with a configured mask unrun, and a later batch cannot take that back.
+                conversation.withhold(RailDirection.OUTPUT)
 
             rewritten = _rewritten_bot_message(output_result)
             if rewritten is not None and stream_first:

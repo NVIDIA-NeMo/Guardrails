@@ -1,0 +1,67 @@
+name: Guardrails API specification
+
+on:
+  pull_request:
+    paths:
+      - "nemoguardrails/**"
+      - "scripts/export_openapi.py"
+      - "scripts/export_hooks_openapi.py"
+      - "tests/server/test_export_hooks_openapi.py"
+      - "fern/hooks-openapi*.yml"
+      - "scripts/export_proxy_openapi.py"
+      - "scripts/proxy_guard_contract_docs.py"
+      - "tests/server/test_export_openapi.py"
+      - "tests/server/test_export_proxy_openapi.py"
+      - "fern/openapi*.yml"
+      - "fern/proxy-openapi*.yml"
+      - "fern/generators.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/guardrails-api-spec.yml"
+      - ".github/workflows/api-conformance-docs.yml"
+      - ".github/actions/setup-uv/**"
+  push:
+    branches: [develop]
+    paths:
+      - "nemoguardrails/**"
+      - "scripts/export_openapi.py"
+      - "scripts/export_hooks_openapi.py"
+      - "tests/server/test_export_hooks_openapi.py"
+      - "fern/hooks-openapi*.yml"
+      - "scripts/export_proxy_openapi.py"
+      - "scripts/proxy_guard_contract_docs.py"
+      - "tests/server/test_export_openapi.py"
+      - "tests/server/test_export_proxy_openapi.py"
+      - "fern/openapi*.yml"
+      - "fern/proxy-openapi*.yml"
+      - "fern/generators.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/guardrails-api-spec.yml"
+      - ".github/workflows/api-conformance-docs.yml"
+      - ".github/actions/setup-uv/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check generated Guardrails API specification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: ./.github/actions/setup-uv
+      - run: uv sync --locked --group dev
+      - name: Generate specification from this revision
+        run: make docs-fern-generate-openapi
+      - name: Test exporter without provider calls
+        run: |
+          make test WORKERS=1 TEST=tests/server/test_export_openapi.py
+          make test WORKERS=1 TEST=tests/server/test_export_hooks_openapi.py
+          make test WORKERS=1 TEST=tests/server/test_export_proxy_openapi.py

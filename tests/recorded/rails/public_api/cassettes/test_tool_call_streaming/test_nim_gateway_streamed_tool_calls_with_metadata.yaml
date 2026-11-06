@@ -1,0 +1,144 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: user
+        content: Call get_weather for Paris. Do not answer in prose.
+      stream: true
+      stream_options:
+        include_usage: true
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice:
+        type: function
+        function:
+          name: get_weather
+      max_tokens: 1024
+      chat_template_kwargs:
+        enable_thinking: false
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - text/event-stream; charset=utf-8
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      cache-control:
+      - no-cache
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            role: assistant
+            content: ''
+      - id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion.chunk
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - id: chatcmpl-tool-9a2ef6bf35f4ee7f
+              function:
+                arguments: ''
+                name: get_weather
+              type: function
+              index: 0
+      - id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion.chunk
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - function:
+                arguments: '{"city": "'
+              type: function
+              index: 0
+      - id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion.chunk
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - function:
+                arguments: Paris
+              type: function
+              index: 0
+      - id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion.chunk
+        choices:
+        - index: 0
+          delta:
+            tool_calls:
+            - function:
+                arguments: '"}'
+              type: function
+              index: 0
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta: {}
+          finish_reason: stop
+      - id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion.chunk
+        choices:
+        - index: 0
+          delta: {}
+        usage:
+          completion_tokens: 23
+          prompt_tokens: 291
+          total_tokens: 314
+          completion_tokens_details:
+            reasoning_tokens: 0
+      - '[DONE]'

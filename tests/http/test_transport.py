@@ -16,6 +16,7 @@
 import asyncio
 from unittest import mock
 
+import anyio
 import httpx
 import pytest
 
@@ -241,3 +242,133 @@ def test_httpx_transport_rejects_tls_with_injected_client():
 def test_http_tls_config_requires_complete_client_credentials(kwargs):
     with pytest.raises(ValueError, match="configured together"):
         HTTPTLSConfig(**kwargs)
+
+
+class ClosingTransport(httpx.MockTransport):
+    """Expose completion separately from HTTPX's early closed state."""
+
+    def __init__(self):
+        super().__init__(lambda request: httpx.Response(200))
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+        self.release.set()
+        self.error: Exception | None = None
+        self.close_calls = 0
+        self.completed = False
+
+    async def aclose(self):
+        self.close_calls += 1
+        self.entered.set()
+        await self.release.wait()
+        if self.error is not None:
+            raise self.error
+        self.completed = True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["task", "scope", "exception"])
+async def test_owned_httpx_close_retains_completion_or_failure(failure):
+    """Finish transport cleanup even after HTTPX reports its client closed."""
+
+    transport = ClosingTransport()
+    owned = httpx.AsyncClient(transport=transport, trust_env=False)
+    with mock.patch("nemoguardrails.http.transport.httpx.AsyncClient", return_value=owned):
+        client = HttpxHTTPClient()
+    try:
+        if failure == "exception":
+            transport.error = RuntimeError("transport cleanup failed")
+            with pytest.raises(RuntimeError, match="transport cleanup failed"):
+                await client.close()
+        else:
+            transport.release.clear()
+            if failure == "task":
+                closing = asyncio.create_task(client.close())
+                with anyio.fail_after(1):
+                    await transport.entered.wait()
+                closing.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await closing
+            else:
+                for _ in range(2):
+                    with anyio.move_on_after(0.01) as scope:
+                        await client.close()
+                    assert scope.cancelled_caught
+            assert not transport.completed
+        assert owned.is_closed
+        assert not client._closed
+        transport.release.set()
+        with anyio.fail_after(1):
+            if failure == "exception":
+                with pytest.raises(RuntimeError) as caught:
+                    await client.close()
+                assert caught.value is transport.error
+                assert not client._closed
+                assert not transport.completed
+            else:
+                await client.close()
+                assert client._closed
+                assert transport.completed
+        assert transport.close_calls == 1
+    finally:
+        transport.error = None
+        transport.release.set()
+        if failure != "exception":
+            await client.close()
+        await owned.__aexit__(None, None, None)
+
+
+@pytest.mark.asyncio
+async def test_owned_httpx_concurrent_closes_wait_for_one_transport_close():
+    """Share unfinished cleanup without reporting success to another caller."""
+
+    transport = ClosingTransport()
+    transport.release.clear()
+    owned = httpx.AsyncClient(transport=transport, trust_env=False)
+    with mock.patch("nemoguardrails.http.transport.httpx.AsyncClient", return_value=owned):
+        client = HttpxHTTPClient()
+    first = asyncio.create_task(client.close())
+    second = None
+    try:
+        with anyio.fail_after(1):
+            await transport.entered.wait()
+        second = asyncio.create_task(client.close())
+        await asyncio.sleep(0)
+        assert not second.done()
+        assert not client._closed
+        transport.release.set()
+        with anyio.fail_after(1):
+            await asyncio.gather(first, second)
+        assert transport.completed
+        assert transport.close_calls == 1
+        await client.close()
+        assert transport.close_calls == 1
+    finally:
+        transport.release.set()
+        await asyncio.gather(*(task for task in (first, second) if task is not None), return_exceptions=True)
+        await client.close()
+        await owned.__aexit__(None, None, None)
+
+
+@pytest.mark.asyncio
+async def test_failed_httpx_pool_close_cannot_be_mistaken_for_success(monkeypatch):
+    """Retain failure after the real HTTPX pool discards a failing connection."""
+
+    owned = httpx.AsyncClient(trust_env=False)
+    transport = owned._transport
+    assert isinstance(transport, httpx.AsyncHTTPTransport)
+    pool = transport._pool
+    connection = mock.Mock()
+    connection.aclose = mock.AsyncMock(side_effect=RuntimeError("connection cleanup failed"))
+    monkeypatch.setattr(pool, "_connections", [connection])
+    with mock.patch("nemoguardrails.http.transport.httpx.AsyncClient", return_value=owned):
+        client = HttpxHTTPClient()
+    try:
+        for _ in range(2):
+            with pytest.raises(RuntimeError, match="connection cleanup failed"):
+                await client.close()
+            assert owned.is_closed
+            assert pool.connections == []
+            assert not client._closed
+        connection.aclose.assert_awaited_once()
+    finally:
+        await owned.__aexit__(None, None, None)

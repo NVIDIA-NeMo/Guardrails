@@ -1,0 +1,186 @@
+---
+title: "Compose and Extend in Python"
+sidebar-title: "Python Integration"
+description: "Build the proxy application, select Rails from trusted context, and extend HTTP dispatch or provider bindings."
+content:
+  type: "how_to"
+---
+
+Use Python when your deployment needs dynamic Rails selection, explicit provider
+bindings, or a custom HTTP transport. The Python interface and YAML launcher
+use the same route assembly and resource owners.
+
+## Create an Application
+
+Each recipe below is a separate application. After copying the
+[quickstart example](/run-guardrailed-inference/using-proxy/quickstart), return to the repository root and save
+this shared configuration as `proxy_config.py`:
+
+```python
+from pathlib import Path
+
+from nemoguardrails.server.experimental.application import (
+    ConfigEntry,
+    ProviderConfig,
+    ProxyConfig,
+)
+
+config = ProxyConfig(
+    rails_configs=(ConfigEntry("standard", Path("proxy-example/rails")),),
+    providers=(
+        ProviderConfig(
+            provider="openai",
+            instance_id="openai",
+            base_url="https://api.openai.com/v1",
+            operations=("chat_completions", "responses"),
+            rails_config_id="standard",
+        ),
+    ),
+)
+```
+
+This uses the same OpenAI upstream as the quickstart. Create `proxy_app.py` beside it:
+
+```python
+from nemoguardrails.server.experimental.application import create_proxy_application
+
+from proxy_config import config
+
+app = create_proxy_application(config)
+```
+
+Run from the repository root, then use the
+[quickstart requests](/run-guardrailed-inference/using-proxy/quickstart#send-a-buffered-request)
+with the same `OPENAI_API_KEY` and model:
+
+```bash
+uvicorn proxy_app:app --host 127.0.0.1 --port 8000
+```
+
+Python relative Rails paths resolve against the working directory during
+application construction. Use absolute paths when embedding or launching from
+another directory. YAML paths instead resolve against the manifest location.
+Application construction validates configuration and routes; lifespan startup
+initializes Rails and network owners.
+
+## Choose Advanced Customization
+
+Choose a customization guide for your application requirements:
+
+| Task | Guide |
+| --- | --- |
+| Select preloaded Rails using trusted request or operation context | [Rails configuration resolution](/run-guardrailed-inference/using-proxy/advanced/configuration-resolution) |
+| Inject outbound HTTP, tune connection pools, or route model aliases | [HTTP transport customization](/run-guardrailed-inference/using-proxy/advanced/http-transport) |
+| Compose several mounts, upstreams, and policies | [Multiple provider instances and routing](/run-guardrailed-inference/using-proxy/advanced/multiple-provider-instances) |
+| Customize request restrictions and buffered and streaming metadata | [Request and response policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings) |
+
+## Lifespan and Embedding
+
+The factory returns a FastAPI application. When embedding it, run its lifespan
+from the actual parent application's lifespan, rather than assuming that a mount
+initializes its resources. Save this complete recipe as `embedded_app.py`
+beside `proxy_config.py`:
+
+```python
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from nemoguardrails.server.experimental.application import create_proxy_application
+
+from proxy_config import config
+
+proxy = create_proxy_application(config)
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    async with proxy.router.lifespan_context(proxy):
+        yield
+
+
+application = FastAPI(lifespan=lifespan)
+application.mount("/guarded", proxy)
+```
+
+Run `uvicorn embedded_app:application`
+from the repository root. This exposes the proxy beneath `/guarded`. Coordinate
+parent authentication,
+route ownership, startup failure, and shutdown with your application's other
+resources.
+
+### Local Application Routes
+
+To serve a local health endpoint, define its router before constructing the
+proxy, then pass it to the factory:
+
+```python
+from fastapi import APIRouter
+
+from nemoguardrails.server.experimental.application import create_proxy_application
+
+from proxy_config import config
+
+local = APIRouter()
+
+@local.get("/health")
+async def health():
+    return {"status": "ok"}
+
+app = create_proxy_application(config, local_routers=(local,))
+```
+
+`GET /health` is local and unsupported methods are reserved from forwarding.
+Adding routes after factory construction can hide them behind a provider
+catch-all. Choose paths outside guarded operations. This static response is
+liveness only: implement readiness and drain signaling in your host or deployment,
+and add inbound authentication middleware separately when exposing the service.
+
+## Extend Provider Coverage
+
+The composition model separates provider field policy from reusable checking
+and HTTP execution. For a complete example, refer to
+[customize request and response policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings).
+For a new endpoint:
+
+1. Declare the provider payload shapes and guarded, constrained, and opaque
+   fields in typed projections.
+2. Bind their coverage and text locations to the execution capability they
+   require. Add execution/checker support too when introducing a new capability.
+3. For streams, declare event selection and roles, and supply request-local
+   hooks for ordering, completion, and error framing.
+4. Compose the endpoint with provider error handling and trusted instance
+   settings. Supply explicit integrations to the application factory.
+5. Export the bound endpoint's
+   [guard contract](/run-guardrailed-inference/using-proxy/guard-contracts) to review its field policies and stream declarations.
+
+For direct composition, bypass the built-in `ProxyConfig` selection while using
+the same factory. This can also replace `proxy_app.py`; keep the copied Rails directory and
+use the same OpenAI requests:
+
+```python
+from pathlib import Path
+
+from nemoguardrails.server.experimental.application import ConfigEntry, create_proxy_application
+from nemoguardrails.server.experimental.providers.openai.integration import create_openai_integration
+
+app = create_proxy_application(
+    providers=(
+        create_openai_integration(
+            instance_id="openai",
+            base_url="https://api.openai.com/v1",
+        ),
+    ),
+    rails_configs=(ConfigEntry("standard", Path("proxy-example/rails")),),
+)
+```
+
+Direct integrations can supply custom endpoints without a global registration
+system. In direct mode, one Rails entry with no resolver infers static selection;
+multiple entries require a resolver. An explicit resolver still runs with one
+entry. Do not mix `ProxyConfig` with direct provider, catalog, or limit arguments;
+callbacks remain separate keyword arguments in either mode.
+
+For implementation detail, start with the
+[typed Chat declarations](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/chat_completions/README.md)
+and [Responses declarations](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/responses/README.md).

@@ -22,3 +22,35 @@
   font-weight: var(--font-weight-normal);
   text-decoration-color: var(--accent);
 }
+
+.guardrails-proxy-contract-table table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 640px;
+}
+
+.guardrails-proxy-contract-table th,
+.guardrails-proxy-contract-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.guardrails-proxy-contract-table th:first-child {
+  width: 24%;
+}
+
+.guardrails-proxy-contract-table th:nth-child(2) {
+  width: 16%;
+}
+
+.guardrails-proxy-contract-table th:nth-child(3) {
+  width: 14%;
+}
+
+.guardrails-proxy-contract-table th:nth-child(4) {
+  width: 20%;
+}
+
+.guardrails-proxy-contract-table th:last-child {
+  width: 26%;
+}

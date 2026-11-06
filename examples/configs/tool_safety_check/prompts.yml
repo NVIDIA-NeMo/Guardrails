@@ -1,5 +1,5 @@
 prompts:
-  - task: "tool_safety_check_output $model=llama_guard $variant=run_sql_check"
+  - task: "tool_safety_check_tool_call $model=llama_guard $variant=run_sql_check"
     content: |
       You are reviewing a call to the `run_sql` tool.
       Arguments: {{ tool_call_arguments }}
@@ -12,7 +12,7 @@ prompts:
       - If it is unsafe, respond with "unsafe: <reason>", separating multiple reasons with semicolons.
     output_parser: parse_tool_safety_verdict
 
-  - task: "tool_safety_check_input $model=llama_guard $variant=run_sql_check"
+  - task: "tool_safety_check_tool_result $model=llama_guard $variant=run_sql_check"
     content: |
       You are reviewing the result of a call to the `run_sql` tool.
       Result: {{ tool_result_content }}

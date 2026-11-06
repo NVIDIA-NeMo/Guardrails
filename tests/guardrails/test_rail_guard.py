@@ -70,12 +70,12 @@ status_bearing_types = pytest.mark.parametrize(
 class TestFailsClosed:
     """A rail that raises without an HTTP status blocks."""
 
-    def test_unexpected_exception_blocks_with_a_reason(self):
-        """An arbitrary exception becomes a blocking verdict naming the action."""
+    def test_unexpected_exception_blocks_naming_only_the_action(self):
+        """An arbitrary exception becomes a blocking verdict whose reason names the action and nothing else."""
         outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError("parser blew up"))
 
         assert outcome.is_blocked
-        assert outcome.reason == "content safety check input error: parser blew up"
+        assert outcome.reason == "content safety check input error"
 
     def test_unexpected_exception_is_marked_as_a_rail_failure(self):
         """The block is marked failed, so an engine can tell it from a rail that decided to block."""
@@ -92,18 +92,41 @@ class TestFailsClosed:
 
     @status_bearing_types
     def test_status_bearing_exception_without_a_status_blocks(self, make_exc):
-        """A connection-level failure carries status=None, so it fails closed rather than propagating."""
+        """A connection-level failure with no classified cause fails closed, its reason naming only the action."""
         outcome = rail_error_outcome(None, ACTION_NAME, make_exc(None))
 
         assert outcome.is_blocked
-        assert outcome.reason is not None
-        assert "upstream refused" in outcome.reason
+        assert outcome.reason == "content safety check input error"
 
-    def test_reason_redacts_secrets(self):
-        """Credentials in an exception message are redacted before reaching the reason."""
+    def test_unclassified_exception_text_stays_out_of_the_reason(self):
+        """An exception that is not a classified provider error contributes no text to the reason."""
         outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError("auth rejected token nvapi-abc123secret"))
 
-        assert outcome.reason == "content safety check input error: auth rejected token nvapi-***"
+        assert outcome.reason == "content safety check input error"
+
+    def test_upstream_body_in_an_unclassified_exception_stays_out_of_the_reason(self):
+        """An action that puts an upstream response body in its exception cannot relay it to the caller."""
+        exc = ValueError(
+            "PolicyAI call failed with status code 500.\n"
+            "Details: see https://internal.example/debug?trace=1 for guard-model internals"
+        )
+
+        outcome = rail_error_outcome(None, ACTION_NAME, exc)
+
+        assert outcome.reason == "content safety check input error"
+
+    def test_classified_reason_redacts_secrets_and_urls(self):
+        """A classified provider message reaches the caller with credentials and URLs scrubbed."""
+        provider_error = LLMClientError(
+            0, "upstream https://internal.example/v1/guard rejected key nvapi-abc123secret", model_name="guard-model"
+        )
+        exc = ModelEngineError(
+            "Request to model 'guard-model' failed", model_name="guard-model", inner_exception=provider_error
+        )
+
+        outcome = rail_error_outcome(None, ACTION_NAME, exc)
+
+        assert outcome.reason == "content safety check input error: upstream [redacted-url] rejected key nvapi-***"
 
     def test_reason_does_not_disclose_the_rail_model(self):
         """A classified transport failure reaches the caller as the provider message alone.
@@ -174,7 +197,7 @@ class TestReturnShape:
         """``rail_error_outcome`` yields a failed RailOutcome with no metadata or transforms."""
         returned = rail_error_outcome(None, ACTION_NAME, RuntimeError("parser blew up"))
 
-        assert returned == RailOutcome.failure(reason="content safety check input error: parser blew up")
+        assert returned == RailOutcome.failure(reason="content safety check input error")
 
 
 class TestLogsAreRedacted:
@@ -314,11 +337,11 @@ class TestToolRailsShareTheEnvelope:
         """A check that returns normally is passed through untouched."""
         assert DummyToolRail().check() == RailOutcome.allow()
 
-    def test_exception_becomes_a_blocking_result_with_secrets_redacted(self):
-        """A malformed payload fails closed, named after the rail and with credentials removed."""
+    def test_exception_becomes_a_blocking_result_naming_only_the_rail(self):
+        """A malformed payload fails closed, named after the rail, with none of the exception text."""
         result = DummyToolRail(ValueError("bad header sk-abc123secret")).check()
 
-        assert result == RailOutcome.failure(reason="tool call validation error: bad header sk-***")
+        assert result == RailOutcome.failure(reason="tool call validation error")
 
     def test_exception_is_marked_as_a_rail_failure(self):
         """A tool rail's fail-closed block carries the same failed marker a compiled rail's does."""

@@ -1,0 +1,129 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/responses
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: openai/openai/gpt-5-mini
+      stream: false
+      input: 'Reply with exactly: Hello.'
+      store: false
+      max_output_tokens: 1024
+      reasoning:
+        effort: low
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created_at: 1793868794
+        error: null
+        incomplete_details: null
+        instructions: null
+        metadata: {}
+        model: openai/openai/gpt-5-mini
+        object: response
+        output:
+        - id: encitem_bGl0ZWxsbTptb2RlbF9pZDpvcGVuYWkvb3BlbmFpL2dwdC01LW1pbmk7aXRlbV9pZDpyc18wYjA5YTk2YjE2MDRkODYzMDE2YWVjNDNmYThjMWM4N2QxYjNkZWRlZDNiNzg1ZDgyYg==
+          summary: []
+          type: reasoning
+          content: []
+          encrypted_content: litellm_enc:bW9kZWxfaWQ6b3BlbmFpL29wZW5haS9ncHQtNS1taW5p;gAAAAABq7EP7Rp4HSjrGEF_0CI0DuUUvki2ToQ3LM1gwFeQOrm6Xm9A7Ha1VV_dTy1yXG0qn2aoF3QhtNMB9ivBEw2ITcfxH6Zi7yskOPLETWd01ZMFaVw3Pl1bbuMaCF6DaxA9gtosXRGzUlUAEtj5xF2i2N1SAFSrDCkkgv42_DgUlqAZ-njcEPmG7BmczR5a9ZuvPD8JUVIn7hVGWfsweuEjruUOQhKhzQRxSj8wTYP7-CzBhHPTYh8HdI3uW6C05l_fOX379l1UmvHWdNciBugrJn0n3sKMhgJ_ELF3EnzgrxrVrNIC-XVsLZnYcV-QUNoYC3slV1iMgx3ZXRz474DFVVBgEVuugiwLJ_h7GBa0Rj7LrVeXdLG257edMSFsOEiVrpN7eLbfarDr4yF95cB9d4ws98ULgKksOLSUGq0WhSMaTw3N9MwjHSl2Scdl7bLssqNCygbH_OvdR8mReP7So6rS9vN_Zrbzbuz9nT83CqsCHDD0TCd6i6RrFmEo6KNAVpDOzR09ajKbTvDCqrMEARma2fg0kPugIfoXrgBZj7rKlzcOvxyTchAeu6F01nHcX3dZ-10HbvmNkmHebYlUoq197SlytPp127-Fu4RDB1qSv0bxZ82f4y78WHnfqEw6LzO5tVq1nHKGFDetThvv5BmyX6RtUNkTzXtKVjhhixkarTPLqSstBDaYVC04sDp_CJam7F1EsJV_6OllUPUBGkznBKRbKlZ7KwWey3950KNSjY3LotoA4elSih9woePTvJdutagSAZpMCDMdJWA4KSHfLhb0o9AveUqhwfncYcF3QcXF2mCXDbndkeXEGOLqUJPrZss5w0fF4cAQyM4E_fZ8Yx4bmsop61KuKnph0q5a1NB_aF8NGGKSN5RJEMJ8KudbrMPpAY_-TS5ZXUgXmR22G6AzVtkRt3_9NB1LhyAqYsH8SCirEKhxuOebujfeA-lPuZdN62twoFGNKVeHfGyWPt-nD2J9zvtMZBEMwzQ4DFCGPUAS0kxy8oAyRVaz_cpFofFlbzbGz1LwClVPOx9ohEeNVJLJx5E8yk5wiW_vYo9ynyZ7IJ6T3lD00aHsCIfoaXxSoNmB8OSf3gFzccPfR7BVgKMMky1J81YA-t4sH8luc0SVGWZGeT58CS6P4R-lg6hCo7AL-3gd42LzbRnVPxo7dluQeOxl_FfS5i-tSSdhEfla-9CmkeB29m3G5xlOkKGMX6f7jKH1hQZgezSybZjk_F5qQuf89pAUfcm80pQnD-O9e8jzfAig59dxTPDvthvT5Z3EkB-mG0fna8GwVOUGYTy5HN-9YoJ84y9aKLXyILFq5YAPuCFcWK3wi_6XRaJtPg3mA3G8g_LQFbJfYarMBURhnWw4LI1zSX4Snoapiu9V_s1n6f0xSu2bdGPKBrkcYnW71kg1UaPkR9WOSaqBM-QB2nYxYNEaNz3UB8GsBJGyZ0k3H7FHsK3EBKu4XYy7thHkWcmNkbM7Vls0FR9nacoMtqQBMHC6Er11zmOWg-3xLFhHvgk1Wt0C2wiTfP3FvmzNw263Pp_3irLkY9Th7seNYpUXk_1B3cqK_sPW9t-tHYzXrVguQg5ww5YFB2sPKtTWFGFVL04Mp5EQsG55CEkVHINIDTd1C2iZJ8iltM2XmT58P8cOvbwpf9ipDMmKnUFUFjwmJFnx-sGw-tlhGDzhTj2r5sDt-bw9xesvges28-ovm-9Ym853za2PumZhfxGyslige8-mc8q1wkcwo6jpVh8-IgAsHciWZ-3I-X-eZPn8iuBAmHzqdqumvG9b67qvLXpJcKZqnTcpl94-tLjTHuGXXRnslK19R8UtFKvkUcnyFFa2q_aUdMi7W0BSzkyBkCxYjTv6KAJRbQro8LDTNJbt1QVh55ghCTRSMc2bMhHL3fZsdusih3vfW4bJWFv3qHmp99rmyR-LoTEtJZg2edrrmoKgHiSPomFYjxEJz5jy_aT0GGVGBSbLV
+        - id: msg_0b09a96b1604d863016aec43faf17487d1a8b5584e228bc808
+          content:
+          - annotations: []
+            text: Hello.
+            type: output_text
+            logprobs: []
+          role: assistant
+          status: completed
+          type: message
+          phase: null
+        parallel_tool_calls: true
+        temperature: 1.0
+        tool_choice: auto
+        tools: []
+        top_p: 1.0
+        max_output_tokens: 1024
+        previous_response_id: null
+        reasoning:
+          context: current_turn
+          effort: low
+          mode: standard
+          summary: null
+        status: completed
+        text:
+          format:
+            type: text
+          verbosity: medium
+        truncation: disabled
+        usage:
+          input_tokens: 12
+          input_tokens_details:
+            audio_tokens: null
+            cached_tokens: 0
+            cached_tokens_details: null
+            image_tokens: null
+            text_tokens: null
+            video_tokens: null
+            cache_write_tokens: 0
+          output_tokens: 45
+          output_tokens_details:
+            audio_tokens: null
+            reasoning_tokens: 0
+            text_tokens: null
+          total_tokens: 57
+          cost: null
+        user: null
+        store: false
+        access_programs: null
+        background: false
+        billing:
+          payer: developer
+        completed_at: 1793868795
+        frequency_penalty: 0.0
+        image:
+          context_compression: disabled
+        max_tool_calls: null
+        moderation: null
+        presence_penalty: 0.0
+        prompt_cache_key: null
+        prompt_cache_retention: in_memory
+        safety_identifier: null
+        service_tier: default
+        tool_usage:
+          image_gen:
+            input_tokens: 0
+            input_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            output_tokens: 0
+            output_tokens_details:
+              image_tokens: 0
+              text_tokens: 0
+            total_tokens: 0
+          web_search:
+            num_requests: 0
+        top_logprobs: 0

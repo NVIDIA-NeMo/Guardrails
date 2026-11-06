@@ -1,0 +1,174 @@
+---
+title: "Rails Configuration Resolution"
+description: "Select preloaded Rails configurations from trusted request context and manage resolver deadlines and lifecycle."
+content:
+  type: "how_to"
+---
+
+Each request uses one Rails configuration for its input and output checks. Set
+a fixed `rails_config_id` when every request to a provider instance should use
+the same policy.
+
+Use a Python resolver when the choice depends on the operation or authenticated
+user. A resolver is a function the proxy calls for each request to choose a
+configuration. The application loads the named configurations at startup. The
+resolver chooses one of their IDs rather than loading configuration files.
+
+The example below uses the standard policy for Chat Completions and a stricter
+policy for Responses, through the same provider instance.
+
+## Select a Configuration
+
+YAML requires a fixed Rails ID per provider. To select one with a Python
+function, complete the [Python setup](/run-guardrailed-inference/using-proxy/python-integration#create-an-application),
+then replace `proxy_app.py` with the complete recipe below and provide both
+Rails directories. Create `proxy-example/strict-rails` using the
+[different-policy setup](/run-guardrailed-inference/using-proxy/advanced/multiple-provider-instances#configure-different-rails-policies).
+This recipe keeps the OpenAI upstream and client setup from the quickstart:
+
+```python
+from pathlib import Path
+
+from nemoguardrails.server.experimental.application import ConfigEntry, ProviderConfig, ProxyConfig, create_proxy_application
+from nemoguardrails.server.experimental.rails import ConfigContext
+
+config = ProxyConfig(
+    rails_configs=(
+        ConfigEntry("standard", Path("proxy-example/rails")),
+        ConfigEntry("strict", Path("proxy-example/strict-rails")),
+    ),
+    providers=(
+        ProviderConfig(
+            provider="openai",
+            instance_id="openai",
+            base_url="https://api.openai.com/v1",
+            operations=("chat_completions", "responses"),
+        ),
+    ),
+)
+
+
+def resolve_config(context: ConfigContext) -> str:
+    if context.operation_name == "responses.create":
+        return "strict"
+    return "standard"
+
+
+app = create_proxy_application(config, config_resolver=resolve_config)
+```
+
+Run `uvicorn proxy_app:app --host 127.0.0.1 --port 8000` from the repository root.
+Chat requests select `standard`; Responses requests select `strict`. The
+callback chooses among ready checkers; it does not load configuration files.
+
+## Understand Assembly Defaults
+
+Rails selection depends on how you assemble the application:
+
+| Assembly | Selection Rule |
+| --- | --- |
+| YAML | Every provider requires a fixed `rails_config_id`. |
+| Python `ProxyConfig`, fixed ID | Uses the declared ID and bypasses the callback. |
+| Python `ProxyConfig`, no fixed ID | Requires a callback, including with a one-entry catalog. |
+| Direct `providers=...`, one catalog entry and no callback | Infers static selection. |
+| Direct `providers=...`, multiple entries | Requires a callback. |
+| Direct `providers=...`, explicit callback | Invokes the callback even with one entry. |
+
+Unknown fixed IDs fail construction. The shared catalog does not authorize a
+caller to select every registered entry; the callback owns that authorization.
+One selection supplies the checker for both input and output, including a
+streaming response. It does not compose several configurations in sequence.
+
+## Use Request Context
+
+The resolver receives the following context fields:
+
+| `ConfigContext` Field | Meaning |
+| --- | --- |
+| `request` | Original Starlette request, including authenticated identity and application state. |
+| `provider_type` | Server-supplied protocol family. |
+| `provider_instance_id` | Deployment-local instance identity. |
+| `operation_name` | Canonical operation, such as `chat_completions.create`. |
+
+The server supplies instance and operation identity; do not reconstruct it from
+caller headers or URL strings. The guarded request has already been validated
+and buffered within its body limit. An async callback can await `request.body()`
+or `request.json()`, or iterate `request.stream()`, without consuming the
+connection again or changing the bytes forwarded upstream.
+
+When selection needs an external tenant registry or authorization service, use
+an async callback and a client owned by your application. This alternative to
+`resolve_config` assumes trusted authentication middleware has populated
+`guardrails_subject` and your host has attached an asynchronous `policy_registry`
+client to application state:
+
+```python
+async def resolve_config_async(context: ConfigContext) -> str:
+    subject = context.request.state.guardrails_subject
+    registry = context.request.app.state.policy_registry
+    return await registry.config_id_for(tenant_id=subject.tenant_id)
+
+
+app = create_proxy_application(config, config_resolver=resolve_config_async)
+```
+
+Supply the registry's startup, shutdown, and I/O timeouts in your host lifespan.
+Its `config_id_for()` must return one declared ID. Pass the callback itself to
+the factory; do not call it during assembly. Never copy an unauthenticated
+tenant or Rails ID header into trusted state.
+
+## Bound Resolver Latency
+
+Set `config_resolution_timeout` in `ProxyConfig` or YAML, or as a factory keyword
+in direct assembly. It defaults to five seconds and must be finite and positive.
+With `ProxyConfig`, settings belong in the configuration rather than separate
+factory keywords.
+
+The deadline covers callback execution, including awaiting an awaitable returned
+by a synchronous callback. Synchronous callbacks run on the event loop and must
+remain short and nonblocking. The deadline cannot preempt blocking work or force
+cancellation-suppressing code to stop. Set external-client timeouts too.
+
+Exceptions, timeouts, empty or non-string results, and unknown IDs fail closed with
+`config_resolution_failed` before provider dispatch. Request cancellation
+propagates instead of selecting a fallback policy. Resolution warnings contain
+server-supplied provider and operation identity and the exception type, without the
+exception message, traceback, or request data.
+
+## Preload and Own the Catalog
+
+All catalog entries initialize sequentially before readiness, including unused
+entries. `RailsConfig.from_path()` loads nested layouts and `.railsignore`;
+no particular configuration filename is required. Invalid or empty configurations
+prevent readiness. File parsing runs in a worker thread; engine construction
+and startup run on the application loop.
+
+Different IDs own independent engines even for the same directory. Requests
+look up already-started checkers without parsing files or creating engines.
+The catalog is fixed for a lifespan; hot reload, request-time discovery, and
+configuration-management endpoints are not implemented.
+
+The proxy requires [compatible input and output checks](/run-guardrailed-inference/using-proxy/configuration#choose-compatible-rails-checks).
+It validates each adapter before engine startup. Unsupported retrieval, tool-call, or tool-result
+rails prevent readiness even if no request would select that entry. A valid
+configuration still needs operation-specific validation, including streaming
+inspection settings.
+
+## Handle Rollback and Shutdown
+
+Startup failure or cancellation attempts cleanup for every acquired engine,
+including one whose startup failed, and the shared HTTP client. The application
+publishes no partially ready catalog and does not retry loading on requests.
+Cancelling file parsing cannot stop the worker thread forcibly; a cancelled load
+does not proceed to engine construction.
+
+Shutdown rejects new checker lookups and attempts every loaded checker's cleanup
+independently. Each checker has a shielded five-second cooperative budget;
+HTTP cleanup has a separate five-second budget. Failures and timeouts are logged
+without replacing the primary error. These budgets cannot terminate blocking
+or cancellation-suppressing code.
+
+Incomplete engine cleanup remains owned by the application. A later lifespan
+retries it and creates a fresh catalog only after it succeeds; otherwise startup
+is rejected. A cleanup timeout is not proof of resource release. Refer to
+[cleanup diagnostics](/run-guardrailed-inference/using-proxy/troubleshooting#a-client-disconnects-or-shutdown-reports-incomplete-cleanup).

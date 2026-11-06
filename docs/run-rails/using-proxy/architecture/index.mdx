@@ -1,0 +1,184 @@
+---
+title: "Architecture"
+sidebar-title: "Architecture"
+description: "Understand the proxy's boundaries, inspection model, design tradeoffs, and deployment responsibilities."
+content:
+  type: "concept"
+---
+
+Guardrails Proxy adds content inspection around an existing provider HTTP
+exchange. Provider bindings define the inspection coverage, the NVIDIA NeMo
+Guardrails library runs configured checks, and the upstream service generates
+the answer. The proxy preserves accepted provider JSON bodies and server-sent
+events (SSE) while applying its HTTP path and header forwarding rules.
+
+## What Changes in Your Application
+
+Point your provider client's base URL at the chosen proxy mount, including its
+API prefix; the [quickstart](/run-guardrailed-inference/using-proxy/quickstart) shows the request URL. Continue to
+send the selected provider operation's JSON shape. Check the
+[shipped coverage](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles)
+first: a working upstream request can still be outside the proxy's guarded
+profile, such as a Chat request containing conversation history or tools.
+
+For a supported Chat request, the binding selects the user message string for
+input checks. It constrains the message role and shape, while metadata such as
+`model` remains opaque. Output checks receive the selected assistant text and
+that user input as context. The original JSON bytes travel to the provider or
+caller only when the relevant validation and checks allow them.
+
+Handle proxy errors as well as upstream errors. A blocked input prevents the
+inference call; a blocked buffered output withholds the answer. During streaming,
+a later error can follow already delivered text, so consume the stream's error
+format as well as its HTTP status. Refer to [caller-visible outcomes](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle#caller-visible-outcomes).
+
+## Choose a Reading Path
+
+Choose the guide that matches your role:
+
+| You Are | Read |
+| --- | --- |
+| Using the proxy in an application | Start with [system context](#system-context) and [inspection and forwarding](#inspection-and-forwarding), then follow the [request lifecycle](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle). |
+| Extending the framework | Read [framework internals](/run-guardrailed-inference/using-proxy/architecture/framework-internals) for dependency boundaries, policy selection, state ownership, and implementation/test locations. |
+| Operating or embedding a deployment | Read [operating the proxy](#operating-the-proxy), then use the [configuration](/run-guardrailed-inference/using-proxy/configuration), [deployment](/run-guardrailed-inference/using-proxy/deployment), and [Python integration](/run-guardrailed-inference/using-proxy/python-integration) guides. |
+
+## System Context
+
+This view shows the proxy as one software system and its external interactions.
+Rectangles represent systems or application-owned responsibilities. Solid
+arrows describe provider traffic; dotted arrows describe optional checking-service
+calls. Access controls belong to your application or gateway.
+
+```mermaid
+flowchart TB
+    Client["Application or provider API client"]
+    Access["Host application or ingress gateway: inbound access controls"]
+    Proxy["Guardrails Proxy: provider HTTP forwarding and configured inspection"]
+    Upstream["Inference service or model gateway: answer generation"]
+    Services["Optional configured checking services"]
+    Client -->|"Provider API request"| Access
+    Access -->|"Authorized request"| Proxy
+    Proxy -->|"Inference<br/>request"| Upstream
+    Upstream -->|"Inference<br/>response"| Proxy
+    Proxy -->|"Provider response or guardrail error"| Access
+    Access -->|"Return response"| Client
+    Proxy -.->|"Selected<br/>content"| Services
+    Services -.->|"Check<br/>result"| Proxy
+```
+
+The access-controls box represents a responsibility, not a required extra
+process. It can run in an embedding application's middleware or an inbound
+gateway. The launcher binds loopback by default and does not authenticate callers.
+Checking-service calls serve a separate role from answer generation; the same
+backend can serve both roles. External services are needed only when your Rails
+checks use them.
+
+The proxy is included in the NVIDIA NeMo Guardrails library under
+`nemoguardrails.server.experimental` and requires the library's `server` extra.
+The library's existing API server remains a separate application. YAML and Python entry points assemble the same
+proxy factory and lifespan; refer to [application assembly](/run-guardrailed-inference/using-proxy/architecture/framework-internals#application-assembly).
+
+## Inspection and Forwarding
+
+Inspection uses a selected view of the payload. The proxy retains the original
+body or event bytes alongside that view and uses check decisions to control
+their release. It does not serialize an accepted response from a validation
+model.
+
+This diagram shows a successful upstream response containing guarded text, with
+output inspection enabled. Rectangles are processing steps or retained data;
+the diamond is a release decision. Solid arrows carry original bytes or the
+response chosen for the caller. Dotted arrows carry projected content or check
+decisions.
+
+```mermaid
+flowchart TB
+    Upstream["Successful provider response"]
+    Original["Retained original JSON body or pending SSE events"]
+    Text["Binding validates shape and selects text"]
+    Check["Configured output checks"]
+    Gate{"Release decision"}
+    Error["Withhold pending content and render provider-shaped error"]
+    Client["Caller"]
+    Upstream -->|"Original bytes"| Original
+    Original -.->|"Read without rebuilding"| Text
+    Text -.->|"Selected text and input context"| Check
+    Check -.->|"Allow, block, or failure"| Gate
+    Original -->|"Retained bytes await decision"| Gate
+    Gate -->|"Allow: release original bytes"| Client
+    Gate -->|"Block or fail"| Error
+    Error -->|"HTTP error or SSE error event"| Client
+```
+
+Invalid inspected representations are rejected before release. Reviewed
+successful responses without guarded text and upstream HTTP errors have
+operation-specific handling; follow [buffered requests](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle#buffered-requests)
+for those branches. Streaming releases approved windows in order and cannot
+retract earlier output.
+
+Coverage and enabled checks are independent. This forwarding table makes the
+uninspected paths explicit:
+
+| Traffic | Request Handling | Response Handling |
+| --- | --- | --- |
+| Guarded operation with checks enabled | Validate the bound shape; run enabled input checks before dispatch. | Apply enabled output checks to declared content; release accepted original bytes. |
+| Guarded operation with output checks disabled | Guarded request validation and any enabled input checks still apply. | Relay response bytes without output projections or SSE classification. |
+| Unselected operation handled by pass-through | Forward under the provider's HTTP routing and header rules, without content inspection. | Forward without content inspection. |
+| Unsupported content on a guarded operation | Reject unsupported request content before dispatch. | With output inspection enabled, withhold unsupported successful response content. No fallback to pass-through. |
+
+Bindings currently use `single_text.v1` and `single_text_delta.v1` capabilities.
+An operation name does not imply inspection of its entire upstream API. Consult
+[providers and streaming](/run-guardrailed-inference/using-proxy/providers-and-streaming) for the shipped content
+restrictions and [guard contracts](/run-guardrailed-inference/using-proxy/guard-contracts) for field-level coverage.
+
+## Design Decisions and Tradeoffs
+
+These are current implementation choices and their observable consequences.
+
+| Choice | Effect | Tradeoff |
+| --- | --- | --- |
+| Inspect projections while retaining original bytes. | Accepted provider bodies/events keep their representation and metadata. | Current integrations reject replacement outcomes; opaque fields remain uninspected. |
+| Separate provider bindings, execution, and Rails checks. | The same checking pipeline serves reviewed operations and dialects. | New content capabilities need matching projection, execution, checker, and test support. A new profile name alone adds no capability. |
+| Derive guard-contract exports from typed declarations. | Review artifacts describe the bound coverage from one authoritative source. | Editing exported YAML changes no runtime policy; stateful hooks and arbitrary Python behavior need separate review. |
+| Preload every registered Rails configuration before readiness. | Requests select ready checkers without loading files or constructing engines. | Startup time and resources grow with the catalog, including unused entries. Initialization failure prevents readiness. |
+| Check streaming windows before release. | Output can arrive incrementally after checks approve each window. | Smaller windows increase check frequency; short responses can wait until completion. Finite context and irreversible release limit whole-answer guarantees. |
+
+Refer to [framework internals](/run-guardrailed-inference/using-proxy/architecture/framework-internals) for the interfaces enforcing
+these boundaries and [streaming inspection](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle#streaming-inspection)
+for a concrete window example.
+
+## Operating the Proxy
+
+Construction, startup, request handling, and shutdown have different owners:
+
+| Phase | Owner | What Happens |
+| --- | --- | --- |
+| Application construction | Factory, invoked by the launcher or Python host | Validate declarations, configuration paths, and route composition. No upstream calls or Rails initialization. |
+| Lifespan startup | Runtime and Rails repository | Create the shared HTTP client and transport and initialize every declared Rails configuration before readiness. |
+| Request handling | Guarded route and response owner | Select a ready checker; create request-local stream hooks/adapters and acquire upstream response resources as needed. |
+| Failed startup or shutdown | Runtime and Rails repository; host drives the lifespan | Attempt checker cleanup and HTTP cleanup independently with bounded, shielded cooperative budgets. |
+
+Timeouts do not establish that uncooperative owners released all resources.
+Embedding applications must explicitly enter the proxy lifespan; mounting alone
+does not initialize it. Follow [lifespan and embedding](/run-guardrailed-inference/using-proxy/python-integration#lifespan-and-embedding)
+and retain the [compatibility validation](/run-guardrailed-inference/using-proxy/deployment#streaming-and-resource-ownership)
+requirements.
+
+Destination routing, replication, and placement are separate dimensions that
+can be combined:
+
+| Decision | Choices and Consequences |
+| --- | --- |
+| Destination routing | Use a fixed upstream, an inference gateway, distinct provider mounts, or a trusted application transport. The selected upstream must match the bound operation and dialect. |
+| Replication | Equivalent replicas each own independent client pools and Rails engines. An established stream stays with its handling replica. Replicas can front either a fixed upstream or a gateway. |
+| Placement | Run a standalone service, local companion, or embedded ASGI application. Embedding transfers lifespan coordination to the host application. |
+| Access and credentials | Your application or gateway owns inbound authentication and authorization. The default transport forwards caller upstream credentials under its header rules. Destination-aware routing must remove inappropriate caller credentials and supply credentials for the selected destination. |
+
+For example, a standalone proxy can use an inference gateway as its fixed
+upstream and run as several equivalent replicas behind an ingress. Choosing a
+gateway does not determine replica count or require embedding.
+
+Several provider mounts in one process share its HTTP client and transport and do
+not provide process isolation. The [deployment guide](/run-guardrailed-inference/using-proxy/deployment) supplies
+topologies and routing examples; [configuration](/run-guardrailed-inference/using-proxy/configuration) covers
+selection and limits without duplicating those deployment instructions here.

@@ -1,0 +1,12 @@
+version: 1
+rails_configs:
+  - id: standard
+    config_path: ./rails
+providers:
+  - provider: openai
+    instance_id: openai
+    base_url: https://api.openai.com/v1
+    operations:
+      - chat_completions
+      - responses
+    rails_config_id: standard

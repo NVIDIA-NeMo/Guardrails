@@ -1,0 +1,414 @@
+# API documentation additions to the generated FastAPI specification.
+overlay: 1.0.0
+info:
+  title: Guardrails API documentation additions
+  version: 1.0.0
+actions:
+- target: $
+  update:
+    info:
+      title: NVIDIA NeMo Guardrails Library API Server
+      description: |
+        REST API for the NVIDIA NeMo Guardrails library server.
+
+        The server exposes an OpenAI-compatible chat completions endpoint with
+        Guardrails-specific request and response extensions.
+    servers:
+    - url: http://localhost:8000
+      description: Local Guardrails server
+    tags:
+    - name: Chat Completions
+      description: Generate guarded chat completions.
+    - name: Models
+      description: List upstream models exposed through the configured provider.
+    - name: Configurations
+      description: Discover available guardrails configurations.
+    - name: Challenges
+      description: List registered red teaming challenges.
+    - name: Health
+      description: Check server health or load the chat UI.
+    - name: Checks
+      description: Check content with input, output, or tool rails.
+- target: $.components.schemas
+  update:
+    ErrorResponse:
+      type: object
+      description: |
+        OpenAI-compatible error envelope. Every error response from the server
+        uses this shape, so an OpenAI SDK raises the matching APIStatusError
+        subclass.
+      required:
+      - error
+      properties:
+        error:
+          type: object
+          required:
+          - message
+          - type
+          - param
+          - code
+          properties:
+            message:
+              type: string
+              description: Human-readable error message, with secrets and upstream URLs redacted.
+            type:
+              type: string
+              description: |
+                OpenAI error category, derived from the HTTP status
+                (for example `invalid_request_error`, `authentication_error`,
+                `permission_error`, `not_found_error`, `rate_limit_error`,
+                `server_error`).
+            param:
+              anyOf:
+              - type: string
+              - type: 'null'
+              description: The request field the error relates to, when known.
+            code:
+              description: |
+                Provider-supplied error code when available. Streaming error
+                events use an integer downstream HTTP status or a string
+                generation error code.
+              oneOf:
+              - type: string
+              - type: integer
+              - type: 'null'
+    RailsConfigInfo:
+      type: object
+      required:
+      - id
+      properties:
+        id:
+          type: string
+          description: Guardrails configuration ID.
+- target: $.paths['/v1/chat/completions'].post
+  update:
+    operationId: createGuardrailsChatCompletion
+    tags:
+    - Chat Completions
+    summary: Create a guarded chat completion
+    description: |
+      Generate a chat completion with guardrails applied.
+
+      The request shape is compatible with the OpenAI Chat Completions API and
+      accepts Guardrails-specific options in the `guardrails` object.
+    requestBody:
+      content:
+        application/json:
+          examples:
+            basic:
+              summary: Basic guarded completion
+              value:
+                model: meta/llama-3.1-8b-instruct
+                messages:
+                - role: user
+                  content: What is the capital of France?
+                guardrails:
+                  config_id: content_safety
+            streaming:
+              summary: Streaming guarded completion
+              value:
+                model: meta/llama-3.1-8b-instruct
+                messages:
+                - role: user
+                  content: Tell me a short story.
+                stream: true
+                guardrails:
+                  config_id: content_safety
+    responses:
+      '200':
+        description: Chat completion response or server-sent event stream.
+        content:
+          application/json:
+            examples:
+              success:
+                summary: Basic guarded completion
+                value:
+                  id: chatcmpl-abc123
+                  object: chat.completion
+                  created: 1709424000
+                  model: meta/llama-3.1-8b-instruct
+                  choices:
+                  - index: 0
+                    message:
+                      role: assistant
+                      content: Paris is the capital of France.
+                    finish_reason: stop
+                  guardrails:
+                    config_id: content_safety
+                    llm_output: null
+                    output_data: null
+                    log: null
+                    state: null
+          text/event-stream:
+            schema:
+              type: string
+              description: |
+                Server-sent events containing chat completion chunks. A
+                downstream failure before the first chunk is returned as an
+                HTTP error so clients can retry it. If generation fails after
+                streaming begins, the final JSON event is an error envelope
+                whose `type` is an internal streaming marker and whose `code`
+                carries the downstream HTTP status or generation error code.
+            examples:
+              completion:
+                value: |
+                  data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":"Paris"},"index":0,"finish_reason":null}]}
+
+                  data: [DONE]
+              error:
+                value: |
+                  data: {"error":{"message":"The upstream model is unavailable.","type":"downstream_error","param":null,"code":503}}
+
+                  data: [DONE]
+      '422':
+        description: Invalid request or unsupported state continuation.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorResponse'
+            examples:
+              missingConfig:
+                value:
+                  error:
+                    message: No guardrails config_id provided and server has no default configuration
+                    type: invalid_request_error
+                    param: null
+                    code: null
+              unsupportedColangState:
+                value:
+                  error:
+                    message: Stateful continuation over HTTP is not supported for Colang 2.0.
+                    type: invalid_request_error
+                    param: null
+                    code: null
+- target: $.paths['/v1/models'].get
+  update:
+    operationId: listModels
+    tags:
+    - Models
+    summary: List models
+    description: |
+      List available LLM models from the configured upstream provider.
+
+      The server forwards the `Authorization` header to the upstream provider
+      when the request includes one.
+    responses:
+      '200':
+        description: OpenAI-compatible models list.
+        content:
+          application/json:
+            examples:
+              success:
+                value:
+                  data:
+                  - id: meta/llama-3.1-8b-instruct
+                    object: model
+                    created: 1700000000
+                    owned_by: system
+      '502':
+        description: The upstream provider is unreachable or returned an error.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorResponse'
+- target: $.paths['/v1/rails/configs'].get
+  update:
+    operationId: listRailsConfigs
+    tags:
+    - Configurations
+    summary: List guardrails configurations
+    description: |
+      List available guardrails configurations. In single-config mode, the
+      response contains the single configured ID.
+    responses:
+      '200':
+        description: Array of available configuration IDs.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/RailsConfigInfo'
+            examples:
+              success:
+                value:
+                - id: content_safety
+                - id: customer-service
+- target: $.paths['/v1/challenges'].get
+  update:
+    operationId: listChallenges
+    tags:
+    - Challenges
+    summary: List red teaming challenges
+    description: |
+      List registered red teaming challenges. The response structure depends
+      on the challenges registered by the application.
+    responses:
+      '200':
+        description: Array of registered challenges.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            examples:
+              success:
+                value:
+                - id: jailbreak-1
+                  description: Attempt to bypass safety guardrails.
+                  category: jailbreak
+- target: $.paths['/v1/health'].get
+  update:
+    operationId: getHealth
+    tags:
+    - Health
+    summary: Liveness health check
+    description: |
+      Shallow liveness check. Returns HTTP 200 while the server process is
+      running and able to serve requests. It does not verify guardrails
+      configurations, the model provider, or any datastore.
+    responses:
+      '200':
+        description: The server process is up and able to serve requests.
+        content:
+          application/health+json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: pass
+            example:
+              status: pass
+- target: $.paths['/v1/health'].get.responses['200'].content['application/json']
+  remove: true
+- target: $.paths['/healthz'].get
+  update:
+    operationId: getHealthz
+    tags:
+    - Health
+    summary: Liveness health check (alias)
+    description: |
+      Kubernetes-style alias for `GET /v1/health`. Returns the same shallow
+      liveness response.
+    responses:
+      '200':
+        description: The server process is up and able to serve requests.
+        content:
+          application/health+json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: pass
+            example:
+              status: pass
+- target: $.paths['/healthz'].get.responses['200'].content['application/json']
+  remove: true
+- target: $.paths['/'].get
+  update:
+    operationId: getRoot
+    tags:
+    - Health
+    summary: Get server health or chat UI
+    description: |
+      Returns a health payload when the chat UI is disabled. Otherwise, serves
+      the interactive chat interface.
+    responses:
+      '200':
+        description: Health payload or chat UI HTML.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: ok
+            example:
+              status: ok
+          text/html:
+            schema:
+              type: string
+- target: $.paths.*.*.responses['422'].content['application/json'].schema
+  update:
+    $ref: '#/components/schemas/ErrorResponse'
+- target: $.paths['/v1/checks'].post
+  update:
+    operationId: checkGuardrails
+    tags:
+    - Checks
+    summary: Check content with guardrails
+    requestBody:
+      content:
+        application/json:
+          # Fern pairs each response example with the request example that has the same summary.
+          examples:
+            input:
+              summary: Check a user message
+              value:
+                model: meta/llama-3.1-8b-instruct
+                messages:
+                - role: user
+                  content: What is the capital of France?
+                guardrails:
+                  config_id: content_safety
+                  rail_types:
+                  - input
+            tool_call:
+              summary: Check a call to an undeclared tool
+              value:
+                model: meta/llama-3.1-8b-instruct
+                messages:
+                - role: user
+                  content: "What's the weather in Paris?"
+                - role: assistant
+                  content: null
+                  tool_calls:
+                  - id: call_1
+                    type: function
+                    function:
+                      name: delete_files
+                      arguments: '{}'
+                tools:
+                - type: function
+                  function:
+                    name: get_weather
+                    parameters:
+                      type: object
+                      properties:
+                        city:
+                          type: string
+                      required:
+                      - city
+                guardrails:
+                  config_id: tools
+                  rail_types:
+                  - tool_call
+    responses:
+      '200':
+        content:
+          application/json:
+            examples:
+              passed:
+                summary: Check a user message
+                value:
+                  status: passed
+                  content: What is the capital of France?
+              tool_call:
+                summary: Check a call to an undeclared tool
+                value:
+                  status: blocked
+                  content: "I'm sorry, I can't respond to that."
+                  rail: tool call validation
+                  reason: "tool call 'delete_files' is not an allowed tool"
+                  tool_violations:
+                  - kind: tool_call
+                    violation_type: tool_not_allowed
+                    reason: "tool call 'delete_files' is not an allowed tool"
+                    tool_call_id: call_1
+                    tool_name: delete_files
+                    index: 0

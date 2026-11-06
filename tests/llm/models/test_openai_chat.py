@@ -285,7 +285,8 @@ class TestStream:
         assert results[0].usage.total_tokens == 6
 
     @pytest.mark.asyncio
-    async def test_tool_call_accumulation(self):
+    @pytest.mark.parametrize("finish_reason", ["tool_calls", "stop", "length", "content_filter"])
+    async def test_tool_call_accumulation(self, finish_reason):
         mc = _mock_client()
 
         async def mock_stream(*args, **kwargs):
@@ -321,7 +322,7 @@ class TestStream:
                         }
                     ],
                 },
-                {"id": "c", "model": "gpt-4o", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]},
+                {"id": "c", "model": "gpt-4o", "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}]},
             ]:
                 yield HTTPResponse(body=c)
 
@@ -333,7 +334,11 @@ class TestStream:
             results.append(chunk)
 
         final = results[-1]
-        assert final.finish_reason == "tool_calls"
+        assert final.finish_reason == finish_reason
+        if finish_reason in ("length", "content_filter"):
+            assert not any(chunk.delta_tool_calls for chunk in results)
+            return
+        assert sum(bool(chunk.delta_tool_calls) for chunk in results) == 1
         assert len(final.delta_tool_calls) == 1
         assert final.delta_tool_calls[0].function.name == "get_weather"
         assert final.delta_tool_calls[0].function.arguments == {"city": "Paris"}
@@ -402,55 +407,93 @@ class TestStream:
         assert tcs[0].function.name == "get_weather"
         assert tcs[1].function.name == "get_time"
 
+
+class TestToolArgumentValidation:
     @pytest.mark.asyncio
-    async def test_invalid_json_fallback(self):
+    @pytest.mark.parametrize("stream", [False, True])
+    @pytest.mark.parametrize("finish_reason", ["tool_calls", "stop"])
+    @pytest.mark.parametrize(
+        "arguments,expected",
+        [
+            ("{bad json", None),
+            ('{"city":', None),
+            ("[]", None),
+            ("null", None),
+            ('"text"', None),
+            ("42", None),
+            ("false", None),
+            ("   ", None),
+            (None, {}),
+            ("", {}),
+            ("{}", {}),
+            ('{"city":"Paris"}', {"city": "Paris"}),
+        ],
+    )
+    async def test_tool_argument_validation(self, stream, finish_reason, arguments, expected):
         mc = _mock_client()
+        function = {"name": "fn"}
+        if arguments is not None:
+            function["arguments"] = arguments
+        mc.chat_completion = AsyncMock(
+            return_value=_response(
+                tool_calls=[{"id": "c1", "type": "function", "function": function}],
+                finish_reason=finish_reason,
+            )
+        )
+        chunks = _stream_chunks(
+            [
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "c1",
+                            "type": "function",
+                            "function": {"name": "fn"},
+                        }
+                    ]
+                },
+                {"tool_calls": [{"index": 0, "function": {"arguments": arguments}}]} if arguments is not None else {},
+                {},
+            ]
+        )
+        chunks[-1].body["choices"][0]["finish_reason"] = finish_reason
+        closed = False
 
         async def mock_stream(*args, **kwargs):
-            for c in [
-                {
-                    "id": "c",
-                    "model": "gpt-4o",
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {
-                                "tool_calls": [
-                                    {
-                                        "index": 0,
-                                        "id": "c1",
-                                        "type": "function",
-                                        "function": {"name": "fn", "arguments": ""},
-                                    }
-                                ]
-                            },
-                            "finish_reason": None,
-                        }
-                    ],
-                },
-                {
-                    "id": "c",
-                    "model": "gpt-4o",
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {"tool_calls": [{"index": 0, "function": {"arguments": "{bad json"}}]},
-                            "finish_reason": None,
-                        }
-                    ],
-                },
-                {"id": "c", "model": "gpt-4o", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]},
-            ]:
-                yield HTTPResponse(body=c)
+            nonlocal closed
+            try:
+                for chunk in chunks:
+                    yield chunk
+            finally:
+                closed = True
 
         mc.stream_chat_completion = mock_stream
         m = _model(mc)
-
         results = []
-        async for chunk in m.stream_async("test"):
-            results.append(chunk)
-
-        assert results[-1].delta_tool_calls[0].function.arguments == {}
+        if expected is None:
+            with pytest.raises(LLMResponseValidationError, match="valid JSON object") as exc_info:
+                if stream:
+                    async for chunk in m.stream_async("test"):
+                        results.append(chunk)
+                else:
+                    await m.generate_async("test")
+            assert exc_info.value.model_name == m.model_name
+            assert exc_info.value.provider_name == m.provider_name
+            assert exc_info.value.base_url == mc.provider_url
+            assert all(chunk.delta_tool_calls is None and chunk.finish_reason is None for chunk in results)
+        else:
+            if stream:
+                results = [chunk async for chunk in m.stream_async("test")]
+                tool_calls = results[-1].delta_tool_calls
+                actual_finish_reason = results[-1].finish_reason
+            else:
+                response = await m.generate_async("test")
+                tool_calls = response.tool_calls
+                actual_finish_reason = response.finish_reason
+            assert tool_calls == [ToolCall(id="c1", function=ToolCallFunction(name="fn", arguments=expected))]
+            assert actual_finish_reason == finish_reason
+        if stream:
+            assert closed
 
 
 class TestParams:

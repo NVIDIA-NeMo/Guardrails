@@ -1,0 +1,21 @@
+define user express greeting
+  "hello"
+  "hi"
+
+define user ask about the product
+  "tell me about your product"
+  "what does the product do"
+
+define bot express greeting
+  "Hey there!"
+
+define bot offer help
+  "I'm here to help with anything you need."
+
+define flow greeting
+  user express greeting
+  bot express greeting
+
+define flow product
+  user ask about the product
+  bot describe the product

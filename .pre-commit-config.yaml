@@ -25,6 +25,15 @@ repos:
           - --license-filepath
           - LICENSE.md
           - --use-current-year
+      - id: insert-license
+        name: Insert license in Rust files
+        files: \.rs$
+        args:
+          - --license-filepath
+          - LICENSE.md
+          - --comment-style
+          - //
+          - --use-current-year
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
     rev: v1.28.0
     hooks:

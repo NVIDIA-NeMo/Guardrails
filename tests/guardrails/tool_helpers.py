@@ -21,6 +21,10 @@ blocked-result assertion reused across the tool-rail test modules. Assertions
 carry explicit messages since this module is not assertion-rewritten by pytest.
 """
 
+from typing import Any, Optional
+
+from nemoguardrails.rails.llm.options import ToolViolation, ToolViolationType
+
 WEATHER_SCHEMA = {
     "type": "object",
     "properties": {"city": {"type": "string"}},
@@ -52,12 +56,62 @@ def assert_result_blocked(result, *substrings: str) -> None:
     _assert_reason_contains(result.reason, substrings, result)
 
 
-def make_tool_conversation(result_call_id: str = "call_1") -> list:
-    """A user turn, an assistant ``get_weather`` tool call (id ``call_1``), then a tool result.
+def call_violation(violation_type: str, reason: str, **identity: Any) -> ToolViolation:
+    """A tool-call ``ToolViolation``; *violation_type* is its wire value, such as ``"tool_not_allowed"``."""
+    return ToolViolation(kind="tool_call", violation_type=ToolViolationType(violation_type), reason=reason, **identity)
+
+
+def result_violation(violation_type: str, reason: str, **identity: Any) -> ToolViolation:
+    """A tool-result ``ToolViolation``; *violation_type* is its wire value, such as ``"unknown_call_id"``."""
+    return ToolViolation(
+        kind="tool_result", violation_type=ToolViolationType(violation_type), reason=reason, **identity
+    )
+
+
+TOOL_CALL_QUESTION = "What's the weather in Paris?"
+
+UNREAD_TOOLS_MESSAGE = "tools is read only by a tool_call check; include tool_call in rail_types or leave tools out"
+
+
+def wire_tool_call(name: str = "get_weather", arguments: Any = '{"city": "Paris"}', call_id: str = "call_1") -> dict:
+    """One OpenAI Chat Completions tool call as it appears on an assistant message."""
+    return {"id": call_id, "type": "function", "function": {"name": name, "arguments": arguments}}
+
+
+def assistant_tool_calls(*calls: Any, content: Optional[str] = None) -> dict:
+    """An assistant message carrying *calls*, with *content* as its text."""
+    return {"role": "assistant", "content": content, "tool_calls": list(calls)}
+
+
+def tool_call_turn(*calls: Any, content: Optional[str] = None) -> list:
+    """A user question, then an assistant turn carrying *calls*."""
+    return [{"role": "user", "content": TOOL_CALL_QUESTION}, assistant_tool_calls(*calls, content=content)]
+
+
+def violations_in(outcome) -> list[ToolViolation]:
+    """The ``ToolViolation``s a tool validator attached to its ``RailOutcome`` metadata."""
+    return [ToolViolation.model_validate(violation) for violation in outcome.metadata.get("tool_violations", [])]
+
+
+def make_tool_conversation(
+    result_call_id: str = "call_1",
+    result_name: Optional[str] = "get_weather",
+    *,
+    tool_name: str = "get_weather",
+    arguments: str = '{"city": "Paris"}',
+    content: str = "18C",
+) -> list:
+    """A user turn, an assistant tool call (id ``call_1``), then a tool result.
 
     ``result_call_id`` sets the tool result's ``tool_call_id`` so callers can test
-    linked (``call_1``) and unlinked (anything else) results.
+    linked (``call_1``) and unlinked (anything else) results. ``result_name`` sets the
+    result's ``name``; ``None`` omits the key, as an OpenAI tool message does.
+    ``tool_name``, ``arguments`` and ``content`` set the called tool, its arguments and
+    the result's content, defaulting to a ``get_weather`` call answered with ``18C``.
     """
+    tool_message = {"role": "tool", "tool_call_id": result_call_id, "content": content}
+    if result_name is not None:
+        tool_message["name"] = result_name
     return [
         {"role": "user", "content": "What's the weather in Paris?"},
         {
@@ -67,11 +121,11 @@ def make_tool_conversation(result_call_id: str = "call_1") -> list:
                 {
                     "id": "call_1",
                     "type": "function",
-                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                    "function": {"name": tool_name, "arguments": arguments},
                 }
             ],
         },
-        {"role": "tool", "tool_call_id": result_call_id, "name": "get_weather", "content": "18C"},
+        tool_message,
     ]
 
 

@@ -1,0 +1,280 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: 'Call get_weather once for each city: Paris, Berlin. After tools, quote their results exactly.'
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: required
+      parallel_tool_calls: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: null
+            tool_calls:
+            - id: call_UALggX3WbNLtev1UxX0wrXpz
+              type: function
+              function:
+                name: get_weather
+                arguments: '{"city": "Paris"}'
+            - id: call_ErLsOyiGZ5TmtuW9lBvmAxov
+              type: function
+              function:
+                name: get_weather
+                arguments: '{"city": "Berlin"}'
+            refusal: null
+            annotations: []
+          finish_reason: tool_calls
+        usage:
+          prompt_tokens: 146
+          completion_tokens: 47
+          total_tokens: 193
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: 'Call get_weather once for each city: Paris, Berlin. After tools, quote their results exactly.'
+      - role: assistant
+        content: ''
+        tool_calls:
+        - id: call_UALggX3WbNLtev1UxX0wrXpz
+          function:
+            arguments: '{"city": "Paris"}'
+            name: get_weather
+          type: function
+        - id: call_ErLsOyiGZ5TmtuW9lBvmAxov
+          function:
+            arguments: '{"city": "Berlin"}'
+            name: get_weather
+          type: function
+      - role: tool
+        tool_call_id: call_ErLsOyiGZ5TmtuW9lBvmAxov
+        content: 'Berlin: WX-4827, sunny.'
+      - role: tool
+        tool_call_id: call_UALggX3WbNLtev1UxX0wrXpz
+        content: 'Paris: WX-4827, sunny.'
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: auto
+      parallel_tool_calls: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: "“Paris: WX-4827, sunny.”  \n“Berlin: WX-4827, sunny.”"
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 227
+          completion_tokens: 24
+          total_tokens: 251
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4-nano
+      messages:
+      - role: user
+        content: 'Call get_weather once for each city: Paris, Berlin. After tools, quote their results exactly.'
+      - role: assistant
+        content: ''
+        tool_calls:
+        - id: call_UALggX3WbNLtev1UxX0wrXpz
+          function:
+            arguments: '{"city": "Paris"}'
+            name: get_weather
+          type: function
+        - id: call_ErLsOyiGZ5TmtuW9lBvmAxov
+          function:
+            arguments: '{"city": "Berlin"}'
+            name: get_weather
+          type: function
+      - role: tool
+        tool_call_id: call_ErLsOyiGZ5TmtuW9lBvmAxov
+        content: 'Berlin: WX-4827, sunny.'
+      - role: tool
+        tool_call_id: call_UALggX3WbNLtev1UxX0wrXpz
+        content: 'Paris: WX-4827, sunny.'
+      - role: assistant
+        content: "“Paris: WX-4827, sunny.”  \n“Berlin: WX-4827, sunny.”"
+      - role: user
+        content: Repeat only the weather token from earlier, no tools.
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: auto
+      parallel_tool_calls: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Access-Control-Expose-Headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: gpt-5.4-nano-2026-03-17
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: WX-4827, sunny.
+            refusal: null
+            annotations: []
+          finish_reason: stop
+        usage:
+          prompt_tokens: 269
+          completion_tokens: 10
+          total_tokens: 279
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 0
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        service_tier: default
+        system_fingerprint: null

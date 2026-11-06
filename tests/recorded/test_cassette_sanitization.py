@@ -124,6 +124,21 @@ def test_recorded_cassette_serializer_keeps_json_bodies_readable():
     assert ReadableYamlSerializer.deserialize(text)["interactions"][0]["response"]["body"]["string"].startswith("{")
 
 
+def test_recorded_cassette_sanitization_removes_provider_wrapped_headers():
+    response = before_record_response(
+        {
+            "headers": {
+                "Content-Type": ["application/json"],
+                "llm_provider-openai-project": ["provider-project"],
+                "llm_provider-set-cookie": ["private-cookie"],
+            },
+            "body": {"string": '{"answer":"ok"}'},
+        }
+    )
+
+    assert response["headers"] == {"Content-Type": ["application/json"]}
+
+
 def test_recorded_cassette_serializer_handles_null_interactions():
     cassette = {"version": 1, "interactions": None}
 

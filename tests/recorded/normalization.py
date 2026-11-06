@@ -19,6 +19,7 @@ import json
 from typing import Any
 
 from nemoguardrails.rails.llm.options import GenerationResponse, RailsResult
+from nemoguardrails.types import ToolCallChunk, ToolCallDeltaChunk
 from tests.recorded.cassette import normalize_body
 
 
@@ -76,8 +77,24 @@ def normalize_stream_chunks(chunks: list[Any]) -> dict[str, Any]:
     content_parts = []
     errors = []
     normalized_chunks = []
+    tool_call_ids = {}
     for chunk in chunks:
-        if isinstance(chunk, str):
+        if isinstance(chunk, ToolCallDeltaChunk):
+            deltas = []
+            for call in chunk.tool_calls:
+                delta = call.to_dict()
+                if call.id is not None:
+                    delta["id"] = tool_call_ids.setdefault(call.id, f"[TOOL_CALL_{len(tool_call_ids)}]")
+                deltas.append(delta)
+            normalized_chunks.append({"tool_call_deltas": deltas, "finish_reason": chunk.finish_reason})
+        elif isinstance(chunk, ToolCallChunk):
+            calls = []
+            for call in chunk.tool_calls:
+                normalized_call = call.to_dict()
+                normalized_call["id"] = tool_call_ids.setdefault(call.id, f"[TOOL_CALL_{len(tool_call_ids)}]")
+                calls.append(normalized_call)
+            normalized_chunks.append({"tool_calls": calls})
+        elif isinstance(chunk, str):
             if chunk.startswith('{"error":'):
                 errors.append(json.loads(chunk))
             else:

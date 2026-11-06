@@ -1,0 +1,289 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: user
+        content: 'Call get_weather once for each city: Paris, Berlin. After tools, quote their results exactly.'
+      chat_template_kwargs:
+        enable_thinking: false
+      max_tokens: 1024
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: auto
+      parallel_tool_calls: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+      vary:
+      - Accept-Encoding
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion
+        system_fingerprint: '[RECORDED_SYSTEM_FINGERPRINT]'
+        choices:
+        - finish_reason: tool_calls
+          index: 0
+          message:
+            role: assistant
+            tool_calls:
+            - function:
+                arguments: '{"city": "Paris"}'
+                name: get_weather
+              id: chatcmpl-tool-8c53409a20fc3cc3
+              type: function
+            - function:
+                arguments: '{"city": "Berlin"}'
+                name: get_weather
+              id: chatcmpl-tool-90d3dd68e8dc54f2
+              type: function
+            provider_specific_fields:
+              refusal: null
+              reasoning: null
+            content: null
+          provider_specific_fields:
+            stop_reason: null
+            token_ids: null
+            routed_experts: null
+        usage:
+          completion_tokens: 48
+          prompt_tokens: 299
+          total_tokens: 347
+          completion_tokens_details:
+            reasoning_tokens: 0
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: user
+        content: 'Call get_weather once for each city: Paris, Berlin. After tools, quote their results exactly.'
+      - role: assistant
+        content: ''
+        tool_calls:
+        - id: chatcmpl-tool-8c53409a20fc3cc3
+          type: function
+          function:
+            name: get_weather
+            arguments: '{"city": "Paris"}'
+        - id: chatcmpl-tool-90d3dd68e8dc54f2
+          type: function
+          function:
+            name: get_weather
+            arguments: '{"city": "Berlin"}'
+      - role: tool
+        content: 'Berlin: WX-4827, sunny.'
+        tool_call_id: chatcmpl-tool-90d3dd68e8dc54f2
+      - role: tool
+        content: 'Paris: WX-4827, sunny.'
+        tool_call_id: chatcmpl-tool-8c53409a20fc3cc3
+      chat_template_kwargs:
+        enable_thinking: false
+      max_tokens: 1024
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: auto
+      parallel_tool_calls: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+      vary:
+      - Accept-Encoding
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion
+        system_fingerprint: '[RECORDED_SYSTEM_FINGERPRINT]'
+        choices:
+        - finish_reason: stop
+          index: 0
+          message:
+            content: "Berlin: WX-4827, sunny.  \nParis: WX-4827, sunny."
+            role: assistant
+            provider_specific_fields:
+              reasoning: null
+              refusal: null
+          provider_specific_fields:
+            routed_experts: null
+            stop_reason: null
+            token_ids: null
+        usage:
+          completion_tokens: 27
+          prompt_tokens: 391
+          total_tokens: 418
+          completion_tokens_details:
+            reasoning_tokens: 0
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/chat/completions
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: user
+        content: 'Call get_weather once for each city: Paris, Berlin. After tools, quote their results exactly.'
+      - role: assistant
+        content: ''
+        tool_calls:
+        - id: chatcmpl-tool-8c53409a20fc3cc3
+          type: function
+          function:
+            name: get_weather
+            arguments: '{"city": "Paris"}'
+        - id: chatcmpl-tool-90d3dd68e8dc54f2
+          type: function
+          function:
+            name: get_weather
+            arguments: '{"city": "Berlin"}'
+      - role: tool
+        content: 'Berlin: WX-4827, sunny.'
+        tool_call_id: chatcmpl-tool-90d3dd68e8dc54f2
+      - role: tool
+        content: 'Paris: WX-4827, sunny.'
+        tool_call_id: chatcmpl-tool-8c53409a20fc3cc3
+      - role: assistant
+        content: "Berlin: WX-4827, sunny.  \nParis: WX-4827, sunny."
+      - role: user
+        content: Repeat only the weather token from earlier, no tools.
+      chat_template_kwargs:
+        enable_thinking: false
+      max_tokens: 1024
+      tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Get the current weather for a city.
+          parameters:
+            type: object
+            properties:
+              city:
+                type: string
+            required:
+            - city
+            additionalProperties: false
+      tool_choice: auto
+      parallel_tool_calls: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+      vary:
+      - Accept-Encoding
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        created: 0
+        model: nvidia/nvidia/nemotron-3-nano-30b-a3b
+        object: chat.completion
+        system_fingerprint: '[RECORDED_SYSTEM_FINGERPRINT]'
+        choices:
+        - finish_reason: stop
+          index: 0
+          message:
+            content: WX-4827
+            role: assistant
+            provider_specific_fields:
+              refusal: null
+              reasoning: null
+          provider_specific_fields:
+            token_ids: null
+            stop_reason: null
+            routed_experts: null
+        usage:
+          completion_tokens: 8
+          prompt_tokens: 441
+          total_tokens: 449
+          completion_tokens_details:
+            reasoning_tokens: 0

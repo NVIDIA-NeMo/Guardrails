@@ -26,7 +26,9 @@ from nemoguardrails.types import (
     LLMResponse,
     LLMResponseChunk,
     ToolCall,
+    ToolCallDelta,
     ToolCallFunction,
+    ToolCallFunctionDelta,
     UsageInfo,
 )
 
@@ -113,9 +115,9 @@ class OpenAIChatModel:
         params = self._prepare_params(stop, kwargs)
         try:
             response = await self._client.chat_completion(self._model, messages, **params)
+            return self._parse_response(response)
         except LLMClientError as exc:
             raise self._enrich(exc)
-        return self._parse_response(response)
 
     async def stream_async(
         self,
@@ -132,6 +134,7 @@ class OpenAIChatModel:
         gen = self._client.stream_chat_completion(self._model, messages, **params)
         try:
             async for chunk_response in gen:
+                tool_call_deltas = []
                 chunk_body = chunk_response.body
                 choices = chunk_body.get("choices", [])
                 if choices:
@@ -140,14 +143,31 @@ class OpenAIChatModel:
                     if raw_tool_calls:
                         for tc_delta in raw_tool_calls:
                             idx = tc_delta.get("index", 0)
+                            function = tc_delta.get("function")
+                            tool_call_deltas.append(
+                                ToolCallDelta(
+                                    index=idx,
+                                    id=tc_delta.get("id"),
+                                    type=tc_delta.get("type"),
+                                    function=ToolCallFunctionDelta(
+                                        name=function.get("name"), arguments=function.get("arguments")
+                                    )
+                                    if function is not None
+                                    else None,
+                                )
+                            )
                             if idx not in tool_call_acc:
                                 tool_call_acc[idx] = {
-                                    "id": tc_delta.get("id", ""),
+                                    "id": "",
                                     "type": tc_delta.get("type", "function"),
-                                    "function_name": tc_delta.get("function", {}).get("name", ""),
+                                    "function_name": "",
                                     "arguments_buffer": "",
                                 }
-                            arg_fragment = tc_delta.get("function", {}).get("arguments", "")
+                            tool_call_acc[idx]["id"] += tc_delta.get("id") or ""
+                            tool_call_acc[idx]["function_name"] += (function or {}).get("name") or ""
+                            if tc_delta.get("type"):
+                                tool_call_acc[idx]["type"] = tc_delta["type"]
+                            arg_fragment = (function or {}).get("arguments", "")
                             if arg_fragment:
                                 tool_call_acc[idx]["arguments_buffer"] += arg_fragment
 
@@ -155,8 +175,10 @@ class OpenAIChatModel:
                 if chunk is None:
                     continue
 
-                if chunk.finish_reason == "tool_calls" and tool_call_acc:
+                chunk.tool_call_deltas = tool_call_deltas or None
+                if chunk.finish_reason in ("tool_calls", "stop") and tool_call_acc:
                     chunk.delta_tool_calls = self._finalize_tool_calls(tool_call_acc)
+                    tool_call_acc.clear()
 
                 yield chunk
         except LLMClientError as exc:
@@ -166,24 +188,20 @@ class OpenAIChatModel:
 
     @staticmethod
     def _finalize_tool_calls(acc: Dict[int, Dict[str, Any]]) -> List[ToolCall]:
+        """Parse assembled calls using the same validation as buffered responses."""
         result = []
         for idx in sorted(acc.keys()):
             entry = acc[idx]
-            raw_args = entry["arguments_buffer"]
-            # Graceful degrade: truncated (max_tokens) or malformed args => empty dict.
-            # The tool will surface the real error when invoked with no arguments.
-            try:
-                args_dict = json.loads(raw_args) if raw_args else {}
-            except json.JSONDecodeError:
-                args_dict = {}
             result.append(
-                ToolCall(
-                    id=entry["id"],
-                    type=entry["type"],
-                    function=ToolCallFunction(
-                        name=entry["function_name"],
-                        arguments=args_dict,
-                    ),
+                OpenAIChatModel._parse_tool_call(
+                    {
+                        "id": entry["id"],
+                        "type": entry["type"],
+                        "function": {
+                            "name": entry["function_name"],
+                            "arguments": entry["arguments_buffer"],
+                        },
+                    }
                 )
             )
         return result
@@ -306,24 +324,26 @@ class OpenAIChatModel:
         )
 
     @staticmethod
+    def _parse_tool_arguments(raw_args: Any) -> Dict[str, Any]:
+        """Accept empty argument strings for compatibility with no-argument calls."""
+        if raw_args == "":
+            return {}
+        try:
+            args_dict = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+        except json.JSONDecodeError as exc:
+            raise LLMResponseValidationError("Tool call arguments must be a valid JSON object") from exc
+        if not isinstance(args_dict, dict):
+            raise LLMResponseValidationError("Tool call arguments must be a valid JSON object")
+        return args_dict
+
+    @staticmethod
     def _parse_tool_call(tc: Dict[str, Any]) -> ToolCall:
         func = tc.get("function", {})
-        raw_args = func.get("arguments", "{}")
-        if isinstance(raw_args, str):
-            # Graceful degrade: malformed args from provider => empty dict.
-            # The tool will surface the real error when invoked with no arguments.
-            try:
-                args_dict = json.loads(raw_args)
-            except json.JSONDecodeError:
-                args_dict = {}
-        else:
-            args_dict = raw_args
-
         return ToolCall(
             id=tc.get("id", ""),
             type=tc.get("type", "function"),
             function=ToolCallFunction(
                 name=func.get("name", ""),
-                arguments=args_dict,
+                arguments=OpenAIChatModel._parse_tool_arguments(func.get("arguments", "")),
             ),
         )
