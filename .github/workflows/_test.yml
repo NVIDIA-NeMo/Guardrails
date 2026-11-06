@@ -16,7 +16,7 @@ on:
       python-version:
         description: "Python version to test against"
         required: true
-        default: "3.10"
+        default: "3.11"
         type: string
       upgrade-deps:
         description: "Whether to install all extras"

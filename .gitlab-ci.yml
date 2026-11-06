@@ -44,10 +44,6 @@ cache:
 
 # Tests jobs
 
-python3.10:
-    <<: *test
-    image: python:3.10
-
 python3.11:
     <<: *test
     image: python:3.11
