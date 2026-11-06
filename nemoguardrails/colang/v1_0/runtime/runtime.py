@@ -476,25 +476,23 @@ class RuntimeV1_0(Runtime):
         async def run_single_rail(flow_id: str, action_info: dict) -> tuple:
             """Run a single rail flow and return (flow_id, result)"""
 
+            action_name = action_info["action_name"]
             try:
-                action_name = action_info["action_name"]
-                params = action_info["params"]
+                result, status = await self.action_dispatcher.execute_action(action_name, action_info["params"])
+            except Exception:
+                # As in sequential streaming, the exception text can carry provider details, so it stays in the log.
+                log.exception("Action %s failed during parallel streaming", action_name)
+                result, status = None, "failed"
 
-                result_tuple = await self.action_dispatcher.execute_action(action_name, params)
-                result, status = result_tuple
-
-                if status != "success":
-                    error_msg = f"Action {action_name} failed with status: {status}"
-                    log.error(error_msg)
-                    return flow_id, "internal_error", error_msg
-
-                result = require_rail_outcome(result).is_blocked
-
-                return flow_id, result, None
-
-            except Exception as e:
-                error_msg = f"Error executing rail {flow_id}: {e}"
+            if status != "success":
+                error_msg = f"Action {action_name} failed with status: {status}"
                 log.error(error_msg)
+                return flow_id, "internal_error", error_msg
+
+            try:
+                return flow_id, require_rail_outcome(result).is_blocked, None
+            except TypeError as e:
+                log.error(str(e))
                 return flow_id, "internal_error", str(e)
 
         # create tasks for all flows
@@ -506,54 +504,39 @@ class RuntimeV1_0(Runtime):
 
         try:
             for future in asyncio.as_completed(tasks):
-                try:
-                    flow_id, result, error_msg = await future
+                flow_id, result, error_msg = await future
 
-                    # check if this rail had an internal error
-                    if result == "internal_error":
-                        # create stop events with internal error marker and actual error message
-                        stopped_events = [
-                            {
-                                "type": "BotIntent",
-                                "intent": "stop",
-                                "flow_id": flow_id,
-                                "error_type": "internal_error",
-                                "error_message": error_msg,
-                            }
-                        ]
+                # check if this rail had an internal error
+                if result == "internal_error":
+                    # create stop events with internal error marker and actual error message
+                    stopped_events = [
+                        {
+                            "type": "BotIntent",
+                            "intent": "stop",
+                            "flow_id": flow_id,
+                            "error_type": "internal_error",
+                            "error_message": error_msg,
+                        }
+                    ]
+                    break
 
-                        # cancel remaining tasks
-                        for pending_task in tasks:
-                            if not pending_task.done():
-                                pending_task.cancel()
-                        break
+                # check if this rail blocked the content normally
+                elif result:  # True means blocked
+                    # create stop events
+                    stopped_events = [
+                        {
+                            "type": "BotIntent",
+                            "intent": "stop",
+                            "flow_id": flow_id,
+                        }
+                    ]
+                    break
 
-                    # check if this rail blocked the content normally
-                    elif result:  # True means blocked
-                        # create stop events
-                        stopped_events = [
-                            {
-                                "type": "BotIntent",
-                                "intent": "stop",
-                                "flow_id": flow_id,
-                            }
-                        ]
-
-                        # cancel remaining tasks
-                        for pending_task in tasks:
-                            if not pending_task.done():
-                                pending_task.cancel()
-                        break
-
-                except asyncio.CancelledError:
-                    pass
-                except Exception as e:
-                    log.error(f"Error in parallel rail task: {e}")
-                    continue
-
-        except Exception as e:
-            log.error(f"Error in parallel rail execution: {e}")
-            return ActionResult(events=[])
+        finally:
+            # Runs on a stop, an error or a cancellation; not awaited, so a slow rail cannot delay the stop.
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
 
         return ActionResult(events=stopped_events)
 
