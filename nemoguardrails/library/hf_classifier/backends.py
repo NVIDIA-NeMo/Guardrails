@@ -23,7 +23,7 @@ import json
 import logging
 import os
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, TypedDict
 
 from nemoguardrails.http import (
     HTTPClient,
@@ -204,7 +204,7 @@ def _check_cached(cache_key: str, model_name: str) -> Any:
 
 def _get_or_create_pipeline(
     model_name: str,
-    task: str,
+    task: Literal["text-classification", "token-classification"],
     parameters: Dict[str, Any],
 ) -> Any:
     cache_key = _pipeline_cache_key(model_name, task, parameters)
@@ -238,6 +238,14 @@ def _get_or_create_pipeline(
                 "backend. Install it with: pip install transformers torch"
             )
         kwargs = {k: v for k, v in parameters.items() if k not in _HTTP_ONLY_PARAMS}
+        if task == "token-classification" and kwargs.get("stride") is not None:
+            from nemoguardrails.library.hf_classifier.compatibility import ensure_overflow_support
+
+            ensure_overflow_support()
+        if task == "text-classification":
+            from nemoguardrails.library.hf_classifier.chunking import ChunkedTextClassificationPipeline
+
+            kwargs.setdefault("pipeline_class", ChunkedTextClassificationPipeline)
         pipe = pipeline(task=task, model=model_name, **kwargs)
     except BaseException as exc:
         loading.error = exc
