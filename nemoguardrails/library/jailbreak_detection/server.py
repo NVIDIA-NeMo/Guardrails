@@ -35,7 +35,8 @@ import heuristics.checks as hc
 import model_based.checks as mc
 import typer
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from model_based.errors import JailbreakInputTooLongError
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -103,7 +104,10 @@ def run_all_heuristics(request: JailbreakHeuristicRequest):
 
 @app.post("/model")
 def run_model_check(request: JailbreakModelRequest):
-    result = mc.check_jailbreak(request.prompt)
+    try:
+        result = mc.check_jailbreak(request.prompt)
+    except JailbreakInputTooLongError as e:
+        raise HTTPException(status_code=413, detail=str(e)) from e
     jailbreak = result["jailbreak"]
     score = result["score"]
     model_checks = {"jailbreak": jailbreak, "score": score}

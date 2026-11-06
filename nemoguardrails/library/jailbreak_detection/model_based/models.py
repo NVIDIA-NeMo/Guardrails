@@ -18,6 +18,9 @@ from typing import Tuple
 
 import numpy as np
 
+from .errors import JailbreakInputTooLongError
+from .input_length import MAX_INPUT_TOKENS
+
 SNOWFLAKE_MODEL_ID = "Snowflake/snowflake-arctic-embed-m-long"
 
 
@@ -45,7 +48,14 @@ class SnowflakeEmbed:
         self.model.eval()
 
     def __call__(self, text: str):
-        tokens = self.tokenizer([text], padding=True, truncation=True, return_tensors="pt", max_length=2048)
+        # One extra token detects overflow without constructing an unbounded tensor.
+        tokens = self.tokenizer(
+            [text], padding=True, truncation=True, return_tensors="pt", max_length=MAX_INPUT_TOKENS + 1
+        )
+        if tokens["input_ids"].shape[1] > MAX_INPUT_TOKENS:
+            raise JailbreakInputTooLongError(
+                f"Input exceeds the jailbreak detector's {MAX_INPUT_TOKENS}-token limit (including special tokens)."
+            )
         tokens = tokens.to(self.device)
         embeddings = self.model(**tokens)[0][:, 0]
         return embeddings.detach().cpu().squeeze(0).numpy()

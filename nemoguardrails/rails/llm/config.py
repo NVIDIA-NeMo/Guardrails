@@ -15,6 +15,7 @@
 
 """Module for the configuration of rails."""
 
+import importlib.metadata
 import logging
 import os
 import warnings
@@ -1396,6 +1397,14 @@ class RailsConfig(BaseModel):
 
         # Case B: "jailbreak detection model" flow is enabled
         if has_model_flow:
+            try:
+                importlib.metadata.distribution("tokenizers")
+            except importlib.metadata.PackageNotFoundError as exc:
+                raise InvalidRailsConfigurationError(
+                    "The 'jailbreak detection model' rail requires tokenizers for all backends. "
+                    "Install it with: pip install tokenizers"
+                ) from exc
+
             nim_base_url = jailbreak_config.get("nim_base_url")
             nim_url = jailbreak_config.get("nim_url")  # deprecated, migrated later
             server_endpoint = jailbreak_config.get("server_endpoint")

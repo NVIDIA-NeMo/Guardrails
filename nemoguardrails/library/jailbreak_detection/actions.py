@@ -36,6 +36,11 @@ from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.http import HTTPClient
+from nemoguardrails.library.jailbreak_detection.model_based.errors import (
+    JailbreakInputTooLongError,
+    JailbreakInputValidationError,
+)
+from nemoguardrails.library.jailbreak_detection.model_based.input_length import validate_input_length
 from nemoguardrails.library.jailbreak_detection.request import (
     jailbreak_detection_heuristics_request,
     jailbreak_detection_model_request,
@@ -123,10 +128,16 @@ async def jailbreak_detection_model(
     # we do this as a hack to treat this action as an LLM call for tracing
     llm_call_info_var.set(LLMCallInfo(task="jailbreak_detection_model"))
 
+    try:
+        validate_input_length(prompt)
+    except (JailbreakInputTooLongError, JailbreakInputValidationError) as e:
+        log.warning("Jailbreak detection blocked input whose complete coverage could not be verified.")
+        return RailOutcome.block(reason=str(e))
+
     cache = model_caches.get("jailbreak_detection") if model_caches else None
 
     if cache:
-        cache_key = create_normalized_cache_key(prompt)
+        cache_key = create_normalized_cache_key(prompt, normalize_whitespace=False)
         cache_read_start = time()
         cached_result = get_from_cache_and_restore_stats(cache, cache_key)
         if cached_result is not None:
@@ -139,51 +150,61 @@ async def jailbreak_detection_model(
                 llm_call_info.finished_at = time()
 
             log.debug("Jailbreak detection cache hit")
-            return RailOutcome.block() if cached_result["jailbreak"] else RailOutcome.allow()
+            return (
+                RailOutcome.block(reason=cached_result.get("reason"))
+                if cached_result["jailbreak"]
+                else RailOutcome.allow()
+            )
 
     jailbreak_result = None
+    block_reason = None
     api_start_time = time()
 
-    if not jailbreak_api_url and not nim_base_url:
-        from nemoguardrails.library.jailbreak_detection.model_based.checks import (
-            check_jailbreak,
-        )
-
-        log.warning("No jailbreak detection endpoint set. Running in-process, NOT RECOMMENDED FOR PRODUCTION.")
-        try:
-            jailbreak = check_jailbreak(prompt=prompt)
-            log.info(f"Local model jailbreak detection result: {jailbreak}")
-            jailbreak_result = jailbreak["jailbreak"]
-        except RuntimeError as e:
-            log.error(f"Jailbreak detection model not available: {e}")
-            jailbreak_result = False
-        except ImportError as e:
-            log.error(
-                "Failed to import required dependencies for local model. Install scikit-learn and torch, or use NIM-based approach",
-                exc_info=e,
-            )
-            jailbreak_result = False
-    else:
-        if nim_base_url:
-            jailbreak = await jailbreak_nim_request(
-                prompt=prompt,
-                nim_url=nim_base_url,
-                nim_auth_token=nim_auth_token,
-                nim_classification_path=nim_classification_path,
-                http_client=http_client,
-            )
-        elif jailbreak_api_url:
-            jailbreak = await jailbreak_detection_model_request(
-                prompt=prompt,
-                api_url=jailbreak_api_url,
-                http_client=http_client,
+    try:
+        if not jailbreak_api_url and not nim_base_url:
+            from nemoguardrails.library.jailbreak_detection.model_based.checks import (
+                check_jailbreak,
             )
 
-        if jailbreak is None:
-            log.warning("Jailbreak endpoint not set up properly.")
-            jailbreak_result = False
+            log.warning("No jailbreak detection endpoint set. Running in-process, NOT RECOMMENDED FOR PRODUCTION.")
+            try:
+                jailbreak = check_jailbreak(prompt=prompt)
+                log.info(f"Local model jailbreak detection result: {jailbreak}")
+                jailbreak_result = jailbreak["jailbreak"]
+            except RuntimeError as e:
+                log.error(f"Jailbreak detection model not available: {e}")
+                jailbreak_result = False
+            except ImportError as e:
+                log.error(
+                    "Failed to import required dependencies for local model. Install scikit-learn and torch, or use NIM-based approach",
+                    exc_info=e,
+                )
+                jailbreak_result = False
         else:
-            jailbreak_result = jailbreak
+            if nim_base_url:
+                jailbreak = await jailbreak_nim_request(
+                    prompt=prompt,
+                    nim_url=nim_base_url,
+                    nim_auth_token=nim_auth_token,
+                    nim_classification_path=nim_classification_path,
+                    http_client=http_client,
+                )
+            elif jailbreak_api_url:
+                jailbreak = await jailbreak_detection_model_request(
+                    prompt=prompt,
+                    api_url=jailbreak_api_url,
+                    http_client=http_client,
+                )
+
+            if jailbreak is None:
+                log.warning("Jailbreak endpoint not set up properly.")
+                jailbreak_result = False
+            else:
+                jailbreak_result = jailbreak
+    except (JailbreakInputTooLongError, JailbreakInputValidationError) as e:
+        log.warning("Jailbreak detection blocked input whose complete coverage could not be verified.")
+        jailbreak_result = True
+        block_reason = str(e)
 
     api_duration = time() - api_start_time
 
@@ -207,13 +228,13 @@ async def jailbreak_detection_model(
     if cache:
         from nemoguardrails.llm.cache.utils import extract_llm_metadata_for_cache
 
-        cache_key = create_normalized_cache_key(prompt)
+        cache_key = create_normalized_cache_key(prompt, normalize_whitespace=False)
         cache_entry: CacheEntry = {
-            "result": {"jailbreak": jailbreak_result},
+            "result": {"jailbreak": jailbreak_result, "reason": block_reason},
             "llm_stats": None,
             "llm_metadata": extract_llm_metadata_for_cache(),
         }
         cache.put(cache_key, cache_entry)
         log.debug("Jailbreak detection result cached")
 
-    return RailOutcome.block() if jailbreak_result else RailOutcome.allow()
+    return RailOutcome.block(reason=block_reason) if jailbreak_result else RailOutcome.allow()
