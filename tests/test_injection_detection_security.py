@@ -222,7 +222,7 @@ async def test_omit_rejects_newly_assembled_script():
     assert not outcome.transforms
     assert outcome.metadata["is_injection"] is True
     assert outcome.metadata["detections"] == ["markdown_xss"]
-    assert "text" not in outcome.metadata
+    assert outcome.metadata["text"] == NESTED_SCRIPT
 
 
 @pytest.mark.asyncio
@@ -268,7 +268,7 @@ async def test_omit_removal_error_fails_closed_without_logging_text(failure, cap
 
     assert outcome.is_blocked
     assert "private text" not in caplog.text
-    assert "text" not in outcome.metadata
+    assert outcome.metadata["text"] == "<script>x</script>"
 
 
 @pytest.mark.asyncio
@@ -284,7 +284,7 @@ async def test_omit_rescan_error_fails_closed_without_logging_text(caplog):
 
     assert outcome.is_blocked
     assert "private text" not in caplog.text
-    assert "text" not in outcome.metadata
+    assert outcome.metadata["text"] == text
 
 
 @pytest.mark.asyncio
