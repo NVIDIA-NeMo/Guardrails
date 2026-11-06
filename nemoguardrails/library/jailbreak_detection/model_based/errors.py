@@ -18,5 +18,5 @@ class JailbreakInputTooLongError(ValueError):
     """The detector cannot evaluate the complete input within its token limit."""
 
 
-class JailbreakInputValidationError(RuntimeError):
+class JailbreakInputValidationError(Exception):
     """The detector's input coverage could not be verified."""

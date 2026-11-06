@@ -103,6 +103,34 @@ async def test_validation_failure_blocks_before_cache_or_detector(task_manager, 
     detector.assert_not_called()
 
 
+@pytest.mark.asyncio
+async def test_validation_failure_during_classification_blocks_and_caches(task_manager, monkeypatch):
+    reason = "Unable to validate the jailbreak detector's input limit."
+    error = JailbreakInputValidationError(reason)
+    config = task_manager.config.rails.config.jailbreak_detection
+    if config.nim_base_url:
+        detector = mock.AsyncMock(side_effect=error)
+        monkeypatch.setattr("nemoguardrails.library.jailbreak_detection.actions.jailbreak_nim_request", detector)
+    elif config.server_endpoint:
+        detector = mock.AsyncMock(side_effect=error)
+        monkeypatch.setattr(
+            "nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model_request", detector
+        )
+    else:
+        detector = mock.Mock(side_effect=error)
+        monkeypatch.setattr(checks, "check_jailbreak", detector)
+    cache = LFUCache(maxsize=10)
+
+    outcomes = [
+        await jailbreak_detection_model(task_manager, user_message="hello", model_caches={"jailbreak_detection": cache})
+        for _ in range(2)
+    ]
+
+    assert all(outcome.is_blocked and outcome.reason == reason for outcome in outcomes)
+    assert detector.call_count == 1
+    assert llm_call_info_var.get().from_cache is True
+
+
 @pytest.fixture(params=["server", "nim"])
 def model_request(request):
     if request.param == "server":

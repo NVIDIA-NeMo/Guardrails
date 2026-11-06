@@ -201,8 +201,8 @@ async def jailbreak_detection_model(
                 jailbreak_result = False
             else:
                 jailbreak_result = jailbreak
-    except JailbreakInputTooLongError as e:
-        log.warning("Jailbreak detection blocked input exceeding the detector limit.")
+    except (JailbreakInputTooLongError, JailbreakInputValidationError) as e:
+        log.warning("Jailbreak detection blocked input whose complete coverage could not be verified.")
         jailbreak_result = True
         block_reason = str(e)
 
