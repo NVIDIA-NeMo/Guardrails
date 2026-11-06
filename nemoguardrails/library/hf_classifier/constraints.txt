@@ -1,0 +1,3 @@
+# Local HF classifier installation only; does not install dependencies by itself.
+# These releases lose overflow tokens: https://github.com/huggingface/tokenizers/issues/2091.
+tokenizers!=0.23.1,!=0.23.2

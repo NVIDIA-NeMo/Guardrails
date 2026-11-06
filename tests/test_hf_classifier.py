@@ -17,8 +17,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import pickle
 import threading
 import time
 from types import SimpleNamespace
@@ -67,6 +69,7 @@ from nemoguardrails.library.hf_classifier.backends import (
 from nemoguardrails.rails.llm.config import (
     HFClassifierConfig,
     LocalHFClassifierConfig,
+    RailsConfig,
     RemoteHFClassifierConfig,
 )
 from nemoguardrails.testing import RecordingHTTPClient
@@ -778,6 +781,34 @@ class TestLocalImportError:
                 await LocalBackend(c).classify("text")
 
 
+class TestTokenizerCompatibility:
+    @pytest.mark.parametrize("version", ["0.23.1", "0.23.2", "0.23.2+local"])
+    @pytest.mark.parametrize("stride", [0, 3])
+    def test_token_windows_reject_affected_versions_before_loading(self, version, stride):
+        fake_transformers = mock.MagicMock()
+        with mock.patch.dict(
+            "sys.modules",
+            {"transformers": fake_transformers, "tokenizers": SimpleNamespace(__version__=version)},
+        ):
+            with pytest.raises(ValueError, match="windowing is unsafe.*0.23.1.*0.23.2"):
+                backends_mod._get_or_create_pipeline(
+                    "test-model", "token-classification", {"stride": stride, "aggregation_strategy": "simple"}
+                )
+        fake_transformers.pipeline.assert_not_called()
+
+    @pytest.mark.parametrize("version,stride", [("0.23.2", None), ("0.22.2", 0), ("0.23.3", 3)])
+    def test_native_or_compatible_token_pipeline_still_loads(self, version, stride):
+        fake_transformers = mock.MagicMock()
+        parameters = {} if stride is None else {"stride": stride, "aggregation_strategy": "simple"}
+        with mock.patch.dict(
+            "sys.modules",
+            {"transformers": fake_transformers, "tokenizers": SimpleNamespace(__version__=version)},
+        ):
+            pipe = backends_mod._get_or_create_pipeline("test-model", "token-classification", parameters)
+        assert pipe is fake_transformers.pipeline.return_value
+        fake_transformers.pipeline.assert_called_once()
+
+
 class TestDiscriminatedUnion:
     _ta = TypeAdapter(HFClassifierConfig)
 
@@ -845,7 +876,10 @@ class TestPipelineConcurrency:
         mock_transformers = mock.MagicMock()
         mock_transformers.pipeline = slow_pipeline
 
-        with mock.patch.dict("sys.modules", {"transformers": mock_transformers}):
+        with mock.patch.dict(
+            "sys.modules",
+            {"transformers": mock_transformers, "nemoguardrails.library.hf_classifier.chunking": mock.MagicMock()},
+        ):
             t = threading.Thread(
                 target=_get_or_create_pipeline,
                 args=("slow-model", "text-classification", {}),
@@ -885,7 +919,10 @@ class TestPipelineConcurrency:
         def loader(idx):
             results[idx] = _get_or_create_pipeline("shared-model", "text-classification", {})
 
-        with mock.patch.dict("sys.modules", {"transformers": mock_transformers}):
+        with mock.patch.dict(
+            "sys.modules",
+            {"transformers": mock_transformers, "nemoguardrails.library.hf_classifier.chunking": mock.MagicMock()},
+        ):
             t1 = threading.Thread(target=loader, args=(0,))
             t1.start()
             load_started.wait(timeout=5)
@@ -918,7 +955,10 @@ class TestSentinelThroughLocalBackend:
     def test_load_failure_stores_sentinel(self):
         mock_transformers = mock.MagicMock()
         mock_transformers.pipeline.side_effect = OSError("model not found")
-        with mock.patch.dict("sys.modules", {"transformers": mock_transformers}):
+        with mock.patch.dict(
+            "sys.modules",
+            {"transformers": mock_transformers, "nemoguardrails.library.hf_classifier.chunking": mock.MagicMock()},
+        ):
             with pytest.raises(OSError, match="model not found"):
                 _get_or_create_pipeline("missing-model", "text-classification", {})
         key = _pipeline_cache_key("missing-model", "text-classification", {})
@@ -996,3 +1036,639 @@ class TestBackendCaching:
         a = get_backend(cfg, name="classifier_a")
         b = get_backend(cfg, name="classifier_b")
         assert a is not b
+
+
+class TestLocalPipeline:
+    """Offline pipeline checks with tiny models; other tests need no HF dependencies."""
+
+    @pytest.fixture(autouse=True)
+    def hf_modules(self):
+        self.torch = pytest.importorskip("torch")
+        self.transformers = pytest.importorskip("transformers")
+        self.tokenizers = pytest.importorskip("tokenizers")
+        from nemoguardrails.library.hf_classifier import chunking
+
+        self.chunking = chunking
+
+    @pytest.fixture
+    def tokenizer(self):
+        vocabulary = ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]", *[f"w{i}" for i in range(30)], "café", "危"]
+        backend = self.tokenizers.Tokenizer(
+            self.tokenizers.models.WordPiece(dict(zip(vocabulary, range(len(vocabulary)))), unk_token="[UNK]")
+        )
+        backend.pre_tokenizer = self.tokenizers.pre_tokenizers.Whitespace()
+        backend.decoder = self.tokenizers.decoders.WordPiece()
+        backend.post_processor = self.tokenizers.processors.TemplateProcessing(
+            single="[CLS] $A [SEP]", special_tokens=[("[CLS]", 2), ("[SEP]", 3)]
+        )
+        return self.transformers.PreTrainedTokenizerFast(
+            tokenizer_object=backend,
+            unk_token="[UNK]",
+            pad_token="[PAD]",
+            cls_token="[CLS]",
+            sep_token="[SEP]",
+            model_max_length=16,
+        )
+
+    @pytest.fixture(params=["Bert"])
+    def model_family(self, request):
+        if not hasattr(self.transformers, f"{request.param}Config"):
+            pytest.skip(f"{request.param} is unavailable in Transformers {self.transformers.__version__}")
+        return request.param
+
+    @pytest.fixture(params=["text-classification"])
+    def classifiers(self, request, tokenizer, model_family):
+        task = request.param
+        options = dict(
+            vocab_size=len(tokenizer),
+            hidden_size=8,
+            intermediate_size=16,
+            num_hidden_layers=1,
+            num_attention_heads=2,
+            max_position_embeddings=32,
+            id2label={0: "O", 1: "B-toxic"},
+            label2id={"O": 0, "B-toxic": 1},
+        )
+        if model_family == "Bert":
+            options.update(hidden_dropout_prob=0, attention_probs_dropout_prob=0)
+        else:
+            tokenizer.model_input_names = ["input_ids", "attention_mask"]
+            options.update(
+                pad_token_id=tokenizer.pad_token_id,
+                bos_token_id=tokenizer.cls_token_id,
+                eos_token_id=tokenizer.sep_token_id,
+                cls_token_id=tokenizer.cls_token_id,
+                sep_token_id=tokenizer.sep_token_id,
+                num_hidden_layers=2,
+                local_attention=8,
+                reference_compile=False,
+                attn_implementation="eager",
+            )
+        config = getattr(self.transformers, f"{model_family}Config")(**options)
+        model_type = "Sequence" if task == "text-classification" else "Token"
+        with self.torch.random.fork_rng(devices=[]):
+            self.torch.manual_seed(0)
+            model = getattr(self.transformers, f"{model_family}For{model_type}Classification")(config)
+        adapter = (
+            self.chunking.ChunkedTextClassificationPipeline
+            if task == "text-classification"
+            else self.transformers.TokenClassificationPipeline
+        )
+        model.eval()
+        original = self.transformers.pipeline(task, model=model, tokenizer=tokenizer, device="cpu")
+        chunked = self.transformers.pipeline(
+            task, model=model, tokenizer=tokenizer, device="cpu", pipeline_class=adapter
+        )
+        return original, chunked
+
+    @pytest.mark.parametrize(
+        "size,options",
+        [
+            (0, {}),
+            (25, {}),
+            (25, {"top_k": None, "function_to_apply": "sigmoid"}),
+            (25, {"top_k": 2}),
+            (60, {"truncation": True}),
+            (60, {"max_length": 12}),
+            (60, {"max_length": 12, "truncation": True, "stride": 3, "return_overflowing_tokens": False}),
+            (60, {"max_length": 12, "truncation": "only_first", "padding": "max_length"}),
+            (25, {"truncation": False, "padding": True}),
+        ],
+    )
+    def test_native_settings_match_original(self, classifiers, size, options):
+        original, chunked = classifiers
+        original = type(original)(model=original.model, tokenizer=original.tokenizer, device="cpu", **options)
+        chunked = type(chunked)(model=chunked.model, tokenizer=chunked.tokenizer, device="cpu", **options)
+        text = " ".join(f"w{i % 30}" for i in range(size))
+        assert chunked(text) == original(text)
+
+    @pytest.mark.parametrize("top_k", [None, 1])
+    def test_window_scores_match_native_hf(self, classifiers, top_k):
+        original, chunked = classifiers
+        text = " ".join(f"w{i % 30}" for i in range(60))
+        encoded = original.tokenizer(text, max_length=32, stride=3, truncation=True, return_overflowing_tokens=True)
+        options = {"top_k": top_k, "function_to_apply": "sigmoid"}
+        expected = [
+            score
+            for ids in encoded["input_ids"]
+            for score in original(original.tokenizer.decode(ids, skip_special_tokens=True), **options)
+        ]
+        assert chunked(text, stride=3, **options) == expected
+
+    @pytest.mark.parametrize("padding", [True, "longest", "max_length", "do_not_pad"])
+    @pytest.mark.parametrize("batch_size", [1, 2])
+    def test_max_length_with_padding_preserves_full_input(self, classifiers, padding, batch_size):
+        original, chunked = classifiers
+        text = " ".join(["w0"] * 59 + ["w24"])
+        options = {"max_length": 12, "padding": padding}
+        assert original.preprocess(text, **options)["input_ids"].shape[-1] == 62
+
+        with mock.patch.object(chunked, "_forward", wraps=chunked._forward) as forward:
+            assert chunked(text, **options, batch_size=batch_size)
+
+        content = []
+        for call in forward.call_args_list:
+            inputs = call.args[0]
+            assert inputs["input_ids"].shape[-1] <= 32
+            for ids, mask in zip(inputs["input_ids"], inputs["attention_mask"]):
+                content.append(ids[mask.bool()].tolist()[1:-1])
+        assert len(content) > 1
+        reconstructed = content[0] + [token for window in content[1:] for token in window[7:]]
+        assert reconstructed == chunked.tokenizer.encode(text, add_special_tokens=False)
+
+    @pytest.mark.parametrize("direction", ["left", "right"])
+    @pytest.mark.parametrize("stride,special_tokens,overlap", [(None, True, 7), (0, True, 0), (3, False, 3)])
+    def test_windows_cover_all_tokens(self, classifiers, stride, special_tokens, overlap, direction):
+        _, chunked = classifiers
+        chunked.tokenizer.truncation_side = direction
+        text = " ".join([*[f"w{i}" for i in range(30)], *["café", "危"] * 20])
+        options = {"add_special_tokens": special_tokens}
+        if stride is not None:
+            options["stride"] = stride
+        windows = list(chunked.preprocess(text, **options))
+        content = []
+        for window in windows:
+            assert window["input_ids"].shape[1] <= 32
+            ids = window["input_ids"][0][window["attention_mask"][0].bool()].tolist()
+            content.append(ids[1:-1] if special_tokens else ids)
+        if direction == "left":
+            content = [ids[::-1] for ids in content]
+        assert [window["is_last"] for window in windows] == [False] * (len(windows) - 1) + [True]
+        reconstructed = content[0] + [token for window in content[1:] for token in window[overlap:]]
+        if direction == "left":
+            reconstructed.reverse()
+        assert reconstructed == chunked.tokenizer.encode(text, add_special_tokens=False)
+
+    @pytest.mark.parametrize("damage", ["missing_tail", "missing_middle", "changed_tail"])
+    @pytest.mark.parametrize("batch_size", [1, 2])
+    def test_incomplete_window_coverage_fails_before_inference(self, classifiers, monkeypatch, damage, batch_size):
+        _, chunked = classifiers
+        tokenizer_type = type(chunked.tokenizer)
+        tokenize = tokenizer_type.__call__
+
+        def incomplete(tokenizer, text, **kwargs):
+            if kwargs.get("return_overflowing_tokens") and damage == "changed_tail":
+                text = text.replace("w24", "w23")
+            encoded = tokenize(tokenizer, text, **kwargs)
+            if kwargs.get("return_overflowing_tokens") and damage != "changed_tail":
+                index = -1 if damage == "missing_tail" else 1
+                for values in encoded.values():
+                    values.pop(index)
+                encoded.encodings.pop(index)
+            return encoded
+
+        monkeypatch.setattr(tokenizer_type, "__call__", incomplete)
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="complete input token sequence"):
+                chunked(" ".join(["w0"] * 59 + ["w24"]), batch_size=batch_size)
+        forward.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "action", [hf_classifier_check_input, hf_classifier_check_output, hf_classifier_check_retrieval]
+    )
+    async def test_missing_overflow_raises_through_actions(self, classifiers, rail_config, monkeypatch, action):
+        _, chunked = classifiers
+        tokenizer_type = type(chunked.tokenizer)
+        tokenize = tokenizer_type.__call__
+
+        def first_window_only(tokenizer, text, **kwargs):
+            encoded = tokenize(tokenizer, text, **kwargs)
+            if kwargs.get("return_overflowing_tokens"):
+                for values in encoded.values():
+                    del values[1:]
+                del encoded.encodings[1:]
+            return encoded
+
+        monkeypatch.setattr(tokenizer_type, "__call__", first_window_only)
+        monkeypatch.setattr(backends_mod, "_get_or_create_pipeline", lambda *args: chunked)
+        text = " ".join(["w0"] * 59 + ["w24"])
+        context = {"user_message": text, "bot_message": text, "relevant_chunks": text}
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="complete input token sequence"):
+                await action(context=context, config=rail_config, classifier="test")
+        forward.assert_not_called()
+
+    @pytest.mark.parametrize("max_windows", [1, 2])
+    @pytest.mark.parametrize("stride", [0, 7])
+    def test_window_budget_boundary(self, classifiers, max_windows, stride):
+        _, chunked = classifiers
+        size = 30 + (max_windows - 1) * (30 - stride)
+        text = " ".join(["w0"] * size)
+        options = {"max_windows": max_windows, "stride": stride}
+        assert len(list(chunked.preprocess(text, **options))) == max_windows
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="exceeds max_windows"):
+                chunked(text + " w0", **options)
+        forward.assert_not_called()
+
+    def test_default_window_budget_rejects_before_overflow_tokenization(self, classifiers, monkeypatch):
+        _, chunked = classifiers
+        tokenizer_type = type(chunked.tokenizer)
+        tokenize = tokenizer_type.__call__
+
+        def no_overflow(tokenizer, text, **kwargs):
+            assert not kwargs.get("return_overflowing_tokens")
+            return tokenize(tokenizer, text, **kwargs)
+
+        monkeypatch.setattr(tokenizer_type, "__call__", no_overflow)
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="exceeds max_windows"):
+                chunked(" ".join(["w0"] * (30 + 127 * 23 + 1)))
+        forward.assert_not_called()
+
+    @pytest.mark.parametrize("max_windows", [0, -1, True, 1.5, "2", None])
+    def test_invalid_window_budget(self, classifiers, max_windows):
+        _, chunked = classifiers
+        with pytest.raises(ValueError, match="max_windows must be a positive integer"):
+            chunked("w0", max_windows=max_windows)
+
+    def test_window_budget_preserves_explicit_truncation(self, classifiers):
+        original, chunked = classifiers
+        text = " ".join(["w0"] * 60)
+        assert chunked(text, max_windows=1, truncation=True) == original(text, truncation=True)
+
+    @pytest.mark.parametrize("version", ["0.23.1", "0.23.2"])
+    def test_affected_tokenizer_only_rejects_automatic_windows(self, classifiers, monkeypatch, version):
+        original, chunked = classifiers
+        monkeypatch.setattr(self.tokenizers, "__version__", version)
+        text = " ".join(["w0"] * 60)
+        assert chunked("w0") == original("w0")
+        assert chunked(text, truncation=True) == original(text, truncation=True)
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="windowing is unsafe.*0.23.1.*0.23.2"):
+                chunked(text)
+        forward.assert_not_called()
+
+    @pytest.mark.parametrize("options", [{}, {"top_k": None}, {"truncation": True}])
+    @pytest.mark.parametrize("at_construction", [False, True])
+    def test_single_window_needs_no_batch_padding(self, classifiers, options, at_construction):
+        original, chunked = classifiers
+        chunked.tokenizer.pad_token = None
+        text = " ".join(["w0"] * (60 if options.get("truncation") else 3))
+        batch_options = {"batch_size": 2, "num_workers": 1}
+        if at_construction:
+            chunked = type(chunked)(model=chunked.model, tokenizer=chunked.tokenizer, device="cpu", **batch_options)
+            batch_options = {}
+        assert chunked(text, **options, **batch_options) == original(text, **options)
+
+    @pytest.mark.parametrize("size,tokenization_passes", [(3, 1), (60, 2), (600, 2)])
+    @pytest.mark.parametrize("batch_size", [1, 2, 8])
+    def test_scalar_tokenization_is_not_repeated(self, classifiers, monkeypatch, size, tokenization_passes, batch_size):
+        _, chunked = classifiers
+        tokenizer_type = type(chunked.tokenizer)
+        tokenize = tokenizer_type.__call__
+        calls = 0
+
+        def count_calls(tokenizer, *args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return tokenize(tokenizer, *args, **kwargs)
+
+        monkeypatch.setattr(tokenizer_type, "__call__", count_calls)
+        chunked(" ".join(["w0"] * size), batch_size=batch_size)
+        assert calls == tokenization_passes
+
+    @pytest.mark.parametrize("truncation", [None, False, "do_not_truncate"])
+    def test_previously_failing_input_succeeds(self, classifiers, truncation):
+        original, chunked = classifiers
+        chunked.tokenizer.pad_token = None
+        text = " ".join(["w0"] * 60)
+        options = {} if truncation is None else {"truncation": truncation}
+        with pytest.raises((RuntimeError, IndexError)):
+            original(text, **options)
+        with mock.patch.object(chunked, "_forward", wraps=chunked._forward) as forward:
+            chunked(text, **options)
+        assert forward.call_count > 1
+        assert all(call.args[0]["input_ids"].shape[-1] <= 32 for call in forward.call_args_list)
+
+    @pytest.mark.parametrize("model_family", ["ModernBert"], indirect=True)
+    def test_rotary_architecture_handles_short_and_long_inputs(self, classifiers):
+        original, chunked = classifiers
+        assert chunked("w0 w1") == original("w0 w1")
+        with mock.patch.object(chunked, "_forward", wraps=chunked._forward) as forward:
+            assert chunked(" ".join(["w0"] * 60))
+        assert forward.call_count > 1
+        assert all(call.args[0]["input_ids"].shape[-1] <= 32 for call in forward.call_args_list)
+
+    def test_configured_truncation_never_rescans_original_text(self, classifiers):
+        original, chunked = classifiers
+        text = " ".join(["w0"] * 60)
+        options = {"max_length": 40, "truncation": True}
+        windows = list(chunked.preprocess(text, **options))
+        assert len(windows) == 1
+        assert self.torch.equal(windows[0]["input_ids"], original.preprocess(text, **options)["input_ids"])
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "classifiers,parameters,checks_tail",
+        [
+            (
+                "text-classification",
+                {"max_length": 12, "stride": 3, "truncation": True, "return_overflowing_tokens": False},
+                False,
+            ),
+            ("token-classification", {}, False),
+            ("token-classification", {"stride": 0, "aggregation_strategy": "simple"}, True),
+            ("token-classification", {"stride": 3, "aggregation_strategy": "max", "batch_size": 2}, True),
+        ],
+        indirect=["classifiers"],
+    )
+    async def test_factory_preserves_configuration(self, classifiers, parameters, checks_tail, tmp_path, monkeypatch):
+        original, adapted = classifiers
+        model_path = tmp_path / "tiny"
+        original.save_pretrained(model_path)
+        monkeypatch.setattr(backends_mod, "_pipelines", {})
+        config = RailsConfig.from_content(
+            config={
+                "rails": {
+                    "config": {
+                        "hf_classifier": {
+                            "test": {
+                                "engine": "local",
+                                "model": str(model_path),
+                                "task": original.task,
+                                "parameters": {**parameters, "device": "cpu"},
+                            }
+                        }
+                    }
+                }
+            }
+        ).rails.config.hf_classifier["test"]
+        loaded = backends_mod._get_or_create_pipeline(config.model, config.task, config.parameters)
+        assert type(loaded) is type(adapted)
+        assert loaded is backends_mod._get_or_create_pipeline(config.model, config.task, config.parameters)
+        text = " ".join(["w0"] * 59 + ["w24"])
+        with mock.patch.object(loaded, "_forward", wraps=loaded._forward) as forward:
+            actual = await backends_mod.LocalBackend(config).classify(text)
+        expected = original(text, **parameters)
+        if original.task == "token-classification":
+            expected = [
+                {"label": item.get("entity_group") or item.get("entity", ""), "score": item["score"]}
+                for item in expected
+            ]
+        assert len(actual) == len(expected)
+        for result, reference in zip(actual, expected):
+            assert result == pytest.approx(reference)
+        tail_token = loaded.tokenizer.convert_tokens_to_ids("w24")
+        assert any((call.args[0]["input_ids"] == tail_token).any() for call in forward.call_args_list) == checks_tail
+
+    @pytest.fixture
+    def rail_config(self):
+        return RailsConfig.from_content(
+            yaml_content="""
+    rails:
+      config:
+        hf_classifier:
+          test:
+            engine: local
+            model: tiny
+            blocked_labels: [B-toxic]
+    """
+        )
+
+    @pytest.mark.asyncio
+    async def test_configured_window_budget_reaches_cached_pipeline(self, classifiers, tmp_path, monkeypatch):
+        original, _ = classifiers
+        model_path = tmp_path / "tiny"
+        original.save_pretrained(model_path)
+        monkeypatch.setattr(backends_mod, "_pipelines", {})
+        config = RailsConfig.from_content(
+            config={
+                "rails": {
+                    "config": {
+                        "hf_classifier": {
+                            "test": {
+                                "engine": "local",
+                                "model": str(model_path),
+                                "blocked_labels": ["B-toxic"],
+                                "parameters": {"max_windows": 2, "device": "cpu"},
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        cfg = config.rails.config.hf_classifier["test"]
+        pipe = backends_mod._get_or_create_pipeline(cfg.model, cfg.task, cfg.parameters)
+        backend = backends_mod.LocalBackend(cfg)
+        assert await backend.classify(" ".join(["w0"] * 53))
+        with mock.patch.object(pipe, "_forward") as forward:
+            with pytest.raises(ValueError, match="exceeds max_windows"):
+                await hf_classifier_check_input(
+                    context={"user_message": " ".join(["w0"] * 54)}, config=config, classifier="test"
+                )
+        forward.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "action,blocked",
+        [
+            (hf_classifier_check_input, RailOutcome.block()),
+            (hf_classifier_check_output, RailOutcome.block()),
+            (hf_classifier_check_retrieval, RailOutcome.transform([(TransformTarget.RELEVANT_CHUNKS, "")])),
+        ],
+    )
+    async def test_final_window_detection_blocks(self, classifiers, rail_config, monkeypatch, action, blocked):
+        _, chunked = classifiers
+        forward = chunked._forward
+        target = chunked.tokenizer.convert_tokens_to_ids("w24")
+
+        def detect_target(inputs):
+            hits = (inputs["input_ids"] == target).any(dim=1)
+            output = forward(inputs)
+            output["logits"] = self.torch.stack([(~hits).float() * 10, hits.float() * 10], dim=-1)
+            return output
+
+        monkeypatch.setattr(chunked, "_forward", detect_target)
+        monkeypatch.setattr(backends_mod, "_get_or_create_pipeline", lambda *args: chunked)
+        text = " ".join(["w0"] * 59 + ["w24"])
+        context = {"user_message": text, "bot_message": text, "relevant_chunks": text}
+        assert await action(context=context, config=rail_config, classifier="test") == blocked
+
+    def test_overlap_preserves_boundary_detection(self, classifiers, monkeypatch):
+        _, chunked = classifiers
+        forward = chunked._forward
+        left, right = chunked.tokenizer.convert_tokens_to_ids(["w28", "w29"])
+
+        def detect_pair(inputs):
+            ids = inputs["input_ids"]
+            hits = (ids == left).any(dim=1) & (ids == right).any(dim=1)
+            output = forward(inputs)
+            output["logits"] = self.torch.stack([(~hits).float() * 10, hits.float() * 10], dim=-1)
+            return output
+
+        monkeypatch.setattr(chunked, "_forward", detect_pair)
+        text = " ".join(["w0"] * 29 + ["w28", "w29"] + ["w0"] * 29)
+        assert not any(item["label"] == "B-toxic" for item in chunked(text, stride=0)[0])
+        assert any(item["label"] == "B-toxic" for item in chunked(text)[0])
+
+    def test_window_failure_propagates(self, classifiers):
+        _, chunked = classifiers
+        forward = chunked._forward
+        calls = 0
+
+        def fail_second(inputs):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError("window failed")
+            return forward(inputs)
+
+        with mock.patch.object(chunked, "_forward", side_effect=fail_second):
+            with pytest.raises(RuntimeError, match="window failed"):
+                chunked(" ".join(["w0"] * 60))
+        assert calls == 2
+
+    def test_unrelated_native_inference_error_is_not_retried(self, classifiers):
+        _, chunked = classifiers
+        with mock.patch.object(chunked, "_forward", side_effect=RuntimeError("inference failed")) as forward:
+            with pytest.raises(RuntimeError, match="inference failed"):
+                chunked("w0")
+        assert forward.call_count == 1
+
+    def test_unknown_limit_preserves_native_path_and_accepts_existing_max_length(self, classifiers):
+        original, chunked = classifiers
+        chunked.tokenizer.model_max_length = int(1e30)
+        chunked.model.config.max_position_embeddings = int(1e30)
+        assert chunked("w0") == original("w0")
+        text = " ".join(["w0"] * 60)
+        windows = list(chunked.preprocess(text, max_length=12, truncation=False))
+        assert len(windows) > 1
+        assert max(window["input_ids"].shape[-1] for window in windows) == 12
+        chunked(text, max_length=12, truncation=False)
+
+    @pytest.mark.parametrize(
+        "model_limit,tokenizer_limit,expected", [(32, int(1e30), 32), (32, 512, 32), (int(1e30), 16, 16)]
+    )
+    def test_capacity_metadata(self, classifiers, model_limit, tokenizer_limit, expected):
+        _, chunked = classifiers
+        chunked.model.config.max_position_embeddings = model_limit
+        chunked.tokenizer.model_max_length = tokenizer_limit
+        windows = list(chunked.preprocess(" ".join(["w0"] * 60)))
+        assert max(window["input_ids"].shape[-1] for window in windows) == expected
+        chunked(" ".join(["w0"] * 60))
+
+    def test_reserved_position_embeddings_are_excluded(self, tokenizer):
+        tokenizer.model_max_length = int(1e30)
+        config = self.transformers.RobertaConfig(
+            vocab_size=len(tokenizer),
+            hidden_size=8,
+            intermediate_size=16,
+            num_hidden_layers=1,
+            num_attention_heads=2,
+            max_position_embeddings=18,
+        )
+        pipe = self.chunking.ChunkedTextClassificationPipeline(
+            model=self.transformers.RobertaForSequenceClassification(config).eval(), tokenizer=tokenizer, device="cpu"
+        )
+        windows = list(pipe.preprocess(" ".join(["w0"] * 60)))
+        assert max(window["input_ids"].shape[1] for window in windows) == 16
+        pipe(" ".join(["w0"] * 60))
+
+    def test_slow_tokenizer_native_path_preserved(self, classifiers, monkeypatch):
+        original, chunked = classifiers
+        monkeypatch.setattr(type(chunked.tokenizer), "is_fast", property(lambda self: False))
+        assert chunked("w0") == original("w0")
+        assert chunked(" ".join(["w0"] * 60), truncation=True) == original(" ".join(["w0"] * 60), truncation=True)
+        with pytest.raises(ValueError, match="fast tokenizer"):
+            chunked(" ".join(["w0"] * 60))
+
+    @pytest.mark.parametrize("limit", [1, 2])
+    def test_window_limit_must_leave_room_for_content(self, classifiers, limit):
+        _, chunked = classifiers
+        chunked.model.config.max_position_embeddings = limit
+        with mock.patch.object(chunked, "_forward") as forward:
+            with pytest.raises(ValueError, match="window limit.*special-token count"):
+                chunked("w0 w1")
+        forward.assert_not_called()
+
+    def test_overlap_must_leave_room_for_content(self, classifiers):
+        _, chunked = classifiers
+        with pytest.raises(ValueError, match="content token capacity"):
+            chunked(" ".join(["w0"] * 60), stride=30)
+
+    def test_padding_cannot_exceed_window_budget(self, classifiers):
+        _, chunked = classifiers
+        with pytest.raises(ValueError, match="padding"):
+            chunked(" ".join(["w0"] * 60), padding=True, pad_to_multiple_of=64)
+
+    def test_fallback_respects_requested_batching(self, classifiers):
+        _, chunked = classifiers
+        text = " ".join(["w0"] * 60)
+        expected = chunked(text)[0]
+        with mock.patch.object(chunked, "_forward", wraps=chunked._forward) as forward:
+            actual = chunked(text, batch_size=2)[0]
+        assert any(call.args[0]["input_ids"].shape[0] > 1 for call in forward.call_args_list)
+        assert len(actual) == len(expected)
+        for result, reference in zip(actual, expected):
+            assert result == pytest.approx(reference)
+
+    def test_postprocessing_does_not_retain_all_window_logits(self, classifiers):
+        _, chunked = classifiers
+        order = []
+        forward = chunked._forward
+        parent = self.transformers.TextClassificationPipeline
+        score = parent.postprocess
+
+        def infer(inputs):
+            order.append("forward")
+            return forward(inputs)
+
+        def score_window(self, outputs, **kwargs):
+            order.append("score")
+            return score(self, outputs, **kwargs)
+
+        with mock.patch.object(chunked, "_forward", infer), mock.patch.object(parent, "postprocess", score_window):
+            chunked(" ".join(["w0"] * 60))
+        assert len(order) > 2
+        assert order[::2] == ["forward"] * (len(order) // 2)
+        assert order[1::2] == ["score"] * (len(order) // 2)
+
+    def test_pipeline_can_be_pickled_for_spawned_workers(self, classifiers):
+        _, chunked = classifiers
+        restored = pickle.loads(pickle.dumps(chunked))
+        assert restored("w0 w1") == chunked("w0 w1")
+
+    def test_prepared_scalar_windows_work_with_data_loader_workers(self, classifiers):
+        _, chunked = classifiers
+        text = " ".join(["w0"] * 59 + ["w24"])
+        expected = chunked(text, top_k=None)
+        actual = chunked(text, top_k=None, batch_size=1, num_workers=1)
+        assert len(actual) == len(expected)
+        for result, reference in zip(actual, expected):
+            assert result == pytest.approx(reference)
+
+    def test_prepared_input_pickles_without_retokenizing(self, classifiers, monkeypatch):
+        _, chunked = classifiers
+        text = " ".join(["w0"] * 60)
+        expected = list(chunked.preprocess(text))
+        prepared = pickle.loads(pickle.dumps(chunked._prepare_input(text)))
+        monkeypatch.setattr(chunked, "_prepare_input", mock.Mock(side_effect=AssertionError("repeated tokenization")))
+        actual = list(chunked.preprocess(prepared))
+        assert len(actual) == len(expected)
+        for window, reference in zip(actual, expected):
+            assert window["is_last"] == reference["is_last"]
+            assert self.torch.equal(window["input_ids"], reference["input_ids"])
+
+    def test_mixed_input_batch_matches_scalar_results(self, classifiers):
+        _, chunked = classifiers
+        texts = ["w0", " ".join(["w0"] * 59 + ["w24"]), "w1"]
+        expected = [chunked(text, top_k=None) for text in texts]
+        actual = chunked(texts, top_k=None, batch_size=2)
+        assert len(actual) == len(expected)
+        for results, references in zip(actual, expected):
+            assert len(results) == len(references)
+            for result, reference in zip(results, references):
+                assert result == pytest.approx(reference)
+
+    @pytest.mark.asyncio
+    async def test_concurrent_short_and_long_calls_share_pipeline(self, classifiers, rail_config, monkeypatch):
+        _, chunked = classifiers
+        monkeypatch.setattr(backends_mod, "_get_or_create_pipeline", lambda *args: chunked)
+        backend = backends_mod.LocalBackend(rail_config.rails.config.hf_classifier["test"])
+        texts = ["w0", " ".join(["w0"] * 60)]
+        expected = [await backend.classify(text) for text in texts]
+        results = await asyncio.gather(*(backend.classify(text) for _ in range(4) for text in texts))
+        assert results == expected * 4
+        assert chunked.tokenizer.model_max_length == 16
