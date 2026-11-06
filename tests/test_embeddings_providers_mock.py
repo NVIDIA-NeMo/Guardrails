@@ -19,6 +19,14 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+COHERE_MODELS = [
+    ("embed-v4.0", 1536),
+    ("embed-english-v3.0", 1024),
+    ("embed-english-light-v3.0", 384),
+    ("embed-multilingual-v3.0", 1024),
+    ("embed-multilingual-light-v3.0", 384),
+]
+
 
 class TestCohereEmbeddingModelMocked:
     def test_init_with_known_model(self):
@@ -75,10 +83,8 @@ class TestCohereEmbeddingModelMocked:
 
     def test_import_error_when_cohere_not_installed(self):
         with patch.dict("sys.modules", {"cohere": None}):
+            sys.modules.pop("nemoguardrails.embeddings.providers.cohere", None)
             with pytest.raises(ImportError, match="Could not import cohere"):
-                if "nemoguardrails.embeddings.providers.cohere" in sys.modules:
-                    del sys.modules["nemoguardrails.embeddings.providers.cohere"]
-
                 from nemoguardrails.embeddings.providers.cohere import (
                     CohereEmbeddingModel,
                 )
@@ -165,26 +171,25 @@ class TestCohereEmbeddingModelMocked:
 
             mock_cohere.Client.assert_called_once_with(api_key="test-key-123")
 
-    def test_all_predefined_models(self):
+    @pytest.mark.parametrize("model_name, expected_size", COHERE_MODELS)
+    def test_all_predefined_models(self, model_name, expected_size):
         mock_cohere = MagicMock()
         mock_client = Mock()
         mock_cohere.Client.return_value = mock_client
 
-        models_to_test = {
-            "embed-v4.0": 1536,
-            "embed-english-v3.0": 1024,
-            "embed-english-light-v3.0": 384,
-            "embed-multilingual-v3.0": 1024,
-            "embed-multilingual-light-v3.0": 384,
-        }
-
         with patch.dict("sys.modules", {"cohere": mock_cohere}):
             from nemoguardrails.embeddings.providers.cohere import CohereEmbeddingModel
 
-            for model_name, expected_size in models_to_test.items():
-                model = CohereEmbeddingModel(model_name)
-                assert model.embedding_size == expected_size
-                assert model.model == model_name
+            model = CohereEmbeddingModel(model_name)
+            assert model.embedding_size == expected_size
+            assert model.model == model_name
+
+
+OPENAI_MODELS = [
+    ("text-embedding-ada-002", 1536),
+    ("text-embedding-3-small", 1536),
+    ("text-embedding-3-large", 3072),
+]
 
 
 class TestOpenAIEmbeddingModelMocked:
@@ -227,10 +232,8 @@ class TestOpenAIEmbeddingModelMocked:
 
     def test_import_error_when_openai_not_installed(self):
         with patch.dict("sys.modules", {"openai": None}):
+            sys.modules.pop("nemoguardrails.embeddings.providers.openai", None)
             with pytest.raises(ImportError, match="Could not import openai") as exc_info:
-                if "nemoguardrails.embeddings.providers.openai" in sys.modules:
-                    del sys.modules["nemoguardrails.embeddings.providers.openai"]
-
                 from nemoguardrails.embeddings.providers.openai import (
                     OpenAIEmbeddingModel,
                 )
@@ -312,25 +315,24 @@ class TestOpenAIEmbeddingModelMocked:
 
             mock_openai.OpenAI.assert_called_once_with(api_key="test-key-123")
 
-    def test_all_predefined_models(self):
+    @pytest.mark.parametrize("model_name, expected_size", OPENAI_MODELS)
+    def test_all_predefined_models(self, model_name, expected_size):
         mock_openai = MagicMock()
         mock_openai.__version__ = "1.0.0"
         mock_client = Mock()
         mock_openai.OpenAI.return_value = mock_client
 
-        models_to_test = {
-            "text-embedding-ada-002": 1536,
-            "text-embedding-3-small": 1536,
-            "text-embedding-3-large": 3072,
-        }
-
         with patch.dict("sys.modules", {"openai": mock_openai}):
             from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
 
-            for model_name, expected_size in models_to_test.items():
-                model = OpenAIEmbeddingModel(model_name)
-                assert model.embedding_size == expected_size
-                assert model.model == model_name
+            model = OpenAIEmbeddingModel(model_name)
+            assert model.embedding_size == expected_size
+            assert model.model == model_name
+
+
+AZURE_MODELS = [
+    ("text-embedding-ada-002", 1536),
+]
 
 
 class TestAzureEmbeddingModelMocked:
@@ -375,10 +377,8 @@ class TestAzureEmbeddingModelMocked:
 
     def test_import_error_when_openai_not_installed(self):
         with patch.dict("sys.modules", {"openai": None}):
+            sys.modules.pop("nemoguardrails.embeddings.providers.azureopenai", None)
             with pytest.raises(ImportError, match="Could not import openai"):
-                if "nemoguardrails.embeddings.providers.azureopenai" in sys.modules:
-                    del sys.modules["nemoguardrails.embeddings.providers.azureopenai"]
-
                 from nemoguardrails.embeddings.providers.azureopenai import (
                     AzureEmbeddingModel,
                 )
@@ -455,24 +455,20 @@ class TestAzureEmbeddingModelMocked:
             assert result == [expected_embedding]
             mock_client.embeddings.create.assert_called_once()
 
-    def test_all_predefined_models(self):
+    @pytest.mark.parametrize("model_name, expected_size", AZURE_MODELS)
+    def test_all_predefined_models(self, model_name, expected_size):
         mock_openai = MagicMock()
         mock_client = Mock()
         mock_openai.AzureOpenAI.return_value = mock_client
-
-        models_to_test = {
-            "text-embedding-ada-002": 1536,
-        }
 
         with patch.dict("sys.modules", {"openai": mock_openai}):
             from nemoguardrails.embeddings.providers.azureopenai import (
                 AzureEmbeddingModel,
             )
 
-            for model_name, expected_size in models_to_test.items():
-                model = AzureEmbeddingModel(model_name)
-                assert model.embedding_size == expected_size
-                assert model.embedding_model == model_name
+            model = AzureEmbeddingModel(model_name)
+            assert model.embedding_size == expected_size
+            assert model.embedding_model == model_name
 
     def test_engine_name_attribute(self):
         mock_openai = MagicMock()
@@ -557,6 +553,11 @@ class TestAzureEmbeddingModelMocked:
             assert len(result) == 1
 
 
+GOOGLE_MODELS = [
+    ("gemini-embedding-001", 3072),
+]
+
+
 class TestGoogleEmbeddingModelMocked:
     def test_init_with_known_model(self):
         mock_genai_module = MagicMock()
@@ -600,10 +601,8 @@ class TestGoogleEmbeddingModelMocked:
 
     def test_import_error_when_google_genai_not_installed(self):
         with patch.dict("sys.modules", {"google": None, "google.genai": None}):
+            sys.modules.pop("nemoguardrails.embeddings.providers.google", None)
             with pytest.raises(ImportError, match="Could not import google-genai"):
-                if "nemoguardrails.embeddings.providers.google" in sys.modules:
-                    del sys.modules["nemoguardrails.embeddings.providers.google"]
-
                 from nemoguardrails.embeddings.providers.google import (
                     GoogleEmbeddingModel,
                 )
@@ -723,24 +722,20 @@ class TestGoogleEmbeddingModelMocked:
 
             mock_genai.Client.assert_called_once_with(api_key="test-key-123")
 
-    def test_all_predefined_models(self):
+    @pytest.mark.parametrize("model_name, expected_size", GOOGLE_MODELS)
+    def test_all_predefined_models(self, model_name, expected_size):
         mock_genai_module = MagicMock()
         mock_genai = MagicMock()
         mock_client = Mock()
         mock_genai.Client.return_value = mock_client
         mock_genai_module.genai = mock_genai
 
-        models_to_test = {
-            "gemini-embedding-001": 3072,
-        }
-
         with patch.dict("sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}):
             from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
 
-            for model_name, expected_size in models_to_test.items():
-                model = GoogleEmbeddingModel(model_name)
-                assert model.embedding_size == expected_size
-                assert model.model == model_name
+            model = GoogleEmbeddingModel(model_name)
+            assert model.embedding_size == expected_size
+            assert model.model == model_name
 
     def test_engine_name_attribute(self):
         mock_genai_module = MagicMock()
