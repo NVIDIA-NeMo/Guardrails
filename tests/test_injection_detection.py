@@ -90,15 +90,13 @@ def create_mock_rules(matches=None):
             {"is_injection": False, "text": "normal", "detections": []},
             "reject",
             "normal",
-            RailOutcome.allow(metadata={"is_injection": False, "text": "normal", "detections": [], "action": "reject"}),
+            RailOutcome.allow(metadata={"is_injection": False, "detections": [], "action": "reject"}),
         ),
         (
             {"is_injection": True, "text": "normal", "detections": ["sqli"]},
             "reject",
             "normal",
-            RailOutcome.block(
-                metadata={"is_injection": True, "text": "normal", "detections": ["sqli"], "action": "reject"}
-            ),
+            RailOutcome.block(metadata={"is_injection": True, "detections": ["sqli"], "action": "reject"}),
         ),
         (
             {"is_injection": True, "text": "omitted", "detections": ["sqli"]},
@@ -106,7 +104,7 @@ def create_mock_rules(matches=None):
             "normal",
             RailOutcome.transform(
                 [(TransformTarget.BOT_MESSAGE, "omitted")],
-                metadata={"is_injection": True, "text": "omitted", "detections": ["sqli"], "action": "omit"},
+                metadata={"is_injection": True, "detections": ["sqli"], "action": "omit"},
             ),
         ),
     ],
@@ -711,8 +709,8 @@ async def test_omit_action_with_exceptions_enabled():
 
 
 @pytest.mark.asyncio
-async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
-    """Test that a malformed inline YARA rule leads to graceful failure (detection becomes no-op)."""
+async def test_malformed_inline_yara_rule_fails_closed(caplog):
+    """Test that a malformed inline YARA rule fails closed rather than disabling detection."""
 
     inline_rule_name = "malformed_rule"
     # this rule is malformed: missing { after rule name
@@ -750,8 +748,10 @@ async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
 
     result = await rails.generate_async(messages=[{"role": "user", "content": "trigger detection"}])
 
-    # check that no exception was raised
-    assert result.get("role") != "exception", f"Expected no exception, but got {result}"
+    # a rule that cannot compile must not silently disable detection: the
+    # unchecked model output must never reach the caller
+    assert some_text_that_would_be_injection not in result["content"]
+    assert "internal error" in result["content"]
 
     # verify the error log was created with the expected content
     assert any(
