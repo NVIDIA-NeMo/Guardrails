@@ -117,9 +117,7 @@ def create_mock_rules(matches=None):
             {"is_injection": True, "text": "normal", "detections": ["xss"]},
             "omit",
             "normal",
-            RailOutcome.block(
-                metadata={"is_injection": True, "text": "normal", "detections": ["xss"], "action": "omit"}
-            ),
+            RailOutcome.block(metadata={"is_injection": True, "detections": ["xss"], "action": "omit"}),
         ),
     ],
 )
@@ -882,7 +880,7 @@ async def test_omit_blocks_unremovable_custom_yara_matches(rule, text):
 
     assert outcome.is_blocked
     assert outcome.metadata["is_injection"] is True
-    assert outcome.metadata["text"] == text
+    assert "text" not in outcome.metadata
 
 
 @pytest.mark.asyncio
@@ -947,7 +945,7 @@ async def test_omit_invalid_ranges_block_output(offset, length):
 
     assert outcome.is_blocked
     assert outcome.metadata["is_injection"] is True
-    assert outcome.metadata["text"] == "abc"
+    assert "text" not in outcome.metadata
     assert rules.match.call_count == 1
 
 

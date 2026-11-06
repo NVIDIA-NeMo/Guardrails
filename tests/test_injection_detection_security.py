@@ -103,6 +103,20 @@ async def test_prefix_does_not_suppress_detection(module, text, rule, action):
         "The requests are important, and more requests may follow.",
         "For http clients, the most important detail is the http timeout.",
         "The os and cmd module names are mentioned without any code.",
+        "Most import is a common word; consider the cost.",
+        "Most countries import oil, mostly by sea.",
+        "Most of the goods we import come from abroad at a lower cost.",
+        "Most goods come from abroad at low cost; we import them in bulk.",
+        "Japan is among the most important economies, and it must import most of its energy.",
+        "Brazil exports coffee and sugar. Most analysts say the US will import more of both, though costs are rising.",
+        "Most users click the import button, then choose the file to upload.",
+        "Those tariffs raise the cost of every car we import, and the cost is passed on to buyers.",
+        "Most shipping requests are processed overnight; import requests take longer.",
+        "os import json as hostname",
+        "requests import json as requests_helper",
+        "os from json import value; consider the cost.",
+        "os import json\ncost",
+        "Most shipping requests are processed overnight; import requests as data take longer.",
     ],
 )
 async def test_import_substrings_in_benign_prose_are_allowed(text, action):
@@ -112,6 +126,7 @@ async def test_import_substrings_in_benign_prose_are_allowed(text, action):
     assert not outcome.is_transform
     assert outcome.metadata["is_injection"] is False
     assert outcome.metadata["detections"] == []
+    assert outcome.metadata["text"] == text
 
 
 @pytest.mark.parametrize("module", IMPORT_MODULES)
@@ -120,6 +135,12 @@ async def test_import_substrings_in_benign_prose_are_allowed(text, action):
     [
         "import {module}",
         "import {module} as alias",
+        "import {module}, json",
+        "import {module} as alias, json as safe",
+        "import json, {module}, math",
+        "import {module}; print(1)",
+        "import {module} # comment",
+        "import {module}.helpers",
         "import json, {module}",
         "import json as j, {module} as alias",
         "import \\\n{module}",
