@@ -779,6 +779,8 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
     # Set OpenAI-compatible parameters in llm_params
     if body.max_tokens:
         generation_options.llm_params["max_tokens"] = body.max_tokens
+    if body.max_completion_tokens is not None:
+        generation_options.llm_params["max_completion_tokens"] = body.max_completion_tokens
     if body.temperature is not None:
         generation_options.llm_params["temperature"] = body.temperature
     if body.top_p is not None:

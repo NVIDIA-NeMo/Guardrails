@@ -105,6 +105,8 @@ def assert_route_inventory(payloads, model, operation, stream):
     if operation == "responses":
         snapshots = [p["response"] for p in payloads if "response" in p] if stream else payloads
         assert any("content_filters" in p for p in snapshots) is False
+        if model == "openai/openai/gpt-5-mini":
+            assert all(p["image"] == {"context_compression": "disabled"} for p in snapshots)
         return
     bridge = model in {
         "openai/openai/gpt-4o-mini",
@@ -123,10 +125,19 @@ def assert_route_inventory(payloads, model, operation, stream):
         expected = {"frequency_penalty", "presence_penalty", "tool_usage", "service_tier"}
         if model == "openai/openai/gpt-6-sol":
             expected.add("access_programs")
+        if model == "openai/openai/gpt-5-mini":
+            expected.add("image")
+            assert (
+                terminal["image"]
+                == terminal["provider_specific_fields"]["image"]
+                == {"context_compression": "disabled"}
+            )
         assert set(terminal["provider_specific_fields"]) == expected
     if not stream and bridge:
         assert payloads[0]["billing"] == {"payer": "developer"}
     if model == "openai/openai/gpt-5-mini":
+        if not stream:
+            assert payloads[0]["image"] == {"context_compression": "disabled"}
         location = "delta" if stream else "message"
         items = [item for p in payloads for c in p["choices"] for item in c[location].get("reasoning_items", []) or []]
         assert items

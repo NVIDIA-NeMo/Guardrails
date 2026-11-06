@@ -143,6 +143,7 @@ docs-fern-generate-openapi:
 	# Importing the server schema does not require publishing credentials.
 	env -u FERN_TOKEN -u DOCS_FERN_TOKEN uv run --locked --extra server python scripts/export_openapi.py
 	env -u FERN_TOKEN -u DOCS_FERN_TOKEN uv run --locked --extra server python scripts/export_hooks_openapi.py
+	env -u FERN_TOKEN -u DOCS_FERN_TOKEN uv run --locked --extra server python scripts/export_proxy_openapi.py
 
 docs-fern-generate-sdk: docs-fern-generate-openapi docs-fern-node-dependencies
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs md generate --library guardrails-python-sdk

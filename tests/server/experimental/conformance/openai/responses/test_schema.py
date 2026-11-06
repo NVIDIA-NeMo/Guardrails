@@ -25,7 +25,14 @@ from nemoguardrails.server.experimental.provider.projection_policy import EXTENS
 from tests.server.experimental.conformance.openai.responses.fixtures.extract_source import COMPONENTS, extract_inventory
 from tests.server.experimental.conformance.openai.responses.support import ENDPOINTS, INVENTORY, INVENTORY_PATH, ROOT
 
-NATIVE_ADDITIONS = {"store", "access_programs", "billing", "frequency_penalty", "presence_penalty", "tool_usage"}
+NATIVE_ADDITIONS = {
+    "store",
+    "billing",
+    "frequency_penalty",
+    "presence_penalty",
+}
+# These source-defined request controls remain unsupported by the closed binding.
+UNSUPPORTED_REQUEST_FIELDS = {"access_programs", "image"}
 
 
 def bound_models(endpoint):
@@ -51,7 +58,7 @@ def test_inventory_tracks_the_reviewed_provider_source():
     assert INVENTORY["source"] == pin
     assert (
         hashlib.sha256(INVENTORY_PATH.read_bytes()).hexdigest()
-        == "3166e95194393c2180bca713a440368b4760610fa422692765134401affcbb19"
+        == "c184d2d1d22d7ae18e9c5f5c4f290d3a4ab21702158ed545ac128653d0005829"
     )
 
 
@@ -62,6 +69,9 @@ def test_every_bound_model_has_complete_independent_source_coverage(endpoint):
     event_models = {rule.model for rule in endpoint.stream.classifier.rules}
     for model in models:
         expected = set(INVENTORY["schema_fields"][model.policy.source])
+        if model.policy.source == "CreateResponse":
+            assert UNSUPPORTED_REQUEST_FIELDS <= expected
+            expected -= UNSUPPORTED_REQUEST_FIELDS
         if model.policy.source == "Response":
             expected |= NATIVE_ADDITIONS
         if model.policy.source == "ResponseTextDeltaEvent":
@@ -102,8 +112,12 @@ def test_observed_native_metadata_is_opaque_in_buffered_and_lifecycle_responses(
         ("CreateResponse", "conversation", "constrained"),
         ("CreateResponse", "tools", "constrained"),
         ("CreateResponse", "include", "constrained"),
+        ("CreateResponse", "prompt_cache_options", "constrained"),
+        ("ResponsePromptCacheOptionsParam", "prewarm", "constrained"),
+        ("ResolvedImageOptions", "context_compression", "constrained"),
         ("Reasoning", "summary", "constrained"),
         ("Response", "output", "guarded"),
+        ("Response", "image", "constrained"),
         ("Response", "output_text", "constrained"),
         ("OutputMessage", "content", "guarded"),
         ("OutputTextContent", "text", "guarded"),

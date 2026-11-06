@@ -497,6 +497,31 @@ response:
     id:
       x-nemo-guardrails:
         classification: opaque
+    image:
+      default: null
+      x-nemo-guardrails:
+        classification: constrained
+      oneOf:
+      - additionalProperties: false
+        description: Accept the effective image policy without opening an image content
+          channel.
+        properties:
+          context_compression:
+            enum:
+            - enabled
+            - disabled
+            type: string
+            x-nemo-guardrails:
+              classification: constrained
+        required:
+        - context_compression
+        title: ResponseImageProjection
+        type: object
+        x-nemo-guardrails:
+          source: '#/components/schemas/ResolvedImageOptions'
+          unknown_fields: forbid
+          reject_case_aliases: true
+      - type: 'null'
     metadata:
       x-nemo-guardrails:
         classification: opaque
@@ -580,7 +605,6 @@ stream:
                   type: 'null'
                   x-nemo-guardrails:
                     classification: constrained
-                    extension: true
                     gate: disabled
                     reason: core_capability.audio_content
                 content:
@@ -772,6 +796,31 @@ stream:
       id:
         x-nemo-guardrails:
           classification: opaque
+      image:
+        default: null
+        x-nemo-guardrails:
+          classification: constrained
+        oneOf:
+        - additionalProperties: false
+          description: Accept the effective image policy without opening an image
+            content channel.
+          properties:
+            context_compression:
+              enum: &id001
+              - enabled
+              - disabled
+              type: string
+              x-nemo-guardrails:
+                classification: constrained
+          required: &id002
+          - context_compression
+          title: ResponseImageProjection
+          type: object
+          x-nemo-guardrails:
+            source: '#/components/schemas/ResolvedImageOptions'
+            unknown_fields: forbid
+            reject_case_aliases: true
+        - type: 'null'
       model:
         x-nemo-guardrails:
           classification: opaque
@@ -810,6 +859,28 @@ stream:
               default: null
               x-nemo-guardrails:
                 classification: opaque
+            image:
+              default: null
+              x-nemo-guardrails:
+                classification: constrained
+              oneOf:
+              - additionalProperties: false
+                description: Accept the effective image policy without opening an
+                  image content channel.
+                properties:
+                  context_compression:
+                    enum: *id001
+                    type: string
+                    x-nemo-guardrails:
+                      classification: constrained
+                required: *id002
+                title: ResponseImageProjection
+                type: object
+                x-nemo-guardrails:
+                  source: '#/components/schemas/ResolvedImageOptions'
+                  unknown_fields: forbid
+                  reject_case_aliases: true
+              - type: 'null'
             presence_penalty:
               default: null
               x-nemo-guardrails:

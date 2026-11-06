@@ -6,8 +6,8 @@ info:
     name: MIT
     identifier: MIT
 x-nemo-source:
-  revision: df63773f69f542ef875b9f00c3837c25ba5f4f2a
-  sha256: f2dae1a9aced09b91310db89edda51bf1e36ecbfb05230c3a50b239c07708469
+  revision: 3e288ba501d136b81181919a12a88495a0244488
+  sha256: cf91be897ab55e4aefcfc44ec1eb7611eea1227509b67178be583244c2680ab3
 paths:
   /chat/completions:
     get:
@@ -50,6 +50,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChatCompletionList'
+        '400':
+          description: Invalid pagination or filter parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          description: An internal error prevented the request from being completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: createChatCompletion
       requestBody:
@@ -60,7 +74,43 @@ paths:
               $ref: '#/components/schemas/CreateChatCompletionRequest'
       responses:
         '200':
-          description: OK
+          description: 'Returns a Chat Completion object for a non-streaming request.
+
+
+            If `stream` is `true`, returns server-sent events (`text/event-stream`).
+
+            Successful chunk frames contain a JSON Chat Completion chunk matching
+
+            `CreateChatCompletionStreamResponse`. On normal completion, the final
+
+            frame is:
+
+
+            ```text
+
+            data: [DONE]
+
+
+            ```
+
+
+            The final frame ends with a blank line. `[DONE]` is literal text, not
+            a
+
+            JSON chunk, and this frame has no `event: done` field.
+
+
+            If a failure occurs after streaming has started, a data frame may
+
+            contain a JSON object with an `error` field instead of a completion
+
+            chunk. The streaming schema describes successful JSON chunks, not
+
+            error frames or the completion marker. An interrupted stream may end
+
+            without the marker.
+
+            '
           content:
             application/json:
               schema:
@@ -68,8 +118,45 @@ paths:
             text/event-stream:
               schema:
                 $ref: '#/components/schemas/CreateChatCompletionStreamResponse'
+        '400':
+          description: Invalid chat completion request or incompatible request parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication failed because the API key is missing or revoked,
+            or the client IP is not authorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+            text/plain:
+              schema:
+                type: string
+        '403':
+          description: Access to a personal API organization is blocked by the organization
+            policy.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          description: The requested model or a referenced resource was not found
+            or is unavailable to this caller.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '429':
           $ref: '#/components/responses/InferenceRateLimited'
+        '500':
+          description: The chat completion could not be processed due to an internal
+            error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '503':
           $ref: '#/components/responses/InferenceServiceUnavailable'
   /chat/completions/{completion_id}:
@@ -88,6 +175,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreateChatCompletionResponse'
+        '404':
+          description: No stored chat completion was found with the specified ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          description: An internal error prevented the request from being completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: updateChatCompletion
       parameters:
@@ -114,6 +215,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreateChatCompletionResponse'
+        '400':
+          description: Invalid metadata update.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No stored chat completion was found with the specified ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          description: An internal error prevented the request from being completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       operationId: deleteChatCompletion
       parameters:
@@ -129,6 +250,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChatCompletionDeleted'
+        '404':
+          description: No stored chat completion was found with the specified ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          description: An internal error prevented the request from being completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /chat/completions/{completion_id}/messages:
     get:
       operationId: getChatCompletionMessages
@@ -165,6 +300,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChatCompletionMessageList'
+        '400':
+          description: Invalid message pagination parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No stored chat completion was found with the specified ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          description: An internal error prevented the request from being completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     ChatCompletionAllowedTools:
@@ -246,9 +401,13 @@ components:
           items:
             $ref: '#/components/schemas/CreateChatCompletionResponse'
         first_id:
-          type: string
+          type:
+          - string
+          - 'null'
         last_id:
-          type: string
+          type:
+          - string
+          - 'null'
         has_more:
           type: boolean
       required:
@@ -293,26 +452,102 @@ components:
         data:
           type: array
           items:
-            allOf:
-            - $ref: '#/components/schemas/ChatCompletionResponseMessage'
-            - type: object
-              required:
-              - id
-              properties:
-                id:
-                  type: string
-                content_parts:
-                  anyOf:
-                  - type: array
-                    items:
-                      oneOf:
-                      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartText'
-                      - $ref: '#/components/schemas/ChatCompletionRequestMessageContentPartImage'
-                  - type: 'null'
+            properties:
+              id:
+                type: string
+              role:
+                enum:
+                - user
+                - assistant
+                - tool
+                - system
+                - function
+                - developer
+                type: string
+              content:
+                anyOf:
+                - type: string
+                - type: 'null'
+              content_parts:
+                anyOf:
+                - items:
+                    properties:
+                      type:
+                        enum:
+                        - text
+                        - image_url
+                        - input_audio
+                        - file
+                        type: string
+                      text:
+                        anyOf:
+                        - type: string
+                        - type: 'null'
+                      image_url:
+                        anyOf:
+                        - properties:
+                            url:
+                              type: string
+                            detail:
+                              anyOf:
+                              - type: string
+                              - type: 'null'
+                          required:
+                          - url
+                          type: object
+                        - type: 'null'
+                      input_audio:
+                        anyOf:
+                        - properties:
+                            data:
+                              type: string
+                            format:
+                              type: string
+                          required:
+                          - data
+                          - format
+                          type: object
+                        - type: 'null'
+                      file:
+                        anyOf:
+                        - properties:
+                            file_data:
+                              anyOf:
+                              - type: string
+                              - type: 'null'
+                            filename:
+                              anyOf:
+                              - type: string
+                              - type: 'null'
+                            file_id:
+                              anyOf:
+                              - type: string
+                              - type: 'null'
+                          type: object
+                        - type: 'null'
+                    required:
+                    - type
+                    type: object
+                  type: array
+                - type: 'null'
+              name:
+                anyOf:
+                - type: string
+                - type: 'null'
+            required:
+            - id
+            - role
+            - content
+            - content_parts
+            type: object
         first_id:
-          type: string
+          type:
+          - string
+          - 'null'
         last_id:
-          type: string
+          type:
+          - string
+          - 'null'
         has_more:
           type: boolean
       required:
@@ -634,6 +869,7 @@ components:
               - auto
               - low
               - high
+              - original
               default: auto
           required:
           - url
@@ -755,7 +991,9 @@ components:
           - type: string
           - type: 'null'
         tool_calls:
-          $ref: '#/components/schemas/ChatCompletionMessageToolCalls'
+          anyOf:
+          - $ref: '#/components/schemas/ChatCompletionMessageToolCalls'
+          - type: 'null'
         annotations:
           type: array
           items:
@@ -792,7 +1030,9 @@ components:
           - assistant
           x-stainless-const: true
         function_call:
-          type: object
+          type:
+          - object
+          - 'null'
           deprecated: true
           properties:
             arguments:
@@ -824,11 +1064,9 @@ components:
       required:
       - role
       - content
-      - refusal
     ChatCompletionStreamOptions:
       anyOf:
       - type: object
-        default: null
         properties:
           include_usage:
             type: boolean
@@ -838,6 +1076,18 @@ components:
     ChatCompletionStreamResponseDelta:
       type: object
       properties:
+        audio:
+          type: object
+          properties:
+            id:
+              type: string
+            expires_at:
+              type: integer
+              format: unixtime
+            data:
+              type: string
+            transcript:
+              type: string
         content:
           anyOf:
           - type: string
@@ -980,6 +1230,8 @@ components:
       - $ref: '#/components/schemas/CreateModelResponseProperties'
       - type: object
         properties:
+          prompt_cache_options:
+            $ref: '#/components/schemas/PromptCacheOptionsParam'
           messages:
             type: array
             minItems: 1
@@ -996,26 +1248,30 @@ components:
           reasoning_effort:
             $ref: '#/components/schemas/ReasoningEffort'
           max_completion_tokens:
-            type: integer
-            nullable: true
+            type:
+            - integer
+            - 'null'
           frequency_penalty:
-            type: number
+            type:
+            - number
+            - 'null'
             default: 0
             minimum: -2
             maximum: 2
-            nullable: true
           presence_penalty:
-            type: number
+            type:
+            - number
+            - 'null'
             default: 0
             minimum: -2
             maximum: 2
-            nullable: true
           web_search_options:
             type: object
             properties:
               user_location:
-                type: object
-                nullable: true
+                type:
+                - object
+                - 'null'
                 required:
                 - type
                 - approximate
@@ -1030,10 +1286,11 @@ components:
               search_context_size:
                 $ref: '#/components/schemas/WebSearchContextSize'
           top_logprobs:
-            type: integer
+            type:
+            - integer
+            - 'null'
             minimum: 0
             maximum: 20
-            nullable: true
           response_format:
             oneOf:
             - $ref: '#/components/schemas/ResponseFormatText'
@@ -1042,8 +1299,9 @@ components:
             discriminator:
               propertyName: type
           audio:
-            type: object
-            nullable: true
+            type:
+            - object
+            - 'null'
             required:
             - voice
             - format
@@ -1060,49 +1318,57 @@ components:
                 - opus
                 - pcm16
           store:
-            type: boolean
+            type:
+            - boolean
+            - 'null'
             default: false
-            nullable: true
           moderation:
             anyOf:
             - $ref: '#/components/schemas/ModerationParam'
             - type: 'null'
           stream:
-            type: boolean
-            nullable: true
+            type:
+            - boolean
+            - 'null'
             default: false
           stop:
             $ref: '#/components/schemas/StopConfiguration'
           logit_bias:
-            type: object
+            type:
+            - object
+            - 'null'
             x-oaiTypeLabel: map
             default: null
-            nullable: true
             additionalProperties:
               type: integer
           logprobs:
-            type: boolean
+            type:
+            - boolean
+            - 'null'
             default: false
-            nullable: true
           max_tokens:
-            type: integer
-            nullable: true
+            type:
+            - integer
+            - 'null'
             deprecated: true
           n:
-            type: integer
+            type:
+            - integer
+            - 'null'
             minimum: 1
             maximum: 128
             default: 1
-            nullable: true
           prediction:
-            nullable: true
-            oneOf:
+            anyOf:
             - $ref: '#/components/schemas/PredictionContent'
+            - type: 'null'
           seed:
-            type: integer
-            minimum: -9223372036854776000
-            maximum: 9223372036854776000
-            nullable: true
+            type:
+            - integer
+            - 'null'
+            format: int64
+            minimum: -9223372036854775808
+            maximum: 9223372036854775807
             deprecated: true
           stream_options:
             $ref: '#/components/schemas/ChatCompletionStreamOptions'
@@ -1221,37 +1487,41 @@ components:
             type: object
             required:
             - delta
-            - finish_reason
             - index
             properties:
               delta:
                 $ref: '#/components/schemas/ChatCompletionStreamResponseDelta'
               logprobs:
-                type: object
-                nullable: true
+                type:
+                - object
+                - 'null'
                 properties:
                   content:
-                    type: array
+                    type:
+                    - array
+                    - 'null'
                     items:
                       $ref: '#/components/schemas/ChatCompletionTokenLogprob'
-                    nullable: true
                   refusal:
-                    type: array
+                    type:
+                    - array
+                    - 'null'
                     items:
                       $ref: '#/components/schemas/ChatCompletionTokenLogprob'
-                    nullable: true
                 required:
                 - content
                 - refusal
               finish_reason:
-                type: string
+                type:
+                - string
+                - 'null'
                 enum:
                 - stop
                 - length
                 - tool_calls
                 - content_filter
                 - function_call
-                nullable: true
+                - null
               index:
                 type: integer
         created:
@@ -1272,8 +1542,9 @@ components:
           - chat.completion.chunk
           x-stainless-const: true
         usage:
-          $ref: '#/components/schemas/CompletionUsage'
-          nullable: true
+          anyOf:
+          - $ref: '#/components/schemas/CompletionUsage'
+          - type: 'null'
         moderation:
           anyOf:
           - $ref: '#/components/schemas/ChatCompletionModeration'
@@ -1289,8 +1560,6 @@ components:
       - $ref: '#/components/schemas/ModelResponseProperties'
       - type: object
         properties:
-          prompt_cache_options:
-            $ref: '#/components/schemas/PromptCacheOptionsParam'
           top_logprobs:
             type: integer
             minimum: 0
@@ -1381,6 +1650,7 @@ components:
       required:
       - error
     FunctionObject:
+      x-openai-structured-output: function
       type: object
       properties:
         description:
@@ -1408,6 +1678,15 @@ components:
       - type: 'null'
     MisalignmentErrorDetailsResource:
       properties:
+        review_target:
+          anyOf:
+          - not:
+              pattern: '[^A-Za-z0-9._~:-]'
+            type: string
+            maxLength: 96
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~:-]+$
+          - type: 'null'
         error_type:
           $ref: '#/components/schemas/_MisalignmentErrorType'
         detailed_explanation:
@@ -1422,6 +1701,10 @@ components:
       - type: string
         enum:
         - gpt-6-astra
+        - gpt-6.1-sol
+        - gpt-6.1-terra
+        - gpt-6-sol
+        - gpt-6-luna
         - gpt-5.6-sol
         - gpt-5.6-terra
         - gpt-5.6-luna
@@ -1472,6 +1755,8 @@ components:
         - gpt-4o-2024-11-20
         - gpt-4o-2024-08-06
         - gpt-4o-2024-05-13
+        - gpt-audio-mini
+        - gpt-audio-mini-2025-12-15
         - gpt-4o-audio-preview
         - gpt-4o-audio-preview-2024-10-01
         - gpt-4o-audio-preview-2024-12-17
@@ -1505,6 +1790,225 @@ components:
         - gpt-3.5-turbo-1106
         - gpt-3.5-turbo-0125
         - gpt-3.5-turbo-16k-0613
+        x-openai-enum-deprecations:
+          gpt-5.4-nano:
+            message: 'Announced shutdown date: 2027-04-01. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5.1:
+            message: 'Announced shutdown date: 2027-04-01. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5.1-2025-11-13:
+            message: 'Announced shutdown date: 2027-04-01. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5.4-nano-2026-03-17:
+            message: 'Announced shutdown date: 2027-04-01. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4.1-2025-04-14:
+            message: 'Announced shutdown date: 2027-01-14. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4.1:
+            message: 'Announced shutdown date: 2027-01-14. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4.1-mini:
+            message: 'Announced shutdown date: 2027-01-14. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4.1-mini-2025-04-14:
+            message: 'Announced shutdown date: 2027-01-14. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o:
+            message: 'Announced shutdown date: 2027-01-14. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-2024-08-06:
+            message: 'Announced shutdown date: 2027-01-14. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-2024-11-20:
+            message: 'Announced shutdown date: 2027-01-14. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-mini:
+            message: 'Announced shutdown date: 2027-01-14. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-mini-2024-07-18:
+            message: 'Announced shutdown date: 2027-01-14. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5.3-chat-latest:
+            message: 'Announced shutdown date: 2026-08-10. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5.2-chat-latest:
+            message: 'Announced shutdown date: 2026-08-10. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5.1-codex:
+            message: 'Announced shutdown date: 2026-07-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5.1-chat-latest:
+            message: 'Announced shutdown date: 2026-07-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5-2025-08-07:
+            message: 'Announced shutdown date: 2026-12-11. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5-mini-2025-08-07:
+            message: 'Announced shutdown date: 2026-12-11. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5-nano-2025-08-07:
+            message: 'Announced shutdown date: 2026-12-11. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5-chat-latest:
+            message: 'Announced shutdown date: 2026-07-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4.1-nano:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4.1-nano-2025-04-14:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o4-mini:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o4-mini-2025-04-16:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o3-2025-04-16:
+            message: 'Announced shutdown date: 2026-12-11. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o3-mini:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o3-mini-2025-01-31:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o1:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o1-2024-12-17:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-2024-05-13:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-audio-mini:
+            message: 'Announced shutdown date: 2027-01-20. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-search-preview-2025-03-11:
+            message: 'Announced shutdown date: 2026-07-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-mini-search-preview-2025-03-11:
+            message: 'Announced shutdown date: 2026-07-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-turbo:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-turbo-2024-04-09:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-0125-preview:
+            message: 'Announced shutdown date: 2026-03-26. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-turbo-preview:
+            message: 'Announced shutdown date: 2026-03-26. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-1106-preview:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-0314:
+            message: 'Announced shutdown date: 2026-03-26. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-0613:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-3.5-turbo:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-3.5-turbo-1106:
+            message: 'Announced shutdown date: 2026-09-28. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-3.5-turbo-0125:
+            message: 'Announced shutdown date: 2026-10-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-3.5-turbo-0301:
+            message: 'Announced shutdown date: 2024-09-13. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-3.5-turbo-0613:
+            message: 'Announced shutdown date: 2024-09-13. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-3.5-turbo-16k:
+            message: 'Announced shutdown date: 2024-09-13. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-3.5-turbo-16k-0613:
+            message: 'Announced shutdown date: 2024-09-13. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-vision-preview:
+            message: 'Announced shutdown date: 2024-12-06. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-32k:
+            message: 'Announced shutdown date: 2025-06-06. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-32k-0314:
+            message: 'Announced shutdown date: 2025-06-06. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4-32k-0613:
+            message: 'Announced shutdown date: 2025-06-06. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o1-preview:
+            message: 'Announced shutdown date: 2025-07-28. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o1-preview-2024-09-12:
+            message: 'Announced shutdown date: 2025-07-28. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-audio-preview-2024-10-01:
+            message: 'Announced shutdown date: 2025-10-10. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o1-mini:
+            message: 'Announced shutdown date: 2025-10-27. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o1-mini-2024-09-12:
+            message: 'Announced shutdown date: 2025-10-27. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          codex-mini-latest:
+            message: 'Announced shutdown date: 2026-02-12. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          chatgpt-4o-latest:
+            message: 'Announced shutdown date: 2026-02-17. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-audio-preview:
+            message: 'Announced shutdown date: 2026-05-07. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-mini-audio-preview:
+            message: 'Announced shutdown date: 2026-05-07. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-audio-preview-2024-12-17:
+            message: 'Announced shutdown date: 2026-05-07. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-audio-preview-2025-06-03:
+            message: 'Announced shutdown date: 2026-05-07. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-mini-audio-preview-2024-12-17:
+            message: 'Announced shutdown date: 2026-05-07. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-search-preview:
+            message: 'Announced shutdown date: 2026-07-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-4o-mini-search-preview:
+            message: 'Announced shutdown date: 2026-07-23. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5:
+            message: 'Announced shutdown date: 2026-12-11. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5-mini:
+            message: 'Announced shutdown date: 2026-12-11. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5-nano:
+            message: 'Announced shutdown date: 2026-12-11. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          o3:
+            message: 'Announced shutdown date: 2026-12-11. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-audio-mini-2025-12-15:
+            message: 'Announced shutdown date: 2027-01-20. See https://developers.openai.com/api/docs/deprecations
+              for details and recommended replacements.'
+          gpt-5.1-mini:
+            message: Not a supported model ID. Retained for SDK compatibility.
     ModelResponseProperties:
       type: object
       properties:
@@ -1531,12 +2035,14 @@ components:
             default: 1
           - type: 'null'
         user:
-          type: string
+          type:
+          - string
+          - 'null'
           deprecated: true
         safety_identifier:
           anyOf:
           - type: string
-            maxLength: 64
+            maxLength: 128
           - type: 'null'
         prompt_cache_key:
           anyOf:
@@ -1656,6 +2162,11 @@ components:
           - explicit
           default: explicit
           x-stainless-const: true
+        ttl:
+          type: string
+          enum:
+          - 30m
+          - 12h
       type: object
       required:
       - mode
@@ -1708,6 +2219,7 @@ components:
           - json_schema
           x-stainless-const: true
         json_schema:
+          x-openai-structured-output: json_schema
           type: object
           properties:
             description:
@@ -1762,16 +2274,15 @@ components:
       - type: 'null'
     StopConfiguration:
       default: null
-      nullable: true
       oneOf:
       - type: string
         default: <|endoftext|>
-        nullable: true
       - type: array
         minItems: 1
         maxItems: 4
         items:
           type: string
+      - type: 'null'
     Verbosity:
       anyOf:
       - type: string
@@ -1858,6 +2369,17 @@ components:
       description: The service is temporarily unavailable. A server_is_overloaded
         error means the requested model is temporarily overloaded; retry after a brief
         delay.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: The request was rejected because a rate limit was exceeded.
       headers:
         Retry-After:
           schema:

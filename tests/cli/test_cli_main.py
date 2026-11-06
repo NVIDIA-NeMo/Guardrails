@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import os
 import sys
@@ -22,7 +23,7 @@ import pytest
 from typer.testing import CliRunner
 
 from nemoguardrails import __version__, telemetry
-from nemoguardrails.cli import app
+from nemoguardrails.cli import _HOOKS_SERVER_INFO_LOGGERS, app
 
 runner = CliRunner()
 
@@ -32,6 +33,25 @@ rails:
   tool_call:
     per_tool:
       Bash: [regex check tool call]
+"""
+
+JUDGE_URL = "http://judge.invalid/v1/chat/completions"
+
+HOOKS_JUDGE_CONFIG_YML = """
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+    parameters:
+      base_url: http://judge.invalid/v1
+rails:
+  tool_call:
+    per_tool:
+      Bash: [tool safety check tool call $model=main $variant=bash]
+prompts:
+  - task: tool_safety_check_tool_call $model=main $variant=bash
+    content: "Is this call to {{ tool_name }} safe? {{ tool_call_arguments }}"
+    output_parser: parse_tool_safety_verdict
 """
 
 METRICS_VARIABLES = (
@@ -427,6 +447,20 @@ class TestHooksServerCommand:
             monkeypatch.delenv(name, raising=False)
         monkeypatch.setattr(telemetry, "_deployment_type_override", None)
 
+    @pytest.fixture(autouse=True)
+    def _restore_logging(self):
+        """The levels the command sets, and the root handlers basicConfig may add, restored after the test."""
+        root = logging.getLogger()
+        loggers = [root, *(logging.getLogger(name) for name in _HOOKS_SERVER_INFO_LOGGERS)]
+        saved_levels = [(logger, logger.level) for logger in loggers]
+        saved_handlers = list(root.handlers)
+        yield
+        for logger, level in saved_levels:
+            logger.setLevel(level)
+        for handler in list(root.handlers):
+            if handler not in saved_handlers:
+                root.removeHandler(handler)
+
     @staticmethod
     def _config_dir(tmp_path, config_yml: str) -> str:
         """A config directory holding *config_yml* as its `config.yml`."""
@@ -446,20 +480,95 @@ class TestHooksServerCommand:
         assert kwargs == {"host": "127.0.0.1", "port": 8100, "log_level": "info"}
 
     @patch("uvicorn.run")
-    def test_hooks_server_logs_at_info_even_when_the_root_logger_has_a_handler(self, mock_uvicorn, tmp_path):
-        """The root logger is at INFO when the server starts, so each check's log line shows, whatever handlers exist."""
+    def test_hooks_server_logs_its_checks_at_info_but_not_llm_calls(self, mock_uvicorn, tmp_path):
+        """Whatever root was, it ends at WARNING; the hooks app and IORails log at INFO, and the LLM call log does not."""
+        from nemoguardrails.guardrails.iorails import log as iorails_log
+        from nemoguardrails.llm.call import logger as llm_call_log
+        from nemoguardrails.server.hooks.app import log as hooks_log
+
         root = logging.getLogger()
-        saved_level = root.level
-        root.setLevel(logging.WARNING)
+        root.setLevel(logging.INFO)
         root.addHandler(handler := logging.NullHandler())
         try:
             result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_CONFIG_YML)}"])
-
-            assert result.exit_code == 0, result.output
-            assert root.level == logging.INFO
         finally:
             root.removeHandler(handler)
-            root.setLevel(saved_level)
+
+        assert result.exit_code == 0, result.output
+        assert root.level == logging.WARNING
+        assert hooks_log.isEnabledFor(logging.INFO)
+        assert iorails_log.isEnabledFor(logging.INFO)
+        assert not llm_call_log.isEnabledFor(logging.INFO)
+
+    @pytest.mark.parametrize(
+        ("verdict", "answer", "outcome", "rail"),
+        [
+            ("safe", {}, "allow", None),
+            (
+                "unsafe: echoes secret-7f3a",
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": "NeMo Guardrails: tool safety check tool call",
+                    }
+                },
+                "deny",
+                "tool safety check tool call",
+            ),
+        ],
+        ids=["allow", "deny"],
+    )
+    @patch("uvicorn.run")
+    def test_hooks_server_logs_a_judged_check_without_the_tool_input(
+        self, mock_uvicorn, tmp_path, caplog, verdict, answer, outcome, rail
+    ):
+        """A judged check's arguments reach the judge, and its verdict and timing are logged, but the arguments never are."""
+        from aioresponses import aioresponses
+        from fastapi.testclient import TestClient
+
+        from nemoguardrails.guardrails.iorails import log as iorails_log
+        from nemoguardrails.guardrails.model_engine import log as model_engine_log
+        from nemoguardrails.server.hooks.app import log as hooks_log
+
+        caplog.set_level(logging.INFO, logger=hooks_log.name)
+
+        result = runner.invoke(app, ["hooks-server", f"--config={self._config_dir(tmp_path, HOOKS_JUDGE_CONFIG_YML)}"])
+        assert result.exit_code == 0, result.output
+        (server_app,), _ = mock_uvicorn.call_args
+        with aioresponses() as judge, TestClient(server_app) as client:
+            judge.post(
+                JUDGE_URL,
+                payload={
+                    "id": "chatcmpl-judge",
+                    "model": "meta/llama-3.3-70b-instruct",
+                    "choices": [{"message": {"role": "assistant", "content": verdict}, "finish_reason": "stop"}],
+                },
+            )
+            response = client.post(
+                "/v1/hooks/claude-code",
+                json={
+                    "hook_event_name": "PreToolUse",
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "echo secret-7f3a"},
+                    "tool_use_id": "privacy-probe",
+                },
+            )
+
+        def messages(logger: logging.Logger) -> list[str]:
+            return [record.getMessage() for record in caplog.records if record.name == logger.name]
+
+        assert response.status_code == 200
+        assert response.json() == answer
+        [judge_request] = [call.kwargs["json"] for calls in judge.requests.values() for call in calls]
+        assert "secret-7f3a" in json.dumps(judge_request)
+        assert messages(hooks_log) == [
+            "Hook check on /v1/hooks/claude-code: event=PreToolUse tool_name='Bash' "
+            f"tool_use_id='privacy-probe' outcome={outcome} code=None rail={rail!r}"
+        ]
+        assert any("HTTP POST" in message for message in messages(model_engine_log))
+        assert any("check completed" in message for message in messages(iorails_log))
+        assert "secret-7f3a" not in caplog.text
 
     @patch("uvicorn.run")
     def test_hooks_server_honors_host_and_port(self, mock_uvicorn, tmp_path):

@@ -55,6 +55,15 @@ class ResponsesTextConfigProjection(PolicyModel, GuardedContentModel):
     format: Annotated[ResponsesTextFormatProjection | None, constrained()] = None
 
 
+class ResponsesPromptCacheOptionsProjection(PolicyModel, GuardedContentModel):
+    """Keep prompt caching compatible with foreground text generation."""
+
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(
+        source="ResponsePromptCacheOptionsParam", opaque=("comparison_response_id", "mode", "ttl")
+    )
+    prewarm: Annotated[StrictFalse, constrained(reason="core_capability.cache_only_generation")] = False
+
+
 class ResponsesGuardedRequestProjection(PolicyModel, GuardedRequestModel):
     """Inspect one string input without provider-managed history or tools.
 
@@ -72,7 +81,6 @@ class ResponsesGuardedRequestProjection(PolicyModel, GuardedRequestModel):
             "moderation",
             "parallel_tool_calls",
             "prompt_cache_key",
-            "prompt_cache_options",
             "prompt_cache_retention",
             "safety_identifier",
             "service_tier",
@@ -94,6 +102,7 @@ class ResponsesGuardedRequestProjection(PolicyModel, GuardedRequestModel):
     previous_response_id: Annotated[None, disabled("core_capability.conversation_state")] = None
     prompt: Annotated[None, disabled("core_capability.additional_input")] = None
     reasoning: Annotated[ResponsesReasoningConfigProjection | None, constrained()] = None
+    prompt_cache_options: Annotated[ResponsesPromptCacheOptionsProjection | None, constrained()] = None
     text: Annotated[ResponsesTextConfigProjection | None, constrained()] = None
     tool_choice: Annotated[None, disabled("core_capability.tool_content")] = None
     tools: Annotated[None, disabled("core_capability.tool_content")] = None

@@ -97,7 +97,14 @@ def hooks_openapi() -> dict:
         }
     )
     error = {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/HookError"}}}}
+    empty_allow = {"type": "object", "properties": {}, "additionalProperties": False}
+    response_schemas = {
+        "claude-code": (empty_allow, "PreToolUseDeny"),
+        "codex": (empty_allow, "PreToolUseDeny"),
+        "nemo-relay": ({"$ref": "#/components/schemas/RelayAllow"}, "RelayDeny"),
+    }
     for agent, adapter in ADAPTERS.items():
+        allowed, deny_name = response_schemas[agent]
         model = adapter.request_model
         model_schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
         schemas.update(model_schema.pop("$defs", {}))
@@ -117,12 +124,7 @@ def hooks_openapi() -> dict:
             "required": True,
             "content": {"application/json": {"schema": {"$ref": f"#/components/schemas/{model.__name__}"}}},
         }
-        allowed = (
-            {"$ref": "#/components/schemas/RelayAllow"}
-            if agent == "nemo-relay"
-            else {"type": "object", "properties": {}, "additionalProperties": False}
-        )
-        denied = {"$ref": f"#/components/schemas/{'RelayDeny' if agent == 'nemo-relay' else 'PreToolUseDeny'}"}
+        denied = {"$ref": f"#/components/schemas/{deny_name}"}
         operation["responses"] = {
             "200": {
                 "description": "Allow or deny decision",

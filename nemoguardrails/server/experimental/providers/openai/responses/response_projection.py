@@ -28,6 +28,13 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
 )
 
 
+class ResponseImageProjection(PolicyModel):
+    """Accept the effective image policy without opening an image content channel."""
+
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ResolvedImageOptions")
+    context_compression: Annotated[Literal["enabled", "disabled"], constrained()]
+
+
 class ResponsesOutputTextProjection(PolicyModel, GuardedContentModel):
     """Guard output text and reject uninspected citation and token text."""
 
@@ -116,5 +123,6 @@ class ResponsesGuardedResponseProjection(PolicyModel, GuardedPayloadModel):
     """Keep provider output ordering and select one reviewed text-bearing item."""
 
     policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="Response", opaque=RESPONSE_METADATA_FIELDS)
+    image: Annotated[ResponseImageProjection | None, constrained()] = None
     output: Annotated[list[ResponsesReasoningItemProjection | ResponsesAssistantMessageProjection], guarded()]
     output_text: Annotated[None, disabled("provider_integrity.duplicate_text")] = None

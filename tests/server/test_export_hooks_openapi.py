@@ -17,6 +17,7 @@
 
 import json
 import os
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -54,6 +55,17 @@ def exported(tmp_path_factory):
 
 def validate(spec, schema, body):
     jsonschema.validate(body, {**schema, "components": spec["components"]})
+
+
+def test_export_rejects_adapter_without_a_response_contract(monkeypatch):
+    exporter = runpy.run_path(str(SCRIPT))
+    adapters = exporter["ADAPTERS"]
+    monkeypatch.setitem(adapters, "unsupported-harness", adapters["codex"])
+
+    with pytest.raises(KeyError) as error:
+        exporter["hooks_openapi"]()
+
+    assert error.value.args == ("unsupported-harness",)
 
 
 def test_export_is_fresh_and_routes_are_complete(exported):

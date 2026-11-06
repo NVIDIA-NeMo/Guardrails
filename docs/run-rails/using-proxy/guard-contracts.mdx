@@ -68,6 +68,11 @@ These are excerpts from an exported binding, not a complete editable contract.
 
 ## Inspect a Contract
 
+Browse the generated native [Chat Completions contract](/reference/proxy-guard-contracts/chat-completions)
+or [Responses contract](/reference/proxy-guard-contracts/responses). Each page has
+request, response, and stream sections plus the exact export from that build's
+bound Python declarations. Nested objects and schema alternatives remain separate.
+
 The package includes bound exports for
 [native Chat](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/openai/_generated/chat-completions.guard.yaml),
 [native Responses](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/contracts/openai/_generated/responses.guard.yaml),
@@ -87,6 +92,24 @@ Each export includes the following sections:
 Read these versions separately: the format revision identifies the document
 format, the provider revision identifies its source baseline, and the capability
 profile identifies supported content handling. Rails selects the checks.
+
+## Read Stream Declarations
+
+The `stream` section records the classifier's reviewed event shapes:
+
+| Event role | Meaning |
+| --- | --- |
+| `guarded_delta` | Text deltas selected for output checks. |
+| `snapshot` | Text snapshots checked for consistency with the accumulated deltas. |
+| `opaque` | Reviewed metadata whose values are not inspected as text. |
+| `provider_error` | A recognized provider error event. |
+
+Each variant records its matching fields and shape. Missing-text behavior is a
+separate rule from nullability; transport declarations describe discriminators,
+sentinels, and non-data events. These declarations do not serialize stateful
+completion checks or native error encoding. Read
+[completion and errors](/run-guardrailed-inference/using-proxy/providers-and-streaming#completion-and-errors)
+for runtime behavior and failures after HTTP 200.
 
 ## Export From an Endpoint
 

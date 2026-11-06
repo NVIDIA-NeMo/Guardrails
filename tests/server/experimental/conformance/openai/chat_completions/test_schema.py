@@ -39,7 +39,7 @@ from tests.server.experimental.conformance.openai.chat_completions.support impor
     source_document,
 )
 
-FIXTURE_SHA256 = "a84917786d64f8a04998da6f166b9b293eba20a1f093dd49ac69a1498f78454f"
+FIXTURE_SHA256 = "fe22de8fe8bb4a92680c02df3fbbbd1b865706acc33aa7fd6ef03209269cce71"
 REQUEST = CHAT_COMPLETIONS_ENDPOINT.guarded_request_model
 USER_MESSAGE = get_args(REQUEST.model_fields["messages"].annotation)[0]
 RESPONSE = CHAT_COMPLETIONS_ENDPOINT.guarded_response_model
@@ -58,7 +58,7 @@ OBJECTS = [
     (ASSISTANT_MESSAGE, "ChatCompletionResponseMessage", frozenset({"reasoning_content"})),
     (STREAM, "CreateChatCompletionStreamResponse", frozenset()),
     (STREAM_CHOICE, "CreateChatCompletionStreamResponse/properties/choices/items", frozenset()),
-    (DELTA, "ChatCompletionStreamResponseDelta", frozenset({"audio", "reasoning_content"})),
+    (DELTA, "ChatCompletionStreamResponseDelta", frozenset({"reasoning_content"})),
     (ERROR, "ErrorResponse", frozenset()),
     (ERROR_DETAILS, "Error", frozenset()),
 ]

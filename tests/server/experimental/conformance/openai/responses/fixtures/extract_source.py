@@ -23,6 +23,8 @@ import yaml
 COMPONENTS = (
     "CreateResponse",
     "Response",
+    "ResolvedImageOptions",
+    "ResponsePromptCacheOptionsParam",
     "Reasoning",
     "ResponseTextParam",
     "ResponseFormatText",
