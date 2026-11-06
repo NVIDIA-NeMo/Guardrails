@@ -106,47 +106,6 @@ jobs:
         env:
           STEPS_VERSION_OUTPUTS_VERSION: ${{ steps.version.outputs.version }}
 
-      - name: Update version in README.md
-        env:
-          REPOSITORY: ${{ github.repository }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          uv run --no-project python - <<'PY'
-          import os
-          import re
-          from pathlib import Path
-
-          path = Path("README.md")
-          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-          marker = "> **LATEST RELEASE / DEVELOPMENT VERSION**:"
-          marker_lines = [index for index, line in enumerate(lines) if line.startswith(marker)]
-          if len(marker_lines) != 1:
-              raise SystemExit(
-                  f"Expected exactly one README release marker, found {len(marker_lines)}."
-              )
-
-          version = os.environ["VERSION"]
-          release_link = re.compile(
-              r"\[[0-9]+\.[0-9]+\.[0-9]+\]"
-              r"\(https://github\.com/[^/()]+/[^/()]+/tree/v"
-              r"[0-9]+\.[0-9]+\.[0-9]+\)"
-          )
-          repository = os.environ["REPOSITORY"]
-          replacement = (
-              f"[{version}]"
-              f"(https://github.com/{repository}/tree/v{version})"
-          )
-          index = marker_lines[0]
-          lines[index], replacements = release_link.subn(replacement, lines[index])
-          if replacements != 1:
-              raise SystemExit(
-                  "Expected exactly one stable release link on the README release marker, "
-                  f"found {replacements}."
-              )
-
-          path.write_text("".join(lines), encoding="utf-8")
-          PY
-
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
         with:
@@ -162,7 +121,6 @@ jobs:
             ### Changes included:
             - ✅ Updated version to v${{ steps.version.outputs.version }}
             - ✅ Updated CHANGELOG.md with latest changes
-            - ✅ Updated version references in README.md
 
             ---
 
@@ -174,7 +132,6 @@ jobs:
             CHANGELOG.md
             pyproject.toml
             uv.lock
-            README.md
           commit-message: "chore(release): prepare for v${{ steps.version.outputs.version }}"
 
       - name: Clean up
