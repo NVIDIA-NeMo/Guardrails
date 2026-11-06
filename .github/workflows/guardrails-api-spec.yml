@@ -5,6 +5,9 @@ on:
     paths:
       - "nemoguardrails/**"
       - "scripts/export_openapi.py"
+      - "scripts/export_hooks_openapi.py"
+      - "tests/server/test_export_hooks_openapi.py"
+      - "fern/hooks-openapi*.yml"
       - "scripts/export_proxy_openapi.py"
       - "scripts/proxy_guard_contract_docs.py"
       - "tests/server/test_export_openapi.py"
@@ -22,6 +25,9 @@ on:
     paths:
       - "nemoguardrails/**"
       - "scripts/export_openapi.py"
+      - "scripts/export_hooks_openapi.py"
+      - "tests/server/test_export_hooks_openapi.py"
+      - "fern/hooks-openapi*.yml"
       - "scripts/export_proxy_openapi.py"
       - "scripts/proxy_guard_contract_docs.py"
       - "tests/server/test_export_openapi.py"
@@ -57,4 +63,5 @@ jobs:
       - name: Test exporter without provider calls
         run: |
           make test WORKERS=1 TEST=tests/server/test_export_openapi.py
+          make test WORKERS=1 TEST=tests/server/test_export_hooks_openapi.py
           make test WORKERS=1 TEST=tests/server/test_export_proxy_openapi.py

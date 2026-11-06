@@ -76,7 +76,7 @@ export function main(args = process.argv.slice(2), environment = process.env) {
   }
 
   // New snapshots omit the build artifact; older snapshots retain their own spec.
-  for (const exporter of ["export_openapi.py", "export_proxy_openapi.py"]) {
+  for (const exporter of ["export_openapi.py", "export_hooks_openapi.py", "export_proxy_openapi.py"]) {
     if (!existsSync(path.join(worktreeRoot, "scripts", exporter))) continue;
     const exportEnvironment = { ...environment, FERN_REF_SDK_HOOK: "0" };
     delete exportEnvironment.FERN_TOKEN;
