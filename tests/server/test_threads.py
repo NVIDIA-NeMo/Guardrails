@@ -103,14 +103,16 @@ def test_1():
         ("abcd", 422),  # thread_id is too short
         ("a" * 256, 422),  # thread_id is too long
         (123, 422),  # thread_id is not a string
-        # The ID reaches the wire as the conversation ID of the request's rails, so
-        # characters an HTTP header cannot carry are rejected here rather than failing
-        # every check made for the thread.
+        # The ID reaches the wire as the conversation ID of the request's rails. A rail
+        # encodes it, so any character it can encode is accepted; a control character or
+        # surrounding whitespace is almost always a client defect and is rejected here.
         ("a" * 16 + " ", 422),  # thread_id ends with whitespace
         (" " + "a" * 16, 422),  # thread_id starts with whitespace
         ("a" * 16 + "\r\n", 422),  # thread_id carries a line break
         ("a" * 16 + "\x00", 422),  # thread_id carries a control character
-        ("thréad-0123456789", 422),  # thread_id is not ASCII
+        ("a" * 8 + "\t" + "a" * 8, 422),  # thread_id carries an inner tab
+        ("thréad-0123456789", 200),  # a non-ASCII thread_id names a thread like any other
+        ("顧客サポート-スレッド-00042", 200),
         ("thread 0123456789", 200),  # an inner space is fine
     ],
 )
