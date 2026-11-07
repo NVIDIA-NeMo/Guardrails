@@ -1,0 +1,105 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Conduct Guard Integration"
+---
+
+[Conduct Guard](https://conductai.ai/guard) provides runtime policy
+enforcement for LLM applications — allow, warn, block, or route to
+human approval — with a hash-chained audit trail per decision. This
+integration wires Conduct proxy-persona rules (credential leaks,
+prompt-attack templates, PII, dual-use framing) into NeMo Guardrails
+input and output rails.
+
+Every rule fires as either a **block** (short-circuits the flow with a
+policy-safe response) or a **warn / audit** (the request proceeds and
+a receipt lands in the Conduct Guard Activity feed under
+`source=proxy` and `ai_tool=nemo`).
+
+## Getting Access
+
+1. Sign up at [conductai.ai](https://conductai.ai) — a free workspace
+   includes the full `conduct-base` and `conduct-owasp` packs.
+2. Mint an agent token: **Settings** → **Agent identities** → **Mint
+   agent token**. Copy the `cond_agt_…` value (shown once).
+
+## Setup
+
+1. Install the plugin:
+
+   ```bash
+   pip install conduct-nemo-guard
+   ```
+
+2. Export the token:
+
+   ```bash
+   export CONDUCT_AGENT_TOKEN="cond_agt_..."
+   ```
+
+3. Configure your `config.yml`:
+
+   ```yaml
+   rails:
+     config:
+       conduct:
+         api_url: https://api.conductai.ai
+         fail_mode: fail_closed
+         timeout: 8.0
+     input:
+       flows:
+         - conduct check input
+     output:
+       flows:
+         - conduct check output
+   ```
+
+That is all. Every user turn and every bot response is now evaluated
+against the workspace Conduct Guard policy.
+
+## What Fires
+
+The default `conduct-base` pack ships proxy-persona rules that match
+against the outbound prompt and the bot response. Common hits:
+
+- **Credential leak** (`proxy-no-credential-leak`) — blocks requests
+  containing common secret patterns.
+- **Prompt-attack templates** (`proxy-no-prompt-injection`) — blocks
+  well-known override, role-assumption, and unrestricted-mode phrasings.
+- **PII** (`proxy-no-pii-prompt`) — warns on SSN, credit-card, and
+  email patterns.
+- **Dual-use framing** (`proxy-fix-this-code-intent`) — warns on
+  fix-this-code prompts (a common vulnerability-discovery vector).
+
+Compliance packs (`conduct-hipaa`, `conduct-soc2`, `conduct-pci-dss`,
+`conduct-eu-ai-act`, `conduct-nist-ai-rmf`, `conduct-iso-42001`,
+and more) can be installed from the Conduct console at any time — no
+config change required.
+
+## Configuration Reference
+
+| Field         | Required | Default                    | Notes                                                          |
+|---------------|----------|----------------------------|----------------------------------------------------------------|
+| `api_url`     | no       | `https://api.conductai.ai` | Point at a self-hosted Conduct API when needed.                |
+| `workspace_id`| no       | resolved from the token    | Only needed if the token has access to multiple workspaces.    |
+| `fail_mode`   | no       | `fail_closed`              | `fail_closed` blocks on unreachable; `fail_open` allows.       |
+| `timeout`     | no       | `8.0`                      | Seconds. Guard responds in <100ms in the healthy path.         |
+
+Also honoured as environment variables: `CONDUCT_AGENT_TOKEN` (required),
+`CONDUCT_API_URL`, `CONDUCT_WORKSPACE_ID`.
+
+## Human-in-the-Loop Approvals
+
+Rules configured with `action: approval` pause the request. The
+default `conduct check input` / `conduct check output` flows treat
+approval as a block (short-circuits with a policy-safe response) —
+reviewers approve at the Conduct console or in Slack. Once decided,
+the caller retries and the resume verdict short-circuits the check.
+
+## Links
+
+- **Conduct Guard:** [conductai.ai/guard](https://conductai.ai/guard)
+- **Sign up:** [conductai.ai/sign-up](https://conductai.ai/sign-up)
+- **Package on PyPI:** [conduct-nemo-guard](https://pypi.org/project/conduct-nemo-guard/)
+- **Plugin source:** [github.com/sseshachala/conductai](https://github.com/sseshachala/conductai/tree/main/packages/conduct-nemo-guard)
+- **Report issues:** [github.com/sseshachala/conductai/issues](https://github.com/sseshachala/conductai/issues)
