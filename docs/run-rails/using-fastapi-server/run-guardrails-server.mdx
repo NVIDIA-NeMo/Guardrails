@@ -9,7 +9,7 @@ content:
   type: "tutorial"
 ---
 
-The NeMo Guardrails server loads configurations from a local directory at startup and exposes an HTTP API to use them.
+The NeMo Guardrails server loads configurations from a local directory and exposes an HTTP API to use them.
 The server uses [FastAPI](https://fastapi.tiangolo.com/) and includes a built-in Chat UI for testing.
 
 ## Start the Server
@@ -69,6 +69,10 @@ examples/configs/          # --config points here
 
 When the `--config` path points directly to a folder containing a `config.yml` file, the server runs in single-config mode.
 The folder name becomes the only available `config_id`.
+The server loads and validates this configuration when it starts.
+If the configuration is invalid, the server logs the error and exits instead of serving requests.
+In multi-config mode, the server loads each configuration when a request first uses it.
+The `--prefix` option skips the server's startup steps, so the server doesn't detect single-config mode or validate the configuration when it starts.
 
 ```text
 examples/configs/content_safety/   # --config points here
