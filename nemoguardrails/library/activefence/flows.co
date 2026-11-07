@@ -15,6 +15,7 @@ Privacy Violation	PII
 
 flow activefence moderation on input
   """Guardrail based on the maximum risk score."""
+  global $user_message
   $result = await  CallActivefenceApiAction(text=$user_message, threshold_mode="simple")
 
   if $result.is_blocked
@@ -26,6 +27,7 @@ flow activefence moderation on input
 
 flow activefence moderation on output
   """Guardrail based on the maximum risk score."""
+  global $bot_message
   $result = await  CallActivefenceApiAction(text=$bot_message, threshold_mode="simple")
 
   if $result.is_blocked
@@ -37,6 +39,7 @@ flow activefence moderation on output
 
 flow activefence moderation on input detailed
   """Guardrail based on individual risk scores."""
+  global $user_message
   $result = await  CallActivefenceApiAction(text=$user_message, threshold_mode="detailed")
 
   if $result.is_blocked
