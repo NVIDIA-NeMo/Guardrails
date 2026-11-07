@@ -381,7 +381,8 @@ class ActionDispatcher:
                     raise e
 
                 except Exception as e:
-                    filtered_params = {k: v for k, v in params.items() if k not in ["state", "events", "llm"]}
+                    # "text" carries user/bot message content for the rail actions; keep it out of logs.
+                    filtered_params = {k: v for k, v in params.items() if k not in ["state", "events", "llm", "text"]}
                     log.warning(
                         "Error while execution '%s' with parameters '%s': %s",
                         action_name,
