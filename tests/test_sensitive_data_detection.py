@@ -35,6 +35,43 @@ SDD_SETUP_PRESENT = (
 
 @pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
 @pytest.mark.unit
+def test_masking_input_per_value():
+    """per_value tells two people apart, end to end through the rail."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                sensitive_data_detection:
+                  input:
+                    entities:
+                      - PERSON
+                    masking_strategy: per_value
+              input:
+                flows:
+                  - mask sensitive data on input
+                  - check user message
+        """,
+        colang_content="""
+            define flow check user message
+              execute check_user_message(user_message=$user_message)
+        """,
+    )
+
+    chat = TestChat(config, llm_completions=["Noted."])
+
+    @action()
+    def check_user_message(user_message):
+        assert user_message == "<PERSON_1> emailed <PERSON_2>, and <PERSON_1> replied"
+
+    chat.app.register_action(check_user_message)
+
+    chat >> "John Smith emailed Mike Mikelson, and John Smith replied"
+    chat << "Noted."
+
+
+@pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
+@pytest.mark.unit
 def test_masking_input_output():
     config = RailsConfig.from_content(
         yaml_content="""
