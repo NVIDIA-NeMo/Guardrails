@@ -82,6 +82,30 @@ async def check_preference(context: Optional[dict] = None):
     return preference == "dark_mode"
 ```
 
+## Reading the Conversation ID
+
+The conversation ID is not an action parameter.
+An action reads the ID that the caller set with `conversation_id()` by calling `get_conversation_id()`, which returns `None` when the caller set no ID.
+
+```python
+import logging
+
+from nemoguardrails.actions import action
+from nemoguardrails.context import get_conversation_id
+
+log = logging.getLogger(__name__)
+
+@action()
+async def audit_message(text: str):
+    log.info("Checked a message in conversation %s", get_conversation_id())
+    return True
+```
+
+For how a caller sets the ID, refer to [Checking Messages Against Rails: Setting a Conversation ID](/run-guardrailed-inference/using-python-apis/check-messages#setting-a-conversation-id).
+
+`get_roundtrip_id()` reads the ID of the model call the check belongs to in the same way, so an action can pair the request leg of a call with its response leg.
+For how a caller sets that ID, refer to [Checking Messages Against Rails: Setting a Round-Trip ID](/run-guardrailed-inference/using-python-apis/check-messages#setting-a-round-trip-id).
+
 ## The `events` Parameter
 
 The `events` parameter provides the complete event history:

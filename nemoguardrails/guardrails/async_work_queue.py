@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio
+import contextvars
 import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, Generic, List, Tuple, TypeVar
@@ -26,12 +27,13 @@ log = logging.getLogger(__name__)
 # --- IMMUTABLE WORK ITEM ---
 @dataclass(slots=True, frozen=True)
 class WorkItem(Generic[T]):
-    """Dataclass with async function, args, kwargs, and a future to return result"""
+    """Dataclass with async function, args, kwargs, a future to return result, and the submitter's context"""
 
     func: Callable[..., Awaitable[T]]
     args: Tuple[Any, ...]
     kwargs: Dict[str, Any]
     future: asyncio.Future[T]
+    context: contextvars.Context
 
 
 class AsyncWorkQueue(Generic[T]):
@@ -130,7 +132,7 @@ class AsyncWorkQueue(Generic[T]):
         loop = asyncio.get_running_loop()
         future = loop.create_future()
 
-        item = WorkItem(func, args, kwargs, future)
+        item = WorkItem(func, args, kwargs, future, contextvars.copy_context())
 
         # If the queue is full, this will raise an asyncio.QueueFull exception to be caught
         # at a higher-level object (e.g. FastAPI to return a 429 or 503 error)
@@ -152,7 +154,10 @@ class AsyncWorkQueue(Generic[T]):
 
                 try:
                     self._busy_count += 1  # No race condition since it's not await'ed
-                    result = await item.func(*item.args, **item.kwargs)
+                    # Run in the submitter's context rather than the one this worker started in, so
+                    # request-scoped context variables reach the work and do not leak between requests.
+                    work = item.context.run(lambda: asyncio.ensure_future(item.func(*item.args, **item.kwargs)))
+                    result = await work
                     if not item.future.cancelled():
                         item.future.set_result(result)
                 except Exception as e:
