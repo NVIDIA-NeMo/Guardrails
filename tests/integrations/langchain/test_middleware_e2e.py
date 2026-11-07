@@ -438,7 +438,7 @@ class TestE2EMiddlewareConfiguration:
 
         state = {"messages": [HumanMessage(content="block input")]}
         result = await middleware.abefore_model(state, None)
-        assert result == ROUND_TRIP_ONLY
+        assert result is None
 
         state = {
             "messages": [
