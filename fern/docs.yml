@@ -12,6 +12,9 @@ instances:
 
 title: NVIDIA NeMo Guardrails Library Developer Guide
 
+settings:
+  disable-explorer-proxy: true
+
 global-theme: nvidia
 
 theme:

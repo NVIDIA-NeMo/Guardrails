@@ -1,0 +1,164 @@
+---
+title: "Try the Guardrails API Locally"
+sidebar-title: "Try the API Locally"
+description: "Start a local Guardrails server with Nemotron 3.5 content safety and send requests from the API reference."
+content:
+  type: "tutorial"
+---
+
+Use **Try it** on an API reference page to send requests to the NVIDIA NeMo Guardrails library server running on your computer.
+The documentation site does not start a server for you. Your browser connects directly to `http://localhost:8000`.
+
+This guide uses the complete [`nemotron-3.5-content-safety` example](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/nemotron-3.5-content-safety), which includes input and output safety checks.
+
+| Purpose | Model |
+| --- | --- |
+| Generate the answer | `nvidia/nemotron-3.5-lightning-30b-a3b` |
+| Check the input and output | `nvidia/nemotron-3.5-content-safety` |
+
+The server runs locally on CPU. It calls NVIDIA-hosted models through the built-in `nim` engine; you do not need to run models locally or install LangChain.
+
+## Install the Server
+
+You need Git, [uv](https://docs.astral.sh/uv/getting-started/installation/), and a supported Python version. See [Installation](/get-started/installation-guide) for Python requirements.
+
+Clone the repository to obtain the example configuration, then install the `server` extra:
+
+```bash
+git clone https://github.com/NVIDIA-NeMo/Guardrails.git
+cd Guardrails
+uv sync --locked --extra server
+```
+
+If you already have a checkout, run the remaining commands from its root directory.
+
+## Set the API Key
+
+Generate an API key on [NVIDIA Build](https://build.nvidia.com/nvidia/nemotron-3.5-lightning-30b-a3b/build) with access to both models.
+Export the key in the terminal where you will start the server:
+
+```bash
+export NVIDIA_API_KEY="<YOUR_NVIDIA_API_KEY>"
+```
+
+Use the key itself, without a `Bearer ` prefix. The server uses this environment variable for its model calls; you do not need to paste the key into **Try it**.
+After changing the key, restart the server from the same terminal. Exporting a variable in another terminal does not update a running server's environment.
+
+## Start the Server
+
+Enable CORS for the documentation site's origin and start the server with the Nemotron 3.5 configuration:
+
+```bash
+NEMO_GUARDRAILS_SERVER_ENABLE_CORS=true \
+NEMO_GUARDRAILS_SERVER_ALLOWED_ORIGINS="https://docs.nvidia.com" \
+uv run --locked --no-sync nemoguardrails server \
+  --config examples/configs/nemotron-3.5-content-safety \
+  --disable-chat-ui --port 8000
+```
+
+Keep this terminal open. The configuration folder name becomes the request's `guardrails.config_id`: `nemotron-3.5-content-safety`.
+
+<Note>
+
+For a local Fern preview or a published PR preview, also allow that preview's exact origin.
+For example, a preview at `http://localhost:3000` needs:
+
+```bash
+NEMO_GUARDRAILS_SERVER_ALLOWED_ORIGINS="https://docs.nvidia.com,http://localhost:3000,http://127.0.0.1:3000"
+```
+
+Set this value in the server-start command above, replacing the port with your preview's actual port.
+Origins include the scheme, hostname, and port, without a page path. Restart the server after changing them.
+
+</Note>
+
+## Verify the Server
+
+In a second terminal, check liveness and the available configuration:
+
+```bash
+curl http://localhost:8000/v1/health
+curl http://localhost:8000/v1/rails/configs
+```
+
+The responses are `{"status":"pass"}` and `[{"id":"nemotron-3.5-content-safety"}]`.
+These checks do not call a model or verify the API key.
+
+## Send a Request from the API Reference
+
+1. Open [Create Chat Completion](api:POST/v1/chat/completions) and click **Try it**.
+2. Use `http://localhost:8000`, the default server URL, and select the **Basic guarded completion** example.
+3. Confirm the request uses the following body, then click **Send request**:
+
+```json
+{
+  "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+  "messages": [
+    {"role": "user", "content": "What is the capital of France?"}
+  ],
+  "max_tokens": 128,
+  "guardrails": {
+    "config_id": "nemotron-3.5-content-safety",
+    "options": {
+      "llm_params": {
+        "chat_template_kwargs": {"enable_thinking": false}
+      }
+    }
+  }
+}
+```
+
+Expect HTTP `200` and an answer about Paris in `choices[0].message.content`. The exact wording can vary.
+This request keeps input and output safety checks enabled. It limits the answer to 128 tokens and disables the answer model's optional reasoning for a short test.
+If your browser asks for permission to access your local network, allow access to the local server.
+
+To test without the browser, send the same body with `curl`:
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+    "messages": [
+      {"role": "user", "content": "What is the capital of France?"}
+    ],
+    "max_tokens": 128,
+    "guardrails": {
+      "config_id": "nemotron-3.5-content-safety",
+      "options": {
+        "llm_params": {
+          "chat_template_kwargs": {"enable_thinking": false}
+        }
+      }
+    }
+  }'
+```
+
+<Note>
+
+Use a non-streaming request for this setup. The example does not enable streaming output rails.
+Before selecting the streaming example, follow [Streaming Responses](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model#streaming-responses) to configure output streaming and restart the server.
+
+</Note>
+
+## Use the Complete Nemotron 3.5 Configuration
+
+Changing only the `model` in **Try it** replaces the answer model; it does not change the safety model, its prompts, or its response parser.
+Start the server with the complete `nemotron-3.5-content-safety` folder to change the safety checks too.
+
+Nemotron 3.5 content safety returns text verdicts such as `User Safety: safe`, whereas the older NemoGuard 8B configuration expects JSON.
+The example already supplies the matching message-based prompts and `nemotron_content_safety_parse_*` parsers, so you do not need to change the library's Python code.
+
+## Troubleshoot Requests
+
+| Symptom | What to check |
+| --- | --- |
+| Connection refused | Keep the server running on port `8000` on the same computer as your browser. |
+| Health works, but chat returns `401` | Check `NVIDIA_API_KEY` in the server's terminal and restart after setting it. |
+| Chat returns `403` | Check the key and account's access to both NVIDIA-hosted models. A `403` alone does not identify which access condition failed. |
+| Chat returns `410` | Check both the request's answer model and the server's safety model for retired model IDs. Use the complete configuration above. |
+| Configuration ID is rejected | Check `/v1/rails/configs` and use `nemotron-3.5-content-safety`. |
+| `curl` works, but **Try it** fails | Check the browser console, local-network permission, and the exact documentation or preview origin in the CORS allowlist. Browser policy can block a request before it reaches the server. |
+| A request keeps waiting | Inspect the server's latest model-call logs. Input safety, answer generation, and output safety are separate calls; short input does not establish which one is waiting. |
+
+For other server options, see [Run the Guardrails Server](/run-guardrailed-inference/using-fastapi-server/run-guardrails-server).

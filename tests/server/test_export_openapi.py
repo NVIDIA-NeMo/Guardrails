@@ -178,7 +178,7 @@ def test_documented_checks_example_reaches_the_engine(monkeypatch):
         client.close()
     assert response.status_code == 200
     assert response.json() == expected
-    load_rails.assert_awaited_once_with(["content_safety"], model_name=request["model"])
+    load_rails.assert_awaited_once_with(["nemotron-3.5-content-safety"], model_name=request["model"])
     rails.check_async.assert_awaited_once_with(messages=request["messages"], rail_types=[RailType.INPUT], tools=None)
 
 
