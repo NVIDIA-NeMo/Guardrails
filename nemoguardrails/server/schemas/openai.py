@@ -324,9 +324,7 @@ class GuardrailsDataInput(BaseModel):
         default=None,
         min_length=16,
         max_length=255,
-        description=(
-            "The ID of an existing thread to continue.  Printable ASCII with no leading or trailing whitespace."
-        ),
+        description="The ID of an existing thread to continue.  No control characters or surrounding whitespace.",
     )
     context: Optional[dict] = Field(
         default=None,
@@ -355,19 +353,14 @@ class GuardrailsDataInput(BaseModel):
     @field_validator("thread_id")
     @classmethod
     def validate_thread_id(cls, v: Optional[str]) -> Optional[str]:
-        """Keep a thread ID to characters that survive being carried outside the request.
-
-        The ID is the conversation ID of every rail that runs for the request, and a rail that
-        reports to an external service puts it on the wire.  A control character or surrounding
-        whitespace makes that message unsendable, which would fail checks that would otherwise
-        pass, so it is rejected here where the caller still learns why.
-        """
         if v is None:
             return v
-        if not all(" " <= character <= "~" for character in v):
-            raise ValueError("thread_id must contain only printable ASCII characters")
+        if any(character.isspace() and character != " " for character in v) or any(
+            ord(character) < 0x20 or ord(character) == 0x7F for character in v
+        ):
+            raise ValueError("Thread ID must not contain control characters.")
         if v != v.strip():
-            raise ValueError("thread_id must not start or end with whitespace")
+            raise ValueError("Thread ID must not start or end with whitespace.")
         return v
 
     @field_validator("config_ids", mode="before")
