@@ -22,6 +22,131 @@ from nemoguardrails.embeddings.basic import BasicEmbeddingsIndex
 from nemoguardrails.embeddings.index import IndexItem
 
 
+class MockEmbeddingModel:
+    def __init__(self):
+        self.call_count = 0
+
+    async def encode_async(self, texts):
+        self.call_count += 1
+        await asyncio.sleep(0.01)
+        return [[float(text.split()[-1])] for text in texts]
+
+
+class FailingEmbeddingModel:
+    async def encode_async(self, texts):
+        raise RuntimeError("embedding model failure")
+
+
+class ShortEmbeddingModel:
+    """Returns one fewer embedding than requested."""
+
+    async def encode_async(self, texts):
+        return [[float(i)] for i in range(len(texts) - 1)]
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_propagates_short_result():
+    embeddings_index = BasicEmbeddingsIndex(
+        use_batching=True,
+        max_batch_size=4,
+        max_batch_hold=0.01,
+    )
+    embeddings_index._model = ShortEmbeddingModel()
+
+    with pytest.raises(RuntimeError, match="Embedding model returned"):
+        await asyncio.wait_for(
+            asyncio.gather(
+                embeddings_index._batch_get_embeddings("text 0"),
+                embeddings_index._batch_get_embeddings("text 1"),
+            ),
+            timeout=1,
+        )
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_propagates_cancelled_batch_task():
+    """Cancelling the active _run_batch task must wake callers with CancelledError."""
+    encoding_started = asyncio.Event()
+
+    class HangingModel:
+        async def encode_async(self, texts):
+            encoding_started.set()
+            await asyncio.sleep(10)
+
+    embeddings_index = BasicEmbeddingsIndex(
+        use_batching=True,
+        max_batch_size=10,
+        max_batch_hold=0.001,
+    )
+    embeddings_index._model = HangingModel()
+
+    caller = asyncio.create_task(embeddings_index._batch_get_embeddings("text 0"))
+    # Wait until _get_embeddings has been entered so cancellation hits that await.
+    await asyncio.wait_for(encoding_started.wait(), timeout=1)
+    embeddings_index._current_batch_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await caller
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_propagates_early_cancellation():
+    """Cancelling _run_batch before batch_ids is populated must still wake callers."""
+    embeddings_index = BasicEmbeddingsIndex(
+        use_batching=True,
+        max_batch_size=10,
+        max_batch_hold=10,  # Long hold so cancellation fires during asyncio.wait
+    )
+    embeddings_index._model = MockEmbeddingModel()
+
+    caller = asyncio.create_task(embeddings_index._batch_get_embeddings("text 0"))
+    # Yield to let _batch_get_embeddings register the request and start _run_batch,
+    # then cancel before max_batch_hold elapses (i.e. before the lock section runs).
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    assert embeddings_index._current_batch_task is not None
+    embeddings_index._current_batch_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(caller, timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_propagates_model_error():
+    embeddings_index = BasicEmbeddingsIndex(
+        use_batching=True,
+        max_batch_size=2,
+        max_batch_hold=0.01,
+    )
+    embeddings_index._model = FailingEmbeddingModel()
+
+    with pytest.raises(RuntimeError, match="embedding model failure"):
+        await asyncio.wait_for(
+            embeddings_index._batch_get_embeddings("text 0"),
+            timeout=1,
+        )
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_handles_concurrent_batches():
+    mock_model = MockEmbeddingModel()
+    embeddings_index = BasicEmbeddingsIndex(
+        use_batching=True,
+        max_batch_size=2,
+        max_batch_hold=0.01,
+    )
+    embeddings_index._model = mock_model
+
+    results = await asyncio.wait_for(
+        asyncio.gather(*(embeddings_index._batch_get_embeddings(f"text {i}") for i in range(5))),
+        timeout=1,
+    )
+
+    assert sorted(result[0] for result in results) == [0, 1, 2, 3, 4]
+    # 5 requests with max_batch_size=2 must produce at least 3 separate batches
+    assert mock_model.call_count >= 3
+
+
 @pytest.mark.skip(reason="Run manually.")
 @pytest.mark.asyncio
 async def test_search_speed():
