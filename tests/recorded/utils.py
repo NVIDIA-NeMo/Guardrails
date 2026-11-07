@@ -20,6 +20,8 @@ import pytest
 DUMMY_OPENAI_API_KEY = "sk-recorded-replay"
 DUMMY_NVIDIA_API_KEY = "nvapi-recorded-replay"
 DUMMY_F5_GUARDRAILS_API_KEY = "f5-recorded-replay"
+DUMMY_HIDDENLAYER_CLIENT_ID = "hiddenlayer-recorded-replay-id"
+DUMMY_HIDDENLAYER_CLIENT_SECRET = "hiddenlayer-recorded-replay-secret"
 
 
 def api_key_for_record_mode(env_name: str, dummy_value: str, record_mode: str) -> str:

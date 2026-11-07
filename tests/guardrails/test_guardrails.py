@@ -2179,7 +2179,7 @@ class TestScopeGateCharacterization:
     Written ahead of removing the engine's hand-maintained enabled-surface list, whose names
     were the same set the surface-level refusals already produce. The names are repeated here
     rather than derived, so these fail if the scope moves for any reason -- as they did when the
-    18 rewriting surfaces joined the 41 that only judge.
+    20 rewriting surfaces joined the 43 that only judge.
 
     Scope is asked of ``unservable_reason``, which resolves the surface and stops: it needs no
     config, imports no action, and so answers "is this rail in scope" without conflating it
@@ -2207,6 +2207,7 @@ class TestScopeGateCharacterization:
             ("input", "gliner mask pii on input"),
             ("input", "guardrailsai check input"),
             ("input", "hf classifier check input"),
+            ("input", "hiddenlayer check input"),
             ("input", "jailbreak detection model"),
             ("input", "language detector check input"),
             ("input", "llama guard check input"),
@@ -2238,6 +2239,7 @@ class TestScopeGateCharacterization:
             ("output", "gliner mask pii on output"),
             ("output", "guardrailsai check output"),
             ("output", "hf classifier check output"),
+            ("output", "hiddenlayer check output"),
             ("output", "injection detection"),
             ("output", "llama guard check output"),
             ("output", "mask pii on output"),
@@ -2266,7 +2268,7 @@ class TestScopeGateCharacterization:
         return IORails._unservable_rails_reason([flow], direction, deps)
 
     def test_the_admitted_surfaces_are_exactly_the_pinned_set(self):
-        """Every catalog surface in scope is one of the 60 named here, and vice versa."""
+        """Every catalog surface in scope is one of the 63 named here, and vice versa."""
         admitted = {
             (direction.value, name)
             for direction in (SurfaceDirection.INPUT, SurfaceDirection.OUTPUT)

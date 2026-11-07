@@ -793,6 +793,34 @@ ZSCALER_AIGUARD_OUTPUT = RailSpec(
     action="call_zscaler_aiguard_api",
 )
 
+HIDDENLAYER_INPUT = RailSpec(
+    name="hiddenlayer_input",
+    flow="hiddenlayer check input",
+    direction="input",
+    action="hiddenlayer_evaluate",
+)
+
+HIDDENLAYER_OUTPUT = RailSpec(
+    name="hiddenlayer_output",
+    flow="hiddenlayer check output",
+    direction="output",
+    action="hiddenlayer_evaluate",
+)
+
+HIDDENLAYER_TOOL_CALL = RailSpec(
+    name="hiddenlayer_tool_call",
+    flow="hiddenlayer check tool call",
+    direction="tool_call",
+    action="hiddenlayer_evaluate_tool_call",
+)
+
+HIDDENLAYER_TOOL_RESULT = RailSpec(
+    name="hiddenlayer_tool_result",
+    flow="hiddenlayer check tool result",
+    direction="tool_result",
+    action="hiddenlayer_evaluate_tool_result",
+)
+
 ACTIVEFENCE_INPUT = RailSpec(
     name="activefence_input",
     flow="activefence moderation on input",
@@ -2315,6 +2343,25 @@ FIXTURES = [
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
         include_exception_case=True,
     ),
+    *_rail_outcome_cases(
+        HIDDENLAYER_INPUT,
+        allow_return=RailOutcome.allow(metadata={"action": "NONE"}),
+        block_return=RailOutcome.block(metadata={"action": "BLOCK"}),
+        include_exception_case=True,
+    ),
+    *_output_var_transform_cases(
+        HIDDENLAYER_INPUT,
+        output_var="user_message",
+        original_value=USER_INPUT,
+        transformed_value="hiddenlayer redacted input",
+    ),
+    *_rail_outcome_cases(
+        HIDDENLAYER_OUTPUT,
+        allow_return=RailOutcome.allow(metadata={"action": "NONE"}),
+        block_return=RailOutcome.block(metadata={"action": "BLOCK"}),
+        include_exception_case=True,
+    ),
+    *_output_transform_cases(HIDDENLAYER_OUTPUT),
     _case(
         "activefence_input_allows_at_simple_threshold",
         ACTIVEFENCE_INPUT,
@@ -3037,6 +3084,16 @@ IORAILS_ONLY_FIXTURES = [
         CEL_TOOL_RESULT,
         allow_return=RailOutcome.allow(metadata={"source": "tool_result"}),
         block_return=RailOutcome.block(metadata={"source": "tool_result", "matched_expressions": ["true"]}),
+    ),
+    *_rail_outcome_cases(
+        HIDDENLAYER_TOOL_CALL,
+        allow_return=RailOutcome.allow(metadata={"action": "NONE"}),
+        block_return=RailOutcome.block(metadata={"action": "BLOCK"}),
+    ),
+    *_rail_outcome_cases(
+        HIDDENLAYER_TOOL_RESULT,
+        allow_return=RailOutcome.allow(metadata={"action": "NONE"}),
+        block_return=RailOutcome.block(metadata={"action": "BLOCK"}),
     ),
 ]
 

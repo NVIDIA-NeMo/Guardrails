@@ -1,0 +1,272 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "HiddenLayer AI Runtime Security Integration"
+---
+The NVIDIA NeMo Guardrails library supports using [HiddenLayer AI Runtime Security](https://hiddenlayer.com) to evaluate user input, bot output, tool calls, and tool results.
+Each check sends the content to one of two HiddenLayer routes, and the rail applies the action HiddenLayer returns.
+A check before the model is called, the input check and each tool-result check, goes to `/detection/v2/nemo-guardrails/request-evaluations`; a check of what the model answered, the output check and each tool-call check, goes to `/detection/v2/nemo-guardrails/response-evaluations`.
+Each body carries one check in the shape the library hands a rail, named by a `check` field: a user message, a bot message, a tool call, or a tool result with the call it answers.
+HiddenLayer maps it onto its own interaction model, so the library performs no translation of its own.
+A body carries the current turn only, and the verdict comes back in the `HL-Runtime-Action` response header.
+
+## Surfaces
+
+| Flow | Section | What HiddenLayer evaluates |
+|---|---|---|
+| `hiddenlayer check input` | `rails.input.flows` | The user message |
+| `hiddenlayer check output` | `rails.output.flows` | The bot message |
+| `hiddenlayer check tool call` | `rails.tool_call.per_tool` | Each tool call the model emits for a listed tool, with the tool's declaration |
+| `hiddenlayer check tool result` | `rails.tool_result.per_tool` | Each tool result for a listed tool, with the call it answers and the tool's declaration |
+
+The rail maps HiddenLayer's action as follows:
+
+| HiddenLayer action | Input and output | Tool call and tool result |
+|---|---|---|
+| `BLOCK` | Blocks | Blocks |
+| `REDACT` | Replaces the message with HiddenLayer's redacted text | Not returned; see Protection Mode |
+| `DETECT` | Allows | Allows |
+| `NONE` | Allows | Allows |
+
+HiddenLayer never returns a redacted tool call or tool result, so a policy that redacts, for example, email addresses blocks every tool call or tool result that contains one.
+A `BLOCK` returns the check as sent rather than a refusal message: the library renders its own.
+
+### Protection Mode
+
+A deployment may also send `HL-Runtime-Protection-Mode`, saying whether the action is the one the policy selected and if not why. The rail passes it through in the outcome metadata when it is present and does not require it.
+
+| Protection mode | Meaning |
+|---|---|
+| `AS_CONFIGURED` | The action the policy selected |
+| `INTEGRATION_LIMITED_PROMOTE` | `BLOCK` in place of a `REDACT` that could not be returned, which is every redaction of a tool call or tool result |
+| `MONITOR_MODE` | The project is in Monitor Mode: nothing is enforced inline, a policy `REDACT` or `BLOCK` arrives as `DETECT`, and the policy's own action is recorded on the interaction |
+
+The mode is recorded in the rail outcome's metadata and is never validated against this list, so a mode HiddenLayer adds later passes through rather than failing the check.
+
+## Engine Support
+
+The tool surfaces run on the IORails engine only, and only for the tools you list under `per_tool`.
+The `Guardrails` class selects IORails by default and refuses to fall back to LLMRails when `per_tool` rails are configured.
+`LLMRails` and the server stay on the LLMRails engine unless you set `NEMO_GUARDRAILS_IORAILS_ENGINE=1`.
+The input and output flows also run on LLMRails, in Colang 1.0 and Colang 2.x.
+Use IORails for full context: within one IORails `generate_async` or `stream_async` request, or one `check_async` call that names several rail types, HiddenLayer evaluates a model call's response evaluations (tool-call checks and the output check) together with its request evaluations (the input check and tool-result checks).
+The evaluations of one model call are paired as a single round-trip by the `HL-Roundtrip-Id` header, which the rail takes from the round trip in scope and sends as it stands.
+Open one explicitly with `nemoguardrails.context.roundtrip_id()` when the application knows where a model call starts and ends; the ID is not required to be a UUID, because HiddenLayer maps any other value onto one.
+An ID that cannot be sent as it stands is mapped onto a UUID of its own, with one warning logged; the mapping is deterministic, so a model call's checks still pair. That covers an ID longer than 256 bytes, one carrying characters a header cannot, and the nil UUID, which names no round trip.
+Without a round trip the rail falls back to the request ID, and with neither it sends a fresh ID per check, logs one warning, and the evaluations of a call are no longer paired.
+With tracing enabled the request ID comes from the OpenTelemetry trace ID, so concurrent requests under one parent trace share it; open a round trip per model call when those requests must be paired exactly.
+
+## Sessions
+
+HiddenLayer groups evaluations into sessions.
+To record every check of one conversation in one session, set a conversation ID around each request with `conversation_id()`:
+
+```python
+from nemoguardrails.context import conversation_id
+
+with conversation_id(thread_id):
+    response = await rails.generate_async(messages=messages)
+```
+
+The rail then sends the ID in the `HL-Runtime-Session-Id` header on all four surfaces, percent-encoded so that a header can carry any conversation ID.
+HiddenLayer scopes the ID to the tenant, to NeMo Guardrails and to the project, so two conversations that share a conversation ID and project share a session.
+Use a conversation ID that is unique to one conversation, such as a random thread ID.
+
+The session ID is the only source of conversation history: the body of each check carries the current turn only, and HiddenLayer evaluates it against the conversation's recent messages.
+A conversation ID longer than 2048 bytes cannot be sent; the rail drops it, logs one warning, and the checks are evaluated without history rather than under a truncated ID that two conversations could share.
+
+Without a conversation ID the rail sends no session ID, HiddenLayer evaluates each check on its own, and it usually records each request as its own session.
+Set `send_session_id: false` to stop sending the ID.
+For how the conversation ID reaches rails, refer to [Checking Messages Against Rails: Setting a Conversation ID](/run-guardrailed-inference/using-python-apis/check-messages#setting-a-conversation-id).
+
+## Setup
+
+Set the credentials of a HiddenLayer client:
+
+```bash
+export HIDDENLAYER_CLIENT_ID=...
+export HIDDENLAYER_CLIENT_SECRET=...
+```
+
+Then add the flows to `config.yml`.
+The per-tool rails check a tool call or tool result only when the tool is declared, either on the request in `options.llm_params` or on the main model, and listed by name under `per_tool`.
+The `tool call validation` rail blocks a call to an undeclared tool, or with arguments that do not match the tool's schema, before HiddenLayer is called.
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-5-nano
+    parameters:
+      tools:
+        - type: function
+          function:
+            name: run_sql
+            description: Run a read-only SQL query against the orders database.
+            parameters:
+              type: object
+              properties:
+                query:
+                  type: string
+              required:
+                - query
+
+rails:
+  config:
+    hiddenlayer:
+      project_id: my-project
+  input:
+    flows:
+      - hiddenlayer check input
+  output:
+    flows:
+      - hiddenlayer check output
+  tool_call:
+    flows:
+      - tool call validation
+    per_tool:
+      run_sql: [hiddenlayer check tool call]
+  tool_result:
+    flows:
+      - tool result validation
+    per_tool:
+      run_sql: [hiddenlayer check tool result]
+```
+
+Per-request `tools` reach the server only for non-streaming requests on a `passthrough: true` configuration.
+For tool calling on IORails, refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
+See `examples/configs/hiddenlayer/` for a complete configuration.
+
+### Colang 2.x
+
+In Colang 2.x, import the library flows and call them from the `input rails` and `output rails` flows:
+
+```text
+# rails.co
+import guardrails
+import nemoguardrails.library.hiddenlayer
+
+flow input rails $input_text
+    hiddenlayer check input
+
+flow output rails $output_text
+    hiddenlayer check output
+```
+
+## Configuration
+
+The rail reads its settings from `rails.config.hiddenlayer`.
+Each setting with an environment variable resolves in this order: the config field, then the environment variable, then the default.
+An unknown key fails the configuration load.
+
+| Field | Environment variable | Default | Description |
+|---|---|---|---|
+| `api_url` | `HIDDENLAYER_BASE_URL` | `https://api.us.hiddenlayer.ai` | HiddenLayer API base URL. EU tenants use `https://api.eu.hiddenlayer.ai`. Must use `https://`, except on a loopback host |
+| `project_id` | `HIDDENLAYER_PROJECT_ID` | None | Project ID or alias whose policy evaluates the content |
+| `requester_id` | `HIDDENLAYER_REQUESTER_ID` | `hiddenlayer-nemo` | Requester ID recorded with each evaluation |
+| `fail_open` | | `false` | Allow content when HiddenLayer cannot be reached or answers without a verdict. Transport failures only |
+| `max_retries` | | `2` | Additional attempts after HTTP 429, 502, 503, or 504 |
+| `max_retry_after_seconds` | | `30.0` | Cap on a `Retry-After` delay and on the backoff delay |
+| `retry_backoff_seconds` | | `1.0` | Base delay for exponential backoff with jitter |
+| `send_session_id` | `HIDDENLAYER_SEND_SESSION_ID` | `true` | Send the request's conversation ID as the HiddenLayer session ID, which is the only source of conversation history. The environment variable accepts `true` or `false` (also `1`/`0`, `yes`/`no`, `on`/`off`) |
+
+`HIDDENLAYER_CLIENT_ID` and `HIDDENLAYER_CLIENT_SECRET` are read from the environment only.
+The rail does not read the `HIDDENLAYER_TOKEN` variable that the HiddenLayer SDK supports.
+
+<Warning>
+When `project_id` is unset, HiddenLayer evaluates with the tenant's default project.
+An unknown project ID or alias also falls back to the default project, without an error.
+A default project in Test Mode only detects: every check allows, and blocks and redactions start once the tenant turns Test Mode off.
+A project with no policy returns `NONE` for everything.
+</Warning>
+
+## Failure Handling
+
+An `api_url` field that is not `https://` outside a loopback host fails the configuration load.
+Missing credentials, or such a URL in `HIDDENLAYER_BASE_URL`, raise an error on every request regardless of `fail_open`.
+On IORails this blocks each request with the internal-error response rather than failing at startup.
+
+The rail retries HTTP 429, 502, 503, and 504 up to `max_retries` times.
+It refreshes the access token once after an HTTP 401.
+It does not retry a timeout, a connection error, or HTTP 400, 403, 413, or 422. A rail runs inline, and the retry setting covers timeouts and connection errors together, so retrying either would cost another full request timeout before the caller hears anything.
+When the call still does not produce a verdict, the rail blocks the request, or allows it when `fail_open` is `true`.
+An allow under `fail_open` logs one warning; HiddenLayer has no record that the library allowed the request.
+
+`fail_open` covers every call that ends without a verdict, whatever ended it: a timeout, a connection failure, a rejection by the server such as an HTTP 400, 413, or 422, a response that is not valid JSON, and a 200 whose `HL-Runtime-Action` is missing or unrecognized.
+An evaluation HiddenLayer itself could not complete is none of those: it returns a 200 whose action is the one your HiddenLayer deployment's fail setting chose, `NONE` when it fails open and `BLOCK` when it fails closed.
+That is a verdict, so the rail applies it whatever `fail_open` says.
+A `REDACT` whose body carries no usable redacted text blocks, because the action is valid and the rail cannot carry it out.
+
+A request HiddenLayer would reject is a turn that goes unevaluated, so the rail avoids sending one where it can.
+An empty user or bot message is allowed without a call, because a check carrying no text is rejected and holds nothing to evaluate.
+
+Each request has a 30-second timeout, and each retry waits up to `max_retry_after_seconds`.
+With the defaults, one HTTP call can take up to about 150 seconds, and a check that exhausts the retries on both the token request and the evaluation can take about 5 minutes.
+A token refresh adds another full retry budget.
+The library has no per-rail timeout, so set the retry fields lower when you need a tighter bound.
+
+## Limitations
+
+- A `tool_call` or `tool_result` check is never returned redacted. The engine honors a transform only on the conversational surfaces, so `_REDACTABLE` in `_verdict.py` covers `input` and `output` alone and a redaction on a tool surface is enforced as a block instead.
+- A timeout or connection error is not retried, by the `retry_transport_errors=False` in `_retry_policy`, for the inline-latency reason above.
+- With `fail_open` set, a revoked or misscoped credential leaves the rail unguarded rather than erroring, because a 401 and a 403 are covered like any other non-success status.
+- Without a conversation ID in scope, each check is evaluated on its own. `send_session_id` has nothing to send, and HiddenLayer reconstructs the conversation heuristically rather than from a stable session.
+
+## Streaming
+
+HiddenLayer checks the full bot message.
+For `stream_async`, buffer the whole stream so the output rail runs once on the complete response:
+
+```yaml
+rails:
+  output:
+    streaming:
+      enabled: true
+      stream_first: false
+      context_size: 0
+      chunk_size: 1000000
+```
+
+The library refuses to load an output rail that rewrites text unless `stream_first` is `false`, and nothing streams until the output check returns.
+This configuration has the following limits:
+
+- `chunk_size` counts stream chunks, not tokens, and must exceed the number of chunks in any response.
+- A response longer than `chunk_size` chunks is checked once per chunk over overlapping windows, because `context_size: 0` keeps the whole buffer, and a redaction re-emits text.
+- `include_metadata=True` is not supported with output streaming.
+
+## Latency and Request Volume
+
+The input and output surfaces can rewrite messages, so a configuration that uses them runs its input and output rails sequentially and turns off speculative generation.
+
+IORails checks every tool result in the conversation on each request, so an agent loop makes a number of HiddenLayer evaluations that grows with the square of the number of turns.
+HiddenLayer limits each tenant to 25,000 requests per minute, and every check also makes a token request when the cached token has expired.
+
+## Data Handling
+
+When these rails are active, the library sends HiddenLayer the user message, the bot message, the name and arguments of each checked tool call, each checked tool result with the call it answers, and the declaration of each checked tool.
+Each request also carries the main model name, where one is configured, and the engine and requester ID in headers.
+When the caller sets a conversation ID and `send_session_id` is on, each request also carries that ID.
+Do not use a conversation ID that contains personal data, such as an email address, or set `send_session_id: false`.
+HiddenLayer stores evaluated interactions under the tenant's retention policy.
+Review HiddenLayer's data handling terms before enabling this integration in production.
+
+## Rails Exceptions
+
+Setting the top-level `enable_rails_exceptions: true` flag makes the input and output flows emit a `HiddenlayerRailException` event instead of the default refusal on LLMRails.
+
+## Customization
+
+To customize the behavior, overwrite the default flows in your configuration.
+For example, to provide a custom refusal message in Colang 1.0:
+
+```text
+define subflow hiddenlayer check input
+  $response = execute hiddenlayer_evaluate(surface="input", text=$user_message)
+
+  if $response.is_blocked
+    bot say "I cannot process this request due to safety policies."
+    stop
+
+  if $response.is_transform
+    $user_message = $response.transform_text["user_message"]
+```
