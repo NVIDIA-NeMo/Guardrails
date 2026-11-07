@@ -23,7 +23,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.http.retry import _header
 from nemoguardrails.library.hiddenlayer.errs import HiddenLayerActionError, HiddenLayerVerdictError
 
 Surface = Literal["input", "output", "tool_call", "tool_result"]
@@ -51,6 +50,12 @@ class _Evaluation:
 
     headers: Mapping[str, str]
     body: Any
+
+
+def _header(headers: Mapping[str, str], name: str) -> Optional[str]:
+    """The header's value, matched without regard to case, or None when it is absent."""
+    lowered = name.lower()
+    return next((value for key, value in headers.items() if key.lower() == lowered), None)
 
 
 def _action(headers: Mapping[str, str]) -> str:

@@ -290,6 +290,12 @@ async def _evaluate(
                 status,
             )
             return RailOutcome.allow(reason=FAIL_OPEN_REASON, metadata={"fail_open": True})
+        log.error(
+            "HiddenLayer %s check could not be completed (%s, status=%s); fail_open is off, failing the request.",
+            surface,
+            type(error).__name__,
+            status,
+        )
         raise HiddenLayerCheckError(f"HiddenLayer {surface} check failed: {_failure_text(error)}") from None
 
 
