@@ -1,5 +1,9 @@
 models: []
 
+# Re-recording needs HIDDENLAYER_CLIENT_ID and HIDDENLAYER_CLIENT_SECRET, and a
+# HIDDENLAYER_PROJECT_ID whose policy enforces: the block case needs a project that
+# blocks, and the redaction case one that rewrites. A detect-only project records
+# an allow for every case. Replay needs none of them.
 rails:
   config:
     hiddenlayer:
