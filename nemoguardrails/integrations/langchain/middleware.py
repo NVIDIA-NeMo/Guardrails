@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING, Annotated, Any, Dict, Iterator, List, Optional
 
 from langchain.agents.middleware.types import AgentMiddleware, AgentState, PrivateStateAttr, hook_config
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-from langgraph.config import get_config
 from typing_extensions import NotRequired
 
 if TYPE_CHECKING:
@@ -52,7 +51,16 @@ def _thread_id(runtime: Any) -> Optional[str]:
 
 
 def _thread_id_from_run_config() -> Optional[str]:
-    """The thread ID of the LangGraph run in progress, or None when the run config cannot be read."""
+    """The thread ID of the LangGraph run in progress, or None when there is none to read.
+
+    langgraph is imported here rather than at module scope: langchain pulls it in today, but it
+    is not a declared dependency of this package, and the middleware works without it.
+    """
+    try:
+        from langgraph.config import get_config
+    except ImportError:
+        return None
+
     try:
         config = get_config()
     except RuntimeError:
@@ -98,9 +106,13 @@ def _roundtrip_id_from_state(state: AgentState) -> Optional[str]:
     """The ID the before-model hook opened, or None when the application owns the round trip.
 
     An ID the application set wins over the state, which the before-model hook writes only
-    when it minted one and which a checkpoint can carry over from an earlier model call.
+    when it minted one and which a checkpoint can carry over from an earlier model call. A
+    middleware that checks only the output has no before-model leg to pair with, so it opens
+    the round trip here instead of reporting the check under no ID at all.
     """
-    return None if get_roundtrip_id() is not None else state.get("guardrails_roundtrip_id")
+    if get_roundtrip_id() is not None:
+        return None
+    return state.get("guardrails_roundtrip_id") or str(uuid.uuid4())
 
 
 @contextmanager
@@ -193,6 +205,9 @@ class GuardrailsMiddleware(AgentMiddleware):
 
     @hook_config(can_jump_to=["end"])
     async def abefore_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
+        if not self._checks_input():
+            return None
+
         # The checks of one model call run in separate graph nodes, so the ID that pairs them
         # travels in the state rather than in a context variable.
         call = _model_call_index(state)
@@ -201,6 +216,9 @@ class GuardrailsMiddleware(AgentMiddleware):
         if roundtrip is None:
             return update
         return {**(update or {}), "guardrails_roundtrip_id": roundtrip, "guardrails_roundtrip_call": call}
+
+    def _checks_input(self) -> bool:
+        return bool(self.enable_input_rails and self._has_input_rails())
 
     async def _acheck_input(
         self, state: AgentState, runtime: LangGraphRuntime, roundtrip: Optional[str]
@@ -314,6 +332,9 @@ class GuardrailsMiddleware(AgentMiddleware):
 
     @hook_config(can_jump_to=["end"])
     def before_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
+        if not self._checks_input():
+            return None
+
         loop = get_or_create_event_loop()
         return loop.run_until_complete(self.abefore_model(state, runtime))
 

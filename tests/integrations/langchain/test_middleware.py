@@ -533,7 +533,7 @@ class TestSyncMethods:
         state = {"messages": [HumanMessage(content="Hello")]}
         result = middleware.before_model(state, None)
 
-        assert result == ROUND_TRIP_ONLY
+        assert result is None
         mock_rails.check_async.assert_not_called()
 
     def test_after_model_sync_no_rails(self, mock_rails_factory):
@@ -995,7 +995,7 @@ class TestApplyToInputOutputConfigurations:
         state = {"messages": [HumanMessage(content="Test")]}
         result = await middleware.abefore_model(state, None)
 
-        assert result == ROUND_TRIP_ONLY
+        assert result is None
         mock_rails.check_async.assert_not_called()
 
     @pytest.mark.asyncio
@@ -1034,7 +1034,7 @@ class TestApplyToInputOutputConfigurations:
 
         state = {"messages": [HumanMessage(content="Hello")]}
         input_result = await middleware.abefore_model(state, None)
-        assert input_result == ROUND_TRIP_ONLY
+        assert input_result is None
 
         state["messages"].append(AIMessage(content="Hi"))
         output_result = await middleware.aafter_model(state, None)
@@ -1080,7 +1080,7 @@ class TestApplyToInputOutputConfigurations:
         state = {"messages": [HumanMessage(content="Hello")]}
 
         input_result = await middleware.abefore_model(state, None)
-        assert input_result == ROUND_TRIP_ONLY
+        assert input_result is None
         mock_rails.check_async.assert_not_called()
 
 
