@@ -25,4 +25,6 @@ define subflow hf classifier check retrieval
   $response = execute hf_classifier_check_retrieval(classifier=$classifier)
 
   if $response.is_transform
+    # In Colang 1.0, subflows share global scope.
+    # The caller must initialize $relevant_chunks before calling this subflow.
     $relevant_chunks = $response.transform_text["relevant_chunks"]
