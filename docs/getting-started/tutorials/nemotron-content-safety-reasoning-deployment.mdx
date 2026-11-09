@@ -32,7 +32,7 @@ Follow these steps to prepare the guardrails configuration.
    models:
      - type: main
        engine: nim
-       model: nvidia/nemotron-3.5-lightning
+       model: nvidia/nemotron-3.5-lightning-30b-a3b
 
      - type: content_safety
        engine: nim
@@ -192,7 +192,7 @@ Add `custom_policy` to the `parameters` block in `config.yml`:
 models:
   - type: main
     engine: nim
-    model: nvidia/nemotron-3.5-lightning
+    model: nvidia/nemotron-3.5-lightning-30b-a3b
 
   - type: content_safety
     engine: nim
@@ -227,7 +227,7 @@ To run the Nemotron 3.5 Content Safety NIM in a Docker container, follow these s
    models:
      - type: main
        engine: nim
-       model: nvidia/nemotron-3.5-lightning
+       model: nvidia/nemotron-3.5-lightning-30b-a3b
 
      - type: content_safety
        engine: nim
