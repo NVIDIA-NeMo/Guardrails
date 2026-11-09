@@ -28,6 +28,7 @@ from benchmark.content_safety_parity.content_safety_parity import (
     Sample,
     Verdict,
     _build_content,
+    _extract_rail_outcome,
     _stratified_sample,
     compute_metrics,
     parse_verdict,
@@ -88,7 +89,8 @@ class TestParseVerdict:
         assert v.is_safe is False
 
     def test_safe_verdict_capital_s(self):
-        # NIM sometimes returns "Safe" with a capital S — must still parse as safe.
+        # NIM sometimes returns "Safe" with a capital S — the production parser
+        # handles this case and must still return is_safe=True.
         raw = "User Safety: Safe\nSafety Categories: None"
         v = parse_verdict(raw, latency_ms=10.0)
         assert v.is_safe is True
@@ -215,6 +217,110 @@ class TestStratifiedSample:
         assert safe_n == 17
         assert unsafe_n == 3
         assert len(result) == 20
+
+
+class TestExtractRailOutcome:
+    """Tests for _extract_rail_outcome — walks the generate_async log structure."""
+
+    def _make_result(self, return_value=None, n_rails: int = 1):
+        """Build a minimal fake GenerationResponse-like object."""
+
+        class FakeAction:
+            def __init__(self, rv):
+                self.return_value = rv
+
+        class FakeRail:
+            def __init__(self, rv):
+                self.executed_actions = [FakeAction(rv)]
+
+        class FakeLog:
+            def __init__(self, rv):
+                self.activated_rails = [FakeRail(rv) for _ in range(n_rails)]
+
+        class FakeResult:
+            def __init__(self, rv):
+                self.log = FakeLog(rv)
+
+        return FakeResult(return_value)
+
+    def test_returns_none_when_no_log(self):
+        class NoLog:
+            pass
+
+        assert _extract_rail_outcome(NoLog()) is None
+
+    def test_returns_none_when_activated_rails_empty(self):
+        class EmptyLog:
+            activated_rails = []
+
+        class Result:
+            log = EmptyLog()
+
+        assert _extract_rail_outcome(Result()) is None
+
+    def test_returns_none_when_no_rail_outcome_in_actions(self):
+        # return_value is a plain string, not a RailOutcome
+        result = self._make_result(return_value="not-a-rail-outcome")
+        assert _extract_rail_outcome(result) is None
+
+    def test_returns_rail_outcome_when_present(self):
+        from nemoguardrails.actions.rail_outcome import RailOutcome
+
+        outcome = RailOutcome.allow(metadata={"policy_violations": []})
+        result = self._make_result(return_value=outcome)
+        found = _extract_rail_outcome(result)
+        assert found is outcome
+
+    def test_returns_first_rail_outcome_when_multiple_rails(self):
+        from nemoguardrails.actions.rail_outcome import RailOutcome
+
+        # First rail has a RailOutcome; second also does — should return the first.
+        class FakeAction:
+            def __init__(self, rv):
+                self.return_value = rv
+
+        class FakeRail:
+            def __init__(self, rv):
+                self.executed_actions = [FakeAction(rv)]
+
+        class FakeLog:
+            def __init__(self):
+                o1 = RailOutcome.block(metadata={"policy_violations": ["Violence"]})
+                o2 = RailOutcome.allow(metadata={"policy_violations": []})
+                self.activated_rails = [FakeRail(o1), FakeRail(o2)]
+
+        class Result:
+            log = FakeLog()
+
+        found = _extract_rail_outcome(Result())
+        assert found is not None
+        assert found.is_blocked is True
+
+
+class TestParseVerdictProductionParser:
+    """Additional parse_verdict tests that exercise production-parser-specific behaviour."""
+
+    def test_duplicate_verdict_is_error(self):
+        # Two "User Safety:" lines — the production parser raises ValueError.
+        raw = "User Safety: safe\nUser Safety: unsafe\nSafety Categories: None"
+        v = parse_verdict(raw)
+        assert v.error is True
+
+    def test_safe_no_categories_field(self):
+        # Safe verdict with no "Safety Categories:" line is valid.
+        raw = "User Safety: safe"
+        v = parse_verdict(raw)
+        assert v.is_safe is True
+        assert v.error is False
+        assert v.categories == []
+
+    def test_unsafe_multiple_categories(self):
+        raw = "User Safety: unsafe\nSafety Categories: Violence, Hate/Identity Hate"
+        v = parse_verdict(raw)
+        assert v.is_safe is False
+        assert v.error is False
+        assert "Violence" in v.categories
+        assert "Hate/Identity Hate" in v.categories
 
 
 class TestBuildContent:

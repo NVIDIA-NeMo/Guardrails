@@ -127,20 +127,22 @@ class Verdict:
 
 
 def parse_verdict(raw: str, latency_ms: float = 0.0) -> Verdict:
-    raw_lower = raw.lower()
-    is_safe = "user safety: safe" in raw_lower
-    is_unsafe = "user safety: unsafe" in raw_lower
-    # Require a complete "safe" or "unsafe" value; a bare "User Safety:" (truncated response)
-    # has no verdict and must be treated as an error, not as unsafe.
-    has_verdict = is_safe or is_unsafe
-    categories: list[str] = []
-    for line in raw.splitlines():
-        stripped = line.strip()
-        if stripped.lower().startswith("safety categories:"):
-            cats_str = stripped[len("safety categories:") :].strip()
-            categories = [c.strip() for c in cats_str.split(",") if c.strip()]
-    # No complete verdict line → truncated/malformed response; mark as error so metrics skip it.
-    return Verdict(is_safe=is_safe, raw=raw, categories=categories, latency_ms=latency_ms, error=not has_verdict)
+    """Parse a raw NIM response using the production Guardrails parser.
+
+    Delegates to ``nemotron_content_safety_parse_prompt_safety`` so verdict
+    extraction stays in sync with the Guardrails runtime.  Any ``ValueError``
+    (truncated output, missing verdict, duplicate verdict, unterminated
+    ``<think>`` tag) is mapped to an error Verdict so metrics skip the sample.
+    """
+    from nemoguardrails.llm.output_parsers import nemotron_content_safety_parse_prompt_safety  # type: ignore[import]
+
+    try:
+        result = nemotron_content_safety_parse_prompt_safety(raw)
+    except ValueError:
+        return Verdict(is_safe=False, raw=raw, latency_ms=latency_ms, error=True)
+    is_safe = bool(result[0])
+    categories = [str(c) for c in result[1:]]
+    return Verdict(is_safe=is_safe, raw=raw, categories=categories, latency_ms=latency_ms)
 
 
 def compute_metrics(samples: list[Sample], verdicts: list[Verdict]) -> dict:
@@ -757,6 +759,21 @@ async def run_direct_eval(
     return verdicts
 
 
+def _extract_rail_outcome(result):
+    """Return the first content safety RailOutcome from a generate_async log, or None."""
+    from nemoguardrails.actions.rail_outcome import RailOutcome  # type: ignore[import]
+
+    log = getattr(result, "log", None)
+    if not log:
+        return None
+    for rail in getattr(log, "activated_rails", None) or []:
+        for action in getattr(rail, "executed_actions", None) or []:
+            rv = getattr(action, "return_value", None)
+            if isinstance(rv, RailOutcome):
+                return rv
+    return None
+
+
 async def run_guardrails_eval(
     samples: list[Sample],
     config_path: str,
@@ -767,28 +784,29 @@ async def run_guardrails_eval(
     """
     Run each prompt through the Guardrails input rail and record whether it was blocked.
 
-    Uses check_async(rail_types=[RailType.INPUT]) so only the input rail runs. The main
-    model is never called, making this a 1:1 comparison with run_direct_eval on the same
-    content safety NIM. Latency reflects input-rail overhead only.
+    Uses generate_async with ``rails.input=True`` and ``dialog=False`` so only the
+    input rail runs — the main model is never invoked.  ``log.activated_rails=True``
+    exposes the ``RailOutcome`` returned by the content safety action, which carries
+    both the block decision and the ``policy_violations`` category list.  This gives
+    a 1:1 comparison with run_direct_eval and also verifies that
+    ``chat_template_kwargs`` propagates correctly through the Guardrails layer.
 
     Model wiring:
       - content_safety: nim_base_url if provided, else remote API via NVIDIA_API_KEY
-      - main (stub):    content safety NIM at nim_base_url (or remote); never invoked
-                        because check_async stops after the input rail
+      - main (stub):    content safety NIM (never invoked because dialog=False)
 
-    Concurrency: when concurrency > 1, up to that many check_async calls run in
+    Concurrency: when concurrency > 1, up to that many generate_async calls run in
     parallel. Each concurrent call gets its own LLMRails instance to avoid shared
     in-process state between simultaneous requests.
     """
     from nemoguardrails import LLMRails, RailsConfig  # type: ignore[import]
-    from nemoguardrails.rails.llm.options import RailStatus, RailType  # type: ignore[import]
 
     print(f"  Loading Guardrails config from {config_path}...")
     image_samples = [s for s in samples if s.extra.get("image_path")]
     if image_samples:
         print(
             f"  ⚠ Warning: {len(image_samples)} sample(s) include an image. "
-            "check_async does not accept multimodal content, so images are dropped for the "
+            "generate_async does not accept multimodal content, so images are dropped for the "
             "Guardrails path. The direct and Guardrails paths judge different inputs for these "
             "samples — agreement figures for image-dependent verdicts will not be meaningful."
         )
@@ -803,8 +821,8 @@ async def run_guardrails_eval(
                 else:
                     model_cfg.api_key_env_var = "NVIDIA_API_KEY"
             elif model_cfg.type == "main":
-                # Stub the main model as the content safety NIM — check_async with
-                # RailType.INPUT never invokes it, but RailsConfig requires a main entry.
+                # Stub the main model — dialog=False means it is never called,
+                # but RailsConfig requires a main entry.
                 model_cfg.model = "nvidia/nemotron-3.5-content-safety"
                 if nim_base_url:
                     model_cfg.parameters = model_cfg.parameters or {}
@@ -826,13 +844,27 @@ async def run_guardrails_eval(
         rails = await pool.get()
         t0 = time.monotonic()
         try:
-            result = await rails.check_async(
+            result = await rails.generate_async(
                 messages=[{"role": "user", "content": s.text}],
-                rail_types=[RailType.INPUT],
+                options={
+                    "rails": {"input": True, "output": False, "dialog": False, "retrieval": False},
+                    "log": {"activated_rails": True},
+                },
             )
             latency_ms = (time.monotonic() - t0) * 1000
-            blocked = result.status == RailStatus.BLOCKED
-            verdicts[idx] = Verdict(is_safe=not blocked, raw=result.content or "", latency_ms=latency_ms)
+            outcome = _extract_rail_outcome(result)
+            if outcome is None or outcome.failed:
+                verdicts[idx] = Verdict(is_safe=True, raw="", latency_ms=latency_ms, error=True)
+                if outcome is None:
+                    print(f"\n  Warning: no RailOutcome in log for sample {idx}", flush=True)
+            else:
+                categories = list(outcome.metadata.get("policy_violations") or [])
+                verdicts[idx] = Verdict(
+                    is_safe=not outcome.is_blocked,
+                    raw="",
+                    categories=categories,
+                    latency_ms=latency_ms,
+                )
         except Exception as exc:
             latency_ms = (time.monotonic() - t0) * 1000
             verdicts[idx] = Verdict(is_safe=True, raw=f"ERROR: {exc}", latency_ms=latency_ms, error=True)
