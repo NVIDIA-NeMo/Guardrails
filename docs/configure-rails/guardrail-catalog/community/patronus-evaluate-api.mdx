@@ -65,16 +65,18 @@ For now, the Evaluate API Integration only looks at whether the evaluators retur
 
 Here's the `patronus api check output` flow, showing how the action is executed:
 
+The action returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes). Read `is_blocked` for the decision; the evaluator's pass/fail result is available in `metadata["pass"]`.
+
 ```text
 define bot inform answer unknown
   "I don't know the answer to that."
 
 define flow patronus api check output
-  $patronus_response = execute PatronusApiCheckOutputAction
-  $evaluation_passed = $patronus_response["pass"]
+  $patronus_response = execute patronus_api_check_output
 
-  if not $evaluation_passed
+  if $patronus_response.is_blocked
     bot inform answer unknown
+    stop
 ```
 
 ## Engine Support

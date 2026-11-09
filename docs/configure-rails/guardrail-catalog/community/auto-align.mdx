@@ -290,25 +290,21 @@ The colang file has been implemented in the following format in the library:
 define flow autoalign check input
   $input_result = execute autoalign_input_api(show_autoalign_message=True)
 
-  if $input_result["guardrails_triggered"]
-    $autoalign_input_response = $input_result['combined_response']
+  if $input_result.is_blocked
+    $autoalign_input_response = $input_result.metadata["combined_response"]
     bot refuse to respond
     stop
+  else if $input_result.is_transform
+    $user_message = $input_result.transform_text["user_message"]
 
 define flow autoalign check output
   $output_result = execute autoalign_output_api(show_autoalign_message=True)
 
-  if $output_result["guardrails_triggered"]
+  if $output_result.is_blocked
     bot refuse to respond
     stop
-  else
-    $pii_message_output = $output_result["pii"]["response"]
-    if $output_result["pii"]["guarded"]
-      bot respond pii output
-      stop
-
-define bot respond pii output
-  "$pii_message_output"
+  else if $output_result.is_transform
+    $bot_message = $output_result.transform_text["bot_message"]
 
 define bot refuse to respond
   "I'm sorry I can't respond."
@@ -322,14 +318,11 @@ we will show any output from autoalign or not. The response from AutoAlign would
 `show_autoalign_message` is kept `True`. Details regarding the second argument can be found in `toxicity_detection`
 section.
 
-The result obtained from `execute autoalign_input_api` or `execute autoalign_output_api` is a dictionary,
-where the keys are the guardrail names (there are some additional keys which we will describe later) and
-values are again a dictionary with `guarded` and `response` keys. The value of `guarded` key is a bool which
-tells us whether the guardrail got triggered or not and value of `response` contains the AutoAlign response.
+The `autoalign_input_api` and `autoalign_output_api` actions return a [RailOutcome](/configure-guardrails/actions/rail-outcomes).
+Use `is_blocked` for the blocking decision. When `is_transform` is true, apply the redacted text from `transform_text` to `user_message` or `bot_message`, respectively.
 
-Now coming to the additional keys, one of the key `guardrails_triggered` whose value is a bool which tells
-us whether any guardrail apart from PII got triggered or not. Another key is `combined_response` whose value
-provides a combined guardrail message for all the guardrails that got triggered.
+Provider evidence is available in `metadata`. Each guardrail entry contains `guarded` and `response` fields.
+The `guardrails_triggered` field records whether a guardrail other than PII triggered, and `combined_response` contains the combined guardrail message.
 
 Users can create their own flows and make use of AutoAlign's guardrails by using the actions
 `execute autoalign_input_api` and `execute autoalign_output_api` in their flow.
@@ -463,28 +456,29 @@ Can extract toxic phrases by changing the colang file a bit:
 ```text
 define subflow autoalign check input
   $input_result = execute autoalign_input_api(show_autoalign_message=True, show_toxic_phrases=True)
-  if $input_result["guardrails_triggered"]
-    $autoalign_input_response = $input_result['combined_response']
+  if $input_result.is_blocked
+    $autoalign_input_response = $input_result.metadata["combined_response"]
     bot refuse to respond
     stop
-  else if $input_result["pii"] and $input_result["pii"]["guarded"]:
-    $user_message = $input_result["pii"]["response"]
+  else if $input_result.is_transform
+    $user_message = $input_result.transform_text["user_message"]
 
 define subflow autoalign check output
   $output_result = execute autoalign_output_api(show_autoalign_message=True, show_toxic_phrases=True)
-  if $output_result["guardrails_triggered"]
+  if $output_result.is_blocked
     bot refuse to respond
     stop
-  else
-    $pii_message_output = $output_result["pii"]["response"]
-    if $output_result["pii"]["guarded"]
-      $bot_message = $pii_message_output
+  else if $output_result.is_transform
+    $bot_message = $output_result.transform_text["bot_message"]
 
 define subflow autoalign groundedness output
   if $check_facts == True
     $check_facts = False
     $threshold = 0.5
     $output_result = execute autoalign_groundedness_output_api(factcheck_threshold=$threshold, show_autoalign_message=True)
+    if $output_result.is_blocked
+      bot inform answer unknown
+      stop
     bot provide response
 
 define bot refuse to respond
@@ -620,10 +614,13 @@ define subflow autoalign groundedness output
     $check_facts = False
     $threshold = 0.5
     $output_result = execute autoalign_groundedness_output_api(factcheck_threshold=$threshold)
+    if $output_result.is_blocked
+      bot inform answer unknown
+      stop
 ```
 
-The `threshold` can be changed depending upon the use-case, the `output_result`
-variable stores the factcheck score which can be used for further processing.
+The `threshold` can be changed depending upon the use-case. The `output_result`
+variable contains a `RailOutcome`; read `is_blocked` for the decision and `metadata["score"]` for the fact-check score.
 The `show_autoalign_message` controls whether we will show any output from autoalign
 or not. The response from AutoAlign would be presented as a subtext, when
 `show_autoalign_message` is kept `True`.

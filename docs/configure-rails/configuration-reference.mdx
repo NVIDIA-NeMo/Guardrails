@@ -829,7 +829,9 @@ import_paths:
 
 ## Complete Example
 
-The following YAML example demonstrates a complete `config.yml` file that wires together a main language model, a dedicated content safety model, and an embeddings model. It configures rails for input and output content safety checks, points to a local NIM service for jailbreak detection, defines a content safety prompt, provides general instructions for the assistant, and enables response streaming from both the main and content safety models.
+The following `config.yml` example defines a main language model, a dedicated content safety model, and an embeddings model. It enables input and output content safety checks with a prompt for each check and configures output rail streaming. The main model uses NVIDIA-hosted inference and requires `NVIDIA_API_KEY`; start the content safety model at `http://localhost:8000/v1` before running the configuration.
+
+The prompts below illustrate the required response format for the configured parsers. Adapt the safety policy and evaluate the prompts with your chosen model before production use.
 
 ```yaml
 models:
@@ -863,15 +865,23 @@ rails:
         streaming:
             enabled: true
 
-    config:
-        jailbreak_detection:
-            nim_base_url: "http://localhost:8001/v1/"
-
 prompts:
     - task: content_safety_check_input $model=content_safety
       content: |
-          Check if this content is safe: {{ user_input }}
+          Classify the user message as safe or unsafe. Mark requests for violence,
+          sexual exploitation, or criminal activity as unsafe.
+          User message: {{ user_input }}
+          Return only JSON with "User Safety" set to "safe" or "unsafe".
       output_parser: nemoguard_parse_prompt_safety
+      max_tokens: 50
+    - task: content_safety_check_output $model=content_safety
+      content: |
+          Classify the assistant response as safe or unsafe. Mark instructions for
+          violence, sexual exploitation, or criminal activity as unsafe.
+          User message: {{ user_input }}
+          Assistant response: {{ bot_response }}
+          Return only JSON with "Response Safety" set to "safe" or "unsafe".
+      output_parser: nemoguard_parse_response_safety
       max_tokens: 50
 
 instructions:
@@ -879,6 +889,4 @@ instructions:
       content: |
           You are a helpful, harmless, and honest assistant.
 
-streaming:
-    enabled: true
 ```

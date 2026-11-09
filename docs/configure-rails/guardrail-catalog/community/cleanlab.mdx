@@ -16,7 +16,7 @@ define subflow cleanlab trustworthiness
   """Guardrail based on trustworthiness score."""
   $result = execute call_cleanlab_api
 
-  if $result.trustworthiness_score < 0.7
+  if $result.is_blocked or $result.metadata["trustworthiness_score"] < 0.7
     bot response untrustworthy
     stop
 
@@ -24,12 +24,14 @@ define bot response untrustworthy
   "Don't place much confidence in this response"
 ```
 
+The action returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes). This example preserves its blocking decision and also blocks scores below `0.7`. Read the score from `metadata["trustworthiness_score"]`.
+
 ## Setup
 
 Install the Python client to use Cleanlab's trustworthiness score:
 
 ```
-pip install --upgrade cleanlab-tlm
+pip install --upgrade cleanlab-studio
 ```
 
 You can get an API key for free by [creating a Cleanlab account](https://tlm.cleanlab.ai/) or experiment with the trustworthiness scores in the [playground](https://tlm.cleanlab.ai/). Feel free to [email Cleanlab](mailto:support@cleanlab.ai) with any questions.

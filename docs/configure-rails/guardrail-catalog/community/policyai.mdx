@@ -84,6 +84,8 @@ PolicyAI returns the following information for each evaluation:
 - `severity`: Severity level from 0 (safe) to 3 (high severity)
 - `reason`: Human-readable explanation
 
+The `call_policyai_api` action returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes). Read `is_blocked` for the decision and `reason` for the explanation. Assessment, category, severity, and exception information are available in `metadata`.
+
 ## Customizing Behavior
 
 To customize the behavior when content is flagged, you can override the default flows in your config:
@@ -93,7 +95,7 @@ define subflow policyai moderation on input
   """Custom PolicyAI input moderation."""
   $result = execute call_policyai_api(text=$user_message)
 
-  if $result.assessment == "UNSAFE"
+  if $result.is_blocked
     bot inform content policy violation
     stop
 

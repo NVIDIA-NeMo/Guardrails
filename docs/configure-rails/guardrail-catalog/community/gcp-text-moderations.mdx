@@ -18,25 +18,25 @@ rails:
 
 The `gcpnlp moderation` flow uses the maximum risk score with an 0.80 threshold to decide if the input should be allowed or not (i.e., if the risk score is above the threshold, it is considered a violation). The `gcpnlp moderation detailed` has individual scores per category of violation.
 
-To customize the scores, you have to overwrite the [default flows](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/gcp_moderate_text/flows.co) in your config. For example, to change the threshold for `gcpnlp moderation` you can add the following flow to your config:
+The action returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes). To customize the refusal message while preserving its blocking decision, override the [Colang 1.0 flow](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/gcp_moderate_text/flows.v1.co):
 
 ```text
 define subflow gcpnlp moderation
   """Guardrail based on the maximum risk score."""
   $result = execute call_gcpnlp_api
 
-  if $result.max_risk_score > 0.8
+  if $result.is_blocked
     bot inform cannot answer
     stop
 ```
 
-Using GCP Text Moderation user can control various violations individually. Post text analyzing, GCP returns "moderation_categories" protobuff object containing name of the voilation categories in which text falls in & probablity of the prediction. For accessibility it in "violations_dict" in currently implemented action. Below is an example of one such input moderation flow:
+Scores are available in `metadata["max_risk_score"]` and `metadata["violations"]`. The following example preserves the detailed action's decision and adds a stricter `Toxic` threshold of `0.5`:
 
 ```text
-define flow gcpnlp input moderation detailed
-  $result = execute call_gcpnlp_api(text=$user_message)
+define subflow gcpnlp moderation detailed
+  $result = execute call_gcpnlp_api(user_message=$user_message, threshold_mode="detailed")
 
-  if $result.violations.get("Toxic", 0) > 0.8
+  if $result.is_blocked or $result.metadata["violations"].get("Toxic", 0) > 0.5
     bot inform cannot engage in abusive or harmful behavior
     stop
 

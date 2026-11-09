@@ -3,20 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Use the Actions Server"
 sidebar-title: "Actions Server"
-description: "Run guardrail actions in a secure, isolated environment."
+description: "Run guardrail actions in a separate server process."
 keywords: ["actions server", "nemoguardrails actions-server", "custom actions", "action dispatcher", "security isolation"]
 content:
   type: "tutorial"
 ---
 
-The Actions Server enables you to run actions invoked from guardrails in a secure, isolated environment separate from the main guardrails server.
+The actions server runs actions invoked from guardrails in a separate process from the main guardrails server.
 
 ## Why Use an Actions Server?
 
 Actions are custom Python functions that guardrails can invoke during processing.
 Running actions in a separate server provides:
 
-- **Security isolation**: Actions run in a separate process, limiting the impact of potentially unsafe code.
+- **Process separation**: Actions run outside the guardrails server process. Configure operating-system or container permissions and network controls to restrict what those actions can access.
 - **Resource management**: Separate resource allocation for action execution.
 - **Scalability**: Scale the actions server independently from the guardrails server.
 
@@ -38,6 +38,15 @@ nemoguardrails actions-server [--port PORT]
 ```
 
 The default port is `8001`.
+
+<Warning>
+
+The `nemoguardrails actions-server` command listens on all network interfaces (`0.0.0.0`) and does not authenticate incoming requests.
+Anyone who can reach its API can request execution of registered actions.
+Restrict access to trusted callers and add authentication through your deployment infrastructure.
+Process separation does not sandbox action code or restrict its filesystem and network access.
+
+</Warning>
 
 ### Example
 
@@ -206,6 +215,13 @@ rails:
   input:
     flows:
       - self check input
+
+prompts:
+  - task: self_check_input
+    content: |
+      Should the following user message be blocked because it requests harmful or abusive content?
+      User message: {{ user_input }}
+      Answer only Yes or No.
 ```
 
 When configured, the guardrails server sends action execution requests to the actions server instead of running them locally.
@@ -275,6 +291,13 @@ This example demonstrates running both servers together.
       input:
         flows:
           - self check input
+
+    prompts:
+      - task: self_check_input
+        content: |
+          Should the following user message be blocked because it requests harmful or abusive content?
+          User message: {{ user_input }}
+          Answer only Yes or No.
     ```
 
 3. Start the guardrails server.
@@ -294,8 +317,11 @@ This example demonstrates running both servers together.
 
     # Chat with the guardrailed model
     response = requests.post("http://localhost:8000/v1/chat/completions", json={
-        "config_id": "my-bot",
-        "messages": [{"role": "user", "content": "What's the weather in New York?"}]
+        "model": "gpt-4o",
+        "messages": [{"role": "user", "content": "What's the weather in New York?"}],
+        "guardrails": {
+            "config_id": "my-bot"
+        }
     })
     print(response.json())
     ```

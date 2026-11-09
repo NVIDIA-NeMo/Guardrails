@@ -50,13 +50,13 @@ To understand better what is happening under the hood, here's how the `self chec
 
 ```text
 define flow self check input
-  $allowed = execute self_check_input
-  if not $allowed
+  $result = execute self_check_input
+  if $result.is_blocked
     if $config.enable_rails_exceptions
       create event InputRailException(message="Input not allowed. The input was blocked by the 'self check input' flow.")
     else
       bot refuse to respond
-      stop
+    stop
 ```
 
 <Note>

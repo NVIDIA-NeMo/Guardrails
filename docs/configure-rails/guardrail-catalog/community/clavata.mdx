@@ -113,10 +113,10 @@ If you are using colang 2.x, you can make use of the Clavata action in your own 
 
 ```text
 # Check content
-$is_match = await ClavataCheckAction(text=$some_text, policy=$some_policy_alias)
+$result = await ClavataCheckAction(text=$some_text, policy=$some_policy_alias)
 ```
 
-The action returns `True` if the content matches the specified policy's criteria.
+The action returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes). Use `$result.is_blocked` to check whether the content matches the policy and should be blocked. The match result is also available in `$result.metadata["policy_matched"]`.
 
 ## Customization
 

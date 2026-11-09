@@ -64,6 +64,10 @@ Retrieves context from the knowledge base:
 
 These actions implement built-in guardrails:
 
+Built-in rail actions return a [RailOutcome](/configure-guardrails/actions/rail-outcomes).
+Use `is_blocked` for the blocking decision and `metadata` for scores or other evidence.
+For masking actions, apply `transform_text` when `is_transform` is true.
+
 | Action | Description |
 |--------|-------------|
 | `self_check_input` | Check if user input should be accepted |
@@ -86,8 +90,8 @@ rails:
 ```text
 # rails/input.co
 define flow self check input
-  $allowed = execute self_check_input
-  if not $allowed
+  $result = execute self_check_input
+  if $result.is_blocked
     bot refuse to respond
     stop
 ```
@@ -107,8 +111,8 @@ rails:
 ```text
 # rails/output.co
 define flow self check output
-  $allowed = execute self_check_output
-  if not $allowed
+  $result = execute self_check_output
+  if $result.is_blocked
     bot refuse to respond
     stop
 ```
@@ -201,8 +205,8 @@ rails:
 
 ```text
 define flow check input sensitive data
-  $has_pii = execute detect_sensitive_data
-  if $has_pii
+  $result = execute detect_sensitive_data(source="input", text=$user_message)
+  if $result.is_blocked
     bot refuse to respond
     stop
 ```
@@ -211,8 +215,9 @@ define flow check input sensitive data
 
 ```text
 define flow mask input sensitive data
-  $masked_input = execute mask_sensitive_data
-  # Continue with masked input
+  $result = execute mask_sensitive_data(source="input", text=$user_message)
+  if $result.is_transform
+    $user_message = $result.transform_text["user_message"]
 ```
 
 ## Content Safety Actions
@@ -258,20 +263,20 @@ You can combine built-in actions with custom logic:
 
 ```text
 define flow enhanced_input_check
-  $is_jailbreak = execute jailbreak_detection_heuristics
-  if $is_jailbreak
+  $result = execute jailbreak_detection_heuristics
+  if $result.is_blocked
     bot refuse to respond
     stop
 
   # Then, check for sensitive data
-  $has_pii = execute detect_sensitive_data
-  if $has_pii
+  $result = execute detect_sensitive_data(source="input", text=$user_message)
+  if $result.is_blocked
     bot ask to remove sensitive data
     stop
 
   # Finally, run self-check
-  $allowed = execute self_check_input
-  if not $allowed
+  $result = execute self_check_input
+  if $result.is_blocked
     bot refuse to respond
     stop
 ```

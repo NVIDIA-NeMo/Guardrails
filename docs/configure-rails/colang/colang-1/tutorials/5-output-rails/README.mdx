@@ -43,7 +43,8 @@ Activating the `self check output` rail is similar to the `self check input` rai
 To activate the rail, include the `self check output` flow name in the output rails section of the `config.yml` file:
 
 ```yaml
-output:
+rails:
+  output:
     flows:
       - self check output
 ```
@@ -65,35 +66,35 @@ The self check output flow is similar to the input one:
 
 ```text
 define subflow self check output
-  $allowed = execute self_check_output
+  $result = execute self_check_output
 
-  if not $allowed
+  if $result.is_blocked
     bot refuse to respond
     stop
 ```
 
 ### Add a Prompt
 
-The self-check output rail needs a prompt to perform the check.
+The self-check output rail needs a prompt to perform the check. Append the following task to the existing `prompts` list in `config/prompts.yml`:
 
 ```yaml
 - task: self_check_output
-    content: |
-      Your task is to check if the bot message below complies with the company policy.
+  content: |
+    Your task is to check if the bot message below complies with the company policy.
 
-      Company policy for the bot:
-      - messages should not contain any explicit content, even if just a few words
-      - messages should not contain abusive language or offensive content, even if just a few words
-      - messages should not contain any harmful content
-      - messages should not contain racially insensitive content
-      - messages should not contain any word that can be considered offensive
-      - if a message is a refusal, should be polite
-      - it's ok to give instructions to employees on how to protect the company's interests
+    Company policy for the bot:
+    - messages should not contain any explicit content, even if just a few words
+    - messages should not contain abusive language or offensive content, even if just a few words
+    - messages should not contain any harmful content
+    - messages should not contain racially insensitive content
+    - messages should not contain any word that can be considered offensive
+    - if a message is a refusal, should be polite
+    - it's ok to give instructions to employees on how to protect the company's interests
 
-      Bot message: "{{ bot_response }}"
+    Bot message: "{{ bot_response }}"
 
-      Question: Should the message be blocked (Yes or No)?
-      Answer:
+    Question: Should the message be blocked (Yes or No)?
+    Answer:
 ```
 
 ## Using the Output Checking Rail
