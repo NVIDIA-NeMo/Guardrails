@@ -744,10 +744,12 @@ async def run_direct_eval(
     # is set (the non-custom-policy path), the NIM should return "Safety Categories:" lines.
     # Zero category lines across all non-error responses means the extra body param was ignored.
     if not use_custom_policy:
-        non_error = [v for v in verdicts if not v.error]
-        if non_error and all(not v.categories for v in non_error):
+        # Nemotron omits "Safety Categories:" for safe verdicts, so check only unsafe ones.
+        # An all-safe result cannot confirm category output; that case is not a warning.
+        unsafe_non_error = [v for v in verdicts if not v.error and not v.is_safe]
+        if unsafe_non_error and all(not v.categories for v in unsafe_non_error):
             print(
-                "  ⚠ Warning: no 'Safety Categories' lines found in any response. "
+                "  ⚠ Warning: no 'Safety Categories' lines found in any unsafe response. "
                 "chat_template_kwargs may not be propagating to the NIM. "
                 "Check that request_categories='/categories' is accepted by the NIM version in use.",
                 flush=True,
@@ -760,31 +762,21 @@ async def run_guardrails_eval(
     config_path: str,
     api_key: Optional[str],
     nim_base_url: Optional[str],
-    main_nim_url: Optional[str] = None,
-    main_model_name: Optional[str] = None,
     concurrency: int = 1,
 ) -> list[Verdict]:
     """
     Run each prompt through the Guardrails input rail and record whether it was blocked.
 
-    When main_nim_url is provided, the main model is wired to a real local LLM NIM
-    (e.g. nemotron-3.5-lightning-30b-a3b) so safe prompts receive a genuine response
-    and the output rail also fires. This produces a full end-to-end pipeline measurement.
-
-    When main_nim_url is omitted, the main model is stubbed as the content safety NIM
-    itself. Note: for safe prompts the full pipeline (input rail → main model → output rail)
-    still runs, so Guardrails latency is higher than a direct NIM call even in stub mode.
-    This path confirms that chat_template_kwargs propagates correctly to the content safety
-    NIM — verdict equivalence rather than latency parity is the goal.
+    Uses check_async(rail_types=[RailType.INPUT]) so only the input rail runs. The main
+    model is never called, making this a 1:1 comparison with run_direct_eval on the same
+    content safety NIM. Latency reflects input-rail overhead only.
 
     Model wiring:
       - content_safety: nim_base_url if provided, else remote API via NVIDIA_API_KEY
-      - main (real):    main_nim_url when provided
-      - main (stub):    content safety NIM at nim_base_url (or remote) when main_nim_url absent;
-                        all three pipeline stages still run — use for verdict parity checks,
-                        not latency comparisons
+      - main (stub):    content safety NIM at nim_base_url (or remote); never invoked
+                        because check_async stops after the input rail
 
-    Concurrency: when concurrency > 1, up to that many generate_async calls run in
+    Concurrency: when concurrency > 1, up to that many check_async calls run in
     parallel. Each concurrent call gets its own LLMRails instance to avoid shared
     in-process state between simultaneous requests.
     """
@@ -811,18 +803,14 @@ async def run_guardrails_eval(
                 else:
                     model_cfg.api_key_env_var = "NVIDIA_API_KEY"
             elif model_cfg.type == "main":
-                if main_nim_url:
-                    if main_model_name:
-                        model_cfg.model = main_model_name
+                # Stub the main model as the content safety NIM — check_async with
+                # RailType.INPUT never invokes it, but RailsConfig requires a main entry.
+                model_cfg.model = "nvidia/nemotron-3.5-content-safety"
+                if nim_base_url:
                     model_cfg.parameters = model_cfg.parameters or {}
-                    model_cfg.parameters["base_url"] = main_nim_url
+                    model_cfg.parameters["base_url"] = nim_base_url
                 else:
-                    model_cfg.model = "nvidia/nemotron-3.5-content-safety"
-                    if nim_base_url:
-                        model_cfg.parameters = model_cfg.parameters or {}
-                        model_cfg.parameters["base_url"] = nim_base_url
-                    else:
-                        model_cfg.api_key_env_var = "NVIDIA_API_KEY"
+                    model_cfg.api_key_env_var = "NVIDIA_API_KEY"
         return LLMRails(config)
 
     # Pre-build a pool of rails instances (one per concurrency slot).
@@ -1105,29 +1093,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to Guardrails config for --compare-guardrails",
     )
     p.add_argument(
-        "--main-nim-url",
-        default=None,
-        help=(
-            "Base URL of a local main-LLM NIM for --compare-guardrails "
-            "(e.g. http://localhost:8001/v1). When omitted the main model is stubbed "
-            "as the content safety NIM (propagation-only test)."
-        ),
-    )
-    p.add_argument(
         "--guardrails-concurrency",
         type=int,
         default=5,
         help="Max parallel Guardrails calls when --compare-guardrails is set (default: 5)",
-    )
-    p.add_argument(
-        "--main-model-name",
-        default=None,
-        help=(
-            "Model ID to use when calling --main-nim-url. Overrides the model name in "
-            "the Guardrails config (useful when a local NIM reports a shorter ID than "
-            "the remote endpoint, e.g. 'nvidia/nemotron-3.5-lightning' vs. "
-            "'nvidia/nemotron-3.5-lightning-30b-a3b')."
-        ),
     )
     return p
 
@@ -1221,8 +1190,6 @@ async def main() -> None:
                 config_path,
                 api_key if api_key != "placeholder" else None,
                 args.nim_base_url,
-                main_nim_url=args.main_nim_url,
-                main_model_name=args.main_model_name,
                 concurrency=args.guardrails_concurrency,
             )
             gr_metrics = compute_metrics(samples, gr_verdicts)
