@@ -19,7 +19,9 @@ import importlib.metadata
 import logging
 import os
 import warnings
+from collections.abc import Collection
 from dataclasses import dataclass
+from difflib import get_close_matches
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Set, Tuple, Union
 
@@ -28,6 +30,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ModelWrapValidatorHandler,
     field_validator,
     model_validator,
 )
@@ -737,6 +740,44 @@ def merge_two_dicts(dict_1: dict, dict_2: dict, ignore_keys: Set[str]) -> None:
                 dict_1[key] = value
 
 
+def _warn_unknown_config_key(
+    key: str, known_keys: Collection[str], path: str = "", source: Optional[str] = None
+) -> None:
+    full_path = f"{path}.{key}" if path else str(key)
+    matches = get_close_matches(str(key), known_keys, n=1, cutoff=0.75)
+    suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
+    consequence = (
+        " This section is unsupported and will not enable execution rails." if full_path == "rails.execution" else ""
+    )
+    location = f" in {source}" if source else ""
+    log.warning("Unknown configuration key '%s'%s.%s%s", full_path, location, consequence, suggestion)
+
+
+def _warn_unknown_config_keys(raw: Any, parsed: Any, path: str = "") -> None:
+    """Compare with validated values to follow the selected union and preserve open dictionaries."""
+    if raw is parsed:
+        return
+    if isinstance(raw, dict) and isinstance(parsed, BaseModel):
+        fields = type(parsed).model_fields
+        known_keys = {field.alias or name: name for name, field in fields.items()}
+        known_keys.update({name: name for name in fields})
+        for key, value in raw.items():
+            name = known_keys.get(key)
+            if name is None:
+                if parsed.model_config.get("extra") != "allow":
+                    _warn_unknown_config_key(key, known_keys, path)
+                continue
+            child_path = f"{path}.{key}" if path else str(key)
+            _warn_unknown_config_keys(value, getattr(parsed, name), child_path)
+    elif isinstance(raw, dict) and isinstance(parsed, dict):
+        for key, value in raw.items():
+            if key in parsed:
+                _warn_unknown_config_keys(value, parsed[key], f"{path}.{key}")
+    elif isinstance(raw, list) and isinstance(parsed, list):
+        for index, (value, item) in enumerate(zip(raw, parsed)):
+            _warn_unknown_config_keys(value, item, f"{path}[{index}]")
+
+
 def _join_config(dest_config: dict, additional_config: dict, source: Optional[str] = None):
     """Helper to join two configuration; *source* names where *additional_config* was read from, for errors."""
 
@@ -829,6 +870,9 @@ def _join_config(dest_config: dict, additional_config: dict, source: Optional[st
             "hooks_server",
         }
     )
+
+    for key in additional_config.keys() - ignore_fields - RailsConfig.model_fields.keys():
+        _warn_unknown_config_key(key, RailsConfig.model_fields, source=source)
 
     # Reads all the other fields and merges them with the custom_data field
     merge_two_dicts(dest_config.get("custom_data", {}), additional_config, ignore_fields)
@@ -1158,6 +1202,20 @@ class RailsConfig(BaseModel):
         default_factory=MetricsConfig,
         description="Configuration for OTEL metrics emission (independent of tracing).",
     )
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def warn_unknown_keys(cls, values: Any, handler: ModelWrapValidatorHandler["RailsConfig"]) -> "RailsConfig":
+        config = handler(values)
+        if isinstance(values, dict):
+            # The loader synthesizes these legacy fields; they are not RailsConfig fields.
+            raw = {
+                key: value
+                for key, value in values.items()
+                if key not in {"sensitive_data_detection", "embedding_search_provider", "raw_llm_call_action"}
+            }
+            _warn_unknown_config_keys(raw, config)
+        return config
 
     @model_validator(mode="before")
     @classmethod
