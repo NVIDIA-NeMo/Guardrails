@@ -801,6 +801,12 @@ async def run_guardrails_eval(
     """
     from nemoguardrails import LLMRails, RailsConfig  # type: ignore[import]
 
+    # Force the legacy LLMRails engine. IORails (NEMO_GUARDRAILS_IORAILS_ENGINE=true)
+    # stores log entries as verdict dicts rather than RailOutcome objects, breaking
+    # _extract_rail_outcome, and it ignores dialog=False so safe inputs trigger an
+    # extra main-model call. Both behaviours make the parity comparison unreliable.
+    os.environ["NEMO_GUARDRAILS_IORAILS_ENGINE"] = "false"
+
     print(f"  Loading Guardrails config from {config_path}...")
     image_samples = [s for s in samples if s.extra.get("image_path")]
     if image_samples:
