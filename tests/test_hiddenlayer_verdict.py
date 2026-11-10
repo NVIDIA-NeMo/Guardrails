@@ -28,6 +28,7 @@ from nemoguardrails.library.hiddenlayer._verdict import (
     _Evaluation,
     _outcome,
 )
+from nemoguardrails.library.hiddenlayer.errs import HiddenLayerUnknownActionError
 from tests.fixtures.hiddenlayer import (
     BOT_TEXT,
     PII_TEXT,
@@ -124,20 +125,39 @@ class TestProtectionMode:
 
 
 class TestMissingOrUnknownAction:
-    """No action means no verdict, which the rail classes with the transport failures."""
+    """A missing action is no verdict; an unknown one is a verdict the rail cannot apply."""
 
     def test_missing_action_header(self):
         with pytest.raises(HiddenLayerActionError):
             _outcome("input", _Evaluation(headers={}, body=AS_SENT["input"]), PII_TEXT)
 
-    def test_unknown_action(self):
-        with pytest.raises(HiddenLayerActionError):
+    def test_unknown_action_is_its_own_error(self):
+        """Not an action error: the server decided something, so it must not be allowed through."""
+        with pytest.raises(HiddenLayerUnknownActionError):
             outcome_of("input", "QUARANTINE")
 
     def test_the_message_never_quotes_the_response(self):
-        with pytest.raises(HiddenLayerActionError) as error:
+        with pytest.raises(HiddenLayerUnknownActionError) as error:
             outcome_of("input", "QUARANTINE")
         assert "QUARANTINE" not in str(error.value)
+
+
+class TestRedactOnContentParts:
+    """A transform replaces the whole content, so parts cannot survive a redaction."""
+
+    PARTS = [
+        {"type": "text", "text": "look at this"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
+    ]
+
+    def test_blocks_rather_than_replacing_the_parts_with_a_string(self):
+        outcome = _outcome(
+            "input",
+            _Evaluation(headers={"HL-Runtime-Action": "REDACT"}, body={"user_message": "look at [REDACTED]"}),
+            self.PARTS,
+        )
+        assert outcome.decision is RailDecision.BLOCK
+        assert outcome.transforms == ()
 
 
 class TestRedact:

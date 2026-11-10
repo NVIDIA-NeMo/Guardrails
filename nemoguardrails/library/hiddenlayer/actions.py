@@ -17,7 +17,7 @@ import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, TypeVar
+from typing import Any, Dict, Optional, Tuple
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
@@ -50,6 +50,7 @@ from nemoguardrails.library.hiddenlayer.errs import (
     HiddenLayerActionError,
     HiddenLayerCheckError,
     HiddenLayerTransportError,
+    HiddenLayerUnknownActionError,
     HiddenLayerVerdictError,
 )
 from nemoguardrails.library.hiddenlayer.rail_config import (
@@ -74,8 +75,6 @@ log = logging.getLogger(__name__)
 _RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
 
 NOTHING_TO_CHECK_REASON = "No text to check; HiddenLayer was not called"
-
-_T = TypeVar("_T")
 
 
 @dataclass(frozen=True)
@@ -279,6 +278,9 @@ async def _evaluate(
     except HiddenLayerVerdictError as error:
         log.warning("HiddenLayer %s check returned an unusable REDACT (%s); blocking.", surface, error)
         return RailOutcome.block(reason=BLOCK_REASON, metadata={"action": "REDACT"})
+    except HiddenLayerUnknownActionError as error:
+        log.warning("HiddenLayer %s check returned an action this rail cannot apply (%s); blocking.", surface, error)
+        return RailOutcome.block(reason=BLOCK_REASON)
     except (HTTPClientError, HiddenLayerTransportError, HiddenLayerActionError) as error:
         status = getattr(error, "status_code", None)
         if settings.fail_open:

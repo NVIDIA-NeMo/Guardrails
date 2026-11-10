@@ -34,6 +34,10 @@ class HiddenLayerActionError(HiddenLayerRailError):
     """The response carries no action to apply. The message never quotes the response."""
 
 
+class HiddenLayerUnknownActionError(HiddenLayerRailError):
+    """The response carries an action this rail does not know how to apply."""
+
+
 class HiddenLayerVerdictError(HiddenLayerRailError):
     """The action cannot be applied to what was sent. The message never quotes the response."""
 

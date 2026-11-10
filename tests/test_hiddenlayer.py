@@ -311,13 +311,21 @@ class TestFailures:
             _assert_failure_policy(await _outcome_or_error(responses.client, fail_open), fail_open)
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("action", [None, "QUARANTINE"], ids=["missing", "unknown"])
-    async def test_a_200_without_an_action_applies_the_failure_policy(self, action, fail_open):
+    async def test_a_200_without_an_action_applies_the_failure_policy(self, fail_open):
         """No action is no verdict, so it joins the transport failures rather than being applied."""
         with RecordedHTTPResponses() as responses:
             _token(responses)
-            responses.post(REQUEST_URL, payload=input_body(INPUT_TEXT), headers=headers(action) if action else {})
+            responses.post(REQUEST_URL, payload=input_body(INPUT_TEXT), headers={})
             _assert_failure_policy(await _outcome_or_error(responses.client, fail_open), fail_open)
+
+    @pytest.mark.asyncio
+    async def test_an_action_the_rail_cannot_apply_blocks_whatever_the_failure_policy(self, fail_open):
+        """The server decided something restrictive the rail does not know; allowing it would undo that."""
+        with RecordedHTTPResponses() as responses:
+            _token(responses)
+            responses.post(REQUEST_URL, payload=input_body(INPUT_TEXT), headers=headers("QUARANTINE"))
+            outcome = await _outcome_or_error(responses.client, fail_open)
+            assert outcome.decision is RailDecision.BLOCK
 
     @pytest.mark.asyncio
     async def test_request_timeout_is_thirty_seconds(self):

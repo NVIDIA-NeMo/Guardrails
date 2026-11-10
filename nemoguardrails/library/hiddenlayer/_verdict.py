@@ -18,12 +18,17 @@
 The verdict is in the response headers; the body is the check to forward.
 """
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.library.hiddenlayer.errs import HiddenLayerActionError, HiddenLayerVerdictError
+from nemoguardrails.library.hiddenlayer.errs import (
+    HiddenLayerActionError,
+    HiddenLayerUnknownActionError,
+    HiddenLayerVerdictError,
+)
 
 Surface = Literal["input", "output", "tool_call", "tool_result"]
 
@@ -38,6 +43,8 @@ _REDACTABLE: Dict[Surface, Tuple[TransformTarget, str]] = {
 BLOCK_REASON = "Blocked by HiddenLayer AI Runtime Security"
 REDACT_REASON = "Redacted by HiddenLayer AI Runtime Security"
 FAIL_OPEN_REASON = "HiddenLayer AI Runtime Security unavailable; fail_open allowed the request"
+
+log = logging.getLogger(__name__)
 
 _ACTION_HEADER = "HL-Runtime-Action"
 _PROTECTION_MODE_HEADER = "HL-Runtime-Protection-Mode"
@@ -96,13 +103,22 @@ def _outcome(surface: Surface, evaluation: _Evaluation, checked_text: Optional[s
     if action == "BLOCK":
         return RailOutcome.block(reason=BLOCK_REASON, metadata=metadata)
     if action != "REDACT":
-        raise HiddenLayerActionError(f"HiddenLayer response has an unknown {_ACTION_HEADER}")
+        # The server decided something this rail cannot carry out. Allowing it would let a
+        # restrictive action the contract adds later pass unapplied, so it blocks like any
+        # other action the rail cannot apply.
+        raise HiddenLayerUnknownActionError(f"HiddenLayer response has an unknown {_ACTION_HEADER}")
 
     redactable = _REDACTABLE.get(surface)
     if redactable is None:
         # HiddenLayer promotes a REDACT on a tool evaluation to BLOCK, so this is the defensive path.
         return RailOutcome.block(reason=BLOCK_REASON, metadata=metadata)
     target, field = redactable
+    if not isinstance(checked_text, str):
+        # The evaluated turn is content parts, and a transform replaces the whole content with
+        # the redacted string, dropping every non-text part with it. HiddenLayer flattens the
+        # text to evaluate it, so there is no part-wise rewrite to apply.
+        log.warning("HiddenLayer %s REDACT cannot be applied to content parts; blocking.", surface)
+        return RailOutcome.block(reason=BLOCK_REASON, metadata=metadata)
     text = evaluation.body.get(field) if isinstance(evaluation.body, dict) else None
     if not isinstance(text, str):
         raise HiddenLayerVerdictError("HiddenLayer REDACT response has no redacted text")
