@@ -21,6 +21,7 @@ or a promise of compatibility with every LiteLLM release and backend.
 | Buffered message and streaming delta `reasoning_items` | Optional nullable lists of closed typed items with `type: "reasoning"`. Item `encrypted_content`, `id`, and `status` are opaque; `content` and `summary` must be absent, null, or empty arrays. Unknown item fields are rejected. |
 | Remaining buffered fields | Inherit the OpenAI response constraints and reviewed opaque metadata. The dialect's choice and message remain closed even under a trusted unknown-field override. |
 | Buffered and streaming root `access_programs`, `billing`, `frequency_penalty`, `presence_penalty`, `tool_usage` | Reviewed opaque metadata retained by Responses-to-Chat translation. |
+| Buffered/streaming root `image` and streaming root `provider_specific_fields.image` | Absent, null, or a closed object containing `context_compression: enabled \| disabled`. Effective image policy metadata; no image content or request options are enabled. |
 | Streaming root `provider_specific_fields` | Optional nullable closed object with those reviewed metadata members and `service_tier`. Other members are rejected. |
 | Streaming delta `provider_specific_fields` | Absent, null, or empty objects only. Root metadata permissions do not apply here. |
 | Streaming delta `images`, `thinking_blocks`, `annotations` | Absent, null, or empty arrays only. |

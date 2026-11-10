@@ -8,32 +8,33 @@ Programmable safeguards for AI agents and LLM applications.
 [![Tests](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/pr-tests.yml?logo=github&label=tests)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/pr-tests.yml)
 [![Documentation](https://img.shields.io/badge/docs-nvidia.com-76B900)](https://docs.nvidia.com/nemo/guardrails)
 
-[Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#quickstart) · [Use cases](#what-you-can-build) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples) · [Security](./SECURITY.md) · [Releases](https://github.com/NVIDIA-NeMo/Guardrails/releases) · [Changelog](./CHANGELOG.md)
+[Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#quickstart) · [Use cases](#what-you-can-build) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples) · [Community](#community-usage) · [Security](./SECURITY.md) · [Releases](https://github.com/NVIDIA-NeMo/Guardrails/releases) · [Changelog](./CHANGELOG.md)
 
-**NeMo Guardrails adds programmable safeguards to AI agents and LLM applications.** Define policies to check inputs, retrieved context, model responses, tool calls, and tool results. Combine deterministic rules, safety models, and external services, and apply their results at configured points in your application.
+**NeMo Guardrails adds programmable safeguards to your AI agents.** For agents that run commands, call APIs, query data, or access the web, define policies to check prompts, retrieved context, tool calls, tool results, and responses. Your application or agent harness invokes the configured checks and enforces their results before continuing.
 
 ```bash
 pip install nemoguardrails
 ```
 
-Requires Python 3.10–3.13. Refer to the [installation guide](https://docs.nvidia.com/nemo/guardrails/latest/get-started/installation-guide) for optional packages and setup.
+Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvidia.com/nemo/guardrails/latest/get-started/installation-guide) for optional packages and setup.
 
 ## What You Can Build
 
 - **AI agents and coding assistants:** Check proposed tool calls and returned results with [tool rails](./docs/configure-rails/guardrail-catalog/tool-calling.mdx), or connect an agent through the [hooks server](./docs/run-rails/using-hooks-server/index.mdx).
 - **Conversational applications:** Apply [input and output checks](./docs/run-rails/using-python-apis/check-messages.mdx) and define dialog behavior with [Colang](./docs/configure-rails/colang/index.mdx).
 - **Retrieval-augmented generation (RAG):** [Detect or mask sensitive data in retrieved content](./docs/configure-rails/guardrail-catalog/pii-detection.mdx) and [check whether answers are grounded in evidence](./docs/configure-rails/guardrail-catalog/fact-checking.mdx).
+- **Model APIs and shared services:** Run the [Guardrails API server](./docs/run-rails/using-fastapi-server/overview.mdx) for shared checks and guardrailed generation, or place the [experimental proxy](./docs/run-rails/using-proxy/index.mdx) between clients and supported model-provider APIs.
 
 ## How It Works
 
-- **Define your policy.** Configure models, prompts, and rails in YAML. Add Colang flows or Python actions for custom dialog and control logic.
-- **Connect the checks.** Run rails at the input, retrieval, tool, and output boundaries your application uses.
-- **Apply the results.** Check messages independently and enforce verdicts in your application, or route generation through Guardrails to apply configured rails.
+- **Define your policy.** Configure rails, models, and prompts in YAML. Use Colang flows or Python actions for custom dialog and control logic.
+- **Connect the checks.** Apply configured rails to the prompts, retrieved content, tool calls, tool results, and responses your application handles.
+- **Enforce the result.** Run checks independently and act on the verdict in your application, or route generation through Guardrails. Your application controls tool execution.
 
 ```mermaid
 flowchart LR
     User[User input] --> Input[Input rails]
-    Input --> App[Application or agent]
+    Input --> App[Agent or application]
     App <--> Model[LLM]
     App --> Output[Output rails]
     Output --> Answer[Answer to user]
@@ -50,22 +51,25 @@ These are integration points you choose for your workflow. Rail support varies b
 
 ## Why NeMo Guardrails
 
-- **Govern tool use.** Validate declared tools and argument schemas, check result structure, and add per-tool policies before your application continues.
-- **Compose your policy.** Combine local [regex](./docs/configure-rails/guardrail-catalog/community/regex.mdx) and [CEL](./docs/configure-rails/guardrail-catalog/cel.mdx) rules with safety models and third-party checks.
-- **Keep your model and application.** Run [checks without main-model generation](./docs/run-rails/using-python-apis/check-messages.mdx), or send generation requests through Guardrails. Model-backed checks still call their configured model or service.
-- **Choose your integration.** Use the [Python SDK](./docs/run-rails/using-python-apis/overview.mdx), [API server](./docs/run-rails/using-fastapi-server/overview.mdx), [coding-agent hooks](./docs/run-rails/using-hooks-server/index.mdx), [LangChain and LangGraph](./docs/integration/langchain/index.mdx), or the [experimental proxy](./docs/run-rails/using-proxy/index.mdx).
-- **Run it in your environment.** The library is Apache 2.0 licensed and supports local detectors and configured inference endpoints. Refer to [supported model providers](./docs/about/supported-llms.mdx).
+- **Govern what agents do.** Validate tool names and argument schemas before execution. Check tool results and apply per-tool policies before returning them to the model.
+- **Keep your model and agent loop.** Use [checks without main-model generation](./docs/run-rails/using-python-apis/check-messages.mdx) to add guardrails to an existing application. Model-backed checks still call their configured model or service.
+- **Compose the policy you need.** Combine local [regex](./docs/configure-rails/guardrail-catalog/community/regex.mdx) and [CEL](./docs/configure-rails/guardrail-catalog/cel.mdx) rules with safety models and third-party checks.
+- **Connect your runtime.** Use the [Python SDK](./docs/run-rails/using-python-apis/overview.mdx), [API server](./docs/run-rails/using-fastapi-server/overview.mdx), [coding-agent hooks](./docs/run-rails/using-hooks-server/index.mdx), [LangChain and LangGraph](./docs/integration/langchain/index.mdx), or the [experimental proxy](./docs/run-rails/using-proxy/index.mdx).
+- **Open and yours to run.** The library is Apache 2.0 licensed. Choose [supported model providers](./docs/about/supported-llms.mdx) and run checks with local detectors or hosted inference endpoints.
 
 ## Quickstart
 
 Check a support agent's proposed refund against a $500 limit, without a model or API key.
-Use Python 3.11–3.13 and install the optional CEL extra:
+Install the optional CEL extra for this example:
 
 ```bash
 pip install "nemoguardrails[cel]"
 ```
 
-Save the following as `check_refund.py`. It validates the tool's argument schema and blocks calls over the limit:
+The example validates the tool's argument schema and blocks calls over the limit. Expand it and save it as `check_refund.py`:
+
+<details>
+<summary>Complete Python example</summary>
 
 ```python
 import asyncio
@@ -130,6 +134,8 @@ async def main():
 asyncio.run(main())
 ```
 
+</details>
+
 Run it from the directory where you saved the file:
 
 ```bash
@@ -164,12 +170,30 @@ Choose checks for your policy and workflow:
 | [Tool-call and tool-result validation](./docs/configure-rails/guardrail-catalog/tool-calling.mdx) | Validate declared tools, argument schemas, and tool-result linkage and structure. |
 | [Tool safety checks](./docs/configure-rails/guardrail-catalog/tool-safety-check.mdx) | Evaluate tool calls and results against per-tool safety instructions. |
 | [Regex](./docs/configure-rails/guardrail-catalog/community/regex.mdx) and [CEL](./docs/configure-rails/guardrail-catalog/cel.mdx) | Apply deterministic pattern and expression rules. |
-| [Language detection](./docs/configure-rails/guardrail-catalog/language-detector.mdx) | Detect the language of input text. |
+| [LLM self-checks](./docs/configure-rails/guardrail-catalog/self-check.mdx) | Use configured LLM prompts for input moderation, output moderation, or fact-checking. |
+| [Language detection](./docs/configure-rails/guardrail-catalog/language-detector.mdx) | Restrict input to configured languages. |
 | [Third-party integrations](./docs/configure-rails/guardrail-catalog/third-party.mdx) | Connect managed safety and moderation services. |
 
 NVIDIA Nemotron Safety models include [Nemotron 3.5 Content Safety](./examples/configs/nemotron-3.5-content-safety), [Nemotron Content Safety Reasoning 4B](./docs/getting-started/tutorials/nemotron-content-safety-reasoning-deployment.mdx), and [Llama 3.1 Nemotron Safety Guard 8B V3](./docs/getting-started/tutorials/nemotron-safety-guard-deployment.mdx). Follow the linked examples and guides for model-specific setup.
 
 Use the [evaluation tools](https://docs.nvidia.com/nemo/guardrails/latest/evaluation) to assess your policies and [garak](https://github.com/NVIDIA/garak) to scan LLM applications for vulnerabilities. Refer to the [vulnerability-scanning guide](./docs/evaluation/llm-vulnerability-scanning.mdx) for an example.
+
+## Community Usage
+
+This anonymous usage snapshot covers `0.22.0` and `0.23.0` release builds from May 22 to August 18, 2026, with an estimated 665,798 distinct startup sessions.
+
+<details>
+<summary>View rail usage, feature usage, and configured rail counts</summary>
+
+![Sessions by rail type](./docs/_static/images/community-telemetry/sessions-by-rail-type.png)
+
+![Sessions by library feature](./docs/_static/images/community-telemetry/sessions-by-built-in-feature.png)
+
+![Configured rails at startup](./docs/_static/images/community-telemetry/configured-rails-at-startup.png)
+
+Session counts are estimates, and a session can use multiple rail types or features. Refer to the [aggregate data](./docs/_static/images/community-telemetry/0.22.0-0.23.0.json) and [methodology](./docs/_static/images/community-telemetry/README.md) for definitions and counting limits.
+
+</details>
 
 ## Telemetry and Privacy
 

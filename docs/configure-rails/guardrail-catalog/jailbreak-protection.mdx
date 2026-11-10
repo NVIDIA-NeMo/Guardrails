@@ -105,6 +105,36 @@ To compute the perplexity of a string, the current implementation uses the `gpt2
 
 There is currently one available model-based detection, using a random forest-based detector trained on [`Snowflake/snowflake-arctic-embed-m-long`](https://huggingface.co/Snowflake/snowflake-arctic-embed-m-long) embeddings.
 
+#### Input Length Limit
+
+The `jailbreak detection model` rail accepts up to 2,048 tokens, including special tokens, counted with the Snowflake tokenizer.
+It blocks longer inputs before cache lookup, local inference, or a remote detector request.
+This limit applies to in-process, `server_endpoint`, and NIM-backed model checks.
+The bundled detector server returns HTTP 413 from `/model`, which the rail also treats as a block.
+
+<Warning>
+
+This is a breaking behavior change for oversized messages. Earlier versions classified only a truncated prefix and could allow the full message to proceed.
+The model rail now rejects the message. Applications must keep each submitted message within the detector's limit, including special tokens.
+
+</Warning>
+
+Input validation uses a bundled, revision-pinned tokenizer and runs offline.
+All model checks, including NIM-backed and `server_endpoint` checks, require the `tokenizers` package for this validation.
+The standard installation currently includes it through FastEmbed. If it is missing from your environment, install it before enabling the model rail:
+
+```bash
+pip install tokenizers
+```
+
+NIM-backed checks need no Torch, Transformers, Hugging Face credentials, or model downloads.
+Configuration loading raises an error with installation instructions if the model rail is enabled and `tokenizers` is missing.
+If the bundled tokenizer cannot be loaded or input coverage cannot be verified at runtime, the rail blocks the request without calling the detector.
+Remote requests are sent unchanged only after they pass validation; the model rail also blocks an HTTP 413 returned by the endpoint.
+
+This client-side limit protects calls made through the NVIDIA NeMo Guardrails library.
+Direct calls to a hosted NIM endpoint depend on that endpoint's own input handling.
+
 ### Detector Availability
 
 <Warning>
@@ -114,7 +144,7 @@ When a configured detector cannot be reached, the rail allows the request instea
 
 </Warning>
 
-A connection failure, a timeout, and an error response all produce the same outcome, for both the heuristics server and the jailbreak detection NIM.
+A connection failure, a timeout, and an error response all produce the same outcome, for both the heuristics server and the jailbreak detection NIM, except for HTTP 413 responses from model endpoints, which block the request.
 The rail logs the failure, allows the request, and returns no error to the caller, so a detector outage removes this protection without a visible signal.
 The rail decides this itself, so it fails open on both engines rather than falling into either engine's error handling.
 

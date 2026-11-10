@@ -19,14 +19,40 @@ const fail = (stage) => {
   if (process.env.GUARDRAILS_PUBLISH_TEST_FAILURE === stage) process.exit(42);
 };
 if (tool === "uv") {
-  assert.deepEqual(args, ["run", "--locked", "--extra", "server", "python", "scripts/export_openapi.py"]);
+  assert.deepEqual(args.slice(0, 5), ["run", "--locked", "--extra", "server", "python"]);
+  const spec = {
+    "scripts/export_openapi.py": "openapi",
+    "scripts/export_hooks_openapi.py": "hooks-openapi",
+    "scripts/export_proxy_openapi.py": "proxy-openapi",
+  }[args[5]];
+  assert.ok(spec);
   assert.equal(process.env.FERN_TOKEN, undefined);
   assert.equal(process.env.DOCS_FERN_TOKEN, undefined);
-  record("openapi");
-  fail("openapi");
-  fs.writeFileSync(path.join(root, "fern/openapi.yml"), "fresh");
+  record(spec);
+  fail(spec);
+  fs.writeFileSync(path.join(root, "fern/" + spec + ".yml"), "fresh");
+  if (spec === "hooks-openapi") {
+    fs.mkdirSync(path.join(root, "docs/reference/hooks-server-api/_generated"), { recursive: true });
+    for (const page of ["get-health.mdx", "get-healthz.mdx"]) {
+      fs.writeFileSync(path.join(root, "docs/reference/hooks-server-api/_generated", page), "fresh");
+    }
+  }
+  if (spec === "proxy-openapi") {
+    fs.mkdirSync(path.join(root, "fern/proxy-guard-contracts"), { recursive: true });
+    for (const slug of ["chat-completions", "responses"]) {
+      fs.writeFileSync(path.join(root, "fern/proxy-guard-contracts", slug + ".mdx"), "fresh");
+    }
+  }
 } else if (tool === "npx") {
   assert.equal(fs.readFileSync(path.join(root, "fern/openapi.yml"), "utf8"), "fresh");
+  assert.equal(fs.readFileSync(path.join(root, "fern/hooks-openapi.yml"), "utf8"), "fresh");
+  for (const page of ["get-health.mdx", "get-healthz.mdx"]) {
+    assert.equal(fs.readFileSync(path.join(root, "docs/reference/hooks-server-api/_generated", page), "utf8"), "fresh");
+  }
+  assert.equal(fs.readFileSync(path.join(root, "fern/proxy-openapi.yml"), "utf8"), "fresh");
+  for (const slug of ["chat-completions", "responses"]) {
+    assert.equal(fs.readFileSync(path.join(root, "fern/proxy-guard-contracts", slug + ".mdx"), "utf8"), "fresh");
+  }
   assert.deepEqual(args, ["--yes", "fern-api@" + fernVersion, "docs", "md", "generate", "--library", "guardrails-python-sdk"]);
   record("sdk");
   fail("sdk");
@@ -40,6 +66,8 @@ if (tool === "uv") {
 } else if (tool === "node" && args[0] === "scripts/run-fern-with-ref-sdk.mjs") {
   assert.deepEqual(args.slice(1, 4), ["generate", "--docs", "--instance"]);
   assert.equal(fs.readFileSync(path.join(root, "fern/openapi.yml"), "utf8"), "fresh");
+  assert.equal(fs.readFileSync(path.join(root, "fern/hooks-openapi.yml"), "utf8"), "fresh");
+  assert.equal(fs.readFileSync(path.join(root, "fern/proxy-openapi.yml"), "utf8"), "fresh");
   assert.equal(fs.readFileSync(path.join(root, "normalized"), "utf8"), "fresh");
   record("publish:" + args[4]);
 } else {
@@ -68,8 +96,8 @@ function fixture() {
 }
 
 for (const destination of ["staging", "public"]) {
-  for (const failure of ["", "openapi", "sdk"]) {
-    test(`${destination} publishing ${failure ? `stops when ${failure} fails` : "regenerates both references every time"}`, () => {
+  for (const failure of ["", "openapi", "hooks-openapi", "proxy-openapi", "sdk"]) {
+    test(`${destination} publishing ${failure ? `stops when ${failure} fails` : "regenerates all references every time"}`, () => {
       const root = fixture();
       try {
         const instance = `test-${destination}.docs.buildwithfern.com/nemo/guardrails`;
@@ -109,11 +137,8 @@ for (const destination of ["staging", "public"]) {
           assert.ok(events.includes(failure));
           assert.ok(!events.some((event) => event.startsWith("publish:")));
         } else {
-          for (const event of ["openapi", "sdk", "normalize", `publish:${instance}`]) {
-            assert.equal(events.filter((value) => value === event).length, runs, event);
-          }
-          assert.equal(events[3], `publish:${instance}`);
-          assert.equal(events[7], `publish:${instance}`);
+          const expected = ["openapi", "hooks-openapi", "proxy-openapi", "sdk", "normalize", `publish:${instance}`];
+          assert.deepEqual(events, Array.from({ length: runs }, () => expected).flat());
         }
       } finally {
         rmSync(root, { recursive: true, force: true });

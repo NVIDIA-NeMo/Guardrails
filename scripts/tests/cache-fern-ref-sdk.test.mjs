@@ -148,6 +148,8 @@ for (const generatedOpenapi of [false, true]) {
     writeFile(worktreeRoot, historicalImagePage, historicalImages);
     if (generatedOpenapi) {
       writeFile(worktreeRoot, "scripts/export_openapi.py", "# exporter supplied by this snapshot\n");
+      writeFile(worktreeRoot, "scripts/export_hooks_openapi.py", "# exporter supplied by this snapshot\n");
+      writeFile(worktreeRoot, "scripts/export_proxy_openapi.py", "# exporter supplied by this snapshot\n");
     } else {
       writeFile(worktreeRoot, "fern/openapi.yml", "legacy\n");
     }
@@ -172,12 +174,29 @@ for (const generatedOpenapi of [false, true]) {
   const assert = require("node:assert/strict");
   const fs = require("node:fs");
   const path = require("node:path");
-  assert.deepEqual(process.argv.slice(2), ["run", "--locked", "--extra", "server", "python", "scripts/export_openapi.py"]);
+  const args = process.argv.slice(2);
+  assert.deepEqual(args.slice(0, 5), ["run", "--locked", "--extra", "server", "python"]);
+  const spec = {
+    "scripts/export_openapi.py": "openapi",
+    "scripts/export_hooks_openapi.py": "hooks-openapi",
+    "scripts/export_proxy_openapi.py": "proxy-openapi",
+  }[args[5]];
+  assert.ok(spec);
   assert.equal(process.env.FERN_TOKEN, undefined);
   assert.equal(process.env.DOCS_FERN_TOKEN, undefined);
   assert.equal(process.env.FERN_REF_SDK_HOOK, "0");
   assert.equal(fs.realpathSync(path.dirname(process.env.UV_PROJECT_ENVIRONMENT)), process.cwd());
-  fs.writeFileSync("fern/openapi.yml", "generated from snapshot\\n");
+  fs.writeFileSync("fern/" + spec + ".yml", "generated from snapshot\\n");
+  if (spec === "hooks-openapi") {
+    fs.mkdirSync("docs/reference/hooks-server-api/_generated", { recursive: true });
+    fs.writeFileSync("docs/reference/hooks-server-api/_generated/get-health.mdx", "generated from snapshot\\n");
+  }
+  if (spec === "proxy-openapi") {
+    fs.mkdirSync("fern/proxy-guard-contracts", { recursive: true });
+    for (const slug of ["chat-completions", "responses"]) {
+      fs.writeFileSync("fern/proxy-guard-contracts/" + slug + ".mdx", "generated from snapshot\\n");
+    }
+  }
   `);
     chmodSync(path.join(root, "bin/uv"), 0o755);
 
@@ -195,6 +214,14 @@ for (const generatedOpenapi of [false, true]) {
     assert.equal(readFileSync(path.join(outputRoot, libraryName, "page-0.mdx"), "utf8"), "restored-0");
     assert.equal(readFileSync(path.join(worktreeRoot, "fern/openapi.yml"), "utf8"),
       generatedOpenapi ? "generated from snapshot\n" : "legacy\n");
+    if (generatedOpenapi) {
+      assert.equal(readFileSync(path.join(worktreeRoot, "fern/hooks-openapi.yml"), "utf8"), "generated from snapshot\n");
+      assert.equal(readFileSync(path.join(worktreeRoot, "docs/reference/hooks-server-api/_generated/get-health.mdx"), "utf8"), "generated from snapshot\n");
+    }
+    assert.equal(existsSync(path.join(worktreeRoot, "fern/proxy-openapi.yml")), generatedOpenapi);
+    for (const slug of ["chat-completions", "responses"]) {
+      assert.equal(existsSync(path.join(worktreeRoot, "fern/proxy-guard-contracts", `${slug}.mdx`)), generatedOpenapi);
+    }
     assert.equal(readFileSync(path.join(worktreeRoot, historicalImagePage), "utf8"), normalizedHistoricalImages);
     assert.equal(execFileSync("git", ["show", `${snapshotCommit}:${historicalImagePage}`], {
       cwd: worktreeRoot,
@@ -294,13 +321,14 @@ test("preview watcher reports invalid Git configuration without crashing", async
   await once(child, "exit");
 });
 
-test("preview watcher regenerates on source changes and ignores generated OpenAPI", async (t) => {
+test("preview watcher regenerates on source changes and ignores generated reference artifacts", async (t) => {
   const root = temporaryDirectory(t);
   for (const script of ["watch-fern-preview.mjs", "fern-ref-sdk-environment.mjs"]) {
     writeFile(root, `scripts/${script}`, readFileSync(path.join(repoRoot, "scripts", script), "utf8"));
   }
   writeFile(root, "fern/fern.config.json", '{"version":"5.123.0"}\n');
   writeFile(root, "docs/index.yml", "navigation: []\n");
+  writeFile(root, "docs/reference/hooks-server-api/_generated/get-health.mdx", "stale\n");
   writeFile(root, "nemoguardrails/api.py", "original\n");
   writeFile(root, "pyproject.toml", "");
   writeFile(root, "uv.lock", "");
@@ -310,6 +338,12 @@ const fs = require("node:fs");
 require("node:assert/strict").deepEqual(process.argv.slice(2), ["docs-fern-generate-references"]);
 fs.appendFileSync("events", "generate\\n");
 fs.writeFileSync("fern/openapi.yml", "generated\\n");
+fs.writeFileSync("fern/hooks-openapi.yml", "generated\\n");
+fs.mkdirSync("docs/reference/hooks-server-api/_generated", { recursive: true });
+fs.writeFileSync("docs/reference/hooks-server-api/_generated/get-health.mdx", "generated\\n");
+fs.writeFileSync("fern/proxy-openapi.yml", "generated\\n");
+fs.mkdirSync("fern/proxy-guard-contracts", { recursive: true });
+fs.writeFileSync("fern/proxy-guard-contracts/responses.mdx", "generated\\n");
 `);
   writeFile(root, "bin/npx", `#!${process.execPath}
 require("node:fs").appendFileSync("../events", "publish\\n");

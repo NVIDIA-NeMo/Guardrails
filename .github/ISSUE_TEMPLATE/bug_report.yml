@@ -28,7 +28,7 @@ body:
   - type: input
     attributes:
       label: "Python version (python --version)"
-      placeholder: Python 3.10.13
+      placeholder: Python 3.11.14
     validations:
       required: true
   - type: input

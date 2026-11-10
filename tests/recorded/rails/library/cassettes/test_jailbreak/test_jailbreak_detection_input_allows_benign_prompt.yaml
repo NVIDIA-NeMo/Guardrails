@@ -1,0 +1,41 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://ai.api.nvidia.com/v1/security/nvidia/nemoguard-jailbreak-detect
+    headers:
+      host:
+      - ai.api.nvidia.com
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+      accept:
+      - application/json
+    parsed_body:
+      input: what can you do?
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      access-control-expose-headers:
+      - nvcf-reqid
+      nvcf-status:
+      - fulfilled
+      server:
+      - uvicorn
+      vary:
+      - Origin
+    body:
+      parsed_body:
+        jailbreak: false
+        score: 0.0

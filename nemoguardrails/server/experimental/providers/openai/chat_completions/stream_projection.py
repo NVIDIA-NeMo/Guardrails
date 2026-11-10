@@ -39,7 +39,7 @@ class ChatCompletionsStreamDeltaProjection(PolicyModel, GuardedContentModel):
 
     policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="ChatCompletionStreamResponseDelta")
 
-    audio: Annotated[None, disabled("core_capability.audio_content", extension=True)] = None
+    audio: Annotated[None, disabled("core_capability.audio_content")] = None
     content: Annotated[str | None, guarded("assistant")] = None
     function_call: Annotated[None, disabled("core_capability.tool_content")] = None
     reasoning_content: Annotated[None, disabled("core_capability.reasoning_content", extension=True)] = None
