@@ -677,11 +677,12 @@ class TestLoadVlguard:
         return hf_mod
 
     def test_requires_hf_token(self):
-        os.environ.pop("HF_TOKEN", None)
-        from benchmark.content_safety_parity import content_safety_parity as m
+        with patch.dict(os.environ, {}):
+            os.environ.pop("HF_TOKEN", None)
+            from benchmark.content_safety_parity import content_safety_parity as m
 
-        with pytest.raises(SystemExit):
-            m.load_vlguard(0)
+            with pytest.raises(SystemExit):
+                m.load_vlguard(0)
 
     def test_instruction_mode_safe_rows(self, tmp_path):
         rows = [
@@ -1050,6 +1051,13 @@ class TestRunDirectEval:
 
 
 class TestRunGuardrailsEval:
+    def setup_method(self):
+        self._env_patcher = patch.dict(os.environ, {})
+        self._env_patcher.start()
+
+    def teardown_method(self):
+        self._env_patcher.stop()
+
     def _make_nemo_mocks(self, generate_result, generate_exc=None):
         """Return patched nemoguardrails module mocks."""
 
