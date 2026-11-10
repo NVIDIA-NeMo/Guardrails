@@ -677,6 +677,11 @@ def _inline_reasoning_as_think_tags(res: GenerationResponse) -> GenerationRespon
     return res
 
 
+def _conversation(thread_conversation: Optional[str]):
+    """Apply a thread's conversation ID to the checks in the block, or leave the context alone."""
+    return conversation_id(thread_conversation) if thread_conversation else nullcontext()
+
+
 @app.post(
     "/v1/chat/completions",
     response_model=GuardrailsChatCompletion,
@@ -806,7 +811,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         # Use stream_async for streaming with output rails support.
         # The engine captures the conversation ID when the stream is created, so the rails
         # that run while a chunk is pulled see it too.
-        with conversation_id(thread_conversation) if thread_conversation else nullcontext():
+        with _conversation(thread_conversation):
             stream_iterator = llm_rails.stream_async(
                 messages=messages,
                 options=generation_options,
@@ -844,7 +849,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         )
 
     # Tool calls need a complete generation result so rails finish before SSE delivery.
-    with conversation_id(thread_conversation) if thread_conversation else nullcontext():
+    with _conversation(thread_conversation):
         res = await llm_rails.generate_async(
             messages=messages,
             options=generation_options,
@@ -961,7 +966,11 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
     if context_prepended:
         messages.insert(0, {"role": "context", "content": body.guardrails.context})
 
-    result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types, tools=body.tools)
+    # The checks of a /v1/checks request belong to the caller's thread like any other, so the
+    # rails see the same conversation ID the chat-completions route gives them.
+    thread_conversation = body.guardrails.thread_id if get_conversation_id() is None else None
+    with _conversation(thread_conversation):
+        result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types, tools=body.tools)
 
     return GuardrailCheckResponse(
         status=_map_rail_status(result.status),
