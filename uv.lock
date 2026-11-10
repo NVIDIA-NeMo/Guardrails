@@ -2178,8 +2178,8 @@ requires-dist = [
     { name = "pandas", marker = "extra == 'eval'", specifier = ">=1.4.0,<3.0.0" },
     { name = "presidio-analyzer", marker = "python_full_version < '3.13' and extra == 'all'", specifier = ">=2.2" },
     { name = "presidio-analyzer", marker = "python_full_version < '3.13' and extra == 'sdd'", specifier = ">=2.2" },
-    { name = "presidio-anonymizer", marker = "python_full_version < '3.13' and extra == 'all'", specifier = ">=2.2" },
-    { name = "presidio-anonymizer", marker = "python_full_version < '3.13' and extra == 'sdd'", specifier = ">=2.2.350" },
+    { name = "presidio-anonymizer", marker = "python_full_version < '3.13' and extra == 'all'", specifier = ">=2.2.365" },
+    { name = "presidio-anonymizer", marker = "python_full_version < '3.13' and extra == 'sdd'", specifier = ">=2.2.365" },
     { name = "prometheus-client", marker = "extra == 'all'", specifier = ">=0.20.0,<2.0.0" },
     { name = "prometheus-client", marker = "extra == 'server'", specifier = ">=0.20.0,<2.0.0" },
     { name = "prompt-toolkit", specifier = ">=3.0" },
@@ -3481,13 +3481,14 @@ wheels = [
 
 [[package]]
 name = "presidio-anonymizer"
-version = "2.2.362"
+version = "2.2.365"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/f5/2172c34da99fd0d1f9b87c8a4ef59cb7ae2286299a34261fa4c7a75ebe9e/presidio_anonymizer-2.2.365.tar.gz", hash = "sha256:6c86dfddf1a3751413be3cbb548255fbd63ed68e71d3082f9c561fd8da6c103e", size = 26886, upload-time = "2026-10-25T19:02:31.378Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/17/01/1c3404e8da63a979ae951b8822576bc0e52ca3a46a624ac9439786990c6d/presidio_anonymizer-2.2.362-py3-none-any.whl", hash = "sha256:b2d81542cb797360d18506a1aa73ea0dfacc44abca15248c81dd062f582e6b2b", size = 36603, upload-time = "2026-03-15T12:40:38.651Z" },
+    { url = "https://files.pythonhosted.org/packages/63/78/3501d267a2be349bbcf4fc1917c67a7fc4fa8d98c273af2bbf0411d9af93/presidio_anonymizer-2.2.365-py3-none-any.whl", hash = "sha256:d79ce6a716c3779d030fdaa941e8dbc2045b1e8ec96b09ef18b410a26fd64fd1", size = 39088, upload-time = "2026-10-25T19:02:29.763Z" },
 ]
 
 [[package]]

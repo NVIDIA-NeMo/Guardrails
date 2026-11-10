@@ -22,6 +22,8 @@ from nemoguardrails.manifests.config_schema import (
     rail_field,
 )
 
+MaskingStrategy = Literal["per_type", "per_value"]
+
 
 class SensitiveDataDetectionOptions(RailConfigBaseModel):
     entities: List[str] = Field(
@@ -41,7 +43,7 @@ class SensitiveDataDetectionOptions(RailConfigBaseModel):
         description="The score threshold that should be used to detect the sensitive data.",
     )
 
-    masking_strategy: Literal["per_type", "per_value"] = Field(
+    masking_strategy: MaskingStrategy = Field(
         default="per_type",
         description="How placeholders are allocated. `per_type` replaces every detected "
         "value of an entity type with the same token, e.g. `<PERSON>`. `per_value` numbers "

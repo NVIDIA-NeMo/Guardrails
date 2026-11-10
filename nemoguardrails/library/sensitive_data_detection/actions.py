@@ -25,17 +25,25 @@ from typing import TypeVar
 try:
     from presidio_analyzer import PatternRecognizer  # type: ignore[reportMissingImports]
     from presidio_analyzer.nlp_engine import NlpEngineProvider  # type: ignore[reportMissingImports]
-    from presidio_anonymizer import AnonymizerEngine  # type: ignore[reportMissingImports]
-    from presidio_anonymizer.entities import OperatorConfig  # type: ignore[reportMissingImports]
 except ImportError:
     PatternRecognizer = None
     NlpEngineProvider = None
+
+try:
+    from presidio_anonymizer import AnonymizerEngine  # type: ignore[reportMissingImports]
+    from presidio_anonymizer.entities import (  # type: ignore[reportMissingImports]
+        ConflictResolutionStrategy,
+        OperatorConfig,
+    )
+except ImportError:
     AnonymizerEngine = None
+    ConflictResolutionStrategy = None
     OperatorConfig = None
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.library.sensitive_data_detection.rail_config import MaskingStrategy
 from nemoguardrails.rails.llm.config import (
     SensitiveDataDetection,
     SensitiveDataDetectionOptions,
@@ -120,39 +128,49 @@ def _get_ad_hoc_recognizers(sdd_config: SensitiveDataDetection):
     return ad_hoc_recognizers
 
 
-def _anonymize(text: str, analyzer_results: list, entities: list, masking_strategy: str) -> str:
+def _anonymize(text: str, analyzer_results: list, entities: list[str], masking_strategy: MaskingStrategy) -> str:
     """Mask every detected entity, allocating placeholders per the strategy."""
+    if masking_strategy not in ("per_type", "per_value"):
+        raise ValueError(f"Unsupported masking strategy: {masking_strategy!r}")
+
+    if not analyzer_results:
+        return text
+
     anonymizer = AnonymizerEngine()
 
-    if masking_strategy != "per_value":
+    if masking_strategy == "per_type":
         operators = {entity: OperatorConfig("replace") for entity in entities}
         return anonymizer.anonymize(text=text, analyzer_results=analyzer_results, operators=operators).text
 
     # The number cannot be assigned inside an operator: Presidio invokes operators in
-    # reverse text order, which would number right to left. `keep` leaves the text
-    # alone and returns the matches that survived Presidio's own conflict resolution,
-    # as offsets into `text`, so the spans are resolved first and rewritten below.
+    # reverse text order, which would number right to left. Remove intersections
+    # before `keep`: otherwise it duplicates overlapping text and shifts offsets
+    # away from their positions in the original text.
     kept = anonymizer.anonymize(
         text=text,
         analyzer_results=analyzer_results,
-        operators={entity: OperatorConfig("keep") for entity in entities},
+        operators={"DEFAULT": OperatorConfig("keep")},
+        conflict_resolution=ConflictResolutionStrategy.REMOVE_INTERSECTIONS,
     )
     spans = sorted(kept.items, key=lambda item: item.start)
 
     counts: dict[str, int] = {}
     tokens: dict[tuple[str, str], str] = {}
+    parts: list[str] = []
+    cursor = 0
     for span in spans:
-        key = (span.entity_type, text[span.start : span.end])
-        if key not in tokens:
+        key = (span.entity_type, span.text)
+        token = tokens.get(key)
+        if token is None:
             counts[span.entity_type] = counts.get(span.entity_type, 0) + 1
-            tokens[key] = f"<{span.entity_type}_{counts[span.entity_type]}>"
+            token = f"<{span.entity_type}_{counts[span.entity_type]}>"
+            tokens[key] = token
+        parts.append(text[cursor : span.start])
+        parts.append(token)
+        cursor = span.end
 
-    masked = text
-    # From the end, so each replacement keeps the offsets of the ones before it.
-    for span in reversed(spans):
-        token = tokens[(span.entity_type, text[span.start : span.end])]
-        masked = masked[: span.start] + token + masked[span.end :]
-    return masked
+    parts.append(text[cursor:])
+    return "".join(parts)
 
 
 def _sensitive_data_detection_outcome(has_sensitive_data: bool) -> RailOutcome:
