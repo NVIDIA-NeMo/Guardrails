@@ -82,22 +82,31 @@ def _thread_conversation(runtime: Any) -> Iterator[None]:
         yield
 
 
-def _model_call_index(state: AgentState) -> int:
-    """Which model call of the run is about to happen, counted by the responses before it."""
-    return sum(1 for message in state.get("messages", []) if is_ai_message(message))
+def _model_call_anchor(state: AgentState) -> Optional[str]:
+    """What the model call about to run is keyed on: the ID of the message it answers.
+
+    A count of the responses so far would do for a graph that only appends, but it is a recount
+    of the messages in state rather than a tally that climbs. A summariser, or an after-model
+    hook that strips a bad response and returns to the model, brings it back to a value already
+    recorded, and the next call then inherits an ID its predecessor already reported under.
+    ``add_messages`` gives every message a UUID, and rewriting history mints new ones, so the
+    last message identifies the call in a way a count cannot.
+    """
+    messages = state.get("messages", [])
+    return getattr(messages[-1], "id", None) if messages else None
 
 
-def _roundtrip_id_for_call(state: AgentState, call: int) -> Optional[str]:
+def _roundtrip_id_for_call(state: AgentState, anchor: Optional[str]) -> Optional[str]:
     """The ID of the model call about to run, or None when the application owns the round trip.
 
     Several middlewares can run before the same model call, each in its own graph node, and
     the two legs of that call must report under one ID: the first one to reach the call opens
-    the round trip and the rest join it. An ID recorded against a different *call* belongs to
-    an earlier one, which on a checkpointed thread outlives the turn that minted it.
+    the round trip and the rest join it. An ID recorded against a different message belongs to
+    an earlier call, which on a checkpointed thread outlives the turn that minted it.
     """
     if get_roundtrip_id() is not None:
         return None
-    if state.get("guardrails_roundtrip_call") == call:
+    if anchor is not None and state.get("guardrails_roundtrip_call") == anchor:
         return state.get("guardrails_roundtrip_id")
     return str(uuid.uuid4())
 
@@ -129,12 +138,12 @@ def _check_context(runtime: Any, roundtrip: Optional[str]) -> Iterator[None]:
 class GuardrailsState(AgentState[Any]):
     """Agent state carrying the round-trip ID of the model call the hooks are checking.
 
-    ``guardrails_roundtrip_call`` is the index of the model call the ID was opened for, which
+    ``guardrails_roundtrip_call`` is the ID of the message the round trip was opened for, which
     tells it apart from an ID a checkpoint carried over from an earlier call.
     """
 
     guardrails_roundtrip_id: NotRequired[Annotated[str, PrivateStateAttr]]
-    guardrails_roundtrip_call: NotRequired[Annotated[int, PrivateStateAttr]]
+    guardrails_roundtrip_call: NotRequired[Annotated[str, PrivateStateAttr]]
 
 
 class GuardrailsMiddleware(AgentMiddleware):
@@ -210,12 +219,12 @@ class GuardrailsMiddleware(AgentMiddleware):
 
         # The checks of one model call run in separate graph nodes, so the ID that pairs them
         # travels in the state rather than in a context variable.
-        call = _model_call_index(state)
-        roundtrip = _roundtrip_id_for_call(state, call)
+        anchor = _model_call_anchor(state)
+        roundtrip = _roundtrip_id_for_call(state, anchor)
         update = await self._acheck_input(state, runtime, roundtrip)
         if roundtrip is None:
             return update
-        return {**(update or {}), "guardrails_roundtrip_id": roundtrip, "guardrails_roundtrip_call": call}
+        return {**(update or {}), "guardrails_roundtrip_id": roundtrip, "guardrails_roundtrip_call": anchor}
 
     def _checks_input(self) -> bool:
         return bool(self.enable_input_rails and self._has_input_rails())
