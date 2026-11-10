@@ -138,8 +138,22 @@ def _is_nil_uuid(value: str) -> bool:
         return False
 
 
+def _encodable(value: str) -> bool:
+    """Whether *value* survives being encoded, which a lone surrogate does not."""
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def _unsendable_as_held(roundtrip_id: str) -> Optional[str]:
     """Why *roundtrip_id* cannot be sent as the framework holds it, or None when it can."""
+    if not _encodable(roundtrip_id):
+        return "not valid UTF-8"
+    if roundtrip_id != roundtrip_id.strip():
+        # A hop that strips optional whitespace would leave the server an empty ID.
+        return "surrounded by whitespace"
     if len(roundtrip_id.encode("utf-8")) > MAX_ROUNDTRIP_ID_BYTES:
         return f"over {MAX_ROUNDTRIP_ID_BYTES} bytes"
     if _UNSENDABLE_IN_HEADER.search(roundtrip_id):
@@ -185,6 +199,12 @@ def _session_header_value(session_id: Optional[str]) -> Optional[str]:
     dropping degrades to the "no history" the contract already allows and keeps the checks running.
     """
     if not session_id:
+        return None
+    if not _encodable(session_id):
+        _warn_once(
+            "session-encoding",
+            "The conversation ID is not valid UTF-8, so HiddenLayer evaluates these checks without session history.",
+        )
         return None
     if len(session_id.encode("utf-8")) > MAX_SESSION_ID_BYTES:
         _warn_once(

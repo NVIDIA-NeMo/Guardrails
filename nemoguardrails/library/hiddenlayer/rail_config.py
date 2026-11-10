@@ -28,6 +28,10 @@ from nemoguardrails.manifests.config_schema import (
 DEFAULT_API_URL = "https://api.us.hiddenlayer.ai"
 DEFAULT_REQUESTER_ID = "hiddenlayer-nemo"
 
+# Both identities travel as HTTP headers, which carry printable ASCII and tab alone.
+MAX_HEADER_IDENTITY_BYTES = 256
+_UNSENDABLE_IN_HEADER = re.compile(r"[^\t\x20-\x7e]")
+
 _API_URL_PATTERN = re.compile(
     r"(?:https://[^/?#\s]+|http://(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?)(?:[/?#]\S*)?",
     re.IGNORECASE,
@@ -130,6 +134,26 @@ class HiddenLayerRailConfig(RailConfigBaseModel):
             "disables it), then to True."
         ),
     )
+
+    @field_validator("requester_id", "project_id")
+    @classmethod
+    def _validate_header_identity(cls, value: Optional[str]) -> Optional[str]:
+        """Reject an identity no HTTP header can carry.
+
+        Both reach HiddenLayer as headers. One the header cannot carry fails every check the
+        rail makes, and under ``fail_open`` that failure is silent: the deployment runs
+        unguarded. Rejecting it at config load makes it a startup error instead, which is the
+        one failure mode a config defect should have.
+        """
+        if value is None:
+            return value
+        if value != value.strip():
+            raise ValueError("must not start or end with whitespace")
+        if len(value.encode("utf-8")) > MAX_HEADER_IDENTITY_BYTES:
+            raise ValueError(f"must be at most {MAX_HEADER_IDENTITY_BYTES} bytes")
+        if _UNSENDABLE_IN_HEADER.search(value):
+            raise ValueError("must contain only characters an HTTP header can carry")
+        return value
 
     @field_validator("api_url")
     @classmethod

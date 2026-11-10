@@ -173,3 +173,29 @@ class TestMainModel:
 
     def test_no_placeholder_without_a_config(self):
         assert _main_model(None) == (None, None)
+
+
+class TestHeaderIdentityValidation:
+    """requester_id and project_id travel as headers; one that cannot be sent fails every check."""
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("requester_id", "x" * 257),
+            ("requester_id", "trailing-newline\n"),
+            ("requester_id", " leading-space"),
+            ("project_id", "p" * 257),
+            ("project_id", "proyecto-se\u00f1al"),
+            ("project_id", "has\rcarriage-return"),
+        ],
+    )
+    def test_an_unsendable_identity_is_rejected_at_load(self, field, value):
+        with pytest.raises(ValidationError):
+            HiddenLayerRailConfig(**{field: value})
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("requester_id", "hiddenlayer-nemo"), ("project_id", "01a1b486-86a8-7c33-87f8-63f3ad713327")],
+    )
+    def test_a_sendable_identity_is_accepted(self, field, value):
+        assert getattr(HiddenLayerRailConfig(**{field: value}), field) == value
