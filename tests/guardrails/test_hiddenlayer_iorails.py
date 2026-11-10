@@ -29,10 +29,9 @@ import pytest
 import pytest_asyncio
 from opentelemetry.sdk.trace import TracerProvider
 
-from nemoguardrails.context import conversation_id
+from nemoguardrails.context import conversation_id, new_roundtrip_id
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.iorails import INTERNAL_ERROR_MESSAGE, REFUSAL_MESSAGE, IORails
-from nemoguardrails.guardrails.telemetry import request_span
 from nemoguardrails.http import HTTPResponse
 from nemoguardrails.http.types import HTTPRequest
 from nemoguardrails.library.hiddenlayer._token import _reset_token_cache
@@ -382,13 +381,18 @@ class TestToolResult:
         forbidden_post.assert_not_called()
 
 
-def _request_ids_differ_under_one_parent() -> bool:
-    """Whether two request spans opened under one parent span get different request ids."""
+def _roundtrip_ids_differ_under_one_parent() -> bool:
+    """Whether two round trips opened under one parent span get different IDs.
+
+    The engine's request ID is derived from the OTEL trace, so it is shared by every request
+    under one parent span. The rail pairs its checks on the round-trip ID instead, which is
+    what this test is about.
+    """
     tracer = TracerProvider().get_tracer("probe")
     with tracer.start_as_current_span("parent"):
-        with request_span(tracer) as (_, first):
+        with new_roundtrip_id() as first:
             pass
-        with request_span(tracer) as (_, second):
+        with new_roundtrip_id() as second:
             pass
     return first != second
 
@@ -462,8 +466,8 @@ class TestRoundtripPairing:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
-        not _request_ids_differ_under_one_parent(),
-        reason="request ids are shared under a parent span until the per-request request id fix is present",
+        not _roundtrip_ids_differ_under_one_parent(),
+        reason="the engine does not open a round trip per request",
     )
     async def test_concurrent_requests_under_one_parent_span_are_not_cross_paired(self, hl):
         config = {**IO_CONFIG, "tracing": {"enabled": True}}

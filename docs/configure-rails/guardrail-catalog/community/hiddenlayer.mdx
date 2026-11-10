@@ -17,7 +17,7 @@ A body carries the current turn only, and the verdict comes back in the `HL-Runt
 | `hiddenlayer check input` | `rails.input.flows` | The user message |
 | `hiddenlayer check output` | `rails.output.flows` | The bot message |
 | `hiddenlayer check tool call` | `rails.tool_call.per_tool` | Each tool call the model emits for a listed tool, with the tool's declaration |
-| `hiddenlayer check tool result` | `rails.tool_result.per_tool` | Each tool result for a listed tool, with the call it answers and the tool's declaration |
+| `hiddenlayer check tool result` | `rails.tool_result.per_tool` | Each tool result for a listed tool, with the call it answers |
 
 The rail maps HiddenLayer's action as follows:
 
@@ -243,7 +243,7 @@ HiddenLayer limits each tenant to 25,000 requests per minute, and every check al
 
 ## Data Handling
 
-When these rails are active, the library sends HiddenLayer the user message, the bot message, the name and arguments of each checked tool call, each checked tool result with the call it answers, and the declaration of each checked tool.
+When these rails are active, the library sends HiddenLayer the user message, the bot message, the name and arguments of each checked tool call, and each checked tool result with the call it answers. The tool's declaration is sent with a tool call; the engine builds a tool-result check without one, so it is not sent there.
 Each request also carries the main model name, where one is configured, and the engine and requester ID in headers.
 When the caller sets a conversation ID and `send_session_id` is on, each request also carries that ID.
 Do not use a conversation ID that contains personal data, such as an email address, or set `send_session_id: false`.

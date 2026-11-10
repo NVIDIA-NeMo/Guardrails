@@ -377,7 +377,8 @@ async def hiddenlayer_evaluate_tool_result(
     Args:
         tool_call: The prior call this result answers.
         tool_result: The tool result to check.
-        tool_definition: The declared tool, sent so policy rules can read what the model was offered.
+        tool_definition: The declared tool. The engine builds a tool-result check without a
+            toolset, so this is None in practice and nothing is sent.
         config: The active RailsConfig; used to resolve ``rails.config.hiddenlayer`` and the main model.
         http_client: Optional caller-owned HTTP client. The action does not close an injected client.
 
