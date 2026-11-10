@@ -142,8 +142,8 @@ def test_strict_library_schema_still_rejects_unknown_keys(load_config):
         load_config({"rails": {"config": {"gliner": {"input": {"entites": []}}}}})
 
 
-def test_imported_config_warns_before_top_level_key_is_dropped(tmp_path, caplog):
-    imported = tmp_path / "imported"
+def test_imported_config_warns_without_logging_source_path(tmp_path, caplog):
+    imported = tmp_path / "secret-config-value"
     imported.mkdir()
     (imported / "config.yml").write_text("railz: {}\nrails:\n  input:\n    flowz: []\n")
     root = tmp_path / "root"
@@ -151,7 +151,7 @@ def test_imported_config_warns_before_top_level_key_is_dropped(tmp_path, caplog)
     (root / "config.yml").write_text(yaml.safe_dump({"models": [], "import_paths": [str(imported)]}))
     RailsConfig.from_path(str(root))
     assert "Unknown configuration key 'railz'" in caplog.text
-    assert str(imported / "config.yml") in caplog.text
+    assert "secret-config-value" not in caplog.text
     assert "Unknown configuration key 'rails.input.flowz'" in caplog.text
 
 

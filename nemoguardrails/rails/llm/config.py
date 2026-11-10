@@ -740,17 +740,14 @@ def merge_two_dicts(dict_1: dict, dict_2: dict, ignore_keys: Set[str]) -> None:
                 dict_1[key] = value
 
 
-def _warn_unknown_config_key(
-    key: str, known_keys: Collection[str], path: str = "", source: Optional[str] = None
-) -> None:
+def _warn_unknown_config_key(key: str, known_keys: Collection[str], path: str = "") -> None:
     full_path = f"{path}.{key}" if path else str(key)
     matches = get_close_matches(str(key), known_keys, n=1, cutoff=0.75)
     suggestion = f" Did you mean '{matches[0]}'?" if matches else ""
     consequence = (
         " This section is unsupported and will not enable execution rails." if full_path == "rails.execution" else ""
     )
-    location = f" in {source}" if source else ""
-    log.warning("Unknown configuration key '%s'%s.%s%s", full_path, location, consequence, suggestion)
+    log.warning("Unknown configuration key '%s'.%s%s", full_path, consequence, suggestion)
 
 
 def _warn_unknown_config_keys(raw: Any, parsed: Any, path: str = "") -> None:
@@ -872,7 +869,7 @@ def _join_config(dest_config: dict, additional_config: dict, source: Optional[st
     )
 
     for key in additional_config.keys() - ignore_fields - RailsConfig.model_fields.keys():
-        _warn_unknown_config_key(key, RailsConfig.model_fields, source=source)
+        _warn_unknown_config_key(key, RailsConfig.model_fields)
 
     # Reads all the other fields and merges them with the custom_data field
     merge_two_dicts(dest_config.get("custom_data", {}), additional_config, ignore_fields)
