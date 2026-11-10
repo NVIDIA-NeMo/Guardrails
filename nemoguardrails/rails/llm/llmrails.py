@@ -1419,14 +1419,15 @@ class LLMRails(BaseGuardrails):
                 "generate_async() instead of stream_async()."
             )
 
-    def _resolve_streaming_output_rail_actions(self) -> Dict[str, Tuple[str, Any]]:
-        """Map each output rail flow to the action streaming calls on every chunk, raising if a flow has none."""
+    def _resolve_streaming_output_rail_actions(self) -> List[Tuple[str, Tuple[str, Any]]]:
+        """Pair each configured output rail flow, in order, with the action streaming calls on every chunk."""
         if not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled:
-            return {}
-        output_rail_actions = {}
+            return []
+        # A list, not a dict: as in generate_async(), sequential mode runs a duplicate flow twice, parallel mode once.
+        output_rail_actions = []
         for flow_id in self.config.rails.output.flows:
             try:
-                output_rail_actions[flow_id] = get_action_details_from_flow_id(flow_id, self.config.flows)
+                output_rail_actions.append((flow_id, get_action_details_from_flow_id(flow_id, self.config.flows)))
             except ValueError as e:
                 raise StreamingNotSupportedError(
                     f"stream_async() cannot run the output rail flow `{flow_id}`. Output rail streaming "
@@ -1904,7 +1905,7 @@ class LLMRails(BaseGuardrails):
         self,
         streaming_handler: AsyncIterator[Union[str, dict, ToolCallChunk, ToolCallDeltaChunk]],
         output_rails_streaming_config: OutputRailsStreamingConfig,
-        output_rail_actions: Dict[str, Tuple[str, Any]],
+        output_rail_actions: List[Tuple[str, Tuple[str, Any]]],
         prompt: Optional[str] = None,
         messages: Optional[List[dict]] = None,
         stream_first: Optional[bool] = None,
@@ -2028,7 +2029,7 @@ class LLMRails(BaseGuardrails):
                             action_params=action_params,
                         ),
                     }
-                    for flow_id, (action_name, action_params) in output_rail_actions.items()
+                    for flow_id, (action_name, action_params) in output_rail_actions
                 }
                 result, status = await self.runtime.action_dispatcher.execute_action(
                     _PARALLEL_OUTPUT_RAILS_ACTION,
@@ -2093,7 +2094,7 @@ class LLMRails(BaseGuardrails):
                     return
 
             else:
-                for flow_id, (action_name, action_params) in output_rail_actions.items():
+                for flow_id, (action_name, action_params) in output_rail_actions:
                     try:
                         params = _prepare_params(
                             flow_id=flow_id,

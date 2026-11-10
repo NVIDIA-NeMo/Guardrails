@@ -19,6 +19,7 @@ import asyncio
 import json
 import os
 from json.decoder import JSONDecodeError
+from typing import Sequence
 
 import pytest
 
@@ -308,6 +309,16 @@ define subflow blocking output check
   execute check_blocked
 """
 
+TWO_RAIL_COLANG = (
+    DIRECT_EXECUTE_COLANG
+    + """
+define subflow hanging output check
+  execute check_hanging
+"""
+)
+
+TWO_RAIL_FLOWS = ["blocking output check", "hanging output check"]
+
 SUBFLOW_DELEGATING_COLANG = """
 define user express greeting
   "hi"
@@ -333,14 +344,19 @@ def check_blocked(context=None, **params):
     return RailOutcome.allow()
 
 
-def _blocking_rail_chat(colang_content: str, parallel: bool, stream_first: bool = False) -> TestChat:
+def _blocking_rail_chat(
+    colang_content: str,
+    parallel: bool,
+    stream_first: bool = False,
+    flows: Sequence[str] = ("blocking output check",),
+) -> TestChat:
     config = RailsConfig.from_content(
         config={
             "models": [],
             "rails": {
                 "output": {
                     "parallel": parallel,
-                    "flows": ["blocking output check"],
+                    "flows": list(flows),
                     "streaming": {
                         "enabled": True,
                         "chunk_size": 4,
@@ -485,21 +501,67 @@ async def test_streaming_rail_preparation_error_ends_stream(parallel: bool):
 
 
 @pytest.mark.asyncio
-async def test_parallel_streaming_cancellation_during_rails_propagates():
-    """Cancelling a stream while parallel output rails run raises CancelledError instead of releasing the chunk."""
-    chat = _blocking_rail_chat(DIRECT_EXECUTE_COLANG, parallel=True)
-    rail_started = asyncio.Event()
+async def test_sequential_streaming_runs_a_flow_listed_twice_twice_per_chunk():
+    """Sequential streaming runs an output flow listed twice on each chunk twice, so its second run can block the first chunk."""
+    chat = _blocking_rail_chat(DIRECT_EXECUTE_COLANG, parallel=False, flows=["blocking output check"] * 2)
     calls = 0
 
-    async def check_blocked_hanging_once(**params):
+    async def allow_then_block(**params):
         nonlocal calls
         calls += 1
         if calls == 1:
-            rail_started.set()
-            await asyncio.Event().wait()
+            return RailOutcome.allow()
+        return RailOutcome.block()
+
+    chat.app.register_action(allow_then_block, "check_blocked")
+
+    chunks = await _stream_greeting(chat)
+
+    assert len(chunks) == 1, chunks
+    assert json.loads(chunks[0]) == {
+        "error": {
+            "message": "Blocked by blocking output check rails.",
+            "type": "guardrails_violation",
+            "param": "blocking output check",
+            "code": "content_blocked",
+        }
+    }
+    assert calls == 2
+
+
+class _GatedRail:
+    """A fake output rail action that records the task each call runs in and holds the call until its gate opens."""
+
+    def __init__(self):
+        self.started = asyncio.Event()
+        self.gate = asyncio.Event()
+        self.tasks = []
+
+    async def check(self, **params):
+        self.tasks.append(asyncio.current_task())
+        self.started.set()
+        await self.gate.wait()
         return RailOutcome.allow()
 
-    chat.app.register_action(check_blocked_hanging_once, "check_blocked")
+
+async def _assert_rail_tasks_cancelled(*rails: _GatedRail):
+    """Open each rail's gate and assert that every call was cancelled instead of returning."""
+    for rail in rails:
+        rail.gate.set()
+    tasks = [task for rail in rails for task in rail.tasks]
+    await asyncio.gather(*tasks, return_exceptions=True)
+    assert tasks
+    assert [task.cancelled() for task in tasks] == [True] * len(tasks)
+
+
+@pytest.mark.asyncio
+async def test_parallel_streaming_cancellation_during_rails_propagates_and_cancels_every_rail():
+    """Cancelling a stream while parallel output rails run raises CancelledError, releases no chunk and cancels every rail."""
+    chat = _blocking_rail_chat(TWO_RAIL_COLANG, parallel=True, flows=TWO_RAIL_FLOWS)
+    blocking_rail = _GatedRail()
+    hanging_rail = _GatedRail()
+    chat.app.register_action(blocking_rail.check, "check_blocked")
+    chat.app.register_action(hanging_rail.check, "check_hanging")
     chunks = []
 
     async def consume():
@@ -507,16 +569,45 @@ async def test_parallel_streaming_cancellation_during_rails_propagates():
             chunks.append(chunk)
 
     consumer = asyncio.create_task(consume())
-    rail_started_waiter = asyncio.create_task(rail_started.wait())
-    await asyncio.wait({consumer, rail_started_waiter}, return_when=asyncio.FIRST_COMPLETED)
-    rail_started_waiter.cancel()
-    await asyncio.gather(rail_started_waiter, return_exceptions=True)
-    assert rail_started.is_set(), f"The stream ended before the rail ran: {chunks}"
+    rails_started = asyncio.gather(blocking_rail.started.wait(), hanging_rail.started.wait())
+    await asyncio.wait({consumer, rails_started}, return_when=asyncio.FIRST_COMPLETED)
+    rails_started.cancel()
+    await asyncio.gather(rails_started, return_exceptions=True)
+    assert blocking_rail.started.is_set() and hanging_rail.started.is_set(), f"The stream ended first: {chunks}"
     consumer.cancel()
 
     with pytest.raises(asyncio.CancelledError):
         await consumer
     assert chunks == []
+    await _assert_rail_tasks_cancelled(blocking_rail, hanging_rail)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("rail_fails", "expected_code"),
+    [(False, "content_blocked"), (True, "rail_execution_failure")],
+    ids=["blocks", "fails"],
+)
+async def test_parallel_streaming_stop_cancels_running_sibling_rail(rail_fails: bool, expected_code: str):
+    """A parallel output rail that blocks or fails ends the stream with its frame and cancels the rail still running."""
+    chat = _blocking_rail_chat(TWO_RAIL_COLANG, parallel=True, flows=TWO_RAIL_FLOWS)
+    hanging_rail = _GatedRail()
+
+    async def stop_once_sibling_runs(**params):
+        await hanging_rail.started.wait()
+        if rail_fails:
+            raise RuntimeError("rail failed")
+        return RailOutcome.block()
+
+    chat.app.register_action(stop_once_sibling_runs, "check_blocked")
+    chat.app.register_action(hanging_rail.check, "check_hanging")
+
+    chunks = await _stream_greeting(chat)
+
+    assert len(chunks) == 1, chunks
+    error = json.loads(chunks[0])["error"]
+    assert (error["param"], error["code"]) == ("blocking output check", expected_code)
+    await _assert_rail_tasks_cancelled(hanging_rail)
 
 
 @pytest.mark.asyncio
