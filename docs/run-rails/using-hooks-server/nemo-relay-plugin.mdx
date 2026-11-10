@@ -327,6 +327,7 @@ RuntimeError: guardrail rejected: NeMo Guardrails blocked tool call 'search': re
 A failed check raises a `RuntimeError` whose message starts with `internal error: NeMo Guardrails check failed for tool call`.
 Neither error reaches the model.
 Handle both in your application's error handler.
+The [Deep Agents example](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/scripts/nemo_relay) hands each deny back to the model as a tool error, so the agent can correct the call, and stops on a failed check.
 
 A Python application has no hook time limit, so the default `timeout_millis` leaves room for a rail that calls a model.
 

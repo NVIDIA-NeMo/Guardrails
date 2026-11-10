@@ -1,0 +1,61 @@
+# The `policy` config, plus an LLM-judged tool safety check on `http_request`, for what an expression can't
+# see, such as a secret hidden in an allowed GET's query string. Needs NVIDIA_API_KEY for the judge:
+#
+#   nemoguardrails hooks-server --config examples/scripts/nemo_relay/configs/policy_judge
+
+models:
+  - type: judge
+    engine: nim
+    model: nvidia/nemotron-3.5-super-vl-120b-a12b
+    parameters:
+      temperature: 0
+      max_tokens: 200
+      # With thinking on, the verdict can be cut off by max_tokens, and an empty verdict fails closed.
+      chat_template_kwargs:
+        enable_thinking: false
+
+hooks_server:
+  allowed_tools:
+    - name: search_runbooks
+      arguments: [query]
+    - name: read_log
+      arguments: [service, lines]
+    - name: http_request
+      arguments: [method, url, body]
+    - name: ls
+      arguments: [path]
+    - name: read_file
+      arguments: [file_path, offset, limit]
+    - name: write_file
+      arguments: [file_path, content]
+    - name: edit_file
+      arguments: [file_path, old_string, new_string, replace_all]
+    - name: glob
+      arguments: [pattern, path]
+    - name: grep
+      arguments: [pattern, path, glob, output_mode, max_count]
+    - name: task
+      arguments: [description, subagent_type]
+  allow_unlisted_tools: false
+
+rails:
+  tool_call:
+    per_tool:
+      read_log:
+        - cel check tool call
+      http_request:
+        # The rails run in order and stop at the first deny, so the judge sees only the calls CEL allows.
+        - cel check tool call
+        - tool safety check tool call $model=judge $variant=http_check
+
+  config:
+    cel:
+      tool_call:
+        # The same expressions as in the policy config.
+        read_log:
+          expressions:
+            - '!has(args.lines) || type(args.lines) != int || args.lines < 1 || args.lines > 500'
+        http_request:
+          expressions:
+            - '!has(args.method) || type(args.method) != string || args.method.upperAscii() != "GET"'
+            - '!has(args.url) || type(args.url) != string || !args.url.matches("^https://([a-z0-9-]+\\.)*internal\\.example(/|$)")'
