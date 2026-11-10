@@ -22,6 +22,7 @@ import json
 import pytest
 
 from nemoguardrails.http import HTTPConnectionError, HTTPResponse, HTTPTimeoutError
+from nemoguardrails.library.jailbreak_detection.errors import JailbreakDetectionError
 from nemoguardrails.library.jailbreak_detection.model_based.errors import JailbreakInputTooLongError
 from nemoguardrails.library.jailbreak_detection.request import (
     jailbreak_detection_heuristics_request,
@@ -114,48 +115,6 @@ async def test_jailbreak_request_uses_shared_client(request_fn, kwargs, expected
     assert request.json == expected_payload
 
 
-@pytest.mark.parametrize(
-    ("request_fn", "kwargs"),
-    [
-        (
-            jailbreak_detection_heuristics_request,
-            {"prompt": "hello", "api_url": "https://guard.example/heuristics"},
-        ),
-        (
-            jailbreak_detection_model_request,
-            {"prompt": "hello", "api_url": "https://guard.example/model"},
-        ),
-    ],
-    ids=["heuristics", "model"],
-)
-@pytest.mark.asyncio
-async def test_jailbreak_request_returns_none_for_non_200(request_fn, kwargs):
-    client = RecordingHTTPClient([_response({}, status=503)])
-
-    assert await request_fn(http_client=client, **kwargs) is None
-
-
-@pytest.mark.parametrize(
-    ("request_fn", "kwargs"),
-    [
-        (
-            jailbreak_detection_heuristics_request,
-            {"prompt": "hello", "api_url": "https://guard.example/heuristics"},
-        ),
-        (
-            jailbreak_detection_model_request,
-            {"prompt": "hello", "api_url": "https://guard.example/model"},
-        ),
-    ],
-    ids=["heuristics", "model"],
-)
-@pytest.mark.asyncio
-async def test_jailbreak_request_returns_none_without_jailbreak_field(request_fn, kwargs):
-    client = RecordingHTTPClient([_response({"result": "safe"})])
-
-    assert await request_fn(http_client=client, **kwargs) is None
-
-
 @pytest.mark.asyncio
 async def test_jailbreak_nim_request_forwards_auth_and_timeout():
     client = RecordingHTTPClient([_response({"jailbreak": False})])
@@ -195,70 +154,62 @@ async def test_jailbreak_nim_request_omits_auth_without_token():
     assert "Authorization" not in client.requests[0].headers
 
 
+@pytest.fixture(params=["heuristics", "model", "nim"])
+def request_backend(request):
+    if request.param == "nim":
+        return jailbreak_nim_request, {
+            "nim_url": "https://detector.example",
+            "nim_auth_token": None,
+            "nim_classification_path": "classify",
+        }
+    fn = jailbreak_detection_model_request if request.param == "model" else jailbreak_detection_heuristics_request
+    return fn, {"api_url": "https://detector.example/" + request.param}
+
+
+@pytest.mark.parametrize("status", [401, 403, 429, 500, 503])
 @pytest.mark.asyncio
-async def test_jailbreak_nim_request_returns_none_for_non_200():
-    client = RecordingHTTPClient([_response({}, status=503)])
+async def test_jailbreak_request_error_status_raises(request_backend, status):
+    fn, kwargs = request_backend
+    client = RecordingHTTPClient([_response(status=status, content=b"private response body")])
+    with pytest.raises(RuntimeError, match=f"HTTP {status}"):
+        await fn(prompt="hello", http_client=client, **kwargs)
 
-    result = await jailbreak_nim_request(
-        prompt="hello",
-        nim_url="https://nim.example",
-        nim_auth_token=None,
-        nim_classification_path="classify",
-        http_client=client,
-    )
 
-    assert result is None
+@pytest.mark.parametrize("payload", [{}, {"jailbreak": None}, {"jailbreak": 0}, {"jailbreak": "false"}, [], None])
+@pytest.mark.asyncio
+async def test_jailbreak_request_invalid_verdict_raises(request_backend, payload):
+    fn, kwargs = request_backend
+    client = RecordingHTTPClient([_response(payload)])
+    with pytest.raises(RuntimeError, match="boolean jailbreak field"):
+        await fn(prompt="hello", http_client=client, **kwargs)
 
 
 @pytest.mark.asyncio
-async def test_jailbreak_nim_request_returns_none_without_jailbreak_field():
-    client = RecordingHTTPClient([_response({"result": "safe"})])
-
-    result = await jailbreak_nim_request(
-        prompt="hello",
-        nim_url="https://nim.example",
-        nim_auth_token=None,
-        nim_classification_path="classify",
-        http_client=client,
-    )
-
-    assert result is None
+async def test_jailbreak_request_invalid_json_raises(request_backend):
+    fn, kwargs = request_backend
+    client = RecordingHTTPClient([_response(content=b"private invalid json")])
+    with pytest.raises(RuntimeError, match="invalid JSON"):
+        await fn(prompt="hello", http_client=client, **kwargs)
 
 
-@pytest.mark.parametrize(
-    "error",
-    [
-        HTTPTimeoutError("timed out"),
-        HTTPConnectionError("connection failed"),
-        RuntimeError("unexpected failure"),
-    ],
-    ids=["timeout", "client-error", "unexpected-error"],
-)
+@pytest.mark.parametrize("error_type", [HTTPTimeoutError, HTTPConnectionError, RuntimeError])
 @pytest.mark.asyncio
-async def test_jailbreak_nim_request_returns_none_for_request_errors(error):
+async def test_jailbreak_request_transport_error_propagates(request_backend, error_type):
+    fn, kwargs = request_backend
+    error = error_type("detector unavailable")
     client = RecordingHTTPClient([error])
-
-    result = await jailbreak_nim_request(
-        prompt="hello",
-        nim_url="https://nim.example",
-        nim_auth_token=None,
-        nim_classification_path="classify",
-        http_client=client,
-    )
-
-    assert result is None
+    expected_type = RuntimeError if error_type is RuntimeError else JailbreakDetectionError
+    with pytest.raises(expected_type) as caught:
+        await fn(prompt="hello", http_client=client, **kwargs)
+    if error_type is RuntimeError:
+        assert caught.value is error
+    else:
+        assert caught.value.__cause__ is error
 
 
+@pytest.mark.parametrize("verdict", [False, True])
 @pytest.mark.asyncio
-async def test_jailbreak_nim_request_returns_none_for_invalid_json():
-    client = RecordingHTTPClient([_response(content=b"not-json")])
-
-    result = await jailbreak_nim_request(
-        prompt="hello",
-        nim_url="https://nim.example",
-        nim_auth_token=None,
-        nim_classification_path="classify",
-        http_client=client,
-    )
-
-    assert result is None
+async def test_jailbreak_request_preserves_boolean_verdict(request_backend, verdict):
+    fn, kwargs = request_backend
+    client = RecordingHTTPClient([_response({"jailbreak": verdict})])
+    assert await fn(prompt="hello", http_client=client, **kwargs) is verdict

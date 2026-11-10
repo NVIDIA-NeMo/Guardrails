@@ -137,18 +137,19 @@ Direct calls to a hosted NIM endpoint depend on that endpoint's own input handli
 
 ### Detector Availability
 
-<Warning>
+Jailbreak detection fails closed when a detector cannot complete its check.
+Connection failures, timeouts, non-success responses, and malformed results raise errors instead of returning an allow verdict.
+A valid response must contain a boolean `jailbreak` field.
+Local model and dependency failures also propagate to engine error handling.
 
-Jailbreak detection fails open.
-When a configured detector cannot be reached, the rail allows the request instead of blocking it.
+`IORails` stops processing with a failed blocking outcome and an internal-error response.
+`LLMRails` uses its action-failure handling to return an internal-error response.
+These failures do not mean the detector classified the input as a jailbreak.
+Applications using check-only APIs must enforce the returned blocked result before continuing.
+Outage failures are not cached as detector verdicts.
 
-</Warning>
-
-A connection failure, a timeout, and an error response all produce the same outcome, for both the heuristics server and the jailbreak detection NIM, except for HTTP 413 responses from model endpoints, which block the request.
-The rail logs the failure, allows the request, and returns no error to the caller, so a detector outage removes this protection without a visible signal.
-The rail decides this itself, so it fails open on both engines rather than falling into either engine's error handling.
-
-Monitor the availability of your detector if you rely on this rail, and pair it with rails that do not call an external service.
+HTTP 413 responses from model endpoints and inputs beyond the detector's supported length remain ordinary blocking outcomes, as described above.
+There is no fail-open configuration option for this rail.
 
 ### Engine Support
 

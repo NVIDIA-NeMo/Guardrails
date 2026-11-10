@@ -28,15 +28,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 from typing import Optional
 from urllib.parse import urljoin
 
-from nemoguardrails.http import HTTPClient, HTTPClientError, HTTPTimeoutError, http_call
+from nemoguardrails.http import HTTPClient, HTTPClientError, HTTPResponse, HTTPResponseDecodeError, http_call
+from nemoguardrails.library.jailbreak_detection.errors import JailbreakDetectionError
 from nemoguardrails.library.jailbreak_detection.model_based.errors import JailbreakInputTooLongError
 from nemoguardrails.library.jailbreak_detection.model_based.input_length import validate_input_length
-
-log = logging.getLogger(__name__)
 
 
 def join_nim_url(base_url: str, classification_path: str) -> str:
@@ -69,20 +67,8 @@ async def jailbreak_detection_heuristics_request(
         "ps_ppl_threshold": ps_ppl_threshold,
     }
 
-    response = await http_call(http_client, "POST", api_url, json=payload, raise_for_status=False)
-    if response.status_code != 200:
-        log.error(f"Jailbreak check API request failed with status {response.status_code}")
-        return None
-
-    result = response.json()
-
-    log.info(f"Prompt jailbreak check: {result}.")
-    try:
-        result = result["jailbreak"]
-    except KeyError:
-        log.exception("No jailbreak field in result.")
-        result = None
-    return result
+    response = await _request_detector(http_client, api_url, payload)
+    return _parse_jailbreak_response(response)
 
 
 async def jailbreak_detection_model_request(
@@ -95,22 +81,10 @@ async def jailbreak_detection_model_request(
         "prompt": prompt,
     }
 
-    response = await http_call(http_client, "POST", api_url, json=payload, raise_for_status=False)
+    response = await _request_detector(http_client, api_url, payload)
     if response.status_code == 413:
         raise JailbreakInputTooLongError("Input exceeds the jailbreak detector's input limit.")
-    if response.status_code != 200:
-        log.error(f"Jailbreak check API request failed with status {response.status_code}")
-        return None
-
-    result = response.json()
-
-    log.info(f"Prompt jailbreak check: {result}.")
-    try:
-        result = result["jailbreak"]
-    except KeyError:
-        log.exception("No jailbreak field in result.")
-        result = None
-    return result
+    return _parse_jailbreak_response(response)
 
 
 async def jailbreak_nim_request(
@@ -127,41 +101,37 @@ async def jailbreak_nim_request(
     }
 
     endpoint = join_nim_url(nim_url, nim_classification_path)
+    if nim_auth_token is not None:
+        headers["Authorization"] = f"Bearer {nim_auth_token}"
+    response = await _request_detector(http_client, endpoint, payload, headers=headers, timeout=30)
+    if response.status_code == 413:
+        raise JailbreakInputTooLongError("Input exceeds the jailbreak detector's input limit.")
+    return _parse_jailbreak_response(response)
+
+
+async def _request_detector(
+    http_client: Optional[HTTPClient],
+    endpoint: str,
+    payload: dict,
+    *,
+    headers: Optional[dict[str, str]] = None,
+    timeout: Optional[float] = None,
+) -> HTTPResponse:
     try:
-        if nim_auth_token is not None:
-            headers["Authorization"] = f"Bearer {nim_auth_token}"
-        response = await http_call(
-            http_client,
-            "POST",
-            endpoint,
-            json=payload,
-            headers=headers,
-            timeout=30,
-            raise_for_status=False,
+        return await http_call(
+            http_client, "POST", endpoint, json=payload, headers=headers, timeout=timeout, raise_for_status=False
         )
-        if response.status_code == 413:
-            raise JailbreakInputTooLongError("Input exceeds the jailbreak detector's input limit.")
-        if response.status_code != 200:
-            log.error(f"NemoGuard JailbreakDetect NIM request failed with status {response.status_code}")
-            return None
+    except HTTPClientError as exc:
+        raise JailbreakDetectionError("Jailbreak detector request failed.") from exc
 
+
+def _parse_jailbreak_response(response: HTTPResponse) -> bool:
+    if response.status_code != 200:
+        raise JailbreakDetectionError(f"Jailbreak detector request failed with HTTP {response.status_code}.")
+    try:
         result = response.json()
-
-        log.info(f"Prompt jailbreak check: {result}.")
-        try:
-            result = result["jailbreak"]
-        except KeyError:
-            log.exception("No jailbreak field in result.")
-            result = None
-        return result
-    except JailbreakInputTooLongError:
-        raise
-    except HTTPTimeoutError:
-        log.error("NemoGuard JailbreakDetect NIM request timed out")
-        return None
-    except HTTPClientError as e:
-        log.error(f"NemoGuard JailbreakDetect NIM connection error: {str(e)}")
-        return None
-    except Exception as e:
-        log.error(f"Unexpected error during NIM request: {str(e)}")
-        return None
+    except HTTPResponseDecodeError as exc:
+        raise JailbreakDetectionError("Jailbreak detector returned invalid JSON.") from exc
+    if not isinstance(result, dict) or not isinstance(result.get("jailbreak"), bool):
+        raise JailbreakDetectionError("Jailbreak detector response must contain a boolean jailbreak field.")
+    return result["jailbreak"]
