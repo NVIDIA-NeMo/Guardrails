@@ -164,7 +164,7 @@ An unknown key fails the configuration load.
 | `api_url` | `HIDDENLAYER_BASE_URL` | `https://api.us.hiddenlayer.ai` | HiddenLayer API base URL. EU tenants use `https://api.eu.hiddenlayer.ai`. Must use `https://`, except on a loopback host |
 | `project_id` | `HIDDENLAYER_PROJECT_ID` | None | Project ID or alias whose policy evaluates the content |
 | `requester_id` | `HIDDENLAYER_REQUESTER_ID` | `hiddenlayer-nemo` | Requester ID recorded with each evaluation |
-| `fail_open` | | `false` | Allow content when HiddenLayer cannot be reached or answers without a verdict. Transport failures only |
+| `fail_open` | `HIDDENLAYER_FAIL_OPEN` | `false` | Allow content through when a check does not produce a verdict. It covers every non-success status, including a 401 or 403 from a revoked or misscoped credential, as well as timeouts, connection errors and an unreadable body. An operator whose key stops working gets an unguarded rail rather than an error. The environment variable accepts `true` or `false` (also `1`/`0`, `yes`/`no`, `on`/`off`) |
 | `max_retries` | | `2` | Additional attempts after HTTP 429, 502, 503, or 504 |
 | `max_retry_after_seconds` | | `30.0` | Cap on a `Retry-After` delay and on the backoff delay |
 | `retry_backoff_seconds` | | `1.0` | Base delay for exponential backoff with jitter |
