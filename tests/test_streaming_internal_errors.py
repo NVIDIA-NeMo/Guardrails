@@ -297,6 +297,8 @@ BLOCKED_TEXT = "This response has a HIGHSCORE and must never reach the client."
 
 PARALLEL_RAILS_ACTION = "run_output_rails_in_parallel_streaming"
 
+CANCELLED_STREAM_DEADLINE_SECONDS = 30
+
 DIRECT_EXECUTE_COLANG = """
 define user express greeting
   "hi"
@@ -576,6 +578,13 @@ async def test_parallel_streaming_cancellation_during_rails_propagates_and_cance
     assert blocking_rail.started.is_set() and hanging_rail.started.is_set(), f"The stream ended first: {chunks}"
     consumer.cancel()
 
+    # A deadline, not an ordering wait: it expires only if the code under test swallows the cancellation.
+    await asyncio.wait({consumer}, timeout=CANCELLED_STREAM_DEADLINE_SECONDS)
+    if not consumer.done():
+        blocking_rail.gate.set()
+        hanging_rail.gate.set()
+        await asyncio.gather(consumer, return_exceptions=True)
+        pytest.fail(f"The stream ignored the cancellation and yielded {chunks} once the rails were released")
     with pytest.raises(asyncio.CancelledError):
         await consumer
     assert chunks == []

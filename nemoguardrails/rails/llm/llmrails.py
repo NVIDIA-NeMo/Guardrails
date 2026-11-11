@@ -1423,7 +1423,7 @@ class LLMRails(BaseGuardrails):
         """Pair each configured output rail flow, in order, with the action streaming calls on every chunk."""
         if not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled:
             return []
-        # A list, not a dict: as in generate_async(), sequential mode runs a duplicate flow twice, parallel mode once.
+        # A list, not a dict: sequential mode runs a flow listed twice twice, as generate_async() does.
         output_rail_actions = []
         for flow_id in self.config.rails.output.flows:
             try:
