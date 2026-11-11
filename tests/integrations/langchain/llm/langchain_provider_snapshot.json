@@ -192,7 +192,7 @@
     ]
   },
   "0.4": {
-    "langchain_version": "1.3.13",
+    "langchain_version": "1.4.8",
     "langchain_community_version": "0.4.2",
     "community_llm_providers": [
       "SparkLLM",
@@ -343,6 +343,8 @@
       "baseten",
       "bedrock",
       "bedrock_converse",
+      "bedrock_mantle_anthropic",
+      "bedrock_mantle_openai",
       "cohere",
       "deepseek",
       "fireworks",
@@ -352,6 +354,7 @@
       "groq",
       "huggingface",
       "ibm",
+      "langsmith",
       "litellm",
       "meta",
       "mistralai",
