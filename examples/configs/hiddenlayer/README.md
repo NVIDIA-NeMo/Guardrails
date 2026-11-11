@@ -20,5 +20,4 @@ rails = Guardrails(config)
 ```
 
 The `run_sql` tool is declared on the main model, so the per-tool rails can validate its calls.
-The `rails.output.streaming` block buffers a streamed response and checks it once at the end, which lets HiddenLayer redact streamed output.
 Refer to the HiddenLayer page in the guardrail catalog for the full configuration reference.

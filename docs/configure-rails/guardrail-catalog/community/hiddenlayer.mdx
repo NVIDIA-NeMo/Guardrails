@@ -210,12 +210,14 @@ The library has no per-rail timeout, so set the retry fields lower when you need
 - A `tool_call` or `tool_result` check is never returned redacted. The engine honors a transform only on the conversational surfaces, so `_REDACTABLE` in `_verdict.py` covers `input` and `output` alone and a redaction on a tool surface is enforced as a block instead.
 - A timeout or connection error is not retried, by the `retry_transport_errors=False` in `_retry_policy`, for the inline-latency reason above.
 - With `fail_open` set, a revoked or misscoped credential leaves the rail unguarded rather than erroring, because a 401 and a 403 are covered like any other non-success status.
+- A streamed output check requires the IORails engine. Run the output check without streaming on the default engine.
 - Without a conversation ID in scope, each check is evaluated on its own. `send_session_id` has nothing to send, and HiddenLayer reconstructs the conversation heuristically rather than from a stable session.
 
 ## Streaming
 
-HiddenLayer checks the full bot message.
-For `stream_async`, buffer the whole stream so the output rail runs once on the complete response:
+HiddenLayer checks the full bot message, so an output check needs the whole response before it can run.
+Streamed output checks are supported on the IORails engine, which applies a redaction to the streamed response.
+Set `NEMO_GUARDRAILS_IORAILS_ENGINE=true` and buffer the whole stream so the check runs once:
 
 ```yaml
 rails:
@@ -227,7 +229,7 @@ rails:
       chunk_size: 1000000
 ```
 
-The library refuses to load an output rail that rewrites text unless `stream_first` is `false`, and nothing streams until the output check returns.
+Nothing streams until the output check returns.
 This configuration has the following limits:
 
 - `chunk_size` counts stream chunks, not tokens, and must exceed the number of chunks in any response.

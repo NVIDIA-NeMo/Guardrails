@@ -30,11 +30,6 @@ rails:
   output:
     flows:
       - hiddenlayer check output
-    streaming:
-      enabled: true
-      stream_first: false
-      context_size: 0
-      chunk_size: 1000000
   tool_call:
     flows:
       - tool call validation
