@@ -52,6 +52,7 @@ To understand better what is happening under the hood, here's how the `self chec
 define flow self check input
   $result = execute self_check_input
   if $result.is_blocked
+    do mask blocked user input
     if $config.enable_rails_exceptions
       create event InputRailException(message="Input not allowed. The input was blocked by the 'self check input' flow.")
     else

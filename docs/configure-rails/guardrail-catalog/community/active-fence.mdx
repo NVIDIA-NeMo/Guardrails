@@ -18,25 +18,27 @@ rails:
 
 The `activefence moderation on input` flow blocks when the maximum risk score exceeds `0.7`. The `activefence moderation on input detailed` flow uses individual thresholds per category of violation.
 
-The action returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes). To customize the refusal message while preserving its blocking decision, override the [Colang 1.0 flow](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/activefence/flows.v1.co):
+The action returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes) whose `metadata` contains the `max_risk_score` and the per-category `violations` scores. To customize the scores, overwrite the [default Colang 1.0 flows](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/activefence/flows.v1.co) in your config. For example, to change the threshold for `activefence moderation on input` to `0.85`, add the following flow to your config:
 
 ```text
 define subflow activefence moderation on input
   """Guardrail based on the maximum risk score."""
   $result = execute call_activefence_api(text=$user_message)
 
-  if $result.is_blocked
-    bot inform cannot answer
+  if $result.metadata["max_risk_score"] > 0.85
+    bot refuse to respond
     stop
 ```
 
-Scores are available in `metadata["max_risk_score"]` and `metadata["violations"]`. The following example preserves the detailed action's decision and adds a stricter hate-speech threshold of `0.5`:
+The condition in your flow replaces the built-in decision, so `$result.is_blocked` is not checked.
+
+ActiveFence's ActiveScore API gives flexibility in controlling the behavior of various supported violations individually. To leverage that, you can use the `violations` dictionary in the outcome metadata to set different thresholds for different violations. Below is an example of one such input moderation flow, which you add to `rails.input.flows` in place of the built-in flow. It checks only the conditions you write, so add one for each category you want to block:
 
 ```text
-define subflow activefence moderation on input detailed
-  $result = execute call_activefence_api(text=$user_message, threshold_mode="detailed")
+define flow activefence input moderation detailed
+  $result = execute call_activefence_api(text=$user_message)
 
-  if $result.is_blocked or $result.metadata["violations"].get("abusive_or_harmful.hate_speech", 0) > 0.5
+  if $result.metadata["violations"].get("abusive_or_harmful.hate_speech", 0) > 0.8
     bot inform cannot engage in abusive or harmful behavior
     stop
 

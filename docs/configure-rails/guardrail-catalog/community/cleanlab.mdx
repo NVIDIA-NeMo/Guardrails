@@ -9,14 +9,14 @@ In question-answering or RAG applications: high trustworthiness is indicative of
 
 The trustworthiness score is further explained and comprehensively benchmarked in [Cleanlab's documentation](https://help.cleanlab.ai/tlm/).
 
-The `cleanlab trustworthiness` guardrail flow uses a default trustworthiness score threshold of 0.6 to determine if your LLM output should be allowed or not. When the trustworthiness score falls below the threshold, the corresponding LLM response is flagged as _unstrustworthy_. You can easily change the cutoff value for the trustworthiness score by adjusting the threshold in the [config](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/cleanlab/flows.co). For example, to change the threshold to 0.7, add the following flow to your config:
+The `cleanlab trustworthiness` guardrail flow uses a default trustworthiness score threshold of 0.6 to determine if your LLM output should be allowed or not. When the trustworthiness score falls below the threshold, the corresponding LLM response is flagged as _unstrustworthy_. The threshold is defined in the [action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/cleanlab/actions.py). To use a different cutoff, override the flow in your config and compare the score yourself. For example, to change the threshold to 0.7, add the following flow to your config:
 
 ```text
 define subflow cleanlab trustworthiness
   """Guardrail based on trustworthiness score."""
   $result = execute call_cleanlab_api
 
-  if $result.is_blocked or $result.metadata["trustworthiness_score"] < 0.7
+  if $result.metadata["trustworthiness_score"] < 0.7
     bot response untrustworthy
     stop
 
@@ -24,7 +24,7 @@ define bot response untrustworthy
   "Don't place much confidence in this response"
 ```
 
-The action returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes). This example preserves its blocking decision and also blocks scores below `0.7`. Read the score from `metadata["trustworthiness_score"]`.
+The action returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes) with the score in `metadata["trustworthiness_score"]`. The condition in your flow replaces the built-in `0.6` decision, so `$result.is_blocked` is not checked and you can raise or lower the cutoff.
 
 ## Setup
 

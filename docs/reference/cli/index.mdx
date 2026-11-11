@@ -62,7 +62,7 @@ nemoguardrails chat --config examples/configs/content_safety [--verbose] [--stre
 
 ## `actions-server`
 
-Start a separate server for running custom actions in an isolated environment.
+Start a separate server process for running custom actions. Process separation does not sandbox action code or restrict its filesystem and network access.
 
 ```bash
 nemoguardrails actions-server --port 8001
