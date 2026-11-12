@@ -1451,6 +1451,25 @@ class TestPrintComparison:
         out = capsys.readouterr().out
         assert "image samples excluded" in out
 
+    def test_no_categories_on_blocked_guardrails_warns(self, capsys):
+        # Guardrails blocks with empty policy_violations → chat_template_kwargs warning
+        samples = [Sample(text="bad text", ground_truth="unsafe")]
+        direct_v = [Verdict(is_safe=False, raw="unsafe", categories=["Violence"])]
+        gr_v = [Verdict(is_safe=False, raw="", categories=[])]
+        print_comparison(samples, direct_v, gr_v)
+        out = capsys.readouterr().out
+        assert "chat_template_kwargs" in out
+        assert "Warning" in out
+
+    def test_categories_present_no_warning(self, capsys):
+        # Guardrails blocks with policy_violations → no propagation warning
+        samples = [Sample(text="bad text", ground_truth="unsafe")]
+        direct_v = [Verdict(is_safe=False, raw="unsafe", categories=["Violence"])]
+        gr_v = [Verdict(is_safe=False, raw="", categories=["Violence"])]
+        print_comparison(samples, direct_v, gr_v)
+        out = capsys.readouterr().out
+        assert "may not be propagating" not in out
+
 
 # ---------------------------------------------------------------------------
 # build_parser tests

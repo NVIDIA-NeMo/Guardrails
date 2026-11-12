@@ -1073,6 +1073,16 @@ def print_comparison(
     else:
         print("  No disagreements — verdict equivalence confirmed (chat_template_kwargs propagates correctly).")
 
+    # Confirm that chat_template_kwargs / request_categories is reaching the NIM through
+    # the Guardrails layer: blocked verdicts should carry policy_violations categories.
+    # If none do, the kwarg was silently dropped and category output is missing.
+    unsafe_guardrails = [g for _, _, d, g in valid_pairs if not g.is_safe]
+    if unsafe_guardrails and all(not g.categories for g in unsafe_guardrails):
+        print(
+            "  ⚠ Warning: no policy_violations in any blocked Guardrails verdict — "
+            "chat_template_kwargs (request_categories) may not be propagating through the Guardrails layer."
+        )
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
