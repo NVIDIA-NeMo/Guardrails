@@ -1120,6 +1120,24 @@ class TestRunGuardrailsEval:
         assert verdicts[0].is_safe is False
         assert "Violence" in verdicts[0].categories
 
+    def test_no_categories_warning_on_blocked_verdicts(self, capsys):
+        from benchmark.content_safety_parity import content_safety_parity as m
+        from nemoguardrails.actions.rail_outcome import RailOutcome
+
+        # Block with empty policy_violations → triggers chat_template_kwargs warning
+        outcome = RailOutcome.block(metadata={"policy_violations": []})
+        result = self._make_result(outcome)
+        nemo_mod = self._make_nemo_mocks(result)
+        samples = [Sample(text="bad text", ground_truth="unsafe")]
+        with patch("nemoguardrails.LLMRails", nemo_mod.LLMRails):
+            with patch("nemoguardrails.RailsConfig", nemo_mod.RailsConfig):
+                verdicts = asyncio.run(m.run_guardrails_eval(samples, "/fake/config", "key", None))
+        assert verdicts[0].is_safe is False
+        assert verdicts[0].categories == []
+        out = capsys.readouterr().out
+        assert "chat_template_kwargs" in out
+        assert "Warning" in out
+
     def test_allow_verdict(self):
         from benchmark.content_safety_parity import content_safety_parity as m
         from nemoguardrails.actions.rail_outcome import RailOutcome

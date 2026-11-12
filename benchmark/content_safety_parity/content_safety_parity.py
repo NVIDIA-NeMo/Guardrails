@@ -884,6 +884,17 @@ async def run_guardrails_eval(
 
     await asyncio.gather(*[eval_one(i, s) for i, s in enumerate(samples)])
     print()
+    # Validate that chat_template_kwargs / request_categories propagates through the
+    # Guardrails stack: a blocked verdict with no policy_violations means the NIM never
+    # received the kwarg and category output is missing.
+    unsafe_non_error = [v for v in verdicts if not v.error and not v.is_safe]
+    if unsafe_non_error and all(not v.categories for v in unsafe_non_error):
+        print(
+            "  ⚠ Warning: no policy_violations found in any blocked Guardrails verdict. "
+            "chat_template_kwargs (request_categories) may not be propagating to the NIM "
+            "through the Guardrails layer.",
+            flush=True,
+        )
     return verdicts
 
 
