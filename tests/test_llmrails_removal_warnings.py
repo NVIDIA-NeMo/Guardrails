@@ -69,6 +69,18 @@ def _colang_1_config() -> RailsConfig:
     return RailsConfig.from_content(config=COLANG_1_CONFIG)
 
 
+def _config_dir(tmp_path, *, config_py: bool, colang_content: str = "") -> RailsConfig:
+    """Write an IORails-compatible config directory, optionally with config.py and Colang flows, and load it."""
+    (tmp_path / "config.yml").write_text(
+        "models:\n  - type: main\n    engine: nim\n    model: meta/llama-3.3-70b-instruct\n"
+    )
+    if config_py:
+        (tmp_path / "config.py").write_text("def init(app):\n    pass\n")
+    if colang_content:
+        (tmp_path / "flows.co").write_text(colang_content)
+    return RailsConfig.from_path(str(tmp_path))
+
+
 class _UserSubclassOfLLMRails(LLMRails):
     def __init__(self, config: RailsConfig):
         super().__init__(config, llm=FakeLLMModel(responses=[]))
@@ -163,6 +175,43 @@ def test_guardrails_on_iorails_with_dialog_flows_warns_that_they_are_not_run(mon
     assert rails is not None and rails.use_iorails_engine
     assert [w.filename for w in caught] == [__file__]
     assert str(caught[0].message).startswith("Using Colang dialog flows (define user, define flow) is deprecated")
+
+
+def test_guardrails_on_iorails_with_config_py_warns_that_it_is_not_imported(tmp_path, monkeypatch):
+    """A config directory with config.py still runs on IORails, and warns once that IORails ignores the file."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = _config_dir(tmp_path, config_py=True)
+    rails = None
+
+    def construct():
+        nonlocal rails
+        rails = Guardrails(config)
+
+    caught = _removal_warnings(construct)
+
+    assert rails is not None and rails.use_iorails_engine
+    assert [w.filename for w in caught] == [__file__]
+    assert str(caught[0].message).startswith("Using config.py is deprecated")
+
+
+def test_guardrails_with_dialog_flows_and_config_py_warns_once_about_the_flows(tmp_path, monkeypatch):
+    """A config with both dialog flows and config.py emits one warning, the dialog-flow one."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = _config_dir(tmp_path, config_py=True, colang_content=FLOW_ONLY_CONTENT)
+
+    caught = _removal_warnings(lambda: Guardrails(config))
+
+    assert [str(w.message).split(" is deprecated")[0] for w in caught] == [
+        "Using Colang dialog flows (define user, define flow)"
+    ]
+
+
+def test_guardrails_on_a_config_directory_without_config_py_emits_no_removal_warning(tmp_path, monkeypatch):
+    """An IORails config loaded from a directory without config.py emits no LLMRailsRemovalWarning."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = _config_dir(tmp_path, config_py=False)
+
+    assert _removal_warnings(lambda: Guardrails(config)) == []
 
 
 def test_guardrails_fallback_warns_once_with_the_reason():
@@ -371,6 +420,13 @@ def test_remote_colang_1_chat_skips_the_local_engine_notice(capsys):
 
     unsupported_reason.assert_not_called()
     assert "is deprecated" not in notice
+
+
+def test_colang_1_chat_with_config_py_prints_the_config_py_notice(tmp_path, capsys):
+    """Chatting with a Colang 1.0 config directory that has config.py prints that IORails does not import it."""
+    notice = _colang_1_chat_notice(_config_dir(tmp_path, config_py=True), capsys)
+
+    assert "Using config.py is deprecated" in notice
 
 
 def test_colang_1_chat_on_an_llmrails_only_config_prints_the_fallback_notice(capsys):
