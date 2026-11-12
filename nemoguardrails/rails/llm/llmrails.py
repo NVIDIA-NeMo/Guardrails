@@ -64,7 +64,7 @@ from nemoguardrails.context import (
     raw_llm_request,
     streaming_handler_var,
 )
-from nemoguardrails.deprecation import called_from_package, warn_llmrails_removal
+from nemoguardrails.deprecation import called_from_package, removal_warnings_silenced, warn_llmrails_removal
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers import register_embedding_provider
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
@@ -457,7 +457,9 @@ class LLMRails(BaseGuardrails):
         self._validate_config()
 
         # Next, we initialize the LLM engines (main engine and action engines if specified).
-        self._init_llms()
+        # This construction already warned (or its caller did), so the LangChain framework built here stays silent.
+        with removal_warnings_silenced():
+            self._init_llms()
 
         # Next, we initialize the LLM Generate actions and register them.
         llm_generation_actions_class = (

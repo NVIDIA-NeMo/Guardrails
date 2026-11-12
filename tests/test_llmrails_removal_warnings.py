@@ -25,7 +25,7 @@ from packaging.version import Version
 from typer.testing import CliRunner
 
 import nemoguardrails
-from nemoguardrails import Guardrails, LLMRails, LLMRailsRemovalWarning, RailsConfig
+from nemoguardrails import Guardrails, LLMRails, LLMRailsRemovalWarning, RailsConfig, set_default_framework
 from nemoguardrails.cli import app
 from nemoguardrails.deprecation import (
     DEPRECATED_SINCE,
@@ -215,19 +215,37 @@ def test_langchain_framework_warns():
     assert [w.filename for w in caught] == [__file__]
 
 
-def test_llmrails_on_the_langchain_framework_warns_once_per_deprecated_feature(langchain_framework, monkeypatch):
-    """LLMRails on the LangChain model framework warns once for the engine and once for the framework."""
+@pytest.mark.parametrize(
+    ("construct", "subject"),
+    [
+        (lambda config: LLMRails(config), "LLMRails"),
+        (lambda config: Guardrails(config, use_iorails=False), "Guardrails(use_iorails=False)"),
+    ],
+    ids=["llmrails", "guardrails-on-llmrails"],
+)
+def test_construction_on_the_langchain_framework_warns_once(langchain_framework, monkeypatch, construct, subject):
+    """A construction that builds the LangChain model framework emits only its own removal warning."""
     pytest.importorskip("langchain_openai")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     config = RailsConfig.from_content(config={"models": [{"type": "main", "engine": "openai", "model": "gpt-4o-mini"}]})
 
-    caught = _removal_warnings(lambda: LLMRails(config))
+    caught = _removal_warnings(lambda: construct(config))
 
-    assert sorted(str(w.message).split(" is deprecated")[0] for w in caught) == [
-        "LLMRails",
-        "The LangChain model framework",
-    ]
-    assert {w.filename for w in caught} == {__file__}
+    assert [str(w.message).split(" is deprecated")[0] for w in caught] == [subject]
+    assert caught[0].filename == __file__
+
+
+def test_selecting_the_langchain_framework_warns_at_the_caller(langchain_framework):
+    """set_default_framework("langchain") warns once, attributed to the caller's line."""
+    caught = _removal_warnings(lambda: set_default_framework("langchain"))
+
+    assert [str(w.message).split(" is deprecated")[0] for w in caught] == ["The LangChain model framework"]
+    assert caught[0].filename == __file__
+
+
+def test_selecting_the_default_framework_does_not_warn(langchain_framework):
+    """set_default_framework("default") emits no removal warning."""
+    assert _removal_warnings(lambda: set_default_framework("default")) == []
 
 
 def test_langchain_adapter_built_by_a_user_warns():

@@ -19,6 +19,11 @@ import logging
 import os
 from typing import Dict
 
+from nemoguardrails.deprecation import (
+    LANGCHAIN_BACKEND_ALTERNATIVE,
+    LANGCHAIN_FRAMEWORK_SUBJECT,
+    warn_llmrails_removal,
+)
 from nemoguardrails.types import LLMFramework
 
 log = logging.getLogger(__name__)
@@ -80,6 +85,8 @@ _LAZY_FRAMEWORKS = {"langchain", "default"}
 def set_default_framework(name: str) -> None:
     if name not in _frameworks and name not in _LAZY_FRAMEWORKS:
         raise KeyError(f"Unknown framework '{name}'. Register it first or use one of: {sorted(_LAZY_FRAMEWORKS)}")
+    if name == "langchain":
+        warn_llmrails_removal(LANGCHAIN_FRAMEWORK_SUBJECT, LANGCHAIN_BACKEND_ALTERNATIVE)
     global _default_framework
     _default_framework = name
 
