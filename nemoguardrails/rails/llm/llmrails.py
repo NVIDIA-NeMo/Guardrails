@@ -64,7 +64,12 @@ from nemoguardrails.context import (
     raw_llm_request,
     streaming_handler_var,
 )
-from nemoguardrails.deprecation import called_from_package, removal_warnings_silenced, warn_llmrails_removal
+from nemoguardrails.deprecation import (
+    ADDED_BY_LLMRAILS,
+    called_from_package,
+    removal_warnings_silenced,
+    warn_llmrails_removal,
+)
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers import register_embedding_provider
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
@@ -330,6 +335,7 @@ class LLMRails(BaseGuardrails):
             # We mark all the default flows as system flows.
             for flow_config in default_flows:
                 flow_config["is_system_flow"] = True
+                flow_config[ADDED_BY_LLMRAILS] = True
 
             # We add the default flows to the config.
             self.config.flows.extend(default_flows)
@@ -354,6 +360,7 @@ class LLMRails(BaseGuardrails):
                         # We mark all the flows coming from the guardrails library as system flows.
                         for flow_config in content["flows"]:
                             flow_config["is_system_flow"] = True
+                            flow_config[ADDED_BY_LLMRAILS] = True
 
                         # We load all the flows
                         self.config.flows.extend(content["flows"])

@@ -15,7 +15,6 @@
 
 """Removal warnings for LLMRails, the Colang runtimes, and the features that depend on them."""
 
-import functools
 import os
 import sys
 import warnings
@@ -23,7 +22,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from email.utils import format_datetime
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING, Iterator
 
 if TYPE_CHECKING:
     from nemoguardrails.rails.llm.config import RailsConfig
@@ -45,6 +44,8 @@ CONFIG_PY_ALTERNATIVE = (
     "IORails does not import it, so its init() and registrations have no effect; "
     "configure models and rails in config.yml instead."
 )
+# LLMRails sets this key on the default and library flows it appends to the config it starts on.
+ADDED_BY_LLMRAILS = "_added_by_llmrails"
 LANGCHAIN_FRAMEWORK_SUBJECT = "The LangChain model framework"
 LANGCHAIN_BACKEND_ALTERNATIVE = "Serve the model through an OpenAI-compatible endpoint with the default framework."
 
@@ -98,31 +99,9 @@ def called_from_package() -> bool:
 
 
 def has_dialog_flows(config: "RailsConfig") -> bool:
-    """Whether a Colang 1.0 config defines its own flows or user messages, neither of which IORails runs."""
-    # A flow needs no `define user` block to match a user turn, so user flows count on their own.
-    return bool(config.user_messages) or any(not _is_flow_llmrails_adds(flow) for flow in config.flows)
-
-
-def _is_flow_llmrails_adds(flow: dict) -> bool:
-    """Whether *flow* is one LLMRails appends to the config it starts on, unchanged from its own definition."""
-    return (flow.get("id"), flow.get("source_code")) in _flows_llmrails_adds()
-
-
-@functools.cache
-def _flows_llmrails_adds() -> frozenset[tuple[Optional[str], Optional[str]]]:
-    """The (id, source_code) of each flow LLMRails appends to a Colang 1.0 config: its default flows and the library's."""
-    from nemoguardrails.colang import parse_colang_file
-
-    # Mirrors the files LLMRails.__init__ parses; matching the source keeps a user's redefinition of a rail counted.
-    paths = [os.path.join(_PACKAGE_DIR, "rails", "llm", "llm_flows.co")]
-    for root, _, files in os.walk(os.path.join(_PACKAGE_DIR, "library")):
-        paths.extend(os.path.join(root, name) for name in files if name.endswith(".co"))
-    flows = []
-    for path in paths:
-        with open(path, encoding="utf-8") as f:
-            content = parse_colang_file(os.path.basename(path), content=f.read(), version="1.0")
-        flows.extend(content.get("flows", []) if content else [])
-    return frozenset((flow.get("id"), flow.get("source_code")) for flow in flows)
+    """Whether a Colang 1.0 config has user messages or flows of its own, neither of which IORails runs."""
+    # A flow needs no `define user` block to match a user turn; a flow LLMRails appended is not the user's.
+    return bool(config.user_messages) or any(not flow.get(ADDED_BY_LLMRAILS) for flow in config.flows)
 
 
 def has_config_py(config: "RailsConfig") -> bool:
