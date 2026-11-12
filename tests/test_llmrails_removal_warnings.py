@@ -50,6 +50,19 @@ FLOW_ONLY_CONTENT = 'define flow greeting\n  user express greeting\n  bot "Hello
 DIALOG_CONTENTS = pytest.mark.parametrize(
     "colang_content", [DIALOG_FLOWS_CONTENT, FLOW_ONLY_CONTENT], ids=["with-define-user", "flow-only"]
 )
+SELF_CHECK_INPUT_OVERRIDE = (
+    "define subflow self check input\n"
+    "  $allowed = execute self_check_input\n"
+    "  if not $allowed\n"
+    "    bot refuse to respond\n"
+    "    stop\n"
+)
+CUSTOM_OUTPUT_RAIL = "define subflow check blocked terms\n  bot refuse to respond\n  stop\n"
+SELF_CHECK_INPUT_CONFIG = {
+    **IORAILS_CONFIG,
+    "rails": {"input": {"flows": ["self check input"]}},
+    "prompts": [{"task": "self_check_input", "content": "Should this be blocked? {{ user_input }}"}],
+}
 LLMRAILS_ONLY_CONFIG = {"models": [], "rails": {"input": {"flows": ["jailbreak detection heuristics"]}}}
 
 # `nemoguardrails.cli.chat` is shadowed by the `chat` command function on the package.
@@ -212,6 +225,44 @@ def test_guardrails_on_a_config_directory_without_config_py_emits_no_removal_war
     config = _config_dir(tmp_path, config_py=False)
 
     assert _removal_warnings(lambda: Guardrails(config)) == []
+
+
+def test_guardrails_warns_when_a_flow_redefines_a_library_rail_iorails_runs(monkeypatch):
+    """A user flow that redefines a library rail stays on IORails, which runs its own rail, so it warns like a dialog flow."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = RailsConfig.from_content(colang_content=SELF_CHECK_INPUT_OVERRIDE, config=SELF_CHECK_INPUT_CONFIG)
+    rails = None
+
+    def construct():
+        nonlocal rails
+        rails = Guardrails(config)
+
+    caught = _removal_warnings(construct)
+
+    assert rails is not None and rails.use_iorails_engine
+    assert [str(w.message).split(" is deprecated")[0] for w in caught] == [
+        "Using Colang dialog flows (define user, define flow)"
+    ]
+
+
+def test_custom_rail_flows_fall_back_with_the_reason_instead_of_the_dialog_flow_warning(monkeypatch):
+    """A rail flow IORails does not know sends the config to LLMRails with the fallback warning, never the dialog-flow one."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = RailsConfig.from_content(
+        colang_content=CUSTOM_OUTPUT_RAIL,
+        config={**IORAILS_CONFIG, "rails": {"output": {"flows": ["check blocked terms"]}}},
+    )
+    rails = None
+
+    def construct():
+        nonlocal rails
+        rails = Guardrails(config)
+
+    caught = _removal_warnings(construct)
+
+    assert rails is not None and not rails.use_iorails_engine
+    assert len(caught) == 1
+    assert str(caught[0].message).startswith("Running this config on the LLMRails engine ('check blocked terms'")
 
 
 def test_guardrails_fallback_warns_once_with_the_reason():
