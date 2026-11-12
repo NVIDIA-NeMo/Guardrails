@@ -64,6 +64,7 @@ from nemoguardrails.context import (
     raw_llm_request,
     streaming_handler_var,
 )
+from nemoguardrails.deprecation import called_from_package, warn_llmrails_removal
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers import register_embedding_provider
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
@@ -131,8 +132,7 @@ def _wrap_legacy_llm(llm):
             "Either install langchain or pass an LLMModel instance."
         )
     warnings.warn(
-        "Passing a raw LangChain LLM is deprecated. "
-        "Use LangChainLLMAdapter(llm) explicitly or pass an LLMModel instance.",
+        "Passing a raw LangChain LLM is deprecated. Pass an LLMModel instance.",
         DeprecationWarning,
         stacklevel=3,
     )
@@ -280,6 +280,9 @@ class LLMRails(BaseGuardrails):
                 and will take precedence over any main LLM specified in the config.
             verbose: Whether the logging should be verbose or not.
         """
+        # Components that build LLMRails internally (Guardrails, TestChat, ...) emit their own warning.
+        if not called_from_package():
+            warn_llmrails_removal("LLMRails", "Use Guardrails(config), which runs the IORails engine.")
         self.config = config
         ignored_settings = _iorails_only_tool_settings(config)
         if ignored_settings:
