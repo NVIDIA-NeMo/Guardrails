@@ -2,7 +2,7 @@
 
 To run the fact-checking rail, you can use the following command:
 
-```nemoguardrails evaluate fact-checking --config=path/to/guardrails/config```
+```nemoguardrails eval rail fact-checking --config=path/to/guardrails/config```
 
 Here is a list of arguments that you can use to configure the fact checking rail:
 
@@ -49,7 +49,7 @@ By changing small details like the blood pressure value in the answer, the model
 
 In case you already have negative samples in your dataset, you can set the `create-negatives` flag to `False` and we will not generate synthetic negatives.
 
-```nemoguardrails evaluate fact-checking --config=path/to/guardrails/config --create-negatives False```
+```nemoguardrails eval rail fact-checking --config=path/to/guardrails/config --create-negatives False```
 
 ## Using the MSMARCO Dataset
 
@@ -76,4 +76,4 @@ This will save the dataset to `msmarco.json`. An example from the dataset is sho
 
 You can then use this file to evaluate the fact checking rail.
 
-```nemoguardrails evaluate fact-checking --config=path/to/guardrails/config --dataset-path msmarco.json```
+```nemoguardrails eval rail fact-checking --config=path/to/guardrails/config --dataset-path msmarco.json```
