@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
 
 from nemoguardrails import Guardrails, RailsConfig
 from nemoguardrails.deprecation import llmrails_deprecation_headers
+from nemoguardrails.exceptions import LLMCallException, RailTypeNotConfiguredError
 from nemoguardrails.guardrails import guardrails as guardrails_module
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
@@ -699,3 +700,86 @@ def test_serving_a_config_on_iorails_logs_no_removal_notice(iorails_alias, monke
     _post_chat_completion()
 
     assert _llmrails_serving_notices(logger) == []
+
+
+class _FailingStubLLMRails(_StubLLMRails):
+    """A stub LLMRails engine whose provider call fails."""
+
+    async def generate_async(self, messages=None, options=None, state=None, **kwargs):
+        raise LLMCallException(RuntimeError("upstream unavailable"))
+
+
+def test_llmrails_error_response_carries_the_deprecation_headers(monkeypatch, iorails_compatible_config):
+    """A provider error on a request served by LLMRails still carries the deprecation headers."""
+    monkeypatch.setattr(api, "LLMRails", _FailingStubLLMRails)
+    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: iorails_compatible_config))
+
+    response = _post_chat_completion()
+
+    assert response.status_code >= 400
+    for name, value in llmrails_deprecation_headers().items():
+        assert response.headers[name] == value
+
+
+def test_llmrails_http_exception_carries_the_deprecation_headers(llmrails_engine, monkeypatch):
+    """An HTTPException raised after LLMRails was chosen for the request carries the deprecation headers."""
+    monkeypatch.setattr(api, "datastore", None)
+    client = TestClient(api.app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "guardrails": {"config_id": "content_safety", "thread_id": "0123456789abcdef"},
+        },
+    )
+
+    assert response.status_code == 400
+    for name, value in llmrails_deprecation_headers().items():
+        assert response.headers[name] == value
+
+
+def test_iorails_error_response_carries_no_deprecation_headers(iorails_alias, monkeypatch):
+    """A provider error on a request served by IORails carries none of the deprecation headers."""
+
+    async def _fake_start(self):
+        self._running = True
+
+    async def _failing_generate_async(self, messages, **kwargs):
+        raise LLMCallException(RuntimeError("upstream unavailable"))
+
+    monkeypatch.setattr(IORails, "start", _fake_start)
+    monkeypatch.setattr(IORails, "generate_async", _failing_generate_async)
+
+    response = _post_chat_completion()
+
+    assert response.status_code >= 400
+    assert _has_no_deprecation_headers(response)
+
+
+class _UnconfiguredCheckStubLLMRails(_StubLLMRails):
+    """A stub LLMRails engine whose check finds no flows for the requested rail type."""
+
+    async def check_async(self, messages=None, rail_types=None, tools=None):
+        raise RailTypeNotConfiguredError("No output rails are configured.")
+
+
+def test_llmrails_check_error_carries_the_deprecation_headers(monkeypatch, iorails_compatible_config):
+    """A /v1/checks error on a request served by LLMRails still carries the deprecation headers."""
+    monkeypatch.setattr(api, "LLMRails", _UnconfiguredCheckStubLLMRails)
+    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: iorails_compatible_config))
+    client = TestClient(api.app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/v1/checks",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "guardrails": {"config_id": "content_safety"},
+        },
+    )
+
+    assert response.status_code == 422
+    for name, value in llmrails_deprecation_headers().items():
+        assert response.headers[name] == value

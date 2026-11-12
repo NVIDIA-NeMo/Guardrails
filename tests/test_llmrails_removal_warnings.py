@@ -46,6 +46,10 @@ DIALOG_FLOWS_CONTENT = (
     'define bot express greeting\n  "Hello!"\n\n'
     "define flow greeting\n  user express greeting\n  bot express greeting\n"
 )
+FLOW_ONLY_CONTENT = 'define flow greeting\n  user express greeting\n  bot "Hello!"\n'
+DIALOG_CONTENTS = pytest.mark.parametrize(
+    "colang_content", [DIALOG_FLOWS_CONTENT, FLOW_ONLY_CONTENT], ids=["with-define-user", "flow-only"]
+)
 LLMRAILS_ONLY_CONFIG = {"models": [], "rails": {"input": {"flows": ["jailbreak detection heuristics"]}}}
 
 # `nemoguardrails.cli.chat` is shadowed by the `chat` command function on the package.
@@ -143,10 +147,11 @@ def test_guardrails_that_must_run_iorails_raises_without_a_removal_warning():
     assert _removal_warnings(construct) == []
 
 
-def test_guardrails_on_iorails_with_dialog_flows_warns_that_they_are_not_run(monkeypatch):
-    """A Colang 1.0 config with dialog flows still runs on IORails, and warns once that IORails ignores them."""
+@DIALOG_CONTENTS
+def test_guardrails_on_iorails_with_dialog_flows_warns_that_they_are_not_run(monkeypatch, colang_content):
+    """A Colang 1.0 config with dialog flows, with or without define user, runs on IORails and warns once."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
-    config = RailsConfig.from_content(colang_content=DIALOG_FLOWS_CONTENT, config=IORAILS_CONFIG)
+    config = RailsConfig.from_content(colang_content=colang_content, config=IORAILS_CONFIG)
     rails = None
 
     def construct():
@@ -208,6 +213,21 @@ def test_langchain_framework_warns():
     caught = _removal_warnings(LangChainFramework)
 
     assert [w.filename for w in caught] == [__file__]
+
+
+def test_llmrails_on_the_langchain_framework_warns_once_per_deprecated_feature(langchain_framework, monkeypatch):
+    """LLMRails on the LangChain model framework warns once for the engine and once for the framework."""
+    pytest.importorskip("langchain_openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    config = RailsConfig.from_content(config={"models": [{"type": "main", "engine": "openai", "model": "gpt-4o-mini"}]})
+
+    caught = _removal_warnings(lambda: LLMRails(config))
+
+    assert sorted(str(w.message).split(" is deprecated")[0] for w in caught) == [
+        "LLMRails",
+        "The LangChain model framework",
+    ]
+    assert {w.filename for w in caught} == {__file__}
 
 
 def test_langchain_adapter_built_by_a_user_warns():
@@ -285,14 +305,15 @@ def test_colang_2_chat_prints_the_removal_notice(capsys):
     assert "Colang 2.x chat, including its debugger commands, is deprecated" in capsys.readouterr().err
 
 
-def _colang_1_chat_notice(config: RailsConfig, capsys) -> str:
+def _colang_1_chat_notice(config: RailsConfig, capsys, **run_chat_kwargs) -> str:
     """Run the Colang 1.0 chat for *config* without starting the loop, and return what it printed on stderr."""
     with (
         patch.object(chat_module.RailsConfig, "from_path", return_value=config),
         patch("asyncio.run") as mock_asyncio_run,
     ):
         mock_asyncio_run.side_effect = lambda coroutine: coroutine.close()
-        chat_module.run_chat(config_path="config")
+        chat_module.run_chat(config_path="config", **run_chat_kwargs)
+        mock_asyncio_run.assert_called_once()
     return capsys.readouterr().err
 
 
@@ -303,13 +324,35 @@ def test_colang_1_chat_on_an_iorails_config_prints_no_removal_notice(capsys):
     assert "is deprecated" not in notice
 
 
-def test_colang_1_chat_with_dialog_flows_prints_the_dialog_flows_notice(capsys):
-    """Chatting with a Colang 1.0 config that has dialog flows prints that IORails does not run them."""
-    config = RailsConfig.from_content(colang_content=DIALOG_FLOWS_CONTENT, config=IORAILS_CONFIG)
+@DIALOG_CONTENTS
+def test_colang_1_chat_with_dialog_flows_prints_the_dialog_flows_notice(capsys, colang_content):
+    """Chatting with a Colang 1.0 config that has dialog flows, with or without define user, prints the notice."""
+    config = RailsConfig.from_content(colang_content=colang_content, config=IORAILS_CONFIG)
 
     notice = _colang_1_chat_notice(config, capsys)
 
     assert "Using Colang dialog flows (define user, define flow) is deprecated" in notice
+
+
+def test_colang_1_chat_starts_even_when_the_iorails_check_fails(capsys):
+    """A failing IORails support check skips the notice instead of stopping the chat."""
+    config = RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG)
+
+    with patch.object(chat_module.IORails, "unsupported_reason", side_effect=RuntimeError("action import failed")):
+        notice = _colang_1_chat_notice(config, capsys)
+
+    assert "is deprecated" not in notice
+
+
+def test_remote_colang_1_chat_skips_the_local_engine_notice(capsys):
+    """Chatting through a server URL prints no local-engine notice; the server decides which engine runs."""
+    config = RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG)
+
+    with patch.object(chat_module.IORails, "unsupported_reason") as unsupported_reason:
+        notice = _colang_1_chat_notice(config, capsys, server_url="http://localhost:8000")
+
+    unsupported_reason.assert_not_called()
+    assert "is deprecated" not in notice
 
 
 def test_colang_1_chat_on_an_llmrails_only_config_prints_the_fallback_notice(capsys):
