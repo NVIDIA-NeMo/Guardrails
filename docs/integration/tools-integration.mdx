@@ -10,6 +10,14 @@ content:
 
 This guide provides comprehensive instructions for integrating and using tools within the NeMo Guardrails library via the LLMRails interface. It covers supported tools, configuration settings, practical examples, and important security considerations for safe and effective implementation.
 
+<Warning>
+
+`LLMRails` with a LangChain model passed as `llm`, and `RunnableRails`, which this guide uses, are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027), together with the rest of the LangChain integration.
+Use `Guardrails` with the main model configured in `config.yml`, and call it directly from your chain or agent.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-integration).
+
+</Warning>
+
 ## Overview
 
 The NeMo Guardrails library supports the integration of tools to enhance the capabilities of language models while maintaining safety controls. Tools can be used to extend the functionality of your AI applications by enabling interaction with external services, APIs, databases, and custom functions.

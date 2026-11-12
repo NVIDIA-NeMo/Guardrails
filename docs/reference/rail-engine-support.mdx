@@ -20,6 +20,14 @@ The 36 manifests declare 86 surfaces in total.
 This page lists every surface and the engine that can run it.
 For capability areas that are not tied to a specific rail, such as streaming, observability, and the generation API, refer to [Engine Feature Support](/reference/engine-feature-support).
 
+<Warning>
+
+`LLMRails` is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+From 0.27.0, a surface without a ✓ in the `IORails` column is not available.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#configurations-that-fall-back-to-llmrails).
+
+</Warning>
+
 ## How to Read This Page
 
 Legend: ✓ supported · ✗ not supported.
@@ -222,9 +230,9 @@ The `Guardrails` facade decides what an unsupported rail means for your applicat
 
 | Constructor | Unsupported-Configuration Behavior |
 |---|---|
-| `Guardrails(config)` | Routes the configuration to `LLMRails` and logs the reason. This is the default |
+| `Guardrails(config)` | Routes the configuration to `LLMRails`, logs the reason, and emits an `LLMRailsRemovalWarning`. This is the default |
 | `Guardrails(config, require_iorails=True)` | Raises `ValueError` naming the reason, instead of falling back |
-| `Guardrails(config, use_iorails=False)` | Uses `LLMRails` without consulting the rail catalog at all |
+| `Guardrails(config, use_iorails=False)` | Uses `LLMRails` without consulting the rail catalog at all, and emits an `LLMRailsRemovalWarning`. Deprecated in 0.25.0 |
 
 Every "routes to `LLMRails`" statement on this page and in the guardrail catalog describes the default.
 Use `require_iorails=True` when you depend on an `IORails`-only capability such as OpenTelemetry metrics and would rather fail at startup than silently lose it.

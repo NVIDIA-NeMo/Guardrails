@@ -99,6 +99,14 @@ Integrating LLMs with external resources is inherently an exercise in API securi
 
 AI safety and security is a community effort, and this is one of the main reasons we have released NeMo Guardrails to the community. We hope to bring many developers and enthusiasts together to build better solutions for Trustworthy AI. Our initial release is a starting point. We have built a collection of guardrails and educational examples that provide helpful controls and resist a variety of common attacks, however, they are not perfect. We have conducted adversarial testing on these example bots and will soon release a whitepaper on a larger-scale study. Here are some items to watch out for when creating your own bots:
 
+<Warning>
+
+The advice on flow logic and canonical forms in the following list applies to Colang dialog flows (`define user`, `define flow`), which are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
+The IORails engine does not run them.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#colang-configurations).
+
+</Warning>
+
 1. Over-aggressive moderation: Some of the AI Safety rails, can occasionally block otherwise safe requests. This is more likely to happen when multiple guardrails are used together. One possible strategy to resolve this is to use logic in the flow to reduce unnecessary calls; for example to call fact-checking only for factual questions.
 2. Overgeneralization of canonical forms: NeMo Guardrails uses canonical forms like `ask about jobs report` to guide its behavior and to generalize to situations not explicitly defined in the Colang configuration. It may occasionally get the generalization wrong, so that guardrails miss certain examples or trigger unexpectedly. If this happens, it can often be improved by adding or adjusting the `define user` forms in the [Colang files](/configure-guardrails/colang/colang-1/colang-language-syntax-guide), or modifying the sample conversations in the [configuration](/configure-guardrails/configuration-reference).
 3. Nondeterminism: LLMs use a concept known as *temperature*, as well as other techniques, to introduce variation in their responses. This creates a much more natural experience, however, it can on occasion create unexpected behavior in LLM applications that can be difficult to reproduce. As with all AI applications, it is a good practice to use thorough evaluation and regression-testing suites.

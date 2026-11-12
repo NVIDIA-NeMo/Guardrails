@@ -69,6 +69,15 @@ models:
 
 ## Configuration Examples
 
+<Warning>
+
+The examples in this section for the OpenAI Responses API, Anthropic, and Google Vertex AI, and the LangChain alternatives for Azure OpenAI and vLLM, use the LangChain model framework, which `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` selects.
+The LangChain model framework is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Serve the model through an OpenAI-compatible endpoint with the default framework instead.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-model-backend).
+
+</Warning>
+
 ### OpenAI Chat Completions
 
 The following example shows how to configure the OpenAI model as the main application LLM using the chat completions endpoint:

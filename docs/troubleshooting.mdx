@@ -95,6 +95,20 @@ $ export DISABLE_NEST_ASYNCIO=True
 
 Then restart the Python process and retry the application.
 
+### `LLMRailsRemovalWarning` Says a Feature Is Deprecated
+
+```text
+app.py:4: LLMRailsRemovalWarning: LLMRails is deprecated since NeMo Guardrails 0.25.0 and will be removed in 0.27.0 (January 2027). Use Guardrails(config), which runs the IORails engine. Migration guide: https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25
+  rails = LLMRails(config)
+```
+
+Your code, configuration, or command uses a feature that is removed together with the `LLMRails` engine in 0.27.0.
+The warning names the feature at the start of the message and points at the line in your code that triggered it.
+The CLI prints the same message to standard error, and the Guardrails API server writes it to its log.
+
+Look up the feature in [Migrating to 0.25: What Is Deprecated](/reference/0-25#what-is-deprecated) and apply the matching change.
+To hide the warning, or to turn it into an error in your tests, refer to [Silence or Escalate the Warning](/reference/0-25#silence-or-escalate-the-warning).
+
 ## LLM Framework Routing
 
 Starting with 0.22, two controls select whether an engine is handled by the built-in OpenAI-compatible client or by LangChain:
@@ -103,6 +117,14 @@ Starting with 0.22, two controls select whether an engine is handled by the buil
 - `nemoguardrails.set_default_framework(name)`. Switches the active selection at runtime. Raises `KeyError` if the name is unknown and is not one of the lazy built-ins (`default`, `langchain`).
 
 Use the environment variable when every model in a deployment uses the same path. Use `set_default_framework` from Python when you switch dynamically, such as in tests or when bootstrapping a custom framework.
+
+<Warning>
+
+The LangChain model framework is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Serve the model through an OpenAI-compatible endpoint with the default framework instead.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-model-backend).
+
+</Warning>
 
 For migration recipes, refer to [Migrating to 0.22](/reference/0-22). For the engine-by-engine matrix, refer to [Supported LLMs](/about-nemo-guardrails-library/supported-llms#inference-providers).
 

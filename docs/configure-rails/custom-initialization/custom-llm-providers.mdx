@@ -14,6 +14,14 @@ This guide covers LangChain-based custom providers (`BaseLLM` and `BaseChatModel
 
 </Note>
 
+<Warning>
+
+The LangChain model framework, which `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`, `set_default_framework("langchain")`, and `LangChainLLMAdapter` select, is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027), together with the LangChain-based providers that this page registers.
+Serve the model through an OpenAI-compatible endpoint with the default framework instead.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-model-backend).
+
+</Warning>
+
 NeMo Guardrails supports two types of custom LLM providers:
 
 | Type | Base Class | Input | Output |

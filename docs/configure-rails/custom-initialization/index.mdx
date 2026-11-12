@@ -10,6 +10,14 @@ content:
 
 The `config.py` file contains initialization code that runs once at startup, before the `LLMRails` instance is fully initialized. Use it to register custom providers and set up shared resources.
 
+<Warning>
+
+`LLMRails`, which this page refers to, is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027), together with the Colang runtimes and the LangChain model framework.
+Only `LLMRails` loads `config.py`; the IORails engine does not run it.
+For the steps, refer to [Migrating to 0.25](/reference/0-25).
+
+</Warning>
+
 ## When to Use config.py or actions.py
 
 | Use Case | File | Reason |

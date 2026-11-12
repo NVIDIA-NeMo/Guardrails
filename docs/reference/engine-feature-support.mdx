@@ -12,6 +12,14 @@ content:
 The NVIDIA NeMo Guardrails library supports two engines: `LLMRails` and `IORails`.
 This page explains what each engine is optimized for, how to select one, and which features each engine supports.
 
+<Warning>
+
+`LLMRails` is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+From 0.27.0, `IORails` is the only engine, and the features that only `LLMRails` supports are removed with it.
+For the steps, refer to [Migrating to 0.25](/reference/0-25).
+
+</Warning>
+
 ## The LLMRails and IORails Engines
 
 Both engines read the same `RailsConfig` object, but they support different feature sets.
@@ -34,6 +42,8 @@ from nemoguardrails import LLMRails, RailsConfig
 config = RailsConfig.from_path("path/to/config")
 rails = LLMRails(config)
 ```
+
+Constructing `LLMRails` in your code emits an `LLMRailsRemovalWarning`, unless `NEMO_GUARDRAILS_IORAILS_ENGINE` is set, which makes `LLMRails` an alias of `Guardrails`.
 
 ### IORails
 
@@ -70,7 +80,7 @@ config = RailsConfig.from_path("path/to/config")
 # Auto-route: use IORails when the config is supported, otherwise fall back to LLMRails.
 rails = Guardrails(config)
 
-# Always use LLMRails.
+# Always use LLMRails. Deprecated: emits an LLMRailsRemovalWarning.
 rails = Guardrails(config, use_iorails=False)
 
 # Require IORails and raise if the config is not supported.
@@ -85,7 +95,10 @@ rails = Guardrails(config, require_iorails=True)
 - Every configured input and output flow compiles. The rail must be servable on `IORails`, its optional dependencies must be installed, and any model type it names must be declared under `models`.
 - Tool flows are in their own direction and are not duplicated. Refer to [Tool Calling](#tool-calling).
 
-Otherwise the facade falls back to `LLMRails` and logs the reason.
+Otherwise the facade falls back to `LLMRails`, logs the reason, and emits an `LLMRailsRemovalWarning` that names it.
+`IORails` ignores the dialog flows of a Colang 1.0 configuration.
+When the configuration contains its own `define flow` or `define user` blocks, the facade also emits an `LLMRailsRemovalWarning` that says so.
+When it has no dialog flows but its directory, or a directory it imports, contains `config.py`, which `IORails` does not import, the facade emits an `LLMRailsRemovalWarning` about `config.py` instead.
 You can inspect that decision directly with `IORails.unsupported_reason(config, llm)`, which returns the human-readable fallback reason, or `None` when `IORails` can handle the config.
 For the per-rail detail behind the third and fourth conditions, refer to [Rail Engine Support](/reference/rail-engine-support).
 

@@ -628,6 +628,14 @@ The `show_autoalign_message` controls whether we will show any output from autoa
 or not. The response from AutoAlign would be presented as a subtext, when
 `show_autoalign_message` is kept `True`.
 
+<Warning>
+
+The following example uses Colang dialog flows (`define user`, `define flow`), which are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
+The IORails engine does not run them, and it does not run `autoalign groundedness output`.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#colang-configurations).
+
+</Warning>
+
 To use this flow you need to have colang file of the following format:
 
 ```text
