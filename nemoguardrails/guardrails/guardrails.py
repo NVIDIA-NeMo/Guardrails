@@ -31,9 +31,12 @@ from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang.runtime import Runtime
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.deprecation import (
+    CONFIG_PY_ALTERNATIVE,
+    CONFIG_PY_SUBJECT,
     DIALOG_FLOWS_ALTERNATIVE,
     DIALOG_FLOWS_SUBJECT,
     LLMRAILS_FALLBACK_ALTERNATIVE,
+    has_config_py,
     has_dialog_flows,
     warn_llmrails_removal,
 )
@@ -63,6 +66,14 @@ def _warn_llmrails_fallback(llm: Optional[LLMModel], fallback_reason: str) -> No
         )
 
 
+def _warn_what_iorails_ignores(config: RailsConfig) -> None:
+    """Warn about the first part of this config that IORails ignores: dialog flows first, then config.py."""
+    if has_dialog_flows(config):
+        warn_llmrails_removal(DIALOG_FLOWS_SUBJECT, DIALOG_FLOWS_ALTERNATIVE)
+    elif has_config_py(config):
+        warn_llmrails_removal(CONFIG_PY_SUBJECT, CONFIG_PY_ALTERNATIVE)
+
+
 class Guardrails(BaseGuardrails):
     """Top-level interface for NeMo Guardrails functionality."""
 
@@ -86,7 +97,7 @@ class Guardrails(BaseGuardrails):
         config contains flows IORails does not support), the wrapper falls back to
         LLMRails, logs a warning, and emits an ``LLMRailsRemovalWarning``, because
         LLMRails is deprecated. ``use_iorails=False`` warns the same way, and so does
-        a config IORails runs while ignoring its Colang dialog flows. Set ``require_iorails=True`` to raise a
+        a config IORails runs while ignoring its Colang dialog flows or its config.py. Set ``require_iorails=True`` to raise a
         ``ValueError`` instead — use this when IORails-only features such as
         OpenTelemetry metrics are required. A config with per-tool rails
         (``rails.tool_call.per_tool`` / ``rails.tool_result.per_tool``) always raises
@@ -107,8 +118,7 @@ class Guardrails(BaseGuardrails):
         if use_iorails:
             fallback_reason = IORails.unsupported_reason(config, llm)
             if fallback_reason is None:
-                if has_dialog_flows(config):
-                    warn_llmrails_removal(DIALOG_FLOWS_SUBJECT, DIALOG_FLOWS_ALTERNATIVE)
+                _warn_what_iorails_ignores(config)
                 self._rails_engine = IORails(config)
                 self.use_iorails_engine = True
             else:

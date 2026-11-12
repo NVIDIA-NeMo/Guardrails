@@ -39,6 +39,11 @@ SUNSET_DATE = datetime(2027, 1, 1, tzinfo=timezone.utc)
 LLMRAILS_FALLBACK_ALTERNATIVE = "Use only rails that IORails supports; see the Rail Engine Support reference."
 DIALOG_FLOWS_SUBJECT = "Using Colang dialog flows (define user, define flow)"
 DIALOG_FLOWS_ALTERNATIVE = "IORails does not run them; move this logic into input and output rails."
+CONFIG_PY_SUBJECT = "Using config.py"
+CONFIG_PY_ALTERNATIVE = (
+    "IORails does not import it, so its init() and registrations have no effect; "
+    "configure models and rails in config.yml instead."
+)
 LANGCHAIN_FRAMEWORK_SUBJECT = "The LangChain model framework"
 LANGCHAIN_BACKEND_ALTERNATIVE = "Serve the model through an OpenAI-compatible endpoint with the default framework."
 
@@ -95,6 +100,15 @@ def has_dialog_flows(config: "RailsConfig") -> bool:
     """Whether a Colang 1.0 config defines its own flows or user messages, neither of which IORails runs."""
     # Library rails leave both empty, and a flow needs no `define user` block to match a user turn.
     return bool(config.flows or config.user_messages)
+
+
+def has_config_py(config: "RailsConfig") -> bool:
+    """Whether the config, or a config it imports, has the config.py module that only LLMRails loads."""
+    # Mirrors the directories LLMRails searches for config.py when it starts.
+    config_paths = list(config.imported_paths.values()) if config.imported_paths else []
+    if config.config_path:
+        config_paths.extend(path.strip() for path in config.config_path.split(",") if path.strip())
+    return any(os.path.isfile(os.path.join(path, "config.py")) for path in config_paths)
 
 
 def llmrails_deprecation_headers() -> dict[str, str]:

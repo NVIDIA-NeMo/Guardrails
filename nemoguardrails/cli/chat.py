@@ -31,9 +31,12 @@ from nemoguardrails.colang.v2_x.runtime.eval import eval_expression
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.deprecation import (
+    CONFIG_PY_ALTERNATIVE,
+    CONFIG_PY_SUBJECT,
     DIALOG_FLOWS_ALTERNATIVE,
     DIALOG_FLOWS_SUBJECT,
     LLMRAILS_FALLBACK_ALTERNATIVE,
+    has_config_py,
     has_dialog_flows,
     llmrails_removal_message,
 )
@@ -656,7 +659,7 @@ def _print_removal_notice(subject: str, alternative: str) -> None:
 
 
 def _print_colang_1_removal_notice(rails_config: RailsConfig) -> None:
-    """Print a removal notice when this Colang 1.0 config needs LLMRails or uses dialog flows IORails won't run."""
+    """Print a removal notice when this Colang 1.0 config needs LLMRails, or has dialog flows or a config.py IORails ignores."""
     try:
         fallback_reason = IORails.unsupported_reason(rails_config)
     except Exception:
@@ -669,6 +672,8 @@ def _print_colang_1_removal_notice(rails_config: RailsConfig) -> None:
         )
     elif has_dialog_flows(rails_config):
         _print_removal_notice(DIALOG_FLOWS_SUBJECT, DIALOG_FLOWS_ALTERNATIVE)
+    elif has_config_py(rails_config):
+        _print_removal_notice(CONFIG_PY_SUBJECT, CONFIG_PY_ALTERNATIVE)
 
 
 def run_chat(
