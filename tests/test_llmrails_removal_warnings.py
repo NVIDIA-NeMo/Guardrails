@@ -67,6 +67,12 @@ SELF_CHECK_INPUT_CONFIG = {
 LIBRARY_SELF_CHECK_INPUT = (
     Path(nemoguardrails.__file__).parent / "library" / "self_check" / "input_check" / "flows.v1.co"
 ).read_text()
+_LLMRAILS_DEFAULT_FLOWS = (Path(nemoguardrails.__file__).parent / "rails" / "llm" / "llm_flows.co").read_text()
+RUN_DIALOG_RAILS_COPY = _LLMRAILS_DEFAULT_FLOWS[
+    _LLMRAILS_DEFAULT_FLOWS.index("define flow run dialog rails") : _LLMRAILS_DEFAULT_FLOWS.index(
+        "define subflow generate user intent"
+    )
+]
 LLMRAILS_ONLY_CONFIG = {"models": [], "rails": {"input": {"flows": ["jailbreak detection heuristics"]}}}
 
 # `nemoguardrails.cli.chat` is shadowed by the `chat` command function on the package.
@@ -309,12 +315,24 @@ def test_library_rail_redefinition_still_warns_after_llmrails_loaded_the_config(
     ]
 
 
-def test_verbatim_copy_of_a_library_flow_does_not_warn(monkeypatch):
-    """A config that copies a library flow unchanged gets no dialog-flow warning, since IORails runs that same rail."""
+@pytest.mark.parametrize(
+    ("colang_content", "config_dict"),
+    [
+        (LIBRARY_SELF_CHECK_INPUT, SELF_CHECK_INPUT_CONFIG),
+        (RUN_DIALOG_RAILS_COPY, IORAILS_CONFIG),
+    ],
+    ids=["library-rail-flow", "llmrails-default-dialog-flow"],
+)
+def test_verbatim_copy_of_a_bundled_flow_still_warns(monkeypatch, colang_content, config_dict):
+    """A flow the user copied unchanged from the library or llm_flows.co is still the user's own and warns."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
-    config = RailsConfig.from_content(colang_content=LIBRARY_SELF_CHECK_INPUT, config=SELF_CHECK_INPUT_CONFIG)
+    config = RailsConfig.from_content(colang_content=colang_content, config=config_dict)
 
-    assert _removal_warnings(lambda: Guardrails(config)) == []
+    caught = _removal_warnings(lambda: Guardrails(config))
+
+    assert [str(w.message).split(" is deprecated")[0] for w in caught] == [
+        "Using Colang dialog flows (define user, define flow)"
+    ]
 
 
 def test_guardrails_fallback_warns_once_with_the_reason():
