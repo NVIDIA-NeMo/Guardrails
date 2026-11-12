@@ -18,6 +18,7 @@
 import sys
 import warnings
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -63,6 +64,9 @@ SELF_CHECK_INPUT_CONFIG = {
     "rails": {"input": {"flows": ["self check input"]}},
     "prompts": [{"task": "self_check_input", "content": "Should this be blocked? {{ user_input }}"}],
 }
+LIBRARY_SELF_CHECK_INPUT = (
+    Path(nemoguardrails.__file__).parent / "library" / "self_check" / "input_check" / "flows.v1.co"
+).read_text()
 LLMRAILS_ONLY_CONFIG = {"models": [], "rails": {"input": {"flows": ["jailbreak detection heuristics"]}}}
 
 # `nemoguardrails.cli.chat` is shadowed by the `chat` command function on the package.
@@ -263,6 +267,54 @@ def test_custom_rail_flows_fall_back_with_the_reason_instead_of_the_dialog_flow_
     assert rails is not None and not rails.use_iorails_engine
     assert len(caught) == 1
     assert str(caught[0].message).startswith("Running this config on the LLMRails engine ('check blocked terms'")
+
+
+def _build_llmrails_first(config: RailsConfig) -> None:
+    """Construct LLMRails on *config*, which adds its default and library flows to the same config object."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", LLMRailsRemovalWarning)
+        LLMRails(config)
+
+
+def test_guardrails_reusing_a_config_llmrails_loaded_emits_no_dialog_flow_warning(monkeypatch):
+    """Flows LLMRails added to a reused config are not the user's dialog flows, so Guardrails stays silent."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = RailsConfig.from_content(config=IORAILS_CONFIG)
+    _build_llmrails_first(config)
+
+    assert _removal_warnings(lambda: Guardrails(config)) == []
+
+
+def test_config_py_warning_survives_llmrails_loading_the_same_config(tmp_path, monkeypatch):
+    """Flows LLMRails added to a reused config do not hide the config.py warning behind a dialog-flow one."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = _config_dir(tmp_path, config_py=True)
+    _build_llmrails_first(config)
+
+    caught = _removal_warnings(lambda: Guardrails(config))
+
+    assert [str(w.message).split(" is deprecated")[0] for w in caught] == ["Using config.py"]
+
+
+def test_library_rail_redefinition_still_warns_after_llmrails_loaded_the_config(monkeypatch):
+    """A user's redefinition of a library rail still warns after LLMRails marked it as a system flow."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = RailsConfig.from_content(colang_content=SELF_CHECK_INPUT_OVERRIDE, config=SELF_CHECK_INPUT_CONFIG)
+    _build_llmrails_first(config)
+
+    caught = _removal_warnings(lambda: Guardrails(config))
+
+    assert [str(w.message).split(" is deprecated")[0] for w in caught] == [
+        "Using Colang dialog flows (define user, define flow)"
+    ]
+
+
+def test_verbatim_copy_of_a_library_flow_does_not_warn(monkeypatch):
+    """A config that copies a library flow unchanged gets no dialog-flow warning, since IORails runs that same rail."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = RailsConfig.from_content(colang_content=LIBRARY_SELF_CHECK_INPUT, config=SELF_CHECK_INPUT_CONFIG)
+
+    assert _removal_warnings(lambda: Guardrails(config)) == []
 
 
 def test_guardrails_fallback_warns_once_with_the_reason():
