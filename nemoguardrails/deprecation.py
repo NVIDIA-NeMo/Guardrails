@@ -20,6 +20,10 @@ import sys
 import warnings
 from datetime import datetime, timezone
 from email.utils import format_datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from nemoguardrails.rails.llm.config import RailsConfig
 
 DEPRECATED_SINCE = "0.25.0"
 REMOVAL_RELEASE = "0.27.0"
@@ -67,6 +71,12 @@ def warn_llmrails_removal(subject: str, alternative: str) -> None:
 def called_from_package() -> bool:
     """Return True when the function calling this one was itself called from inside the nemoguardrails package."""
     return _is_package_file(sys._getframe(2).f_code.co_filename)
+
+
+def has_dialog_flows(config: "RailsConfig") -> bool:
+    """Whether a Colang 1.0 config defines its own flows or user messages, neither of which IORails runs."""
+    # Library rails leave both empty, and a flow needs no `define user` block to match a user turn.
+    return bool(config.flows or config.user_messages)
 
 
 def llmrails_deprecation_headers() -> dict[str, str]:

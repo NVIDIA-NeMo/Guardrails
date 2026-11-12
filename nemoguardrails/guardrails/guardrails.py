@@ -34,6 +34,7 @@ from nemoguardrails.deprecation import (
     DIALOG_FLOWS_ALTERNATIVE,
     DIALOG_FLOWS_SUBJECT,
     LLMRAILS_FALLBACK_ALTERNATIVE,
+    has_dialog_flows,
     warn_llmrails_removal,
 )
 from nemoguardrails.embeddings.index import EmbeddingsIndex
@@ -106,7 +107,7 @@ class Guardrails(BaseGuardrails):
         if use_iorails:
             fallback_reason = IORails.unsupported_reason(config, llm)
             if fallback_reason is None:
-                if config.user_messages:
+                if has_dialog_flows(config):
                     warn_llmrails_removal(DIALOG_FLOWS_SUBJECT, DIALOG_FLOWS_ALTERNATIVE)
                 self._rails_engine = IORails(config)
                 self.use_iorails_engine = True

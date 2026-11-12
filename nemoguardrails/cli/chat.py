@@ -14,6 +14,7 @@
 # limitations under the License.
 import asyncio
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union, cast
@@ -33,6 +34,7 @@ from nemoguardrails.deprecation import (
     DIALOG_FLOWS_ALTERNATIVE,
     DIALOG_FLOWS_SUBJECT,
     LLMRAILS_FALLBACK_ALTERNATIVE,
+    has_dialog_flows,
     llmrails_removal_message,
 )
 from nemoguardrails.exceptions import StreamingNotSupportedError
@@ -46,6 +48,8 @@ from nemoguardrails.types import ToolCallChunk, ToolCallDeltaChunk
 from nemoguardrails.utils import get_or_create_event_loop, new_event_dict, new_uuid
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+log = logging.getLogger(__name__)
 
 enable_input = asyncio.Event()
 enable_input.set()
@@ -653,12 +657,17 @@ def _print_removal_notice(subject: str, alternative: str) -> None:
 
 def _print_colang_1_removal_notice(rails_config: RailsConfig) -> None:
     """Print a removal notice when this Colang 1.0 config needs LLMRails or uses dialog flows IORails won't run."""
-    fallback_reason = IORails.unsupported_reason(rails_config)
+    try:
+        fallback_reason = IORails.unsupported_reason(rails_config)
+    except Exception:
+        # The check can import actions; a failure there must not stop the chat, which reports real config errors.
+        log.debug("Skipped the LLMRails removal notice because the IORails support check failed.", exc_info=True)
+        return
     if fallback_reason is not None:
         _print_removal_notice(
             f"Running this config on the LLMRails engine ({fallback_reason})", LLMRAILS_FALLBACK_ALTERNATIVE
         )
-    elif rails_config.user_messages:
+    elif has_dialog_flows(rails_config):
         _print_removal_notice(DIALOG_FLOWS_SUBJECT, DIALOG_FLOWS_ALTERNATIVE)
 
 
@@ -692,7 +701,9 @@ def run_chat(
     console.print("Starting the chat (Press Ctrl + C twice to quit) ...")
 
     if rails_config.colang_version == "1.0":
-        _print_colang_1_removal_notice(rails_config)
+        # With a server URL the remote server picks the engine and sends its own deprecation headers.
+        if not server_url:
+            _print_colang_1_removal_notice(rails_config)
         asyncio.run(
             _run_chat_v1_0(
                 config_path=config_path,

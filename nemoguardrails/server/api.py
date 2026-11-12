@@ -23,7 +23,7 @@ import re
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, List, Optional, Union
+from typing import Any, AsyncIterator, Awaitable, Callable, List, Optional, Union
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -251,12 +251,27 @@ _EXCEPTION_HANDLERS = (
     (StarletteHTTPException, http_exception_handler),
     (Exception, internal_error_handler),
 )
-for _exc_type, _handler in _EXCEPTION_HANDLERS:
-    # Handlers are typed with their specific exception; Starlette's stub expects
-    # (Request, Exception), so ty flags the narrower signature as a false positive.
-    app.add_exception_handler(_exc_type, _handler)  # ty: ignore[invalid-argument-type]
 
-app.add_middleware(ExceptionMiddleware, handlers={Exception: internal_error_handler})
+
+def _keep_llmrails_deprecation_headers(
+    handler: Callable[..., Awaitable[Response]],
+) -> Callable[..., Awaitable[Response]]:
+    """Wrap an exception handler so that error replies to a request LLMRails served keep the deprecation headers."""
+
+    async def handle(request: Request, exc: Exception) -> Response:
+        response = await handler(request, exc)
+        response.headers.update(getattr(request.state, "llmrails_deprecation_headers", {}))
+        return response
+
+    return handle
+
+
+for _exc_type, _handler in _EXCEPTION_HANDLERS:
+    app.add_exception_handler(_exc_type, _keep_llmrails_deprecation_headers(_handler))
+
+app.add_middleware(
+    ExceptionMiddleware, handlers={Exception: _keep_llmrails_deprecation_headers(internal_error_handler)}
+)
 
 ENABLE_CORS = os.getenv("NEMO_GUARDRAILS_SERVER_ENABLE_CORS", "false").lower() == "true"
 ALLOWED_ORIGINS = os.getenv("NEMO_GUARDRAILS_SERVER_ALLOWED_ORIGINS", "*")
@@ -749,9 +764,10 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             detail=f"Could not load the requested guardrails configuration: {config_ids}",
         )
 
-    # `response` only carries headers onto returned models; Response objects below take them explicitly.
+    # `response` covers returned models only; Response objects below and the error handlers take the headers too.
     deprecation_headers = _deprecation_headers_for(llm_rails)
     response.headers.update(deprecation_headers)
+    request.state.llmrails_deprecation_headers = deprecation_headers
 
     if body.guardrails.thread_id and llm_rails.config.colang_version != "1.0":
         raise HTTPException(
@@ -978,7 +994,9 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request, respons
         log.exception(ex)
         raise HTTPException(status_code=422, detail=str(ex))
 
-    response.headers.update(_deprecation_headers_for(llm_rails))
+    deprecation_headers = _deprecation_headers_for(llm_rails)
+    response.headers.update(deprecation_headers)
+    request.state.llmrails_deprecation_headers = deprecation_headers
 
     if llm_rails.config.colang_version != "1.0":
         raise HTTPException(
