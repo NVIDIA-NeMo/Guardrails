@@ -10,6 +10,15 @@ content:
 
 This guide covers the various methods for logging, debugging, and understanding what happens during guardrails generation.
 
+<Warning>
+
+The examples on this page use `LLMRails`, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Use `Guardrails`, which runs the IORails engine.
+`explain()`, `output_vars`, and the `internal_events` and `colang_history` log options run only on `LLMRails` and have no IORails equivalent.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#replace-llmrails-with-guardrails).
+
+</Warning>
+
 ## Overview
 
 The NeMo Guardrails library provides multiple ways to inspect and debug guardrails generation:

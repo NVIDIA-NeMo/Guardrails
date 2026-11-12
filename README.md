@@ -15,6 +15,10 @@
 
 > **LATEST RELEASE / DEVELOPMENT VERSION**: The [develop](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop) branch tracks the latest top of tree development. The latest released version is [0.24.1](https://github.com/NVIDIA-NeMo/Guardrails/tree/v0.24.1).
 
+> **DEPRECATION**: Starting with version 0.25.0, `LLMRails`, the Colang 1.0 and Colang 2.x runtimes, `TestChat`, and the LangChain integration are deprecated.
+> Version 0.27.0 (January 2027) removes them.
+> Use `Guardrails`, which runs the IORails engine, and follow the [migration guide](https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25).
+
 ✨✨✨
 
 📌 **The official NeMo Guardrails library documentation is available at [docs.nvidia.com/nemo/guardrails](https://docs.nvidia.com/nemo/guardrails).**
@@ -77,21 +81,21 @@ You can use programmable guardrails in different types of use cases:
 1. **Question Answering** over a set of documents (a.k.a. Retrieval Augmented Generation): Enforce fact-checking and output moderation.
 2. **Domain-specific Assistants** (a.k.a. chatbots): Ensure the assistant stays on topic and follows the designed conversational flows.
 3. **LLM Endpoints**: Add guardrails to your custom LLM for safer customer interaction.
-4. **LangChain Chains** (optional): If you use LangChain for any use case, you can add a guardrails layer around your chains. To enable this integration, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`.
+4. **LangChain Chains** (optional): If you use LangChain for any use case, you can add a guardrails layer around your chains. To enable this integration, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`. The LangChain integration is deprecated and is removed in 0.27.0; refer to the [migration guide](https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25#langchain-integration).
 
 ### Usage
 
 To add programmable guardrails to your application you can use the Python API or a guardrails server (see the [Server Guide](https://docs.nvidia.com/nemo/guardrails/get-started/integrate-into-application) for more details). Using the Python API is similar to using the LLM directly. Calling the guardrails layer instead of the LLM requires only minimal changes to the code base, and it involves two simple steps:
 
-1. Loading a guardrails configuration and creating an `LLMRails` instance.
+1. Loading a guardrails configuration and creating a `Guardrails` instance.
 2. Making the calls to the LLM using the `generate`/`generate_async` methods.
 
 ```python
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import Guardrails, RailsConfig
 
 # Load a guardrails configuration from the specified path.
 config = RailsConfig.from_path("PATH/TO/CONFIG")
-rails = LLMRails(config)
+rails = Guardrails(config)
 
 completion = rails.generate(
     messages=[{"role": "user", "content": "Hello world!"}]
@@ -108,7 +112,7 @@ The input and output format for the `generate` method is similar to the [Chat Co
 
 #### Async API
 
-The NeMo Guardrails library is an async-first toolkit as the core mechanics are implemented using the Python async model. The public methods have both a sync and an async version. For example: `LLMRails.generate` and `LLMRails.generate_async`.
+The NeMo Guardrails library is an async-first toolkit as the core mechanics are implemented using the Python async model. The public methods have both a sync and an async version. For example: `Guardrails.generate` and `Guardrails.generate_async`.
 
 ### Supported LLMs
 
@@ -184,6 +188,10 @@ rails:
 
 The `.co` files included in a guardrails configuration contain the Colang definitions (see the next section for a quick overview of what Colang is) that define various types of rails. Below is an example `greeting.co` file which defines the dialog rails for greeting the user.
 
+> **DEPRECATION**: Dialog rails written as Colang flows run only on `LLMRails`, which version 0.27.0 (January 2027) removes.
+> `Guardrails`, which runs the IORails engine, ignores them.
+> Refer to the [migration guide](https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25#colang-configurations).
+
 ```colang
 define user express greeting
   "Hello!"
@@ -218,6 +226,7 @@ To configure and implement various types of guardrails, this toolkit introduces 
 
 ```{note}
 Two versions of Colang, 1.0 and 2.0, are supported and Colang 1.0 is the default.
+Both Colang runtimes are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
 ```
 
 For a brief introduction to the Colang 1.0 syntax, see the [Colang 1.0 Language Syntax Guide](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/colang).
@@ -243,9 +252,9 @@ $ nemoguardrails --help
 
 Usage: nemoguardrails [OPTIONS] COMMAND [ARGS]...
 
-actions-server    Start a NeMo Guardrails actions server.
+actions-server    Start a NeMo Guardrails actions server. (deprecated)
 chat              Start an interactive chat session.
-evaluate          Run an evaluation task.
+eval              Run an evaluation task.
 server            Start a NeMo Guardrails server.
 ```
 
@@ -291,7 +300,7 @@ LangChain integration is opt-in. To enable it, set the `NEMOGUARDRAILS_LLM_FRAME
 
 Evaluating the safety of a LLM-based conversational application is a complex task and still an open research question. To support proper evaluation, the NeMo Guardrails library provides the following:
 
-1. An [evaluation tool](nemoguardrails/evaluate/README.md), i.e. `nemoguardrails evaluate`, with support for topical rails, fact-checking, moderation (jailbreak and output moderation) and hallucination.
+1. An [evaluation tool](nemoguardrails/evaluate/README.md), i.e. `nemoguardrails eval`, with support for topical rails, fact-checking, moderation (jailbreak and output moderation) and hallucination.
 2. Sample LLM Vulnerability Scanning Reports, e.g, [ABC Bot - LLM Vulnerability Scan Results](https://docs.nvidia.com/nemo/guardrails/evaluation/llm-vulnerability-scanning.html)
 
 ## How is this different?

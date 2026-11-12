@@ -11,6 +11,14 @@ content:
 
 The `check_async()` and `check()` methods validate messages against input and output rails without triggering full LLM generation. Use these methods instead of [generation options](/run-guardrailed-inference/using-python-apis/generation-options) when you only need to run rails without generating a response. If you need to run generation while selectively disabling rail categories, see [Generation Options: Disabling Rails](/run-guardrailed-inference/using-python-apis/generation-options#disabling-rails).
 
+<Warning>
+
+The `LLMRails` engine that this page compares with `IORails` is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Use `Guardrails`, which runs the IORails engine, as in [Checking on the IORails Engine](#checking-on-the-iorails-engine).
+For the steps, refer to [Migrating to 0.25](/reference/0-25#replace-llmrails-with-guardrails).
+
+</Warning>
+
 Both the `LLMRails` and `IORails` engines implement these methods.
 The `Guardrails` facade forwards each call to the selected engine.
 Both engines take `messages` and `rail_types` and return a `RailsResult`.

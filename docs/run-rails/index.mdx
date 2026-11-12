@@ -4,7 +4,7 @@
 title: "About Running Guardrailed Inference"
 sidebar-title: "About Running Guardrailed Inference"
 description: "Run guardrailed inference using the Python API or the Guardrails API server, and check coding agents' tool calls with the Guardrails hooks server."
-keywords: ["NeMo Guardrails", "guardrailed inference", "LLMRails", "RailsConfig", "Guardrails API server", "Guardrails hooks server"]
+keywords: ["NeMo Guardrails", "guardrailed inference", "Guardrails", "LLMRails", "RailsConfig", "Guardrails API server", "Guardrails hooks server"]
 content:
   type: "get_started"
 ---
@@ -43,15 +43,23 @@ Choose an interface based on the following tasks:
 Build guardrails directly into your Python application. You call guardrails functions in your code, and everything runs in the same process with no network overhead.
 
 ```python
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import Guardrails, RailsConfig
 
 config = RailsConfig.from_path("path/to/config")
-rails = LLMRails(config)
+rails = Guardrails(config)
 
 response = rails.generate(messages=[
     {"role": "user", "content": "Hello!"}
 ])
 ```
+
+<Warning>
+
+`LLMRails`, which earlier versions of this example used, is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+`Guardrails` runs the IORails engine.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#replace-llmrails-with-guardrails).
+
+</Warning>
 
 This approach is best for:
 

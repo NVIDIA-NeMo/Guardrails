@@ -774,6 +774,12 @@ navigation:
           - page: Health Check (Alias)
             path: reference/hooks-server-api/_generated/get-healthz.mdx
             slug: get-healthz
+      - page: Deprecations and Removals
+        path: reference/deprecations.mdx
+        slug: deprecations
+      - page: Migrating to 0.25
+        path: migration/0.25.mdx
+        slug: 0-25
       - page: Migrating to 0.22
         path: migration/0.22.mdx
         slug: 0-22

@@ -11,6 +11,15 @@ content:
 
 This guide covers the two fundamental classes in the NeMo Guardrails library: `RailsConfig` for loading configurations and `LLMRails` for generating responses with guardrails.
 
+<Warning>
+
+The examples on this page use `LLMRails`, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Use `Guardrails`, which runs the IORails engine.
+The custom LLM, event-based generation, custom action, embedding search provider, and Colang dialog flow examples have no IORails equivalent.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#replace-llmrails-with-guardrails).
+
+</Warning>
+
 ## RailsConfig
 
 The `RailsConfig` class represents a complete guardrails configuration, including models, rails, flows, prompts, and other settings. This class requires to load the configuration from a directory or a single file you created in the previous chapter [About Configuring Guardrails](/configure-guardrails/configure-rails).

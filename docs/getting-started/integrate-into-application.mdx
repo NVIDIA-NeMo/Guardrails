@@ -10,6 +10,14 @@ content:
 
 The NeMo Guardrails library provides the following tools to integrate guardrails into your applications.
 
+<Warning>
+
+`LLMRails`, which the Python SDK example uses, and the LangChain integration, including `RunnableRails` and the LangChain model framework, are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
+Use `Guardrails(config)`, which runs the IORails engine, and call it directly from your chain or agent.
+For the steps, refer to [Migrating to 0.25](/reference/0-25).
+
+</Warning>
+
 - Use the NeMo Guardrails Python SDK to add guardrails directly into your Python application.
 
     ```python

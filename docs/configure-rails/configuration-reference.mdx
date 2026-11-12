@@ -114,6 +114,15 @@ For OpenAI-compatible providers without a dedicated engine entry (vLLM, TGI, Ope
 
 #### LangChain Engines
 
+<Warning>
+
+The engines in this section need the LangChain model framework, which `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`, `set_default_framework("langchain")`, and `LangChainLLMAdapter` select.
+The LangChain model framework is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Serve the model through an OpenAI-compatible endpoint with the default framework instead.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-model-backend).
+
+</Warning>
+
 To use one of these engines, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching `langchain-*` provider package.
 
 | Engine                 | Description                                                                                                                                                                    |

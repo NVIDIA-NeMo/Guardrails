@@ -13,6 +13,14 @@ a non-trivial config, you should pin its behavior down with tests so that
 prompt tweaks, flow refactors, and library upgrades cannot regress your
 intended policy.
 
+<Warning>
+
+`TestChat` and `LLMRails`, which the patterns on this page build, are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
+A test helper for `Guardrails` is planned for 0.26.0.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#testing-with-testchat).
+
+</Warning>
+
 NeMo Guardrails ships a small public testing surface under
 `nemoguardrails.testing`. Its main building blocks are:
 

@@ -159,6 +159,14 @@ Choose one remediation path based on your migration goal:
 
 ## Using LangChain
 
+<Warning>
+
+The LangChain model framework, which this section selects with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`, is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Serve the model through an OpenAI-compatible endpoint with the default framework instead.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-model-backend).
+
+</Warning>
+
 If your engine's API is not OpenAI-compatible, keep using LangChain.
 This includes Anthropic, Cohere, Vertex AI, Google Generative AI, in-process Hugging Face, TensorRT-LLM, and generic LangChain self-hosted providers.
 
