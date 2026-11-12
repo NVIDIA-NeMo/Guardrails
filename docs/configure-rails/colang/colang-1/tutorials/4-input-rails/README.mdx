@@ -178,13 +178,13 @@ rails:
 - The `flows` keys contains the name of the flows that is used as input rails.
 - `self check input` is the name of a pre-defined flow that implements self-check input checking.
 
-All the rails in NeMo Guardrails are implemented as flows. For example, you can find the `self_check_input` flow [here](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/self_check/input_check/flows.co).
+Colang rails are implemented as flows. For example, the [built-in Colang 1.0 input flow](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/self_check/input_check/flows.v1.co) reads the action's `RailOutcome.is_blocked` property. The following simplified flow shows the blocking decision:
 
 ```text
 define flow self check input
-  $allowed = execute self_check_input
+  $result = execute self_check_input
 
-  if not $allowed
+  if $result.is_blocked
     bot refuse to respond
     stop
 ```

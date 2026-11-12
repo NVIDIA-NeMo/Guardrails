@@ -829,7 +829,9 @@ import_paths:
 
 ## Complete Example
 
-The following YAML example demonstrates a complete `config.yml` file that wires together a main language model, a dedicated content safety model, and an embeddings model. It configures rails for input and output content safety checks, points to a local NIM service for jailbreak detection, defines a content safety prompt, provides general instructions for the assistant, and enables response streaming from both the main and content safety models.
+The following `config.yml` example defines a main language model, a dedicated content safety model, and an embeddings model. It enables input and output content safety checks with a prompt for each check and configures output rail streaming. The main model uses NVIDIA-hosted inference and requires `NVIDIA_API_KEY`; start the content safety model at `http://localhost:8123/v1` before running the configuration. The port avoids a conflict with the Guardrails server's default port, `8000`. For deployment steps, refer to [Nemotron Safety Guard Deployment](/get-started/tutorials/nemotron-safety-guard-deployment).
+
+The prompts are the NemoGuard content safety prompts from the [content safety example](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/content_safety/prompts.yml), which match the response format that the configured parsers expect.
 
 ```yaml
 models:
@@ -844,7 +846,7 @@ models:
     - type: content_safety
       engine: nim
       parameters:
-          base_url: "http://localhost:8000/v1"
+          base_url: "http://localhost:8123/v1"
           model_name: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
 
     # Embeddings
@@ -863,22 +865,98 @@ rails:
         streaming:
             enabled: true
 
-    config:
-        jailbreak_detection:
-            nim_base_url: "http://localhost:8001/v1/"
-
 prompts:
     - task: content_safety_check_input $model=content_safety
       content: |
-          Check if this content is safe: {{ user_input }}
+          Task: Check if there is unsafe content in the user or agent messages in the below conversation in accordance with our safety policy with the below categories. Provide a 'safe' or 'unsafe' rating for both the user message and the agent response. If there is unsafe content, please also provide a list of violated categories according to our safety policy below.
+
+          <BEGIN UNSAFE CONTENT CATEGORIES>
+          S1: Violence.
+          S2: Sexual.
+          S3: Criminal Planning/Confessions.
+          S4: Guns and Illegal Weapons.
+          S5: Controlled/Regulated Substances.
+          S6: Suicide and Self Harm.
+          S7: Sexual (minor).
+          S8: Hate/Identity Hate.
+          S9: PII/Privacy.
+          S10: Harassment.
+          S11: Threat.
+          S12: Profanity.
+          S13: Needs Caution.
+          S14: Other.
+          S15: Manipulation.
+          S16: Fraud/Deception.
+          S17: Malware.
+          S18: High Risk Gov Decision Making.
+          S19: Political/Misinformation/Conspiracy.
+          S20: Copyright/Trademark/Plagiarism.
+          S21: Unauthorized Advice.
+          S22: Illegal Activity.
+          S23: Immoral/Unethical.
+          <END UNSAFE CONTENT CATEGORIES>
+
+          <BEGIN CONVERSATION>
+
+          user: {{ user_input }}
+
+          <END CONVERSATION>
+
+          Provide your safety assessment for the above conversation in the below output JSON format:
+          {"User Safety": safe or unsafe rating for the user message, "Response Safety": safe or unsafe rating for the agent response. Omit if no agent response present. "Safety Categories": a comma-separated list of applicable safety categories from the provided taxonomy. Omit if all safe.}
+
+          Do not include anything other than the output JSON in your response.
+          Output JSON:
       output_parser: nemoguard_parse_prompt_safety
+      max_tokens: 50
+    - task: content_safety_check_output $model=content_safety
+      content: |
+          Task: Check if there is unsafe content in the user or agent messages in the below conversation in accordance with our safety policy with the below categories. Provide a 'safe' or 'unsafe' rating for both the user message and the agent response. If there is unsafe content, please also provide a list of violated categories according to our safety policy below.
+
+          <BEGIN UNSAFE CONTENT CATEGORIES>
+          S1: Violence.
+          S2: Sexual.
+          S3: Criminal Planning/Confessions.
+          S4: Guns and Illegal Weapons.
+          S5: Controlled/Regulated Substances.
+          S6: Suicide and Self Harm.
+          S7: Sexual (minor).
+          S8: Hate/Identity Hate.
+          S9: PII/Privacy.
+          S10: Harassment.
+          S11: Threat.
+          S12: Profanity.
+          S13: Needs Caution.
+          S14: Other.
+          S15: Manipulation.
+          S16: Fraud/Deception.
+          S17: Malware.
+          S18: High Risk Gov Decision Making.
+          S19: Political/Misinformation/Conspiracy.
+          S20: Copyright/Trademark/Plagiarism.
+          S21: Unauthorized Advice.
+          S22: Illegal Activity.
+          S23: Immoral/Unethical.
+          <END UNSAFE CONTENT CATEGORIES>
+
+          <BEGIN CONVERSATION>
+
+          user: {{ user_input }}
+
+          response: agent: {{ bot_response }}
+
+          <END CONVERSATION>
+
+          Provide your safety assessment for the above conversation in the below output JSON format:
+          {"User Safety": safe or unsafe rating for the user message, "Response Safety": safe or unsafe rating for the agent response. Omit if no agent response present. "Safety Categories": a comma-separated list of applicable safety categories from the provided taxonomy. Omit if all safe.}
+
+          Do not include anything other than the output JSON in your response.
+          Output JSON:
+      output_parser: nemoguard_parse_response_safety
       max_tokens: 50
 
 instructions:
     - type: general
       content: |
           You are a helpful, harmless, and honest assistant.
-
-streaming:
-    enabled: true
 ```
