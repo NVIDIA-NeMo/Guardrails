@@ -18,9 +18,11 @@
 import os
 import sys
 import warnings
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from email.utils import format_datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator
 
 if TYPE_CHECKING:
     from nemoguardrails.rails.llm.config import RailsConfig
@@ -37,6 +39,10 @@ SUNSET_DATE = datetime(2027, 1, 1, tzinfo=timezone.utc)
 LLMRAILS_FALLBACK_ALTERNATIVE = "Use only rails that IORails supports; see the Rail Engine Support reference."
 DIALOG_FLOWS_SUBJECT = "Using Colang dialog flows (define user, define flow)"
 DIALOG_FLOWS_ALTERNATIVE = "IORails does not run them; move this logic into input and output rails."
+LANGCHAIN_FRAMEWORK_SUBJECT = "The LangChain model framework"
+LANGCHAIN_BACKEND_ALTERNATIVE = "Serve the model through an OpenAI-compatible endpoint with the default framework."
+
+_removal_warnings_silenced: ContextVar[bool] = ContextVar("llmrails_removal_warnings_silenced", default=False)
 
 _DEPRECATION_HEADERS = {
     "Deprecation": f"@{int(DEPRECATION_DATE.timestamp())}",
@@ -61,11 +67,23 @@ def llmrails_removal_message(subject: str, alternative: str) -> str:
 
 def warn_llmrails_removal(subject: str, alternative: str) -> None:
     """Emit an LLMRailsRemovalWarning attributed to the nearest caller outside the nemoguardrails package."""
+    if _removal_warnings_silenced.get():
+        return
     warnings.warn(
         llmrails_removal_message(subject, alternative),
         LLMRailsRemovalWarning,
         stacklevel=_stacklevel_outside_package(),
     )
+
+
+@contextmanager
+def removal_warnings_silenced() -> Iterator[None]:
+    """Silence LLMRailsRemovalWarnings in the block, so that one construction emits at most one."""
+    token = _removal_warnings_silenced.set(True)
+    try:
+        yield
+    finally:
+        _removal_warnings_silenced.reset(token)
 
 
 def called_from_package() -> bool:
