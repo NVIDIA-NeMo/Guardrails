@@ -18,6 +18,14 @@ Ensure Docker is installed on your machine. If Docker is not installed, follow t
 
 By default, the library uses the lightweight default framework, which is based on `httpx` and does not require LangChain. It serves engines such as `openai`, `nim`, `nvidia_ai_endpoints`, `ollama`, `azure`, and `azure_openai`. It also serves any other OpenAI-compatible provider configured with `engine: openai` and `parameters.base_url`, such as self-hosted vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, or `llama.cpp`.
 
+<Warning>
+
+The LangChain model framework, which `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` selects, is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027), together with the `actions-server` and `convert` commands that this page mentions.
+Serve the model through an OpenAI-compatible endpoint with the default framework instead.
+For the steps, refer to [Migrating to 0.25](/reference/0-25).
+
+</Warning>
+
 To use LangChain-only engines whose API is not OpenAI-compatible, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` in the container environment and add `langchain` plus the relevant provider packages to your image. These engines include `vertexai`, `anthropic`, `cohere`, `huggingface_pipeline`, `huggingface_endpoint` with the default text-generation schema, `trt_llm`, `self_hosted`, and the legacy `vllm_openai` LangChain wrapper. For example:
 
 ```bash

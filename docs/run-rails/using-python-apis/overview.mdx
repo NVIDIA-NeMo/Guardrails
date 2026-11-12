@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Overview of the NeMo Guardrails Python APIs"
 sidebar-title: "Python APIs Overview"
-description: "RailsConfig and LLMRails core classes for generating guarded responses."
+description: "RailsConfig and Guardrails core classes for generating guarded responses."
 keywords:
     [
         "NeMo Guardrails",
         "RailsConfig",
+        "Guardrails",
         "LLMRails",
         "Python API",
         "generate",
@@ -20,9 +21,17 @@ content:
 The NeMo Guardrails library Python API provides two core classes for running guardrails:
 
 - **`RailsConfig`**: Loads and manages guardrails configuration from files or content.
-- **`LLMRails`**: The main interface for generating responses with guardrails applied.
+- **`Guardrails`**: The main interface for generating responses with guardrails applied. It runs the IORails engine.
 
-Upon initializing the core classes (`RailsConfig` and `LLMRails`), the library loads the configuration files you created in the previous chapter [About Configuring Guardrails](/configure-guardrails/configure-rails).
+Upon initializing the core classes (`RailsConfig` and `Guardrails`), the library loads the configuration files you created in the previous chapter [About Configuring Guardrails](/configure-guardrails/configure-rails).
+
+<Warning>
+
+`LLMRails`, the earlier main interface, is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Replace `LLMRails(config)` with `Guardrails(config)`.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#replace-llmrails-with-guardrails).
+
+</Warning>
 
 ## Quick Start
 
@@ -44,23 +53,22 @@ Meet the following prerequisites to use the NeMo Guardrails library Python API.
 
 ### Run a Sample Guardrailed Chat Request
 
-The following example shows the minimal code to load the prepared configuration files in the `config` directory and generate a response using the `LLMRails` class.
+The following example shows the minimal code to load the content safety example configuration and generate a response using the `Guardrails` class.
 
 ```python
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import Guardrails, RailsConfig
 
 # Load configuration from the config directory
-config = RailsConfig.from_path("examples/configs")
+config = RailsConfig.from_path("examples/configs/content_safety")
 
-# Create the LLMRails instance
-rails = LLMRails(config)
+# Create the Guardrails instance
+rails = Guardrails(config)
 
 # Generate a response
 response = rails.generate(messages=[
     {
         "role": "user",
-        "content": "What is the capital of France?",
-        "config_id": "content_safety"
+        "content": "What is the capital of France?"
     }
 ])
 print(response["content"])
@@ -68,20 +76,40 @@ print(response["content"])
 
 ## Lifetime and Performance
 
-Construct `LLMRails` once per process and reuse it across requests. Initialization validates configuration, compiles prompt templates, and loads the embedding model (FastEmbed). On a typical developer machine, this work takes on the order of several hundred milliseconds.
+Construct `Guardrails` once per process and reuse it across requests.
+Construction validates the configuration and compiles the configured rails.
 
-After construction, individual `generate()` / `generate_async()` calls do not repeat that startup work, so reusing a single `LLMRails` instance is significantly faster than building a new one per request.
-
-For serverless or FaaS handlers, this initialization cost is paid once per cold start, not per request. Cache the `LLMRails` instance in module scope (or a singleton) so warm invocations skip the setup:
+The synchronous `generate()` and `check()` methods start a short-lived engine for every call, with tracing and metrics turned off.
+They suit scripts.
+In a service, start the engine once and call the asynchronous methods.
+Starting the engine opens an HTTP session for each configured model and starts the request queue, and later `generate_async()`, `stream_async()`, and `check_async()` calls reuse them.
 
 ```python
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import Guardrails, RailsConfig
 
-_rails = LLMRails(RailsConfig.from_path("./config"))
+
+async def main():
+    config = RailsConfig.from_path("./config")
+    async with Guardrails(config) as rails:
+        response = await rails.generate_async(messages=[{"role": "user", "content": "Hello!"}])
+        print(response["content"])
+```
+
+If your application has its own startup and shutdown hooks, call `await rails.startup()` and `await rails.shutdown()` from them instead of using `async with`.
+
+For serverless or FaaS handlers, create the `Guardrails` instance in module scope so that warm invocations skip loading and validating the configuration:
+
+```python
+from nemoguardrails import Guardrails, RailsConfig
+
+_rails = Guardrails(RailsConfig.from_path("./config"))
 
 def handler(event, context):
     return _rails.generate(messages=event["messages"])
 ```
+
+The synchronous `generate()` still starts a short-lived engine for each invocation.
+If your platform keeps one event loop running across invocations, make the handler asynchronous and call `await _rails.generate_async(...)` instead, so that warm invocations reuse the running engine.
 
 ## When to Use Each API
 
@@ -90,7 +118,7 @@ def handler(event, context):
 | `generate()` / `generate_async()`               | Standard chat interactions with messages              |
 | `stream_async()`                                | Real-time token streaming                             |
 | `check()` / `check_async()`                     | Validate messages against rails without generation    |
-| `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations       |
+| `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations (`LLMRails` only, deprecated) |
 
 ## Synchronous vs Asynchronous
 

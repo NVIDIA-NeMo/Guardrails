@@ -11,6 +11,14 @@ content:
 
 You can use a guardrails configuration through an event-based API using `LLMRails.generate_events_async` and `LLMRails.generate_events`. For the full API reference, see [Python SDK Reference](/guardrails-python-sdk/nemoguardrails).
 
+<Warning>
+
+The event-based API runs only on `LLMRails`, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+The IORails engine has no equivalent.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#methods-that-iorails-does-not-provide).
+
+</Warning>
+
 Example usage:
 
 ```python

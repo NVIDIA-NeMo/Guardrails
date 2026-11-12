@@ -46,6 +46,14 @@ To use the content safety check, you should:
 
     </Note>
 
+    <Warning>
+
+    The `engine: vllm_openai` form needs the LangChain model framework, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+    Use `engine: openai` with `parameters.base_url`, as in the example above.
+    For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-model-backend).
+
+    </Warning>
+
 2. Include the content safety check in the input and output rails section of the `config.yml` file:
 
     ```yaml

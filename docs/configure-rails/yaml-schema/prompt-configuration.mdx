@@ -10,6 +10,14 @@ content:
 
 This section describes how to customize prompts in the `config.yml` or `prompts.yml` file.
 
+<Warning>
+
+The Colang dialog tasks (`generate_user_intent`, `generate_next_steps`, and `generate_bot_message`) and `register_prompt_context()` run only on `LLMRails`, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+The IORails engine has no equivalent.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#methods-that-iorails-does-not-provide).
+
+</Warning>
+
 ## Task-Oriented Prompting
 
 The interaction with the LLM is task-oriented: each LLM call performs a specific task. The core tasks in the [guardrails process](/reference/colang-architecture-guide) are:

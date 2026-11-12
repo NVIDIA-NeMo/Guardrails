@@ -12,6 +12,14 @@ content:
 
 The NVIDIA NeMo Guardrails library ([PyPI](https://pypi.org/project/nemoguardrails/) | [GitHub](https://github.com/NVIDIA-NeMo/Guardrails)) is an open-source Python package for adding programmable guardrails to LLM-based applications. Use it to block, alter, or validate unsafe, off-topic, malicious, or policy-violating user inputs and model responses.
 
+<Warning>
+
+`LLMRails`, the Colang 1.0 and Colang 2.x runtimes, `TestChat`, and the LangChain integration are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
+`Guardrails`, which runs the IORails engine, becomes the only way to run guardrails, and it does not run Colang flows or custom actions.
+For the steps, refer to [Migrating to 0.25](/reference/0-25).
+
+</Warning>
+
 The library provides configuration files, Colang flows, built-in guardrails, custom actions, and integration APIs so you can add safety and control logic without rewriting your application or model backend.
 
 ## How It Fits in the NVIDIA NeMo Software Stack

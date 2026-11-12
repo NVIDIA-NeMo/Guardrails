@@ -11,6 +11,14 @@ content:
 
 The Actions Server enables you to run actions invoked from guardrails in a secure, isolated environment separate from the main guardrails server.
 
+<Warning>
+
+The actions server and the `nemoguardrails actions-server` command are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
+The IORails engine does not call an actions server and does not run custom actions, so there is no replacement.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#deprecated-cli-commands).
+
+</Warning>
+
 ## Why Use an Actions Server?
 
 Actions are custom Python functions that guardrails can invoke during processing.

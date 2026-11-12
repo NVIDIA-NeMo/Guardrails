@@ -31,8 +31,8 @@ Commands:
   hooks-server     Start a NeMo Guardrails hooks server, which checks
                    agents' tool calls before they run.
   convert          Convert Colang files and configs from older version to
-                   the latest.
-  actions-server   Start a NeMo Guardrails actions server.
+                   the latest. (deprecated)
+  actions-server   Start a NeMo Guardrails actions server. (deprecated)
   find-providers   List and select LLM providers interactively.
   eval             Evaluation a guardrail configuration.
 ```
@@ -42,6 +42,14 @@ You can also use the `--help` flag to learn more about each of the `nemoguardrai
 ---
 
 ## `chat`
+
+<Warning>
+
+Chat with a Colang 2.x configuration, including its debugger commands, is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Chat with a Colang 1.0 configuration stays and is planned to move to the IORails engine in 0.26.0.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#colang-configurations).
+
+</Warning>
 
 ```sh
 nemoguardrails chat --config examples/configs/content_safety [--verbose] [--streaming]
@@ -61,6 +69,14 @@ nemoguardrails chat --config examples/configs/content_safety [--verbose] [--stre
 | `--config-id` | The config ID to use when connecting to a server. |
 
 ## `actions-server`
+
+<Warning>
+
+The `actions-server` command is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+The IORails engine does not call an actions server, so there is no replacement.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#deprecated-cli-commands).
+
+</Warning>
 
 Start a separate server for running custom actions in an isolated environment.
 
@@ -83,6 +99,14 @@ Start the FastAPI server for serving guardrails configurations over HTTP.
 ```bash
 nemoguardrails server --config examples/configs --port 8000
 ```
+
+<Warning>
+
+By default, the server serves every configuration on `LLMRails`, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Set `NEMO_GUARDRAILS_IORAILS_ENGINE=true` to serve each configuration on the IORails engine when that engine can run it.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#guardrails-api-server).
+
+</Warning>
 
 ### Options
 
@@ -143,9 +167,26 @@ nemoguardrails eval run --config examples/configs/content_safety
 
 Use `nemoguardrails eval <subcommand> --help` for details on each subcommand.
 
+<Warning>
+
+`nemoguardrails eval rail topical` is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+It measures Colang dialog rails, which the IORails engine does not run, so there is no replacement.
+The other `eval` subcommands stay and are planned to move to the IORails engine in 0.26.0.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#deprecated-cli-commands).
+
+</Warning>
+
 ---
 
 ## `convert`
+
+<Warning>
+
+The `convert` command is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+The IORails engine does not run Colang flows, so there is no replacement.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#deprecated-cli-commands).
+
+</Warning>
 
 Convert Colang files and configurations from older versions to the latest format.
 

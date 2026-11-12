@@ -14,6 +14,14 @@ There are three main ways in which you can use the NeMo Guardrails library with 
 2. Add guardrails to a LangChain chain (or `Runnable`).
 3. Use a LangChain chain (or `Runnable`) inside a guardrails configuration.
 
+<Warning>
+
+All three ways are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027): `GuardrailsMiddleware`, `RunnableRails`, and chains that `LLMRails` registers as actions for Colang flows.
+Call `Guardrails` directly from your chain or agent instead.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-chains-and-agents).
+
+</Warning>
+
 ## Add Guardrails to an Agent
 
 For tool-calling agents built with `create_agent`, the `GuardrailsMiddleware` hooks into the agent loop to run safety checks before and after every model call:

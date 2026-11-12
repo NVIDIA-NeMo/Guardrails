@@ -22,6 +22,19 @@ nemoguardrails server --config examples/configs
 
 For more information about the available options, see [CLI: Server](/reference/cli#server).
 
+## Select the Engine
+
+By default, the server serves every configuration on the `LLMRails` engine, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Set `NEMO_GUARDRAILS_IORAILS_ENGINE=true` to serve each configuration through `Guardrails`, which runs the IORails engine when that engine can run the configuration:
+
+```bash
+NEMO_GUARDRAILS_IORAILS_ENGINE=true nemoguardrails server --config examples/configs
+```
+
+While a configuration runs on `LLMRails`, the server logs a deprecation warning on the first request for it.
+Its responses on `/v1/chat/completions` and `/v1/checks` also carry `Deprecation`, `Sunset`, and `Link` headers.
+For the log line, the header values, and how to find why a configuration still runs on `LLMRails`, refer to [Migrating to 0.25: Guardrails API Server](/reference/0-25#guardrails-api-server).
+
 ## Link Guardrail Configurations to the Server
 
 The server supports two modes depending on your folder structure: **multi-config mode** and **single-config mode**.
