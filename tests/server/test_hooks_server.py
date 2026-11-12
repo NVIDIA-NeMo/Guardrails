@@ -733,6 +733,19 @@ class TestStartup:
 
         assert isinstance(_app({**HOOKS_CONFIG, "hooks_server": hooks}).state.engine.rails_engine, IORails)
 
+    def test_allowlist_added_to_another_config_still_leaves_allow_unlisted_tools_unset(self):
+        """Joining an allowlist config with `+` keeps allow_unlisted_tools unset, so the allowlist check refuses it."""
+        # Called directly: IORails refuses a joined config before this check runs, and the check must not rely on that.
+        allowlist = RailsConfig.from_content(
+            config={"models": [], "hooks_server": {"allowed_tools": [{"name": "search", "arguments": ["query"]}]}}
+        )
+        joined = allowlist + RailsConfig.from_content(config={"models": []})
+
+        with pytest.raises(HooksConfigError) as exc_info:
+            hooks_app._check_allowlist_sets_unlisted_tools_choice(joined)
+
+        assert str(exc_info.value) == ALLOWLIST_LEAVES_UNLISTED_TOOLS_UNSET
+
     def test_config_with_tool_call_validation_is_refused_before_the_engine(self, monkeypatch):
         """`tool call validation` is refused, since the server declares the called tool and the flow can't deny."""
         engine = MagicMock()

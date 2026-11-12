@@ -266,6 +266,22 @@ def test_added_configs_keep_the_one_hooks_server_section_either_sets(strict_firs
     assert merged.hooks_server == strict.hooks_server
 
 
+@pytest.mark.parametrize(
+    "section",
+    [{"allowed_tools": ["Read"]}, {"allowed_tools": ["Read"], "allow_unlisted_tools": True}],
+    ids=["allow-unlisted-unset", "allow-unlisted-set"],
+)
+@pytest.mark.parametrize("section_first", [True, False], ids=["section-first", "section-last"])
+def test_added_configs_keep_which_hooks_server_fields_the_section_sets(section, section_first):
+    """Adding configs keeps which hooks_server fields were set, so a default never reads as an explicit choice."""
+    with_section = _hooks_server_config(section)
+    plain = RailsConfig.from_content(config={"models": []})
+
+    merged = with_section + plain if section_first else plain + with_section
+
+    assert merged.hooks_server.model_fields_set == set(section)
+
+
 def test_added_configs_that_both_set_hooks_server_are_refused():
     """Adding two configs that both set a hooks_server section fails, rather than widening either's allowlist."""
     only_read = _hooks_server_config({"allowed_tools": ["Read"], "allow_unlisted_tools": False})

@@ -1650,8 +1650,9 @@ def _join_rails_configs(base_rails_config: RailsConfig, updated_rails_config: Ra
 
     combined_rails_config_dict = _join_dict(base_rails_config.model_dump(), updated_rails_config.model_dump())
     if hooks_servers:
-        # Every dump carries the section's defaults, which the join would mix into the set section.
-        combined_rails_config_dict["hooks_server"] = hooks_servers[0].model_dump()
+        # Every dump carries the section's defaults, which the join would mix into the set section. Only the fields
+        # the section set are kept, so the hooks server can still tell an unset allow_unlisted_tools from a choice.
+        combined_rails_config_dict["hooks_server"] = hooks_servers[0].model_dump(exclude_unset=True)
     # filter out empty strings to avoid leading/trailing commas
     config_paths = [
         base_rails_config.model_dump()["config_path"] or "",
