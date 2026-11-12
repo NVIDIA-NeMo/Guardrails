@@ -49,6 +49,7 @@ Before you install the plugin, meet the following prerequisites:
     Relay forwards each tool's name as the agent or application gives it, and the hooks server matches it exactly.
     For Claude Code or Codex, base the configuration on the [Claude Code](/run-guardrailed-inference/using-hooks-server/claude-code#claude-code-tool-names) or [Codex](/run-guardrailed-inference/using-hooks-server/codex#codex-tool-names) tool names.
     To write your own configuration, refer to [Run the Hooks Server: Write a Hooks Configuration](/run-guardrailed-inference/using-hooks-server/run-hooks-server#write-a-hooks-configuration).
+    If you list tools in `allowed_tools`, set `allow_unlisted_tools: false` to deny every tool you leave out: the hooks server refuses to start an allowlist that leaves it unset.
 - A clone of the [NeMo Guardrails repository](https://github.com/NVIDIA-NeMo/Guardrails), [rustup](https://rustup.rs/), a C compiler, and Python 3 to build the plugin.
   For the C compiler, install the Xcode Command Line Tools on macOS or `build-essential` on Debian and Ubuntu.
 

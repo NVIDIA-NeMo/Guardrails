@@ -203,6 +203,10 @@ Plan your deployment around what it cannot enforce:
   It listens on `127.0.0.1` by default, so only the same machine can reach it.
   That includes the agent itself, which can call the endpoint from its own shell tool.
   Expose it on another interface only on a private network.
+- **A policy without an allowlist allows every other tool.**
+  With only `blocked_tools` or per-tool rails, the server allows a call to any tool they do not deny, including tools that a later agent release adds.
+  To deny the tools you have not listed, list the allowed ones in `allowed_tools` with `allow_unlisted_tools: false`, as the example configurations do.
+  Refer to [Run the Hooks Server: The Tool Policy](/run-guardrailed-inference/using-hooks-server/run-hooks-server#the-tool-policy).
 - **The server sees one call at a time.**
   It checks each call on its own, with no memory of earlier calls, so it cannot block a sequence of calls that are each allowed.
 - **A configuration change needs a restart.**

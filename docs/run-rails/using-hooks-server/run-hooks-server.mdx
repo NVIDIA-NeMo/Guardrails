@@ -83,10 +83,12 @@ Three settings in the `hooks_server` section make up the tool policy:
 |---|---|---|
 | `allowed_tools` | `[]` | The tools a call may use. A name allows any arguments. A `{name, arguments}` entry allows only the listed argument names. |
 | `blocked_tools` | `[]` | The tools a call may not use. A name blocks every call to the tool. A `{name, arguments}` entry blocks a call that passes any of the listed arguments. |
-| `allow_unlisted_tools` | `true` | Whether a call to a tool that `allowed_tools` does not name is allowed. |
+| `allow_unlisted_tools` | `true` | Whether a call to a tool that `allowed_tools` does not name is allowed. Set it whenever `allowed_tools` lists a tool: the server refuses to start an allowlist that leaves it unset. |
 
 Set `allow_unlisted_tools: false` to deny every tool you have not listed, including tools that a later agent release adds.
-Until you do, a name in `allowed_tools` has no effect, because unlisted tools are allowed too.
+With `allow_unlisted_tools: true`, unlisted tools are allowed too, so a name in `allowed_tools` has no effect, and an entry only limits its tool's arguments.
+The default, `true`, suits a policy of `blocked_tools` or per-tool rails alone.
+When `allowed_tools` lists a tool, set `allow_unlisted_tools` to `false` or `true` yourself: the server refuses to start an allowlist that leaves it unset, so that the default cannot quietly allow the tools the allowlist leaves out.
 A tool with only an argument entry in `blocked_tools` is still unlisted, so `allow_unlisted_tools: false` denies it unless `allowed_tools` names it too.
 
 The following policy allows four tools, allows `search` only with a `query` argument, and denies `Bash` calls that pass `run_in_background`:
@@ -117,6 +119,24 @@ The server applies the rules in the following order, and denies a call with the 
 
 A reason quotes only names from your configuration and the called tool's name.
 For arguments the agent chose, it gives a count rather than their names.
+
+To allow every tool but limit the arguments of a few, set `allow_unlisted_tools: true` and give those tools `{name, arguments}` entries in `allowed_tools`.
+Use this when you cannot list every tool that the agent uses, such as an agent with many Model Context Protocol (MCP) tools, but want a sensitive tool to accept only the arguments you know:
+
+```yaml
+hooks_server:
+  allowed_tools:
+    - name: Bash
+      arguments: [command, description, timeout]
+  blocked_tools:
+    - WebFetch
+  allow_unlisted_tools: true
+```
+
+With this policy, every tool except `WebFetch` runs, and a `Bash` call that passes any other argument is denied, including an argument that a later agent release adds.
+A `{name, arguments}` entry in `blocked_tools` denies only the arguments it names, so it cannot catch an argument that you do not know about yet.
+A name without arguments in `allowed_tools` has no effect while `allow_unlisted_tools` is `true`, so list only `{name, arguments}` entries.
+A per-tool rail on a tool with an entry must name one of the entry's arguments in `$argument=`, as described in [Per-Tool Rails](#per-tool-rails).
 
 Set `hooks_server` in one file of the configuration.
 A configuration where more than one file, or a configuration it imports, sets `hooks_server` fails to load, so that no file can widen another file's policy.
@@ -259,6 +279,13 @@ The server checks the following, in order:
 
     ```text
     The `main` model declares tools in parameters.tools, which the hooks server ignores, and the hooks_server section sets no tool policy that can deny a call, so every tool call would be allowed. List the tools in hooks_server.allowed_tools with allow_unlisted_tools: false, or remove parameters.tools.
+    ```
+
+1. **An allowlist sets `allow_unlisted_tools`.**
+   When `allowed_tools` lists a tool, `allow_unlisted_tools` must be set to `false` or `true`, because its default, `true`, would allow every tool the allowlist leaves out:
+
+    ```text
+    hooks_server.allowed_tools lists tools while hooks_server.allow_unlisted_tools is unset, and its default, true, allows every tool allowed_tools doesn't list; set allow_unlisted_tools: false to allow only the listed tools, or true to allow the rest as well.
     ```
 
 1. **The engine builds, and the metrics exporter starts**, when you request one.

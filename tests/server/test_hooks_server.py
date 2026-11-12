@@ -79,7 +79,7 @@ HOOKS_CONFIG = {
 # The rail raises on a `$argument=` its tool's allowed_tools entry doesn't list, so every `Read` call fails it.
 RAIL_FAILURE_CONFIG = {
     "models": [],
-    "hooks_server": {"allowed_tools": [{"name": "Read", "arguments": ["file_path"]}]},
+    "hooks_server": {"allowed_tools": [{"name": "Read", "arguments": ["file_path"]}], "allow_unlisted_tools": True},
     "rails": {"tool_call": {"per_tool": {"Read": ["regex check tool call $argument=x"]}}},
 }
 
@@ -172,6 +172,11 @@ ALLOWED_NAMES_DENY_NOTHING = (
     "hooks_server.allowed_tools names tools by name only while hooks_server.allow_unlisted_tools is true, so the tool "
     "policy denies nothing, and with no per-tool rails every tool call would be allowed; set "
     "hooks_server.allow_unlisted_tools: false."
+)
+ALLOWLIST_LEAVES_UNLISTED_TOOLS_UNSET = (
+    "hooks_server.allowed_tools lists tools while hooks_server.allow_unlisted_tools is unset, and its default, true, "
+    "allows every tool allowed_tools doesn't list; set allow_unlisted_tools: false to allow only the listed tools, or "
+    "true to allow the rest as well."
 )
 TOOL_CALL_VALIDATION_ON_THE_HOOKS_SERVER = (
     "rails.tool_call.flows lists 'tool call validation', which can't deny a call on the hooks server: the server "
@@ -701,11 +706,32 @@ class TestStartup:
         assert str(exc_info.value) == message
         engine.assert_not_called()
 
-    def test_allowed_names_beside_per_tool_rails_start(self):
-        """Bare allowed_tools names with unlisted tools allowed start when per-tool rails can deny a call."""
-        config = {**HOOKS_CONFIG, "hooks_server": {"allowed_tools": ["Bash", "Read"]}}
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {**HOOKS_CONFIG, "hooks_server": {"allowed_tools": ["Bash", "Read"]}},
+            {"models": [], "hooks_server": {"allowed_tools": [{"name": "search", "arguments": ["query"]}]}},
+            {"models": [], "hooks_server": {"allowed_tools": ["Bash"], "blocked_tools": ["WebFetch"]}},
+        ],
+        ids=["names-beside-per-tool-rails", "argument-entry", "names-beside-blocked-tools"],
+    )
+    def test_allowlist_that_leaves_allow_unlisted_tools_unset_is_refused_before_the_engine(self, monkeypatch, config):
+        """An allowlist that leaves allow_unlisted_tools to its default is refused, since unlisted tools would run."""
+        engine = MagicMock()
+        monkeypatch.setattr(hooks_app, "Guardrails", engine)
 
-        assert isinstance(_app(config).state.engine.rails_engine, IORails)
+        with pytest.raises(HooksConfigError) as exc_info:
+            _app(config)
+
+        assert str(exc_info.value) == ALLOWLIST_LEAVES_UNLISTED_TOOLS_UNSET
+        engine.assert_not_called()
+
+    @pytest.mark.parametrize("allow_unlisted_tools", [True, False])
+    def test_allowlist_beside_per_tool_rails_that_sets_allow_unlisted_tools_starts(self, allow_unlisted_tools):
+        """An allowlist beside per-tool rails starts once it sets allow_unlisted_tools, either way."""
+        hooks = {"allowed_tools": ["Bash", "Read"], "allow_unlisted_tools": allow_unlisted_tools}
+
+        assert isinstance(_app({**HOOKS_CONFIG, "hooks_server": hooks}).state.engine.rails_engine, IORails)
 
     def test_config_with_tool_call_validation_is_refused_before_the_engine(self, monkeypatch):
         """`tool call validation` is refused, since the server declares the called tool and the flow can't deny."""
