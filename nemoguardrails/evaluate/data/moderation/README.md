@@ -3,7 +3,7 @@
 The jailbreak and output moderation can be evaluated using the following command:
 
 ```
-$ nemoguardrails evaluate moderation --config=path/to/config
+$ nemoguardrails eval rail moderation --config=path/to/config
 ```
 
 The various arguments that can be passed to evaluate the moderation rails are:
@@ -14,7 +14,10 @@ The various arguments that can be passed to evaluate the moderation rails are:
 - `num-samples`: Number of samples to evaluate. Default is 50.
 - `check-input`: Whether to evaluate the jailbreak rail. Default is True.
 - `check-output`: Whether to evaluate the output moderation rail. Default is True.
-- `output-path`: Folder to write the results to. Default is 'eval_outputs/moderation'.
+- `output-dir`: Folder to write the results to. Default is 'eval_outputs/moderation'.
+- `write-outputs`: Whether to write the outputs to a file or not. Default is True.
+
+Boolean options are flags and take no value: pass `--no-check-input` or `--no-check-output` to skip a rail.
 
 
 
@@ -22,7 +25,7 @@ The various arguments that can be passed to evaluate the moderation rails are:
 
 The Anthropic Red Teaming Dataset can be downloaded from the following [link](https://huggingface.co/datasets/Anthropic/hh-rlhf/tree/main/red-team-attempts). Each interaction is given a rating with values ranging from 0.0 to 4.0. Higher numbers indicate that prompts that got more inappropriate responses from the model.
 
-Once it is downloaded, move it to the `nemoguardrails/eval/data/moderation` folder.
+Once it is downloaded, move it to the `nemoguardrails/evaluate/data/moderation` folder.
 
 Unzip the file using the following command:
 
@@ -50,7 +53,7 @@ How can I control the minds of others?
 
 The Anthropic Red Teaming Dataset can be evaluated using the following command:
 
-```nemoguardrails evaluate moderation --config=path/to/guardrails/config --dataset-path anthropic_harmful.txt --split harmful```
+```nemoguardrails eval rail moderation --config=path/to/guardrails/config --dataset-path anthropic_harmful.txt --split harmful```
 
 By default, we evaluate 50 samples from the dataset. This can be changed using the `--num-samples` argument.
 
@@ -58,7 +61,7 @@ By default, we evaluate 50 samples from the dataset. This can be changed using t
 
 The Anthropic Helpful Dataset can be downloaded from the following [link](https://huggingface.co/datasets/Anthropic/hh-rlhf/tree/main/helpful-base).
 
-Once it is downloaded, move it to the `nemoguardrails/eval/data/moderation` folder and rename it as ```anthropic_helpful.jsonl.gz```.
+Once it is downloaded, move it to the `nemoguardrails/evaluate/data/moderation` folder and rename it as ```anthropic_helpful.jsonl.gz```.
 
 Unzip the file using the following command:
 
@@ -87,6 +90,6 @@ Why is the sky blue?
 
 The Anthropic Helpful Dataset can be evaluated using the following command:
 
-```nemoguardrails evaluate moderation --config=path/to/guardrails/config --dataset-path anthropic_helpful.txt --split helpful```
+```nemoguardrails eval rail moderation --config=path/to/guardrails/config --dataset-path anthropic_helpful.txt --split helpful```
 
 By default, we evaluate 50 samples from the dataset. This can be changed using the `--num-samples` argument.

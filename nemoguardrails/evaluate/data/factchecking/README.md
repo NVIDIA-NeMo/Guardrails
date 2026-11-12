@@ -2,7 +2,7 @@
 
 To run the fact-checking rail, you can use the following command:
 
-```nemoguardrails evaluate fact-checking --config=path/to/guardrails/config```
+```nemoguardrails eval rail fact-checking --config=path/to/guardrails/config```
 
 Here is a list of arguments that you can use to configure the fact checking rail:
 
@@ -17,12 +17,14 @@ Here is a list of arguments that you can use to configure the fact checking rail
 
 We require the input data to be in a json file with the following format:
 
-```
-{
-    "question": "question text",
-    "answer": "answer text",
-    "evidence": "evidence text",
-},
+```json
+[
+    {
+        "question": "question text",
+        "answer": "answer text",
+        "evidence": "evidence text"
+    }
+]
 ```
 ## Generating Synthetic Negative Examples
 
@@ -47,9 +49,9 @@ The model modifies the answer to:
 By changing small details like the blood pressure value in the answer, the model is able to generate hard negatives that are not easily identifiable. This can be used to evaluate the fact checking rail.
 
 
-In case you already have negative samples in your dataset, you can set the `create-negatives` flag to `False` and we will not generate synthetic negatives.
+In case you already have negative samples in your dataset, you can pass the `--no-create-negatives` flag and we will not generate synthetic negatives.
 
-```nemoguardrails evaluate fact-checking --config=path/to/guardrails/config --create-negatives False```
+```nemoguardrails eval rail fact-checking --config=path/to/guardrails/config --no-create-negatives```
 
 ## Using the MSMARCO Dataset
 
@@ -59,7 +61,7 @@ The [MSMARCO](https://huggingface.co/datasets/ms_marco) dataset contains a large
 
 Once the library is installed, you can run the following command to download and convert the dataset:
 
-```python process_ms_marco.py```
+```python process_msmarco_data.py```
 
 This will save the dataset to `msmarco.json`. An example from the dataset is shown below:
 
@@ -76,4 +78,4 @@ This will save the dataset to `msmarco.json`. An example from the dataset is sho
 
 You can then use this file to evaluate the fact checking rail.
 
-```nemoguardrails evaluate fact-checking --config=path/to/guardrails/config --dataset-path msmarco.json```
+```nemoguardrails eval rail fact-checking --config=path/to/guardrails/config --dataset-path msmarco.json```
