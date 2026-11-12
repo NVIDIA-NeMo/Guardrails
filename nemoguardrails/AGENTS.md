@@ -64,6 +64,11 @@ provider-integration specifics that matter when editing this package.
   Pydantic with `@model_validator` and `ConfigDict(extra="forbid")`.
 - Deprecate with `warnings.warn(..., DeprecationWarning, stacklevel=...)` and
   keep the old path working.
+- Anything removed together with the LLMRails engine (LLMRails, the Colang
+  runtimes, `TestChat`, the LangChain integration) instead warns through
+  `warn_llmrails_removal` in `nemoguardrails/deprecation.py`. That helper emits
+  `LLMRailsRemovalWarning`, a `FutureWarning`, so that application users see it
+  by default. CLI commands print `llmrails_removal_message`.
 
 ## NeMo Guardrails Invariants
 

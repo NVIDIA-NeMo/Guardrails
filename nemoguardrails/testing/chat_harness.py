@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Union
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.deprecation import warn_llmrails_removal
 from nemoguardrails.testing.fake_model import FakeLLMModel
 from nemoguardrails.utils import new_event_dict, new_uuid
 
@@ -79,6 +80,7 @@ class TestChat:
             llm: An explicit LLM instance to bind to the rails app. When
                 provided, ``llm_completions`` is ignored.
         """
+        warn_llmrails_removal("TestChat", "A replacement test helper for Guardrails is planned for the next release.")
         if llm is not None:
             self.llm = llm
         elif llm_completions is not None or llm_exception is not None:

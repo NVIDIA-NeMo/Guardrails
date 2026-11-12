@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union, cast
 
 import aiohttp
+import typer
 from prompt_toolkit import HTML, PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
@@ -28,7 +29,14 @@ from nemoguardrails.cli import debugger
 from nemoguardrails.colang.v2_x.runtime.eval import eval_expression
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
+from nemoguardrails.deprecation import (
+    DIALOG_FLOWS_ALTERNATIVE,
+    DIALOG_FLOWS_SUBJECT,
+    LLMRAILS_FALLBACK_ALTERNATIVE,
+    llmrails_removal_message,
+)
 from nemoguardrails.exceptions import StreamingNotSupportedError
+from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.verbose import console
 from nemoguardrails.rails.llm.options import (
@@ -639,6 +647,21 @@ def parse_events_inputs(input_str: str) -> Optional[dict]:
     return event_dict
 
 
+def _print_removal_notice(subject: str, alternative: str) -> None:
+    typer.secho(llmrails_removal_message(subject, alternative), err=True, fg=typer.colors.YELLOW)
+
+
+def _print_colang_1_removal_notice(rails_config: RailsConfig) -> None:
+    """Print a removal notice when this Colang 1.0 config needs LLMRails or uses dialog flows IORails won't run."""
+    fallback_reason = IORails.unsupported_reason(rails_config)
+    if fallback_reason is not None:
+        _print_removal_notice(
+            f"Running this config on the LLMRails engine ({fallback_reason})", LLMRAILS_FALLBACK_ALTERNATIVE
+        )
+    elif rails_config.user_messages:
+        _print_removal_notice(DIALOG_FLOWS_SUBJECT, DIALOG_FLOWS_ALTERNATIVE)
+
+
 def run_chat(
     config_path: Optional[str] = None,
     verbose: bool = False,
@@ -669,6 +692,7 @@ def run_chat(
     console.print("Starting the chat (Press Ctrl + C twice to quit) ...")
 
     if rails_config.colang_version == "1.0":
+        _print_colang_1_removal_notice(rails_config)
         asyncio.run(
             _run_chat_v1_0(
                 config_path=config_path,
@@ -679,6 +703,10 @@ def run_chat(
             )
         )
     elif rails_config.colang_version == "2.x":
+        _print_removal_notice(
+            "Colang 2.x chat, including its debugger commands,",
+            "IORails will not support Colang 2.x, so there is no replacement.",
+        )
         rails_app = LLMRails(rails_config, verbose=verbose)
         loop = get_or_create_event_loop()
         loop.run_until_complete(_run_chat_v2_x(rails_app))

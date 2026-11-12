@@ -58,6 +58,7 @@ else:
     # Use the original LLMRails class
     from nemoguardrails.rails import LLMRails
 
+from nemoguardrails.deprecation import LLMRailsRemovalWarning  # noqa: E402
 from nemoguardrails.llm.frameworks import (  # noqa: E402
     get_default_framework,
     register_framework,
@@ -91,6 +92,7 @@ __all__ = [
     "LLMFramework",
     "LLMModel",
     "LLMRails",
+    "LLMRailsRemovalWarning",
     "LLMResponse",
     "LLMResponseChunk",
     "RailsConfig",

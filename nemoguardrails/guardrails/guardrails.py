@@ -30,6 +30,12 @@ from typing_extensions import Self
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang.runtime import Runtime
 from nemoguardrails.colang.v2_x.runtime.flows import State
+from nemoguardrails.deprecation import (
+    DIALOG_FLOWS_ALTERNATIVE,
+    DIALOG_FLOWS_SUBJECT,
+    LLMRAILS_FALLBACK_ALTERNATIVE,
+    warn_llmrails_removal,
+)
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
 from nemoguardrails.guardrails import configure_logging
@@ -42,6 +48,18 @@ from nemoguardrails.rails.llm.options import GenerationOptions, GenerationRespon
 from nemoguardrails.types import LLMModel, ToolCallChunk, ToolCallDeltaChunk
 
 log = logging.getLogger(__name__)
+
+
+def _warn_llmrails_fallback(llm: Optional[LLMModel], fallback_reason: str) -> None:
+    """Warn that this construction falls back to the deprecated LLMRails engine, naming what the caller can change."""
+    if llm is not None:
+        warn_llmrails_removal(
+            "Passing an llm argument", "Configure the main model under `models:` in config.yml instead."
+        )
+    else:
+        warn_llmrails_removal(
+            f"Running this config on the LLMRails engine ({fallback_reason})", LLMRAILS_FALLBACK_ALTERNATIVE
+        )
 
 
 class Guardrails(BaseGuardrails):
@@ -65,7 +83,9 @@ class Guardrails(BaseGuardrails):
         When ``use_iorails`` is True, the wrapper attempts to use the IORails engine.
         If the config or arguments are incompatible (an ``llm`` is provided, or the
         config contains flows IORails does not support), the wrapper falls back to
-        LLMRails and logs a warning. Set ``require_iorails=True`` to raise a
+        LLMRails, logs a warning, and emits an ``LLMRailsRemovalWarning``, because
+        LLMRails is deprecated. ``use_iorails=False`` warns the same way, and so does
+        a config IORails runs while ignoring its Colang dialog flows. Set ``require_iorails=True`` to raise a
         ``ValueError`` instead — use this when IORails-only features such as
         OpenTelemetry metrics are required. A config with per-tool rails
         (``rails.tool_call.per_tool`` / ``rails.tool_result.per_tool``) always raises
@@ -86,6 +106,8 @@ class Guardrails(BaseGuardrails):
         if use_iorails:
             fallback_reason = IORails.unsupported_reason(config, llm)
             if fallback_reason is None:
+                if config.user_messages:
+                    warn_llmrails_removal(DIALOG_FLOWS_SUBJECT, DIALOG_FLOWS_ALTERNATIVE)
                 self._rails_engine = IORails(config)
                 self.use_iorails_engine = True
             else:
@@ -103,9 +125,13 @@ class Guardrails(BaseGuardrails):
                 if require_iorails:
                     raise ValueError(message)
                 log.warning(message)
+                _warn_llmrails_fallback(llm, fallback_reason)
                 self._rails_engine = LLMRails(config, llm, verbose)
                 self.use_iorails_engine = False
         else:
+            warn_llmrails_removal(
+                "Guardrails(use_iorails=False)", "Remove the argument so that Guardrails runs the IORails engine."
+            )
             self._rails_engine = LLMRails(config, llm, verbose)
             self.use_iorails_engine = False
 

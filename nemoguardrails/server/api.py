@@ -26,7 +26,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError, field_validator
@@ -35,6 +35,11 @@ from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from nemoguardrails import Guardrails, LLMRails, RailsConfig, utils
+from nemoguardrails.deprecation import (
+    LLMRAILS_FALLBACK_ALTERNATIVE,
+    llmrails_deprecation_headers,
+    llmrails_removal_message,
+)
 from nemoguardrails.exceptions import (
     InvalidCheckRequestError,
     InvalidModelConfigurationError,
@@ -529,6 +534,12 @@ async def _get_rails(config_ids: List[str], model_name: Optional[str] = None) ->
 
     llm_rails = LLMRails(config=full_llm_rails_config, verbose=True)
     llm_rails_instances[configs_cache_key] = llm_rails
+    if not _runs_on_iorails(llm_rails):
+        log.warning(
+            llmrails_removal_message(
+                f"Serving config '{configs_cache_key}' with the LLMRails engine", _llmrails_serving_alternative()
+            )
+        )
 
     # If we have a cache for the events, we restore it
     llm_rails.events_history_cache = llm_rails_events_history_cache.get(configs_cache_key, {})
@@ -645,6 +656,26 @@ def process_chunk(chunk: Any) -> Union[Any, ChunkError, ToolCallChunk, ToolCallD
     return chunk
 
 
+def _runs_on_iorails(rails: Any) -> bool:
+    """Whether *rails* is a Guardrails wrapper backed by the IORails engine."""
+    return isinstance(rails, Guardrails) and isinstance(rails.rails_engine, IORails)
+
+
+def _llmrails_serving_alternative() -> str:
+    """What an operator can change so the server stops serving a config with LLMRails."""
+    # NEMO_GUARDRAILS_IORAILS_ENGINE aliases LLMRails to Guardrails, which serves compatible configs with IORails.
+    if LLMRails is Guardrails:
+        return LLMRAILS_FALLBACK_ALTERNATIVE
+    return "Set NEMO_GUARDRAILS_IORAILS_ENGINE=true to serve IORails-compatible configs with IORails."
+
+
+def _deprecation_headers_for(rails: Any) -> dict[str, str]:
+    """The LLMRails deprecation headers for a response served by *rails*, or none when it runs on IORails."""
+    if _runs_on_iorails(rails):
+        return {}
+    return llmrails_deprecation_headers()
+
+
 def _inline_reasoning_as_think_tags(res: GenerationResponse) -> GenerationResponse:
     """Move `reasoning_content` into the assistant message as a <think> prefix and clear the field."""
     if not res.reasoning_content:
@@ -681,7 +712,7 @@ def _inline_reasoning_as_think_tags(res: GenerationResponse) -> GenerationRespon
     response_model=GuardrailsChatCompletion,
     response_model_exclude_none=True,
 )
-async def chat_completion(body: GuardrailsChatCompletionRequest, request: Request):
+async def chat_completion(body: GuardrailsChatCompletionRequest, request: Request, response: Response):
     """Chat completion for the provided conversation.
 
     TODO: add support for explicit state object.
@@ -717,6 +748,10 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             status_code=400,
             detail=f"Could not load the requested guardrails configuration: {config_ids}",
         )
+
+    # `response` only carries headers onto returned models; Response objects below take them explicitly.
+    deprecation_headers = _deprecation_headers_for(llm_rails)
+    response.headers.update(deprecation_headers)
 
     if body.guardrails.thread_id and llm_rails.config.colang_version != "1.0":
         raise HTTPException(
@@ -811,6 +846,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             return StreamingResponse(
                 iter(("data: [DONE]\n\n",)),
                 media_type="text/event-stream",
+                headers=deprecation_headers,
             )
 
         processed_first_chunk = process_chunk(first_chunk)
@@ -826,6 +862,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                     status=status_code,
                     code=processed_first_chunk.error.code,
                 ),
+                headers=deprecation_headers,
             )
 
         return StreamingResponse(
@@ -834,6 +871,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                 model_name=body.model,
             ),
             media_type="text/event-stream",
+            headers=deprecation_headers,
         )
 
     # Tool calls need a complete generation result so rails finish before SSE delivery.
@@ -845,11 +883,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
     # IORails-only: prefix `content` with `reasoning_content` and think-tags.
     # A Guardrails wrapper can fall back to an LLMRails engine, which already
     # inlines reasoning itself, so the engine check is what scopes this.
-    if (
-        isinstance(llm_rails, Guardrails)
-        and isinstance(llm_rails.rails_engine, IORails)
-        and isinstance(res, GenerationResponse)
-    ):
+    if _runs_on_iorails(llm_rails) and isinstance(res, GenerationResponse):
         res = _inline_reasoning_as_think_tags(res)
 
     # Extract bot message for thread storage if needed
@@ -883,7 +917,9 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         )
 
     if body.stream:
-        return StreamingResponse(chat_completion_to_sse(completion), media_type="text/event-stream")
+        return StreamingResponse(
+            chat_completion_to_sse(completion), media_type="text/event-stream", headers=deprecation_headers
+        )
     return completion
 
 
@@ -914,7 +950,7 @@ def _violations_in_request_positions(
     response_model=GuardrailCheckResponse,
     response_model_exclude_none=True,
 )
-async def guardrail_check(body: GuardrailCheckRequest, request: Request):
+async def guardrail_check(body: GuardrailCheckRequest, request: Request, response: Response):
     """Guardrail check request.
 
     Returns 422 when ``rail_types`` includes a type with no configured flows, when
@@ -941,6 +977,8 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
     except ValueError as ex:
         log.exception(ex)
         raise HTTPException(status_code=422, detail=str(ex))
+
+    response.headers.update(_deprecation_headers_for(llm_rails))
 
     if llm_rails.config.colang_version != "1.0":
         raise HTTPException(
