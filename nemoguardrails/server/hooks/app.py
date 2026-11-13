@@ -79,7 +79,8 @@ class HooksConfigError(ConfigurationError):
 
 
 def check_hooks_config(config: RailsConfig) -> None:
-    """Raise `HooksConfigError` unless IORails can serve *config*, it can deny a call, and its rails and `main` run."""
+    """Raise `HooksConfigError` unless IORails can serve *config*, it can deny a call, its rails and `main` run, and
+    an allowlist says whether unlisted tools are allowed."""
     reason = IORails.unsupported_reason(config)
     if reason is not None:
         raise HooksConfigError(f"The hooks server runs on IORails, which can't serve this config: {reason}")
@@ -87,6 +88,7 @@ def check_hooks_config(config: RailsConfig) -> None:
     _check_something_can_deny(config)
     _check_per_tool_rails_can_run(config, ToolPolicy.from_config(config.hooks_server))
     _check_main_model(config)
+    _check_allowlist_sets_unlisted_tools_choice(config)
 
 
 def _check_no_global_tool_call_rails(config: RailsConfig) -> None:
@@ -206,6 +208,19 @@ def _warn_about_ignored_main_model_tools(config: RailsConfig) -> None:
         log.warning(
             "The `main` model declares tools in parameters.tools, which the hooks server ignores: it checks each "
             "tool call against hooks_server.allowed_tools, blocked_tools and allow_unlisted_tools only."
+        )
+
+
+def _check_allowlist_sets_unlisted_tools_choice(config: RailsConfig) -> None:
+    """Raise when hooks_server.allowed_tools lists tools but leaves allow_unlisted_tools to its default."""
+    # The default, true, suits a blocklist or per-tool rails alone, but beside an allowlist it silently allows the
+    # tools the allowlist leaves out, so an allowlist must choose.
+    hooks_server = config.hooks_server
+    if hooks_server.allowed_tools and "allow_unlisted_tools" not in hooks_server.model_fields_set:
+        raise HooksConfigError(
+            "hooks_server.allowed_tools lists tools while hooks_server.allow_unlisted_tools is unset, and its "
+            "default, true, allows every tool allowed_tools doesn't list; set allow_unlisted_tools: false to allow "
+            "only the listed tools, or true to allow the rest as well."
         )
 
 
