@@ -76,24 +76,35 @@ See [GLiNER Integration](/configure-guardrails/guardrail-catalog/third-party/gli
 
 ### Nested AsyncIO Loop
 
-The NVIDIA NeMo Guardrails library is async-first, so the core functionality is implemented with async functions.
-To provide a blocking API, the library must invoke async functions inside synchronous code with `asyncio.run`.
+The NVIDIA NeMo Guardrails library is async-first. In notebooks, async web servers, and other environments that already run an event loop, use the async APIs:
 
-Python does not allow nested event loops.
-In notebooks, async web servers, and other environments that already run an event loop, nested loop behavior can cause runtime errors or unexpected behavior.
-This issue is being discussed by the Python core team and will likely be supported in the future.
-For more information, refer to [GitHub Issue 66435](https://github.com/python/cpython/issues/66435) and [Pull Request 93338](https://github.com/python/cpython/pull/93338).
+```python
+response = await rails.generate_async(messages=[{"role": "user", "content": "Hello!"}])
+```
 
-The NVIDIA NeMo Guardrails library uses [nest_asyncio](https://github.com/erdewit/nest_asyncio) as a workaround.
-The patching is applied when the `nemoguardrails` package is loaded the first time.
+Use `check_async()` for checks and `generate_events_async()` for Colang event generation.
+The synchronous APIs remain supported outside a running event loop and do not require `nest-asyncio`.
 
-If you do not need the blocking API, or if the `nest_asyncio` patching causes unexpected problems, disable it before loading `nemoguardrails`:
+Starting with 0.25, `nest-asyncio` is an optional dependency. By default, importing `nemoguardrails` does not import it or patch asyncio.
+If you previously enabled automatic patching with `DISABLE_NEST_ASYNCIO=false`, install the compatibility extra:
+
+```console
+$ pip install 'nemoguardrails[nest-asyncio]'
+$ export DISABLE_NEST_ASYNCIO=false
+```
+
+Set the environment variable before importing `nemoguardrails`, then restart the Python process.
+When enabled, the library imports `nest_asyncio` and applies its patch during package initialization.
+This compatibility path emits a `FutureWarning`: automatic patching will be deprecated in 0.26. Migrate to the async APIs.
+The optional compatibility path remains available in 0.26; its removal version will be announced separately.
+
+To disable automatic patching, restore the default before importing the package:
 
 ```console
 $ export DISABLE_NEST_ASYNCIO=True
 ```
 
-Then restart the Python process and retry the application.
+Restart the Python process to discard any patch already applied.
 
 ## LLM Framework Routing
 
