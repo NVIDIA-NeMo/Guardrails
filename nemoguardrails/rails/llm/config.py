@@ -747,6 +747,8 @@ def _warn_unknown_config_key(key: str, known_keys: Collection[str], path: str = 
     consequence = (
         " This section is unsupported and will not enable execution rails." if full_path == "rails.execution" else ""
     )
+    if not path:
+        consequence = " This is not a built-in configuration key. Use 'custom_data' for application-specific settings."
     log.warning("Unknown configuration key '%s'.%s%s", full_path, consequence, suggestion)
 
 
@@ -802,10 +804,11 @@ def _join_config(dest_config: dict, additional_config: dict, source: Optional[st
         "actions_server_url", None
     )
 
-    dest_config["sensitive_data_detection"] = {
-        **dest_config.get("sensitive_data_detection", {}),
-        **additional_config.get("sensitive_data_detection", {}),
-    }
+    if "sensitive_data_detection" in additional_config:
+        dest_config["sensitive_data_detection"] = {
+            **dest_config.get("sensitive_data_detection", {}),
+            **additional_config["sensitive_data_detection"],
+        }
 
     if "hooks_server" in additional_config:
         # Replacing one section with another would drop restrictions, and joining them would widen the allowlists.
@@ -817,9 +820,10 @@ def _join_config(dest_config: dict, additional_config: dict, source: Optional[st
             )
         dest_config["hooks_server"] = additional_config["hooks_server"]
 
-    dest_config["embedding_search_provider"] = dest_config.get(
-        "embedding_search_provider", {}
-    ) or additional_config.get("embedding_search_provider", {})
+    if "embedding_search_provider" in additional_config:
+        dest_config["embedding_search_provider"] = (
+            dest_config.get("embedding_search_provider", {}) or additional_config["embedding_search_provider"]
+        )
 
     # We join the arrays and keep only unique elements for import paths.
     dest_config["import_paths"] = dest_config.get("import_paths", [])
@@ -1205,13 +1209,7 @@ class RailsConfig(BaseModel):
     def warn_unknown_keys(cls, values: Any, handler: ModelWrapValidatorHandler["RailsConfig"]) -> "RailsConfig":
         config = handler(values)
         if isinstance(values, dict):
-            # The loader synthesizes these legacy fields; they are not RailsConfig fields.
-            raw = {
-                key: value
-                for key, value in values.items()
-                if key not in {"sensitive_data_detection", "embedding_search_provider", "raw_llm_call_action"}
-            }
-            _warn_unknown_config_keys(raw, config)
+            _warn_unknown_config_keys(values, config)
         return config
 
     @model_validator(mode="before")

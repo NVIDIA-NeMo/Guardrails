@@ -159,3 +159,26 @@ def test_warning_does_not_include_config_values(load_config, caplog):
     load_config({"railz": {"private": "secret-config-value"}})
     assert "Unknown configuration key 'railz'" in caplog.text
     assert "secret-config-value" not in caplog.text
+
+
+@pytest.mark.parametrize("key", ["sensitive_data_detection", "embedding_search_provider"])
+@pytest.mark.parametrize("value", [{}, {"example_setting": True}])
+def test_explicit_legacy_top_level_keys_warn(load_config, caplog, key, value):
+    load_config({key: value})
+    messages = [r.message for r in caplog.records if r.name == "nemoguardrails.rails.llm.config"]
+    assert len(messages) == 1
+    assert f"Unknown configuration key '{key}'" in messages[0]
+
+
+def test_loader_does_not_warn_for_absent_legacy_keys_or_real_fields(load_config, caplog):
+    config = load_config({"raw_llm_call_action": "example action"})
+    assert config.raw_llm_call_action == "example action"
+    assert not [r for r in caplog.records if r.name == "nemoguardrails.rails.llm.config"]
+
+
+def test_implicit_custom_data_merge_warns_without_changing_behavior(caplog):
+    config = RailsConfig.from_content(config={"custom_data": {}, "app_setting": 42})
+    assert config.custom_data == {"app_setting": 42}
+    assert "Unknown configuration key 'app_setting'" in caplog.text
+    assert "not a built-in configuration key" in caplog.text
+    assert "Use 'custom_data' for application-specific settings" in caplog.text
