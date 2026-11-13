@@ -94,6 +94,20 @@ class InstrumentedLLMModel:
         return self._model.provider_url
 
     @property
+    def api_key(self) -> Optional[str]:
+        """The wrapped model's bearer token/API key, if it exposes one.
+
+        Raises ``AttributeError`` for wrapped models without one, so
+        ``hasattr(rails.llm, "api_key")`` still reports support correctly
+        through this decorator.
+        """
+        return getattr(self._model, "api_key")
+
+    @api_key.setter
+    def api_key(self, value: Optional[str]) -> None:
+        setattr(self._model, "api_key", value)
+
+    @property
     def wrapped_model(self) -> LLMModel:
         """Return the underlying model for direct access or re-instrumentation."""
         return self._model
