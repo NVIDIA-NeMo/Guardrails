@@ -114,6 +114,20 @@ class TestGenerate:
         mc.chat_completion.assert_called_once_with("gpt-4o", ANY)
 
     @pytest.mark.asyncio
+    async def test_model_stream_parameter_is_not_sent_on_generate(self):
+        """Config parameters.stream stays off the non-streaming rail path."""
+        mc = _mock_client()
+        mc.chat_completion = AsyncMock(return_value=_response())
+        m = _model(mc, stream=True, stream_options={"include_usage": True}, temperature=0.2)
+
+        await m.generate_async("Hi")
+
+        _, kwargs = mc.chat_completion.call_args
+        assert kwargs["temperature"] == 0.2
+        assert "stream" not in kwargs
+        assert "stream_options" not in kwargs
+
+    @pytest.mark.asyncio
     async def test_tool_calls(self):
         mc = _mock_client()
         mc.chat_completion = AsyncMock(
@@ -257,6 +271,32 @@ class TestStream:
         assert results[0].delta_content == "Hello"
         assert results[1].delta_content == " world"
         assert results[2].usage.total_tokens == 7
+
+    @pytest.mark.asyncio
+    async def test_model_stream_parameter_does_not_disable_streaming(self):
+        mc = _mock_client()
+        captured = {}
+
+        async def mock_stream(*args, **kwargs):
+            captured.update(kwargs)
+            yield HTTPResponse(
+                body={
+                    "id": "chatcmpl-123",
+                    "model": "gpt-4o",
+                    "choices": [{"index": 0, "delta": {"content": "hi"}, "finish_reason": "stop"}],
+                },
+                headers={},
+                status_code=200,
+            )
+
+        mc.stream_chat_completion = mock_stream
+        m = _model(mc, stream=False, temperature=0.2)
+
+        chunks = [chunk async for chunk in m.stream_async("Hi")]
+
+        assert chunks[0].delta_content == "hi"
+        assert captured["temperature"] == 0.2
+        assert "stream" not in captured
 
     @pytest.mark.asyncio
     async def test_usage_on_final_content_chunk(self):
