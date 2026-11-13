@@ -505,29 +505,63 @@ def _colang_1_chat_notice(config: RailsConfig, capsys, **run_chat_kwargs) -> str
     return capsys.readouterr().err
 
 
-@pytest.mark.parametrize("config_kind", ["iorails-compatible", "dialog-flows", "config-py", "llmrails-only"])
-def test_colang_1_chat_on_llmrails_prints_one_engine_notice(tmp_path, capsys, config_kind):
-    """Local Colang 1.0 chat runs LLMRails, so it prints the same single engine notice whatever the config holds."""
-    build_config = {
+def _chat_config(config_kind: str, tmp_path) -> RailsConfig:
+    """Build the Colang 1.0 config of *config_kind* that the chat tests run."""
+    builders = {
         "iorails-compatible": lambda: RailsConfig.from_content(config=IORAILS_CONFIG),
         "dialog-flows": lambda: RailsConfig.from_content(colang_content=DIALOG_FLOWS_CONTENT, config=IORAILS_CONFIG),
         "config-py": lambda: _config_dir(tmp_path, config_py=True),
         "llmrails-only": lambda: RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG),
-    }[config_kind]
+    }
+    return builders[config_kind]()
 
-    notice = _colang_1_chat_notice(build_config(), capsys)
+
+class _ChatStopped(Exception):
+    """Raised from the first prompt, so that a chat stops right after it builds its engine."""
+
+
+@pytest.mark.parametrize("config_kind", ["iorails-compatible", "dialog-flows", "config-py", "llmrails-only"])
+def test_colang_1_chat_on_llmrails_prints_one_engine_notice(tmp_path, capsys, config_kind):
+    """Local Colang 1.0 chat runs LLMRails, so it prints the same single engine notice whatever the config holds."""
+    notice = _colang_1_chat_notice(_chat_config(config_kind, tmp_path), capsys)
 
     assert notice.count("is deprecated") == 1
     assert "Chatting on the LLMRails engine is deprecated" in notice
     assert "Set NEMO_GUARDRAILS_IORAILS_ENGINE=true to chat on IORails." in notice
 
 
-def test_colang_1_chat_under_the_iorails_alias_leaves_the_notice_to_guardrails(monkeypatch, capsys):
-    """With LLMRails aliased to Guardrails, chat prints no notice of its own; Guardrails warns about the config."""
+@pytest.mark.parametrize(
+    ("config_kind", "expected_prefixes"),
+    [
+        ("iorails-compatible", []),
+        ("dialog-flows", ["Using Colang dialog flows (define user, define flow) is deprecated"]),
+        ("config-py", ["Using config.py is deprecated"]),
+        ("llmrails-only", ["Running this config on the LLMRails engine ("]),
+    ],
+    ids=["iorails-compatible", "dialog-flows", "config-py", "llmrails-only"],
+)
+def test_colang_1_chat_under_the_iorails_alias_leaves_the_notice_to_guardrails(
+    monkeypatch, tmp_path, capsys, config_kind, expected_prefixes
+):
+    """With LLMRails aliased to Guardrails, chat prints no notice of its own and Guardrails emits the one that fits."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     monkeypatch.setattr(chat_module, "LLMRails", Guardrails)
-    config = RailsConfig.from_content(colang_content=DIALOG_FLOWS_CONTENT, config=IORAILS_CONFIG)
+    config = _chat_config(config_kind, tmp_path)
 
-    assert "is deprecated" not in _colang_1_chat_notice(config, capsys)
+    def chat_until_the_first_prompt():
+        with (
+            patch.object(chat_module.RailsConfig, "from_path", return_value=config),
+            patch("builtins.input", side_effect=_ChatStopped),
+            pytest.raises(_ChatStopped),
+        ):
+            chat_module.run_chat(config_path="config")
+
+    caught = _removal_warnings(chat_until_the_first_prompt)
+
+    assert "is deprecated" not in capsys.readouterr().err
+    assert len(caught) == len(expected_prefixes)
+    for warning, prefix in zip(caught, expected_prefixes, strict=True):
+        assert str(warning.message).startswith(prefix)
 
 
 def test_colang_1_chat_does_not_run_the_iorails_support_check(capsys):
