@@ -31,23 +31,11 @@ Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvid
 - **Connect the checks.** Apply configured rails to the prompts, retrieved content, tool calls, tool results, and responses your application handles.
 - **Enforce the result.** Run checks independently and act on the verdict in your application, or route generation through Guardrails. Your application controls tool execution.
 
-```mermaid
-flowchart LR
-    User[User input] --> Input[Input rails]
-    Input --> App[Agent or application]
-    App <--> Model[LLM]
-    App --> Output[Output rails]
-    Output --> Answer[Answer to user]
-    App --> Retrieval[Retrieve content]
-    Retrieval --> Context[Retrieval rails]
-    Context --> App
-    App --> Call[Tool-call rails]
-    Call --> Tool[Application executes tool]
-    Tool --> Result[Tool-result rails]
-    Result --> App
-```
+![Agent runtime connected to NeMo Guardrails: configurable checks for prompts, tool calls, tool results, and answers, with policy rules, optional guard models, and integration options.](./docs/_static/images/agent-runtime-guardrails-overview.png)
 
-These are integration points you choose for your workflow. Rail support varies by engine; refer to [rail engine support](./docs/reference/rail-engine-support.mdx) and [configuration](./docs/configure-rails/configuration-reference.mdx).
+Configure the checks and their order for your workflow; your application or agent harness enforces each verdict. Tool-call checks run before execution, while tool-result checks run after the tool has executed. Latency depends on the configured rules, models, and services.
+
+Integrations support different checks. Rail support varies by engine; refer to [rail engine support](./docs/reference/rail-engine-support.mdx) and [configuration](./docs/configure-rails/configuration-reference.mdx).
 
 ## Why NeMo Guardrails
 
