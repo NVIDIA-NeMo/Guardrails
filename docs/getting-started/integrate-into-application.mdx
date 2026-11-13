@@ -14,7 +14,9 @@ The NeMo Guardrails library provides the following tools to integrate guardrails
 
 `LLMRails`, which the Python SDK example uses, and the LangChain integration, including `RunnableRails` and the LangChain model framework, are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
 Use `Guardrails(config)`, which runs the IORails engine, and call it directly from your chain or agent.
-Changing the constructor is not always enough: `Guardrails` falls back to `LLMRails` for a configuration that the IORails engine cannot run, such as one with retrieval rails, and the IORails engine ignores Colang dialog flows.
+Changing the constructor is not always enough.
+`Guardrails` falls back to `LLMRails` for a configuration that the IORails engine cannot run, such as one with retrieval rails, or raises `ValueError` if the configuration has per-tool rails.
+The IORails engine also ignores Colang dialog flows.
 To check a configuration, construct it with `Guardrails(config, require_iorails=True)`, which raises instead of falling back.
 For the steps, refer to [Migrating to 0.25](/reference/0-25).
 

@@ -21,7 +21,7 @@ content:
 The NeMo Guardrails library Python API provides two core classes for running guardrails:
 
 - **`RailsConfig`**: Loads and manages guardrails configuration from files or content.
-- **`Guardrails`**: The main interface for generating responses with guardrails applied. It runs the IORails engine.
+- **`Guardrails`**: The main interface for generating responses with guardrails applied. It runs the IORails engine when that engine supports the configuration; otherwise it falls back to the deprecated `LLMRails`, unless you pass `require_iorails=True` or the configuration has per-tool rails, in which case it raises `ValueError`.
 
 Upon initializing the core classes (`RailsConfig` and `Guardrails`), the library loads the configuration files you created in the previous chapter [About Configuring Guardrails](/configure-guardrails/configure-rails).
 

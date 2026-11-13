@@ -15,7 +15,8 @@ This section describes how to use Colang to define guardrails flows in `.co` fil
 
 The Colang 1.0 and Colang 2.x runtimes are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
 The IORails engine runs the input, output, and tool rails in `config.yml` that it supports, but it does not run Colang flows.
-For a configuration that lists rails it does not support, `Guardrails` falls back to `LLMRails`, or raises with `require_iorails=True`; [Rail Engine Support](/reference/rail-engine-support) lists the supported rails.
+For a configuration that lists rails it does not support, `Guardrails` falls back to `LLMRails`; it raises `ValueError` instead when you pass `require_iorails=True` or the configuration has per-tool rails.
+[Rail Engine Support](/reference/rail-engine-support) lists the supported rails.
 From 0.27.0, a configuration that uses Colang 2.x or contains hand-written Colang flows fails to load.
 The `nemoguardrails convert` command that this page describes is deprecated with them.
 For the steps, refer to [Migrating to 0.25](/reference/0-25#colang-configurations).

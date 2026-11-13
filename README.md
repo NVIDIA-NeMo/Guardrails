@@ -17,7 +17,7 @@
 
 > **DEPRECATION**: Starting with version 0.25.0, `LLMRails`, the Colang 1.0 and Colang 2.x runtimes, `TestChat`, and the LangChain integration are deprecated.
 > Version 0.27.0 (January 2027) removes them.
-> Use `Guardrails`, which runs the IORails engine, and follow the [migration guide](https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25).
+> Use `Guardrails`, which runs the IORails engine when that engine supports the configuration, and follow the [migration guide](https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25).
 
 ✨✨✨
 
@@ -110,7 +110,7 @@ Sample output:
 
 The input and output format for the `generate` method is similar to the [Chat Completions API](https://platform.openai.com/docs/guides/gpt/chat-completions-api) from OpenAI.
 
-`Guardrails` runs the IORails engine only when that engine supports every rail in the configuration; otherwise, it falls back to the deprecated `LLMRails` and warns.
+`Guardrails` runs the IORails engine only when that engine supports every rail in the configuration; otherwise, it falls back to the deprecated `LLMRails` and warns, or raises `ValueError` if the configuration has per-tool rails.
 The sample `config.yml` below lists `self check facts` and `self check hallucination`, which run only on `LLMRails`.
 To check a configuration before you migrate, construct `Guardrails(config, require_iorails=True)`, and refer to [Rail Engine Support](https://docs.nvidia.com/nemo/guardrails/latest/reference/rail-engine-support).
 

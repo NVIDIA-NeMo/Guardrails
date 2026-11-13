@@ -148,14 +148,6 @@ rails:
 
 ### Parallel Output Rails With Streaming
 
-<Warning>
-
-Parallel streaming output rails run only on `LLMRails`, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
-The IORails engine runs output rails over the streamed response, but it does not use the parallel streaming path.
-For the engine differences, refer to [Engine Feature Support: Streaming](/reference/engine-feature-support#streaming).
-
-</Warning>
-
 For parallel execution of multiple output rails during streaming:
 
 ```yaml
@@ -291,7 +283,7 @@ With `stream_first: True`, the client has already received it, as with a blocked
 <Warning>
 
 The example in this section uses `LLMRails`, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
-Use `Guardrails`, which runs the IORails engine.
+Use `Guardrails`, which runs the IORails engine when that engine supports the configuration.
 For the steps, refer to [Migrating to 0.25](/reference/0-25#replace-llmrails-with-guardrails).
 
 </Warning>

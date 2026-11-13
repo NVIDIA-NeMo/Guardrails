@@ -173,7 +173,7 @@ For a model with any other engine, set `parameters.base_url`.
 
 ## Configurations That Fall Back to LLMRails
 
-When `IORails` cannot run a configuration, `Guardrails` falls back to `LLMRails`, logs the reason, and emits a warning that names it:
+When `IORails` cannot run a configuration and the configuration has no per-tool rails, `Guardrails` falls back to `LLMRails`, logs the reason, and emits a warning that names it:
 
 ```text
 Running this config on the LLMRails engine (config has rails outside the IORails-supported set: ['retrieval']) is deprecated since NeMo Guardrails 0.25.0 and will be removed in 0.27.0 (January 2027). Use only rails that IORails supports; see the Rail Engine Support reference. Migration guide: https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25
@@ -185,7 +185,7 @@ The following table maps the reason in the parentheses to the change to make.
 |---|---|---|
 | `IORails supports Colang 1.0 only` | The configuration sets `colang_version: "2.x"`. | Refer to [Colang Configurations](#colang-configurations). |
 | `config has rails outside the IORails-supported set` | The configuration has a rail section other than `input`, `output`, `config`, `tool_call`, and `tool_result`, such as `retrieval` or `dialog`. | `IORails` has no equivalent for retrieval or dialog rails, so removing these sections also removes their checks. Move the checks you need into input and output rails where you can; retrieval rails have no replacement. |
-| A flow name, followed by why it does not compile | A flow under `rails.input.flows`, `rails.output.flows`, or a `per_tool` list is not a rail that `IORails` runs, is a hand-written Colang flow, names a model type that `models` does not declare, or needs an optional dependency that is not installed. | Check the flow against [Rail Engine Support](/reference/rail-engine-support), declare the model, or install the dependency. |
+| A flow name, followed by why it does not compile | A flow under `rails.input.flows`, `rails.output.flows`, or a `per_tool` list is not a rail that `IORails` runs, is a hand-written Colang flow, names a model type that `models` does not declare, or needs an optional dependency that is not installed. | Check the flow against [Rail Engine Support](/reference/rail-engine-support), declare the model, or install the dependency. For a flow in a `per_tool` list, the reason appears in a `ValueError` instead of a warning. |
 | `config has unsupported tool call flows` or `config has unsupported tool result flows` | A flow under `rails.tool_call.flows` or `rails.tool_result.flows` is not a tool rail that `IORails` runs. | Use the tool rails that [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) describes. |
 | `config has duplicate tool call flows` or `config has duplicate tool result flows` | The same flow appears more than once in `rails.tool_call.flows` or `rails.tool_result.flows`. | Remove the duplicate. |
 
