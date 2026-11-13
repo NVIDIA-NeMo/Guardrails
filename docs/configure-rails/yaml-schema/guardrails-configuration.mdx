@@ -15,6 +15,20 @@ This section describes how to configure guardrails in the `config.yml` file to c
 The `rails` key defines which guardrails are active and their configuration options.
 Rails are organized into five categories based on when they trigger during the guardrails process.
 
+### Unknown Configuration Keys
+
+The NVIDIA NeMo Guardrails library logs warnings for unknown configuration keys,
+including misspelled rail sections and options in library rail configurations.
+Warnings identify the configuration path and suggest a supported key when possible.
+For example, `rails.input.flowz` produces a warning suggesting `flows`; the
+misspelled key does not enable any input flows. Correct these warnings before
+using the configuration.
+
+Some configuration sections already reject unknown keys with a validation error.
+Declared extension dictionaries such as `custom_data` and model `parameters`
+accept custom keys. Library configuration keys under `rails.config` come from
+the built-in rail manifests.
+
 ## Rail Categories
 
 The following table summarizes the different rail categories and their trigger points.
@@ -115,15 +129,12 @@ For a complete list of available dialog flows, refer to the [YAML Schema Referen
 
 ## Execution Rails
 
-Execution rails control custom action and tool invocations:
-
-```yaml
-rails:
-    execution:
-        flows:
-            - check tool input
-            - check tool output
-```
+Execution rails control custom action invocations in the Colang runtime.
+`rails.execution` is not a supported YAML section and does not enable any checks.
+Configure action behavior with `rails.actions`, and use `rails.tool_call` and
+`rails.tool_result` for model tool calls and tool results. See the
+[execution rails configuration reference](/configure-guardrails/configuration-reference#execution-rails)
+for supported settings.
 
 ## Rail-Specific Configuration
 
