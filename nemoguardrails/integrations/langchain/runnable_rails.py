@@ -25,6 +25,7 @@ from langchain_core.runnables.utils import Input, Output, gather_with_concurrenc
 from langchain_core.tools import Tool
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.deprecation import warn_llmrails_removal
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.integrations.langchain.message_utils import (
     all_base_messages,
@@ -75,6 +76,7 @@ class RunnableRails(Runnable[Input, Output]):
         input_blocked_message: str = "I cannot process this request.",
         output_blocked_message: str = "I cannot provide this response.",
     ) -> None:
+        warn_llmrails_removal("RunnableRails", "Call Guardrails directly from your chain.")
         self.llm = llm
         self.passthrough = passthrough
         self.passthrough_runnable = runnable

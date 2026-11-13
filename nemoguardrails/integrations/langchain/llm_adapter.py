@@ -18,6 +18,12 @@ import logging
 import uuid
 from typing import Any, AsyncIterator, Dict, List, NamedTuple, Optional, Union
 
+from nemoguardrails.deprecation import (
+    LANGCHAIN_BACKEND_ALTERNATIVE,
+    LANGCHAIN_FRAMEWORK_SUBJECT,
+    called_from_package,
+    warn_llmrails_removal,
+)
 from nemoguardrails.llm.openai_reasoning import is_openai_reasoning_model
 from nemoguardrails.types import (
     ChatMessage,
@@ -125,6 +131,9 @@ _BASE_URL_ATTRIBUTES = [
 
 class LangChainLLMAdapter:
     def __init__(self, llm):
+        # The LangChain framework builds adapters itself, and warned when it was created.
+        if not called_from_package():
+            warn_llmrails_removal("LangChainLLMAdapter", LANGCHAIN_BACKEND_ALTERNATIVE)
         self._llm = llm
 
     @property
@@ -226,6 +235,9 @@ class LangChainLLMAdapter:
 
 
 class LangChainFramework:
+    def __init__(self) -> None:
+        warn_llmrails_removal(LANGCHAIN_FRAMEWORK_SUBJECT, LANGCHAIN_BACKEND_ALTERNATIVE)
+
     def register_provider(self, name: str, provider_cls: Any) -> None:
         from nemoguardrails.integrations.langchain.providers.providers import (
             register_chat_provider as _register_chat,

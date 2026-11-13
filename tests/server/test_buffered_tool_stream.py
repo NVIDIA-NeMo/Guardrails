@@ -243,6 +243,7 @@ async def test_iorails_blocks_unlinked_results_before_generation(engine, client)
 
 async def test_no_sse_before_generation_finishes_and_cancellation_propagates(monkeypatch):
     from starlette.requests import Request
+    from starlette.responses import Response
 
     from nemoguardrails.server.schemas.openai import GuardrailsChatCompletionRequest
 
@@ -261,7 +262,9 @@ async def test_no_sse_before_generation_finishes_and_cancellation_propagates(mon
     monkeypatch.setattr(api, "_get_rails", AsyncMock(return_value=rails))
     task = asyncio.create_task(
         api.chat_completion(
-            GuardrailsChatCompletionRequest.model_validate(REQUEST), Request({"type": "http", "headers": []})
+            GuardrailsChatCompletionRequest.model_validate(REQUEST),
+            Request({"type": "http", "headers": []}),
+            Response(),
         )
     )
     try:

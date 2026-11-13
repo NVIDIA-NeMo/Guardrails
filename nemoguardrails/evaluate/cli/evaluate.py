@@ -18,6 +18,7 @@ from typing import List
 
 import typer
 
+from nemoguardrails.deprecation import llmrails_removal_message
 from nemoguardrails.evaluate.evaluate_factcheck import FactCheckEvaluation
 from nemoguardrails.evaluate.evaluate_hallucination import HallucinationRailsEvaluation
 from nemoguardrails.evaluate.evaluate_moderation import ModerationRailsEvaluation
@@ -29,7 +30,7 @@ app = typer.Typer()
 logging.getLogger().setLevel(logging.WARNING)
 
 
-@app.command()
+@app.command(deprecated=True)
 def topical(
     config: List[str] = typer.Option(
         default=[""],
@@ -82,6 +83,14 @@ def topical(
         random_seed (int, optional): Random seed used by the evaluation. Defaults to None.
         output_dir (str, optional): Output directory for predictions. Defaults to None.
     """
+    typer.secho(
+        llmrails_removal_message(
+            "The eval rail topical command",
+            "It measures Colang dialog rails, which IORails does not run, so there is no replacement.",
+        ),
+        err=True,
+        fg=typer.colors.YELLOW,
+    )
     if verbose:
         set_verbose(True)
 

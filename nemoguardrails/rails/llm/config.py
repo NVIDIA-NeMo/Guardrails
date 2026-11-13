@@ -994,24 +994,12 @@ def _parse_colang_files_recursively(
             _load_imported_paths(raw_config, colang_files)
 
     if colang_version == "2.x" and _has_input_output_config_rails(raw_config):
-        # raise deprecation warning
-
         rails_flows = _get_rails_flows(raw_config)
         flow_definitions = "\n".join(_generate_rails_flows(rails_flows))
 
         current_file = "INTRINSIC_FLOW_GENERATION"
 
         _rails_parsed_config = parse_colang_file(current_file, content=flow_definitions, version=colang_version)
-
-        _DOCUMENTATION_LINK = "https://docs.nvidia.com/nemo/guardrails/colang-2/getting-started/dialog-rails.html"  # Replace with the actual documentation link
-
-        warnings.warn(
-            "Configuring input/output rails in config.yml is deprecated. "
-            "Please use the new flow-based configuration instead. "
-            f"For more information, please refer to the documentation at {_DOCUMENTATION_LINK}. "
-            f"Here is the expected usage:\n{flow_definitions}",
-            FutureWarning,
-        )
 
     if _rails_parsed_config:
         parsed_colang_files.append(_rails_parsed_config)

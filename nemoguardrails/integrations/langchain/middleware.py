@@ -23,6 +23,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 if TYPE_CHECKING:
     from langgraph.runtime import Runtime as LangGraphRuntime
+from nemoguardrails.deprecation import warn_llmrails_removal
 from nemoguardrails.integrations.langchain.exceptions import GuardrailViolation
 from nemoguardrails.integrations.langchain.message_utils import (
     create_ai_message,
@@ -49,6 +50,7 @@ class GuardrailsMiddleware(AgentMiddleware):
         enable_input_rails: bool = True,
         enable_output_rails: bool = True,
     ):
+        warn_llmrails_removal(type(self).__name__, "Call Guardrails directly from your agent.")
         if config_path is not None:
             config = RailsConfig.from_path(config_path)
         elif config_yaml is not None:

@@ -25,17 +25,19 @@ import-time env var.
 """
 
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from nemoguardrails import Guardrails, RailsConfig
+from nemoguardrails.deprecation import llmrails_deprecation_headers
+from nemoguardrails.exceptions import LLMCallException, RailTypeNotConfiguredError
 from nemoguardrails.guardrails import guardrails as guardrails_module
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.options import GenerationResponse
+from nemoguardrails.rails.llm.options import GenerationResponse, RailsResult, RailStatus
 from nemoguardrails.server import api
 from nemoguardrails.testing.fake_model import FakeLLMModel
 from nemoguardrails.types import LLMResponse
@@ -546,3 +548,238 @@ def test_check_with_tools_on_llmrails_returns_422(llmrails_server):
         "LLMRails check() does not run tool rails, so it does not take tools; "
         "tool_call checks run on the IORails engine only."
     )
+
+
+class _StreamingStubLLMRails(_StubLLMRails):
+    """A stub LLMRails engine that streams the answer as one chunk."""
+
+    def stream_async(self, messages=None, options=None, **kwargs):
+        async def _chunks():
+            yield LLM_ANSWER
+
+        return _chunks()
+
+
+@pytest.fixture
+def streaming_llmrails_engine(monkeypatch, iorails_compatible_config):
+    """Serve the config through a streaming stub of the LLMRails engine."""
+    monkeypatch.setattr(api, "LLMRails", _StreamingStubLLMRails)
+    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: iorails_compatible_config))
+    yield
+
+
+def _has_no_deprecation_headers(response) -> bool:
+    return not any(name in response.headers for name in llmrails_deprecation_headers())
+
+
+def test_llmrails_chat_completion_carries_the_deprecation_headers(llmrails_engine):
+    """A chat completion served by LLMRails carries the Deprecation, Sunset, and Link headers."""
+    response = _post_chat_completion()
+
+    assert response.status_code == 200
+    for name, value in llmrails_deprecation_headers().items():
+        assert response.headers[name] == value
+
+
+def test_streamed_llmrails_chat_completion_carries_the_deprecation_headers(streaming_llmrails_engine):
+    """A streamed chat completion served by LLMRails carries the deprecation headers."""
+    client = TestClient(api.app, raise_server_exceptions=False)
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "What is the capital of France?"}],
+            "guardrails": {"config_id": "content_safety"},
+            "stream": True,
+        },
+    )
+
+    assert response.status_code == 200
+    for name, value in llmrails_deprecation_headers().items():
+        assert response.headers[name] == value
+
+
+def test_iorails_chat_completion_carries_no_deprecation_headers(iorails_alias, monkeypatch):
+    """A chat completion served by IORails carries none of the deprecation headers."""
+
+    async def _fake_start(self):
+        self._running = True
+
+    async def _fake_generate_async(self, messages, **kwargs):
+        return {"role": "assistant", "content": LLM_ANSWER}
+
+    monkeypatch.setattr(IORails, "start", _fake_start)
+    monkeypatch.setattr(IORails, "generate_async", _fake_generate_async)
+
+    response = _post_chat_completion()
+
+    assert response.status_code == 200
+    assert _has_no_deprecation_headers(response)
+
+
+def test_guardrails_fallback_chat_completion_carries_the_deprecation_headers(guardrails_over_llmrails):
+    """A chat completion from a Guardrails wrapper on its LLMRails fallback carries the deprecation headers."""
+    response = _post_chat_completion()
+
+    assert response.status_code == 200
+    for name, value in llmrails_deprecation_headers().items():
+        assert response.headers[name] == value
+
+
+class _CheckingStubLLMRails(_StubLLMRails):
+    """A stub LLMRails engine whose checks always pass."""
+
+    async def check_async(self, messages=None, rail_types=None, tools=None):
+        return RailsResult(status=RailStatus.PASSED, content=messages[-1]["content"])
+
+
+def test_llmrails_check_carries_the_deprecation_headers(monkeypatch, iorails_compatible_config):
+    """A /v1/checks response served by LLMRails carries the deprecation headers."""
+    monkeypatch.setattr(api, "LLMRails", _CheckingStubLLMRails)
+    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: iorails_compatible_config))
+    client = TestClient(api.app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/v1/checks",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "guardrails": {"config_id": "content_safety"},
+        },
+    )
+
+    assert response.status_code == 200
+    for name, value in llmrails_deprecation_headers().items():
+        assert response.headers[name] == value
+
+
+def _llmrails_serving_notices(logger: MagicMock) -> list[str]:
+    return [call.args[0] for call in logger.warning.call_args_list if "with the LLMRails engine" in call.args[0]]
+
+
+def test_serving_a_config_on_llmrails_logs_one_removal_notice(llmrails_engine, monkeypatch):
+    """The first request a config serves on LLMRails logs one removal notice; cached repeats log none."""
+    logger = MagicMock()
+    monkeypatch.setattr(api, "log", logger)
+
+    _post_chat_completion()
+    _post_chat_completion()
+
+    (notice,) = _llmrails_serving_notices(logger)
+    assert notice.startswith("Serving config 'content_safety:test-model' with the LLMRails engine is deprecated")
+    assert "NEMO_GUARDRAILS_IORAILS_ENGINE=true" in notice
+
+
+def test_serving_a_fallback_config_under_the_alias_names_the_rail_engine_support_reference(
+    guardrails_over_llmrails, monkeypatch
+):
+    """Under the IORails alias, a config that falls back to LLMRails logs a notice pointing at supported rails."""
+    logger = MagicMock()
+    monkeypatch.setattr(api, "log", logger)
+
+    _post_chat_completion()
+
+    (notice,) = _llmrails_serving_notices(logger)
+    assert "Use only rails that IORails supports" in notice
+
+
+def test_serving_a_config_on_iorails_logs_no_removal_notice(iorails_alias, monkeypatch):
+    """A config served by IORails logs no LLMRails removal notice."""
+
+    async def _fake_start(self):
+        self._running = True
+
+    async def _fake_generate_async(self, messages, **kwargs):
+        return {"role": "assistant", "content": LLM_ANSWER}
+
+    monkeypatch.setattr(IORails, "start", _fake_start)
+    monkeypatch.setattr(IORails, "generate_async", _fake_generate_async)
+    logger = MagicMock()
+    monkeypatch.setattr(api, "log", logger)
+
+    _post_chat_completion()
+
+    assert _llmrails_serving_notices(logger) == []
+
+
+class _FailingStubLLMRails(_StubLLMRails):
+    """A stub LLMRails engine whose provider call fails."""
+
+    async def generate_async(self, messages=None, options=None, state=None, **kwargs):
+        raise LLMCallException(RuntimeError("upstream unavailable"))
+
+
+def test_llmrails_error_response_carries_the_deprecation_headers(monkeypatch, iorails_compatible_config):
+    """A provider error on a request served by LLMRails still carries the deprecation headers."""
+    monkeypatch.setattr(api, "LLMRails", _FailingStubLLMRails)
+    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: iorails_compatible_config))
+
+    response = _post_chat_completion()
+
+    assert response.status_code >= 400
+    for name, value in llmrails_deprecation_headers().items():
+        assert response.headers[name] == value
+
+
+def test_llmrails_http_exception_carries_the_deprecation_headers(llmrails_engine, monkeypatch):
+    """An HTTPException raised after LLMRails was chosen for the request carries the deprecation headers."""
+    monkeypatch.setattr(api, "datastore", None)
+    client = TestClient(api.app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "guardrails": {"config_id": "content_safety", "thread_id": "0123456789abcdef"},
+        },
+    )
+
+    assert response.status_code == 400
+    for name, value in llmrails_deprecation_headers().items():
+        assert response.headers[name] == value
+
+
+def test_iorails_error_response_carries_no_deprecation_headers(iorails_alias, monkeypatch):
+    """A provider error on a request served by IORails carries none of the deprecation headers."""
+
+    async def _fake_start(self):
+        self._running = True
+
+    async def _failing_generate_async(self, messages, **kwargs):
+        raise LLMCallException(RuntimeError("upstream unavailable"))
+
+    monkeypatch.setattr(IORails, "start", _fake_start)
+    monkeypatch.setattr(IORails, "generate_async", _failing_generate_async)
+
+    response = _post_chat_completion()
+
+    assert response.status_code >= 400
+    assert _has_no_deprecation_headers(response)
+
+
+class _UnconfiguredCheckStubLLMRails(_StubLLMRails):
+    """A stub LLMRails engine whose check finds no flows for the requested rail type."""
+
+    async def check_async(self, messages=None, rail_types=None, tools=None):
+        raise RailTypeNotConfiguredError("No output rails are configured.")
+
+
+def test_llmrails_check_error_carries_the_deprecation_headers(monkeypatch, iorails_compatible_config):
+    """A /v1/checks error on a request served by LLMRails still carries the deprecation headers."""
+    monkeypatch.setattr(api, "LLMRails", _UnconfiguredCheckStubLLMRails)
+    monkeypatch.setattr(api.RailsConfig, "from_path", staticmethod(lambda full_path: iorails_compatible_config))
+    client = TestClient(api.app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/v1/checks",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "guardrails": {"config_id": "content_safety"},
+        },
+    )
+
+    assert response.status_code == 422
+    for name, value in llmrails_deprecation_headers().items():
+        assert response.headers[name] == value
