@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from nemoguardrails.manifests.config_schema import (
     Field,
@@ -21,6 +21,8 @@ from nemoguardrails.manifests.config_schema import (
     RailConfigSpec,
     rail_field,
 )
+
+MaskingStrategy = Literal["per_type", "per_value"]
 
 
 class SensitiveDataDetectionOptions(RailConfigBaseModel):
@@ -39,6 +41,14 @@ class SensitiveDataDetectionOptions(RailConfigBaseModel):
     score_threshold: float = Field(
         default=0.2,
         description="The score threshold that should be used to detect the sensitive data.",
+    )
+
+    masking_strategy: MaskingStrategy = Field(
+        default="per_type",
+        description="How placeholders are allocated. `per_type` replaces every detected "
+        "value of an entity type with the same token, e.g. `<PERSON>`. `per_value` numbers "
+        "the distinct values of a type in order of appearance, so two people become "
+        "`<PERSON_1>` and `<PERSON_2>` while one person mentioned twice stays `<PERSON_1>`.",
     )
 
 
