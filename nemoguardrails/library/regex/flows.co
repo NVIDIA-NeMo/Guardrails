@@ -2,6 +2,7 @@
 
 flow regex check input
   """Check if the user input matches any forbidden regex patterns."""
+  global $user_message
   $response = await DetectRegexPatternAction(source="input", text=$user_message)
 
   if $response.is_blocked
@@ -14,6 +15,7 @@ flow regex check input
 
 flow regex check output
   """Check if the bot output matches any forbidden regex patterns."""
+  global $bot_message
   $response = await DetectRegexPatternAction(source="output", text=$bot_message)
 
   if $response.is_blocked
@@ -27,6 +29,7 @@ flow regex check output
 flow regex check retrieval
   """Check if the relevant chunks from the knowledge base match any forbidden regex patterns.
   """
+  global $relevant_chunks
   $response = await DetectRegexPatternAction(source="retrieval", text=$relevant_chunks)
 
   if $response.is_transform
