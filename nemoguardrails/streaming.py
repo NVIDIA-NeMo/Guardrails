@@ -16,7 +16,7 @@
 import asyncio
 import logging
 import warnings
-from typing import Any, AsyncIterator, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Union
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.types import ToolCallChunk, ToolCallDeltaChunk
@@ -72,14 +72,15 @@ class StreamingHandler(AsyncIterator):
         self.enable_buffer = enable_buffer
 
         # The prefix/suffix that should be removed (text-only processing)
-        self.prefix = None
-        self.suffix = None
+        self.prefix: Optional[Union[str, Tuple[str, ...]]] = None
+        self.suffix: Optional[Union[str, Tuple[str, ...]]] = None
 
         # The current chunk which needs to be checked for prefix/suffix matching
         self.current_chunk = ""
 
         # The current buffer until we start processing.
         self.buffer = ""
+        self._buffered_end_of_stream = False
 
         # The full completion
         self.completion = ""
@@ -106,10 +107,15 @@ class StreamingHandler(AsyncIterator):
     def stop(self, value: Optional[List[str]]) -> None:
         self._stop = value or []
 
-    def set_pattern(self, prefix: Optional[str] = None, suffix: Optional[str] = None):
+    def set_pattern(
+        self,
+        prefix: Optional[Union[str, Tuple[str, ...]]] = None,
+        suffix: Optional[Union[str, Tuple[str, ...]]] = None,
+    ):
         """Sets the pattern that is expected.
 
         If a prefix or a suffix are specified, they will be removed from the output.
+        A tuple specifies alternative prefixes or suffixes to match.
         """
         self.prefix = prefix
         self.suffix = suffix
@@ -177,12 +183,16 @@ class StreamingHandler(AsyncIterator):
     async def enable_buffering(self):
         self.enable_buffer = True
         self.buffer = ""
+        self._buffered_end_of_stream = False
 
     async def disable_buffering(self):
         """When we disable the buffer, we process the buffer as a chunk."""
         self.enable_buffer = False
         await self.push_chunk(self.buffer)
         self.buffer = ""
+        if self._buffered_end_of_stream:
+            self._buffered_end_of_stream = False
+            await self.push_chunk(END_OF_STREAM)
 
     def __aiter__(self):
         async def generator():
@@ -250,6 +260,8 @@ class StreamingHandler(AsyncIterator):
             if isinstance(chunk, str):
                 self.buffer += chunk
                 self._notify_buffer_ready()
+            elif chunk is END_OF_STREAM:
+                self._buffered_end_of_stream = True
 
         else:
             prev_completion = self.completion
@@ -343,27 +355,41 @@ class StreamingHandler(AsyncIterator):
                 await self._process(chunk, metadata)
             return
 
+        if self.enable_buffer:
+            await self._process(chunk, metadata)
+            return
+
         # Process prefix: accumulate until the expected prefix is received, then remove it.
         if self.prefix:
             if isinstance(chunk, str):
                 self.current_chunk += chunk
-            if self.current_chunk.startswith(self.prefix):
-                self.current_chunk = self.current_chunk[len(self.prefix) :]
+            prefixes = (self.prefix,) if isinstance(self.prefix, str) else self.prefix
+            for prefix in prefixes:
+                if self.current_chunk.startswith(prefix):
+                    self.current_chunk = self.current_chunk[len(prefix) :]
+                    self.prefix = None
+                    break
+            if self.prefix is None or chunk is END_OF_STREAM:
                 self.prefix = None
-                # If we're left with something, we "forward it".
-                if self.current_chunk:
-                    await self._process(self.current_chunk)
-                    self.current_chunk = ""
+                remaining = self.current_chunk
+                self.current_chunk = ""
+                if remaining:
+                    await self.push_chunk(remaining)
+                if chunk is END_OF_STREAM:
+                    await self.push_chunk(END_OF_STREAM, metadata)
         # Process suffix/stop tokens: accumulate and check whether the current chunk ends with one.
         elif self.suffix or self.stop:
             if isinstance(chunk, str):
                 self.current_chunk += chunk
             _chunks = []
             if self.suffix:
-                _chunks.append(self.suffix)
+                suffixes = (self.suffix,) if isinstance(self.suffix, str) else self.suffix
+                _chunks.extend(suffixes)
             if self.stop:
                 _chunks.extend(self.stop)
             skip_processing = False
+            if self.suffix:
+                skip_processing = any(suffix and self.current_chunk.rstrip().endswith(suffix) for suffix in suffixes)
             for _chunk in _chunks:
                 if skip_processing:
                     break
@@ -376,8 +402,7 @@ class StreamingHandler(AsyncIterator):
                 return
             else:
                 if chunk is END_OF_STREAM:
-                    if self.current_chunk and self.suffix and self.current_chunk.endswith(self.suffix):
-                        self.current_chunk = self.current_chunk[0 : -1 * len(self.suffix)]
+                    self._strip_current_suffix()
 
                 # only process the current_chunk if it's not empty
                 if self.current_chunk:
@@ -390,11 +415,18 @@ class StreamingHandler(AsyncIterator):
         else:
             await self._process(chunk, metadata)
 
+    def _strip_current_suffix(self):
+        if self.suffix:
+            suffixes = (self.suffix,) if isinstance(self.suffix, str) else self.suffix
+            for candidate in (self.current_chunk, self.current_chunk.rstrip()):
+                for suffix in suffixes:
+                    if suffix and candidate.endswith(suffix):
+                        self.current_chunk = candidate[: -len(suffix)]
+                        return
+
     async def _flush_current_chunk(self):
         if self.current_chunk:
-            if self.suffix and self.current_chunk.endswith(self.suffix):
-                self.current_chunk = self.current_chunk[: -1 * len(self.suffix)]
-
+            self._strip_current_suffix()
             await self._process(self.current_chunk)
             self.current_chunk = ""
 
@@ -407,5 +439,6 @@ class StreamingHandler(AsyncIterator):
             print("")
 
         # Reset prefix/suffix for the next generation.
-        self.prefix = None
-        self.suffix = None
+        if not self.enable_buffer:
+            self.prefix = None
+            self.suffix = None

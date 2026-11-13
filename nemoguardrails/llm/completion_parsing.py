@@ -26,9 +26,10 @@ from typing import List
 
 
 def strip_quotes(s: str) -> str:
-    """Helper that removes quotes from a string if the entire string is between quotes"""
-    if s and s[0] == '"':
-        if s[-1] == '"':
+    """Remove surrounding double quotes, allowing an unfinished quoted response."""
+    if s and s[0] in ('"', "“"):
+        closing_quote = '"' if s[0] == '"' else "”"
+        if s[-1] == closing_quote:
             s = s[1:-1]
         else:
             s = s[1:]
@@ -48,14 +49,17 @@ def get_multiline_response(s: str) -> str:
 
     lines = [line.strip() for line in s.split("\n")]
     result = ""
+    closing_quote = '"'
     for line in lines:
         # Keep getting additional non-empty lines until the message ends
         if len(line) > 0:
             if len(result) == 0:
                 result = line
+                if line.startswith("“"):
+                    closing_quote = "”"
             else:
                 result += "\n" + line
-            if line.endswith('"'):
+            if line.endswith(closing_quote):
                 break
 
     return result
