@@ -98,8 +98,6 @@ async def jailbreak_detection_heuristics(
         ps_ppl_threshold,
         http_client=http_client,
     )
-    if not isinstance(jailbreak, bool):
-        raise JailbreakDetectionError("Jailbreak detector did not return a boolean verdict.")
     return RailOutcome.block() if jailbreak else RailOutcome.allow()
 
 

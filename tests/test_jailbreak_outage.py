@@ -105,27 +105,32 @@ async def test_detector_outage_stops_generation(engine, backend, failure, httpx_
     assert response["content"] == "I'm sorry, an internal error has occurred."
     assert len(httpx_mock.get_requests()) == 1
     assert "private response body" not in caplog.text
+    assert "private checked input" not in caplog.text
 
 
 @pytest.mark.parametrize("backend", ["server", "nim", "heuristics"])
 @pytest.mark.parametrize("failure", ["timeout", "connection", "status", "malformed"])
-def test_detector_outage_stops_generation_colang2(backend, failure, httpx_mock):
+def test_detector_outage_stops_generation_colang2(backend, failure, httpx_mock, caplog):
     chat = TestChat(_config(backend, colang2=True), llm_completions=["Unchecked input reached generation."])
     _queue_failure(httpx_mock, failure)
     chat >> "private checked input"
     chat << "I'm sorry, an internal error has occurred."
     assert len(httpx_mock.get_requests()) == 1
     assert chat.llm.inference_count == 0
+    assert "private checked input" not in caplog.text
+    assert "private response body" not in caplog.text
 
 
 @pytest.mark.parametrize("failure", ["timeout", "connection", "status", "malformed"])
 @pytest.mark.asyncio
-async def test_heuristics_outage_stops_generation(failure, httpx_mock):
+async def test_heuristics_outage_stops_generation(failure, httpx_mock, caplog):
     chat = TestChat(_config("heuristics"), llm_completions=["Unchecked input reached generation."])
     _queue_failure(httpx_mock, failure)
-    response = await chat.app.generate_async(messages=[{"role": "user", "content": "hello"}])
+    response = await chat.app.generate_async(messages=[{"role": "user", "content": "private checked input"}])
     assert response["content"] == "I'm sorry, an internal error has occurred."
     assert chat.llm.inference_count == 0
+    assert "private checked input" not in caplog.text
+    assert "private response body" not in caplog.text
 
 
 @pytest.mark.parametrize("backend", ["server", "nim", "local"])
