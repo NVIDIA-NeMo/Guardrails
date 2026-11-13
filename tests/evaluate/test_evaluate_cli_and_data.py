@@ -49,6 +49,29 @@ def test_topical_command_rejects_multiple_configs(tmp_path):
     assert "Multiple configurations are not supported" in result.stdout
 
 
+def _topical_cli_args(config, output):
+    return [
+        "topical",
+        "--config",
+        str(config),
+        "--verbose",
+        "--test-percentage",
+        "0.4",
+        "--max-tests-intent",
+        "4",
+        "--max-samples-intent",
+        "2",
+        "--results-frequency",
+        "5",
+        "--sim-threshold",
+        "0.75",
+        "--random-seed",
+        "123",
+        "--output-dir",
+        str(output),
+    ]
+
+
 def test_topical_command_invokes_evaluation_class(tmp_path):
     config = tmp_path / "config"
     output = tmp_path / "output"
@@ -59,29 +82,7 @@ def test_topical_command_invokes_evaluation_class(tmp_path):
         patch("nemoguardrails.evaluate.cli.evaluate.TopicalRailsEvaluation", return_value=topical_eval) as mock_cls,
         patch("nemoguardrails.evaluate.cli.evaluate.set_verbose") as mock_set_verbose,
     ):
-        result = runner.invoke(
-            evaluate.app,
-            [
-                "topical",
-                "--config",
-                str(config),
-                "--verbose",
-                "--test-percentage",
-                "0.4",
-                "--max-tests-intent",
-                "4",
-                "--max-samples-intent",
-                "2",
-                "--results-frequency",
-                "5",
-                "--sim-threshold",
-                "0.75",
-                "--random-seed",
-                "123",
-                "--output-dir",
-                str(output),
-            ],
-        )
+        result = runner.invoke(evaluate.app, _topical_cli_args(config, output))
 
     assert result.exit_code == 0
     mock_set_verbose.assert_called_once_with(True)
