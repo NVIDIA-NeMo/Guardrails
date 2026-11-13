@@ -11,7 +11,7 @@ content:
 
 The NVIDIA NeMo Guardrails library API server provides the following capabilities:
 
-- Loads guardrails configurations at startup.
+- Loads guardrails configurations from a local directory, and validates a single configuration when it starts.
 - Exposes an [OpenAI-compatible REST API](https://platform.openai.com/docs/api-reference/chat/create) for chat completions and model listing.
 - Works with the [OpenAI Python SDK](https://github.com/openai/openai-python). Use `OpenAI(base_url="http://localhost:8000/v1")`.
 - Includes a built-in chat UI for testing.
