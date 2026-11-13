@@ -505,54 +505,62 @@ def _colang_1_chat_notice(config: RailsConfig, capsys, **run_chat_kwargs) -> str
     return capsys.readouterr().err
 
 
-def test_colang_1_chat_on_an_iorails_config_prints_no_removal_notice(capsys):
-    """Chatting with a Colang 1.0 config IORails runs in full prints no removal notice."""
-    notice = _colang_1_chat_notice(RailsConfig.from_content(config=IORAILS_CONFIG), capsys)
+@pytest.mark.parametrize("config_kind", ["iorails-compatible", "dialog-flows", "config-py", "llmrails-only"])
+def test_colang_1_chat_on_llmrails_prints_one_engine_notice(tmp_path, capsys, config_kind):
+    """Local Colang 1.0 chat runs LLMRails, so it prints the same single engine notice whatever the config holds."""
+    build_config = {
+        "iorails-compatible": lambda: RailsConfig.from_content(config=IORAILS_CONFIG),
+        "dialog-flows": lambda: RailsConfig.from_content(colang_content=DIALOG_FLOWS_CONTENT, config=IORAILS_CONFIG),
+        "config-py": lambda: _config_dir(tmp_path, config_py=True),
+        "llmrails-only": lambda: RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG),
+    }[config_kind]
 
-    assert "is deprecated" not in notice
+    notice = _colang_1_chat_notice(build_config(), capsys)
 
-
-@DIALOG_CONTENTS
-def test_colang_1_chat_with_dialog_flows_prints_the_dialog_flows_notice(capsys, colang_content):
-    """Chatting with a Colang 1.0 config that has dialog flows, with or without define user, prints the notice."""
-    config = RailsConfig.from_content(colang_content=colang_content, config=IORAILS_CONFIG)
-
-    notice = _colang_1_chat_notice(config, capsys)
-
-    assert "Using Colang dialog flows (define user, define flow) is deprecated" in notice
-
-
-def test_colang_1_chat_starts_even_when_the_iorails_check_fails(capsys):
-    """A failing IORails support check skips the notice instead of stopping the chat."""
-    config = RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG)
-
-    with patch.object(chat_module.IORails, "unsupported_reason", side_effect=RuntimeError("action import failed")):
-        notice = _colang_1_chat_notice(config, capsys)
-
-    assert "is deprecated" not in notice
+    assert notice.count("is deprecated") == 1
+    assert "Chatting on the LLMRails engine is deprecated" in notice
+    assert "Set NEMO_GUARDRAILS_IORAILS_ENGINE=true to chat on IORails." in notice
 
 
-def test_remote_colang_1_chat_skips_the_local_engine_notice(capsys):
-    """Chatting through a server URL prints no local-engine notice; the server decides which engine runs."""
-    config = RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG)
+def test_colang_1_chat_under_the_iorails_alias_leaves_the_notice_to_guardrails(monkeypatch, capsys):
+    """With LLMRails aliased to Guardrails, chat prints no notice of its own; Guardrails warns about the config."""
+    monkeypatch.setattr(chat_module, "LLMRails", Guardrails)
+    config = RailsConfig.from_content(colang_content=DIALOG_FLOWS_CONTENT, config=IORAILS_CONFIG)
 
-    with patch.object(chat_module.IORails, "unsupported_reason") as unsupported_reason:
-        notice = _colang_1_chat_notice(config, capsys, server_url="http://localhost:8000")
+    assert "is deprecated" not in _colang_1_chat_notice(config, capsys)
+
+
+def test_colang_1_chat_does_not_run_the_iorails_support_check(capsys):
+    """Chat picks its notice from the engine it runs, so it never runs the IORails check that can import actions."""
+    with patch("nemoguardrails.guardrails.iorails.IORails.unsupported_reason") as unsupported_reason:
+        _colang_1_chat_notice(RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG), capsys)
 
     unsupported_reason.assert_not_called()
+
+
+def test_remote_colang_1_chat_prints_no_local_engine_notice(capsys):
+    """Chatting through a server URL prints no local-engine notice; the server decides which engine runs."""
+    notice = _colang_1_chat_notice(
+        RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG), capsys, server_url="http://localhost:8000"
+    )
+
     assert "is deprecated" not in notice
 
 
-def test_colang_1_chat_with_config_py_prints_the_config_py_notice(tmp_path, capsys):
-    """Chatting with a Colang 1.0 config directory that has config.py prints that IORails does not import it."""
-    notice = _colang_1_chat_notice(_config_dir(tmp_path, config_py=True), capsys)
+def test_colang_2_chat_under_the_iorails_alias_emits_one_message(monkeypatch, capsys):
+    """With LLMRails aliased to Guardrails, Colang 2.x chat prints its notice and silences Guardrails' fallback warning."""
+    monkeypatch.setattr(chat_module, "LLMRails", Guardrails)
+    config = RailsConfig.from_content(colang_content=COLANG_2_CONTENT, yaml_content=COLANG_2_YAML)
 
-    assert "Using config.py is deprecated" in notice
+    def chat():
+        with (
+            patch.object(chat_module.RailsConfig, "from_path", return_value=config),
+            patch.object(chat_module, "get_or_create_event_loop") as mock_get_loop,
+        ):
+            mock_get_loop.return_value.run_until_complete.side_effect = lambda coroutine: coroutine.close()
+            chat_module.run_chat(config_path="config")
 
+    caught = _removal_warnings(chat)
 
-def test_colang_1_chat_on_an_llmrails_only_config_prints_the_fallback_notice(capsys):
-    """Chatting with a Colang 1.0 config only LLMRails can run prints why, and what to change."""
-    notice = _colang_1_chat_notice(RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG), capsys)
-
-    assert "Running this config on the LLMRails engine (" in notice
-    assert "Use only rails that IORails supports" in notice
+    assert caught == []
+    assert "Colang 2.x chat, including its debugger commands, is deprecated" in capsys.readouterr().err
