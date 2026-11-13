@@ -776,3 +776,4 @@ class TestDefaultFramework:
         assert "openai" in names
         assert "nim" in names
         assert "ollama" in names
+        assert "orcarouter" in names
