@@ -579,6 +579,14 @@ Backward incompatible changes are introduced in v0.12.0 due to AutoAlign API cha
 
 </Warning>
 
+<Warning>
+
+`autoalign groundedness output` runs only on `LLMRails`, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+The IORails engine does not run it, so `Guardrails` falls back to `LLMRails` for a configuration that lists it.
+For the reason, refer to [Engine Support](#engine-support).
+
+</Warning>
+
 The groundness check needs an input statement (represented as ‘prompt’) as a list of evidence documents.
 To use AutoAlign's groundness check module, you have to modify the `config.yml` in the following format:
 
@@ -631,7 +639,7 @@ or not. The response from AutoAlign would be presented as a subtext, when
 <Warning>
 
 The following example uses Colang dialog flows (`define user`, `define flow`), which are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
-The IORails engine does not run them, and it does not run `autoalign groundedness output`.
+The IORails engine does not run them.
 For the steps, refer to [Migrating to 0.25](/reference/0-25#colang-configurations).
 
 </Warning>

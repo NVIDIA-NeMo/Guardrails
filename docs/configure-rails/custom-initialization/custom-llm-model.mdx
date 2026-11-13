@@ -12,7 +12,7 @@ The NVIDIA NeMo Guardrails library defines a small `LLMModel` protocol that ever
 
 <Warning>
 
-The LangChain model framework (`LangChainFramework` and `LangChainLLMAdapter`), `LLMRails`, and `TestChat`, which this page uses, are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
+The LangChain model framework (`LangChainFramework`), `LangChainLLMAdapter`, which wraps a LangChain model, `LLMRails`, and `TestChat`, which this page uses, are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
 Serve a model that needs LangChain through an OpenAI-compatible endpoint with the default framework instead.
 The IORails engine calls every model in `config.yml` through its own OpenAI-compatible client and does not use providers that you register with `register_provider`.
 A test helper for `Guardrails` that replaces `TestChat` is planned for 0.26.0.

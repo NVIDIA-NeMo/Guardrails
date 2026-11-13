@@ -110,6 +110,10 @@ Sample output:
 
 The input and output format for the `generate` method is similar to the [Chat Completions API](https://platform.openai.com/docs/guides/gpt/chat-completions-api) from OpenAI.
 
+`Guardrails` runs the IORails engine only when that engine supports every rail in the configuration; otherwise, it falls back to the deprecated `LLMRails` and warns.
+The sample `config.yml` below lists `self check facts` and `self check hallucination`, which run only on `LLMRails`.
+To check a configuration before you migrate, construct `Guardrails(config, require_iorails=True)`, and refer to [Rail Engine Support](https://docs.nvidia.com/nemo/guardrails/latest/reference/rail-engine-support).
+
 #### Async API
 
 The NeMo Guardrails library is an async-first toolkit as the core mechanics are implemented using the Python async model. The public methods have both a sync and an async version. For example: `Guardrails.generate` and `Guardrails.generate_async`.
@@ -300,7 +304,7 @@ LangChain integration is opt-in. To enable it, set the `NEMOGUARDRAILS_LLM_FRAME
 
 Evaluating the safety of a LLM-based conversational application is a complex task and still an open research question. To support proper evaluation, the NeMo Guardrails library provides the following:
 
-1. An [evaluation tool](nemoguardrails/evaluate/README.md), i.e. `nemoguardrails eval`, with support for topical rails, fact-checking, moderation (jailbreak and output moderation) and hallucination.
+1. An [evaluation tool](nemoguardrails/evaluate/README.md), i.e. `nemoguardrails evaluate`, with support for topical rails, fact-checking, moderation (jailbreak and output moderation) and hallucination.
 2. Sample LLM Vulnerability Scanning Reports, e.g, [ABC Bot - LLM Vulnerability Scan Results](https://docs.nvidia.com/nemo/guardrails/evaluation/llm-vulnerability-scanning.html)
 
 ## How is this different?

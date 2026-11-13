@@ -17,7 +17,9 @@ There are three main ways in which you can use the NeMo Guardrails library with 
 <Warning>
 
 All three ways are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027): `GuardrailsMiddleware`, `RunnableRails`, and chains that `LLMRails` registers as actions for Colang flows.
-Call `Guardrails` directly from your chain or agent instead.
+Instead of `RunnableRails`, call `Guardrails` directly from your chain.
+Instead of `GuardrailsMiddleware`, check every model call of your agent with `Guardrails` in your own middleware.
+Chains registered as actions have no replacement, because the IORails engine does not run Colang flows or custom actions.
 For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-chains-and-agents).
 
 </Warning>

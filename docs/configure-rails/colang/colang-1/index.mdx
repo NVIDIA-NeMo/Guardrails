@@ -10,7 +10,8 @@ Colang 1.0 is the original Colang syntax for defining user messages, bot message
 <Warning>
 
 The Colang 1.0 and Colang 2.x runtimes are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
-The IORails engine runs the input, output, and tool rails that `config.yml` lists, but it does not run Colang flows.
+The IORails engine runs the input, output, and tool rails in `config.yml` that it supports, but it does not run Colang flows.
+For a configuration that lists rails it does not support, `Guardrails` falls back to `LLMRails`, or raises with `require_iorails=True`; [Rail Engine Support](/reference/rail-engine-support) lists the supported rails.
 From 0.27.0, a configuration that uses Colang 2.x or contains hand-written Colang flows fails to load.
 For the steps, refer to [Migrating to 0.25](/reference/0-25#colang-configurations).
 

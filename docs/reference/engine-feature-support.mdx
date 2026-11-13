@@ -43,7 +43,7 @@ config = RailsConfig.from_path("path/to/config")
 rails = LLMRails(config)
 ```
 
-Constructing `LLMRails` in your code emits an `LLMRailsRemovalWarning`, unless `NEMO_GUARDRAILS_IORAILS_ENGINE` is set, which makes `LLMRails` an alias of `Guardrails`.
+Constructing `LLMRails` in your code emits an `LLMRailsRemovalWarning`, unless `NEMO_GUARDRAILS_IORAILS_ENGINE` is `true`, `1`, or `yes` (in any case), which makes `LLMRails` an alias of `Guardrails`.
 
 ### IORails
 

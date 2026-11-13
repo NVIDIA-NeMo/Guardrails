@@ -99,6 +99,8 @@ set_logger_provider(logger_provider)
 
 # 3. Forward nemoguardrails log records into the OTEL pipeline
 logging.getLogger("nemoguardrails").addHandler(LoggingHandler())
+# Request records are INFO; without a level, the root logger's WARNING drops them.
+logging.getLogger("nemoguardrails").setLevel(logging.INFO)
 
 # Guardrails configuration
 config_yaml = """

@@ -45,6 +45,15 @@ If output rails are configured but `rails.output.streaming.enabled` is not set t
 
 ## Streaming With Handler
 
+<Warning>
+
+Passing a `StreamingHandler` to `generate_async()` works only on `LLMRails`, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+The IORails engine ignores `streaming_handler`, so a consumer of the handler waits without receiving tokens.
+With `Guardrails`, use `stream_async()` instead.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#replace-llmrails-with-guardrails).
+
+</Warning>
+
 For advanced use cases requiring more control over token processing, you can use a `StreamingHandler` with `generate_async()`. The preferred approach for most use cases is `stream_async()`, but `StreamingHandler` remains supported:
 
 ```python
