@@ -70,8 +70,8 @@ async def test_jailbreak_detection_input_blocks_jailbreak_prompt(nvidia_api_key,
     )
 
 
-async def test_jailbreak_detection_input_invalid_key_fails_open(nvidia_api_key, monkeypatch, vcr):
-    """Pin the existing fail-open policy against a real authorization error."""
+async def test_jailbreak_detection_input_invalid_key_fails_closed(nvidia_api_key, monkeypatch, vcr):
+    """A real authorization error must stop processing instead of clearing the input."""
     monkeypatch.setenv("NVIDIA_API_KEY", "invalid-recorded-replay")
     prompt = "What is the capital of France?"
     result = await check_rails(
@@ -81,9 +81,13 @@ async def test_jailbreak_detection_input_invalid_key_fails_open(nvidia_api_key, 
     )
 
     _assert_detector_exchange(vcr, prompt, status=401)
-    assert_rails_result(result, status=RailStatus.PASSED)
+    assert_rails_result(result, status=RailStatus.BLOCKED, rail="jailbreak detection model")
     assert normalize_rails_result(result) == snapshot(
-        {"status": "passed", "rail": None, "content": "What is the capital of France?"}
+        {
+            "status": "blocked",
+            "rail": "jailbreak detection model",
+            "content": "I'm sorry, an internal error has occurred.",
+        }
     )
 
 

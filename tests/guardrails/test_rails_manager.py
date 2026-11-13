@@ -591,14 +591,16 @@ class TestJailbreakDetectionIsInputSafe:
         assert not result.is_safe
 
     @pytest.mark.asyncio
-    async def test_endpoint_error_allows(self, nemoguards_rails_manager, httpx_mock):
-        """An unreachable NIM allows the request; the library action swallows every failure."""
+    async def test_endpoint_error_fails_closed(self, nemoguards_rails_manager, httpx_mock):
+        """An unreachable NIM produces a failed block rather than a detector clearance."""
         mock_rail_model(
             nemoguards_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
         )
         mock_jailbreak_nim_failure(httpx_mock)
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
-        assert result.is_safe
+        assert not result.is_safe
+        assert result.failed
+        assert result.triggered_rail == "jailbreak detection model"
 
 
 # --- Parallel init ---

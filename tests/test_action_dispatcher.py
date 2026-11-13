@@ -359,7 +359,43 @@ async def test_execute_action_not_callable_raises(caplog):
     assert result == (None, "failed")
     last_log = caplog.records[-1]
     assert last_log.levelname == "ERROR"
-    assert last_log.message == f"No 'run' method defined for action '{action_name}'."
+    assert action_name in last_log.message
+    assert "Exception" in last_log.message
+
+
+@pytest.mark.parametrize("async_action", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("chained", [False, True], ids=["message", "chained-cause"])
+@pytest.mark.asyncio
+async def test_action_failure_logs_names_without_sensitive_values(async_action, chained, caplog):
+    private_input = "private checked input"
+    private_credential = "private credential sentinel"
+
+    def fail(context, api_key):
+        if chained:
+            try:
+                raise ValueError(context["user_message"])
+            except ValueError as cause:
+                raise RuntimeError("Action failed") from cause
+        raise RuntimeError(f"{context['user_message']}: {api_key}")
+
+    async def fail_async(context, api_key):
+        fail(context, api_key)
+
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher.register_action(fail_async if async_action else fail, name="failing_action")
+
+    result = await dispatcher.execute_action(
+        "failing_action", params={"context": {"user_message": private_input}, "api_key": private_credential}
+    )
+
+    assert result == (None, "failed")
+    assert private_input not in caplog.text
+    assert private_credential not in caplog.text
+    assert "failing_action" in caplog.text
+    assert "RuntimeError" in caplog.text
+    assert "context" in caplog.text
+    assert "api_key" in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)
 
 
 @pytest.mark.asyncio

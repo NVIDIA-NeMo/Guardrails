@@ -36,6 +36,7 @@ from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.http import HTTPClient
+from nemoguardrails.library.jailbreak_detection.errors import JailbreakDetectionError
 from nemoguardrails.library.jailbreak_detection.model_based.errors import (
     JailbreakInputTooLongError,
     JailbreakInputValidationError,
@@ -97,12 +98,7 @@ async def jailbreak_detection_heuristics(
         ps_ppl_threshold,
         http_client=http_client,
     )
-    if jailbreak is None:
-        log.warning("Jailbreak endpoint not set up properly.")
-        # If no result, assume not a jailbreak
-        return RailOutcome.allow()
-    else:
-        return RailOutcome.block() if jailbreak else RailOutcome.allow()
+    return RailOutcome.block() if jailbreak else RailOutcome.allow()
 
 
 @action()
@@ -167,19 +163,8 @@ async def jailbreak_detection_model(
             )
 
             log.warning("No jailbreak detection endpoint set. Running in-process, NOT RECOMMENDED FOR PRODUCTION.")
-            try:
-                jailbreak = check_jailbreak(prompt=prompt)
-                log.info(f"Local model jailbreak detection result: {jailbreak}")
-                jailbreak_result = jailbreak["jailbreak"]
-            except RuntimeError as e:
-                log.error(f"Jailbreak detection model not available: {e}")
-                jailbreak_result = False
-            except ImportError as e:
-                log.error(
-                    "Failed to import required dependencies for local model. Install scikit-learn and torch, or use NIM-based approach",
-                    exc_info=e,
-                )
-                jailbreak_result = False
+            jailbreak = check_jailbreak(prompt=prompt)
+            jailbreak_result = jailbreak["jailbreak"]
         else:
             if nim_base_url:
                 jailbreak = await jailbreak_nim_request(
@@ -196,11 +181,9 @@ async def jailbreak_detection_model(
                     http_client=http_client,
                 )
 
-            if jailbreak is None:
-                log.warning("Jailbreak endpoint not set up properly.")
-                jailbreak_result = False
-            else:
-                jailbreak_result = jailbreak
+            jailbreak_result = jailbreak
+        if not isinstance(jailbreak_result, bool):
+            raise JailbreakDetectionError("Jailbreak detector did not return a boolean verdict.")
     except (JailbreakInputTooLongError, JailbreakInputValidationError) as e:
         log.warning("Jailbreak detection blocked input whose complete coverage could not be verified.")
         jailbreak_result = True
