@@ -189,7 +189,20 @@ Here is a list of arguments that you can use to configure the fact-checking rail
 - `num-samples`: Number of samples to run the eval on. The default is 50.
 - `create-negatives`: Whether to generate synthetic negative examples or not. The default is `True`. Pass `--no-create-negatives` if your dataset already contains negative examples.
   Each record must then also include `incorrect_answer`, a wrong answer that its `evidence` does not support.
-  The evaluation scores `answer` as the positive case and `incorrect_answer` as the negative case.
+  The evaluation scores `answer` as the positive case and `incorrect_answer` as the negative case, and stops with an `AssertionError` on a record without `incorrect_answer`.
+  Pass the file with `--dataset-path`, because the default sample dataset has no `incorrect_answer` field:
+
+    ```json
+    [
+        {
+            "question": "question text",
+            "answer": "answer text",
+            "incorrect_answer": "incorrect answer text",
+            "evidence": "evidence text"
+        }
+    ]
+    ```
+
 - `output-dir`: The directory to save the output to. The default is `eval_outputs/factchecking`.
 - `write-outputs`: Whether to write the outputs to a file or not. The default is `True`.
 
