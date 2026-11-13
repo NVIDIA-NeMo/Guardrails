@@ -26,6 +26,7 @@ These tests verify the async work queue implementation including:
 """
 
 import asyncio
+import contextvars
 from typing import Any
 
 import pytest
@@ -889,3 +890,55 @@ class TestWorkerErrorHandling:
                 assert "RuntimeError" in call_args[0][0]
 
                 await queue.stop()
+
+
+_request_scoped: contextvars.ContextVar[str] = contextvars.ContextVar("request_scoped", default="unset")
+
+
+class TestContextPropagation:
+    """Work runs in the context it was submitted from, not the one the worker started in."""
+
+    @pytest.mark.asyncio
+    async def test_work_sees_the_submitters_context_variables(self):
+        async def read():
+            return _request_scoped.get()
+
+        async with AsyncWorkQueue[str](name="test_queue", max_queue_size=10, max_concurrency=1) as queue:
+            token = _request_scoped.set("first request")
+            try:
+                first = await queue.submit(read)
+            finally:
+                _request_scoped.reset(token)
+            second = await queue.submit(read)
+
+        assert (first, second) == ("first request", "unset")
+
+    @pytest.mark.asyncio
+    async def test_work_does_not_leak_context_changes_into_later_work(self):
+        async def write():
+            _request_scoped.set("leaked")
+
+        async def read():
+            return _request_scoped.get()
+
+        async with AsyncWorkQueue[Any](name="test_queue", max_queue_size=10, max_concurrency=1) as queue:
+            await queue.submit(write)
+            assert await queue.submit(read) == "unset"
+
+    @pytest.mark.asyncio
+    async def test_work_does_not_inherit_the_context_of_the_first_submitter(self):
+        async def read():
+            return _request_scoped.get()
+
+        queue = AsyncWorkQueue[str](name="test_queue", max_queue_size=10, max_concurrency=1)
+        token = _request_scoped.set("first request")
+        try:
+            first = await queue.submit(read)  # starts the workers lazily, inside this context
+        finally:
+            _request_scoped.reset(token)
+        try:
+            second = await queue.submit(read)
+        finally:
+            await queue.stop()
+
+        assert (first, second) == ("first request", "unset")

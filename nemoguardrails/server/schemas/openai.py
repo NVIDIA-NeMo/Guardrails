@@ -324,7 +324,7 @@ class GuardrailsDataInput(BaseModel):
         default=None,
         min_length=16,
         max_length=255,
-        description="The ID of an existing thread to continue.",
+        description="The ID of an existing thread to continue.  No control characters or surrounding whitespace.",
     )
     context: Optional[dict] = Field(
         default=None,
@@ -349,6 +349,19 @@ class GuardrailsDataInput(BaseModel):
             if data.get("config_id") is not None and data.get("config_ids") is not None:
                 raise ValueError("Only one of config_id or config_ids should be specified")
         return data
+
+    @field_validator("thread_id")
+    @classmethod
+    def validate_thread_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if any(character.isspace() and character != " " for character in v) or any(
+            ord(character) < 0x20 or ord(character) == 0x7F for character in v
+        ):
+            raise ValueError("Thread ID must not contain control characters.")
+        if v != v.strip():
+            raise ValueError("Thread ID must not start or end with whitespace.")
+        return v
 
     @field_validator("config_ids", mode="before")
     @classmethod

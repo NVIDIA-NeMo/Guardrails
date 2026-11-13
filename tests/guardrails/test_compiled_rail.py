@@ -537,7 +537,7 @@ class TestSurfacesOutsideTheTier:
             assert declared_context - supported_context
 
     def test_the_input_output_tier_splits_into_servable_and_refused(self):
-        """62 servable against the eight refused surfaces, pinned by name.
+        """64 servable against the eight refused surfaces, pinned by name.
 
         A predicate would follow the code it is checking; a new manifest surface fails here.
         """
@@ -549,17 +549,17 @@ class TestSurfacesOutsideTheTier:
             bucket.append((direction, name))
 
         assert sorted(refused) == sorted(UNSUPPORTED_CONTEXT_SURFACES | UNSUPPORTED_RAIL_SURFACES)
-        assert len(servable) == 62
+        assert len(servable) == 64
 
     def test_the_rewriting_surfaces_are_all_servable(self):
-        """The eighteen this work exists for, nine each way, with no direction half-enabled."""
+        """The twenty this work exists for, ten each way, with no direction half-enabled."""
         rewriting = [
             (direction, name)
             for (direction, name), surface in default_rail_catalog().surfaces().items()
             if direction is not RailDirection.RETRIEVAL and surface.transform_target is not None
         ]
 
-        assert len(rewriting) == 18
+        assert len(rewriting) == 20
         assert [key for key in rewriting if key[0] is RailDirection.INPUT] != []
         assert [key for key in rewriting if key[0] is RailDirection.OUTPUT] != []
         assert all(unsupported_surface_reason(default_rail_catalog().surfaces()[key]) is None for key in rewriting)
