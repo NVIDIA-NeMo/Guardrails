@@ -234,7 +234,7 @@ The `Guardrails` facade decides what an unsupported rail means for your applicat
 | `Guardrails(config, require_iorails=True)` | Raises `ValueError` naming the reason, instead of falling back |
 | `Guardrails(config, use_iorails=False)` | Uses `LLMRails` without consulting the rail catalog at all, and emits an `LLMRailsRemovalWarning`. Deprecated in 0.25.0 |
 
-A configuration with per-tool rails (`rails.tool_call.per_tool` or `rails.tool_result.per_tool`) never falls back.
+A configuration that `IORails` cannot run and that also has per-tool rails (`rails.tool_call.per_tool` or `rails.tool_result.per_tool`) never falls back.
 `Guardrails(config)` raises `ValueError` naming the reason, as with `require_iorails=True`, because `LLMRails` does not run per-tool rails.
 
 Every "routes to `LLMRails`" statement on this page and in the guardrail catalog describes the default.

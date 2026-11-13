@@ -99,7 +99,7 @@ response = rails.generate(messages=[{"role": "user", "content": "Hello!"}])
 
 `Guardrails` runs `IORails` when `IORails` can run the whole configuration.
 Otherwise, it falls back to `LLMRails` and warns, as described in [Configurations That Fall Back to LLMRails](#configurations-that-fall-back-to-llmrails).
-A configuration with per-tool rails is the exception: it raises `ValueError` instead of falling back.
+A configuration that `IORails` cannot run and that also has per-tool rails is the exception: it raises `ValueError` instead of falling back.
 To fail at construction instead of falling back, pass `require_iorails=True`:
 
 ```python
@@ -152,7 +152,7 @@ For the details, refer to [Generation Options: IORails and LLMRails Differences]
 ## Remove the Engine and Model Arguments
 
 `Guardrails(config, use_iorails=False)` always runs `LLMRails`.
-Remove the argument so that `Guardrails` runs `IORails`.
+Remove the argument so that `Guardrails` runs `IORails` when `IORails` can run the configuration.
 
 `Guardrails(config, llm=...)` runs a model object that you supply, which forces `LLMRails` because `IORails` creates its models from the configuration.
 Remove the argument and configure the main model under `models` in `config.yml` instead:
@@ -189,7 +189,8 @@ The following table maps the reason in the parentheses to the change to make.
 | `config has unsupported tool call flows` or `config has unsupported tool result flows` | A flow under `rails.tool_call.flows` or `rails.tool_result.flows` is not a tool rail that `IORails` runs. | Use the tool rails that [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) describes. |
 | `config has duplicate tool call flows` or `config has duplicate tool result flows` | The same flow appears more than once in `rails.tool_call.flows` or `rails.tool_result.flows`. | Remove the duplicate. |
 
-A configuration with per-tool rails (`rails.tool_call.per_tool` or `rails.tool_result.per_tool`) does not fall back.
+A configuration that `IORails` cannot run and that also has per-tool rails (`rails.tool_call.per_tool` or `rails.tool_result.per_tool`) does not fall back.
+Per-tool rails alone do not cause this; a configuration that `IORails` can run, per-tool rails included, runs on `IORails`.
 `Guardrails` raises a `ValueError` that names the same reason instead, because `LLMRails` does not run per-tool rails and falling back would turn them off.
 In that case it emits no `LLMRailsRemovalWarning`, so look for the reason in the error.
 
@@ -363,7 +364,11 @@ agent = create_agent(model, tools=tools, middleware=[GuardrailsChecks(rails)])
 ```
 
 Input rails check the latest user message, and output rails check the text of the model's reply, so neither checks tool calls or tool results.
-To check those, configure tool-call or tool-result rails and run `check_async()` with `RailType.TOOL_CALL` or `RailType.TOOL_RESULT` in the same hooks.
+A tool result can carry a prompt injection into the next model call, so check every tool result before that call.
+In `abefore_model`, run `check_async()` with `RailType.TOOL_RESULT` on the conversation, including the assistant message with its `tool_calls` and the `tool` messages, and stop the agent with `"jump_to": "end"` when the check blocks, as the input check does.
+`tool result validation` checks only the structure of a result, not its content, so it does not catch a prompt injection.
+Also configure a per-tool rail that checks the content, such as `tool safety check tool result` or `regex check tool result`.
+To check the tool calls that the model emits, run `check_async()` with `RailType.TOOL_CALL` in `aafter_model`.
 For the details, refer to [Checking Messages Against Rails: Tool Rails](/run-guardrailed-inference/using-python-apis/check-messages#tool-rails-iorails-only).
 
 For the full check API, refer to [Checking Messages Against Rails](/run-guardrailed-inference/using-python-apis/check-messages).
@@ -388,6 +393,8 @@ models:
 
 Set `api_key_env_var` to the environment variable that holds this endpoint's key.
 Without it, the `openai` engine sends the key in `OPENAI_API_KEY` to `base_url`, which hands your OpenAI key to another provider.
+For an endpoint that needs no key, leave out `api_key_env_var` and `parameters.api_key`, and unset `OPENAI_API_KEY` for the process.
+`IORails` then sends no `Authorization` header, unless you set one in `parameters.default_headers`.
 
 For the engines that the default framework supports, refer to [Supported LLMs](/about-nemo-guardrails-library/supported-llms).
 For recipes that move a LangChain engine to an OpenAI-compatible one, refer to [Migrating to 0.22](/reference/0-22#openai-compatible-providers).

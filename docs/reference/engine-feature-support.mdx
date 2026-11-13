@@ -96,7 +96,7 @@ rails = Guardrails(config, require_iorails=True)
 - Tool flows are in their own direction and are not duplicated. Refer to [Tool Calling](#tool-calling).
 
 Otherwise the facade falls back to `LLMRails`, logs the reason, and emits an `LLMRailsRemovalWarning` that names it.
-A configuration with per-tool rails raises `ValueError` instead, because `LLMRails` does not run per-tool rails.
+If that configuration also has per-tool rails, the facade raises `ValueError` instead, because `LLMRails` does not run per-tool rails.
 `IORails` ignores the dialog flows of a Colang 1.0 configuration.
 When the configuration contains its own `define flow` or `define user` blocks, the facade also emits an `LLMRailsRemovalWarning` that says so.
 When it has no dialog flows but its directory, or a directory it imports, contains `config.py`, which `IORails` does not import, the facade emits an `LLMRailsRemovalWarning` about `config.py` instead.

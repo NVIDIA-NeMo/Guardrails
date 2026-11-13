@@ -193,7 +193,7 @@ rails:
 The `.co` files included in a guardrails configuration contain the Colang definitions (see the next section for a quick overview of what Colang is) that define various types of rails. Below is an example `greeting.co` file which defines the dialog rails for greeting the user.
 
 > **DEPRECATION**: Dialog rails written as Colang flows run only on `LLMRails`, which version 0.27.0 (January 2027) removes.
-> `Guardrails`, which runs the IORails engine, ignores them.
+> When `Guardrails` runs the IORails engine, it ignores them.
 > Refer to the [migration guide](https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25#colang-configurations).
 
 ```colang
