@@ -48,6 +48,7 @@ LOOPBACK_HOST = "127.0.0.1"
 VENV_PYTHON = REPO_ROOT / (os.environ.get("UV_PROJECT_ENVIRONMENT") or ".venv") / "bin" / "python"
 SERVE_SCRIPT = Path(__file__).with_name("serve.py")
 EXAMPLE_CONFIG = REPO_ROOT / "examples" / "configs" / "agent_hooks" / "nemo_relay"
+DEEPAGENTS_EXAMPLE_POLICY = REPO_ROOT / "examples" / "scripts" / "nemo_relay" / "configs" / "policy"
 DETERMINISTIC_CONFIG = Path(__file__).with_name("configs") / "deterministic"
 JUDGE_CONFIG_TEMPLATE = Path(__file__).with_name("configs") / "llm_judge" / "config.yml"
 JUDGE_URL_PLACEHOLDER = "http://judge.invalid"
@@ -159,6 +160,14 @@ def _write_plugins_toml(path: Path, manifest: Path, config: dict[str, ComponentV
 def example_hooks_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     """The URL of a hooks server for Guardrails' NeMo Relay example config."""
     with _running_hooks_server(EXAMPLE_CONFIG, tmp_path_factory.mktemp("example_hooks_server")) as url:
+        yield url
+
+
+@pytest.fixture(scope="session")
+def deepagents_example_hooks_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+    """The URL of a hooks server for the model-free policy of the Deep Agents example in examples/scripts/nemo_relay."""
+    log_dir = tmp_path_factory.mktemp("deepagents_example_hooks_server")
+    with _running_hooks_server(DEEPAGENTS_EXAMPLE_POLICY, log_dir) as url:
         yield url
 
 
