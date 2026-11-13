@@ -2006,6 +2006,7 @@ all = [
     { name = "presidio-analyzer", marker = "python_full_version < '3.13'" },
     { name = "presidio-anonymizer", marker = "python_full_version < '3.13'" },
     { name = "prometheus-client" },
+    { name = "pyatr" },
     { name = "starlette" },
     { name = "streamlit" },
     { name = "tornado" },
@@ -2013,6 +2014,9 @@ all = [
     { name = "uvicorn" },
     { name = "watchdog" },
     { name = "yara-python" },
+]
+atr = [
+    { name = "pyatr" },
 ]
 cel = [
     { name = "common-expression-language" },
@@ -2077,6 +2081,7 @@ dev = [
     { name = "opentelemetry-sdk" },
     { name = "pre-commit" },
     { name = "prometheus-client" },
+    { name = "pyatr" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -2121,6 +2126,7 @@ test-integration = [
     { name = "opentelemetry-exporter-prometheus" },
     { name = "opentelemetry-sdk" },
     { name = "prometheus-client" },
+    { name = "pyatr" },
     { name = "starlette" },
     { name = "streamlit" },
     { name = "uvicorn" },
@@ -2184,6 +2190,8 @@ requires-dist = [
     { name = "prometheus-client", marker = "extra == 'server'", specifier = ">=0.20.0,<2.0.0" },
     { name = "prompt-toolkit", specifier = ">=3.0" },
     { name = "protobuf", specifier = ">=5.29.5" },
+    { name = "pyatr", marker = "extra == 'all'", specifier = ">=0.2.6" },
+    { name = "pyatr", marker = "extra == 'atr'", specifier = ">=0.2.6" },
     { name = "pydantic", specifier = ">=2.5,<3.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.5.2" },
@@ -2204,7 +2212,7 @@ requires-dist = [
     { name = "yara-python", marker = "extra == 'all'", specifier = ">=4.5.1,<5.0.0" },
     { name = "yara-python", marker = "extra == 'jailbreak'", specifier = ">=4.5.1,<5.0.0" },
 ]
-provides-extras = ["tracing", "server", "sdd", "gcp", "jailbreak", "cel", "multilingual", "chat-ui", "eval", "all"]
+provides-extras = ["tracing", "server", "sdd", "gcp", "jailbreak", "cel", "multilingual", "chat-ui", "atr", "eval", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2225,6 +2233,7 @@ dev = [
     { name = "opentelemetry-sdk", specifier = ">=1.34.1,<2.0.0" },
     { name = "pre-commit", specifier = ">=3.1.1" },
     { name = "prometheus-client", specifier = ">=0.20.0,<2.0.0" },
+    { name = "pyatr", specifier = ">=0.2.6" },
     { name = "pytest", specifier = ">=9.0.3,<10.0.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.0,<2.0.0" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
@@ -2267,6 +2276,7 @@ test-integration = [
     { name = "opentelemetry-exporter-prometheus", specifier = ">=0.63b0,<1.0.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.34.1,<2.0.0" },
     { name = "prometheus-client", specifier = ">=0.20.0,<2.0.0" },
+    { name = "pyatr", specifier = ">=0.2.6" },
     { name = "starlette", specifier = ">=0.49.1" },
     { name = "streamlit", specifier = ">=1.37.0" },
     { name = "uvicorn", specifier = ">=0.23" },
@@ -3712,6 +3722,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e9/e6/78ebbb10a8c8e4b61a59249394a4a594c1a7af95593dc933a349c8d00964/pyasn1_modules-0.4.2.tar.gz", hash = "sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6", size = 307892, upload-time = "2025-03-28T02:41:22.17Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/47/8d/d529b5d697919ba8c11ad626e835d4039be708a35b0d22de83a269a6682c/pyasn1_modules-0.4.2-py3-none-any.whl", hash = "sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a", size = 181259, upload-time = "2025-03-28T02:41:19.028Z" },
+]
+
+[[package]]
+name = "pyatr"
+version = "0.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyyaml" },
+    { name = "regex" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9a/d5/0e8ce7beb44289d031ce507c8bbc10cb0ae4da012d10c95255d277a86125/pyatr-0.3.1.tar.gz", hash = "sha256:30af641248748abdbe11b01593acad151c5a1184f1209494e70c3919a034e226", size = 797463, upload-time = "2026-10-15T20:55:08.182Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8b/fa/e60a60ff367b33866c4cb651d5dd5050ea7f9b24963e6e867fdf2479f245/pyatr-0.3.1-py3-none-any.whl", hash = "sha256:0cacee05a429e679eaec2f0c604257c696fde1ae09efabe995f0f97804a92d59", size = 793154, upload-time = "2026-10-15T20:55:06.944Z" },
 ]
 
 [[package]]

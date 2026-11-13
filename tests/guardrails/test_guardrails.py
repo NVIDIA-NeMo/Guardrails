@@ -2192,6 +2192,7 @@ class TestScopeGateCharacterization:
             ("input", "activefence moderation on input"),
             ("input", "activefence moderation on input detailed"),
             ("input", "ai defense inspect prompt"),
+            ("input", "atr detection"),
             ("input", "autoalign check input"),
             ("input", "clavata check input"),
             ("input", "content safety check input"),
