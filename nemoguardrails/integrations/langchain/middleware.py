@@ -38,6 +38,14 @@ from nemoguardrails.utils import get_or_create_event_loop
 log = logging.getLogger(__name__)
 
 
+def _blocked_message_from_result(result: RailsResult, fallback: str) -> str:
+    """Prefer Colang bot utterance from the rail result over the middleware default."""
+    content = getattr(result, "content", None)
+    if isinstance(content, str) and content:
+        return content
+    return fallback
+
+
 class GuardrailsMiddleware(AgentMiddleware):
     def __init__(
         self,
@@ -126,7 +134,9 @@ class GuardrailsMiddleware(AgentMiddleware):
                     rail_type="input",
                     blocked_message=self.blocked_input_message,
                 )
-                blocked_msg = create_ai_message(self.blocked_input_message)
+                blocked_msg = create_ai_message(
+                    _blocked_message_from_result(result, self.blocked_input_message)
+                )
                 return {"messages": messages + [blocked_msg], "jump_to": "end"}
 
             if result.status == RailStatus.MODIFIED:
@@ -185,7 +195,9 @@ class GuardrailsMiddleware(AgentMiddleware):
                     rail_type="output",
                     blocked_message=self.blocked_output_message,
                 )
-                blocked_msg = create_ai_message(self.blocked_output_message)
+                blocked_msg = create_ai_message(
+                    _blocked_message_from_result(result, self.blocked_output_message)
+                )
                 return {"messages": self._replace_last_ai_message(messages, blocked_msg)}
 
             if result.status == RailStatus.MODIFIED:
