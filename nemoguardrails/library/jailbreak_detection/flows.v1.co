@@ -6,6 +6,10 @@ define subflow jailbreak detection heuristics
   Heuristic checks to assess whether the user's prompt is an attempted jailbreak.
   """
   $response = execute jailbreak_detection_heuristics
+  if $response is None
+    bot "I'm sorry, an internal error has occurred."
+    stop
+
   $is_jailbreak = $response.is_blocked
 
   if $is_jailbreak
@@ -20,6 +24,10 @@ define subflow jailbreak detection model
   Heuristic checks to assess whether the user's prompt is an attempted jailbreak.
   """
   $response = execute jailbreak_detection_model
+  if $response is None
+    bot "I'm sorry, an internal error has occurred."
+    stop
+
   $is_jailbreak = $response.is_blocked
 
   if $is_jailbreak

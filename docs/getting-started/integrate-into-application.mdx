@@ -51,8 +51,11 @@ The NeMo Guardrails library provides the following tools to integrate guardrails
     curl -X POST http://localhost:8000/v1/chat/completions \
       -H "Content-Type: application/json" \
       -d '{
-        "config_id": "content_safety",
-        "messages": [{"role": "user", "content": "Hello!"}]
+        "model": "meta/llama-3.1-8b-instruct",
+        "messages": [{"role": "user", "content": "Hello!"}],
+        "guardrails": {
+          "config_id": "content_safety"
+        }
       }'
     ```
 

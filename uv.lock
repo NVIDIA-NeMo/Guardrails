@@ -1975,7 +1975,6 @@ dependencies = [
     { name = "jinja2" },
     { name = "jsonschema" },
     { name = "lark" },
-    { name = "nest-asyncio" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "onnxruntime" },
@@ -2037,6 +2036,9 @@ jailbreak = [
 multilingual = [
     { name = "fast-langdetect" },
 ]
+nest-asyncio = [
+    { name = "nest-asyncio" },
+]
 sdd = [
     { name = "presidio-analyzer", marker = "python_full_version < '3.13'" },
     { name = "presidio-anonymizer", marker = "python_full_version < '3.13'" },
@@ -2071,6 +2073,7 @@ dev = [
     { name = "langchain-core" },
     { name = "langchain-nvidia-ai-endpoints" },
     { name = "langchain-openai" },
+    { name = "nest-asyncio" },
     { name = "openai" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-prometheus" },
@@ -2097,6 +2100,7 @@ lint = [
 ]
 test = [
     { name = "inline-snapshot" },
+    { name = "nest-asyncio" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -2154,7 +2158,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "jsonschema", specifier = ">=4.26.0,<5.0.0" },
     { name = "lark", specifier = ">=1.1.7" },
-    { name = "nest-asyncio", specifier = ">=1.5.6" },
+    { name = "nest-asyncio", marker = "extra == 'nest-asyncio'", specifier = ">=1.5.6" },
     { name = "numpy", marker = "python_full_version < '3.12'", specifier = ">=1.21" },
     { name = "numpy", marker = "python_full_version == '3.12.*'", specifier = ">=1.26" },
     { name = "numpy", marker = "python_full_version == '3.12.*' and extra == 'all'", specifier = ">=1.26" },
@@ -2204,7 +2208,7 @@ requires-dist = [
     { name = "yara-python", marker = "extra == 'all'", specifier = ">=4.5.1,<5.0.0" },
     { name = "yara-python", marker = "extra == 'jailbreak'", specifier = ">=4.5.1,<5.0.0" },
 ]
-provides-extras = ["tracing", "server", "sdd", "gcp", "jailbreak", "cel", "multilingual", "chat-ui", "eval", "all"]
+provides-extras = ["nest-asyncio", "tracing", "server", "sdd", "gcp", "jailbreak", "cel", "multilingual", "chat-ui", "eval", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2219,6 +2223,7 @@ dev = [
     { name = "langchain-core", specifier = ">=0.2.14,<2.0.0" },
     { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.5.0,<2.0.0" },
     { name = "langchain-openai", specifier = ">=0.1.0" },
+    { name = "nest-asyncio", specifier = ">=1.5.6" },
     { name = "openai", specifier = ">=1.0.0,<3.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.34.1,<2.0.0" },
     { name = "opentelemetry-exporter-prometheus", specifier = ">=0.63b0,<1.0.0" },
@@ -2243,6 +2248,7 @@ dev = [
 lint = [{ name = "ruff", specifier = "==0.14.6" }]
 test = [
     { name = "inline-snapshot", specifier = ">=0.33.0,<0.34.0" },
+    { name = "nest-asyncio", specifier = ">=1.5.6" },
     { name = "pytest", specifier = ">=9.0.3,<10.0.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.0,<2.0.0" },
     { name = "pytest-cov", specifier = ">=4.1.0" },

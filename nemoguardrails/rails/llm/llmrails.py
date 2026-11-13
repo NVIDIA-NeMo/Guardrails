@@ -24,7 +24,6 @@ import re
 import threading
 import time
 import warnings
-from functools import partial
 from typing import (
     Any,
     AsyncIterator,
@@ -42,6 +41,7 @@ from typing import (
 
 from typing_extensions import Self
 
+from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.actions.llm.utils import (
     extract_bot_thinking_from_events,
@@ -115,6 +115,9 @@ from nemoguardrails.utils import (
 )
 
 log = logging.getLogger(__name__)
+
+_PARALLEL_OUTPUT_RAILS_ACTION = "run_output_rails_in_parallel_streaming"
+_PARALLEL_OUTPUT_RAILS_PARAM = "output rails"
 
 process_events_semaphore = asyncio.Semaphore(1)
 
@@ -1416,6 +1419,25 @@ class LLMRails(BaseGuardrails):
                 "generate_async() instead of stream_async()."
             )
 
+    def _resolve_streaming_output_rail_actions(self) -> List[Tuple[str, Tuple[str, Any]]]:
+        """Pair each configured output rail flow, in order, with the action streaming calls on every chunk."""
+        if not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled:
+            return []
+        # A list, not a dict: sequential mode runs a flow listed twice twice, as generate_async() does.
+        output_rail_actions = []
+        for flow_id in self.config.rails.output.flows:
+            try:
+                output_rail_actions.append((flow_id, get_action_details_from_flow_id(flow_id, self.config.flows)))
+            except ValueError as e:
+                raise StreamingNotSupportedError(
+                    f"stream_async() cannot run the output rail flow `{flow_id}`. Output rail streaming "
+                    "calls the first `execute` action in the body of each Colang 1.0 output rail flow on "
+                    "every chunk, and this flow has none, for example because it delegates its check to a "
+                    "subflow. Call the check with `execute` in the flow itself, or use generate_async() "
+                    "instead of stream_async()."
+                ) from e
+        return output_rail_actions
+
     @overload
     def stream_async(
         self,
@@ -1462,6 +1484,7 @@ class LLMRails(BaseGuardrails):
             include_metadata = include_generation_metadata
 
         self._validate_streaming_with_output_rails()
+        output_rail_actions = self._resolve_streaming_output_rail_actions()
         self._validate_public_state(state)
         # if an external generator is provided, use it directly
         if generator:
@@ -1469,6 +1492,7 @@ class LLMRails(BaseGuardrails):
                 return self._run_output_rails_in_streaming(
                     streaming_handler=generator,
                     output_rails_streaming_config=self.config.rails.output.streaming,
+                    output_rail_actions=output_rail_actions,
                     messages=messages,
                     prompt=prompt,
                 )
@@ -1517,6 +1541,7 @@ class LLMRails(BaseGuardrails):
             base_iterator = self._run_output_rails_in_streaming(
                 streaming_handler=streaming_handler,
                 output_rails_streaming_config=self.config.rails.output.streaming,
+                output_rail_actions=output_rail_actions,
                 messages=messages,
                 prompt=prompt,
             )
@@ -1880,6 +1905,7 @@ class LLMRails(BaseGuardrails):
         self,
         streaming_handler: AsyncIterator[Union[str, dict, ToolCallChunk, ToolCallDeltaChunk]],
         output_rails_streaming_config: OutputRailsStreamingConfig,
+        output_rail_actions: List[Tuple[str, Tuple[str, Any]]],
         prompt: Optional[str] = None,
         messages: Optional[List[dict]] = None,
         stream_first: Optional[bool] = None,
@@ -1984,10 +2010,57 @@ class LLMRails(BaseGuardrails):
                 **resolved_action_params,
             }
 
+        async def _run_parallel_rails(bot_response_chunk: str) -> Optional[str]:
+            """Run every output rail on the chunk in parallel and return the frame that ends the stream, if any."""
+            # Nothing to check, and the Colang 2.x runtime does not register the parallel rails action.
+            if not output_rail_actions:
+                return None
+            try:
+                context = _prepare_context_for_parallel_rails(bot_response_chunk, prompt, messages)
+                flows_with_params = {
+                    flow_id: {
+                        "action_name": action_name,
+                        "params": _prepare_params(
+                            flow_id=flow_id,
+                            action_name=action_name,
+                            bot_response_chunk=bot_response_chunk,
+                            prompt=prompt,
+                            messages=messages,
+                            action_params=action_params,
+                        ),
+                    }
+                    for flow_id, (action_name, action_params) in output_rail_actions
+                }
+                result, status = await self.runtime.action_dispatcher.execute_action(
+                    _PARALLEL_OUTPUT_RAILS_ACTION,
+                    {
+                        "flows_with_params": flows_with_params,
+                        "events": _create_events_for_chunk(bot_response_chunk, context),
+                    },
+                )
+            except Exception:
+                # The exception text can carry provider or config details, so it goes to the log, not the client.
+                log.exception("Parallel output rails failed during streaming")
+                result, status = None, "failed"
+
+            if status != "success":
+                error_message = f"Action {_PARALLEL_OUTPUT_RAILS_ACTION} failed with status: {status}"
+                log.error(error_message)
+                return _parallel_rails_failure_frame(error_message)
+
+            if not isinstance(result, ActionResult):
+                error_message = (
+                    f"Action {_PARALLEL_OUTPUT_RAILS_ACTION} must return ActionResult, got {type(result).__name__}"
+                )
+                log.error(error_message)
+                return _parallel_rails_failure_frame(error_message)
+
+            if not result.events:
+                return None
+            return _stop_event_frame(result.events[0])
+
         buffer_strategy = get_buffer_strategy(output_rails_streaming_config)
-        output_rails_flows_id = self.config.rails.output.flows
         stream_first = stream_first or output_rails_streaming_config.stream_first
-        get_action_details = partial(get_action_details_from_flow_id, flows=self.config.flows)
 
         parallel_mode = getattr(self.config.rails.output, "parallel", False)
 
@@ -2013,13 +2086,16 @@ class LLMRails(BaseGuardrails):
                     yield chunk
 
             if parallel_mode:
-                try:
-                    context = _prepare_context_for_parallel_rails(bot_response_chunk, prompt, messages)
-                    events = _create_events_for_chunk(bot_response_chunk, context)
+                stop_frame = await _run_parallel_rails(bot_response_chunk)
+                # update explain info for parallel mode
+                self._explain_info = self._ensure_explain_info()
+                if stop_frame is not None:
+                    yield stop_frame
+                    return
 
-                    flows_with_params = {}
-                    for flow_id in output_rails_flows_id:
-                        action_name, action_params = get_action_details(flow_id)
+            else:
+                for flow_id, (action_name, action_params) in output_rail_actions:
+                    try:
                         params = _prepare_params(
                             flow_id=flow_id,
                             action_name=action_name,
@@ -2028,79 +2104,6 @@ class LLMRails(BaseGuardrails):
                             messages=messages,
                             action_params=action_params,
                         )
-                        flows_with_params[flow_id] = {
-                            "action_name": action_name,
-                            "params": params,
-                        }
-
-                    result_tuple = await self.runtime.action_dispatcher.execute_action(
-                        "run_output_rails_in_parallel_streaming",
-                        {
-                            "flows_with_params": flows_with_params,
-                            "events": events,
-                        },
-                    )
-
-                    # ActionDispatcher.execute_action always returns (result, status)
-                    result, status = result_tuple
-
-                    if status != "success":
-                        log.error(f"Parallel rails execution failed with status: {status}")
-                        # continue processing the chunk even if rails fail
-                        pass
-                    else:
-                        # if there are any stop events, content was blocked or internal error occurred
-                        result_events = getattr(result, "events", None)
-                        if result_events:
-                            # extract the flow info from the first stop event
-                            stop_event = result_events[0]
-                            blocked_flow = stop_event.get("flow_id", "output rails")
-                            error_type = stop_event.get("error_type")
-
-                            if error_type == "internal_error":
-                                error_message = stop_event.get("error_message", "Unknown error")
-                                reason = f"Internal error in {blocked_flow} rail: {error_message}"
-                                error_code = "rail_execution_failure"
-                                error_type = "internal_error"
-                            else:
-                                reason = f"Blocked by {blocked_flow} rails."
-                                error_code = "content_blocked"
-                                error_type = "guardrails_violation"
-
-                            error_data = {
-                                "error": {
-                                    "message": reason,
-                                    "type": error_type,
-                                    "param": blocked_flow,
-                                    "code": error_code,
-                                }
-                            }
-                            yield json.dumps(error_data)
-                            return
-
-                except Exception as e:
-                    log.error(f"Error in parallel rail execution: {e}")
-                    # don't block the stream for rail execution errors
-                    # continue processing the chunk
-                    pass
-
-                # update explain info for parallel mode
-                self._explain_info = self._ensure_explain_info()
-
-            else:
-                for flow_id in output_rails_flows_id:
-                    action_name, action_params = get_action_details(flow_id)
-
-                    params = _prepare_params(
-                        flow_id=flow_id,
-                        action_name=action_name,
-                        bot_response_chunk=bot_response_chunk,
-                        prompt=prompt,
-                        messages=messages,
-                        action_params=action_params,
-                    )
-
-                    try:
                         result, status = await self.runtime.action_dispatcher.execute_action(action_name, params)
                     except Exception:
                         log.exception("Action %s failed during sequential streaming", action_name)
@@ -2110,15 +2113,7 @@ class LLMRails(BaseGuardrails):
                     if status != "success":
                         error_message = f"Action {action_name} failed with status: {status}"
                         log.error(error_message)
-                        error_data = {
-                            "error": {
-                                "message": f"Internal error in {flow_id} rail: {error_message}",
-                                "type": "internal_error",
-                                "param": flow_id,
-                                "code": "rail_execution_failure",
-                            }
-                        }
-                        yield json.dumps(error_data)
+                        yield _rail_execution_failure_frame(flow_id, error_message)
                         return
 
                     try:
@@ -2126,44 +2121,69 @@ class LLMRails(BaseGuardrails):
                     except TypeError as e:
                         error_message = str(e)
                         log.error(error_message)
-                        error_data = {
-                            "error": {
-                                "message": f"Internal error in {flow_id} rail: {error_message}",
-                                "type": "internal_error",
-                                "param": flow_id,
-                                "code": "rail_execution_failure",
-                            }
-                        }
-                        yield json.dumps(error_data)
+                        yield _rail_execution_failure_frame(flow_id, error_message)
                         return
 
                     if outcome.is_blocked:
-                        reason = f"Blocked by {flow_id} rails."
-
-                        # return the error as a plain JSON string (not in SSE format)
                         # NOTE: When integrating with the OpenAI Python client, the server code should:
                         # 1. detect this JSON error object in the stream
                         # 2. terminate the stream
                         # 3. format the error following OpenAI's SSE format
                         # the OpenAI client will then properly raise an APIError with this error message
-
-                        error_data = {
-                            "error": {
-                                "message": reason,
-                                "type": "guardrails_violation",
-                                "param": flow_id,
-                                "code": "content_blocked",
-                            }
-                        }
-
-                        # return as plain JSON: the server should detect this JSON and convert it to an HTTP error
-                        yield json.dumps(error_data)
+                        yield _content_blocked_frame(flow_id)
                         return
 
             if not stream_first:
                 # yield the individual chunks directly from the buffer strategy
                 for chunk in user_output_chunks:
                     yield chunk
+
+
+def _rail_execution_failure_frame(flow_id: str, error_message: str) -> str:
+    """The streaming error frame that ends a stream because the *flow_id* output rail could not run."""
+    return _internal_error_frame(flow_id, f"Internal error in {flow_id} rail: {error_message}")
+
+
+def _parallel_rails_failure_frame(error_message: str) -> str:
+    """The streaming error frame that ends a stream because the parallel output rails could not run as a whole."""
+    return _internal_error_frame(_PARALLEL_OUTPUT_RAILS_PARAM, f"Internal error in output rails: {error_message}")
+
+
+def _internal_error_frame(param: str, message: str) -> str:
+    """The `rail_execution_failure` streaming error frame with the given *param* and *message*."""
+    return json.dumps(
+        {
+            "error": {
+                "message": message,
+                "type": "internal_error",
+                "param": param,
+                "code": "rail_execution_failure",
+            }
+        }
+    )
+
+
+def _content_blocked_frame(flow_id: str) -> str:
+    """The streaming error frame that ends a stream because the *flow_id* output rail blocked it."""
+    # A plain JSON string, not SSE: the server detects it and converts it into an error for the client.
+    return json.dumps(
+        {
+            "error": {
+                "message": f"Blocked by {flow_id} rails.",
+                "type": "guardrails_violation",
+                "param": flow_id,
+                "code": "content_blocked",
+            }
+        }
+    )
+
+
+def _stop_event_frame(stop_event: dict) -> str:
+    """The streaming error frame for a stop event from the parallel output rails action."""
+    stopped_flow = stop_event.get("flow_id", _PARALLEL_OUTPUT_RAILS_PARAM)
+    if stop_event.get("error_type") == "internal_error":
+        return _rail_execution_failure_frame(stopped_flow, stop_event.get("error_message", "Unknown error"))
+    return _content_blocked_frame(stopped_flow)
 
 
 def _reject_tools(tools: Optional[List[dict]]) -> None:

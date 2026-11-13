@@ -62,7 +62,7 @@ nemoguardrails chat --config examples/configs/content_safety [--verbose] [--stre
 
 ## `actions-server`
 
-Start a separate server for running custom actions in an isolated environment.
+Start a separate server process for running custom actions. Process separation does not sandbox action code or restrict its filesystem and network access.
 
 ```bash
 nemoguardrails actions-server --port 8001
@@ -127,9 +127,10 @@ nemoguardrails hooks-server --config examples/configs/agent_hooks/claude_code --
 ## `eval`
 
 Evaluate guardrail configurations with various testing and compliance workflows.
+The following example runs the interactions in the sample ABC evaluation configuration (`-e`) through the ABC bot guardrails configuration (`-g`):
 
 ```bash
-nemoguardrails eval run --config examples/configs/content_safety
+nemoguardrails eval run -e examples/eval/sample_abc/config -g examples/bots/abc
 ```
 
 ### Subcommands
@@ -139,7 +140,7 @@ nemoguardrails eval run --config examples/configs/content_safety
 | `run` | Run the interactions for an evaluation. |
 | `check-compliance` | Check the policy compliance of the interactions in the output path. |
 | `ui` | Launch the Evaluation UI. |
-| `rail` | Run a rail evaluation task. |
+| `rail` | Run a rail evaluation task: `topical`, `fact-checking`, `moderation`, or `hallucination`. For details, refer to [Evaluate Guardrails](/evaluation/evaluate-guardrails). |
 
 Use `nemoguardrails eval <subcommand> --help` for details on each subcommand.
 

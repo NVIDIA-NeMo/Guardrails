@@ -337,13 +337,16 @@ When using the server API, include options in the request body:
 
 ```json
 {
-    "config_id": "my_config",
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [{"role": "user", "content": "Hello!"}],
-    "options": {
-        "output_vars": ["triggered_input_rail"],
-        "log": {
-            "activated_rails": true,
-            "llm_calls": true
+    "guardrails": {
+        "config_id": "my_config",
+        "options": {
+            "output_vars": ["triggered_input_rail"],
+            "log": {
+                "activated_rails": true,
+                "llm_calls": true
+            }
         }
     }
 }

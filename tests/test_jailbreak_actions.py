@@ -269,11 +269,8 @@ class TestJailbreakDetectionActions:
         llm_task_manager = LLMTaskManager(config=config)
         context = {"user_message": "test prompt"}
 
-        result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result.is_blocked is False
-
-        assert "Jailbreak detection model not available" in caplog.text
-        assert "No classifier available" in caplog.text
+        with pytest.raises(RuntimeError, match="No classifier available"):
+            await jailbreak_detection_model(llm_task_manager, context)
 
     @pytest.mark.asyncio
     async def test_jailbreak_detection_model_local_import_error(self, monkeypatch, caplog):
@@ -305,11 +302,8 @@ class TestJailbreakDetectionActions:
         llm_task_manager = LLMTaskManager(config=config)
         context = {"user_message": "test prompt"}
 
-        result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result.is_blocked is False
-
-        assert "Failed to import required dependencies for local model" in caplog.text
-        assert "Install scikit-learn and torch, or use NIM-based approach" in caplog.text
+        with pytest.raises(ImportError, match="sklearn"):
+            await jailbreak_detection_model(llm_task_manager, context)
 
     @pytest.mark.asyncio
     async def test_jailbreak_detection_model_local_success(self, monkeypatch, caplog):
@@ -345,7 +339,6 @@ class TestJailbreakDetectionActions:
         result = await jailbreak_detection_model(llm_task_manager, context)
         assert result.is_blocked is True
 
-        assert "Local model jailbreak detection result" in caplog.text
         mock_check_jailbreak.assert_called_once_with(prompt="malicious prompt")
 
     @pytest.mark.asyncio
@@ -494,7 +487,5 @@ class TestJailbreakDetectionActions:
         llm_task_manager = LLMTaskManager(config=config)
         context = {"user_message": "test prompt"}
 
-        result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result.is_blocked is False
-
-        assert "Jailbreak endpoint not set up properly" in caplog.text
+        with pytest.raises(RuntimeError, match="boolean verdict"):
+            await jailbreak_detection_model(llm_task_manager, context)

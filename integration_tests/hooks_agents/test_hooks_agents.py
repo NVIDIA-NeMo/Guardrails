@@ -38,6 +38,7 @@ hooks_server:
   allowed_tools:
     - name: Bash
       arguments: [command, description]
+  allow_unlisted_tools: true
 rails:
   tool_call:
     per_tool:

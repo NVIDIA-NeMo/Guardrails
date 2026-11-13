@@ -77,9 +77,12 @@ Enable streaming in the request body by setting `stream` to `true`:
 
 ```json
 {
-    "config_id": "my_config",
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [{"role": "user", "content": "Hello!"}],
-    "stream": true
+    "stream": true,
+    "guardrails": {
+        "config_id": "my_config"
+    }
 }
 ```
 

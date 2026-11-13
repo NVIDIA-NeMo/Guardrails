@@ -24,6 +24,7 @@ Before you configure the hook, meet the following prerequisites:
     ```
 
     To write your own configuration, refer to [Run the Hooks Server: Write a Hooks Configuration](/run-guardrailed-inference/using-hooks-server/run-hooks-server#write-a-hooks-configuration).
+    If you list tools in `allowed_tools`, set `allow_unlisted_tools: false` to deny every tool you leave out: the hooks server refuses to start an allowlist that leaves it unset.
 
 ## Add the Hook
 

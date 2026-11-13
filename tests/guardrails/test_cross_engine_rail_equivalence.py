@@ -333,10 +333,8 @@ class TestJailbreakAgreesAcrossEngines:
         assert iorails_content == expected_content
 
     @pytest.mark.asyncio
-    async def test_both_engines_allow_when_the_endpoint_errors(self, httpx_mock):
-        """An unreachable NIM lets the request through on both engines."""
-        # Inverts the pre-migration expectation of IORails failing closed. The fail-open posture
-        # is deliberate: a NIM outage now stops blocking jailbreaks on both engines.
+    async def test_both_engines_stop_when_the_endpoint_errors(self, httpx_mock):
+        """An unreachable NIM produces an internal error on both engines."""
         config_dict = _jailbreak_config()
 
         httpx_mock.add_exception(httpx.ConnectError("connection refused"), url=JAILBREAK_URL)
@@ -345,5 +343,5 @@ class TestJailbreakAgreesAcrossEngines:
         httpx_mock.add_exception(httpx.ConnectError("connection refused"), url=JAILBREAK_URL)
         iorails_content = await _iorails_reply(config_dict)
 
-        assert llmrails_content == MAIN_OUTPUT
-        assert iorails_content == MAIN_OUTPUT
+        assert llmrails_content == "I'm sorry, an internal error has occurred."
+        assert iorails_content == "I'm sorry, an internal error has occurred."

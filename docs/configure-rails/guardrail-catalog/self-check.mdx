@@ -18,7 +18,7 @@ You should only use the example self-check prompts as a starting point. For prod
 
 ## Reasoning Models as Self-Check LLMs
 
-The `self_check_input`, `self_check_output`, and `self_check_facts` tasks all log a warning if the LLM hits `max_tokens` before producing visible output (`finish_reason="length"` with empty content). With the default parser, `self_check_input` and `self_check_output` treat empty output as unsafe and block. `self_check_facts` explicitly fail-closes by returning a score of `0.0`, because its scoring logic would otherwise accept empty output.
+The `self_check_input`, `self_check_output`, and `self_check_facts` tasks all log a warning if the LLM hits `max_tokens` before producing visible output (`finish_reason="length"` with empty content). With the default parser, `self_check_input` and `self_check_output` treat empty output as unsafe and block. `self_check_facts` returns a blocking `RailOutcome` with an accuracy score of `0.0` in its metadata, because its scoring logic would otherwise accept empty output.
 
 If you use a reasoning model (OpenAI o-series, `gpt-5` and similar) for self-check, set an explicit `max_tokens` on the prompt task in `prompts.yml` large enough to cover both the reasoning trace and the final yes/no verdict:
 
@@ -89,13 +89,13 @@ To use the self-check input rail, you should:
 
 The above is an example prompt you can use with the *self check input rail*. See the [Example Prompts](#example-prompts) section below for more details. The `self_check_input` prompt has an input variable `{{ user_input }}` which includes the input from the user. The completion must be "yes" if the input should be blocked and "no" otherwise.
 
-The self-check input rail executes the [`self_check_input` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/input_check/actions.py), which returns `True` if the input should be allowed, and `False` otherwise:
+The self-check input rail executes the [`self_check_input` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/input_check/actions.py), which returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes). Inspect `is_blocked` to decide whether to refuse the input:
 
 ```text
 define flow self check input
-  $allowed = execute self_check_input
+  $result = execute self_check_input
 
-  if not $allowed
+  if $result.is_blocked
     bot refuse to respond
     stop
 ```
@@ -203,13 +203,13 @@ To use the self-check output rail, you should:
 
 The above is an example prompt you can use with the *self check output rail*. See the [Example Prompts](#example-prompts-1) section below for more details. The `self_check_output` prompt has an input variable `{{ bot_response }}` which includes the output from the bot. The completion must be "yes" if the output should be blocked and "no" otherwise.
 
-The self-check output rail executes the [`self_check_output` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/output_check/actions.py), which returns `True` if the output should be allowed, and `False` otherwise:
+The self-check output rail executes the [`self_check_output` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/output_check/actions.py), which returns a [RailOutcome](/configure-guardrails/actions/rail-outcomes). Inspect `is_blocked` to decide whether to refuse the output:
 
 ```text
 define flow self check output
-  $allowed = execute self_check_output
+  $result = execute self_check_output
 
-  if not $allowed
+  if $result.is_blocked
     bot refuse to respond
     stop
 ```

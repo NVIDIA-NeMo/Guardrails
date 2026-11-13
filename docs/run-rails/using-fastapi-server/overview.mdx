@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Overview of the NVIDIA NeMo Guardrails Library API Server"
 sidebar-title: "Overview"
-description: "The NVIDIA NeMo Guardrails library API server runs guardrails in a secure, isolated environment."
+description: "Expose configured guardrails and models through the NVIDIA NeMo Guardrails library HTTP API."
 keywords: ["NVIDIA NeMo Guardrails library server", "FastAPI", "REST API", "chat completions", "guardrails HTTP"]
 content:
   type: "concept"
@@ -33,6 +33,14 @@ It is a separate server, with its own command, port, and configuration.
 ## Quick Start
 
 The following steps show how to start the NVIDIA NeMo Guardrails library API server with the provided configuration files and send test requests to the endpoints.
+
+<Warning>
+
+The `nemoguardrails server` command listens on all network interfaces (`0.0.0.0`) and does not authenticate incoming API requests.
+Restrict network access and place the server behind an authenticated gateway or reverse proxy before exposing it to other users.
+Provider API keys authenticate outgoing model calls; they do not protect the Guardrails API.
+
+</Warning>
 
 ### Prerequisites
 

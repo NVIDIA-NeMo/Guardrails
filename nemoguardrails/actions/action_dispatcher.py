@@ -381,14 +381,13 @@ class ActionDispatcher:
                     raise e
 
                 except Exception as e:
-                    filtered_params = {k: v for k, v in params.items() if k not in ["state", "events", "llm"]}
-                    log.warning(
-                        "Error while execution '%s' with parameters '%s': %s",
-                        action_name,
-                        filtered_params,
-                        e,
+                    # Exception messages and chained tracebacks can contain the checked text too.
+                    log.error(
+                        "Action '%s' failed with %s; parameter names: %s",
+                        self._sanitize_for_log(action_name),
+                        type(e).__name__,
+                        [self._sanitize_for_log(name) for name in params],
                     )
-                    log.exception(e)
 
         return None, "failed"
 

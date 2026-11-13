@@ -4,6 +4,10 @@ flow jailbreak detection heuristics
   Heuristic checks to assess whether the user's prompt is an attempted jailbreak.
   """
   $response = await JailbreakDetectionHeuristicsAction
+  if $response is None
+    bot say "I'm sorry, an internal error has occurred."
+    abort
+
   $is_jailbreak = $response.is_blocked
 
   if $is_jailbreak
@@ -18,6 +22,10 @@ flow jailbreak detection model
   Assess whether the user's prompt is an attempted jailbreak using embedding-based jailbreak detection models.
   """
   $response = await JailbreakDetectionModelAction
+  if $response is None
+    bot say "I'm sorry, an internal error has occurred."
+    abort
+
   $is_jailbreak = $response.is_blocked
 
   if $is_jailbreak
