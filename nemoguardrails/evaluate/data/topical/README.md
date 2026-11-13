@@ -44,9 +44,9 @@ This will take into account the mapping file above. To achieve this follow the n
 3. From the `nemoguardrails/evaluate/data/topical` folder, run the conversion script `python create_colang_intent_file.py --dataset-name=chitchat`. The script reads `./chitchat/original_dataset/` relative to the current folder.
 4. The last step will create a `user.co` Colang file in the configured Guardrails app.
 
-To run the topical evaluation on this dataset run:
+To run the topical evaluation on this dataset, stay in the `nemoguardrails/evaluate/data/topical` folder and run:
 
-```nemoguardrails eval rail topical --config=./nemoguardrails/evaluate/data/topical/chitchat --verbose```
+```nemoguardrails eval rail topical --config=./chitchat --verbose```
 
 ## Banking dataset
 
@@ -65,9 +65,9 @@ This will take into account the mapping file above. To achieve this follow the n
 3. From the `nemoguardrails/evaluate/data/topical` folder, run the conversion script `python create_colang_intent_file.py --dataset-name=banking`. The script reads `./banking/original_dataset/` relative to the current folder.
 4. The last step will create a `user.co` Colang file in the configured Guardrails app.
 
-To run the topical evaluation on this dataset run:
+To run the topical evaluation on this dataset, stay in the `nemoguardrails/evaluate/data/topical` folder and run:
 
-```nemoguardrails eval rail topical --config=./nemoguardrails/evaluate/data/topical/banking --verbose```
+```nemoguardrails eval rail topical --config=./banking --verbose```
 
 ## Experiment with a new NLU dataset
 

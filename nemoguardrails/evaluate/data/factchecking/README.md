@@ -49,9 +49,23 @@ The model modifies the answer to:
 By changing small details like the blood pressure value in the answer, the model is able to generate hard negatives that are not easily identifiable. This can be used to evaluate the fact checking rail.
 
 
-In case you already have negative samples in your dataset, you can pass the `--no-create-negatives` flag and we will not generate synthetic negatives.
+If each record in your dataset already has a negative answer, you can pass the `--no-create-negatives` flag and we will not generate synthetic negatives.
+Each record must then include an `incorrect_answer` field: a wrong answer that its `evidence` does not support.
+The evaluation scores `answer` as the positive case and `incorrect_answer` as the negative case, and stops with an `AssertionError` on a record without `incorrect_answer`.
+The default `sample.json` has no `incorrect_answer` field, so pass your own file with `--dataset-path`:
 
-```nemoguardrails eval rail fact-checking --config=path/to/guardrails/config --no-create-negatives```
+```json
+[
+    {
+        "question": "question text",
+        "answer": "answer text",
+        "incorrect_answer": "incorrect answer text",
+        "evidence": "evidence text"
+    }
+]
+```
+
+```nemoguardrails eval rail fact-checking --config=path/to/guardrails/config --dataset-path path/to/dataset.json --no-create-negatives```
 
 ## Using the MSMARCO Dataset
 
