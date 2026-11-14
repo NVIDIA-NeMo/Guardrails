@@ -8,7 +8,7 @@ Programmable safeguards for AI agents and LLM applications.
 [![Tests](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/pr-tests.yml?logo=github&label=tests)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/pr-tests.yml)
 [![Documentation](https://img.shields.io/badge/docs-nvidia.com-76B900)](https://docs.nvidia.com/nemo/guardrails)
 
-[Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#quickstart) · [Use cases](#what-you-can-build) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples) · [Community](#community-usage) · [Security](./SECURITY.md) · [Releases](https://github.com/NVIDIA-NeMo/Guardrails/releases) · [Changelog](./CHANGELOG.md)
+[Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#quickstart) · [Use cases](#what-you-can-build) · [Integrations](#choose-your-integration) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples) · [Community](#community-usage) · [Security](./SECURITY.md) · [Releases](https://github.com/NVIDIA-NeMo/Guardrails/releases) · [Changelog](./CHANGELOG.md)
 
 **NeMo Guardrails adds programmable safeguards to your AI agents.** For agents that run commands, call APIs, query data, or access the web, define policies to check prompts, retrieved context, tool calls, tool results, and responses. Your application or agent harness invokes the configured checks and enforces their results before continuing.
 
@@ -23,7 +23,6 @@ Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvid
 - **AI agents and coding assistants:** Check proposed tool calls and returned results with [tool rails](./docs/configure-rails/guardrail-catalog/tool-calling.mdx), or connect an agent through the [hooks server](./docs/run-rails/using-hooks-server/index.mdx).
 - **Conversational applications:** Apply [input and output checks](./docs/run-rails/using-python-apis/check-messages.mdx) and define dialog behavior with [Colang](./docs/configure-rails/colang/index.mdx).
 - **Retrieval-augmented generation (RAG):** [Detect or mask sensitive data in retrieved content](./docs/configure-rails/guardrail-catalog/pii-detection.mdx) and [check whether answers are grounded in evidence](./docs/configure-rails/guardrail-catalog/fact-checking.mdx).
-- **Model APIs and shared services:** Run the [Guardrails API server](./docs/run-rails/using-fastapi-server/overview.mdx) for shared checks and guardrailed generation, or place the [experimental proxy](./docs/run-rails/using-proxy/index.mdx) between clients and supported model-provider APIs.
 
 ## How It Works
 
@@ -42,7 +41,7 @@ Integrations support different checks. Rail support varies by engine; refer to [
 - **Govern what agents do.** Validate tool names and argument schemas before execution. Check tool results and apply per-tool policies before returning them to the model.
 - **Keep your model and agent loop.** Use [checks without main-model generation](./docs/run-rails/using-python-apis/check-messages.mdx) to add guardrails to an existing application. Model-backed checks still call their configured model or service.
 - **Compose the policy you need.** Combine local [regex](./docs/configure-rails/guardrail-catalog/community/regex.mdx) and [CEL](./docs/configure-rails/guardrail-catalog/cel.mdx) rules with safety models and third-party checks.
-- **Connect your runtime.** Use the [Python SDK](./docs/run-rails/using-python-apis/overview.mdx), [API server](./docs/run-rails/using-fastapi-server/overview.mdx), [coding-agent hooks](./docs/run-rails/using-hooks-server/index.mdx), [LangChain and LangGraph](./docs/integration/langchain/index.mdx), or the [experimental proxy](./docs/run-rails/using-proxy/index.mdx).
+- **Connect your runtime.** Choose an [integration](#choose-your-integration) for your application, shared service, or coding agent.
 - **Open and yours to run.** The library is Apache 2.0 licensed. Choose [supported model providers](./docs/about/supported-llms.mdx) and run checks with local detectors or hosted inference endpoints.
 
 ## Quickstart
@@ -142,6 +141,17 @@ Reason: cel check tool call
 
 The example does not issue refunds. Your application executes a tool only after its checks pass.
 For more configuration and error-handling examples, refer to [tool calling](./docs/configure-rails/guardrail-catalog/tool-calling.mdx) and [checking messages](./docs/run-rails/using-python-apis/check-messages.mdx).
+
+## Choose Your Integration
+
+Connect NeMo Guardrails where your application or agent can enforce its checks.
+
+| What are you building? | How to connect |
+| --- | --- |
+| **A shared guardrails service** for multiple applications or teams | Use the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx) (`/v1/checks`) to request verdicts while each application manages its model and execution loop. |
+| **An inference gateway** in front of model endpoints | Use the [experimental proxy](./docs/run-rails/using-proxy/quickstart.mdx) to check supported model requests and responses. |
+| **A coding assistant or agent harness** | Use [native hooks](./docs/run-rails/using-hooks-server/run-hooks-server.mdx) or [NeMo Relay](./docs/run-rails/using-hooks-server/nemo-relay-plugin.mdx) to check tool calls before execution. |
+| **An agent platform, framework integration, or custom loop** | Embed the [Python SDK](./docs/run-rails/using-python-apis/check-messages.mdx), call the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx), or use a supported [framework integration](./docs/integration/langchain/langgraph-integration.mdx). |
 
 ## Guardrail Catalog
 
