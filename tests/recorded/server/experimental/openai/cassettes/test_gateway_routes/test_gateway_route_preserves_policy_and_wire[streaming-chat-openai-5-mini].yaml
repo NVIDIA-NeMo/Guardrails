@@ -31,16 +31,14 @@ interactions:
       code: 200
       message: OK
     headers:
-      content-type:
-      - text/event-stream; charset=utf-8
-      transfer-encoding:
-      - chunked
-      connection:
-      - keep-alive
       cache-control:
       - no-cache
+      content-type:
+      - text/event-stream; charset=utf-8
       content-security-policy:
       - frame-ancestors 'none'
+      transfer-encoding:
+      - chunked
     body:
       parsed_body:
       - id: '[RECORDED_RESPONSE_ID]'
@@ -70,15 +68,16 @@ interactions:
         - index: 0
           delta:
             reasoning_items:
-            - id: rs_0a0bb5b639e73d52016aec43fe7cd087d18dcf4baefc2496e0
+            - id: rs_0ba8a7877aeb95fa016afae1c8568087d19b64ffd96bd9c020
               type: reasoning
-              encrypted_content: gAAAAABq7EP-N5JWKU7fyVld0qyYqQRivG51_xcG2AiutILXzDBIOuWbqcLEzJZ6YCpt1lrPu-8l-hEoZUa-QIcpJsPKw5lOAdFsUe_849TPSXzjjXeD7LMCoixcGc4DAH55LaltIkpqvTOFSl_JL8m_eN4SCYx6I_q9zqa0_VaCsuQl8ttdzRTME7Ic3ig66G9t_JUwzokwozmFJGfu_A-zD3EyaunTdr9gBU9el72zW4xpazxtzIDz9gngwGRQzZbd8Txjg13PMBjTWV88fWiACi8b6riXljVw4w5t02wTzk3opJb0NCusoAHuqWRwmxTovsO1K0XYcifxTVoCogA8G9HHuo-yeEsMDxpXMa6DI-IEC8VXJ6AJY8vou5moH7VUU9CpahxNwk8A78xWmlI5fia8sACZDI1WBGoeqMZPTYNdV7zk3jvoXB6bfbM2SkjoW8ZgUlsZz23PCxT3qSynKFvyunrX6rxrC29dFU37Whp5zyoXHx_FEuqT-8DfwyC_oJCfFpGYU4m5ZkwQxKP-FpuDedNudrBZNKLldL6WGV5WdBEwP25FvgBKLW4LwNhvb-A6JnC8azdZCY5rQlrcJpwmP0WdXDOm2gr2RwB5n1KIoXwvfsjIPcVOA6C-GkuWjOjzNypVfVHhZmQAlsKoZrVT8Y8bOy1pAeIHhOstNRXPJUvuvilUPIYxRYLjZKv2JMH-AoRVQKoad56sfV50zhGKsmh6Sw6AXt2osR8Za7V2iLsZZkC4cwqBFn1sehjwuZiX85MWoEF8aryPptyY9DvRwH4jWMiYsirmlBSlnNBQQCCbCFv7BPdKhhsLvr5SbStg6Bc9OMIKW1wsE8fkbfLeciKYq87mu9Iw33c-DA-8SicnEpG-IPES1S4HaacXIEGlDlbGmVV-x-bkfrTXGwxuzwieJyIzJHiCldrXV03g6HA9oRQPt_FbnS1h9YVAYRQ3p2CNatGGOUGtitbrukzXefkTA7FOiHVcYrgzYDbBdCr0BuBf5R0fcc7gRbaqWIJVEJzm05S35qzMldG9xfyX0iAZn3QKv__Bc_A1W1_iw3XwNqEdqgblB-fO-lDdZ4aC2DJIty9BvBkhaZjmh3PlXfx5xkN_TycRDO4uMv_u8wTaDyk5GR7HnxywyoqdNp9BM3PEsB_D0HhgkjkLBcsTCJjJElpvZS5N8BqUWaKsQMbKQpU33cuO_Ct7ipc9tm3c6LiR61RMEJ8A2wFV6vePjiZ7XfE6YuH4AQOlm4bt2pqce42hNFt74mBo15_umq8TgXlp9PFIPp2uOwtY6MFwgcyIb3kdVNZe3IRbl6lpnxf2860QI-X7g3NGdja1IbBGEUkrzeeM9GypJEF5T518EvlJw1baR-kObIOnxlrYw9QYblmj8IpPBkUG6HzU9rVCG3ffpRm2nJWYBHRq6Q7Sq2DlgTOczHF97EL87ZWZalEhDUSndaTJz5LcckhFWa6_j3-zVz6Tw7kZYEytLWe2eHNTrDzZ000dBd4OiSIJMRGp-RuzkVflFWwufKlvjYKw3mAOlxe0tctysuhJrfv9C88y2q9bs2yr1wseUcD8U2FjaMie4PkD4FbMiZDC5-jNobNJQBh5Ke-eIfH5XOzoCw8Q7_G5G6umXzZmoKILwZg3bg64n4-NDT0t17vlhXLjEh-BdWHKH9dCcD2N5WuEYZj6ZTra0V3XkQpUoQDlri1gMty70zXN40Ey_k8BBjtJD0JrDuI_kK6JTqfwewzZ1YZ1FB4zFhvoVIfjunX-puCR0rw82qU36ydcN42N_0ny1jd62_5K6yfZ2zXCQCNWlqbANlkTlu6cM96sz2Mnz46YJAQGBULrsVIedV0oAf-RAcm_rPQffk8_qlWHrlomT76FtRALds-cknqTKh8Y7I3TmQV2qV15oqrD-7aWLy8wqv3Mm4O0uSDmEDRzmFV44RX1uCiEDTboapxAqdtL_gbeHVXYA-m4KNKNgJvxS7t9ID-a_GCtb_QNBPt0KnsjsLMnaS40GWPWS5cQoAcCFruSPCOWXZml3yz_yvrHuQ3TsXY6fDvjnkrf0tk_3aU9KlmMAg==
+              encrypted_content: gAAAAABq-uHI9EZ0ar2OXHSuOf5CxjkKWsqe8fs50nKdqAEkQvIlsNMFEu45gjzHt-acQ01D7BhyrNS2tl9pyYFr_kLFedOGgP-eJ2rxUlpItBKrHzMX23KhIMdlXbbVbovxezeuG3qItrCnQFWQlhH1yOgbU41eG6Lj8zlfVoRyeZ8H4951dpepULQn6jCmCJznvo-8kHfvX9e5cug6LQb62JEt5W3MaJxoi6DLqR0bY2KxP8v3U6q8UBlA5ym5VpZauF6grv2Lt3xRbXd5enIrgeYrJJfaRnUQ2GB1r8gk_fO3G7m1KWqaHT5Ju93Ph40hSfMr2XJ-XnOey3bngcwS-rDe3idudiP-hT4dbu9CDX6MNa-2usmB9cn5WkBaAnwceD370jLagrpWILddG1vPtugQUk9vPeagwti3jr_DsUbt1BOvy-HJyLf2qRoMinL4r0zGcCZ2NBlQWbXklA--u41T49f3LpcTicpXWl261rC17AoAGGRso9Oj0cr2Jo8wWmkvOXLfZ1Lb3IpuKSnP03Wk1drq0g-gUafIMPq-qVrHchpZNsgvUcrFxcL3jzFo995BNPw5Rk_DwVCXXdwDJm7enRw4zjuOVLhgmnmcW_lirafTuhF9xFtRPNxNwy-Z3AR9wVNZ-oQqWEw2tGm59WqY9V9QYfMvfEubWZCFH5tJCyrV-lQtrQc-jR0j57KwLDbaX-GH2_VrTPWABpEgbXdfySb_71hSVx_O0YY2jpm_5MNJxfow7B_Hl1j93azKUNtL5q9C2vtntB9oYS9PJrfyR9IiTK-HDJ-Z_0BXxOTjRNRUni7Ags6u56AvBqpEmB9FyuzMLVlcoVfYLqQLdCpp1oZ5nOfi-qtAoN9r70K_lm7UmszfoMucDxfs2bwoK3xY0LLMjfXvjX6gGgbmqrpdipZfU2nmTkkTX6M_pHWpn-72GOjbZ-dlBy-ubY_KXyIC1piUvcK1TtYAsrDcHrRsBH-mbtyVdlKCONIUE0r2HUiyk2MocIY50qix1dSibXDqnh6u15T79j3JEP-yyku-3Y7rboIQ8KLubWsdvJvp7R6FEVgC6sK3aY32lINjIu5LpFwFdCJLHFaLAvdK55Flkppnfo-tP7JayP845EzzLXYSe_1Ebs-tgylSKb9oWWeMK9biHO9jAITgTNQkAXyZA0wZm4SzZMscd7WQ_7u4ZQMFHH47VozZ15B1yt4adNKAf6FYNcau83FVxZ2JXyDBQf6CBqFa__U-uYv6nHyocaPHfGZpYBp8OK-HseXhQB8WogdWhoRGy5ymM2YDqtNWpf7Oh_p5tAsKgOIRzAAH9Z8qSQ1KNQR05AyGQFa-3IsQupuIPfMjjI62hVHXWGOqu9NuYlaUPZ4SUozf6w2RxuIFSJBmRuWYfZwH4yxaWVtmihkxs_ftJvYf6GiLW702hT_Vg-f_VhlLjnUeFcZ_VsEsJWXeU6yXu7ylUwSkYCTSrFqS1q0P2K_r2b2Xmqgh2la7KbdxAtxvWfcHsASY9hOn9ytpkAyb236enmZkmwxXAKZ4799nXSKV4LGl8oFBaKEtJL8f2YAZFINnLN0K8_vFbpu4B6Xz_3O9dsXnq6rExhtP_oufZG7uWpg27n8wTEgYL_uc2K4rHKPXY6r4HUauFumnR-E4z6ri57BPuBaTWNrutpNK7t3mCJVm3eq4zCykjmt6J-RuzG05NiPAj4TapjnZ9MRwoRsynTZ6u2RzYXb42vOXgVfQy_dr6UgPS2wuh4zAggejvBy5Id90XzujonSNcM34yqRfCEmMShGRYxSGGKME2UWhtiu5DuUjUm3BB2Tx7h9-MnZIDiLlL_bznDHu03C_o3JyIfYBlU0gsExzc53SadTokEg1DzV2ZAsF0-hKgi8c3ncuLtBKyXdV1D2qak0bDlLz7rIaNu25WPJQaKghVSRHmkZb4gJen73ZK0aXxEZNsnQiYxhtbCIEZxDxMRRLCbVNEeoMs4Ovf__PBiaYCt2eZP0erC_LRZ2g41rcPdTcdhzYg6vAl_rvnBAIIVKNyDruBvN8Y5gNq_bRFfT5lI3Y5JJeAB3gcYeX9cDF4Ukrl3zg3XoTZBhh3q3YSW50pTihWAfT06z4nzq5GOxtzO_isu2kY5YT4knFKURlNL41xvQxXDIJ1wMyB29wh7d9VNbtzT-VtJ3wuduxHpZzurDGaFswrY0Nz1JAedT_-ZPMbP5yS-ziXC4QpuM_2AecTusfofyd8mhZgv7sx5k1sJeLr_M3G2IB15HGPJxt_Ry_uwi-gmW03TwXNCVg0QyaECEa5uAPQ350dJtSWsTsyWfHiwRlb0jBaq8ezQ==
               summary: []
             content: ''
         provider_specific_fields:
           frequency_penalty: 0.0
           image:
             context_compression: disabled
+          input_transformations: []
           presence_penalty: 0.0
           service_tier: default
           tool_usage:
@@ -97,6 +96,7 @@ interactions:
         frequency_penalty: 0.0
         image:
           context_compression: disabled
+        input_transformations: []
         presence_penalty: 0.0
         service_tier: default
         tool_usage:
@@ -128,15 +128,15 @@ interactions:
         - index: 0
           delta: {}
         usage:
-          completion_tokens: 52
+          completion_tokens: 56
           prompt_tokens: 12
-          total_tokens: 64
+          total_tokens: 68
           completion_tokens_details:
             reasoning_tokens: 0
           prompt_tokens_details:
             cached_tokens: 0
             cache_write_tokens: 0
             cache_creation_tokens: 0
-          cost: 7.8538e-05
+          cost: 8.441e-05
         service_tier: default
       - '[DONE]'

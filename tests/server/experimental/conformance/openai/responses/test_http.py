@@ -67,6 +67,7 @@ async def test_native_observations_distinguish_metadata_from_gateway_annotations
         "frequency_penalty",
         "presence_penalty",
         "store",
+        "input_transformations",
     }
     assert payload["store"] is False
     assert payload["access_programs"] is None
@@ -88,6 +89,7 @@ async def test_native_observations_distinguish_metadata_from_gateway_annotations
                 "frequency_penalty",
                 "presence_penalty",
                 "store",
+                "input_transformations",
             }
             assert payload["response"]["image"] == {"context_compression": "disabled"}
     assert lifecycle == ["response.created", "response.in_progress", "response.completed"]

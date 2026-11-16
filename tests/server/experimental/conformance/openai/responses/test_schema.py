@@ -30,7 +30,11 @@ NATIVE_ADDITIONS = {
     "billing",
     "frequency_penalty",
     "presence_penalty",
+    "input_transformations",
 }
+# Documented SDK addition beyond the older pinned OpenAPI inventory:
+# https://github.com/openai/openai-python/blob/v3.50.0/src/openai/types/responses/response.py
+SDK_ADDITIONS = {"InputTransformation": {"id", "action", "reason", "type"}}
 # These source-defined request controls remain unsupported by the closed binding.
 UNSUPPORTED_REQUEST_FIELDS = {"access_programs", "image"}
 
@@ -65,10 +69,11 @@ def test_inventory_tracks_the_reviewed_provider_source():
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
 def test_every_bound_model_has_complete_independent_source_coverage(endpoint):
     models = bound_models(endpoint)
-    assert {model.policy.source for model in models} == INVENTORY["schema_fields"].keys()
+    source_fields = INVENTORY["schema_fields"] | SDK_ADDITIONS
+    assert {model.policy.source for model in models} == source_fields.keys()
     event_models = {rule.model for rule in endpoint.stream.classifier.rules}
     for model in models:
-        expected = set(INVENTORY["schema_fields"][model.policy.source])
+        expected = set(source_fields[model.policy.source])
         if model.policy.source == "CreateResponse":
             assert UNSUPPORTED_REQUEST_FIELDS <= expected
             expected -= UNSUPPORTED_REQUEST_FIELDS

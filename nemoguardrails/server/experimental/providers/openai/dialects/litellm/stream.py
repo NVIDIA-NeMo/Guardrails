@@ -51,6 +51,7 @@ from nemoguardrails.server.experimental.providers.openai.chat_completions.stream
     ChatCompletionsStreamPayloadProjection,
 )
 from nemoguardrails.server.experimental.providers.openai.responses.response_projection import (
+    InputTransformations,
     ResponseImageProjection,
     ResponsesReasoningItemProjection,
 )
@@ -68,6 +69,7 @@ class LiteLLMTerminalMetadata(PolicyModel):
     access_programs: Annotated[Any, opaque()] = None
     billing: Annotated[Any, opaque()] = None
     frequency_penalty: Annotated[Any, opaque()] = None
+    input_transformations: InputTransformations = None
     image: Annotated[ResponseImageProjection | None, constrained()] = None
     presence_penalty: Annotated[Any, opaque()] = None
     tool_usage: Annotated[Any, opaque()] = None
@@ -110,6 +112,7 @@ class LiteLLMStreamPayloadProjection(ChatCompletionsStreamPayloadProjection):
     access_programs: Annotated[Any, opaque()] = None
     billing: Annotated[Any, opaque()] = None
     frequency_penalty: Annotated[Any, opaque()] = None
+    input_transformations: InputTransformations = None
     image: Annotated[ResponseImageProjection | None, constrained()] = None
     presence_penalty: Annotated[Any, opaque()] = None
     tool_usage: Annotated[Any, opaque()] = None
