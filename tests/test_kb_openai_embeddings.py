@@ -45,7 +45,7 @@ def test_live_query(app):
     result = app.generate(messages=[{"role": "user", "content": "What is NeMo Guardrails?"}])
 
     assert result == {
-        "content": "NeMo Guardrails is an open-source toolkit for easily adding "
+        "content": "The NeMo Guardrails library is open source and simplifies adding "
         "programmable guardrails to LLM-based conversational systems. "
         'Guardrails (or "rails" for short) are specific ways of '
         "controlling the output of a large language model, such as not "
