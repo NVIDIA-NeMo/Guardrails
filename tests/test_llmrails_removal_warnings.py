@@ -15,6 +15,7 @@
 
 """Removal warnings for direct LLMRails use and Colang 2.x, and the UserWarnings for config IORails ignores."""
 
+import asyncio
 import sys
 import warnings
 from pathlib import Path
@@ -106,6 +107,17 @@ def _colang_2_config() -> RailsConfig:
     return RailsConfig.from_content(colang_content=COLANG_2_CONTENT, yaml_content=COLANG_2_YAML)
 
 
+def _write_config_dir(config_dir: Path, *, colang_2: bool) -> Path:
+    """Write a minimal Colang 1.0 or Colang 2.x config directory and return its path."""
+    config_dir.mkdir()
+    if colang_2:
+        (config_dir / "config.yml").write_text(COLANG_2_YAML)
+        (config_dir / "main.co").write_text(COLANG_2_CONTENT)
+    else:
+        (config_dir / "config.yml").write_text("models: []\n")
+    return config_dir
+
+
 def _config_dir(tmp_path, *, config_py: bool, colang_content: str = "") -> RailsConfig:
     """Write an IORails-compatible config directory, optionally with config.py and Colang flows, and load it."""
     (tmp_path / "config.yml").write_text(
@@ -164,7 +176,9 @@ def test_llmrails_subclass_defined_by_a_user_still_warns():
 
 COLANG_2_ROUTES = {
     "llmrails": lambda config: LLMRails(config, llm=FakeLLMModel(responses=[])),
+    "user-subclass": _UserSubclassOfLLMRails,
     "guardrails-fallback": lambda config: Guardrails(config),
+    "guardrails-llm": lambda config: Guardrails(config, llm=FakeLLMModel(responses=[])),
     "guardrails-use-iorails-false": lambda config: Guardrails(config, use_iorails=False),
     "testchat": lambda config: TestChat(config, llm_completions=[]),
 }
@@ -192,6 +206,36 @@ def test_runnable_rails_on_colang_2_warns_about_colang_2():
     assert _removal_subjects(lambda: RunnableRails(config)) == ["Colang 2.x"]
 
 
+@pytest.mark.parametrize("middleware_name", ["GuardrailsMiddleware", "InputRailsMiddleware", "OutputRailsMiddleware"])
+def test_langchain_middleware_on_colang_2_warns_about_colang_2(tmp_path, middleware_name):
+    """Each LangChain middleware class on a Colang 2.x config emits one Colang 2.x removal warning at the caller."""
+    pytest.importorskip("langchain.agents.middleware")
+    from nemoguardrails.integrations.langchain import middleware
+
+    config_dir = _write_config_dir(tmp_path / "config", colang_2=True)
+    middleware_class = getattr(middleware, middleware_name)
+
+    caught = _removals(_record_warnings(lambda: middleware_class(config_path=str(config_dir))))
+
+    assert [str(w.message).split(" is deprecated")[0] for w in caught] == ["Colang 2.x"]
+    assert caught[0].filename == __file__
+
+
+@pytest.mark.parametrize(("colang_2", "expected_subjects"), [(False, []), (True, ["Colang 2.x"])], ids=["1.0", "2.x"])
+def test_server_warns_only_for_colang_2(monkeypatch, tmp_path, colang_2, expected_subjects):
+    """The server builds LLMRails silently for a Colang 1.0 config and with the Colang 2.x warning for a 2.x config."""
+    from nemoguardrails.server import api
+
+    _write_config_dir(tmp_path / "config", colang_2=colang_2)
+    monkeypatch.setattr(api.app, "rails_config_path", str(tmp_path))
+    monkeypatch.setattr(api.app, "single_config_mode", False)
+    monkeypatch.setattr(api, "llm_rails_instances", {})
+    # The server builds LLMRails with verbose=True, which would reconfigure logging for the rest of the session.
+    monkeypatch.setattr("nemoguardrails.rails.llm.llmrails.set_verbose", lambda *args, **kwargs: None)
+
+    assert _removal_subjects(lambda: asyncio.run(api._get_rails(["config"]))) == expected_subjects
+
+
 KEPT_SURFACES = {
     "guardrails-llm": lambda: Guardrails(_colang_1_config(), llm=FakeLLMModel(responses=[])),
     "guardrails-use-iorails-false": lambda: Guardrails(_colang_1_config(), use_iorails=False),
@@ -209,7 +253,11 @@ def test_langchain_surfaces_emit_no_removal_warning(langchain_framework):
     """The LangChain framework, adapter, RunnableRails and middleware on a Colang 1.0 config emit no removal warning."""
     pytest.importorskip("langchain.agents.middleware")
     from nemoguardrails.integrations.langchain.llm_adapter import LangChainFramework, LangChainLLMAdapter
-    from nemoguardrails.integrations.langchain.middleware import InputRailsMiddleware
+    from nemoguardrails.integrations.langchain.middleware import (
+        GuardrailsMiddleware,
+        InputRailsMiddleware,
+        OutputRailsMiddleware,
+    )
     from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
 
     constructions = [
@@ -217,7 +265,9 @@ def test_langchain_surfaces_emit_no_removal_warning(langchain_framework):
         LangChainFramework,
         lambda: LangChainLLMAdapter(object()),
         lambda: RunnableRails(_colang_1_config()),
+        lambda: GuardrailsMiddleware(config_yaml="models: []"),
         lambda: InputRailsMiddleware(config_yaml="models: []"),
+        lambda: OutputRailsMiddleware(config_yaml="models: []"),
     ]
 
     assert [_removal_subjects(construct) for construct in constructions] == [[]] * len(constructions)
@@ -255,6 +305,22 @@ def test_fallback_for_a_reason_other_than_colang_2_only_logs(monkeypatch, colang
     assert rails is not None and not rails.use_iorails_engine
     assert _removals(caught) == []
     assert _diagnostics(caught) == []
+
+
+@pytest.mark.parametrize(
+    "build_config",
+    [lambda: RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG), _colang_2_config],
+    ids=["colang-1-fallback", "colang-2"],
+)
+def test_require_iorails_raises_before_any_removal_warning(build_config):
+    """Guardrails(require_iorails=True) raises for a config IORails cannot run before LLMRails exists to warn."""
+    config = build_config()
+
+    def construct():
+        with pytest.raises(ValueError, match="IORails cannot be used"):
+            Guardrails(config, require_iorails=True)
+
+    assert _removal_subjects(construct) == []
 
 
 def test_guardrails_on_iorails_without_ignored_config_emits_nothing(monkeypatch):
@@ -398,18 +464,6 @@ def test_colang_2_chat_emits_one_message(monkeypatch, capsys, engine):
     assert "Colang 2.x chat, including its debugger commands, is deprecated" in capsys.readouterr().err
 
 
-def _colang_1_chat_notice(config: RailsConfig, capsys) -> str:
-    """Run the Colang 1.0 chat for *config* without starting the loop, and return what it printed on stderr."""
-    with (
-        patch.object(chat_module.RailsConfig, "from_path", return_value=config),
-        patch("asyncio.run") as mock_asyncio_run,
-    ):
-        mock_asyncio_run.side_effect = lambda coroutine: coroutine.close()
-        chat_module.run_chat(config_path="config")
-        mock_asyncio_run.assert_called_once()
-    return capsys.readouterr().err
-
-
 def _chat_config(config_kind: str, tmp_path) -> RailsConfig:
     """Build the Colang 1.0 config of *config_kind* that the chat tests run."""
     builders = {
@@ -425,10 +479,27 @@ class _ChatStopped(Exception):
     """Raised from the first prompt, so that a chat stops right after it builds its engine."""
 
 
+def _chat_until_the_first_prompt(config: RailsConfig) -> None:
+    """Run the Colang 1.0 chat on *config* until it asks for the first message, after it has built its engine."""
+    with (
+        patch.object(chat_module.RailsConfig, "from_path", return_value=config),
+        patch("builtins.input", side_effect=_ChatStopped),
+        pytest.raises(_ChatStopped),
+    ):
+        chat_module.run_chat(config_path="config")
+
+
 @pytest.mark.parametrize("config_kind", ["iorails-compatible", "dialog-flows", "config-py", "llmrails-only"])
-def test_colang_1_chat_prints_no_notice(tmp_path, capsys, config_kind):
-    """Colang 1.0 chat on its default engine prints no notice of its own, whatever the config holds."""
-    assert "is deprecated" not in _colang_1_chat_notice(_chat_config(config_kind, tmp_path), capsys)
+def test_colang_1_chat_on_llmrails_prints_and_warns_nothing(monkeypatch, tmp_path, capsys, config_kind):
+    """Colang 1.0 chat builds LLMRails without a notice, a removal warning or a diagnostic, whatever the config holds."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = _chat_config(config_kind, tmp_path)
+
+    caught = _record_warnings(lambda: _chat_until_the_first_prompt(config))
+
+    assert "is deprecated" not in capsys.readouterr().err
+    assert _removals(caught) == []
+    assert _diagnostics(caught) == []
 
 
 @pytest.mark.parametrize(
@@ -449,15 +520,7 @@ def test_colang_1_chat_under_the_iorails_alias_shows_the_guardrails_diagnostics(
     monkeypatch.setattr(chat_module, "LLMRails", Guardrails)
     config = _chat_config(config_kind, tmp_path)
 
-    def chat_until_the_first_prompt():
-        with (
-            patch.object(chat_module.RailsConfig, "from_path", return_value=config),
-            patch("builtins.input", side_effect=_ChatStopped),
-            pytest.raises(_ChatStopped),
-        ):
-            chat_module.run_chat(config_path="config")
-
-    caught = _record_warnings(chat_until_the_first_prompt)
+    caught = _record_warnings(lambda: _chat_until_the_first_prompt(config))
 
     assert "is deprecated" not in capsys.readouterr().err
     assert _diagnostic_prefixes(caught) == expected_diagnostics
