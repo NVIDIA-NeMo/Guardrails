@@ -48,6 +48,16 @@ members and values remain unsupported. See the
 
 ## Declaration and runtime responsibilities
 
+Optional `input_transformations` metadata is absent, null, or a list of closed
+objects describing reasoning inputs withheld by the provider. Each object requires
+string `id`, `action: removed`, `type: reasoning`, and `reason` equal to
+`organization_mismatch`, `end_user_mismatch`, `model_mismatch`, `prefix_mismatch`,
+or `turn_boundary`. This follows the documented
+[OpenAI structure](https://developers.openai.com/api/reference/python/resources/responses/methods/create).
+Buffered responses and lifecycle response snapshots share this typed declaration;
+it does not introduce a text channel or relax output inspection. Unknown members
+and unsupported values remain rejected, including within populated lists.
+
 - `request_projection.py` and `response_projection.py` classify fields.
 - The binding modules derive coverage and text locations from those declarations.
 - `ObjectPolicy.variant` declares the required discriminator and selected-array

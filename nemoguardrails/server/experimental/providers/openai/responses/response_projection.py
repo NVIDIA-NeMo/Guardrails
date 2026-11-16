@@ -28,6 +28,22 @@ from nemoguardrails.server.experimental.provider.projection_policy import (
 )
 
 
+class InputTransformationProjection(PolicyModel):
+    """Describe withheld reasoning input without accepting another content channel."""
+
+    policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="InputTransformation")
+    id: Annotated[str, constrained(strict=True)]
+    action: Annotated[Literal["removed"], constrained()]
+    reason: Annotated[
+        Literal["organization_mismatch", "end_user_mismatch", "model_mismatch", "prefix_mismatch", "turn_boundary"],
+        constrained(),
+    ]
+    type: Annotated[Literal["reasoning"], constrained()]
+
+
+InputTransformations = Annotated[list[InputTransformationProjection] | None, constrained(strict=True)]
+
+
 class ResponseImageProjection(PolicyModel):
     """Accept the effective image policy without opening an image content channel."""
 
@@ -123,6 +139,7 @@ class ResponsesGuardedResponseProjection(PolicyModel, GuardedPayloadModel):
     """Keep provider output ordering and select one reviewed text-bearing item."""
 
     policy: ClassVar[ObjectPolicy] = ObjectPolicy(source="Response", opaque=RESPONSE_METADATA_FIELDS)
+    input_transformations: InputTransformations = None
     image: Annotated[ResponseImageProjection | None, constrained()] = None
     output: Annotated[list[ResponsesReasoningItemProjection | ResponsesAssistantMessageProjection], guarded()]
     output_text: Annotated[None, disabled("provider_integrity.duplicate_text")] = None
