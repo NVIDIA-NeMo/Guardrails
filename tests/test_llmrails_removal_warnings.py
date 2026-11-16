@@ -16,6 +16,7 @@
 """Removal warnings for direct LLMRails use and Colang 2.x, and the UserWarnings for config IORails ignores."""
 
 import asyncio
+import logging
 import sys
 import warnings
 from pathlib import Path
@@ -27,6 +28,7 @@ import nemoguardrails
 import nemoguardrails.cli.chat  # noqa: F401
 from nemoguardrails import Guardrails, LLMRails, LLMRailsRemovalWarning, RailsConfig, set_default_framework
 from nemoguardrails.deprecation import DEPRECATED_SINCE, REMOVAL_RELEASE
+from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.testing import FakeLLMModel, TestChat
 
 COLANG_1_CONFIG = {"models": []}
@@ -290,10 +292,11 @@ def test_llmrails_on_the_langchain_framework_warns_once(langchain_framework, mon
     ],
     ids=["unavailable-rail", "custom-rail-flow"],
 )
-def test_fallback_for_a_reason_other_than_colang_2_only_logs(monkeypatch, colang_content, config_dict):
-    """A config that falls back to LLMRails for a reason other than Colang 2.x gets no warning, only the existing log."""
+def test_fallback_for_a_reason_other_than_colang_2_only_logs(monkeypatch, caplog, colang_content, config_dict):
+    """A config that falls back to LLMRails for a reason other than Colang 2.x gets no warning, only a log naming why."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = RailsConfig.from_content(colang_content=colang_content, config=config_dict)
+    reason = IORails.unsupported_reason(config)
     rails = None
 
     def construct():
@@ -305,6 +308,13 @@ def test_fallback_for_a_reason_other_than_colang_2_only_logs(monkeypatch, colang
     assert rails is not None and not rails.use_iorails_engine
     assert _removals(caught) == []
     assert _diagnostics(caught) == []
+    fallback_logs = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "nemoguardrails.guardrails.guardrails" and record.levelno == logging.WARNING
+    ]
+    assert len(fallback_logs) == 1
+    assert f"IORails cannot be used: {reason}. Falling back to LLMRails" in fallback_logs[0]
 
 
 @pytest.mark.parametrize(
@@ -370,6 +380,27 @@ def test_dialog_flows_and_config_py_both_raise_a_user_warning(tmp_path, monkeypa
     caught = _record_warnings(lambda: Guardrails(config))
 
     assert _diagnostic_prefixes(caught) == [DIALOG_FLOWS_DIAGNOSTIC, CONFIG_PY_DIAGNOSTIC]
+
+
+def _config_importing_a_config_py(tmp_path) -> RailsConfig:
+    """Load a config without its own config.py that imports a directory holding one."""
+    shared_dir = tmp_path / "shared"
+    shared_dir.mkdir()
+    (shared_dir / "config.py").write_text("def init(app):\n    pass\n")
+    main_dir = tmp_path / "main"
+    main_dir.mkdir()
+    (main_dir / "config.yml").write_text(
+        f"models:\n  - type: main\n    engine: nim\n    model: meta/llama-3.3-70b-instruct\nimport_paths:\n  - {shared_dir}\n"
+    )
+    return RailsConfig.from_path(str(main_dir))
+
+
+def test_config_py_in_an_imported_directory_raises_a_user_warning(tmp_path, monkeypatch):
+    """A config.py in a directory the config imports raises the config.py UserWarning."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = _config_importing_a_config_py(tmp_path)
+
+    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [CONFIG_PY_DIAGNOSTIC]
 
 
 def test_config_directory_without_config_py_raises_no_diagnostic(tmp_path, monkeypatch):
