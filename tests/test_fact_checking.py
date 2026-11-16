@@ -122,7 +122,7 @@ async def test_fact_checking_correct(httpx_mock):
         config,
         llm_completions=[
             "  ask about guardrails",
-            "The NeMo Guardrails library is open source and simplifies adding programmable guardrails to LLM-based conversational systems.",
+            "The NeMo Guardrails library is open source and adds programmable guardrails to LLM-based conversational systems.",
         ],
     )
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
@@ -138,7 +138,7 @@ async def test_fact_checking_correct(httpx_mock):
     chat >> "What is NeMo Guardrails?"
 
     await chat.bot_async(
-        "The NeMo Guardrails library is open source and simplifies adding programmable guardrails to LLM-based conversational systems."
+        "The NeMo Guardrails library is open source and adds programmable guardrails to LLM-based conversational systems."
     )
 
 
@@ -175,7 +175,7 @@ async def test_fact_checking_fallback_to_self_check_correct(httpx_mock):
         config,
         llm_completions=[
             "  ask about guardrails",
-            "The NeMo Guardrails library is open source and simplifies adding programmable guardrails to LLM-based conversational systems.",
+            "The NeMo Guardrails library is open source and adds programmable guardrails to LLM-based conversational systems.",
             "yes",
         ],
     )
@@ -191,7 +191,7 @@ async def test_fact_checking_fallback_to_self_check_correct(httpx_mock):
     chat >> "What is NeMo Guardrails?"
 
     await chat.bot_async(
-        "The NeMo Guardrails library is open source and simplifies adding programmable guardrails to LLM-based conversational systems."
+        "The NeMo Guardrails library is open source and adds programmable guardrails to LLM-based conversational systems."
     )
 
 
@@ -203,7 +203,7 @@ async def test_fact_checking_fallback_self_check_wrong(httpx_mock):
         config,
         llm_completions=[
             "  ask about guardrails",
-            "The NeMo Guardrails library is a closed-source library for easily adding programmable guardrails to LLM-based conversational systems.",
+            "The NeMo Guardrails library is a closed-source library for adding programmable guardrails to LLM-based conversational systems.",
             "no",
             "I don't know the answer to that.",
         ],
