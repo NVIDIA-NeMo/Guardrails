@@ -25,7 +25,6 @@ from typing import Iterator
 DEPRECATED_SINCE = "0.25.0"
 # The removal criteria are not agreed yet, so the release is a lower bound, not a date.
 REMOVAL_RELEASE = "0.27.0"
-MIGRATION_GUIDE_URL = "https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25"
 
 _removal_warnings_silenced: ContextVar[bool] = ContextVar("llmrails_removal_warnings_silenced", default=False)
 
@@ -40,7 +39,7 @@ def llmrails_removal_message(subject: str, alternative: str) -> str:
     """Return the removal notice for *subject*, naming *alternative* as the way forward."""
     return (
         f"{subject} is deprecated since NeMo Guardrails {DEPRECATED_SINCE} and will be removed no earlier than "
-        f"{REMOVAL_RELEASE}. {alternative} Migration guide: {MIGRATION_GUIDE_URL}"
+        f"{REMOVAL_RELEASE}. {alternative}"
     )
 
 

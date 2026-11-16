@@ -25,7 +25,7 @@ import pytest
 import nemoguardrails
 import nemoguardrails.cli.chat  # noqa: F401
 from nemoguardrails import Guardrails, LLMRails, LLMRailsRemovalWarning, RailsConfig, set_default_framework
-from nemoguardrails.deprecation import DEPRECATED_SINCE, MIGRATION_GUIDE_URL, REMOVAL_RELEASE
+from nemoguardrails.deprecation import DEPRECATED_SINCE, REMOVAL_RELEASE
 from nemoguardrails.testing import FakeLLMModel, TestChat
 
 COLANG_1_CONFIG = {"models": []}
@@ -136,14 +136,16 @@ def test_removal_warning_is_a_deprecation_warning():
 
 
 def test_message_says_removed_no_earlier_than_the_release():
-    """The LLMRails warning names the deprecating release, a removal lower bound without a date, and the guide."""
+    """The LLMRails warning names the deprecating release and a removal lower bound, and ends at the alternative."""
     (warning,) = _removals(_record_warnings(lambda: LLMRails(_colang_1_config(), llm=FakeLLMModel(responses=[]))))
 
     message = str(warning.message)
     assert message.startswith("LLMRails is deprecated")
     assert f"since NeMo Guardrails {DEPRECATED_SINCE}" in message
     assert f"will be removed no earlier than {REMOVAL_RELEASE}." in message
-    assert MIGRATION_GUIDE_URL in message
+    assert message.endswith(
+        f"no earlier than {REMOVAL_RELEASE}. Use Guardrails(config), which runs the IORails engine."
+    )
 
 
 def test_llmrails_warning_points_at_the_constructing_line():
@@ -375,6 +377,7 @@ def test_colang_2_chat_prints_the_removal_notice(capsys):
     notice = capsys.readouterr().err
     assert "Colang 2.x chat, including its debugger commands, is deprecated" in notice
     assert f"will be removed no earlier than {REMOVAL_RELEASE}." in notice
+    assert notice.strip().endswith("IORails will not support Colang 2.x, so there is no replacement.")
 
 
 @pytest.mark.parametrize("engine", [LLMRails, Guardrails], ids=["llmrails", "iorails-alias"])
