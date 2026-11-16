@@ -19,12 +19,12 @@ Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvid
 ## What You Can Build
 
 - **AI agents and coding assistants:** Check proposed tool calls and returned results with [tool rails](./docs/configure-rails/guardrail-catalog/tool-calling.mdx), or connect an agent through the [hooks server](./docs/run-rails/using-hooks-server/index.mdx).
-- **Conversational applications:** Apply [input and output checks](./docs/run-rails/using-python-apis/check-messages.mdx) and define dialog behavior with [Colang](./docs/configure-rails/colang/index.mdx).
+- **Conversational applications:** Apply [input and output checks](./docs/run-rails/using-python-apis/check-messages.mdx).
 - **Retrieval-augmented generation (RAG):** [Detect or mask sensitive data in retrieved content](./docs/configure-rails/guardrail-catalog/pii-detection.mdx) and [check whether answers are grounded in evidence](./docs/configure-rails/guardrail-catalog/fact-checking.mdx).
 
 ## How It Works
 
-- **Define your policy.** Configure rails, models, and prompts in YAML. Use Colang flows or Python actions for custom dialog and control logic.
+- **Define your policy.** Configure rails, models, and prompts in YAML. Use Python actions for custom logic.
 - **Run the checks.** Invoke rails at the points where your application needs a policy decision.
 - **Read the result.** Handle blocked or modified content before executing a tool or returning a response. You can also route generation through Guardrails.
 
