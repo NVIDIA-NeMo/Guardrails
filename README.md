@@ -1,7 +1,5 @@
 # NVIDIA NeMo Guardrails Library
 
-Programmable safeguards for AI agents and LLM applications.
-
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PyPI](https://img.shields.io/pypi/v/nemoguardrails)](https://pypi.org/project/nemoguardrails)
 [![Python](https://img.shields.io/pypi/pyversions/nemoguardrails)](https://pypi.org/project/nemoguardrails)
@@ -10,7 +8,7 @@ Programmable safeguards for AI agents and LLM applications.
 
 [Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#quickstart) · [Use cases](#what-you-can-build) · [Integrations](#choose-your-integration) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples) · [Community](#community-usage) · [Security](./SECURITY.md) · [Releases](https://github.com/NVIDIA-NeMo/Guardrails/releases) · [Changelog](./CHANGELOG.md)
 
-Define policies for prompts, retrieved content, tool calls, tool results, and responses. Your application or agent harness runs the configured checks and uses the results to decide whether to continue.
+NeMo Guardrails adds programmable safeguards to your AI agents. Agents are most useful when they can run commands, call APIs, query your data, and read the web. You declare what each agent may do in a policy, with checks for jailbreaks, injected instructions, and unsafe tool calls. Your application or agent harness runs the configured checks and uses the results to decide whether to continue.
 
 ```bash
 pip install nemoguardrails
