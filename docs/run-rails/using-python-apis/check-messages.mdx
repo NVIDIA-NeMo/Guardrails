@@ -273,6 +273,9 @@ A `tool_call` check reports the assistant text, unless input rails run in the sa
 A `tool_result` check reports the user text.
 
 Both engines compare the reported text against its original value to decide between `PASSED` and `MODIFIED`.
+For content lists on `LLMRails`, the comparison uses generation's existing Python string representation of the list.
+An unchanged list returns `PASSED`; the result's `content` remains a string, including through `/v1/checks`.
+This preserves the response contract and does not provide structured multimodal round-tripping or add image inspection to text-only rails.
 When a check runs both directions and only the user message is rewritten, the status is `PASSED`, because the reported assistant text is unchanged.
 `MODIFIED` names no rail: a rewrite is not a rail blocking the request, and several rails can contribute to the final text.
 Tool rails never rewrite, so a check that runs only tool rails is `PASSED` or `BLOCKED`.
