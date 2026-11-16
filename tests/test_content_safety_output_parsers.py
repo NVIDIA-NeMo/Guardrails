@@ -533,6 +533,18 @@ class TestExtractHarmValue:
         result = _extract_harm_value(response, "Response Harm")
         assert result == "unharmful"
 
+    def test_unclosed_think_is_not_a_verdict(self):
+        """A cut-off trace that quotes the safe format is not a safe verdict."""
+        response = "<think>\nFormat: Prompt harm: unharmful\nThe request asks for weapon instructions"
+        result = _extract_harm_value(response, "Prompt harm")
+        assert result == "harmful"
+
+    def test_repeated_field_is_not_the_first_line(self):
+        """A revised verdict must not pass on the earlier unharmful line."""
+        response = "Prompt harm: unharmful\nPrompt harm: harmful"
+        result = _extract_harm_value(response, "Prompt harm")
+        assert result == "harmful"
+
 
 class TestNemotronReasoningParsePromptSafety:
     """Test the nemotron_reasoning_parse_prompt_safety output parser."""
@@ -599,6 +611,36 @@ Response Harm: unharmful"""
         response = "The model refused to answer"
         is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
         assert is_safe is False
+
+    def test_cut_off_trace_does_not_pass(self):
+        """An unclosed think that quotes the safe format must not be allowed."""
+        response = (
+            "<think>\nThe expected output format is\nPrompt harm: unharmful\n"
+            "but the user asks for step-by-step instructions to build a pipe bomb"
+        )
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is False
+        assert violated_policies == []
+
+    def test_revised_verdict_does_not_pass(self):
+        """The first of two Prompt harm lines must not be the verdict."""
+        response = "Prompt harm: unharmful\nOn reflection the request is for weapon instructions.\nPrompt harm: harmful"
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is False
+        assert violated_policies == []
+
+    def test_closed_think_may_quote_the_format(self):
+        """A finished trace may quote the format; the verdict is the line after it."""
+        response = """<think>
+The expected output format is
+Prompt harm: unharmful
+</think>
+
+Prompt harm: unharmful
+Response Harm: unharmful"""
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is True
+        assert violated_policies == []
 
 
 class TestNemotronReasoningParseResponseSafety:
@@ -709,6 +751,18 @@ Response harm: unharmful"""
     def test_response_harm_lowercase(self):
         """Test parsing 'Response harm' (lowercase h) which is used in prompts."""
         response = "Prompt harm: unharmful\nResponse harm: harmful"
+        is_safe, *_ = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is False
+
+    def test_cut_off_trace_does_not_pass_response(self):
+        """An unclosed think that quotes a safe response verdict must not be allowed."""
+        response = "<think>\nFormat: Response Harm: unharmful\nThe assistant then gives weapon instructions"
+        is_safe, *_ = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is False
+
+    def test_revised_response_verdict_does_not_pass(self):
+        """The first of two Response Harm lines must not be the verdict."""
+        response = "Response Harm: unharmful\nResponse Harm: harmful"
         is_safe, *_ = nemotron_reasoning_parse_response_safety(response)
         assert is_safe is False
 

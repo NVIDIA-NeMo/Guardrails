@@ -266,13 +266,21 @@ def _extract_harm_value(response: str, field_name: str) -> str:
 
     Returns:
         The extracted value ("harmful" or "unharmful"), or "harmful" if parsing fails.
+
+    A cut-off reasoning trace still contains ``<think>`` after closed blocks are
+    removed. A trace often quotes ``Prompt harm: unharmful`` before the real
+    verdict, so the first match is not a verdict. The same field stated twice
+    is a revision, and the earlier line must not win. Both cases return
+    "harmful" instead of failing open.
     """
-    # Look for the field pattern case-insensitively
+    if "<think>" in response:
+        return "harmful"
+
     pattern = rf"{re.escape(field_name)}\s*:\s*(\w+)"
-    match = re.search(pattern, response, re.IGNORECASE)
-    if match:
-        return match.group(1).lower()
-    return "harmful"  # Default to harmful if parsing fails
+    matches = re.findall(pattern, response, re.IGNORECASE)
+    if len(matches) != 1:
+        return "harmful"
+    return matches[0].lower()
 
 
 def nemotron_reasoning_parse_prompt_safety(response: str) -> Sequence[Union[bool, str]]:
