@@ -10,7 +10,7 @@ Programmable safeguards for AI agents and LLM applications.
 
 [Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#quickstart) · [Use cases](#what-you-can-build) · [Integrations](#choose-your-integration) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples) · [Community](#community-usage) · [Security](./SECURITY.md) · [Releases](https://github.com/NVIDIA-NeMo/Guardrails/releases) · [Changelog](./CHANGELOG.md)
 
-**NeMo Guardrails adds programmable safeguards to your AI agents.** For agents that run commands, call APIs, query data, or access the web, define policies to check prompts, retrieved context, tool calls, tool results, and responses. Your application or agent harness invokes the configured checks and enforces their results before continuing.
+Define policies for prompts, retrieved content, tool calls, tool results, and responses. Your application or agent harness runs the configured checks and uses the results to decide whether to continue.
 
 ```bash
 pip install nemoguardrails
@@ -27,12 +27,12 @@ Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvid
 ## How It Works
 
 - **Define your policy.** Configure rails, models, and prompts in YAML. Use Colang flows or Python actions for custom dialog and control logic.
-- **Connect the checks.** Apply configured rails to the prompts, retrieved content, tool calls, tool results, and responses your application handles.
-- **Enforce the result.** Run checks independently and act on the verdict in your application, or route generation through Guardrails. Your application controls tool execution.
+- **Run the checks.** Invoke rails at the points where your application needs a policy decision.
+- **Read the result.** Handle blocked or modified content before executing a tool or returning a response. You can also route generation through Guardrails.
 
 ![Agent runtime connected to NeMo Guardrails: configurable checks for prompts, tool calls, tool results, and answers, with policy rules, optional guard models, and integration options.](./docs/_static/images/agent-runtime-guardrails-overview.png)
 
-Configure the checks and their order for your workflow; your application or agent harness enforces each verdict. Tool-call checks run before execution, while tool-result checks run after the tool has executed. Latency depends on the configured rules, models, and services.
+Tool-call checks run before execution, while tool-result checks run after the tool has executed. Latency depends on the configured rules, models, and services.
 
 Integrations support different checks. Rail support varies by engine; refer to [rail engine support](./docs/reference/rail-engine-support.mdx) and [configuration](./docs/configure-rails/configuration-reference.mdx).
 

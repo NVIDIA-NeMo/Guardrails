@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "NVIDIA NeMo Guardrails Library"
 sidebar-title: "Home"
-description: "Add programmable guardrails to LLM applications with an open-source Python library."
+description: "Add programmable safeguards to AI agents and LLM applications with an open-source Python library."
 keywords:
-    ["nemo guardrails", "llm safety", "content moderation", "guardrails python"]
+    ["nemo guardrails", "ai agents", "llm safety", "content moderation", "tool validation", "guardrails python"]
 layout: overview
 ---
 
-The NeMo Guardrails library is an open-source Python package for adding programmable guardrails to LLM-based applications. It intercepts inputs and outputs, applies configurable safety checks, and blocks or modifies content based on defined policies.
+The NVIDIA NeMo Guardrails library adds programmable safeguards to AI agents and LLM applications. Configure checks for prompts, retrieved content, tool calls, tool results, and responses. Your application or agent harness uses the check results to decide whether to continue.
 
 ## Get Started
 
@@ -54,9 +54,9 @@ Browse the following introductory guides to learn more about the NVIDIA NeMo Gua
 
 <Cards>
 
-<Card title="Overview" href="/overview">
+<Card title="Overview" href="/about-nemo-guardrails-library/overview">
 
-Overview of the NVIDIA NeMo Guardrails library, including its capabilities, architecture, and supported LLMs.
+Explore supported use cases, core building blocks, and integration options for your application or agent.
 
 <Badge intent="tip" minimal outlined>Concept</Badge>
 </Card>
@@ -89,6 +89,13 @@ Reference for pre-built guardrails including content safety, jailbreak detection
 <Badge intent="tip" minimal outlined>Reference</Badge>
 </Card>
 
+<Card title="Check Agent Tool Calls" href="/configure-guardrails/guardrail-catalog/tool-calling">
+
+Validate proposed tool calls and returned results from your agent loop.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
 </Cards>
 
 ## Next Steps
@@ -104,9 +111,9 @@ Configure YAML files, Colang flows, custom actions, and other components to cont
 <Badge intent="tip" minimal outlined>Concept</Badge>
 </Card>
 
-<Card title="Running Guardrailed Inference" href="/run-guardrailed-inference/run-rails">
+<Card title="Run Checks or Guardrailed Inference" href="/run-guardrailed-inference/run-rails">
 
-Run guardrailed inference using the Python API or Guardrails API server.
+Run checks independently or route generation through the Python SDK or Guardrails API server.
 
 <Badge intent="tip" minimal outlined>Get Started</Badge>
 </Card>
