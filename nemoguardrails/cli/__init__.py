@@ -28,7 +28,6 @@ from nemoguardrails import RailsConfig, __version__
 from nemoguardrails.cli.chat import run_chat
 from nemoguardrails.cli.migration import migrate
 from nemoguardrails.cli.providers import _list_providers, select_provider_with_type
-from nemoguardrails.deprecation import llmrails_removal_message
 from nemoguardrails.eval import cli as eval_cli
 from nemoguardrails.logging.verbose import set_verbose
 from nemoguardrails.utils import init_random_seed
@@ -350,7 +349,7 @@ def _validation_error_summary(error: ValidationError) -> str:
     )
 
 
-@app.command(deprecated=True)
+@app.command()
 def convert(
     path: str = typer.Argument(..., help="The path to the file or directory to migrate."),
     from_version: ColangVersions = typer.Option(
@@ -375,13 +374,6 @@ def convert(
     ),
 ):
     """Convert Colang files and configs from older version to the latest."""
-    typer.secho(
-        llmrails_removal_message(
-            "The convert command", "IORails does not run Colang flows, so there is no replacement."
-        ),
-        err=True,
-        fg=typer.colors.YELLOW,
-    )
 
     if verbose:
         logging.getLogger().setLevel(logging.INFO)
@@ -400,18 +392,11 @@ def convert(
     )
 
 
-@app.command("actions-server", deprecated=True)
+@app.command("actions-server")
 def action_server(
     port: int = typer.Option(default=8001, help="The port that the server should listen on. "),
 ):
     """Start a NeMo Guardrails actions server."""
-    typer.secho(
-        llmrails_removal_message(
-            "The actions-server command", "IORails does not call an actions server, so there is no replacement."
-        ),
-        err=True,
-        fg=typer.colors.YELLOW,
-    )
 
     try:
         import uvicorn

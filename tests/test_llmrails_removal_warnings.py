@@ -13,29 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Where LLMRailsRemovalWarning fires, what it says, and which line it is attributed to."""
+"""Removal warnings for direct LLMRails use and Colang 2.x, and the UserWarnings for config IORails ignores."""
 
 import sys
 import warnings
-from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from packaging.version import Version
-from typer.testing import CliRunner
 
 import nemoguardrails
+import nemoguardrails.cli.chat  # noqa: F401
 from nemoguardrails import Guardrails, LLMRails, LLMRailsRemovalWarning, RailsConfig, set_default_framework
-from nemoguardrails.cli import app
-from nemoguardrails.deprecation import (
-    DEPRECATED_SINCE,
-    MIGRATION_GUIDE_URL,
-    REMOVAL_MONTH,
-    REMOVAL_RELEASE,
-    llmrails_deprecation_headers,
-)
-from nemoguardrails.rails.llm.llmrails import _wrap_legacy_llm
+from nemoguardrails.deprecation import DEPRECATED_SINCE, MIGRATION_GUIDE_URL, REMOVAL_RELEASE
 from nemoguardrails.testing import FakeLLMModel, TestChat
 
 COLANG_1_CONFIG = {"models": []}
@@ -74,22 +64,46 @@ RUN_DIALOG_RAILS_COPY = _LLMRAILS_DEFAULT_FLOWS[
     )
 ]
 LLMRAILS_ONLY_CONFIG = {"models": [], "rails": {"input": {"flows": ["jailbreak detection heuristics"]}}}
+DIALOG_FLOWS_DIAGNOSTIC = "IORails does not run this config's Colang dialog flows"
+CONFIG_PY_DIAGNOSTIC = "IORails does not import this config's config.py"
 
 # `nemoguardrails.cli.chat` is shadowed by the `chat` command function on the package.
 chat_module = sys.modules["nemoguardrails.cli.chat"]
-runner = CliRunner()
 
 
-def _removal_warnings(action) -> list[warnings.WarningMessage]:
-    """Run *action* with every warning shown and return the LLMRailsRemovalWarnings it emitted."""
+def _record_warnings(action) -> list[warnings.WarningMessage]:
+    """Run *action* with every warning shown and return all the warnings it emitted."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         action()
+    return list(caught)
+
+
+def _removals(caught: list[warnings.WarningMessage]) -> list[warnings.WarningMessage]:
     return [w for w in caught if issubclass(w.category, LLMRailsRemovalWarning)]
+
+
+def _diagnostics(caught: list[warnings.WarningMessage]) -> list[warnings.WarningMessage]:
+    return [w for w in caught if w.category is UserWarning and str(w.message).startswith("IORails does not")]
+
+
+def _removal_subjects(action) -> list[str]:
+    """Run *action* and return the subject of each LLMRailsRemovalWarning it emitted."""
+    return [str(w.message).split(" is deprecated")[0] for w in _removals(_record_warnings(action))]
+
+
+def _diagnostic_prefixes(caught: list[warnings.WarningMessage]) -> list[str]:
+    """Map each IORails diagnostic in *caught* to the known prefix it starts with."""
+    prefixes = (DIALOG_FLOWS_DIAGNOSTIC, CONFIG_PY_DIAGNOSTIC)
+    return [next(p for p in prefixes if str(w.message).startswith(p)) for w in _diagnostics(caught)]
 
 
 def _colang_1_config() -> RailsConfig:
     return RailsConfig.from_content(config=COLANG_1_CONFIG)
+
+
+def _colang_2_config() -> RailsConfig:
+    return RailsConfig.from_content(colang_content=COLANG_2_CONTENT, yaml_content=COLANG_2_YAML)
 
 
 def _config_dir(tmp_path, *, config_py: bool, colang_content: str = "") -> RailsConfig:
@@ -104,87 +118,155 @@ def _config_dir(tmp_path, *, config_py: bool, colang_content: str = "") -> Rails
     return RailsConfig.from_path(str(tmp_path))
 
 
+def _build_llmrails_first(config: RailsConfig) -> None:
+    """Construct LLMRails on *config*, which adds its default and library flows to the same config object."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", LLMRailsRemovalWarning)
+        LLMRails(config)
+
+
 class _UserSubclassOfLLMRails(LLMRails):
     def __init__(self, config: RailsConfig):
         super().__init__(config, llm=FakeLLMModel(responses=[]))
 
 
-def test_removal_warning_is_shown_to_application_users_by_default():
-    """LLMRailsRemovalWarning is a FutureWarning, which Python's default filters show."""
-    assert issubclass(LLMRailsRemovalWarning, FutureWarning)
+def test_removal_warning_is_a_deprecation_warning():
+    """LLMRailsRemovalWarning is a DeprecationWarning, shown in tests and scripts and hidden in imported modules."""
+    assert issubclass(LLMRailsRemovalWarning, DeprecationWarning)
 
 
-def test_message_names_both_releases_the_month_and_the_migration_guide():
-    """The LLMRails warning names the deprecating release, the removal release and month, and the migration guide."""
-    (warning,) = _removal_warnings(lambda: LLMRails(_colang_1_config(), llm=FakeLLMModel(responses=[])))
+def test_message_says_removed_no_earlier_than_the_release():
+    """The LLMRails warning names the deprecating release, a removal lower bound without a date, and the guide."""
+    (warning,) = _removals(_record_warnings(lambda: LLMRails(_colang_1_config(), llm=FakeLLMModel(responses=[]))))
 
     message = str(warning.message)
     assert message.startswith("LLMRails is deprecated")
-    assert DEPRECATED_SINCE in message
-    assert f"{REMOVAL_RELEASE} ({REMOVAL_MONTH})" in message
+    assert f"since NeMo Guardrails {DEPRECATED_SINCE}" in message
+    assert f"will be removed no earlier than {REMOVAL_RELEASE}." in message
     assert MIGRATION_GUIDE_URL in message
 
 
 def test_llmrails_warning_points_at_the_constructing_line():
-    """Constructing LLMRails warns once, attributed to the caller's file."""
-    caught = _removal_warnings(lambda: LLMRails(_colang_1_config(), llm=FakeLLMModel(responses=[])))
+    """Constructing LLMRails directly warns once, attributed to the caller's file."""
+    caught = _removals(_record_warnings(lambda: LLMRails(_colang_1_config(), llm=FakeLLMModel(responses=[]))))
 
     assert [w.filename for w in caught] == [__file__]
 
 
 def test_llmrails_subclass_defined_by_a_user_still_warns():
     """A user's LLMRails subclass warns, because its super().__init__ call comes from outside the package."""
-    caught = _removal_warnings(lambda: _UserSubclassOfLLMRails(_colang_1_config()))
+    caught = _removals(_record_warnings(lambda: _UserSubclassOfLLMRails(_colang_1_config())))
 
     assert [w.filename for w in caught] == [__file__]
 
 
-def test_guardrails_on_iorails_emits_no_removal_warning(monkeypatch):
-    """Guardrails with a config IORails runs emits no LLMRailsRemovalWarning."""
+COLANG_2_ROUTES = {
+    "llmrails": lambda config: LLMRails(config, llm=FakeLLMModel(responses=[])),
+    "guardrails-fallback": lambda config: Guardrails(config),
+    "guardrails-use-iorails-false": lambda config: Guardrails(config, use_iorails=False),
+    "testchat": lambda config: TestChat(config, llm_completions=[]),
+}
+
+
+@pytest.mark.parametrize("route", sorted(COLANG_2_ROUTES))
+def test_every_route_into_colang_2_warns_once_about_colang_2(route):
+    """Each way of running a Colang 2.x config emits one Colang 2.x removal warning, attributed to the caller."""
+    config = _colang_2_config()
+
+    caught = _removals(_record_warnings(lambda: COLANG_2_ROUTES[route](config)))
+
+    assert [str(w.message).split(" is deprecated")[0] for w in caught] == ["Colang 2.x"]
+    assert caught[0].filename == __file__
+    assert "IORails will not support Colang 2.x, so there is no replacement." in str(caught[0].message)
+
+
+def test_runnable_rails_on_colang_2_warns_about_colang_2():
+    """RunnableRails on a Colang 2.x config emits the Colang 2.x removal warning, not one about RunnableRails."""
+    pytest.importorskip("langchain_core")
+    from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
+
+    config = _colang_2_config()
+
+    assert _removal_subjects(lambda: RunnableRails(config)) == ["Colang 2.x"]
+
+
+KEPT_SURFACES = {
+    "guardrails-llm": lambda: Guardrails(_colang_1_config(), llm=FakeLLMModel(responses=[])),
+    "guardrails-use-iorails-false": lambda: Guardrails(_colang_1_config(), use_iorails=False),
+    "testchat": lambda: TestChat(_colang_1_config(), llm_completions=[]),
+}
+
+
+@pytest.mark.parametrize("surface", sorted(KEPT_SURFACES))
+def test_surfaces_without_a_removal_decision_emit_no_removal_warning(surface):
+    """Guardrails(llm=...), Guardrails(use_iorails=False) and TestChat on a Colang 1.0 config emit no removal warning."""
+    assert _removal_subjects(KEPT_SURFACES[surface]) == []
+
+
+def test_langchain_surfaces_emit_no_removal_warning(langchain_framework):
+    """The LangChain framework, adapter, RunnableRails and middleware on a Colang 1.0 config emit no removal warning."""
+    pytest.importorskip("langchain.agents.middleware")
+    from nemoguardrails.integrations.langchain.llm_adapter import LangChainFramework, LangChainLLMAdapter
+    from nemoguardrails.integrations.langchain.middleware import InputRailsMiddleware
+    from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
+
+    constructions = [
+        lambda: set_default_framework("langchain"),
+        LangChainFramework,
+        lambda: LangChainLLMAdapter(object()),
+        lambda: RunnableRails(_colang_1_config()),
+        lambda: InputRailsMiddleware(config_yaml="models: []"),
+    ]
+
+    assert [_removal_subjects(construct) for construct in constructions] == [[]] * len(constructions)
+
+
+def test_llmrails_on_the_langchain_framework_warns_once(langchain_framework, monkeypatch):
+    """LLMRails on the LangChain model framework emits only its own removal warning."""
+    pytest.importorskip("langchain_openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    config = RailsConfig.from_content(config={"models": [{"type": "main", "engine": "openai", "model": "gpt-4o-mini"}]})
+
+    assert _removal_subjects(lambda: LLMRails(config)) == ["LLMRails"]
+
+
+@pytest.mark.parametrize(
+    ("colang_content", "config_dict"),
+    [
+        ("", LLMRAILS_ONLY_CONFIG),
+        (CUSTOM_OUTPUT_RAIL, {**IORAILS_CONFIG, "rails": {"output": {"flows": ["check blocked terms"]}}}),
+    ],
+    ids=["unavailable-rail", "custom-rail-flow"],
+)
+def test_fallback_for_a_reason_other_than_colang_2_only_logs(monkeypatch, colang_content, config_dict):
+    """A config that falls back to LLMRails for a reason other than Colang 2.x gets no warning, only the existing log."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
-    config = RailsConfig.from_content(config=IORAILS_CONFIG)
-
-    assert _removal_warnings(lambda: Guardrails(config)) == []
-
-
-def test_guardrails_with_llm_warns_once_about_the_llm_argument():
-    """Passing llm to Guardrails warns once, in engine-neutral words, and not again for the LLMRails it builds."""
-    caught = _removal_warnings(lambda: Guardrails(_colang_1_config(), llm=FakeLLMModel(responses=[])))
-
-    assert [str(w.message).split(" is deprecated")[0] for w in caught] == ["Passing an llm argument"]
-    assert caught[0].filename == __file__
-
-
-def test_guardrails_use_iorails_false_warns_once():
-    """Guardrails(use_iorails=False) warns once about the argument, not again for the LLMRails it builds."""
-    caught = _removal_warnings(lambda: Guardrails(_colang_1_config(), use_iorails=False))
-
-    assert [str(w.message).split(" is deprecated")[0] for w in caught] == ["Guardrails(use_iorails=False)"]
-    assert caught[0].filename == __file__
-
-
-def test_guardrails_with_llm_and_use_iorails_false_warns_once():
-    """Passing both llm and use_iorails=False warns once, about use_iorails=False."""
-    caught = _removal_warnings(
-        lambda: Guardrails(_colang_1_config(), llm=FakeLLMModel(responses=[]), use_iorails=False)
-    )
-
-    assert [str(w.message).split(" is deprecated")[0] for w in caught] == ["Guardrails(use_iorails=False)"]
-
-
-def test_guardrails_that_must_run_iorails_raises_without_a_removal_warning():
-    """require_iorails=True with an llm raises before any LLMRailsRemovalWarning, since no LLMRails is built."""
+    config = RailsConfig.from_content(colang_content=colang_content, config=config_dict)
+    rails = None
 
     def construct():
-        with pytest.raises(ValueError, match="IORails cannot be used"):
-            Guardrails(_colang_1_config(), llm=FakeLLMModel(responses=[]), require_iorails=True)
+        nonlocal rails
+        rails = Guardrails(config)
 
-    assert _removal_warnings(construct) == []
+    caught = _record_warnings(construct)
+
+    assert rails is not None and not rails.use_iorails_engine
+    assert _removals(caught) == []
+    assert _diagnostics(caught) == []
+
+
+def test_guardrails_on_iorails_without_ignored_config_emits_nothing(monkeypatch):
+    """Guardrails with a config IORails runs in full emits neither a removal warning nor a diagnostic."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    caught = _record_warnings(lambda: Guardrails(RailsConfig.from_content(config=IORAILS_CONFIG)))
+
+    assert _removals(caught) == []
+    assert _diagnostics(caught) == []
 
 
 @DIALOG_CONTENTS
-def test_guardrails_on_iorails_with_dialog_flows_warns_that_they_are_not_run(monkeypatch, colang_content):
-    """A Colang 1.0 config with dialog flows, with or without define user, runs on IORails and warns once."""
+def test_dialog_flows_on_iorails_raise_a_user_warning_without_a_removal_date(monkeypatch, colang_content):
+    """IORails running a config with its own dialog flows raises one undated UserWarning at the caller's line."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = RailsConfig.from_content(colang_content=colang_content, config=IORAILS_CONFIG)
     rails = None
@@ -193,289 +275,89 @@ def test_guardrails_on_iorails_with_dialog_flows_warns_that_they_are_not_run(mon
         nonlocal rails
         rails = Guardrails(config)
 
-    caught = _removal_warnings(construct)
+    caught = _record_warnings(construct)
 
     assert rails is not None and rails.use_iorails_engine
-    assert [w.filename for w in caught] == [__file__]
-    assert str(caught[0].message).startswith("Using Colang dialog flows (define user, define flow) is deprecated")
+    assert _diagnostic_prefixes(caught) == [DIALOG_FLOWS_DIAGNOSTIC]
+    (diagnostic,) = _diagnostics(caught)
+    assert diagnostic.filename == __file__
+    assert "deprecated" not in str(diagnostic.message)
+    assert REMOVAL_RELEASE not in str(diagnostic.message)
+    assert _removals(caught) == []
 
 
-def test_guardrails_on_iorails_with_config_py_warns_that_it_is_not_imported(tmp_path, monkeypatch):
-    """A config directory with config.py still runs on IORails, and warns once that IORails ignores the file."""
+def test_config_py_on_iorails_raises_a_user_warning(tmp_path, monkeypatch):
+    """IORails running a config directory with config.py raises a UserWarning that the file is not imported."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = _config_dir(tmp_path, config_py=True)
-    rails = None
 
-    def construct():
-        nonlocal rails
-        rails = Guardrails(config)
-
-    caught = _removal_warnings(construct)
-
-    assert rails is not None and rails.use_iorails_engine
-    assert [w.filename for w in caught] == [__file__]
-    assert str(caught[0].message).startswith("Using config.py is deprecated")
+    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [CONFIG_PY_DIAGNOSTIC]
 
 
-def test_guardrails_with_dialog_flows_and_config_py_warns_once_about_the_flows(tmp_path, monkeypatch):
-    """A config with both dialog flows and config.py emits one warning, the dialog-flow one."""
+def test_dialog_flows_and_config_py_both_raise_a_user_warning(tmp_path, monkeypatch):
+    """A config with both dialog flows and config.py raises one UserWarning for each."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = _config_dir(tmp_path, config_py=True, colang_content=FLOW_ONLY_CONTENT)
 
-    caught = _removal_warnings(lambda: Guardrails(config))
+    caught = _record_warnings(lambda: Guardrails(config))
 
-    assert [str(w.message).split(" is deprecated")[0] for w in caught] == [
-        "Using Colang dialog flows (define user, define flow)"
-    ]
+    assert _diagnostic_prefixes(caught) == [DIALOG_FLOWS_DIAGNOSTIC, CONFIG_PY_DIAGNOSTIC]
 
 
-def test_guardrails_on_a_config_directory_without_config_py_emits_no_removal_warning(tmp_path, monkeypatch):
-    """An IORails config loaded from a directory without config.py emits no LLMRailsRemovalWarning."""
+def test_config_directory_without_config_py_raises_no_diagnostic(tmp_path, monkeypatch):
+    """An IORails config loaded from a directory without config.py raises no diagnostic."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = _config_dir(tmp_path, config_py=False)
 
-    assert _removal_warnings(lambda: Guardrails(config)) == []
+    assert _diagnostics(_record_warnings(lambda: Guardrails(config))) == []
 
 
-def test_guardrails_warns_when_a_flow_redefines_a_library_rail_iorails_runs(monkeypatch):
-    """A user flow that redefines a library rail stays on IORails, which runs its own rail, so it warns like a dialog flow."""
+def test_redefinition_of_a_library_rail_is_reported_as_an_ignored_dialog_flow(monkeypatch):
+    """A user flow that redefines a library rail stays on IORails, which runs its own rail, so it is reported."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = RailsConfig.from_content(colang_content=SELF_CHECK_INPUT_OVERRIDE, config=SELF_CHECK_INPUT_CONFIG)
-    rails = None
 
-    def construct():
-        nonlocal rails
-        rails = Guardrails(config)
-
-    caught = _removal_warnings(construct)
-
-    assert rails is not None and rails.use_iorails_engine
-    assert [str(w.message).split(" is deprecated")[0] for w in caught] == [
-        "Using Colang dialog flows (define user, define flow)"
-    ]
-
-
-def test_custom_rail_flows_fall_back_with_the_reason_instead_of_the_dialog_flow_warning(monkeypatch):
-    """A rail flow IORails does not know sends the config to LLMRails with the fallback warning, never the dialog-flow one."""
-    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
-    config = RailsConfig.from_content(
-        colang_content=CUSTOM_OUTPUT_RAIL,
-        config={**IORAILS_CONFIG, "rails": {"output": {"flows": ["check blocked terms"]}}},
-    )
-    rails = None
-
-    def construct():
-        nonlocal rails
-        rails = Guardrails(config)
-
-    caught = _removal_warnings(construct)
-
-    assert rails is not None and not rails.use_iorails_engine
-    assert len(caught) == 1
-    assert str(caught[0].message).startswith("Running this config on the LLMRails engine ('check blocked terms'")
-
-
-def _build_llmrails_first(config: RailsConfig) -> None:
-    """Construct LLMRails on *config*, which adds its default and library flows to the same config object."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", LLMRailsRemovalWarning)
-        LLMRails(config)
-
-
-def test_guardrails_reusing_a_config_llmrails_loaded_emits_no_dialog_flow_warning(monkeypatch):
-    """Flows LLMRails added to a reused config are not the user's dialog flows, so Guardrails stays silent."""
-    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
-    config = RailsConfig.from_content(config=IORAILS_CONFIG)
-    _build_llmrails_first(config)
-
-    assert _removal_warnings(lambda: Guardrails(config)) == []
-
-
-def test_config_py_warning_survives_llmrails_loading_the_same_config(tmp_path, monkeypatch):
-    """Flows LLMRails added to a reused config do not hide the config.py warning behind a dialog-flow one."""
-    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
-    config = _config_dir(tmp_path, config_py=True)
-    _build_llmrails_first(config)
-
-    caught = _removal_warnings(lambda: Guardrails(config))
-
-    assert [str(w.message).split(" is deprecated")[0] for w in caught] == ["Using config.py"]
-
-
-def test_library_rail_redefinition_still_warns_after_llmrails_loaded_the_config(monkeypatch):
-    """A user's redefinition of a library rail still warns after LLMRails marked it as a system flow."""
-    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
-    config = RailsConfig.from_content(colang_content=SELF_CHECK_INPUT_OVERRIDE, config=SELF_CHECK_INPUT_CONFIG)
-    _build_llmrails_first(config)
-
-    caught = _removal_warnings(lambda: Guardrails(config))
-
-    assert [str(w.message).split(" is deprecated")[0] for w in caught] == [
-        "Using Colang dialog flows (define user, define flow)"
-    ]
+    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [DIALOG_FLOWS_DIAGNOSTIC]
 
 
 @pytest.mark.parametrize(
     ("colang_content", "config_dict"),
-    [
-        (LIBRARY_SELF_CHECK_INPUT, SELF_CHECK_INPUT_CONFIG),
-        (RUN_DIALOG_RAILS_COPY, IORAILS_CONFIG),
-    ],
+    [(LIBRARY_SELF_CHECK_INPUT, SELF_CHECK_INPUT_CONFIG), (RUN_DIALOG_RAILS_COPY, IORAILS_CONFIG)],
     ids=["library-rail-flow", "llmrails-default-dialog-flow"],
 )
-def test_verbatim_copy_of_a_bundled_flow_still_warns(monkeypatch, colang_content, config_dict):
-    """A flow the user copied unchanged from the library or llm_flows.co is still the user's own and warns."""
+def test_verbatim_copy_of_a_bundled_flow_is_reported(monkeypatch, colang_content, config_dict):
+    """A flow the user copied unchanged from the library or llm_flows.co is still the user's own and is reported."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = RailsConfig.from_content(colang_content=colang_content, config=config_dict)
 
-    caught = _removal_warnings(lambda: Guardrails(config))
-
-    assert [str(w.message).split(" is deprecated")[0] for w in caught] == [
-        "Using Colang dialog flows (define user, define flow)"
-    ]
+    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [DIALOG_FLOWS_DIAGNOSTIC]
 
 
-def test_guardrails_fallback_warns_once_with_the_reason():
-    """A config that falls back to LLMRails warns once, naming why IORails can't run it."""
-    config = RailsConfig.from_content(colang_content=COLANG_2_CONTENT, yaml_content=COLANG_2_YAML)
+def test_reused_config_after_llmrails_raises_no_dialog_flow_diagnostic(monkeypatch):
+    """Flows LLMRails added to a reused config are not the user's dialog flows, so Guardrails reports none."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = RailsConfig.from_content(config=IORAILS_CONFIG)
+    _build_llmrails_first(config)
 
-    caught = _removal_warnings(lambda: Guardrails(config))
-
-    assert len(caught) == 1
-    assert "IORails supports Colang 1.0 only" in str(caught[0].message)
-    assert caught[0].filename == __file__
+    assert _diagnostics(_record_warnings(lambda: Guardrails(config))) == []
 
 
-def test_testchat_warns_once_at_the_constructing_line():
-    """TestChat warns once, attributed to the test that built it, and its internal LLMRails stays silent."""
-    caught = _removal_warnings(lambda: TestChat(_colang_1_config(), llm_completions=[]))
+def test_config_py_diagnostic_survives_llmrails_loading_the_same_config(tmp_path, monkeypatch):
+    """Flows LLMRails added to a reused config do not add a dialog-flow diagnostic next to the config.py one."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = _config_dir(tmp_path, config_py=True)
+    _build_llmrails_first(config)
 
-    assert [w.filename for w in caught] == [__file__]
-    assert str(caught[0].message).startswith("TestChat is deprecated")
-
-
-def test_runnable_rails_warns_once():
-    """RunnableRails warns once, and its internal LLMRails stays silent."""
-    pytest.importorskip("langchain_core")
-    from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
-
-    caught = _removal_warnings(lambda: RunnableRails(_colang_1_config()))
-
-    assert [w.filename for w in caught] == [__file__]
-    assert str(caught[0].message).startswith("RunnableRails is deprecated")
+    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [CONFIG_PY_DIAGNOSTIC]
 
 
-def test_guardrails_middleware_warns_with_the_subclass_name():
-    """A GuardrailsMiddleware subclass warns once under its own name."""
-    pytest.importorskip("langchain.agents.middleware")
-    from nemoguardrails.integrations.langchain.middleware import InputRailsMiddleware
+def test_library_rail_redefinition_is_still_reported_after_llmrails_loaded_the_config(monkeypatch):
+    """A user's redefinition of a library rail is still reported after LLMRails marked it as a system flow."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = RailsConfig.from_content(colang_content=SELF_CHECK_INPUT_OVERRIDE, config=SELF_CHECK_INPUT_CONFIG)
+    _build_llmrails_first(config)
 
-    caught = _removal_warnings(lambda: InputRailsMiddleware(config_yaml="models: []"))
-
-    assert [w.filename for w in caught] == [__file__]
-    assert str(caught[0].message).startswith("InputRailsMiddleware is deprecated")
-
-
-def test_langchain_framework_warns():
-    """Creating the LangChain model framework warns, attributed to the caller."""
-    from nemoguardrails.integrations.langchain.llm_adapter import LangChainFramework
-
-    caught = _removal_warnings(LangChainFramework)
-
-    assert [w.filename for w in caught] == [__file__]
-
-
-@pytest.mark.parametrize(
-    ("construct", "subject"),
-    [
-        (lambda config: LLMRails(config), "LLMRails"),
-        (lambda config: Guardrails(config, use_iorails=False), "Guardrails(use_iorails=False)"),
-    ],
-    ids=["llmrails", "guardrails-on-llmrails"],
-)
-def test_construction_on_the_langchain_framework_warns_once(langchain_framework, monkeypatch, construct, subject):
-    """A construction that builds the LangChain model framework emits only its own removal warning."""
-    pytest.importorskip("langchain_openai")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    config = RailsConfig.from_content(config={"models": [{"type": "main", "engine": "openai", "model": "gpt-4o-mini"}]})
-
-    caught = _removal_warnings(lambda: construct(config))
-
-    assert [str(w.message).split(" is deprecated")[0] for w in caught] == [subject]
-    assert caught[0].filename == __file__
-
-
-def test_selecting_the_langchain_framework_warns_at_the_caller(langchain_framework):
-    """set_default_framework("langchain") warns once, attributed to the caller's line."""
-    caught = _removal_warnings(lambda: set_default_framework("langchain"))
-
-    assert [str(w.message).split(" is deprecated")[0] for w in caught] == ["The LangChain model framework"]
-    assert caught[0].filename == __file__
-
-
-def test_selecting_the_default_framework_does_not_warn(langchain_framework):
-    """set_default_framework("default") emits no removal warning."""
-    assert _removal_warnings(lambda: set_default_framework("default")) == []
-
-
-def test_langchain_adapter_built_by_a_user_warns():
-    """A LangChainLLMAdapter built outside the package warns."""
-    from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
-
-    caught = _removal_warnings(lambda: LangChainLLMAdapter(object()))
-
-    assert [w.filename for w in caught] == [__file__]
-
-
-def test_langchain_adapter_built_inside_the_package_is_silent():
-    """A LangChainLLMAdapter the package builds for a raw LangChain LLM emits no removal warning."""
-    pytest.importorskip("langchain_core")
-
-    assert _removal_warnings(lambda: _wrap_legacy_llm(object())) == []
-
-
-def test_deprecation_headers_use_the_first_day_of_each_month():
-    """The server headers carry the deprecation and sunset months as first-of-month timestamps."""
-    headers = llmrails_deprecation_headers()
-
-    assert headers["Deprecation"] == f"@{int(datetime(2026, 11, 1, tzinfo=timezone.utc).timestamp())}"
-    assert headers["Sunset"] == "Fri, 01 Jan 2027 00:00:00 GMT"
-    assert headers["Link"] == f'<{MIGRATION_GUIDE_URL}>; rel="deprecation"; type="text/html"'
-
-
-def test_removal_release_has_not_shipped_yet():
-    """The package version is below the removal release; reaching it means the deprecated code must be removed."""
-    assert Version(nemoguardrails.__version__) < Version(REMOVAL_RELEASE), (
-        f"NeMo Guardrails {nemoguardrails.__version__} has reached {REMOVAL_RELEASE}: remove LLMRails, the Colang "
-        "runtimes, TestChat, and the LangChain integration, as announced in nemoguardrails/deprecation.py."
-    )
-
-
-@patch("nemoguardrails.cli.migrate")
-def test_convert_command_prints_the_removal_notice(mock_migrate):
-    """The convert command prints the removal notice and still runs."""
-    result = runner.invoke(app, ["convert", "flows.co"])
-
-    assert result.exit_code == 0
-    assert "The convert command is deprecated" in result.output
-    mock_migrate.assert_called_once()
-
-
-@patch("uvicorn.run")
-def test_actions_server_command_prints_the_removal_notice(mock_uvicorn):
-    """The actions-server command prints the removal notice and still starts the server."""
-    result = runner.invoke(app, ["actions-server"])
-
-    assert result.exit_code == 0
-    assert "The actions-server command is deprecated" in result.output
-    mock_uvicorn.assert_called_once()
-
-
-def test_eval_rail_topical_command_prints_the_removal_notice():
-    """The eval rail topical command prints the removal notice before it validates its arguments."""
-    result = runner.invoke(app, ["eval", "rail", "topical"])
-
-    assert "The eval rail topical command is deprecated" in result.output
+    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [DIALOG_FLOWS_DIAGNOSTIC]
 
 
 def test_colang_2_chat_prints_the_removal_notice(capsys):
@@ -490,17 +372,37 @@ def test_colang_2_chat_prints_the_removal_notice(capsys):
 
         chat_module.run_chat(config_path="config")
 
+    notice = capsys.readouterr().err
+    assert "Colang 2.x chat, including its debugger commands, is deprecated" in notice
+    assert f"will be removed no earlier than {REMOVAL_RELEASE}." in notice
+
+
+@pytest.mark.parametrize("engine", [LLMRails, Guardrails], ids=["llmrails", "iorails-alias"])
+def test_colang_2_chat_emits_one_message(monkeypatch, capsys, engine):
+    """Colang 2.x chat prints its notice and silences the Colang 2.x warning its engine would otherwise add."""
+    monkeypatch.setattr(chat_module, "LLMRails", engine)
+    config = _colang_2_config()
+
+    def chat():
+        with (
+            patch.object(chat_module.RailsConfig, "from_path", return_value=config),
+            patch.object(chat_module, "get_or_create_event_loop") as mock_get_loop,
+        ):
+            mock_get_loop.return_value.run_until_complete.side_effect = lambda coroutine: coroutine.close()
+            chat_module.run_chat(config_path="config")
+
+    assert _removals(_record_warnings(chat)) == []
     assert "Colang 2.x chat, including its debugger commands, is deprecated" in capsys.readouterr().err
 
 
-def _colang_1_chat_notice(config: RailsConfig, capsys, **run_chat_kwargs) -> str:
+def _colang_1_chat_notice(config: RailsConfig, capsys) -> str:
     """Run the Colang 1.0 chat for *config* without starting the loop, and return what it printed on stderr."""
     with (
         patch.object(chat_module.RailsConfig, "from_path", return_value=config),
         patch("asyncio.run") as mock_asyncio_run,
     ):
         mock_asyncio_run.side_effect = lambda coroutine: coroutine.close()
-        chat_module.run_chat(config_path="config", **run_chat_kwargs)
+        chat_module.run_chat(config_path="config")
         mock_asyncio_run.assert_called_once()
     return capsys.readouterr().err
 
@@ -521,29 +423,25 @@ class _ChatStopped(Exception):
 
 
 @pytest.mark.parametrize("config_kind", ["iorails-compatible", "dialog-flows", "config-py", "llmrails-only"])
-def test_colang_1_chat_on_llmrails_prints_one_engine_notice(tmp_path, capsys, config_kind):
-    """Local Colang 1.0 chat runs LLMRails, so it prints the same single engine notice whatever the config holds."""
-    notice = _colang_1_chat_notice(_chat_config(config_kind, tmp_path), capsys)
-
-    assert notice.count("is deprecated") == 1
-    assert "Chatting on the LLMRails engine is deprecated" in notice
-    assert "Set NEMO_GUARDRAILS_IORAILS_ENGINE=true to chat on IORails." in notice
+def test_colang_1_chat_prints_no_notice(tmp_path, capsys, config_kind):
+    """Colang 1.0 chat on its default engine prints no notice of its own, whatever the config holds."""
+    assert "is deprecated" not in _colang_1_chat_notice(_chat_config(config_kind, tmp_path), capsys)
 
 
 @pytest.mark.parametrize(
-    ("config_kind", "expected_prefixes"),
+    ("config_kind", "expected_diagnostics"),
     [
         ("iorails-compatible", []),
-        ("dialog-flows", ["Using Colang dialog flows (define user, define flow) is deprecated"]),
-        ("config-py", ["Using config.py is deprecated"]),
-        ("llmrails-only", ["Running this config on the LLMRails engine ("]),
+        ("dialog-flows", [DIALOG_FLOWS_DIAGNOSTIC]),
+        ("config-py", [CONFIG_PY_DIAGNOSTIC]),
+        ("llmrails-only", []),
     ],
     ids=["iorails-compatible", "dialog-flows", "config-py", "llmrails-only"],
 )
-def test_colang_1_chat_under_the_iorails_alias_leaves_the_notice_to_guardrails(
-    monkeypatch, tmp_path, capsys, config_kind, expected_prefixes
+def test_colang_1_chat_under_the_iorails_alias_shows_the_guardrails_diagnostics(
+    monkeypatch, tmp_path, capsys, config_kind, expected_diagnostics
 ):
-    """With LLMRails aliased to Guardrails, chat prints no notice of its own and Guardrails emits the one that fits."""
+    """With LLMRails aliased to Guardrails, chat prints nothing of its own and Guardrails raises the matching diagnostics."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     monkeypatch.setattr(chat_module, "LLMRails", Guardrails)
     config = _chat_config(config_kind, tmp_path)
@@ -556,45 +454,8 @@ def test_colang_1_chat_under_the_iorails_alias_leaves_the_notice_to_guardrails(
         ):
             chat_module.run_chat(config_path="config")
 
-    caught = _removal_warnings(chat_until_the_first_prompt)
+    caught = _record_warnings(chat_until_the_first_prompt)
 
     assert "is deprecated" not in capsys.readouterr().err
-    assert len(caught) == len(expected_prefixes)
-    for warning, prefix in zip(caught, expected_prefixes, strict=True):
-        assert str(warning.message).startswith(prefix)
-
-
-def test_colang_1_chat_does_not_run_the_iorails_support_check(capsys):
-    """Chat picks its notice from the engine it runs, so it never runs the IORails check that can import actions."""
-    with patch("nemoguardrails.guardrails.iorails.IORails.unsupported_reason") as unsupported_reason:
-        _colang_1_chat_notice(RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG), capsys)
-
-    unsupported_reason.assert_not_called()
-
-
-def test_remote_colang_1_chat_prints_no_local_engine_notice(capsys):
-    """Chatting through a server URL prints no local-engine notice; the server decides which engine runs."""
-    notice = _colang_1_chat_notice(
-        RailsConfig.from_content(config=LLMRAILS_ONLY_CONFIG), capsys, server_url="http://localhost:8000"
-    )
-
-    assert "is deprecated" not in notice
-
-
-def test_colang_2_chat_under_the_iorails_alias_emits_one_message(monkeypatch, capsys):
-    """With LLMRails aliased to Guardrails, Colang 2.x chat prints its notice and silences Guardrails' fallback warning."""
-    monkeypatch.setattr(chat_module, "LLMRails", Guardrails)
-    config = RailsConfig.from_content(colang_content=COLANG_2_CONTENT, yaml_content=COLANG_2_YAML)
-
-    def chat():
-        with (
-            patch.object(chat_module.RailsConfig, "from_path", return_value=config),
-            patch.object(chat_module, "get_or_create_event_loop") as mock_get_loop,
-        ):
-            mock_get_loop.return_value.run_until_complete.side_effect = lambda coroutine: coroutine.close()
-            chat_module.run_chat(config_path="config")
-
-    caught = _removal_warnings(chat)
-
-    assert caught == []
-    assert "Colang 2.x chat, including its debugger commands, is deprecated" in capsys.readouterr().err
+    assert _diagnostic_prefixes(caught) == expected_diagnostics
+    assert _removals(caught) == []

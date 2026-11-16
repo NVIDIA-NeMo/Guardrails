@@ -64,12 +64,7 @@ from nemoguardrails.context import (
     raw_llm_request,
     streaming_handler_var,
 )
-from nemoguardrails.deprecation import (
-    ADDED_BY_LLMRAILS,
-    called_from_package,
-    removal_warnings_silenced,
-    warn_llmrails_removal,
-)
+from nemoguardrails.deprecation import called_from_package, warn_llmrails_removal
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers import register_embedding_provider
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
@@ -122,6 +117,9 @@ from nemoguardrails.utils import (
 
 log = logging.getLogger(__name__)
 
+# Set on the default and library flows LLMRails appends to its config, so they can be told from the user's own.
+ADDED_BY_LLMRAILS = "_added_by_llmrails"
+
 _PARALLEL_OUTPUT_RAILS_ACTION = "run_output_rails_in_parallel_streaming"
 _PARALLEL_OUTPUT_RAILS_PARAM = "output rails"
 
@@ -137,7 +135,8 @@ def _wrap_legacy_llm(llm):
             "Either install langchain or pass an LLMModel instance."
         )
     warnings.warn(
-        "Passing a raw LangChain LLM is deprecated. Pass an LLMModel instance.",
+        "Passing a raw LangChain LLM is deprecated. "
+        "Use LangChainLLMAdapter(llm) explicitly or pass an LLMModel instance.",
         DeprecationWarning,
         stacklevel=3,
     )
@@ -285,8 +284,10 @@ class LLMRails(BaseGuardrails):
                 and will take precedence over any main LLM specified in the config.
             verbose: Whether the logging should be verbose or not.
         """
-        # Components that build LLMRails internally (Guardrails, TestChat, ...) emit their own warning.
-        if not called_from_package():
+        # Colang 2.x warns on every route into its runtime; plain LLMRails only when built outside the package.
+        if config.colang_version == "2.x":
+            warn_llmrails_removal("Colang 2.x", "IORails will not support Colang 2.x, so there is no replacement.")
+        elif not called_from_package():
             warn_llmrails_removal("LLMRails", "Use Guardrails(config), which runs the IORails engine.")
         self.config = config
         ignored_settings = _iorails_only_tool_settings(config)
@@ -464,9 +465,7 @@ class LLMRails(BaseGuardrails):
         self._validate_config()
 
         # Next, we initialize the LLM engines (main engine and action engines if specified).
-        # This construction already warned (or its caller did), so the LangChain framework built here stays silent.
-        with removal_warnings_silenced():
-            self._init_llms()
+        self._init_llms()
 
         # Next, we initialize the LLM Generate actions and register them.
         llm_generation_actions_class = (

@@ -22,6 +22,7 @@ LLM responses with programmable guardrails.
 """
 
 import logging
+import os
 import warnings
 from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast
 
@@ -30,16 +31,7 @@ from typing_extensions import Self
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang.runtime import Runtime
 from nemoguardrails.colang.v2_x.runtime.flows import State
-from nemoguardrails.deprecation import (
-    CONFIG_PY_ALTERNATIVE,
-    CONFIG_PY_SUBJECT,
-    DIALOG_FLOWS_ALTERNATIVE,
-    DIALOG_FLOWS_SUBJECT,
-    LLMRAILS_FALLBACK_ALTERNATIVE,
-    has_config_py,
-    has_dialog_flows,
-    warn_llmrails_removal,
-)
+from nemoguardrails.deprecation import warn_at_caller_outside_package
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
 from nemoguardrails.guardrails import configure_logging
@@ -47,31 +39,43 @@ from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.llmrails import LLMRails
+from nemoguardrails.rails.llm.llmrails import ADDED_BY_LLMRAILS, LLMRails
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse, RailsResult, RailType
 from nemoguardrails.types import LLMModel, ToolCallChunk, ToolCallDeltaChunk
 
 log = logging.getLogger(__name__)
 
-
-def _warn_llmrails_fallback(llm: Optional[LLMModel], fallback_reason: str) -> None:
-    """Warn that this construction falls back to the deprecated LLMRails engine, naming what the caller can change."""
-    if llm is not None:
-        warn_llmrails_removal(
-            "Passing an llm argument", "Configure the main model under `models:` in config.yml instead."
-        )
-    else:
-        warn_llmrails_removal(
-            f"Running this config on the LLMRails engine ({fallback_reason})", LLMRAILS_FALLBACK_ALTERNATIVE
-        )
+_IGNORED_DIALOG_FLOWS = (
+    "IORails does not run this config's Colang dialog flows (define user, define flow); "
+    "move that logic into input and output rails."
+)
+_IGNORED_CONFIG_PY = (
+    "IORails does not import this config's config.py, so its init() and registrations have no effect; "
+    "configure models and rails in config.yml instead."
+)
 
 
-def _warn_what_iorails_ignores(config: RailsConfig) -> None:
-    """Warn about the first part of this config that IORails ignores: dialog flows first, then config.py."""
-    if has_dialog_flows(config):
-        warn_llmrails_removal(DIALOG_FLOWS_SUBJECT, DIALOG_FLOWS_ALTERNATIVE)
-    elif has_config_py(config):
-        warn_llmrails_removal(CONFIG_PY_SUBJECT, CONFIG_PY_ALTERNATIVE)
+def _warn_about_what_iorails_ignores(config: RailsConfig) -> None:
+    """Emit a UserWarning for each part of this config that IORails ignores: its dialog flows and its config.py."""
+    if _has_dialog_flows(config):
+        warn_at_caller_outside_package(_IGNORED_DIALOG_FLOWS, UserWarning)
+    if _has_config_py(config):
+        warn_at_caller_outside_package(_IGNORED_CONFIG_PY, UserWarning)
+
+
+def _has_dialog_flows(config: RailsConfig) -> bool:
+    """Whether a Colang 1.0 config has user messages or flows of its own, neither of which IORails runs."""
+    # A flow needs no `define user` block to match a user turn; a flow LLMRails appended is not the user's.
+    return bool(config.user_messages) or any(not flow.get(ADDED_BY_LLMRAILS) for flow in config.flows)
+
+
+def _has_config_py(config: RailsConfig) -> bool:
+    """Whether the config, or a config it imports, has the config.py module that only LLMRails loads."""
+    # Mirrors the directories LLMRails searches for config.py when it starts.
+    config_paths = list(config.imported_paths.values()) if config.imported_paths else []
+    if config.config_path:
+        config_paths.extend(path.strip() for path in config.config_path.split(",") if path.strip())
+    return any(os.path.isfile(os.path.join(path, "config.py")) for path in config_paths)
 
 
 class Guardrails(BaseGuardrails):
@@ -95,13 +99,13 @@ class Guardrails(BaseGuardrails):
         When ``use_iorails`` is True, the wrapper attempts to use the IORails engine.
         If the config or arguments are incompatible (an ``llm`` is provided, or the
         config contains flows IORails does not support), the wrapper falls back to
-        LLMRails, logs a warning, and emits an ``LLMRailsRemovalWarning``, because
-        LLMRails is deprecated. ``use_iorails=False`` warns the same way, and so does
-        a config IORails runs while ignoring its Colang dialog flows or its config.py. Set ``require_iorails=True`` to raise a
+        LLMRails and logs a warning. Set ``require_iorails=True`` to raise a
         ``ValueError`` instead — use this when IORails-only features such as
         OpenTelemetry metrics are required. A config with per-tool rails
         (``rails.tool_call.per_tool`` / ``rails.tool_result.per_tool``) always raises
         instead of falling back, since LLMRails does not run them at all.
+        When IORails runs the config, a ``UserWarning`` reports any Colang dialog flows or
+        ``config.py`` that IORails ignores.
 
         ``verbose=True`` also routes this package's logs to stderr through ``configure_logging``;
         without it, handlers, levels and formatting are left to the calling application.
@@ -118,7 +122,7 @@ class Guardrails(BaseGuardrails):
         if use_iorails:
             fallback_reason = IORails.unsupported_reason(config, llm)
             if fallback_reason is None:
-                _warn_what_iorails_ignores(config)
+                _warn_about_what_iorails_ignores(config)
                 self._rails_engine = IORails(config)
                 self.use_iorails_engine = True
             else:
@@ -136,13 +140,9 @@ class Guardrails(BaseGuardrails):
                 if require_iorails:
                     raise ValueError(message)
                 log.warning(message)
-                _warn_llmrails_fallback(llm, fallback_reason)
                 self._rails_engine = LLMRails(config, llm, verbose)
                 self.use_iorails_engine = False
         else:
-            warn_llmrails_removal(
-                "Guardrails(use_iorails=False)", "Remove the argument so that Guardrails runs the IORails engine."
-            )
             self._rails_engine = LLMRails(config, llm, verbose)
             self.use_iorails_engine = False
 

@@ -24,7 +24,7 @@ from prompt_toolkit import HTML, PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 
-from nemoguardrails import Guardrails, LLMRails, RailsConfig
+from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.cli import debugger
 from nemoguardrails.colang.v2_x.runtime.eval import eval_expression
 from nemoguardrails.colang.v2_x.runtime.flows import State
@@ -645,11 +645,6 @@ def _print_removal_notice(subject: str, alternative: str) -> None:
     typer.secho(llmrails_removal_message(subject, alternative), err=True, fg=typer.colors.YELLOW)
 
 
-def _chat_runs_llmrails() -> bool:
-    """Whether chat builds the LLMRails engine, rather than Guardrails under NEMO_GUARDRAILS_IORAILS_ENGINE."""
-    return LLMRails is not Guardrails
-
-
 def run_chat(
     config_path: Optional[str] = None,
     verbose: bool = False,
@@ -680,11 +675,6 @@ def run_chat(
     console.print("Starting the chat (Press Ctrl + C twice to quit) ...")
 
     if rails_config.colang_version == "1.0":
-        # A remote server picks its own engine; Guardrails, under the alias, warns about the config itself.
-        if not server_url and _chat_runs_llmrails():
-            _print_removal_notice(
-                "Chatting on the LLMRails engine", "Set NEMO_GUARDRAILS_IORAILS_ENGINE=true to chat on IORails."
-            )
         asyncio.run(
             _run_chat_v1_0(
                 config_path=config_path,
@@ -699,7 +689,7 @@ def run_chat(
             "Colang 2.x chat, including its debugger commands,",
             "IORails will not support Colang 2.x, so there is no replacement.",
         )
-        # Under the alias this is Guardrails, whose fallback warning would repeat the notice above.
+        # The Colang 2.x warning that LLMRails emits on construction would repeat the notice above.
         with removal_warnings_silenced():
             rails_app = LLMRails(rails_config, verbose=verbose)
         loop = get_or_create_event_loop()
