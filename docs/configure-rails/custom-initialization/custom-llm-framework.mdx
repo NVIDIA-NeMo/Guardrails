@@ -10,6 +10,14 @@ content:
 
 The NVIDIA NeMo Guardrails library has two layers of LLM extensibility: providers and frameworks. Most users only need the provider layer. This guide is for the smaller set of cases that need to replace the framework layer itself.
 
+<Warning>
+
+The LangChain model framework (`LangChainFramework`) and `LLMRails`, which this page uses, are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
+The IORails engine calls every model in `config.yml` through its own OpenAI-compatible client and does not use the framework layer.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-model-backend).
+
+</Warning>
+
 ## The Two-Layer Model
 
 ```text

@@ -19,6 +19,14 @@ The NVIDIA NeMo Guardrails library API server provides the following capabilitie
 - Checks messages, tool calls, and tool results against rails without generating a response, through `POST /v1/checks`.
   For more information, refer to [Checking Messages Against Rails](/run-guardrailed-inference/using-python-apis/check-messages#guardrails-server).
 
+<Warning>
+
+By default, the server serves every configuration on the `LLMRails` engine, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+Set `NEMO_GUARDRAILS_IORAILS_ENGINE=true` to serve each configuration on the IORails engine when that engine can run it.
+For the steps, refer to [Run the Guardrails Server: Select the Engine](/run-guardrailed-inference/using-fastapi-server/run-guardrails-server#select-the-engine).
+
+</Warning>
+
 <Tip>
 
 To check the tool calls and tool results of an application that calls its own model, send them to this server's `/v1/checks` endpoint.

@@ -10,6 +10,15 @@ content:
 
 This guide will teach you how to use a `Runnable` as an action inside a guardrails configuration.
 
+<Warning>
+
+This guide registers a `Runnable` as an action with `LLMRails` and calls it from a Colang flow.
+`LLMRails`, Colang flows, and the LangChain integration are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
+The IORails engine does not run custom actions or Colang flows, so this pattern has no replacement.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#methods-that-iorails-does-not-provide).
+
+</Warning>
+
 ## Prerequisites
 
 Set up an OpenAI API key, if not already set.

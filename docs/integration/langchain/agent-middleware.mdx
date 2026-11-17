@@ -11,6 +11,14 @@ content:
 
 The `GuardrailsMiddleware` class integrates NeMo Guardrails directly into LangChain agents via the [AgentMiddleware](https://python.langchain.com/docs/how_to/agent_middleware/) protocol. Unlike `RunnableRails`, which wraps a chain, the middleware hooks into the agent loop itself — running safety checks **before and after every model call**, including intermediate tool-calling steps.
 
+<Warning>
+
+`GuardrailsMiddleware`, `InputRailsMiddleware`, and `OutputRailsMiddleware` are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027), together with the rest of the LangChain integration.
+Call `Guardrails` directly from your agent instead.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-chains-and-agents).
+
+</Warning>
+
 ---
 
 ## How It Works

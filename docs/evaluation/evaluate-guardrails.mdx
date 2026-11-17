@@ -28,11 +28,21 @@ Run them from the root of a repository checkout, or pass `--dataset-path` explic
     text-generation schema, `trt_llm`, and the legacy `vllm_openai` LangChain
     wrapper) require `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` plus the matching
     `langchain-*` package.
+    The LangChain model framework is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+    For the steps, refer to [Migrating to 0.25](/reference/0-25#langchain-model-backend).
 </Note>
 
 At the same time, we provide preliminary results on the performance of the rails on a set of public datasets that are relevant to each task at hand.
 
 ## Dialog Rails
+
+<Warning>
+
+The dialog rails evaluation, `nemoguardrails eval rail topical`, is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+It measures Colang dialog rails, which the IORails engine does not run, so there is no replacement.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#deprecated-cli-commands).
+
+</Warning>
 
 ### Aim and Usage
 

@@ -1,0 +1,39 @@
+---
+title: "Deprecations and Removals"
+sidebar-title: "Deprecations and Removals"
+description: "Features of the NVIDIA NeMo Guardrails library that are deprecated, the release that removes each one, and its replacement."
+keywords: ["deprecation", "removal", "LLMRailsRemovalWarning", "LLMRails", "Colang", "TestChat", "LangChain", "nemoguardrails 0.27"]
+content:
+  type: "reference"
+---
+
+The following table lists the features of the NVIDIA NeMo Guardrails library that are deprecated and scheduled for removal.
+A deprecated feature keeps working until the release in the **Removed In** column.
+Release 0.25.0 ships in November 2026, 0.26.0 in December 2026, and 0.27.0 in January 2027.
+
+| Feature | Deprecated In | Removed In | Replacement | Migration |
+|---|---|---|---|---|
+| `LLMRails` | 0.25.0 | 0.27.0 | `Guardrails`, which runs the `IORails` engine | [Replace LLMRails with Guardrails](/reference/0-25#replace-llmrails-with-guardrails) |
+| `Guardrails(config, use_iorails=False)` | 0.25.0 | 0.27.0 | `Guardrails(config)` | [Remove the Engine and Model Arguments](/reference/0-25#remove-the-engine-and-model-arguments) |
+| `Guardrails(config, llm=...)`, `LLMRails(config, llm=...)`, and `update_llm()` | 0.25.0 | 0.27.0 | The main model under `models` in `config.yml` | [Remove the Engine and Model Arguments](/reference/0-25#remove-the-engine-and-model-arguments) |
+| Configurations that `Guardrails` runs on `LLMRails` because `IORails` cannot run them | 0.25.0 | 0.27.0 | Rails that `IORails` supports | [Configurations That Fall Back to LLMRails](/reference/0-25#configurations-that-fall-back-to-llmrails) |
+| Colang 1.0 runtime, including dialog flows (`define user`, `define flow`) | 0.25.0 | 0.27.0 | Input and output rails | [Colang Configurations](/reference/0-25#colang-configurations) |
+| Colang 2.x runtime | 0.25.0 | 0.27.0 | None | [Colang Configurations](/reference/0-25#colang-configurations) |
+| `TestChat` | 0.25.0 | 0.27.0 | A test helper for `Guardrails`, planned for 0.26.0 | [Testing With TestChat](/reference/0-25#testing-with-testchat) |
+| `RunnableRails` | 0.25.0 | 0.27.0 | `Guardrails`, called from your chain | [LangChain Chains and Agents](/reference/0-25#langchain-chains-and-agents) |
+| `GuardrailsMiddleware`, `InputRailsMiddleware`, and `OutputRailsMiddleware` | 0.25.0 | 0.27.0 | `Guardrails`, called from your agent | [LangChain Chains and Agents](/reference/0-25#langchain-chains-and-agents) |
+| LangChain model framework (`NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`, `set_default_framework("langchain")`) and `LangChainLLMAdapter` | 0.25.0 | 0.27.0 | An OpenAI-compatible endpoint with the default framework | [LangChain Model Backend](/reference/0-25#langchain-model-backend) |
+| Methods that only `LLMRails` runs: `explain()`, the event-based API, and `register_action()` with the other `register_*` methods | 0.25.0 | 0.27.0 | None | [Methods That IORails Does Not Provide](/reference/0-25#methods-that-iorails-does-not-provide) |
+| Custom actions | 0.25.0 | 0.27.0 | None | [Methods That IORails Does Not Provide](/reference/0-25#methods-that-iorails-does-not-provide) |
+| `config.py` in a configuration directory, including its `init()` function | 0.25.0 | 0.27.0 | Models and rails in `config.yml` | [Methods That IORails Does Not Provide](/reference/0-25#methods-that-iorails-does-not-provide) |
+| `nemoguardrails convert` | 0.25.0 | 0.27.0 | None | [Deprecated CLI Commands](/reference/0-25#deprecated-cli-commands) |
+| `nemoguardrails actions-server` | 0.25.0 | 0.27.0 | None | [Deprecated CLI Commands](/reference/0-25#deprecated-cli-commands) |
+| `nemoguardrails eval rail topical` | 0.25.0 | 0.27.0 | None | [Deprecated CLI Commands](/reference/0-25#deprecated-cli-commands) |
+| `nemoguardrails chat` with a Colang 2.x configuration, including its debugger commands | 0.25.0 | 0.27.0 | None | [Deprecated CLI Commands](/reference/0-25#deprecated-cli-commands) |
+| `nemoguardrails server` serving a configuration on `LLMRails` | 0.25.0 | 0.27.0 | `NEMO_GUARDRAILS_IORAILS_ENGINE=true` | [Guardrails API Server](/reference/0-25#guardrails-api-server) |
+
+The methods and custom actions in the table emit no warning of their own.
+They stop working when `Guardrails` runs a configuration on the IORails engine.
+Providers that you register with `register_provider()` and custom LLM frameworks have no effect on the IORails engine either.
+
+For the warnings that each feature emits and how to silence them, refer to [Migrating to 0.25](/reference/0-25).
