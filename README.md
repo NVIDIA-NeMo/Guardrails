@@ -13,7 +13,7 @@
 
 [Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#quickstart) · [Use cases](#what-you-can-build) · [Integrations](#choose-your-integration) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples) · [Community](#community-usage) · [Security](./SECURITY.md) · [Releases](https://github.com/NVIDIA-NeMo/Guardrails/releases) · [Changelog](./CHANGELOG.md)
 
-NeMo Guardrails adds programmable safeguards to AI agents, conversational applications, and retrieval-augmented generation (RAG) systems. Agents run commands, call APIs, query your data, and read the web. Conversational applications apply input and output checks; RAG systems filter retrieved content and check answers against evidence.
+NeMo Guardrails is an open-source library for applying programmable safety and security controls to LLM and agentic applications. Agents run commands, call APIs, query your data, and read the web. Conversational applications apply input and output checks; retrieval-augmented generation (RAG) systems filter retrieved content and check answers against evidence.
 
 You use the NeMo Guardrails library to declare what each agent may do in a policy, combining low-latency local rules with model-backed checks for jailbreaks, injected instructions, and unsafe tool calls. Your application or agent harness runs these checks and uses their results to decide whether to continue.
 
@@ -157,7 +157,7 @@ Connect NeMo Guardrails where your application or agent can enforce its checks.
 | What are you building? | How to connect |
 | --- | --- |
 | **A shared guardrails service** for multiple applications or teams | Use the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx) (`/v1/checks`) to request verdicts while each application manages its model and execution loop. |
-| **An inference gateway** in front of model endpoints | Use [NeMo Guardrails Gateway](./docs/run-rails/using-proxy/quickstart.mdx) to check supported model requests and responses. |
+| **A guardrails layer** for existing model APIs | Use the [gateway server](./docs/run-rails/using-proxy/quickstart.mdx) to check supported requests and responses while preserving provider formats. |
 | **A coding assistant or agent harness** | Use [native hooks](./docs/run-rails/using-hooks-server/run-hooks-server.mdx) or [NeMo Relay](./docs/run-rails/using-hooks-server/nemo-relay-plugin.mdx) to check tool calls before execution. |
 | **An agent platform, framework integration, or custom loop** | Embed the [Python SDK](./docs/run-rails/using-python-apis/check-messages.mdx), call the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx), or use a supported [framework integration](./docs/integration/langchain/langgraph-integration.mdx). |
 

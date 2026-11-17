@@ -1,17 +1,17 @@
 overlay: 1.0.0
 info:
-  title: Experimental proxy API documentation additions
+  title: NeMo Guardrails Gateway API documentation additions
   version: 1.0.0
 actions:
 - target: $
   update:
     x-fern-explorer: false
     info:
-      title: Experimental Guardrails Proxy API
+      title: NeMo Guardrails Gateway API
       description: |
-        Reference for the built-in OpenAI provider's guarded operations in an
-        example deployment. Provider mounts, path prefixes, operation selection,
-        and custom bindings can change the routes and inspection boundaries.
+        This reference describes the built-in OpenAI provider's guarded operations
+        in an example deployment. Provider mounts, path prefixes, operation
+        selection, and custom bindings determine the routes and inspection boundaries.
 - target: $.paths['/v1/chat/completions'].post
   update:
     summary: Create a guarded chat completion
@@ -20,15 +20,15 @@ actions:
       example URL. Provider mounts and path prefixes can change the route.
       Set `stream` to `true` for SSE. Enabled Rails checks depend on configuration.
 
-      Inspect the [request](/reference/proxy-guard-contracts/chat-completions#request),
-      [response](/reference/proxy-guard-contracts/chat-completions#response), and
-      [stream](/reference/proxy-guard-contracts/chat-completions#stream) guard declarations.
+      Inspect the [request](/reference/gateway-guard-contracts/chat-completions#request),
+      [response](/reference/gateway-guard-contracts/chat-completions#response), and
+      [stream](/reference/gateway-guard-contracts/chat-completions#stream) guard declarations.
       The parameter list omits disabled fields; the request contract
       retains their declarations.
 
-      See [field-policy meanings](/run-guardrailed-inference/using-proxy/guard-contracts#read-the-field-policy),
-      [supported input and output](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles),
-      and [streaming completion and errors](/run-guardrailed-inference/using-proxy/providers-and-streaming#completion-and-errors).
+      See [field-policy meanings](/run-guardrailed-inference/using-gateway/guard-contracts#read-the-field-policy),
+      [supported input and output](/run-guardrailed-inference/using-gateway/providers-and-streaming#coverage-of-the-shipped-profiles),
+      and [streaming completion and errors](/run-guardrailed-inference/using-gateway/providers-and-streaming#completion-and-errors).
       Field types describe proxy validation; consult the
       [provider reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
       for upstream requirements. Replace `example-model` with a model available
@@ -82,15 +82,15 @@ actions:
       Set `store` to `false` and `stream` to `true` for SSE. Enabled Rails checks
       depend on configuration.
 
-      Inspect the [request](/reference/proxy-guard-contracts/responses#request),
-      [response](/reference/proxy-guard-contracts/responses#response), and
-      [stream](/reference/proxy-guard-contracts/responses#stream) guard declarations.
+      Inspect the [request](/reference/gateway-guard-contracts/responses#request),
+      [response](/reference/gateway-guard-contracts/responses#response), and
+      [stream](/reference/gateway-guard-contracts/responses#stream) guard declarations.
       The parameter list omits disabled fields; the request contract
       retains their declarations.
 
-      See [field-policy meanings](/run-guardrailed-inference/using-proxy/guard-contracts#read-the-field-policy),
-      [supported input and output](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles),
-      and [streaming completion and errors](/run-guardrailed-inference/using-proxy/providers-and-streaming#completion-and-errors).
+      See [field-policy meanings](/run-guardrailed-inference/using-gateway/guard-contracts#read-the-field-policy),
+      [supported input and output](/run-guardrailed-inference/using-gateway/providers-and-streaming#coverage-of-the-shipped-profiles),
+      and [streaming completion and errors](/run-guardrailed-inference/using-gateway/providers-and-streaming#completion-and-errors).
       Field types describe proxy validation; consult the
       [provider reference](https://developers.openai.com/api/reference/resources/responses/methods/create)
       for upstream requirements. Replace `example-model` with a model available

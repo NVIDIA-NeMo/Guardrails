@@ -6,7 +6,7 @@ content:
   type: "concept"
 ---
 
-Start with the [architecture overview](/run-guardrailed-inference/using-proxy/architecture) for system boundaries
+Start with the [architecture overview](/run-guardrailed-inference/using-gateway/architecture) for system boundaries
 and inspection coverage. This page follows guarded operations through execution.
 The buffered example enables input and output checks; the streaming examples
 enable output inspection with buffering before release.
@@ -66,7 +66,7 @@ outcomes rather than rewriting provider content.
 Input checks run only when configured; guarded request validation still applies
 when input checks are disabled. With output inspection disabled, the response
 bypasses output projections. HTTP limits and forwarding rules still apply to
-the selected path; refer to [configuration](/run-guardrailed-inference/using-proxy/configuration#set-limits).
+the selected path; refer to [configuration](/run-guardrailed-inference/using-gateway/configuration#set-limits).
 
 For an executable example of byte preservation and input and output checking, see
 the [Chat integration tests](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/tests/server/experimental/test_openai_chat_integration.py).
@@ -154,7 +154,7 @@ Output inspection requires streaming checks to be enabled and
 `stream_first: false`. Provider hooks enforce declared terminal behavior: Chat
 uses its reviewed completion handling and `[DONE]`; Responses requires a native
 terminal event. A truncated event fails without releasing its unfinished bytes.
-Refer to [providers and streaming](/run-guardrailed-inference/using-proxy/providers-and-streaming) for binding-specific
+Refer to [providers and streaming](/run-guardrailed-inference/using-gateway/providers-and-streaming) for binding-specific
 coverage and settings, and the [streaming tests](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/tests/server/experimental/test_guarded_stream.py)
 for release ordering and withheld content.
 
@@ -217,4 +217,4 @@ Follow [streaming HTTP ownership](https://github.com/NVIDIA-NeMo/Guardrails/blob
 the [streaming kernel](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/_guarded_stream.py), and their
 [HTTP tests](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/tests/server/experimental/test_streaming_http.py) and
 [kernel tests](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/tests/server/experimental/test_guarded_stream.py). For application-wide
-owners, refer to [framework state ownership](/run-guardrailed-inference/using-proxy/architecture/framework-internals#state-and-resource-ownership).
+owners, refer to [framework state ownership](/run-guardrailed-inference/using-gateway/architecture/framework-internals#state-and-resource-ownership).

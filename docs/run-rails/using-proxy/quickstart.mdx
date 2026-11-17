@@ -1,13 +1,13 @@
 ---
-title: "Run Guardrails Proxy"
+title: "Run NeMo Guardrails Gateway"
 sidebar-title: "Quickstart"
-description: "Start a proxy for OpenAI, send buffered and streaming requests from a shell or Python, and block input before inference."
+description: "Start NeMo Guardrails Gateway for OpenAI, send buffered and streaming requests from a shell or Python, and block input before inference."
 content:
   type: "get_started"
 ---
 
 Put input and output checks in front of OpenAI Chat Completions and Responses.
-This guide uses the NVIDIA NeMo Guardrails library's proxy, native
+This guide uses NeMo Guardrails Gateway from the NVIDIA NeMo Guardrails library, native
 OpenAI bindings, and bundled regex Rails configuration. The regex checks run
 without a detector model or service; accepted generation requests go to OpenAI.
 
@@ -15,7 +15,7 @@ You need Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), and an OpenAI API
 key with access to [OpenAI GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna).
 The examples use `gpt-6-luna` with one user text input and one assistant text
 target. Conversation histories, tools, and multimodal content are outside the
-current [guarded scope](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles).
+current [guarded scope](/run-guardrailed-inference/using-gateway/providers-and-streaming#coverage-of-the-shipped-profiles).
 
 ## Install
 
@@ -60,7 +60,7 @@ providers:
 
 Keep `proxy.yaml` beside `rails/config.yml`, outside the Rails directory. Relative
 Rails paths resolve against the manifest. Omit `dialect` to use native OpenAI
-bindings. Refer to [providers and streaming](/run-guardrailed-inference/using-proxy/providers-and-streaming)
+bindings. Refer to [providers and streaming](/run-guardrailed-inference/using-gateway/providers-and-streaming)
 when connecting a different service; its hostname does not establish its dialect.
 
 The Rails configuration enables input and output regex checks for common
@@ -87,7 +87,7 @@ traffic at `http://127.0.0.1:8000`.
 The launcher supports `--host`, `--port`, and `--timeout-graceful-shutdown`.
 Its default request-drain deadline is 30 seconds; resource cleanup follows
 draining. It does not authenticate inbound callers. Configure
-[access controls](/run-guardrailed-inference/using-proxy/deployment#credentials-and-access)
+[access controls](/run-guardrailed-inference/using-gateway/deployment#credentials-and-access)
 before exposing it beyond a trusted local environment.
 
 ## Send a Buffered Request
@@ -165,7 +165,7 @@ with OpenAI(base_url="http://127.0.0.1:8000/v1", max_retries=0) as client:
 
 Both selected operations also support server-sent event (SSE) streaming. The proxy
 checks output in windows before release. The bundled settings can hold short answers until
-completion; refer to [streaming windows](/run-guardrailed-inference/using-proxy/providers-and-streaming#streaming-windows).
+completion; refer to [streaming windows](/run-guardrailed-inference/using-gateway/providers-and-streaming#streaming-windows).
 
 ### Stream Chat Completions
 
@@ -229,7 +229,7 @@ with OpenAI(base_url="http://127.0.0.1:8000/v1", max_retries=0) as client:
 Consume the complete stream, including errors and terminal events. A failure
 after HTTP 200 cannot change that status. The shell displays the SSE events, and
 the Python SDK can raise an API error during iteration. Earlier approved text
-cannot be retracted. Refer to [stream outcomes](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle#streaming-errors-and-cleanup).
+cannot be retracted. Refer to [stream outcomes](/run-guardrailed-inference/using-gateway/architecture/request-lifecycle#streaming-errors-and-cleanup).
 
 ## Verify Input Blocking
 
@@ -279,7 +279,7 @@ Rails checks for your application. Stop the proxy with Ctrl-C when finished.
 | Streaming output arrives late | Inspect the Rails window size and any gateway buffering. Final partial windows release only after checking. |
 
 For error codes, disconnects, and cleanup warnings, use the
-[troubleshooting guide](/run-guardrailed-inference/using-proxy/troubleshooting).
-Next, [configure the proxy](/run-guardrailed-inference/using-proxy/configuration),
-[compose a Python application](/run-guardrailed-inference/using-proxy/python-integration),
-or inspect its [guard contract](/run-guardrailed-inference/using-proxy/guard-contracts).
+[troubleshooting guide](/run-guardrailed-inference/using-gateway/troubleshooting).
+Next, [configure the proxy](/run-guardrailed-inference/using-gateway/configuration),
+[compose a Python application](/run-guardrailed-inference/using-gateway/python-integration),
+or inspect its [guard contract](/run-guardrailed-inference/using-gateway/guard-contracts).
