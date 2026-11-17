@@ -128,7 +128,7 @@ claude-agent-sdk==0.2.168 \
     --hash=sha256:80388054a09c137d76fc29caa6e46bc90d2ae2ef09fac5ee1c38fc36d2762fda \
     --hash=sha256:be197be92549909ec62a2cee04c27f4b0a38c80f723735538a3efc352507f81d \
     --hash=sha256:ed1814b0dd1c113bdaf3e51e6a67aa5b96b8f5c5839a43aeb6ae1e6ed23a5b35
-    # via -r integration_tests/hooks_agents/requirements.in
+    # via -r requirements.in
 click==8.5.0 ; sys_platform != 'emscripten' \
     --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360 \
     --hash=sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34
@@ -236,16 +236,16 @@ mcp-types==2.3.0 \
     --hash=sha256:968efdbdaedfab06adae40d378a34395f1090c5921d4be3c9cde283aaf76d91d \
     --hash=sha256:d1e46549edb35ee19a94940fcee6d1addd7e589ab7ea92dda83f5d84781fc362
     # via mcp
-openai-codex-cli-bin==0.163.0 \
-    --hash=sha256:0e2984865a16661eddf431ff26d5effd24fa00175b9e8b7a7e2c889276707cca \
-    --hash=sha256:64c7d113e1bf6cefa87159c1d21115654a716e1b505295d8520aa91e399ad115 \
-    --hash=sha256:64eca5277cf5158e43f78a231e51d7650d42071d5555b86de29cfffc86b700e1 \
-    --hash=sha256:6b4a9e614e30442f9c2b804604b7fba12f218627f709fe5ba1960c01dac15ca1 \
-    --hash=sha256:76db41fb07fdf9ddacbe892b48d21dfde270031ec0f5666b5e558114355f006d \
-    --hash=sha256:b759f212cc0deec6da9f297800797232c73d3f0d963842deaa02df965ee0b8b6 \
-    --hash=sha256:bb2b0d117eeb02608738cf2bcdf51f6a036343d0028272e11a94e72b0d23b141 \
-    --hash=sha256:dd0e6570930167f0e15ec94c5fb494a4a5a9dceb0a97113176c7b47c826cda05
-    # via -r integration_tests/hooks_agents/requirements.in
+openai-codex-cli-bin==0.167.0 \
+    --hash=sha256:0d14545d50329d85d70f30a411eff5fa45335b48ec319b3b540ec9ce94c84778 \
+    --hash=sha256:1367c910a02ce33a4a100681cb8f9c1466bed50534d2f35ea6d70e0c031db17f \
+    --hash=sha256:2f13595f5d2130d43397406568a83ba99d36a8a1def1c5492551c0507bb460e3 \
+    --hash=sha256:7822801a44ba82f253cde5085635e39116d713a0b298c5f7ad678ada1e5db7a3 \
+    --hash=sha256:91c317a33e122f5c836667a02e39401ec683cebff624057448953e0d477b17d7 \
+    --hash=sha256:b1dc0cb9997f6a69ecabd17968026d295d2d4c8f0ad3af86171401af8c1f52b8 \
+    --hash=sha256:be588b0645c54859f2ae085db06aa7e669ec7e6ecb3f3047f2fe000213e8422e \
+    --hash=sha256:df2c0ab6d610d8479f7c150e7c2e25e288c7ec165595f692afcde12f629db23e
+    # via -r requirements.in
 opentelemetry-api==1.45.1 \
     --hash=sha256:aa38ed19bcc084ba42782a73255b3582283eced7ad6dddbd6695189e69adfb75 \
     --hash=sha256:b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb
