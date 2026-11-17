@@ -30,18 +30,74 @@ from typing_extensions import Self
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang.runtime import Runtime
 from nemoguardrails.colang.v2_x.runtime.flows import State
+from nemoguardrails.deprecation import warn_at_caller_outside_package
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
 from nemoguardrails.guardrails import configure_logging
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
-from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.llmrails import LLMRails
+from nemoguardrails.rails.llm.llmrails import (
+    ADDED_BY_LLMRAILS,
+    LLMRails,
+    _iorails_only_tool_settings,
+    config_py_files,
+)
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse, RailsResult, RailType
 from nemoguardrails.types import LLMModel, ToolCallChunk, ToolCallDeltaChunk
 
 log = logging.getLogger(__name__)
+
+_IGNORED_DIALOG_FLOWS = "Colang flows (define user, define flow)"
+_IGNORED_REFUSAL_MESSAGE = "the custom refusal message (define bot refuse to respond)"
+_IGNORED_CONFIG_PY = "config.py"
+
+
+def _warn_about_what_iorails_ignores(config: RailsConfig) -> None:
+    """Emit one UserWarning naming the parts of this config that IORails ignores, if there are any."""
+    ignored_parts = _parts_iorails_ignores(config)
+    if not ignored_parts:
+        return
+    location = f" ({config.config_path})" if config.config_path else ""
+    warn_at_caller_outside_package(
+        f"IORails ignores the following in this config{location}: {', '.join(ignored_parts)}. "
+        f"{_how_to_keep_ignored_parts(config)}",
+        UserWarning,
+    )
+
+
+def _how_to_keep_ignored_parts(config: RailsConfig) -> str:
+    # Pointing a config with per-tool rails at LLMRails would trade one silent loss for another.
+    if _iorails_only_tool_settings(config):
+        return (
+            "LLMRails uses all of it but does not run this config's per-tool rails, so no engine runs the whole config."
+        )
+    return "Guardrails(config, use_iorails=False) runs the LLMRails engine, which uses all of it."
+
+
+def _parts_iorails_ignores(config: RailsConfig) -> List[str]:
+    ignored_parts = []
+    if _has_dialog_flows(config):
+        ignored_parts.append(_IGNORED_DIALOG_FLOWS)
+    if _has_custom_refusal_message(config):
+        ignored_parts.append(_IGNORED_REFUSAL_MESSAGE)
+    if config_py_files(config):
+        ignored_parts.append(_IGNORED_CONFIG_PY)
+    return ignored_parts
+
+
+def _has_dialog_flows(config: RailsConfig) -> bool:
+    """Whether a Colang 1.0 config has user messages or flows of its own, neither of which IORails runs."""
+    # A flow needs no `define user` block to match a user turn; a flow LLMRails appended is not the user's.
+    return bool(config.user_messages) or any(not flow.get(ADDED_BY_LLMRAILS) for flow in config.flows)
+
+
+def _has_custom_refusal_message(config: RailsConfig) -> bool:
+    """Whether the config defines its own refusal text, which IORails replaces with REFUSAL_MESSAGE."""
+    # LLMRails adds the library's refusal to a config it loads; that one has the same text as REFUSAL_MESSAGE.
+    utterances = config.bot_messages.get("refuse to respond")
+    return bool(utterances) and utterances != [REFUSAL_MESSAGE]
 
 
 class Guardrails(BaseGuardrails):
@@ -70,6 +126,8 @@ class Guardrails(BaseGuardrails):
         OpenTelemetry metrics are required. A config with per-tool rails
         (``rails.tool_call.per_tool`` / ``rails.tool_result.per_tool``) always raises
         instead of falling back, since LLMRails does not run them at all.
+        When IORails runs the config, a ``UserWarning`` names the parts of it that IORails ignores:
+        Colang flows, a custom refusal message, and ``config.py``.
 
         ``verbose=True`` also routes this package's logs to stderr through ``configure_logging``;
         without it, handlers, levels and formatting are left to the calling application.
@@ -86,6 +144,7 @@ class Guardrails(BaseGuardrails):
         if use_iorails:
             fallback_reason = IORails.unsupported_reason(config, llm)
             if fallback_reason is None:
+                _warn_about_what_iorails_ignores(config)
                 self._rails_engine = IORails(config)
                 self.use_iorails_engine = True
             else:
