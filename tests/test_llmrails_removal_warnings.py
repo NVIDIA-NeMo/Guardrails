@@ -67,8 +67,10 @@ RUN_DIALOG_RAILS_COPY = _LLMRAILS_DEFAULT_FLOWS[
     )
 ]
 LLMRAILS_ONLY_CONFIG = {"models": [], "rails": {"input": {"flows": ["jailbreak detection heuristics"]}}}
-DIALOG_FLOWS_DIAGNOSTIC = "IORails does not run this config's Colang dialog flows"
-CONFIG_PY_DIAGNOSTIC = "IORails does not import this config's config.py"
+DIALOG_FLOWS_DIAGNOSTIC = "Colang flows (define user, define flow)"
+REFUSAL_MESSAGE_DIAGNOSTIC = "the custom refusal message (define bot refuse to respond)"
+CONFIG_PY_DIAGNOSTIC = "config.py"
+CUSTOM_REFUSAL_CONTENT = 'define bot refuse to respond\n  "We cannot help with that."\n'
 
 # `nemoguardrails.cli.chat` is shadowed by the `chat` command function on the package.
 chat_module = sys.modules["nemoguardrails.cli.chat"]
@@ -87,7 +89,11 @@ def _removals(caught: list[warnings.WarningMessage]) -> list[warnings.WarningMes
 
 
 def _diagnostics(caught: list[warnings.WarningMessage]) -> list[warnings.WarningMessage]:
-    return [w for w in caught if w.category is UserWarning and str(w.message).startswith("IORails does not")]
+    return [
+        w
+        for w in caught
+        if w.category is UserWarning and str(w.message).startswith("IORails ignores the following in this config")
+    ]
 
 
 def _removal_subjects(action) -> list[str]:
@@ -95,10 +101,10 @@ def _removal_subjects(action) -> list[str]:
     return [str(w.message).split(" is deprecated")[0] for w in _removals(_record_warnings(action))]
 
 
-def _diagnostic_prefixes(caught: list[warnings.WarningMessage]) -> list[str]:
-    """Map each IORails diagnostic in *caught* to the known prefix it starts with."""
-    prefixes = (DIALOG_FLOWS_DIAGNOSTIC, CONFIG_PY_DIAGNOSTIC)
-    return [next(p for p in prefixes if str(w.message).startswith(p)) for w in _diagnostics(caught)]
+def _ignored_parts(caught: list[warnings.WarningMessage]) -> list[str]:
+    """Return the config parts that the IORails diagnostics in *caught* name, in the order they are named."""
+    known_parts = (DIALOG_FLOWS_DIAGNOSTIC, REFUSAL_MESSAGE_DIAGNOSTIC, CONFIG_PY_DIAGNOSTIC)
+    return [part for diagnostic in _diagnostics(caught) for part in known_parts if part in str(diagnostic.message)]
 
 
 def _colang_1_config() -> RailsConfig:
@@ -158,7 +164,7 @@ def test_message_says_removed_no_earlier_than_the_release():
     assert f"since NeMo Guardrails {DEPRECATED_SINCE}" in message
     assert f"will be removed no earlier than {REMOVAL_RELEASE}." in message
     assert message.endswith(
-        f"no earlier than {REMOVAL_RELEASE}. Use Guardrails(config), which runs the IORails engine."
+        f"no earlier than {REMOVAL_RELEASE}. Use Guardrails(config), which runs the IORails engine when it supports the config."
     )
 
 
@@ -223,9 +229,9 @@ def test_langchain_middleware_on_colang_2_warns_about_colang_2(tmp_path, middlew
     assert caught[0].filename == __file__
 
 
-@pytest.mark.parametrize(("colang_2", "expected_subjects"), [(False, []), (True, ["Colang 2.x"])], ids=["1.0", "2.x"])
-def test_server_warns_only_for_colang_2(monkeypatch, tmp_path, colang_2, expected_subjects):
-    """The server builds LLMRails silently for a Colang 1.0 config and with the Colang 2.x warning for a 2.x config."""
+@pytest.mark.parametrize("colang_2", [False, True], ids=["1.0", "2.x"])
+def test_server_logs_the_removal_notice_only_for_colang_2(monkeypatch, tmp_path, caplog, colang_2):
+    """The server logs the Colang 2.x notice, which a DeprecationWarning under the server would hide by default."""
     from nemoguardrails.server import api
 
     _write_config_dir(tmp_path / "config", colang_2=colang_2)
@@ -235,7 +241,13 @@ def test_server_warns_only_for_colang_2(monkeypatch, tmp_path, colang_2, expecte
     # The server builds LLMRails with verbose=True, which would reconfigure logging for the rest of the session.
     monkeypatch.setattr("nemoguardrails.rails.llm.llmrails.set_verbose", lambda *args, **kwargs: None)
 
-    assert _removal_subjects(lambda: asyncio.run(api._get_rails(["config"]))) == expected_subjects
+    with caplog.at_level(logging.WARNING, logger="nemoguardrails.server.api"):
+        removal_subjects = _removal_subjects(lambda: asyncio.run(api._get_rails(["config"])))
+
+    notices = [record.getMessage() for record in caplog.records if "Colang 2.x is deprecated" in record.getMessage()]
+    assert removal_subjects == []
+    assert len(notices) == (1 if colang_2 else 0)
+    assert all(notice.startswith("config: ") for notice in notices)
 
 
 KEPT_SURFACES = {
@@ -356,7 +368,7 @@ def test_dialog_flows_on_iorails_raise_a_user_warning_without_a_removal_date(mon
     caught = _record_warnings(construct)
 
     assert rails is not None and rails.use_iorails_engine
-    assert _diagnostic_prefixes(caught) == [DIALOG_FLOWS_DIAGNOSTIC]
+    assert _ignored_parts(caught) == [DIALOG_FLOWS_DIAGNOSTIC]
     (diagnostic,) = _diagnostics(caught)
     assert diagnostic.filename == __file__
     assert "deprecated" not in str(diagnostic.message)
@@ -364,22 +376,49 @@ def test_dialog_flows_on_iorails_raise_a_user_warning_without_a_removal_date(mon
     assert _removals(caught) == []
 
 
+def test_custom_refusal_message_on_iorails_is_reported(monkeypatch):
+    """A config that defines its own refusal text is reported, because IORails answers with its default refusal."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    config = RailsConfig.from_content(colang_content=CUSTOM_REFUSAL_CONTENT, config=IORAILS_CONFIG)
+
+    assert _ignored_parts(_record_warnings(lambda: Guardrails(config))) == [REFUSAL_MESSAGE_DIAGNOSTIC]
+
+
+def test_diagnostic_names_the_config_so_that_each_config_warns(tmp_path, monkeypatch):
+    """The diagnostic names the config directory, so two configs built at one line do not share one warning."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+    configs = []
+    for name in ("first", "second"):
+        (tmp_path / name).mkdir()
+        configs.append(_config_dir(tmp_path / name, config_py=False, colang_content=FLOW_ONLY_CONTENT))
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("default")
+        for config in configs:
+            Guardrails(config)
+
+    assert [str(tmp_path / name) in str(w.message) for w, name in zip(_diagnostics(caught), ("first", "second"))] == [
+        True,
+        True,
+    ]
+
+
 def test_config_py_on_iorails_raises_a_user_warning(tmp_path, monkeypatch):
     """IORails running a config directory with config.py raises a UserWarning that the file is not imported."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = _config_dir(tmp_path, config_py=True)
 
-    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [CONFIG_PY_DIAGNOSTIC]
+    assert _ignored_parts(_record_warnings(lambda: Guardrails(config))) == [CONFIG_PY_DIAGNOSTIC]
 
 
 def test_dialog_flows_and_config_py_both_raise_a_user_warning(tmp_path, monkeypatch):
-    """A config with both dialog flows and config.py raises one UserWarning for each."""
+    """A config with both dialog flows and config.py raises one UserWarning that names both."""
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = _config_dir(tmp_path, config_py=True, colang_content=FLOW_ONLY_CONTENT)
 
     caught = _record_warnings(lambda: Guardrails(config))
 
-    assert _diagnostic_prefixes(caught) == [DIALOG_FLOWS_DIAGNOSTIC, CONFIG_PY_DIAGNOSTIC]
+    assert _ignored_parts(caught) == [DIALOG_FLOWS_DIAGNOSTIC, CONFIG_PY_DIAGNOSTIC]
 
 
 def _config_importing_a_config_py(tmp_path) -> RailsConfig:
@@ -400,7 +439,7 @@ def test_config_py_in_an_imported_directory_raises_a_user_warning(tmp_path, monk
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = _config_importing_a_config_py(tmp_path)
 
-    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [CONFIG_PY_DIAGNOSTIC]
+    assert _ignored_parts(_record_warnings(lambda: Guardrails(config))) == [CONFIG_PY_DIAGNOSTIC]
 
 
 def test_config_directory_without_config_py_raises_no_diagnostic(tmp_path, monkeypatch):
@@ -416,7 +455,7 @@ def test_redefinition_of_a_library_rail_is_reported_as_an_ignored_dialog_flow(mo
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = RailsConfig.from_content(colang_content=SELF_CHECK_INPUT_OVERRIDE, config=SELF_CHECK_INPUT_CONFIG)
 
-    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [DIALOG_FLOWS_DIAGNOSTIC]
+    assert _ignored_parts(_record_warnings(lambda: Guardrails(config))) == [DIALOG_FLOWS_DIAGNOSTIC]
 
 
 @pytest.mark.parametrize(
@@ -429,7 +468,7 @@ def test_verbatim_copy_of_a_bundled_flow_is_reported(monkeypatch, colang_content
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     config = RailsConfig.from_content(colang_content=colang_content, config=config_dict)
 
-    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [DIALOG_FLOWS_DIAGNOSTIC]
+    assert _ignored_parts(_record_warnings(lambda: Guardrails(config))) == [DIALOG_FLOWS_DIAGNOSTIC]
 
 
 def test_reused_config_after_llmrails_raises_no_dialog_flow_diagnostic(monkeypatch):
@@ -447,7 +486,7 @@ def test_config_py_diagnostic_survives_llmrails_loading_the_same_config(tmp_path
     config = _config_dir(tmp_path, config_py=True)
     _build_llmrails_first(config)
 
-    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [CONFIG_PY_DIAGNOSTIC]
+    assert _ignored_parts(_record_warnings(lambda: Guardrails(config))) == [CONFIG_PY_DIAGNOSTIC]
 
 
 def test_library_rail_redefinition_is_still_reported_after_llmrails_loaded_the_config(monkeypatch):
@@ -456,7 +495,7 @@ def test_library_rail_redefinition_is_still_reported_after_llmrails_loaded_the_c
     config = RailsConfig.from_content(colang_content=SELF_CHECK_INPUT_OVERRIDE, config=SELF_CHECK_INPUT_CONFIG)
     _build_llmrails_first(config)
 
-    assert _diagnostic_prefixes(_record_warnings(lambda: Guardrails(config))) == [DIALOG_FLOWS_DIAGNOSTIC]
+    assert _ignored_parts(_record_warnings(lambda: Guardrails(config))) == [DIALOG_FLOWS_DIAGNOSTIC]
 
 
 def test_colang_2_chat_prints_the_removal_notice(capsys):
@@ -554,5 +593,5 @@ def test_colang_1_chat_under_the_iorails_alias_shows_the_guardrails_diagnostics(
     caught = _record_warnings(lambda: _chat_until_the_first_prompt(config))
 
     assert "is deprecated" not in capsys.readouterr().err
-    assert _diagnostic_prefixes(caught) == expected_diagnostics
+    assert _ignored_parts(caught) == expected_diagnostics
     assert _removals(caught) == []

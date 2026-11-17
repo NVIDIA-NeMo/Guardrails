@@ -29,7 +29,7 @@ from nemoguardrails.cli import debugger
 from nemoguardrails.colang.v2_x.runtime.eval import eval_expression
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
-from nemoguardrails.deprecation import llmrails_removal_message, removal_warnings_silenced
+from nemoguardrails.deprecation import COLANG_2_ALTERNATIVE, llmrails_removal_message, removal_warnings_silenced
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.verbose import console
@@ -687,7 +687,7 @@ def run_chat(
     elif rails_config.colang_version == "2.x":
         _print_removal_notice(
             "Colang 2.x chat, including its debugger commands,",
-            "IORails will not support Colang 2.x, so there is no replacement.",
+            COLANG_2_ALTERNATIVE,
         )
         # The Colang 2.x warning that LLMRails emits on construction would repeat the notice above.
         with removal_warnings_silenced():

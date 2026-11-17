@@ -35,6 +35,7 @@ from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from nemoguardrails import Guardrails, LLMRails, RailsConfig, utils
+from nemoguardrails.deprecation import COLANG_2_ALTERNATIVE, llmrails_removal_message, removal_warnings_silenced
 from nemoguardrails.exceptions import (
     InvalidCheckRequestError,
     InvalidModelConfigurationError,
@@ -527,7 +528,13 @@ async def _get_rails(config_ids: List[str], model_name: Optional[str] = None) ->
     if model_name:
         full_llm_rails_config = _inject_model(full_llm_rails_config, model_name)
 
-    llm_rails = LLMRails(config=full_llm_rails_config, verbose=True)
+    if full_llm_rails_config.colang_version == "2.x":
+        # A DeprecationWarning raised under the server is hidden by default, so the notice is logged instead.
+        log.warning("%s: %s", configs_cache_key, llmrails_removal_message("Colang 2.x", COLANG_2_ALTERNATIVE))
+        with removal_warnings_silenced():
+            llm_rails = LLMRails(config=full_llm_rails_config, verbose=True)
+    else:
+        llm_rails = LLMRails(config=full_llm_rails_config, verbose=True)
     llm_rails_instances[configs_cache_key] = llm_rails
 
     # If we have a cache for the events, we restore it

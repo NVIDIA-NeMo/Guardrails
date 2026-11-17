@@ -26,6 +26,8 @@ DEPRECATED_SINCE = "0.25.0"
 # The removal criteria are not agreed yet, so the release is a lower bound, not a date.
 REMOVAL_RELEASE = "0.27.0"
 
+COLANG_2_ALTERNATIVE = "IORails will not support Colang 2.x, so there is no replacement."
+
 _removal_warnings_silenced: ContextVar[bool] = ContextVar("llmrails_removal_warnings_silenced", default=False)
 
 _PACKAGE_DIR = os.path.dirname(os.path.realpath(__file__)) + os.sep
