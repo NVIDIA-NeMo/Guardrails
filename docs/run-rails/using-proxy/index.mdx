@@ -1,20 +1,26 @@
 ---
-title: "Guardrails Proxy"
-sidebar-title: "Experimental Proxy"
-description: "Add guardrails around existing model HTTP exchanges and choose the right guide for setup, configuration, coverage, or integration."
+title: "NeMo Guardrails Gateway"
+sidebar-title: "NeMo Guardrails Gateway"
+description: "Apply NeMo Guardrails to existing model APIs with configurable checks that preserve supported provider formats and work with your inference infrastructure."
 content:
   type: "concept"
 ---
 
-Run the NVIDIA NeMo Guardrails library at the boundary between your clients and
-model services. Provider bindings select the content to inspect, and Rails supplies
-the checks. The proxy forwards accepted provider JSON and server-sent event (SSE)
-bytes without rebuilding them from the validation models.
+NeMo Guardrails Gateway provides guardrails enforcement for native model APIs.
+Apply the NVIDIA NeMo Guardrails library's configurable checks between your
+applications and model services while preserving supported provider formats and
+keeping your existing inference infrastructure.
+
+The gateway runs as an HTTP reverse proxy. Provider bindings select the content
+to inspect, and Rails supplies the checks. It forwards accepted provider JSON and
+server-sent event (SSE) bytes without rebuilding them from the validation models.
+Your application or surrounding infrastructure owns access controls, model
+routing, budgets, and retry policies.
 
 <Note>
 
-This experimental proxy uses `python -m nemoguardrails.server.experimental`
-and has a limited single-text inspection boundary. The [Guardrails API
+The gateway is experimental and has a limited single-text inspection boundary.
+It uses `python -m nemoguardrails.server.experimental`. The [Guardrails API
 server](/run-guardrailed-inference/using-fastapi-server) (`nemoguardrails server`)
 and [hooks server](/run-guardrailed-inference/using-hooks-server) are separate
 applications with different commands and configuration contracts.
@@ -23,13 +29,13 @@ applications with different commands and configuration contracts.
 
 ## Start Here
 
-[Run the proxy](/run-guardrailed-inference/using-proxy/quickstart), send a request, and verify that input is blocked before
+[Run the gateway](/run-guardrailed-inference/using-proxy/quickstart), send a request, and verify that input is blocked before
 inference using the bundled example. Then choose your next task:
 
 <Cards>
 
 <Card title="Quickstart" href="/run-guardrailed-inference/using-proxy/quickstart">
-Start with OpenAI, then call the proxy from a shell or Python.
+Start with OpenAI, then call the gateway from a shell or Python.
 </Card>
 
 <Card title="Guard Contracts" href="/run-guardrailed-inference/using-proxy/guard-contracts">

@@ -1,16 +1,17 @@
 overlay: 1.0.0
 info:
-  title: Experimental proxy API documentation additions
+  title: NeMo Guardrails Gateway API documentation additions
   version: 1.0.0
 actions:
 - target: $
   update:
     x-fern-explorer: false
     info:
-      title: Experimental Guardrails Proxy API
+      title: NeMo Guardrails Gateway API
       description: |
-        Reference for the built-in OpenAI provider's guarded operations in an
-        example deployment. Provider mounts, path prefixes, operation selection,
+        NeMo Guardrails Gateway is experimental. This reference describes the
+        built-in OpenAI provider's guarded operations in an example deployment.
+        Provider mounts, path prefixes, operation selection,
         and custom bindings can change the routes and inspection boundaries.
 - target: $.paths['/v1/chat/completions'].post
   update:

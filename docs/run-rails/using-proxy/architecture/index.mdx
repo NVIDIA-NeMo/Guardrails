@@ -1,12 +1,12 @@
 ---
 title: "Architecture"
 sidebar-title: "Architecture"
-description: "Understand the proxy's boundaries, inspection model, design tradeoffs, and deployment responsibilities."
+description: "Understand NeMo Guardrails Gateway's boundaries, inspection model, design tradeoffs, and deployment responsibilities."
 content:
   type: "concept"
 ---
 
-Guardrails Proxy adds content inspection around an existing provider HTTP
+NeMo Guardrails Gateway adds content inspection around an existing provider HTTP
 exchange. Provider bindings define the inspection coverage, the NVIDIA NeMo
 Guardrails library runs configured checks, and the upstream service generates
 the answer. The proxy preserves accepted provider JSON bodies and server-sent
@@ -53,7 +53,7 @@ calls. Access controls belong to your application or gateway.
 flowchart TB
     Client["Application or provider API client"]
     Access["Host application or ingress gateway: inbound access controls"]
-    Proxy["Guardrails Proxy: provider HTTP forwarding and configured inspection"]
+    Proxy["NeMo Guardrails Gateway: provider HTTP forwarding and configured inspection"]
     Upstream["Inference service or model gateway: answer generation"]
     Services["Optional configured checking services"]
     Client -->|"Provider API request"| Access

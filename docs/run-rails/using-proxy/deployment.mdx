@@ -49,13 +49,14 @@ inbound gateway or a trusted application transport.
 
 ```mermaid
 flowchart LR
-    Client["Client"] --> Proxy["Guardrails proxy"]
+    Client["Client"] --> Proxy["NeMo Guardrails Gateway"]
     Proxy --> Gateway["Inference gateway"]
     Gateway --> Models["Model services"]
 ```
 
-Configure the gateway URL and explicit dialect. Let the gateway own its model
-aliases, destination credentials, balancing, and any retry policy it implements.
+Configure the upstream inference gateway URL and explicit dialect. Let that
+gateway own its model aliases, destination credentials, balancing, and any retry
+policy it implements.
 The proxy continues to check the content selected by its bindings on the way
 in and out. This can keep one public endpoint in front of many model services
 without implementing routing inside the proxy.

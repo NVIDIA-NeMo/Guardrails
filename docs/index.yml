@@ -479,7 +479,7 @@ navigation:
           - page: Actions Server
             path: run-rails/using-fastapi-server/actions-server.mdx
             slug: actions-server
-      - section: Experimental Proxy
+      - section: NeMo Guardrails Gateway
         path: run-rails/using-proxy/index.mdx
         slug: using-proxy
         contents:
@@ -723,7 +723,7 @@ navigation:
               - endpoint: GET /
                 title: Get Server Health or Chat UI
                 slug: get-root
-      - api: Experimental Proxy API
+      - api: Guardrails Gateway API
         slug: proxy-api
         specs:
           - type: openapi
@@ -737,7 +737,7 @@ navigation:
           - endpoint: POST /v1/responses
             title: Create a Guarded Response
             slug: responses
-      - section: Proxy Guard Contracts
+      - section: Gateway Guard Contracts
         slug: proxy-guard-contracts
         contents:
           - page: Chat Completions

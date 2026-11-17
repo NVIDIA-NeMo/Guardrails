@@ -103,8 +103,8 @@ the Rails policy and forwards each request to the corresponding proxy mount:
 
 ```mermaid
 flowchart LR
-    Client["Client"] --> Gateway{"Gateway selects policy"}
-    subgraph Proxy["Guardrails proxy"]
+    Client["Client"] --> Gateway{"Ingress gateway selects policy"}
+    subgraph Proxy["NeMo Guardrails Gateway"]
         Standard["/standard<br/>Standard policy"]
         Strict["/strict<br/>Strict policy"]
     end
