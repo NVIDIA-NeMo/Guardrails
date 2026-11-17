@@ -3,16 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Overview"
 sidebar-title: "Overview"
-description: "Add programmable guardrails to LLM applications with this open-source Python library."
+description: "Add programmable safeguards to AI agents and LLM applications with this open-source Python library."
 keywords:
-    ["nemo guardrails", "llm safety", "content moderation", "guardrails python"]
+    ["nemo guardrails", "ai agents", "llm safety", "content moderation", "tool validation", "guardrails python"]
 content:
     type: "concept"
 ---
 
-The NVIDIA NeMo Guardrails library ([PyPI](https://pypi.org/project/nemoguardrails/) | [GitHub](https://github.com/NVIDIA-NeMo/Guardrails)) is an open-source Python package for adding programmable guardrails to LLM-based applications. Use it to block, alter, or validate unsafe, off-topic, malicious, or policy-violating user inputs and model responses.
+NeMo Guardrails is an open-source library for applying programmable safety and security controls to LLM and agentic applications. ([PyPI](https://pypi.org/project/nemoguardrails/) | [GitHub](https://github.com/NVIDIA-NeMo/Guardrails)) Agents run commands, call APIs, query your data, and read the web. Conversational applications apply input and output checks; retrieval-augmented generation (RAG) systems filter retrieved content and check answers against evidence.
 
-The library provides configuration files, Colang flows, built-in guardrails, custom actions, and integration APIs so you can add safety and control logic without rewriting your application or model backend.
+Use the library to declare what each agent may do and configure low-latency local rules and model-backed checks for jailbreaks, injected instructions, and unsafe tool calls. When you run checks independently, your application or agent harness uses the results to decide whether to continue. You can also route generation through the library.
 
 ## How It Fits in the NVIDIA NeMo Software Stack
 
@@ -31,15 +31,13 @@ Configurations are portable between the library and microservice, so you can dev
 
 The NVIDIA NeMo Guardrails library is organized around the following building blocks:
 
-- **Rails**: Input, retrieval, dialog, execution, and output rails run at different stages of an LLM interaction.
+- **Rails**: Checks run at configured points in an application or agent workflow. Supported rail types depend on the [runtime engine](/reference/rail-engine-support).
 - **Configuration**: YAML files define models, prompts, rails, tracing, and other runtime settings.
 - **Colang flows**: Colang defines conversational flows, guardrail logic, and event-driven behavior.
 - **Custom actions**: Python functions, tools, or external APIs extend guardrails with application-specific checks.
-- **Runtime interfaces**: The Python SDK and guardrails server let applications send messages through a guardrailed interface.
+- **Runtime interfaces**: The Python SDK, API server, hooks server, and gateway server connect checks to your application or agent.
 
 ## Benefits
-
-The NVIDIA NeMo Guardrails library helps teams add policy enforcement and safety checks around LLM applications while keeping the application architecture flexible.
 
 - Add guardrails before and after LLM calls without changing the application LLM.
 - Reuse the same YAML and Colang configuration across local development and microservice deployment.
@@ -118,7 +116,9 @@ For more information, refer to the [Presidio Integration](/configure-guardrails/
 Agentic security provides specialized guardrails for LLM-based agents that use tools and interact with external systems.
 This includes:
 
-- **Tool call validation**: Execute rails that validate tool inputs and outputs before and after invocation.
+- **Tool-call checks**: Validate declared tool names, argument schemas, and configured per-tool rules before execution.
+- **Tool-result checks**: Validate returned results before the model reads them. Tool-call and tool-result rails require IORails; refer to [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
+- **Coding-agent hooks**: Use the [hooks server](/run-guardrailed-inference/using-hooks-server) to check tool calls from an agent's pre-tool hook.
 - **Agent workflow protection**: Integrate with [LangGraph](/integration-with-third-party-libraries/langchain/langgraph-integration) for multi-agent safety. Requires the LangChain opt-in (`NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`) and the matching `langchain-*` packages.
 - **Secure tool integration**: Review guidelines for safely connecting LLMs to external resources (refer to [Security Guidelines](/resources/guidelines)).
 - **Action monitoring**: Monitor detailed logging and tracing of agent actions.
@@ -127,7 +127,7 @@ Key security considerations for agent systems:
 
 1. Isolate all authentication information from the LLM.
 2. Validate and sanitize all tool inputs.
-3. Apply execution rails to tool calls.
+3. Run tool-call checks and read their results before executing a tool.
 4. Monitor agent behavior for unexpected actions.
 
 For more information, refer to the [Tools Integration Guide](/integration-with-third-party-libraries/tools-integration), [Security Guidelines](/resources/guidelines), and [LangGraph Integration](/integration-with-third-party-libraries/langchain/langgraph-integration).
@@ -191,13 +191,15 @@ You can integrate the NeMo Guardrails library into your application using the to
 
 ## Integration Paths
 
-You can integrate the NVIDIA NeMo Guardrails library directly into a Python application or run a FastAPI service and call endpoints over HTTP/REST.
+Choose an integration based on where your application or agent can invoke checks and read their results.
 
-| Path                   | Best For                                                                               | Entry Point                                                                             |
-| ---------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Python SDK             | Applications that can call the library directly from Python.                           | [Using Python APIs](/run-guardrailed-inference/using-python-apis/overview)              |
-| Guardrails server      | Applications that need an HTTP endpoint compatible with OpenAI-style chat completions. | [Using the Guardrails Server](/run-guardrailed-inference/using-fastapi-server/overview) |
-| Framework integrations | Applications that already use frameworks such as LangChain or LangGraph.               | [LangChain Integrations](/integration-with-third-party-libraries/langchain)             |
+| Path | Best For | Entry Point |
+| --- | --- | --- |
+| Python SDK | Applications that run checks directly or route generation through the library. | [Using Python APIs](/run-guardrailed-inference/using-python-apis/overview) |
+| Guardrails API server | Shared checks through `/v1/checks` or guardrailed generation over HTTP. | [Using the Guardrails API Server](/run-guardrailed-inference/using-fastapi-server/overview) |
+| Coding-agent hooks and NeMo Relay | Checking tool calls before the agent executes them. | [Hooks Server](/run-guardrailed-inference/using-hooks-server) and [NeMo Relay Plugin](/run-guardrailed-inference/using-hooks-server/nemo-relay-plugin) |
+| Gateway server | Checking supported model requests and responses at the HTTP boundary. | [Gateway Quickstart](/run-guardrailed-inference/using-gateway/quickstart) |
+| Framework integrations | Applications that use LangChain or LangGraph. | [LangChain Integrations](/integration-with-third-party-libraries/langchain) |
 
 ## Learn More
 
