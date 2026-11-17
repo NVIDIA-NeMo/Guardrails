@@ -13,7 +13,9 @@
 
 [Documentation](https://docs.nvidia.com/nemo/guardrails/latest/about-nemo-guardrails-library/overview) · [Quickstart](#quickstart) · [Use cases](#what-you-can-build) · [Integrations](#choose-your-integration) · [Guardrail catalog](#guardrail-catalog) · [Examples](./examples) · [Community](#community-usage) · [Security](./SECURITY.md) · [Releases](https://github.com/NVIDIA-NeMo/Guardrails/releases) · [Changelog](./CHANGELOG.md)
 
-NeMo Guardrails adds programmable safeguards to your AI agents. Agents run commands, call APIs, query your data, and read the web. You use the NeMo Guardrails library to declare what each agent may do in a policy, combining low-latency local rules with model-backed checks for jailbreaks, injected instructions, and unsafe tool calls. Your application or agent harness runs these checks and uses their results to decide whether to continue.
+NeMo Guardrails adds programmable safeguards to AI agents, conversational applications, and retrieval-augmented generation (RAG) systems. Agents run commands, call APIs, query your data, and read the web. Conversational applications apply input and output checks; RAG systems filter retrieved content and check answers against evidence.
+
+You use the NeMo Guardrails library to declare what each agent may do in a policy, combining low-latency local rules with model-backed checks for jailbreaks, injected instructions, and unsafe tool calls. Your application or agent harness runs these checks and uses their results to decide whether to continue.
 
 ```bash
 pip install nemoguardrails
@@ -155,7 +157,7 @@ Connect NeMo Guardrails where your application or agent can enforce its checks.
 | What are you building? | How to connect |
 | --- | --- |
 | **A shared guardrails service** for multiple applications or teams | Use the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx) (`/v1/checks`) to request verdicts while each application manages its model and execution loop. |
-| **An inference gateway** in front of model endpoints | Use the [experimental proxy](./docs/run-rails/using-proxy/quickstart.mdx) to check supported model requests and responses. |
+| **An inference gateway** in front of model endpoints | Use [NeMo Guardrails Gateway](./docs/run-rails/using-proxy/quickstart.mdx) to check supported model requests and responses. |
 | **A coding assistant or agent harness** | Use [native hooks](./docs/run-rails/using-hooks-server/run-hooks-server.mdx) or [NeMo Relay](./docs/run-rails/using-hooks-server/nemo-relay-plugin.mdx) to check tool calls before execution. |
 | **An agent platform, framework integration, or custom loop** | Embed the [Python SDK](./docs/run-rails/using-python-apis/check-messages.mdx), call the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx), or use a supported [framework integration](./docs/integration/langchain/langgraph-integration.mdx). |
 
@@ -202,6 +204,8 @@ Session counts are estimates, and a session can use multiple rail types or featu
 ## Telemetry and Privacy
 
 The library sends anonymous usage telemetry that excludes prompts, completions, model names, credentials, and endpoints. Set `NEMO_GUARDRAILS_NO_USAGE_STATS=1` to opt out. This does not disable configured model or guardrail service calls, which can send content to those endpoints. Refer to [telemetry and privacy](./docs/telemetry.mdx) for details and other opt-out options.
+
+Third-party endpoints have separate terms and privacy practices. The NVIDIA NeMo Guardrails library can use inference endpoints such as NVIDIA Build (`build.nvidia.com`). If you use NVIDIA Build or another third-party endpoint, that endpoint's terms of service and privacy practices apply independently of the library. Any telemetry opt-out in the NVIDIA NeMo Guardrails library does not extend to the endpoint you choose. NVIDIA Build is intended for evaluation and testing only and must not be used in production environments. Do not submit confidential information or personal data when using NVIDIA Build.
 
 ## Contributing and Support
 
