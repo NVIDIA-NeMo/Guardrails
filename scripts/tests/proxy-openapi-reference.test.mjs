@@ -50,7 +50,7 @@ test("Fern converts the generated proxy operations and examples", { timeout: 240
       assert.match(endpoint.docs, /providers-and-streaming#completion-and-errors/);
       const contractSlug = pathName.endsWith("responses") ? "responses" : "chat-completions";
       for (const section of ["request", "response", "stream"]) {
-        assert.ok(endpoint.docs.includes(`/reference/proxy-guard-contracts/${contractSlug}#${section}`));
+        assert.ok(endpoint.docs.includes(`/reference/gateway-guard-contracts/${contractSlug}#${section}`));
       }
       const contractPage = readFileSync(path.join(fern, "proxy-guard-contracts", `${contractSlug}.mdx`), "utf8");
       for (const heading of ["Request", "Response", "Stream", "Exact contract"]) {
@@ -60,7 +60,7 @@ test("Fern converts the generated proxy operations and examples", { timeout: 240
       for (const name of ["model", "temperature"]) {
         assert.match(properties.get(name).docs, /<Badge intent="note" minimal>Opaque<\/Badge>/);
         assert.match(properties.get(name).docs, /Forwarded without inspecting or validating/);
-        assert.match(properties.get(name).docs, /href="\/run-guardrailed-inference\/using-proxy\/guard-contracts#read-the-field-policy"/);
+        assert.match(properties.get(name).docs, /href="\/run-guardrailed-inference\/using-gateway\/guard-contracts#read-the-field-policy"/);
         assert.doesNotMatch(properties.get(name).docs, /guardrails-proxy-null-only/);
       }
       for (const name of id.endsWith("responsesCreate") ? ["instructions", "tools", "conversation"] : ["tools", "audio"]) {

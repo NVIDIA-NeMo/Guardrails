@@ -13,7 +13,7 @@ use the same route assembly and resource owners.
 ## Create an Application
 
 Each recipe below is a separate application. After copying the
-[quickstart example](/run-guardrailed-inference/using-proxy/quickstart), return to the repository root and save
+[quickstart example](/run-guardrailed-inference/using-gateway/quickstart), return to the repository root and save
 this shared configuration as `proxy_config.py`:
 
 ```python
@@ -50,7 +50,7 @@ app = create_proxy_application(config)
 ```
 
 Run from the repository root, then use the
-[quickstart requests](/run-guardrailed-inference/using-proxy/quickstart#send-a-buffered-request)
+[quickstart requests](/run-guardrailed-inference/using-gateway/quickstart#send-a-buffered-request)
 with the same `OPENAI_API_KEY` and model:
 
 ```bash
@@ -69,10 +69,10 @@ Choose a customization guide for your application requirements:
 
 | Task | Guide |
 | --- | --- |
-| Select preloaded Rails using trusted request or operation context | [Rails configuration resolution](/run-guardrailed-inference/using-proxy/advanced/configuration-resolution) |
-| Inject outbound HTTP, tune connection pools, or route model aliases | [HTTP transport customization](/run-guardrailed-inference/using-proxy/advanced/http-transport) |
-| Compose several mounts, upstreams, and policies | [Multiple provider instances and routing](/run-guardrailed-inference/using-proxy/advanced/multiple-provider-instances) |
-| Customize request restrictions and buffered and streaming metadata | [Request and response policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings) |
+| Select preloaded Rails using trusted request or operation context | [Rails configuration resolution](/run-guardrailed-inference/using-gateway/advanced/configuration-resolution) |
+| Inject outbound HTTP, tune connection pools, or route model aliases | [HTTP transport customization](/run-guardrailed-inference/using-gateway/advanced/http-transport) |
+| Compose several mounts, upstreams, and policies | [Multiple provider instances and routing](/run-guardrailed-inference/using-gateway/advanced/multiple-provider-instances) |
+| Customize request restrictions and buffered and streaming metadata | [Request and response policies](/run-guardrailed-inference/using-gateway/advanced/extend-provider-bindings) |
 
 ## Lifespan and Embedding
 
@@ -140,7 +140,7 @@ and add inbound authentication middleware separately when exposing the service.
 
 The composition model separates provider field policy from reusable checking
 and HTTP execution. For a complete example, refer to
-[customize request and response policies](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings).
+[customize request and response policies](/run-guardrailed-inference/using-gateway/advanced/extend-provider-bindings).
 For a new endpoint:
 
 1. Declare the provider payload shapes and guarded, constrained, and opaque
@@ -152,7 +152,7 @@ For a new endpoint:
 4. Compose the endpoint with provider error handling and trusted instance
    settings. Supply explicit integrations to the application factory.
 5. Export the bound endpoint's
-   [guard contract](/run-guardrailed-inference/using-proxy/guard-contracts) to review its field policies and stream declarations.
+   [guard contract](/run-guardrailed-inference/using-gateway/guard-contracts) to review its field policies and stream declarations.
 
 For direct composition, bypass the built-in `ProxyConfig` selection while using
 the same factory. This can also replace `proxy_app.py`; keep the copied Rails directory and

@@ -36,7 +36,7 @@ walkthrough keeps those restrictions in place.
 ## Restrict an Existing Request Field
 
 Use the installed library environment from the
-[quickstart](/run-guardrailed-inference/using-proxy/quickstart). Create
+[quickstart](/run-guardrailed-inference/using-gateway/quickstart). Create
 `custom_binding.py` in your application directory:
 
 ```python
@@ -201,8 +201,8 @@ This app guards only Chat Completions. Responses requests pass through without
 Rails checks.
 
 Send the quickstart's
-[buffered Chat Completions request](/run-guardrailed-inference/using-proxy/quickstart#chat-completions)
-or [streaming Chat Completions request](/run-guardrailed-inference/using-proxy/quickstart#stream-chat-completions)
+[buffered Chat Completions request](/run-guardrailed-inference/using-gateway/quickstart#chat-completions)
+or [streaming Chat Completions request](/run-guardrailed-inference/using-gateway/quickstart#stream-chat-completions)
 using your gateway's model ID and authorization header. The endpoint accepts the
 optional `gateway_trace_id` in both response modes; ordinary OpenAI does not
 return that field. The proxy needs no gateway SDK; any configured detector
@@ -231,7 +231,7 @@ and review the diff.
 The Python bindings remain authoritative. The export does not configure the
 proxy, enable additional content handling, or serialize arbitrary Python
 validators, stateful stream hooks, or transport behavior. Refer to
-[guard contracts](/run-guardrailed-inference/using-proxy/guard-contracts) for the
+[guard contracts](/run-guardrailed-inference/using-gateway/guard-contracts) for the
 format's limits and the
 [Chat reference](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/server/experimental/providers/openai/chat_completions/README.md)
 for nested projections and streaming declarations.

@@ -68,8 +68,8 @@ These are excerpts from an exported binding, not a complete editable contract.
 
 ## Inspect a Contract
 
-Browse the generated native [Chat Completions contract](/reference/proxy-guard-contracts/chat-completions)
-or [Responses contract](/reference/proxy-guard-contracts/responses). Each page has
+Browse the generated native [Chat Completions contract](/reference/gateway-guard-contracts/chat-completions)
+or [Responses contract](/reference/gateway-guard-contracts/responses). Each page has
 request, response, and stream sections plus the exact export from that build's
 bound Python declarations. Nested objects and schema alternatives remain separate.
 
@@ -108,7 +108,7 @@ Each variant records its matching fields and shape. Missing-text behavior is a
 separate rule from nullability; transport declarations describe discriminators,
 sentinels, and non-data events. These declarations do not serialize stateful
 completion checks or native error encoding. Read
-[completion and errors](/run-guardrailed-inference/using-proxy/providers-and-streaming#completion-and-errors)
+[completion and errors](/run-guardrailed-inference/using-gateway/providers-and-streaming#completion-and-errors)
 for runtime behavior and failures after HTTP 200.
 
 ## Export From an Endpoint
@@ -153,6 +153,6 @@ records the exact limitations.
 
 When coverage changes, update the Python declarations and
 regenerate the contract from the endpoint. The
-[policy customization walkthrough](/run-guardrailed-inference/using-proxy/advanced/extend-provider-bindings)
+[policy customization walkthrough](/run-guardrailed-inference/using-gateway/advanced/extend-provider-bindings)
 shows request restrictions, buffered and streaming metadata extensions, and
 export from the customized endpoint.

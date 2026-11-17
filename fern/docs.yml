@@ -60,6 +60,31 @@ versions:
     slug: v0.22.0
 
 redirects:
+  # URLs published before the NeMo Guardrails Gateway rename.
+  - source: "/nemo/guardrails/latest/run-guardrailed-inference/using-proxy"
+    destination: "/nemo/guardrails/latest/run-guardrailed-inference/using-gateway"
+  - source: "/nemo/guardrails/latest/run-guardrailed-inference/using-proxy/:path*"
+    destination: "/nemo/guardrails/latest/run-guardrailed-inference/using-gateway/:path*"
+  - source: "/nemo/guardrails/latest/reference/proxy-api"
+    destination: "/nemo/guardrails/latest/reference/gateway-api"
+  - source: "/nemo/guardrails/latest/reference/proxy-api/:path*"
+    destination: "/nemo/guardrails/latest/reference/gateway-api/:path*"
+  - source: "/nemo/guardrails/latest/reference/proxy-guard-contracts"
+    destination: "/nemo/guardrails/latest/reference/gateway-guard-contracts"
+  - source: "/nemo/guardrails/latest/reference/proxy-guard-contracts/:path*"
+    destination: "/nemo/guardrails/latest/reference/gateway-guard-contracts/:path*"
+  - source: "/nemo/guardrails/run-guardrailed-inference/using-proxy"
+    destination: "/nemo/guardrails/run-guardrailed-inference/using-gateway"
+  - source: "/nemo/guardrails/run-guardrailed-inference/using-proxy/:path*"
+    destination: "/nemo/guardrails/run-guardrailed-inference/using-gateway/:path*"
+  - source: "/nemo/guardrails/reference/proxy-api"
+    destination: "/nemo/guardrails/reference/gateway-api"
+  - source: "/nemo/guardrails/reference/proxy-api/:path*"
+    destination: "/nemo/guardrails/reference/gateway-api/:path*"
+  - source: "/nemo/guardrails/reference/proxy-guard-contracts"
+    destination: "/nemo/guardrails/reference/gateway-guard-contracts"
+  - source: "/nemo/guardrails/reference/proxy-guard-contracts/:path*"
+    destination: "/nemo/guardrails/reference/gateway-guard-contracts/:path*"
   - source: "/nemo/guardrails/latest/reference/hooks-server-api"
     destination: "/nemo/guardrails/latest/reference/hooks-server-api/overview"
   # Paths are relative to the site root; subpath prefix matches instances + custom-domain.

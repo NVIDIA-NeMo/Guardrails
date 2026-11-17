@@ -481,7 +481,7 @@ navigation:
             slug: actions-server
       - section: NeMo Guardrails Gateway
         path: run-rails/using-proxy/index.mdx
-        slug: using-proxy
+        slug: using-gateway
         contents:
           - page: Quickstart
             path: run-rails/using-proxy/quickstart.mdx
@@ -724,7 +724,7 @@ navigation:
                 title: Get Server Health or Chat UI
                 slug: get-root
       - api: Guardrails Gateway API
-        slug: proxy-api
+        slug: gateway-api
         specs:
           - type: openapi
             path: ../fern/proxy-openapi.yml
@@ -738,7 +738,7 @@ navigation:
             title: Create a Guarded Response
             slug: responses
       - section: Gateway Guard Contracts
-        slug: proxy-guard-contracts
+        slug: gateway-guard-contracts
         contents:
           - page: Chat Completions
             path: ../fern/proxy-guard-contracts/chat-completions.mdx
