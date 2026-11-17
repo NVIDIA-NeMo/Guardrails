@@ -54,9 +54,14 @@ flowchart LR
     Gateway --> Models["Model services"]
 ```
 
-Configure the upstream inference gateway URL and explicit dialect. Let that
-gateway own its model aliases, destination credentials, balancing, and any retry
-policy it implements.
+Configure the upstream inference gateway URL and select bindings that match its
+API. For native OpenAI bindings, omit `dialect` or set it to `null`. For the
+reviewed LiteLLM dialect, set `dialect: litellm`. Check the
+[provider coverage](/run-guardrailed-inference/using-proxy/providers-and-streaming)
+against your deployed model route.
+
+Let the upstream inference gateway own its model aliases, destination credentials,
+balancing, and any retry policy it implements.
 The proxy continues to check the content selected by its bindings on the way
 in and out. This can keep one public endpoint in front of many model services
 without implementing routing inside the proxy.
