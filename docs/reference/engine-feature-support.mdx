@@ -35,6 +35,8 @@ config = RailsConfig.from_path("path/to/config")
 rails = LLMRails(config)
 ```
 
+Constructing `LLMRails` in your code emits an `LLMRailsRemovalWarning`, unless `NEMO_GUARDRAILS_IORAILS_ENGINE` is `true`, `1`, or `yes` (in any case), which makes the top-level `LLMRails` import an alias of `Guardrails`.
+
 ### IORails
 
 `IORails` is optimized for accelerated input and output rail inference.
@@ -86,6 +88,8 @@ rails = Guardrails(config, require_iorails=True)
 - Tool flows are in their own direction and are not duplicated. Refer to [Tool Calling](#tool-calling).
 
 Otherwise the facade falls back to `LLMRails` and logs the reason.
+If that configuration also has per-tool rails, the facade raises `ValueError` instead, because `LLMRails` does not run per-tool rails.
+When the facade runs `IORails`, it emits a `UserWarning` that names the parts of the configuration that `IORails` ignores: its own `define flow` or `define user` blocks, a custom `refuse to respond` message, and a `config.py` in the configuration's directory or a directory it imports.
 You can inspect that decision directly with `IORails.unsupported_reason(config, llm)`, which returns the human-readable fallback reason, or `None` when `IORails` can handle the config.
 For the per-rail detail behind the third and fourth conditions, refer to [Rail Engine Support](/reference/rail-engine-support).
 
@@ -215,7 +219,7 @@ For those differences, refer to [Checking Messages Against Rails: Engine Differe
 | Streaming metadata (`include_metadata=True`) | ✓ | ✓ | Both emit `provider_metadata` and normalized `usage` when the provider supplies them |
 | `include_metadata` with output-rail streaming | ◐ | ✗ | LLMRails accepts the option, but its output-rail buffer yields plain strings and drops stream metadata. IORails raises `ValueError`. |
 | `GenerationOptions` through the stream | ◐ | ◐ | Both apply `llm_params` and rail toggles. Neither yields a `GenerationResponse`, so `log` and `output_vars` are unreachable. |
-| Parallel streaming output rails | ✓ | ✗ | LLMRails streaming-buffer feature |
+| Parallel streaming output rails | ✓ | ◐ | IORails runs the output rails on each streamed batch in parallel, but sequentially alongside a rail that rewrites content |
 
 Both engines stream responses through `stream_async` and support streaming output rails.
 Both accept `include_metadata=True` to receive dictionary-framed chunks such as `{"text": ...}` instead of plain strings.
@@ -232,8 +236,9 @@ Structured responses are a non-streaming feature, and passing `options` does not
 `IORails` also validates `options` only on the non-streaming path, so the Colang-coupled options that raise in `generate_async` are silently ignored in `stream_async`.
 For details, refer to [Generation Options and Streaming](/run-guardrailed-inference/using-python-apis/streaming#generation-options-and-streaming).
 
-Parallel streaming output rails, where the output rail validates streamed chunks using the streaming buffer, is an `LLMRails` feature.
-`IORails` runs output rails over the streamed response but does not use the parallel streaming-buffer path, and speculative generation falls back to sequential execution while streaming.
+Both engines buffer the stream with the same rolling buffer and `stream_first` behavior, and run the output rails on each batch.
+With `rails.output.parallel: True`, both run those rails in parallel.
+`IORails` runs them sequentially when a rail rewrites content, as it does without streaming, and speculative generation falls back to sequential execution while streaming.
 
 ### Parallelism and Concurrency
 

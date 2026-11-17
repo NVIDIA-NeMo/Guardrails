@@ -17,6 +17,14 @@ content:
 
 This section describes the special parameters automatically provided to actions by the NeMo Guardrails library.
 
+<Note>
+
+Custom actions and their special parameters run only on `LLMRails`.
+The IORails engine does not call custom actions.
+For the other parts of a configuration that the IORails engine ignores, refer to [Migrating to 0.25: What IORails Ignores in a Configuration](/reference/0-25#what-iorails-ignores-in-a-configuration).
+
+</Note>
+
 ## Special Parameters
 
 When you include these parameters in your action's function signature, they are automatically populated:

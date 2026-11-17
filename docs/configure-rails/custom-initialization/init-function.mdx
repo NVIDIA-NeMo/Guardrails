@@ -10,6 +10,15 @@ content:
 
 If `config.py` contains an `init` function, it is called during `LLMRails` initialization. Use it to set up shared resources and register action parameters.
 
+<Note>
+
+The `init` function and the action parameters it registers run only on `LLMRails`.
+The IORails engine does not import `config.py`, so `init()` has no effect on it.
+When `Guardrails` runs a configuration that has `config.py` on the IORails engine, it emits a `UserWarning`.
+For what to move into `config.yml`, refer to [Migrating to 0.25: What IORails Ignores in a Configuration](/reference/0-25#what-iorails-ignores-in-a-configuration).
+
+</Note>
+
 <Info>
 
 The `init` function **must be synchronous** (`def init`, not `async def init`). The framework calls it without `await`, so an async function would silently do nothing.
