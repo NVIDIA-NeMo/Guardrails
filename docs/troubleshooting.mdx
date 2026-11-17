@@ -109,7 +109,7 @@ Restart the Python process to discard any patch already applied.
 ### `LLMRailsRemovalWarning` Says a Feature Will Be Removed
 
 ```text
-app.py:4: LLMRailsRemovalWarning: LLMRails is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. Use Guardrails(config), which runs the IORails engine.
+app.py:4: LLMRailsRemovalWarning: LLMRails is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. Use Guardrails(config), which runs the IORails engine when it supports the config.
   rails = LLMRails(config)
 ```
 
@@ -121,14 +121,14 @@ The warning is a `DeprecationWarning`, names the feature at the start of the mes
 Look up the message in [Migrating to 0.25: Messages You Can Receive](/reference/0-25#messages-you-can-receive) and apply the matching change.
 To hide the warning, or to turn it into an error in your tests, refer to [Silence or Escalate the Warnings](/reference/0-25#silence-or-escalate-the-warnings).
 
-### `UserWarning` Says IORails Does Not Run or Import Part of the Configuration
+### `UserWarning` Says IORails Ignores Part of the Configuration
 
 ```text
-app.py:4: UserWarning: IORails does not run this config's Colang dialog flows (define user, define flow); move that logic into input and output rails.
+app.py:4: UserWarning: IORails ignores the following in this config (path/to/config): Colang flows (define user, define flow). Guardrails(config, use_iorails=False) runs the LLMRails engine, which uses all of it.
   rails = Guardrails(config)
 ```
 
-`Guardrails` runs the configuration on the IORails engine, which ignores its Colang dialog flows, its `config.py`, or both.
+`Guardrails` runs the configuration on the IORails engine, which ignores its Colang dialog flows, its custom refusal message, its `config.py`, or several of them.
 The warning describes what the engine does today and carries no removal date.
 For what to move where, refer to [Migrating to 0.25: What IORails Ignores in a Configuration](/reference/0-25#what-iorails-ignores-in-a-configuration).
 

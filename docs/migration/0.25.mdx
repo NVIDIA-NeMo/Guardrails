@@ -40,11 +40,11 @@ Find the message you received in the following table, and follow the link in the
 
 | Message | Reported When | Reported Through | What to Do |
 |---|---|---|---|
-| `LLMRails is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. Use Guardrails(config), which runs the IORails engine.` | Your code constructs `LLMRails`, or a subclass of it, on a Colang 1.0 configuration. | `LLMRailsRemovalWarning` | [Replace LLMRails with Guardrails](#replace-llmrails-with-guardrails) |
+| `LLMRails is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. Use Guardrails(config), which runs the IORails engine when it supports the config.` | Your code constructs `LLMRails`, or a subclass of it, on a Colang 1.0 configuration. | `LLMRailsRemovalWarning` | [Replace LLMRails with Guardrails](#replace-llmrails-with-guardrails) |
 | `Colang 2.x is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. IORails will not support Colang 2.x, so there is no replacement.` | Any code constructs `LLMRails` on a Colang 2.x configuration, including `Guardrails` when it falls back. | `LLMRailsRemovalWarning` | [Colang Configurations](#colang-configurations) |
 | `Colang 2.x chat, including its debugger commands, is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. IORails will not support Colang 2.x, so there is no replacement.` | You run `nemoguardrails chat` with a Colang 2.x configuration. | Standard error | [Colang Configurations](#colang-configurations) |
-| `IORails does not run this config's Colang dialog flows (define user, define flow); move that logic into input and output rails.` | `Guardrails` runs a Colang 1.0 configuration on `IORails`, and the configuration has its own `define user` or `define flow` blocks. | `UserWarning` | [Colang Configurations](#colang-configurations) |
-| `IORails does not import this config's config.py, so its init() and registrations have no effect; configure models and rails in config.yml instead.` | `Guardrails` runs a configuration on `IORails`, and the configuration's directory, or a directory it imports, contains `config.py`. | `UserWarning` | [What IORails Ignores in a Configuration](#what-iorails-ignores-in-a-configuration) |
+| `<config id>: Colang 2.x is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. IORails will not support Colang 2.x, so there is no replacement.` | The Guardrails API server loads a Colang 2.x configuration. | Log record | [Colang Configurations](#colang-configurations) |
+| `IORails ignores the following in this config (<path>): <parts>. Guardrails(config, use_iorails=False) runs the LLMRails engine, which uses all of it.` | `Guardrails` runs a configuration on `IORails`, and the configuration has its own `define user` or `define flow` blocks, a custom `refuse to respond` message, or a `config.py` in its directory or a directory it imports. | `UserWarning` | [What IORails Ignores in a Configuration](#what-iorails-ignores-in-a-configuration) |
 | `use_iorails=True was requested but IORails cannot be used: <reason>. Falling back to LLMRails; IORails-only features (such as OpenTelemetry metrics) will not be available.` | `IORails` cannot run the configuration, so `Guardrails` runs `LLMRails`. | Log record | [Configurations That Fall Back to LLMRails](#configurations-that-fall-back-to-llmrails) |
 
 `LLMRailsRemovalWarning` is a subclass of `DeprecationWarning`, and you can import it from `nemoguardrails`.
@@ -54,8 +54,9 @@ You see it when a script or notebook constructs `LLMRails`, and pytest shows it 
 It stays hidden when a module that your application imports constructs `LLMRails`, and in the Guardrails API server and the CLI.
 To show it everywhere, refer to [Silence or Escalate the Warnings](#silence-or-escalate-the-warnings).
 
-The two `UserWarning` diagnostics describe what `IORails` does today and carry no removal date.
-Python shows them by default, once for each line of code that triggers them.
+The `UserWarning` diagnostic describes what `IORails` does today and carries no removal date.
+It names the configuration's directory and each part that `IORails` ignores.
+Python shows it by default, once for each line of code and configuration directory that triggers it.
 
 ## Replace LLMRails with Guardrails
 
@@ -129,11 +130,12 @@ Code that depends on them has no `IORails` equivalent.
 `GenerationOptions` also behaves differently on `IORails`.
 For the details, refer to [Generation Options: IORails and LLMRails Differences](/run-guardrailed-inference/using-python-apis/generation-options#iorails-and-llmrails-differences) and [Engine Feature Support](/reference/engine-feature-support).
 
-### Configure Models Instead of Passing llm
+### Models You Pass with llm
 
 `IORails` creates every model from `models` in `config.yml` and calls it through its own OpenAI-compatible client.
-`Guardrails(config, llm=...)` passes a model object that `IORails` cannot use, so it runs `LLMRails`.
-Remove the argument and configure the main model under `models` instead:
+It does not accept a model object, so `Guardrails(config, llm=...)` runs `LLMRails`.
+The `llm` argument is not deprecated and keeps working.
+To run the configuration on `IORails`, configure the main model under `models` and leave out the argument:
 
 ```yaml
 models:
@@ -172,16 +174,18 @@ It ignores the following parts of a configuration, which only `LLMRails` uses:
 
 | Part of the Configuration | Reported When `IORails` Runs It |
 |---|---|
-| Colang dialog flows (`define user`, `define flow`) | A `UserWarning`. Refer to [Colang Configurations](#colang-configurations). |
-| `config.py`, including its `init()` function and what it registers | A `UserWarning` |
-| `define bot` messages, such as a custom refusal | Not reported. When a rail blocks a request, `IORails` answers with `I'm sorry, I can't respond to that.`, unless that rail supplies its own refusal message, as language detection does. |
+| Colang dialog flows (`define user`, `define flow`) | Named in the `UserWarning`. Refer to [Colang Configurations](#colang-configurations). |
+| `config.py`, including its `init()` function and what it registers | Named in the `UserWarning` |
+| A custom `define bot refuse to respond` message | Named in the `UserWarning`. When a rail blocks a request, `IORails` answers with `I'm sorry, I can't respond to that.`, unless that rail supplies its own refusal message, as language detection does. |
+| Other `define bot` messages | Not reported |
 | Custom actions in `actions.py` or an `actions/` folder | Not reported |
 | Knowledge base documents in `kb/` | Not reported |
 
 Move the model and rail settings that `config.py` makes into `config.yml`.
 `Guardrails` looks for `config.py` in the configuration's directory and in the directories it imports.
 A configuration that `RailsConfig.from_content()` builds has no directory of its own, so `Guardrails` checks only the directories that its `import_paths` setting names.
-When a configuration has both dialog flows and `config.py`, you receive both warnings.
+When a configuration has several of these parts, one warning names all of them.
+To keep them working, pass `use_iorails=False`, which runs `LLMRails`.
 
 ## Configurations That Fall Back to LLMRails
 
@@ -199,7 +203,7 @@ The following table maps the reason after `IORails cannot be used:` to the chang
 
 | Reason Starts With | Cause | What to Do |
 |---|---|---|
-| ``an `llm` argument was provided`` | Your code passes a model object to `Guardrails`. | Refer to [Configure Models Instead of Passing llm](#configure-models-instead-of-passing-llm). |
+| ``an `llm` argument was provided`` | Your code passes a model object to `Guardrails`. | Refer to [Models You Pass with llm](#models-you-pass-with-llm). |
 | `IORails supports Colang 1.0 only` | The configuration sets `colang_version: "2.x"`. | Refer to [Colang Configurations](#colang-configurations). |
 | `config has rails outside the IORails-supported set` | The configuration has a rail section other than `input`, `output`, `config`, `tool_call`, and `tool_result`, such as `retrieval` or `dialog`. | `IORails` has no equivalent for retrieval or dialog rails, so removing these sections also removes their checks. Move the checks you need into input and output rails where you can; retrieval rails have no replacement. |
 | A flow name, followed by why it does not compile | A flow under `rails.input.flows`, `rails.output.flows`, or a `per_tool` list is not a rail that `IORails` runs, is a hand-written Colang flow, names a model type that `models` does not declare, or needs an optional dependency that is not installed. | Check the flow against [Rail Engine Support](/reference/rail-engine-support), declare the model, or install the dependency. For a flow in a `per_tool` list, the reason appears in a `ValueError` instead of the log line. |
@@ -248,9 +252,10 @@ Every construction of `LLMRails` on a Colang 2.x configuration emits an `LLMRail
 - your code, directly or through a subclass
 - `Guardrails`, when it falls back, and `Guardrails(config, use_iorails=False)`
 - `TestChat`, `RunnableRails`, and the LangChain agent middleware
-- the Guardrails API server and the `eval` commands
+- the `eval` commands
 
 `nemoguardrails chat` prints the notice for Colang 2.x chat and its debugger commands to standard error instead of the Python warning.
+The Guardrails API server logs the notice for each Colang 2.x configuration it loads instead of the Python warning, which Python hides there by default.
 
 To keep the input and output checks of a Colang 2.x configuration, write a Colang 1.0 `config.yml` that lists the same built-in rails under `rails.input.flows` and `rails.output.flows`.
 Colang 2.x flows that steer the conversation have no `IORails` equivalent.
@@ -271,8 +276,7 @@ Code that imports `LLMRails` from `nemoguardrails.rails` still gets `LLMRails` a
 To find every `LLMRails` call site with a pytest filter, run your tests without the variable.
 
 With the variable set, the `UserWarning` diagnostics and the fallback log line report the same cases as they do in Python code.
-In the server, the `UserWarning` does not name the configuration, and Python can show it once for several configurations.
-To find the configurations that trigger it, construct `Guardrails` for each configuration in a test.
+The `UserWarning` names the configuration's directory, so each configuration is reported.
 A request that names several configurations merges them into one, and the merged configuration always falls back to `LLMRails`, or raises `ValueError` if it has per-tool rails.
 
 ## Silence or Escalate the Warnings
@@ -285,7 +289,7 @@ The following methods change how Python reports the warnings:
 | `warnings.filterwarnings("default", category=LLMRailsRemovalWarning)` in your code | Shows the removal warning outside `__main__` too, once for each line that triggers it. |
 | `filterwarnings = error::nemoguardrails.LLMRailsRemovalWarning` in `pytest.ini`, or `-W "error::nemoguardrails.LLMRailsRemovalWarning"` on the pytest command line | Turns the removal warning into an error, so your tests fail at every use that emits it. Use `ignore` instead of `error` to hide it in tests. |
 | `python -W ignore::DeprecationWarning`, or the same value in `PYTHONWARNINGS` | Hides the removal warning, and every other `DeprecationWarning`. |
-| `warnings.filterwarnings("ignore", message="IORails does not", category=UserWarning)` in your code | Hides the two diagnostics about what `IORails` ignores. |
+| `warnings.filterwarnings("ignore", message="IORails ignores", category=UserWarning)` in your code | Hides the diagnostic about what `IORails` ignores. |
 
 The following example hides the removal warning in application code:
 

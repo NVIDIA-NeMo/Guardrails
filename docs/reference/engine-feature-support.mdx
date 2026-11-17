@@ -89,8 +89,7 @@ rails = Guardrails(config, require_iorails=True)
 
 Otherwise the facade falls back to `LLMRails` and logs the reason.
 If that configuration also has per-tool rails, the facade raises `ValueError` instead, because `LLMRails` does not run per-tool rails.
-When the facade runs `IORails`, it emits a `UserWarning` if the configuration contains its own `define flow` or `define user` blocks, which `IORails` does not run.
-It emits another if the configuration's directory, or a directory it imports, contains `config.py`, which `IORails` does not import.
+When the facade runs `IORails`, it emits a `UserWarning` that names the parts of the configuration that `IORails` ignores: its own `define flow` or `define user` blocks, a custom `refuse to respond` message, and a `config.py` in the configuration's directory or a directory it imports.
 You can inspect that decision directly with `IORails.unsupported_reason(config, llm)`, which returns the human-readable fallback reason, or `None` when `IORails` can handle the config.
 For the per-rail detail behind the third and fourth conditions, refer to [Rail Engine Support](/reference/rail-engine-support).
 
