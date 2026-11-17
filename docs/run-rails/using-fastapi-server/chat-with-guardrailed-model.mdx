@@ -328,7 +328,7 @@ This is useful when you can only send the latest message rather than the full hi
 
 <Tip>
 
-The `thread_id` must be between 16 and 255 characters long.
+The `thread_id` must be between 16 and 255 characters long, and must consist of printable ASCII characters with no leading or trailing whitespace.
 
 </Tip>
 
@@ -354,6 +354,9 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
 })
 # The assistant remembers "Alice"
 ```
+
+Rails and actions that run for the request see the `thread_id` as the conversation ID that `get_conversation_id()` returns.
+For more information, refer to [Checking Messages Against Rails: Setting a Conversation ID](/run-guardrailed-inference/using-python-apis/check-messages#setting-a-conversation-id).
 
 <Note>
 The `thread_id` is currently not implemented in the NeMo Guardrails microservices.

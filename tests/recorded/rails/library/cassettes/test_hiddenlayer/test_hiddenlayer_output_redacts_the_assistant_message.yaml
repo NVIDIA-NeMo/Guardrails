@@ -1,0 +1,100 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.us.hiddenlayer.ai/oauth2/token
+    body: grant_type=client_credentials
+    headers:
+      host:
+      - api.us.hiddenlayer.ai
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/x-www-form-urlencoded
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json; charset=UTF-8
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      ratelimit-remaining:
+      - '24998'
+      ratelimit-limit:
+      - '25000'
+      ratelimit-reset:
+      - '59'
+      server:
+      - cloudflare
+      vary:
+      - Accept-Encoding
+      - Origin
+      cache-control:
+      - no-store
+      via:
+      - 1.1 3c43e000c50d5633eb558057710f3c54.cloudfront.net (CloudFront)
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+    body:
+      parsed_body:
+        access_token: '[REDACTED]'
+        expires_in: 3599
+        token_type: Bearer
+- request:
+    method: POST
+    uri: https://api.us.hiddenlayer.ai/detection/v2/nemo-guardrails/response-evaluations
+    headers:
+      host:
+      - api.us.hiddenlayer.ai
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      check: output
+      bot_message: You can reach the account holder at ana@example.com.
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      ratelimit-reset:
+      - '59'
+      ratelimit-remaining:
+      - '24999'
+      ratelimit-limit:
+      - '25000'
+      cache-control:
+      - no-cache, no-store, must-revalidate, max-age=0
+      hl-runtime-action:
+      - REDACT
+      vary:
+      - Origin
+      server:
+      - cloudflare
+    body:
+      parsed_body:
+        bot_message: You can reach the account holder at [REDACTED:EMAIL_ADDRESS].
+        check: output

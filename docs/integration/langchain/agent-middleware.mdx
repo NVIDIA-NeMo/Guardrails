@@ -282,6 +282,10 @@ result2 = agent.invoke(
 )
 ```
 
+The middleware runs its input and output checks with the thread ID as the conversation ID, so rails that group checks by conversation see one conversation per thread.
+A conversation ID that your application already set with `conversation_id()` is kept.
+For more information, refer to [Checking Messages Against Rails: Setting a Conversation ID](/run-guardrailed-inference/using-python-apis/check-messages#setting-a-conversation-id).
+
 ---
 
 ## Known Limitations
@@ -327,7 +331,7 @@ Convenience subclass that only runs input rails. The `aafter_model` hook is a no
 
 ### OutputRailsMiddleware
 
-Convenience subclass that only runs output rails. The `abefore_model` hook is a no-op.
+Convenience subclass that only runs output rails. The `abefore_model` hook runs no rails and only opens the round trip that the output check reports under.
 
 ### GuardrailViolation
 

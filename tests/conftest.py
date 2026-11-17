@@ -92,6 +92,24 @@ def reset_explain_info_var():
 
 
 @pytest.fixture(autouse=True)
+def reset_conversation_id_var():
+    from nemoguardrails.context import conversation_id_var
+
+    conversation_id_var.set(None)
+    yield
+    conversation_id_var.set(None)
+
+
+@pytest.fixture(autouse=True)
+def reset_roundtrip_id_var():
+    from nemoguardrails.context import roundtrip_id_var
+
+    roundtrip_id_var.set(None)
+    yield
+    roundtrip_id_var.set(None)
+
+
+@pytest.fixture(autouse=True)
 def use_deterministic_embeddings_for_default_fastembed(monkeypatch, request):
     if request.node.get_closest_marker("real_embeddings") or any(
         os.environ.get(name) for name in _REAL_EMBEDDING_ENV_VARS
