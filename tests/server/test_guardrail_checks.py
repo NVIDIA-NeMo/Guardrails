@@ -108,6 +108,36 @@ def test_content_returned_on_passed():
     assert data.get("rail") is None
 
 
+@pytest.mark.parametrize(
+    "direction,role,content",
+    [
+        (
+            "input",
+            "user",
+            [
+                {"type": "text", "text": "hello"},
+                {"type": "image_url", "image_url": {"url": "https://example.com/image.png"}},
+            ],
+        ),
+        ("output", "assistant", [{"type": "text", "text": "hello"}]),
+    ],
+)
+def test_unchanged_content_list_passes_with_string_response(direction, role, content):
+    rails = LLMRails(
+        RailsConfig.from_content(
+            yaml_content=f"models: []\nrails:\n  {direction}:\n    flows: [unchanged input]\n",
+            colang_content="define flow unchanged input\n  $unchanged = True\n",
+        )
+    )
+    with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=rails):
+        response = _post(_check_body({"rail_types": [direction]}, messages=[{"role": role, "content": content}]))
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "passed"
+    assert data["content"] == str(content)
+    assert isinstance(data["content"], str)
+
+
 def test_content_returned_on_modified():
     result = RailsResult(status=RailStatus.MODIFIED, content="sanitized text")
     data = _checked(result)

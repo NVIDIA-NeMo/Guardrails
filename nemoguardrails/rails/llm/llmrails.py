@@ -1778,6 +1778,9 @@ class LLMRails(BaseGuardrails):
             original_content = _get_last_content_by_role(messages, "assistant")
         else:
             original_content = _get_last_content_by_role(messages, "user")
+        if isinstance(original_content, list):
+            # Match generation's serialization before rails can mutate the content.
+            original_content = str(original_content)
 
         messages = _normalize_messages_for_rails(messages, rails_to_run)
         options["log"] = {"activated_rails": True}
