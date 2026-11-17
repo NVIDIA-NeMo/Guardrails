@@ -9,10 +9,9 @@ actions:
     info:
       title: NeMo Guardrails Gateway API
       description: |
-        NeMo Guardrails Gateway is experimental. This reference describes the
-        built-in OpenAI provider's guarded operations in an example deployment.
-        Provider mounts, path prefixes, operation selection,
-        and custom bindings can change the routes and inspection boundaries.
+        This reference describes the built-in OpenAI provider's guarded operations
+        in an example deployment. Provider mounts, path prefixes, operation
+        selection, and custom bindings determine the routes and inspection boundaries.
 - target: $.paths['/v1/chat/completions'].post
   update:
     summary: Create a guarded chat completion

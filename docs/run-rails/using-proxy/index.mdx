@@ -19,7 +19,10 @@ routing, budgets, and retry policies.
 
 <Note>
 
-The gateway is experimental and has a limited single-text inspection boundary.
+The gateway currently supports a limited single-text inspection profile. Review
+[provider coverage](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles)
+before connecting your application.
+
 It uses `python -m nemoguardrails.server.experimental`. The [Guardrails API
 server](/run-guardrailed-inference/using-fastapi-server) (`nemoguardrails server`)
 and [hooks server](/run-guardrailed-inference/using-hooks-server) are separate
