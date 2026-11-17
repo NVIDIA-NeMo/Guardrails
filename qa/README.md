@@ -16,7 +16,7 @@ This is a QA started guide for using automated tests to test all the examples in
 
 ## Running automated tests to test all the examples in `nemoguardrails/examples/_deprecated` folder.
 
-Please refer to the [installation guide](installation-guide.md) for instructions on how to install the NeMo Guardrails toolkit.
+Please refer to the [installation guide](installation-guide.md) for instructions on how to install the NeMo Guardrails library.
 
 1. Make sure that you have the `OPENAI_API_KEY` and `WOLFRAM_ALPHA_APP_ID` environment variables set.
 

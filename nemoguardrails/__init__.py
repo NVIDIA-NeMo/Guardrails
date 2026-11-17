@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""NeMo Guardrails Toolkit."""
+"""The NeMo Guardrails library."""
 
 import os
 from importlib.metadata import version

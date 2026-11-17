@@ -1,6 +1,6 @@
 # Flows
 
-The core abstraction in the NeMo Guardrails toolkit is a **flow**.
+The core abstraction in the NeMo Guardrails library is a **flow**.
 
 ## Events
 
