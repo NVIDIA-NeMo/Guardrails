@@ -1,74 +1,61 @@
 ---
 title: "Migrating to 0.25"
 sidebar-title: "Migrating to 0.25"
-description: "How to move an application off LLMRails, the Colang runtimes, TestChat, and the LangChain integration, which 0.25.0 deprecates and 0.27.0 removes, onto Guardrails and the IORails engine."
-keywords: ["nemoguardrails 0.25", "migration", "deprecation", "LLMRailsRemovalWarning", "LLMRails", "IORails", "Guardrails", "Colang", "TestChat", "LangChain"]
+description: "How to move an application from LLMRails and the Colang runtimes, which 0.25.0 deprecates, to Guardrails and the IORails engine."
+keywords: ["nemoguardrails 0.25", "migration", "deprecation", "LLMRailsRemovalWarning", "DeprecationWarning", "LLMRails", "IORails", "Guardrails", "Colang"]
 content:
   type: "how_to"
 ---
 
-Version 0.25.0 of the NVIDIA NeMo Guardrails library deprecates the `LLMRails` engine and the features that run only on it.
-`Guardrails`, which runs the `IORails` engine, becomes the only way to run guardrails.
-The deprecated features keep working through 0.26.0 and are removed in 0.27.0.
+Version 0.25.0 of the NVIDIA NeMo Guardrails library deprecates the `LLMRails` engine and the Colang 1.0 and Colang 2.x runtimes.
+Removal is planned no earlier than 0.27.0, and the release that removes them is not decided yet.
+Until then, they keep working.
 
+Use `Guardrails`, which runs the `IORails` engine.
 `IORails` reads the same `RailsConfig` and `config.yml` as `LLMRails`.
-What changes is the engine that runs your configuration, and the features that only `LLMRails` provides go away with it.
-
-Use this guide to find what your application uses and apply the matching change.
-
-## Timeline
-
-| Release | Month | What Changes |
-|---|---|---|
-| 0.25.0 | November 2026 | `LLMRails`, the Colang 1.0 and Colang 2.x runtimes, `TestChat`, the LangChain integration, and the CLI commands that depend on them are deprecated. They keep working and report the deprecation when you use them. |
-| 0.26.0 | December 2026 | The last release that includes `LLMRails`. `nemoguardrails chat`, `nemoguardrails server`, and the `eval` commands that stay are planned to move to `IORails`, and a test helper for `Guardrails` is planned to replace `TestChat`. |
-| 0.27.0 | January 2027 | The deprecated features are removed. A configuration that uses Colang 2.x or contains hand-written Colang flows fails to load. |
-
-After 0.27.0, fixes for 0.26 are decided case by case and ship as patch releases from the `release/0.26` branch.
+What changes is the engine that runs your configuration, and the parts of a configuration that only `LLMRails` uses.
 
 ## What Is Deprecated
 
-Most deprecated features report themselves when you use them:
+| Feature | How 0.25.0 Reports It | Replacement |
+|---|---|---|
+| `LLMRails`, constructed in your code | An `LLMRailsRemovalWarning` | `Guardrails(config)`. Refer to [Replace LLMRails with Guardrails](#replace-llmrails-with-guardrails). |
+| Colang 2.x, whichever way your code or the CLI runs it | An `LLMRailsRemovalWarning`, or a notice from `nemoguardrails chat` | None. Refer to [Colang Configurations](#colang-configurations). |
+| The `LLMRails` engine and the Colang 1.0 runtime, including dialog flows | This page and [Deprecations and Removals](/reference/deprecations) only | `Guardrails` with input and output rails. Refer to [Colang Configurations](#colang-configurations). |
 
-- Python code receives an `LLMRailsRemovalWarning`.
-  It is a subclass of `FutureWarning`, which Python shows by default.
-  The warning points at the line in your code that triggered it, not at a line inside the library.
-- The CLI prints a notice to standard error.
-- The Guardrails API server logs a warning and adds deprecation headers to its responses.
+The last row is deprecated in the documentation only: using it emits no Python warning.
+For example, `Guardrails` falling back to `LLMRails` only logs the reason, as described in [Configurations That Fall Back to LLMRails](#configurations-that-fall-back-to-llmrails).
 
-Some features that run only on `LLMRails` have no warning of their own and stop working when `Guardrails` runs `IORails`, such as custom actions.
-Refer to [Methods That IORails Does Not Provide](#methods-that-iorails-does-not-provide).
+The following are unchanged in 0.25.0 and emit no Python warning on a Colang 1.0 configuration, although several of them run on `LLMRails`:
 
-Every message has the same shape:
+- `Guardrails(config, llm=...)` and `Guardrails(config, use_iorails=False)`
+- `TestChat`
+- the LangChain integration: `RunnableRails`, the LangChain agent middleware, the LangChain model framework, and `LangChainLLMAdapter`
+- the `nemoguardrails convert`, `actions-server`, and `eval rail topical` commands
+- `nemoguardrails chat` with a Colang 1.0 configuration, and `nemoguardrails server`
 
-```text
-<subject> is deprecated since NeMo Guardrails 0.25.0 and will be removed in 0.27.0 (January 2027). <alternative> Migration guide: https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25
-```
+## Messages You Can Receive
 
-Find the subject of the message you received in the following table, and follow the link in the last column.
+Find the message you received in the following table, and follow the link in the last column.
 
-| Message Subject | Reported When | Reported Through | What to Do |
+| Message | Reported When | Reported Through | What to Do |
 |---|---|---|---|
-| `LLMRails` | Your code constructs `LLMRails` or a subclass of it. | Python warning | [Replace LLMRails with Guardrails](#replace-llmrails-with-guardrails) |
-| `Guardrails(use_iorails=False)` | Your code passes `use_iorails=False`. | Python warning | [Remove the Engine and Model Arguments](#remove-the-engine-and-model-arguments) |
-| `Passing an llm argument` | Your code passes a model object to `Guardrails`. | Python warning | [Remove the Engine and Model Arguments](#remove-the-engine-and-model-arguments) |
-| `Running this config on the LLMRails engine (...)` | `Guardrails` falls back to `LLMRails` because `IORails` cannot run the configuration. The parentheses hold the reason. | Python warning | [Configurations That Fall Back to LLMRails](#configurations-that-fall-back-to-llmrails) |
-| `Using Colang dialog flows (define user, define flow)` | `Guardrails` runs a Colang 1.0 configuration that contains its own `define flow` or `define user` blocks on `IORails`, which ignores them. | Python warning | [Colang Configurations](#colang-configurations) |
-| `Using config.py` | `Guardrails` runs a configuration on `IORails` whose directory, or a directory it imports, contains `config.py`, and the configuration has no dialog flows. | Python warning | [Methods That IORails Does Not Provide](#methods-that-iorails-does-not-provide) |
-| `TestChat` | Your test constructs `TestChat`. | Python warning | [Testing With TestChat](#testing-with-testchat) |
-| `RunnableRails` | Your code constructs `RunnableRails`. | Python warning | [LangChain Chains and Agents](#langchain-chains-and-agents) |
-| `GuardrailsMiddleware`, `InputRailsMiddleware`, or `OutputRailsMiddleware` | Your code constructs one of these LangChain agent middleware classes. | Python warning | [LangChain Chains and Agents](#langchain-chains-and-agents) |
-| `The LangChain model framework` | Your code calls `set_default_framework("langchain")`, or creates the LangChain model framework outside an `LLMRails` or `Guardrails` construction. A construction that uses the framework, including one that `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` selects, reports only its own warning. | Python warning | [LangChain Model Backend](#langchain-model-backend) |
-| `LangChainLLMAdapter` | Your code constructs `LangChainLLMAdapter`. | Python warning | [LangChain Model Backend](#langchain-model-backend) |
-| `The convert command` | You run `nemoguardrails convert`. | CLI notice | [Deprecated CLI Commands](#deprecated-cli-commands) |
-| `The actions-server command` | You run `nemoguardrails actions-server`. | CLI notice | [Deprecated CLI Commands](#deprecated-cli-commands) |
-| `The eval rail topical command` | You run `nemoguardrails eval rail topical`. | CLI notice | [Deprecated CLI Commands](#deprecated-cli-commands) |
-| `Chatting on the LLMRails engine` | You run `nemoguardrails chat` with a local Colang 1.0 configuration, and `NEMO_GUARDRAILS_IORAILS_ENGINE` is not set. | CLI notice | [Deprecated CLI Commands](#deprecated-cli-commands) |
-| `Colang 2.x chat, including its debugger commands,` | You run `nemoguardrails chat` with a Colang 2.x configuration. | CLI notice | [Colang Configurations](#colang-configurations) |
-| `Serving config '...' with the LLMRails engine` | The Guardrails API server receives the first request for a configuration that it serves on `LLMRails`. | Server log | [Guardrails API Server](#guardrails-api-server) |
-| `Deprecation`, `Sunset`, and `Link` headers | The Guardrails API server answers a request on `LLMRails`. | HTTP response headers | [Guardrails API Server](#guardrails-api-server) |
+| `LLMRails is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. Use Guardrails(config), which runs the IORails engine.` | Your code constructs `LLMRails`, or a subclass of it, on a Colang 1.0 configuration. | `LLMRailsRemovalWarning` | [Replace LLMRails with Guardrails](#replace-llmrails-with-guardrails) |
+| `Colang 2.x is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. IORails will not support Colang 2.x, so there is no replacement.` | Any code constructs `LLMRails` on a Colang 2.x configuration, including `Guardrails` when it falls back. | `LLMRailsRemovalWarning` | [Colang Configurations](#colang-configurations) |
+| `Colang 2.x chat, including its debugger commands, is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. IORails will not support Colang 2.x, so there is no replacement.` | You run `nemoguardrails chat` with a Colang 2.x configuration. | Standard error | [Colang Configurations](#colang-configurations) |
+| `IORails does not run this config's Colang dialog flows (define user, define flow); move that logic into input and output rails.` | `Guardrails` runs a Colang 1.0 configuration on `IORails`, and the configuration has its own `define user` or `define flow` blocks. | `UserWarning` | [Colang Configurations](#colang-configurations) |
+| `IORails does not import this config's config.py, so its init() and registrations have no effect; configure models and rails in config.yml instead.` | `Guardrails` runs a configuration on `IORails`, and the configuration's directory, or a directory it imports, contains `config.py`. | `UserWarning` | [What IORails Ignores in a Configuration](#what-iorails-ignores-in-a-configuration) |
+| `use_iorails=True was requested but IORails cannot be used: <reason>. Falling back to LLMRails; IORails-only features (such as OpenTelemetry metrics) will not be available.` | `IORails` cannot run the configuration, so `Guardrails` runs `LLMRails`. | Log record | [Configurations That Fall Back to LLMRails](#configurations-that-fall-back-to-llmrails) |
 
-`nemoguardrails --help` also marks `convert` and `actions-server` as `(deprecated)`.
+`LLMRailsRemovalWarning` is a subclass of `DeprecationWarning`, and you can import it from `nemoguardrails`.
+The library attributes it to the first line outside the library in the call stack, so it points at your code, and one construction emits at most one.
+Under Python's default warning filters, a `DeprecationWarning` shows only when it is attributed to `__main__`.
+You see it when a script or notebook constructs `LLMRails`, and pytest shows it in its warnings summary.
+It stays hidden when a module that your application imports constructs `LLMRails`, and in the Guardrails API server and the CLI.
+To show it everywhere, refer to [Silence or Escalate the Warnings](#silence-or-escalate-the-warnings).
+
+The two `UserWarning` diagnostics describe what `IORails` does today and carry no removal date.
+Python shows them by default, once for each line of code that triggers them.
 
 ## Replace LLMRails with Guardrails
 
@@ -98,7 +85,7 @@ response = rails.generate(messages=[{"role": "user", "content": "Hello!"}])
 ```
 
 `Guardrails` runs `IORails` when `IORails` can run the whole configuration.
-Otherwise, it falls back to `LLMRails` and warns, as described in [Configurations That Fall Back to LLMRails](#configurations-that-fall-back-to-llmrails).
+Otherwise, it falls back to `LLMRails` and logs the reason, as described in [Configurations That Fall Back to LLMRails](#configurations-that-fall-back-to-llmrails).
 A configuration that `IORails` cannot run and that also has per-tool rails is the exception: it raises `ValueError` instead of falling back.
 To fail at construction instead of falling back, pass `require_iorails=True`:
 
@@ -106,7 +93,7 @@ To fail at construction instead of falling back, pass `require_iorails=True`:
 rails = Guardrails(config, require_iorails=True)
 ```
 
-With `require_iorails=True`, the constructor raises a `ValueError` that names the reason, and emits no deprecation warning.
+With `require_iorails=True`, the constructor raises a `ValueError` with the same text as the fallback log line, before it builds `LLMRails`.
 
 ### Keep One Instance Running
 
@@ -139,23 +126,14 @@ When `IORails` runs the configuration, `Guardrails` raises `NotImplementedError`
 
 Code that depends on them has no `IORails` equivalent.
 
-`IORails` also does not load Python code from the configuration directory.
-It does not import `config.py` or call its `init()` function, and it does not run custom actions.
-Move the model and rail settings that `config.py` makes into `config.yml`.
-When the configuration's directory, or a directory it imports, contains `config.py`, `Guardrails` warns that `IORails` ignores it.
-A configuration that also has dialog flows reports only the dialog-flow warning, and a configuration that `RailsConfig.from_content()` builds has no directory to check.
-Providers that you register with `register_provider()` and custom LLM frameworks have no effect on it.
-
 `GenerationOptions` also behaves differently on `IORails`.
 For the details, refer to [Generation Options: IORails and LLMRails Differences](/run-guardrailed-inference/using-python-apis/generation-options#iorails-and-llmrails-differences) and [Engine Feature Support](/reference/engine-feature-support).
 
-## Remove the Engine and Model Arguments
+### Configure Models Instead of Passing llm
 
-`Guardrails(config, use_iorails=False)` always runs `LLMRails`.
-Remove the argument so that `Guardrails` runs `IORails` when `IORails` can run the configuration.
-
-`Guardrails(config, llm=...)` runs a model object that you supply, which forces `LLMRails` because `IORails` creates its models from the configuration.
-Remove the argument and configure the main model under `models` in `config.yml` instead:
+`IORails` creates every model from `models` in `config.yml` and calls it through its own OpenAI-compatible client.
+`Guardrails(config, llm=...)` passes a model object that `IORails` cannot use, so it runs `LLMRails`.
+Remove the argument and configure the main model under `models` instead:
 
 ```yaml
 models:
@@ -164,222 +142,11 @@ models:
     model: meta/llama-3.3-70b-instruct
 ```
 
-`LLMRails(config, llm=...)` and `update_llm()` are deprecated with `LLMRails`, and the same change applies.
-If you supplied a model object to reach a provider that is not OpenAI-compatible, refer to [LangChain Model Backend](#langchain-model-backend).
-
-`IORails` calls every model in `models` through its own OpenAI-compatible client.
-It knows the default endpoint only for the `nim` and `openai` engines.
+`IORails` knows the default endpoint only for the `nim` and `openai` engines.
 For a model with any other engine, set `parameters.base_url`.
+Providers that you register with `register_provider()` and custom LLM frameworks have no effect on `IORails`.
 
-## Configurations That Fall Back to LLMRails
-
-When `IORails` cannot run a configuration and the configuration has no per-tool rails, `Guardrails` falls back to `LLMRails`, logs the reason, and emits a warning that names it:
-
-```text
-Running this config on the LLMRails engine (config has rails outside the IORails-supported set: ['retrieval']) is deprecated since NeMo Guardrails 0.25.0 and will be removed in 0.27.0 (January 2027). Use only rails that IORails supports; see the Rail Engine Support reference. Migration guide: https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25
-```
-
-The following table maps the reason in the parentheses to the change to make.
-
-| Reason Starts With | Cause | What to Do |
-|---|---|---|
-| `IORails supports Colang 1.0 only` | The configuration sets `colang_version: "2.x"`. | Refer to [Colang Configurations](#colang-configurations). |
-| `config has rails outside the IORails-supported set` | The configuration has a rail section other than `input`, `output`, `config`, `tool_call`, and `tool_result`, such as `retrieval` or `dialog`. | `IORails` has no equivalent for retrieval or dialog rails, so removing these sections also removes their checks. Move the checks you need into input and output rails where you can; retrieval rails have no replacement. |
-| A flow name, followed by why it does not compile | A flow under `rails.input.flows`, `rails.output.flows`, or a `per_tool` list is not a rail that `IORails` runs, is a hand-written Colang flow, names a model type that `models` does not declare, or needs an optional dependency that is not installed. | Check the flow against [Rail Engine Support](/reference/rail-engine-support), declare the model, or install the dependency. For a flow in a `per_tool` list, the reason appears in a `ValueError` instead of a warning. |
-| `config has unsupported tool call flows` or `config has unsupported tool result flows` | A flow under `rails.tool_call.flows` or `rails.tool_result.flows` is not a tool rail that `IORails` runs. | Use the tool rails that [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) describes. |
-| `config has duplicate tool call flows` or `config has duplicate tool result flows` | The same flow appears more than once in `rails.tool_call.flows` or `rails.tool_result.flows`. | Remove the duplicate. |
-
-A configuration that `IORails` cannot run and that also has per-tool rails (`rails.tool_call.per_tool` or `rails.tool_result.per_tool`) does not fall back.
-Per-tool rails alone do not cause this; a configuration that `IORails` can run, per-tool rails included, runs on `IORails`.
-`Guardrails` raises a `ValueError` that names the same reason instead, because `LLMRails` does not run per-tool rails and falling back would turn them off.
-In that case it emits no `LLMRailsRemovalWarning`, so look for the reason in the error.
-
-To find fallbacks before you deploy, construct `Guardrails(config, require_iorails=True)` in a test for each configuration.
-You can also call `IORails.unsupported_reason(config)`, which returns the reason, or `None` when `IORails` can run the configuration:
-
-```python
-from nemoguardrails.guardrails.iorails import IORails
-
-reason = IORails.unsupported_reason(config)
-```
-
-The `IORails` column of [Rail Engine Support](/reference/rail-engine-support) lists every built-in rail that `IORails` runs, and the page explains why it refuses the others.
-A rail that only `LLMRails` runs is removed with `LLMRails` in 0.27.0.
-
-## Colang Configurations
-
-`IORails` reads Colang 1.0 configurations but runs none of their Colang flows, and it does not support Colang 2.x.
-
-### Dialog Flows in Colang 1.0
-
-`IORails` runs a Colang 1.0 configuration that contains its own `define flow` or `define user` blocks, but it does not run those dialog flows.
-It runs only the input, output, and tool rails in `config.yml` that it supports, and falls back to `LLMRails` for a configuration that lists others.
-`Guardrails` warns when this happens, because the configuration already behaves differently on `IORails` than on `LLMRails`.
-That includes a flow that copies or redefines a built-in rail's flow, because `IORails` runs only the built-in rail and ignores the flows in your configuration.
-
-Move the logic of your dialog flows into input and output rails:
-
-- To refuse topics or requests that a flow used to catch, add an input rail from the [Guardrail Catalog](/configure-guardrails/guardrail-catalog), such as topic safety or content safety.
-- To check or rewrite what the model returns, add an output rail.
-
-From 0.27.0, a configuration that contains hand-written Colang flows fails to load.
-
-### Colang 2.x
-
-`IORails` does not support Colang 2.x and will not.
-`Guardrails` falls back to `LLMRails` for a Colang 2.x configuration, and `nemoguardrails chat` prints a notice for Colang 2.x chat and its debugger commands.
-There is no replacement runtime.
-
-To keep the input and output checks of a Colang 2.x configuration, write a Colang 1.0 `config.yml` that lists the same built-in rails under `rails.input.flows` and `rails.output.flows`.
-Colang 2.x flows that steer the conversation have no `IORails` equivalent.
-
-## Deprecated CLI Commands
-
-The following commands are deprecated and have no replacement:
-
-| Command | Why There Is No Replacement |
-|---|---|
-| `nemoguardrails convert` | It converts Colang files, and `IORails` does not run Colang flows. |
-| `nemoguardrails actions-server` | `IORails` does not call an actions server. |
-| `nemoguardrails eval rail topical` | It measures Colang dialog rails, which `IORails` does not run. |
-| `nemoguardrails chat` with a Colang 2.x configuration, including its debugger commands | `IORails` will not support Colang 2.x. |
-
-When you run `convert`, `actions-server`, or `eval rail topical`, the CLI prints a line such as `DeprecationWarning: The command 'convert' is deprecated.`, followed by the removal notice.
-`nemoguardrails chat --server-url` prints no notice, because the server chooses the engine and reports the deprecation in its response headers.
-
-With a local Colang 1.0 configuration, `nemoguardrails chat` runs `LLMRails` and prints one notice, `Chatting on the LLMRails engine`, whatever the configuration contains.
-Set `NEMO_GUARDRAILS_IORAILS_ENGINE=true` to chat on `IORails`.
-`nemoguardrails chat` then prints no notice of its own, and the `Guardrails` warning reports a fallback, dialog flows, or `config.py`, as it does in Python code.
-
-The following commands stay and are planned to move to `IORails` in 0.26.0:
-
-- `nemoguardrails chat` with a Colang 1.0 configuration
-- `nemoguardrails server`
-- `nemoguardrails eval run`, `eval check-compliance`, and `eval ui`
-- `nemoguardrails eval rail moderation`, `eval rail hallucination`, and `eval rail fact-checking`
-
-## LangChain Integration
-
-Both halves of the LangChain integration are deprecated: the classes that add guardrails to LangChain chains and agents, and the framework that calls models through LangChain.
-
-### LangChain Chains and Agents
-
-`RunnableRails` adds guardrails to a LangChain chain, and `GuardrailsMiddleware`, `InputRailsMiddleware`, and `OutputRailsMiddleware` add them to a LangChain agent.
-All of them run on `LLMRails`.
-Call `Guardrails` directly from your chain or agent instead:
-
-- To check the input and output of a chain that you keep, call `check_async()` before and after it.
-- To check an agent, call `check_async()` around every model call, not only around the whole run, as the middleware did.
-- To have the guardrails call the main model from `config.yml`, call `generate_async()`.
-
-The following example checks the input and output of a chain that returns a string, such as one that ends with `StrOutputParser()`.
-The configuration must define both input and output rails, because `check_async()` raises `RailTypeNotConfiguredError` for a rail type with no configured rails.
-
-```python
-from nemoguardrails import Guardrails, RailsConfig
-from nemoguardrails.rails.llm.options import RailStatus, RailType
-
-rails = Guardrails(RailsConfig.from_path("path/to/config"))
-REFUSAL = "I can't help with that."
-
-
-async def guarded_invoke(chain, question: str) -> str:
-    input_result = await rails.check_async(
-        [{"role": "user", "content": question}], rail_types=[RailType.INPUT]
-    )
-    if input_result.status == RailStatus.BLOCKED:
-        return REFUSAL
-
-    # Input rails can rewrite the message, for example to mask sensitive data.
-    question = input_result.content
-    answer = await chain.ainvoke({"question": question})
-
-    output_result = await rails.check_async(
-        [{"role": "user", "content": question}, {"role": "assistant", "content": answer}],
-        rail_types=[RailType.OUTPUT],
-    )
-    if output_result.status == RailStatus.BLOCKED:
-        return REFUSAL
-    return output_result.content
-```
-
-An agent calls the model several times in one run, for example once to request a tool and again after it reads the tool result.
-A check around the whole run sees only the first input and the final reply, so it misses the model's replies in between.
-The following agent middleware runs input rails before every model call and output rails after it.
-It uses the `create_agent` middleware hooks of LangChain 1.x.
-
-```python
-from langchain.agents import create_agent
-from langchain.agents.middleware import AgentMiddleware, hook_config
-from langchain_core.messages import AIMessage
-
-from nemoguardrails import Guardrails, RailsConfig
-from nemoguardrails.rails.llm.options import RailStatus, RailType
-
-REFUSAL = "I can't help with that."
-
-
-def last_user_message(state):
-    return next(m for m in reversed(state["messages"]) if m.type == "human")
-
-
-class GuardrailsChecks(AgentMiddleware):
-    """Run input rails before every model call and output rails after it."""
-
-    def __init__(self, rails):
-        super().__init__()
-        self.rails = rails
-
-    @hook_config(can_jump_to=["end"])
-    async def abefore_model(self, state, runtime):
-        user = last_user_message(state)
-        result = await self.rails.check_async(
-            [{"role": "user", "content": user.text}], rail_types=[RailType.INPUT]
-        )
-        if result.status == RailStatus.BLOCKED:
-            return {"messages": [AIMessage(REFUSAL)], "jump_to": "end"}
-        if result.status == RailStatus.MODIFIED:
-            # The same message id makes the agent replace the message instead of appending one.
-            return {"messages": [user.model_copy(update={"content": result.content})]}
-        return None
-
-    async def aafter_model(self, state, runtime):
-        reply = state["messages"][-1]
-        if not reply.text:
-            return None
-        user = last_user_message(state)
-        result = await self.rails.check_async(
-            [{"role": "user", "content": user.text}, {"role": "assistant", "content": reply.text}],
-            rail_types=[RailType.OUTPUT],
-        )
-        if result.status == RailStatus.BLOCKED:
-            return {"messages": [AIMessage(REFUSAL, id=reply.id)]}
-        if result.status == RailStatus.MODIFIED:
-            return {"messages": [reply.model_copy(update={"content": result.content})]}
-        return None
-
-
-rails = Guardrails(RailsConfig.from_path("path/to/config"))
-agent = create_agent(model, tools=tools, middleware=[GuardrailsChecks(rails)])
-```
-
-Input rails check the latest user message, and output rails check the text of the model's reply, so neither checks tool calls or tool results.
-A tool result can carry a prompt injection into the next model call, so check every tool result before that call.
-In `abefore_model`, run `check_async()` with `RailType.TOOL_RESULT` on the conversation, including the assistant message with its `tool_calls` and the `tool` messages, and stop the agent with `"jump_to": "end"` when the check blocks, as the input check does.
-`tool result validation` checks only the structure of a result, not its content, so it does not catch a prompt injection.
-Also configure a per-tool rail that checks the content, such as `tool safety check tool result` or `regex check tool result`.
-To check the tool calls that the model emits, run `check_async()` with `RailType.TOOL_CALL` in `aafter_model`.
-For the details, refer to [Checking Messages Against Rails: Tool Rails](/run-guardrailed-inference/using-python-apis/check-messages#tool-rails-iorails-only).
-
-For the full check API, refer to [Checking Messages Against Rails](/run-guardrailed-inference/using-python-apis/check-messages).
-
-### LangChain Model Backend
-
-The LangChain model framework calls models through LangChain provider classes.
-You select it with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` or `set_default_framework("langchain")`, or you wrap a LangChain model in `LangChainLLMAdapter`.
-`IORails` does not use it.
-
-Serve the model through an OpenAI-compatible endpoint and configure it for the default framework:
+To call another provider's OpenAI-compatible endpoint with the `openai` engine, set `api_key_env_var` to the environment variable that holds that endpoint's key:
 
 ```yaml
 models:
@@ -391,73 +158,136 @@ models:
       base_url: https://your-endpoint.example.com/v1
 ```
 
-Set `api_key_env_var` to the environment variable that holds this endpoint's key.
-Without it, the `openai` engine sends the key in `OPENAI_API_KEY` to `base_url`, which hands your OpenAI key to another provider.
+Without `api_key_env_var`, the `openai` engine sends the key in `OPENAI_API_KEY` to `base_url`, which hands your OpenAI key to another provider.
 For an endpoint that needs no key, leave out `api_key_env_var` and `parameters.api_key`, and unset `OPENAI_API_KEY` for the process.
 `IORails` then sends no `Authorization` header, unless you set one in `parameters.default_headers`.
 
-For the engines that the default framework supports, refer to [Supported LLMs](/about-nemo-guardrails-library/supported-llms).
-For recipes that move a LangChain engine to an OpenAI-compatible one, refer to [Migrating to 0.22](/reference/0-22#openai-compatible-providers).
-A provider that works only through LangChain has no supported path in 0.27.0 unless you serve it through an OpenAI-compatible endpoint.
+`Guardrails(config, use_iorails=False)` always runs `LLMRails`.
+Remove the argument so that `Guardrails` runs `IORails` when `IORails` can run the configuration.
 
-The OpenAI Responses API (`use_responses_api`) also works only through the LangChain framework, because the default framework calls `/v1/chat/completions`.
-It has no replacement in 0.27.0: move to a model that you can call through Chat Completions, or stay on 0.26.
+### What IORails Ignores in a Configuration
 
-## Testing With TestChat
+`IORails` runs the input, output, and tool rails in `config.yml` that it supports.
+It ignores the following parts of a configuration, which only `LLMRails` uses:
 
-`TestChat` scripts model replies for an `LLMRails` application, so it is deprecated with `LLMRails`.
-A test helper that scripts model replies for `Guardrails` is planned for 0.26.0.
-Until then, keep your `TestChat` tests and filter the warning in your pytest configuration, as described in [Silence or Escalate the Warning](#silence-or-escalate-the-warning).
+| Part of the Configuration | Reported When `IORails` Runs It |
+|---|---|
+| Colang dialog flows (`define user`, `define flow`) | A `UserWarning`. Refer to [Colang Configurations](#colang-configurations). |
+| `config.py`, including its `init()` function and what it registers | A `UserWarning` |
+| `define bot` messages, such as a custom refusal | Not reported. When a rail blocks a request, `IORails` answers with `I'm sorry, I can't respond to that.`, unless that rail supplies its own refusal message, as language detection does. |
+| Custom actions in `actions.py` or an `actions/` folder | Not reported |
+| Knowledge base documents in `kb/` | Not reported |
 
-## Guardrails API Server
+Move the model and rail settings that `config.py` makes into `config.yml`.
+`Guardrails` looks for `config.py` in the configuration's directory and in the directories it imports.
+A configuration that `RailsConfig.from_content()` builds has no directory of its own, so `Guardrails` checks only the directories that its `import_paths` setting names.
+When a configuration has both dialog flows and `config.py`, you receive both warnings.
 
-By default, `nemoguardrails server` serves every configuration on `LLMRails`.
-With `NEMO_GUARDRAILS_IORAILS_ENGINE=true`, it serves each configuration through `Guardrails`, which runs `IORails` when `IORails` can run the configuration.
+## Configurations That Fall Back to LLMRails
+
+When `IORails` cannot run a configuration and the configuration has no per-tool rails, `Guardrails` falls back to `LLMRails`.
+It logs the reason at `WARNING` level on the `nemoguardrails.guardrails.guardrails` logger:
+
+```text
+use_iorails=True was requested but IORails cannot be used: config has rails outside the IORails-supported set: ['retrieval']. Falling back to LLMRails; IORails-only features (such as OpenTelemetry metrics) will not be available.
+```
+
+If your application configures no logging, Python prints the record to standard error.
+The fallback emits no Python warning of its own; a Colang 2.x configuration also emits the Colang 2.x `LLMRailsRemovalWarning` when `LLMRails` starts.
+
+The following table maps the reason after `IORails cannot be used:` to the change to make.
+
+| Reason Starts With | Cause | What to Do |
+|---|---|---|
+| ``an `llm` argument was provided`` | Your code passes a model object to `Guardrails`. | Refer to [Configure Models Instead of Passing llm](#configure-models-instead-of-passing-llm). |
+| `IORails supports Colang 1.0 only` | The configuration sets `colang_version: "2.x"`. | Refer to [Colang Configurations](#colang-configurations). |
+| `config has rails outside the IORails-supported set` | The configuration has a rail section other than `input`, `output`, `config`, `tool_call`, and `tool_result`, such as `retrieval` or `dialog`. | `IORails` has no equivalent for retrieval or dialog rails, so removing these sections also removes their checks. Move the checks you need into input and output rails where you can; retrieval rails have no replacement. |
+| A flow name, followed by why it does not compile | A flow under `rails.input.flows`, `rails.output.flows`, or a `per_tool` list is not a rail that `IORails` runs, is a hand-written Colang flow, names a model type that `models` does not declare, or needs an optional dependency that is not installed. | Check the flow against [Rail Engine Support](/reference/rail-engine-support), declare the model, or install the dependency. For a flow in a `per_tool` list, the reason appears in a `ValueError` instead of the log line. |
+| `config has unsupported tool call flows` or `config has unsupported tool result flows` | A flow under `rails.tool_call.flows` or `rails.tool_result.flows` is not a tool rail that `IORails` runs. | Use the tool rails that [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) describes. |
+| `config has duplicate tool call flows` or `config has duplicate tool result flows` | The same flow appears more than once in `rails.tool_call.flows` or `rails.tool_result.flows`. | Remove the duplicate. |
+
+A configuration that `IORails` cannot run and that also has per-tool rails (`rails.tool_call.per_tool` or `rails.tool_result.per_tool`) does not fall back.
+Per-tool rails alone do not cause this; a configuration that `IORails` can run, per-tool rails included, runs on `IORails`.
+`Guardrails` raises a `ValueError` that names the same reason instead, because `LLMRails` does not run per-tool rails and falling back would turn them off.
+
+To find fallbacks before you deploy, construct `Guardrails(config, require_iorails=True)` in a test for each configuration.
+You can also call `IORails.unsupported_reason(config)`, which returns the reason, or `None` when `IORails` can run the configuration:
+
+```python
+from nemoguardrails.guardrails.iorails import IORails
+
+reason = IORails.unsupported_reason(config)
+```
+
+The `IORails` column of [Rail Engine Support](/reference/rail-engine-support) lists every built-in rail that `IORails` runs, and the page explains why it refuses the others.
+A rail that only `LLMRails` runs has no `IORails` equivalent.
+
+## Colang Configurations
+
+`IORails` reads Colang 1.0 configurations but runs none of their Colang flows, and it does not support Colang 2.x.
+
+### Dialog Flows in Colang 1.0
+
+`IORails` runs a Colang 1.0 configuration that contains its own `define flow` or `define user` blocks, but it does not run those dialog flows.
+It runs only the input, output, and tool rails in `config.yml` that it supports, and falls back to `LLMRails` for a configuration that lists others.
+`Guardrails` emits a `UserWarning` when it runs such a configuration on `IORails`, because the configuration already behaves differently than it does on `LLMRails`.
+That includes a flow that copies or redefines a built-in rail's flow, because `IORails` runs only the built-in rail and ignores the flows in your configuration.
+
+Move the logic of your dialog flows into input and output rails:
+
+- To refuse topics or requests that a flow used to catch, add an input rail from the [Guardrail Catalog](/configure-guardrails/guardrail-catalog), such as topic safety or content safety.
+- To check or rewrite what the model returns, add an output rail.
+
+The Colang 1.0 runtime is deprecated together with `LLMRails`, and its removal is planned no earlier than 0.27.0.
+
+### Colang 2.x
+
+`IORails` does not support Colang 2.x and will not, so there is no replacement runtime.
+Every construction of `LLMRails` on a Colang 2.x configuration emits an `LLMRailsRemovalWarning`, whichever route builds it:
+
+- your code, directly or through a subclass
+- `Guardrails`, when it falls back, and `Guardrails(config, use_iorails=False)`
+- `TestChat`, `RunnableRails`, and the LangChain agent middleware
+- the Guardrails API server and the `eval` commands
+
+`nemoguardrails chat` prints the notice for Colang 2.x chat and its debugger commands to standard error instead of the Python warning.
+
+To keep the input and output checks of a Colang 2.x configuration, write a Colang 1.0 `config.yml` that lists the same built-in rails under `rails.input.flows` and `rails.output.flows`.
+Colang 2.x flows that steer the conversation have no `IORails` equivalent.
+
+## The CLI and the Guardrails API Server
+
+`nemoguardrails chat` with a Colang 1.0 configuration and `nemoguardrails server` run `LLMRails` by default and print no deprecation notice.
+Set `NEMO_GUARDRAILS_IORAILS_ENGINE=true` to run them through `Guardrails`, which runs `IORails` when `IORails` can run the configuration:
 
 ```bash
 NEMO_GUARDRAILS_IORAILS_ENGINE=true nemoguardrails server --config ./config
 ```
 
-The library reads the variable when it is first imported, and it acts on the whole Python process: `from nemoguardrails import LLMRails` returns `Guardrails` instead.
-Code in that process that still constructs `LLMRails` gets `Guardrails` and no `LLMRails` warning, so it warns only in the cases where `Guardrails` warns.
+The variable also accepts `1` and `yes`, in any case.
+The library reads it when it is first imported, and it acts on the whole Python process: `from nemoguardrails import LLMRails` returns `Guardrails` instead.
+Code in that process that constructs `LLMRails` through that import gets `Guardrails` and no `LLMRailsRemovalWarning`, except that a Colang 2.x configuration still warns when `Guardrails` falls back.
+Code that imports `LLMRails` from `nemoguardrails.rails` still gets `LLMRails` and the warning.
 To find every `LLMRails` call site with a pytest filter, run your tests without the variable.
 
-When the server serves a configuration on `LLMRails`, it reports the deprecation in two ways.
+With the variable set, the `UserWarning` diagnostics and the fallback log line report the same cases as they do in Python code.
+In the server, the `UserWarning` does not name the configuration, and Python can show it once for several configurations.
+To find the configurations that trigger it, construct `Guardrails` for each configuration in a test.
+A request that names several configurations merges them into one, and the merged configuration always falls back to `LLMRails`, or raises `ValueError` if it has per-tool rails.
 
-On the first request for that configuration, and again after the server reloads it, the `nemoguardrails.server.api` logger writes a `WARNING`:
+## Silence or Escalate the Warnings
 
-```text
-Serving config 'my_config' with the LLMRails engine is deprecated since NeMo Guardrails 0.25.0 and will be removed in 0.27.0 (January 2027). Set NEMO_GUARDRAILS_IORAILS_ENGINE=true to serve IORails-compatible configs with IORails. Migration guide: https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25
-```
-
-The quoted name is the configuration ID, or the IDs joined with `-` when a request names several configurations, followed by a colon and the model name when the request names a model.
-When `NEMO_GUARDRAILS_IORAILS_ENGINE=true` is already set, the configuration fell back to `LLMRails`, and the line points to [Rail Engine Support](/reference/rail-engine-support) instead.
-To find the reason, refer to [Configurations That Fall Back to LLMRails](#configurations-that-fall-back-to-llmrails).
-
-Once the server chooses `LLMRails` for a request to `/v1/chat/completions` or `/v1/checks`, every response to that request carries the following headers, streamed or not, error responses included:
-
-```http
-Deprecation: @1793491200
-Sunset: Fri, 01 Jan 2027 00:00:00 GMT
-Link: <https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25>; rel="deprecation"; type="text/html"
-```
-
-The `Deprecation` header (RFC 9745) holds the Unix timestamp for the start of November 2026, and the `Sunset` header (RFC 8594) holds the start of January 2027.
-Clients can detect the headers and alert you before the removal.
-Responses from `IORails` do not carry them, and neither do error responses that the server returns before it chooses an engine, such as for a request that fails validation.
-
-## Silence or Escalate the Warning
-
-Python shows each `LLMRailsRemovalWarning` once for every line of code that triggers it.
-The following methods change that:
+The following methods change how Python reports the warnings:
 
 | Method | Effect |
 |---|---|
-| `warnings.filterwarnings("ignore", category=LLMRailsRemovalWarning)` in your code | Hides the warning. |
-| `filterwarnings = error::nemoguardrails.LLMRailsRemovalWarning` in `pytest.ini`, or `-W "error::nemoguardrails.LLMRailsRemovalWarning"` on the pytest command line | Turns the warning into an error, so your tests fail at every deprecated use. Use `ignore` instead of `error` to hide it in tests. |
-| `python -W ignore::FutureWarning`, or the same value in `PYTHONWARNINGS` | Hides the warning, but also hides every other `FutureWarning`. |
+| `warnings.filterwarnings("ignore", category=LLMRailsRemovalWarning)` in your code | Hides the removal warning. |
+| `warnings.filterwarnings("default", category=LLMRailsRemovalWarning)` in your code | Shows the removal warning outside `__main__` too, once for each line that triggers it. |
+| `filterwarnings = error::nemoguardrails.LLMRailsRemovalWarning` in `pytest.ini`, or `-W "error::nemoguardrails.LLMRailsRemovalWarning"` on the pytest command line | Turns the removal warning into an error, so your tests fail at every use that emits it. Use `ignore` instead of `error` to hide it in tests. |
+| `python -W ignore::DeprecationWarning`, or the same value in `PYTHONWARNINGS` | Hides the removal warning, and every other `DeprecationWarning`. |
+| `warnings.filterwarnings("ignore", message="IORails does not", category=UserWarning)` in your code | Hides the two diagnostics about what `IORails` ignores. |
 
-The following example hides the warning in application code:
+The following example hides the removal warning in application code:
 
 ```python
 import warnings
@@ -467,7 +297,7 @@ from nemoguardrails import LLMRailsRemovalWarning
 warnings.filterwarnings("ignore", category=LLMRailsRemovalWarning)
 ```
 
-The following `pytest.ini` turns the warning into an error in your tests:
+The following `pytest.ini` turns the removal warning into an error in your tests:
 
 ```ini
 [pytest]
@@ -476,9 +306,9 @@ filterwarnings =
 ```
 
 Python's own `-W` option and `PYTHONWARNINGS` cannot name `LLMRailsRemovalWarning`.
-Python prints `Invalid -W option ignored: invalid module name: 'nemoguardrails'` and still shows the warning.
+Python prints `Invalid -W option ignored: invalid module name: 'nemoguardrails'` and applies the default filters.
 
-The CLI notices and the server log line are printed text and log records, not Python warnings, so warning filters do not affect them.
+The `nemoguardrails chat` notice is printed text, and the fallback line is a log record, so warning filters do not affect them.
 
 ## Related Topics
 

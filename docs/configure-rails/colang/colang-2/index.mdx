@@ -12,9 +12,9 @@ Use this guide to review what changed from Colang 1.0, migrate existing configur
 
 <Warning>
 
-The Colang 1.0 and Colang 2.x runtimes are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
-The IORails engine will not support Colang 2.x, and it does not run Colang flows.
-From 0.27.0, a configuration that uses Colang 2.x or contains hand-written Colang flows fails to load.
+The Colang 1.0 and Colang 2.x runtimes are deprecated in 0.25.0; removal is planned no earlier than 0.27.0.
+The IORails engine will not support Colang 2.x, so Colang 2.x has no replacement.
+Every construction of `LLMRails` on a Colang 2.x configuration emits an `LLMRailsRemovalWarning`, except in `nemoguardrails chat`, which prints the notice to standard error instead.
 For the steps, refer to [Migrating to 0.25](/reference/0-25#colang-configurations).
 
 </Warning>

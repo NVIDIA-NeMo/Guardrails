@@ -15,8 +15,8 @@
 
 > **LATEST RELEASE / DEVELOPMENT VERSION**: The [develop](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop) branch tracks the latest top of tree development. The latest released version is [0.24.1](https://github.com/NVIDIA-NeMo/Guardrails/tree/v0.24.1).
 
-> **DEPRECATION**: Starting with version 0.25.0, `LLMRails`, the Colang 1.0 and Colang 2.x runtimes, `TestChat`, and the LangChain integration are deprecated.
-> Version 0.27.0 (January 2027) removes them.
+> **DEPRECATION**: Version 0.25.0 deprecates the `LLMRails` engine and the Colang 1.0 and Colang 2.x runtimes.
+> Removal is planned no earlier than 0.27.0.
 > Use `Guardrails`, which runs the IORails engine when that engine supports the configuration, and follow the [migration guide](https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25).
 
 ✨✨✨
@@ -81,7 +81,7 @@ You can use programmable guardrails in different types of use cases:
 1. **Question Answering** over a set of documents (a.k.a. Retrieval Augmented Generation): Enforce fact-checking and output moderation.
 2. **Domain-specific Assistants** (a.k.a. chatbots): Ensure the assistant stays on topic and follows the designed conversational flows.
 3. **LLM Endpoints**: Add guardrails to your custom LLM for safer customer interaction.
-4. **LangChain Chains** (optional): If you use LangChain for any use case, you can add a guardrails layer around your chains. To enable this integration, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`. The LangChain integration is deprecated and is removed in 0.27.0; refer to the [migration guide](https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25#langchain-integration).
+4. **LangChain Chains** (optional): If you use LangChain for any use case, you can add a guardrails layer around your chains. To enable this integration, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`.
 
 ### Usage
 
@@ -110,7 +110,7 @@ Sample output:
 
 The input and output format for the `generate` method is similar to the [Chat Completions API](https://platform.openai.com/docs/guides/gpt/chat-completions-api) from OpenAI.
 
-`Guardrails` runs the IORails engine only when that engine supports every rail in the configuration; otherwise, it falls back to the deprecated `LLMRails` and warns, or raises `ValueError` if the configuration has per-tool rails.
+`Guardrails` runs the IORails engine only when that engine supports every rail in the configuration; otherwise, it falls back to the deprecated `LLMRails` and logs the reason, or raises `ValueError` if the configuration has per-tool rails.
 The sample `config.yml` below lists `self check facts` and `self check hallucination`, which run only on `LLMRails`.
 To check a configuration before you migrate, construct `Guardrails(config, require_iorails=True)`, and refer to [Rail Engine Support](https://docs.nvidia.com/nemo/guardrails/latest/reference/rail-engine-support).
 
@@ -192,8 +192,8 @@ rails:
 
 The `.co` files included in a guardrails configuration contain the Colang definitions (see the next section for a quick overview of what Colang is) that define various types of rails. Below is an example `greeting.co` file which defines the dialog rails for greeting the user.
 
-> **DEPRECATION**: Dialog rails written as Colang flows run only on `LLMRails`, which version 0.27.0 (January 2027) removes.
-> When `Guardrails` runs the IORails engine, it ignores them.
+> **DEPRECATION**: Dialog rails written as Colang flows run only on `LLMRails`, which is deprecated; removal is planned no earlier than 0.27.0.
+> When `Guardrails` runs the IORails engine, it ignores them and emits a `UserWarning`.
 > Refer to the [migration guide](https://docs.nvidia.com/nemo/guardrails/latest/reference/0-25#colang-configurations).
 
 ```colang
@@ -230,7 +230,7 @@ To configure and implement various types of guardrails, this toolkit introduces 
 
 ```{note}
 Two versions of Colang, 1.0 and 2.0, are supported and Colang 1.0 is the default.
-Both Colang runtimes are deprecated in 0.25.0 and are removed in 0.27.0 (January 2027).
+Both Colang runtimes are deprecated in 0.25.0; removal is planned no earlier than 0.27.0.
 ```
 
 For a brief introduction to the Colang 1.0 syntax, see the [Colang 1.0 Language Syntax Guide](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/colang).
@@ -256,7 +256,7 @@ $ nemoguardrails --help
 
 Usage: nemoguardrails [OPTIONS] COMMAND [ARGS]...
 
-actions-server    Start a NeMo Guardrails actions server. (deprecated)
+actions-server    Start a NeMo Guardrails actions server.
 chat              Start an interactive chat session.
 eval              Run an evaluation task.
 server            Start a NeMo Guardrails server.

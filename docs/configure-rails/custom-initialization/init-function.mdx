@@ -10,13 +10,14 @@ content:
 
 If `config.py` contains an `init` function, it is called during `LLMRails` initialization. Use it to set up shared resources and register action parameters.
 
-<Warning>
+<Note>
 
-The `init` function and the action parameters it registers run only on `LLMRails`, which is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
-The IORails engine has no equivalent.
-For the steps, refer to [Migrating to 0.25](/reference/0-25#methods-that-iorails-does-not-provide).
+The `init` function and the action parameters it registers run only on `LLMRails`.
+The IORails engine does not import `config.py`, so `init()` has no effect on it.
+When `Guardrails` runs a configuration that has `config.py` on the IORails engine, it emits a `UserWarning`.
+For what to move into `config.yml`, refer to [Migrating to 0.25: What IORails Ignores in a Configuration](/reference/0-25#what-iorails-ignores-in-a-configuration).
 
-</Warning>
+</Note>
 
 <Info>
 

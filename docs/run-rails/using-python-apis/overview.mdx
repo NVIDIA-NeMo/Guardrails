@@ -27,7 +27,7 @@ Upon initializing the core classes (`RailsConfig` and `Guardrails`), the library
 
 <Warning>
 
-`LLMRails`, the earlier main interface, is deprecated in 0.25.0 and is removed in 0.27.0 (January 2027).
+`LLMRails`, the earlier main interface, is deprecated in 0.25.0; removal is planned no earlier than 0.27.0.
 Replace `LLMRails(config)` with `Guardrails(config)`.
 For the steps, refer to [Migrating to 0.25](/reference/0-25#replace-llmrails-with-guardrails).
 
@@ -118,7 +118,7 @@ If your platform keeps one event loop running across invocations, make the handl
 | `generate()` / `generate_async()`               | Standard chat interactions with messages              |
 | `stream_async()`                                | Real-time token streaming                             |
 | `check()` / `check_async()`                     | Validate messages against rails without generation    |
-| `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations (`LLMRails` only, deprecated) |
+| `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations (`LLMRails` only) |
 
 ## Synchronous vs Asynchronous
 
