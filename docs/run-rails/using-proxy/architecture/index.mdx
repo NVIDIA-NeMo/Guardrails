@@ -1,12 +1,12 @@
 ---
 title: "Architecture"
 sidebar-title: "Architecture"
-description: "Understand the proxy's boundaries, inspection model, design tradeoffs, and deployment responsibilities."
+description: "Understand NeMo Guardrails Gateway's boundaries, inspection model, design tradeoffs, and deployment responsibilities."
 content:
   type: "concept"
 ---
 
-Guardrails Proxy adds content inspection around an existing provider HTTP
+NeMo Guardrails Gateway adds content inspection around an existing provider HTTP
 exchange. Provider bindings define the inspection coverage, the NVIDIA NeMo
 Guardrails library runs configured checks, and the upstream service generates
 the answer. The proxy preserves accepted provider JSON bodies and server-sent
@@ -15,9 +15,9 @@ events (SSE) while applying its HTTP path and header forwarding rules.
 ## What Changes in Your Application
 
 Point your provider client's base URL at the chosen proxy mount, including its
-API prefix; the [quickstart](/run-guardrailed-inference/using-proxy/quickstart) shows the request URL. Continue to
+API prefix; the [quickstart](/run-guardrailed-inference/using-gateway/quickstart) shows the request URL. Continue to
 send the selected provider operation's JSON shape. Check the
-[shipped coverage](/run-guardrailed-inference/using-proxy/providers-and-streaming#coverage-of-the-shipped-profiles)
+[shipped coverage](/run-guardrailed-inference/using-gateway/providers-and-streaming#coverage-of-the-shipped-profiles)
 first: a working upstream request can still be outside the proxy's guarded
 profile, such as a Chat request containing conversation history or tools.
 
@@ -30,7 +30,7 @@ caller only when the relevant validation and checks allow them.
 Handle proxy errors as well as upstream errors. A blocked input prevents the
 inference call; a blocked buffered output withholds the answer. During streaming,
 a later error can follow already delivered text, so consume the stream's error
-format as well as its HTTP status. Refer to [caller-visible outcomes](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle#caller-visible-outcomes).
+format as well as its HTTP status. Refer to [caller-visible outcomes](/run-guardrailed-inference/using-gateway/architecture/request-lifecycle#caller-visible-outcomes).
 
 ## Choose a Reading Path
 
@@ -38,9 +38,9 @@ Choose the guide that matches your role:
 
 | You Are | Read |
 | --- | --- |
-| Using the proxy in an application | Start with [system context](#system-context) and [inspection and forwarding](#inspection-and-forwarding), then follow the [request lifecycle](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle). |
-| Extending the framework | Read [framework internals](/run-guardrailed-inference/using-proxy/architecture/framework-internals) for dependency boundaries, policy selection, state ownership, and implementation/test locations. |
-| Operating or embedding a deployment | Read [operating the proxy](#operating-the-proxy), then use the [configuration](/run-guardrailed-inference/using-proxy/configuration), [deployment](/run-guardrailed-inference/using-proxy/deployment), and [Python integration](/run-guardrailed-inference/using-proxy/python-integration) guides. |
+| Using the proxy in an application | Start with [system context](#system-context) and [inspection and forwarding](#inspection-and-forwarding), then follow the [request lifecycle](/run-guardrailed-inference/using-gateway/architecture/request-lifecycle). |
+| Extending the framework | Read [framework internals](/run-guardrailed-inference/using-gateway/architecture/framework-internals) for dependency boundaries, policy selection, state ownership, and implementation/test locations. |
+| Operating or embedding a deployment | Read [operating the gateway](#operating-the-gateway), then use the [configuration](/run-guardrailed-inference/using-gateway/configuration), [deployment](/run-guardrailed-inference/using-gateway/deployment), and [Python integration](/run-guardrailed-inference/using-gateway/python-integration) guides. |
 
 ## System Context
 
@@ -53,7 +53,7 @@ calls. Access controls belong to your application or gateway.
 flowchart TB
     Client["Application or provider API client"]
     Access["Host application or ingress gateway: inbound access controls"]
-    Proxy["Guardrails Proxy: provider HTTP forwarding and configured inspection"]
+    Proxy["NeMo Guardrails Gateway: provider HTTP forwarding and configured inspection"]
     Upstream["Inference service or model gateway: answer generation"]
     Services["Optional configured checking services"]
     Client -->|"Provider API request"| Access
@@ -76,7 +76,7 @@ checks use them.
 The proxy is included in the NVIDIA NeMo Guardrails library under
 `nemoguardrails.server.experimental` and requires the library's `server` extra.
 The library's existing API server remains a separate application. YAML and Python entry points assemble the same
-proxy factory and lifespan; refer to [application assembly](/run-guardrailed-inference/using-proxy/architecture/framework-internals#application-assembly).
+proxy factory and lifespan; refer to [application assembly](/run-guardrailed-inference/using-gateway/architecture/framework-internals#application-assembly).
 
 ## Inspection and Forwarding
 
@@ -112,7 +112,7 @@ flowchart TB
 
 Invalid inspected representations are rejected before release. Reviewed
 successful responses without guarded text and upstream HTTP errors have
-operation-specific handling; follow [buffered requests](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle#buffered-requests)
+operation-specific handling; follow [buffered requests](/run-guardrailed-inference/using-gateway/architecture/request-lifecycle#buffered-requests)
 for those branches. Streaming releases approved windows in order and cannot
 retract earlier output.
 
@@ -128,8 +128,8 @@ uninspected paths explicit:
 
 Bindings currently use `single_text.v1` and `single_text_delta.v1` capabilities.
 An operation name does not imply inspection of its entire upstream API. Consult
-[providers and streaming](/run-guardrailed-inference/using-proxy/providers-and-streaming) for the shipped content
-restrictions and [guard contracts](/run-guardrailed-inference/using-proxy/guard-contracts) for field-level coverage.
+[providers and streaming](/run-guardrailed-inference/using-gateway/providers-and-streaming) for the shipped content
+restrictions and [guard contracts](/run-guardrailed-inference/using-gateway/guard-contracts) for field-level coverage.
 
 ## Design Decisions and Tradeoffs
 
@@ -143,11 +143,11 @@ These are current implementation choices and their observable consequences.
 | Preload every registered Rails configuration before readiness. | Requests select ready checkers without loading files or constructing engines. | Startup time and resources grow with the catalog, including unused entries. Initialization failure prevents readiness. |
 | Check streaming windows before release. | Output can arrive incrementally after checks approve each window. | Smaller windows increase check frequency; short responses can wait until completion. Finite context and irreversible release limit whole-answer guarantees. |
 
-Refer to [framework internals](/run-guardrailed-inference/using-proxy/architecture/framework-internals) for the interfaces enforcing
-these boundaries and [streaming inspection](/run-guardrailed-inference/using-proxy/architecture/request-lifecycle#streaming-inspection)
+Refer to [framework internals](/run-guardrailed-inference/using-gateway/architecture/framework-internals) for the interfaces enforcing
+these boundaries and [streaming inspection](/run-guardrailed-inference/using-gateway/architecture/request-lifecycle#streaming-inspection)
 for a concrete window example.
 
-## Operating the Proxy
+## Operating the Gateway
 
 Construction, startup, request handling, and shutdown have different owners:
 
@@ -160,8 +160,8 @@ Construction, startup, request handling, and shutdown have different owners:
 
 Timeouts do not establish that uncooperative owners released all resources.
 Embedding applications must explicitly enter the proxy lifespan; mounting alone
-does not initialize it. Follow [lifespan and embedding](/run-guardrailed-inference/using-proxy/python-integration#lifespan-and-embedding)
-and retain the [compatibility validation](/run-guardrailed-inference/using-proxy/deployment#streaming-and-resource-ownership)
+does not initialize it. Follow [lifespan and embedding](/run-guardrailed-inference/using-gateway/python-integration#lifespan-and-embedding)
+and retain the [compatibility validation](/run-guardrailed-inference/using-gateway/deployment#streaming-and-resource-ownership)
 requirements.
 
 Destination routing, replication, and placement are separate dimensions that
@@ -179,6 +179,6 @@ upstream and run as several equivalent replicas behind an ingress. Choosing a
 gateway does not determine replica count or require embedding.
 
 Several provider mounts in one process share its HTTP client and transport and do
-not provide process isolation. The [deployment guide](/run-guardrailed-inference/using-proxy/deployment) supplies
-topologies and routing examples; [configuration](/run-guardrailed-inference/using-proxy/configuration) covers
+not provide process isolation. The [deployment guide](/run-guardrailed-inference/using-gateway/deployment) supplies
+topologies and routing examples; [configuration](/run-guardrailed-inference/using-gateway/configuration) covers
 selection and limits without duplicating those deployment instructions here.

@@ -45,7 +45,7 @@ does not determine compatibility.
 
 `instance_id` is the application's identity for this deployment declaration;
 `mount_path` determines how incoming requests reach it. A model name inside a
-provider request is a separate value. Refer to [deployment](/run-guardrailed-inference/using-proxy/deployment) for
+provider request is a separate value. Refer to [deployment](/run-guardrailed-inference/using-gateway/deployment) for
 multiple upstreams and one-route routing.
 
 ## Keep Rails Configuration Separate
@@ -89,7 +89,7 @@ not activate checks disabled in the selected Rails configuration.
 
 Declare each configuration once in `rails_configs`. Several providers can use
 the same `rails_config_id`, or each can choose a different entry. YAML makes a
-fixed selection per provider. Use [Python resolution](/run-guardrailed-inference/using-proxy/advanced/configuration-resolution)
+fixed selection per provider. Use [Python resolution](/run-guardrailed-inference/using-gateway/advanced/configuration-resolution)
 when selection depends on authenticated request context or the operation.
 
 A resolver selects one configuration, not a sequence of configurations. All
@@ -126,7 +126,7 @@ masking, are rejected by the proxy rather than applied to the provider body.
 ## Inspect Before Serving
 
 With the installed environment active, run from your deployment directory
-(see the [quickstart](/run-guardrailed-inference/using-proxy/quickstart)):
+(see the [quickstart](/run-guardrailed-inference/using-gateway/quickstart)):
 
 ```bash
 python -m nemoguardrails.server.experimental validate proxy.yaml
@@ -189,5 +189,5 @@ manifest. `inspect` includes `routes` for guarded paths and
 `reserved_route_patterns` for rejected aliases. Manifest validation diagnostics
 omit source values and excerpts, but inspection still contains upstream addresses.
 
-For Python path semantics and callbacks, refer to [Python integration](/run-guardrailed-inference/using-proxy/python-integration).
-For the exact bound content coverage, refer to [providers and streaming](/run-guardrailed-inference/using-proxy/providers-and-streaming).
+For Python path semantics and callbacks, refer to [Python integration](/run-guardrailed-inference/using-gateway/python-integration).
+For the exact bound content coverage, refer to [providers and streaming](/run-guardrailed-inference/using-gateway/providers-and-streaming).

@@ -21,7 +21,7 @@ Pass an `http_transport_factory` to the application factory. This is a function
 that creates the transport when the application starts. The proxy shares it
 across provider instances and closes it during shutdown.
 
-Complete the [Python setup](/run-guardrailed-inference/using-proxy/python-integration#create-an-application),
+Complete the [Python setup](/run-guardrailed-inference/using-gateway/python-integration#create-an-application),
 then replace `proxy_app.py` with the following example. It increases the shared
 connection limit to 200 for applications handling more concurrent requests:
 
@@ -179,7 +179,7 @@ canonical pass-through methods remain available. Outer ASGI mounts are removed
 from decoded and raw paths together, preserving encoded suffixes and queries.
 All provider routers are validated before they are installed.
 
-Register [local routers](/run-guardrailed-inference/using-proxy/python-integration#local-application-routes)
+Register [local routers](/run-guardrailed-inference/using-gateway/python-integration#local-application-routes)
 through the factory before provider catch-alls. Nested router prefixes and
 dependencies are preserved, and unsupported methods on reserved local paths
 are rejected without upstream forwarding.

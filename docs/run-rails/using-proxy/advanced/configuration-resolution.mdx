@@ -20,10 +20,10 @@ policy for Responses, through the same provider instance.
 ## Select a Configuration
 
 YAML requires a fixed Rails ID per provider. To select one with a Python
-function, complete the [Python setup](/run-guardrailed-inference/using-proxy/python-integration#create-an-application),
+function, complete the [Python setup](/run-guardrailed-inference/using-gateway/python-integration#create-an-application),
 then replace `proxy_app.py` with the complete recipe below and provide both
 Rails directories. Create `proxy-example/strict-rails` using the
-[different-policy setup](/run-guardrailed-inference/using-proxy/advanced/multiple-provider-instances#configure-different-rails-policies).
+[different-policy setup](/run-guardrailed-inference/using-gateway/advanced/multiple-provider-instances#configure-different-rails-policies).
 This recipe keeps the OpenAI upstream and client setup from the quickstart:
 
 ```python
@@ -148,7 +148,7 @@ look up already-started checkers without parsing files or creating engines.
 The catalog is fixed for a lifespan; hot reload, request-time discovery, and
 configuration-management endpoints are not implemented.
 
-The proxy requires [compatible input and output checks](/run-guardrailed-inference/using-proxy/configuration#choose-compatible-rails-checks).
+The proxy requires [compatible input and output checks](/run-guardrailed-inference/using-gateway/configuration#choose-compatible-rails-checks).
 It validates each adapter before engine startup. Unsupported retrieval, tool-call, or tool-result
 rails prevent readiness even if no request would select that entry. A valid
 configuration still needs operation-specific validation, including streaming
@@ -171,4 +171,4 @@ or cancellation-suppressing code.
 Incomplete engine cleanup remains owned by the application. A later lifespan
 retries it and creates a fresh catalog only after it succeeds; otherwise startup
 is rejected. A cleanup timeout is not proof of resource release. Refer to
-[cleanup diagnostics](/run-guardrailed-inference/using-proxy/troubleshooting#a-client-disconnects-or-shutdown-reports-incomplete-cleanup).
+[cleanup diagnostics](/run-guardrailed-inference/using-gateway/troubleshooting#a-client-disconnects-or-shutdown-reports-incomplete-cleanup).
