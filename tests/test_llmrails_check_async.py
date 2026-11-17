@@ -14,10 +14,12 @@
 # limitations under the License.
 
 import logging
+from copy import deepcopy
 
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.exceptions import RailTypeNotConfiguredError, RailTypeNotSupportedError
 from nemoguardrails.rails.llm.llmrails import (
     _determine_rails_from_messages,
@@ -230,6 +232,83 @@ class TestGetResponseContent:
     def test_list_response_missing_content(self):
         response = GenerationResponse(response=[{"role": "assistant"}])
         assert _get_last_response_content(response) == ""
+
+
+class TestContentListStatus:
+    @check_entry_points
+    @pytest.mark.parametrize("direction,role", [("input", "user"), ("output", "assistant")])
+    @pytest.mark.parametrize(
+        "content",
+        [
+            [],
+            [{"type": "text", "text": "hello"}],
+            [
+                {"type": "text", "text": "hello"},
+                {"type": "image_url", "image_url": {"url": "https://example.com/image.png"}},
+            ],
+        ],
+    )
+    def test_unchanged_list_passes_with_string_content(self, entry_point, direction, role, content):
+        rails = self._rails(direction, "$unchanged = True")
+        result = run_check(rails, entry_point, [{"role": role, "content": content}], rail_types=[RailType(direction)])
+        assert result.status == RailStatus.PASSED
+        assert result.content == str(content)
+        assert isinstance(result.content, str)
+
+    @check_entry_points
+    @pytest.mark.parametrize(
+        "direction,role,variable", [("input", "user", "user_message"), ("output", "assistant", "bot_message")]
+    )
+    @pytest.mark.parametrize("field", ["text", "image_url"])
+    def test_nested_rewrite_is_modified(self, entry_point, direction, role, variable, field):
+        rails = self._rails(direction, "$result = execute rewrite")
+        content = [
+            {"type": "text", "text": "hello"},
+            {"type": "image_url", "image_url": {"url": "https://example.com/original.png"}},
+        ]
+        original = deepcopy(content)
+        expected = deepcopy(content)
+        if field == "text":
+            expected[0]["text"] = "masked"
+        else:
+            expected[1]["image_url"]["url"] = "https://example.com/replaced.png"
+
+        async def rewrite(context):
+            blocks = context[variable]
+            if field == "text":
+                blocks[0]["text"] = "masked"
+            else:
+                blocks[1]["image_url"]["url"] = "https://example.com/replaced.png"
+            return ActionResult(return_value=True, context_updates={variable: blocks})
+
+        rails.register_action(rewrite)
+        result = run_check(rails, entry_point, [{"role": role, "content": content}], rail_types=[RailType(direction)])
+        assert result.status == RailStatus.MODIFIED
+        assert result.content == str(expected)
+        assert result.content != str(original)
+
+    @check_entry_points
+    @pytest.mark.parametrize("direction,role", [("input", "user"), ("output", "assistant")])
+    def test_blocking_takes_precedence(self, entry_point, direction, role):
+        rails = self._rails(direction, "bot refuse to respond\n  stop")
+        result = run_check(
+            rails,
+            entry_point,
+            [{"role": role, "content": [{"type": "text", "text": "hello"}]}],
+            rail_types=[RailType(direction)],
+        )
+        assert result.status == RailStatus.BLOCKED
+        assert result.content == "I'm sorry, I can't respond to that."
+        assert result.rail == "test rail"
+
+    @staticmethod
+    def _rails(direction, body):
+        return LLMRails(
+            RailsConfig.from_content(
+                yaml_content=f"models: []\nrails:\n  {direction}:\n    flows: [test rail]\n",
+                colang_content=f"define flow test rail\n  {body}\n",
+            )
+        )
 
 
 @pytest.fixture

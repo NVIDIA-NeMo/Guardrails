@@ -64,6 +64,7 @@ from nemoguardrails.context import (
     raw_llm_request,
     streaming_handler_var,
 )
+from nemoguardrails.deprecation import COLANG_2_ALTERNATIVE, called_from_package, warn_llmrails_removal
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers import register_embedding_provider
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
@@ -116,7 +117,31 @@ from nemoguardrails.utils import (
 
 log = logging.getLogger(__name__)
 
+# Set on the default and library flows LLMRails appends to its config, so they can be told from the user's own.
+ADDED_BY_LLMRAILS = "_added_by_llmrails"
+
 _PARALLEL_OUTPUT_RAILS_ACTION = "run_output_rails_in_parallel_streaming"
+
+
+def config_py_files(config: RailsConfig) -> List[str]:
+    """Return the config.py of each directory the config was loaded from or imports, each directory once."""
+    config_paths = list(config.imported_paths.values() if config.imported_paths else [])
+    if config.config_path:
+        config_paths.extend(path.strip() for path in config.config_path.split(",") if path.strip())
+
+    filepaths: List[str] = []
+    seen_config_paths = set()
+    for config_path in config_paths:
+        canonical_path = os.path.realpath(config_path)
+        if canonical_path in seen_config_paths:
+            continue
+        seen_config_paths.add(canonical_path)
+        filepath = os.path.join(config_path, "config.py")
+        if os.path.exists(filepath):
+            filepaths.append(filepath)
+    return filepaths
+
+
 _PARALLEL_OUTPUT_RAILS_PARAM = "output rails"
 
 process_events_semaphore = asyncio.Semaphore(1)
@@ -280,6 +305,13 @@ class LLMRails(BaseGuardrails):
                 and will take precedence over any main LLM specified in the config.
             verbose: Whether the logging should be verbose or not.
         """
+        # Colang 2.x warns on every route into its runtime; plain LLMRails only when built outside the package.
+        if config.colang_version == "2.x":
+            warn_llmrails_removal("Colang 2.x", COLANG_2_ALTERNATIVE)
+        elif not called_from_package():
+            warn_llmrails_removal(
+                "LLMRails", "Use Guardrails(config), which runs the IORails engine when it supports the config."
+            )
         self.config = config
         ignored_settings = _iorails_only_tool_settings(config)
         if ignored_settings:
@@ -327,6 +359,7 @@ class LLMRails(BaseGuardrails):
             # We mark all the default flows as system flows.
             for flow_config in default_flows:
                 flow_config["is_system_flow"] = True
+                flow_config[ADDED_BY_LLMRAILS] = True
 
             # We add the default flows to the config.
             self.config.flows.extend(default_flows)
@@ -351,6 +384,7 @@ class LLMRails(BaseGuardrails):
                         # We mark all the flows coming from the guardrails library as system flows.
                         for flow_config in content["flows"]:
                             flow_config["is_system_flow"] = True
+                            flow_config[ADDED_BY_LLMRAILS] = True
 
                         # We load all the flows
                         self.config.flows.extend(content["flows"])
@@ -373,31 +407,19 @@ class LLMRails(BaseGuardrails):
                 flow_config["is_subflow"] = True
 
         # We check if the configuration or any of the imported ones have config.py modules.
-        config_paths = list(self.config.imported_paths.values() if self.config.imported_paths else [])
-        if self.config.config_path:
-            config_paths.extend(path.strip() for path in self.config.config_path.split(",") if path.strip())
-
         config_modules: List[Tuple[Any, str]] = []
-        loaded_config_paths = set()
-        for _path in config_paths:
-            canonical_path = os.path.realpath(_path)
-            if canonical_path in loaded_config_paths:
-                continue
-            loaded_config_paths.add(canonical_path)
+        for filepath in config_py_files(self.config):
+            try:
+                filename = os.path.basename(filepath)
+                spec = importlib.util.spec_from_file_location(filename, filepath)
+                if not spec or not spec.loader:
+                    raise ImportError("Could not create a module loader.")
 
-            filepath = os.path.join(_path, "config.py")
-            if os.path.exists(filepath):
-                try:
-                    filename = os.path.basename(filepath)
-                    spec = importlib.util.spec_from_file_location(filename, filepath)
-                    if not spec or not spec.loader:
-                        raise ImportError("Could not create a module loader.")
-
-                    config_module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(config_module)
-                except Exception as exc:
-                    raise RuntimeError(f"Failed to load configuration module at {filepath}.") from exc
-                config_modules.append((config_module, filepath))
+                config_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(config_module)
+            except Exception as exc:
+                raise RuntimeError(f"Failed to load configuration module at {filepath}.") from exc
+            config_modules.append((config_module, filepath))
 
         colang_version_to_runtime: Dict[str, Type[Runtime]] = {
             "1.0": RuntimeV1_0,
@@ -1778,6 +1800,9 @@ class LLMRails(BaseGuardrails):
             original_content = _get_last_content_by_role(messages, "assistant")
         else:
             original_content = _get_last_content_by_role(messages, "user")
+        if isinstance(original_content, list):
+            # Match generation's serialization before rails can mutate the content.
+            original_content = str(original_content)
 
         messages = _normalize_messages_for_rails(messages, rails_to_run)
         options["log"] = {"activated_rails": True}

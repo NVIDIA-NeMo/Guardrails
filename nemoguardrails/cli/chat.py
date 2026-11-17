@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union, cast
 
 import aiohttp
+import typer
 from prompt_toolkit import HTML, PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
@@ -28,6 +29,7 @@ from nemoguardrails.cli import debugger
 from nemoguardrails.colang.v2_x.runtime.eval import eval_expression
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
+from nemoguardrails.deprecation import COLANG_2_ALTERNATIVE, llmrails_removal_message, removal_warnings_silenced
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.verbose import console
@@ -639,6 +641,10 @@ def parse_events_inputs(input_str: str) -> Optional[dict]:
     return event_dict
 
 
+def _print_removal_notice(subject: str, alternative: str) -> None:
+    typer.secho(llmrails_removal_message(subject, alternative), err=True, fg=typer.colors.YELLOW)
+
+
 def run_chat(
     config_path: Optional[str] = None,
     verbose: bool = False,
@@ -679,7 +685,13 @@ def run_chat(
             )
         )
     elif rails_config.colang_version == "2.x":
-        rails_app = LLMRails(rails_config, verbose=verbose)
+        _print_removal_notice(
+            "Colang 2.x chat, including its debugger commands,",
+            COLANG_2_ALTERNATIVE,
+        )
+        # The Colang 2.x warning that LLMRails emits on construction would repeat the notice above.
+        with removal_warnings_silenced():
+            rails_app = LLMRails(rails_config, verbose=verbose)
         loop = get_or_create_event_loop()
         loop.run_until_complete(_run_chat_v2_x(rails_app))
     else:

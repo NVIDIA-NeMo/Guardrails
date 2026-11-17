@@ -11,6 +11,14 @@ content:
 
 You can use a guardrails configuration through an event-based API using `LLMRails.generate_events_async` and `LLMRails.generate_events`. For the full API reference, see [Python SDK Reference](/guardrails-python-sdk/nemoguardrails).
 
+<Note>
+
+The event-based API runs only on `LLMRails`.
+When `Guardrails` runs the IORails engine, `generate_events()`, `generate_events_async()`, `process_events()`, and `process_events_async()` raise `NotImplementedError`.
+For the other methods that the IORails engine does not provide, refer to [Migrating to 0.25: Methods That IORails Does Not Provide](/reference/0-25#methods-that-iorails-does-not-provide).
+
+</Note>
+
 Example usage:
 
 ```python

@@ -522,6 +522,53 @@ response:
           unknown_fields: forbid
           reject_case_aliases: true
       - type: 'null'
+    input_transformations:
+      default: null
+      x-nemo-guardrails:
+        classification: constrained
+      oneOf:
+      - items:
+          additionalProperties: false
+          description: Describe withheld reasoning input without accepting another
+            content channel.
+          properties:
+            action:
+              const: removed
+              type: string
+              x-nemo-guardrails:
+                classification: constrained
+            id:
+              type: string
+              x-nemo-guardrails:
+                classification: constrained
+            reason:
+              enum:
+              - organization_mismatch
+              - end_user_mismatch
+              - model_mismatch
+              - prefix_mismatch
+              - turn_boundary
+              type: string
+              x-nemo-guardrails:
+                classification: constrained
+            type:
+              const: reasoning
+              type: string
+              x-nemo-guardrails:
+                classification: constrained
+          required:
+          - id
+          - action
+          - reason
+          - type
+          title: InputTransformationProjection
+          type: object
+          x-nemo-guardrails:
+            source: '#/components/schemas/InputTransformation'
+            unknown_fields: forbid
+            reject_case_aliases: true
+        type: array
+      - type: 'null'
     metadata:
       x-nemo-guardrails:
         classification: opaque
@@ -821,6 +868,53 @@ stream:
             unknown_fields: forbid
             reject_case_aliases: true
         - type: 'null'
+      input_transformations:
+        default: null
+        x-nemo-guardrails:
+          classification: constrained
+        oneOf:
+        - items:
+            additionalProperties: false
+            description: Describe withheld reasoning input without accepting another
+              content channel.
+            properties:
+              action:
+                const: removed
+                type: string
+                x-nemo-guardrails:
+                  classification: constrained
+              id:
+                type: string
+                x-nemo-guardrails:
+                  classification: constrained
+              reason:
+                enum: &id003
+                - organization_mismatch
+                - end_user_mismatch
+                - model_mismatch
+                - prefix_mismatch
+                - turn_boundary
+                type: string
+                x-nemo-guardrails:
+                  classification: constrained
+              type:
+                const: reasoning
+                type: string
+                x-nemo-guardrails:
+                  classification: constrained
+            required: &id004
+            - id
+            - action
+            - reason
+            - type
+            title: InputTransformationProjection
+            type: object
+            x-nemo-guardrails:
+              source: '#/components/schemas/InputTransformation'
+              unknown_fields: forbid
+              reject_case_aliases: true
+          type: array
+        - type: 'null'
       model:
         x-nemo-guardrails:
           classification: opaque
@@ -880,6 +974,44 @@ stream:
                   source: '#/components/schemas/ResolvedImageOptions'
                   unknown_fields: forbid
                   reject_case_aliases: true
+              - type: 'null'
+            input_transformations:
+              default: null
+              x-nemo-guardrails:
+                classification: constrained
+              oneOf:
+              - items:
+                  additionalProperties: false
+                  description: Describe withheld reasoning input without accepting
+                    another content channel.
+                  properties:
+                    action:
+                      const: removed
+                      type: string
+                      x-nemo-guardrails:
+                        classification: constrained
+                    id:
+                      type: string
+                      x-nemo-guardrails:
+                        classification: constrained
+                    reason:
+                      enum: *id003
+                      type: string
+                      x-nemo-guardrails:
+                        classification: constrained
+                    type:
+                      const: reasoning
+                      type: string
+                      x-nemo-guardrails:
+                        classification: constrained
+                  required: *id004
+                  title: InputTransformationProjection
+                  type: object
+                  x-nemo-guardrails:
+                    source: '#/components/schemas/InputTransformation'
+                    unknown_fields: forbid
+                    reject_case_aliases: true
+                type: array
               - type: 'null'
             presence_penalty:
               default: null

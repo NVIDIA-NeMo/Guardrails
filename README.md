@@ -16,6 +16,9 @@ pip install nemoguardrails
 
 Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvidia.com/nemo/guardrails/latest/get-started/installation-guide) for optional packages and setup.
 
+> [!NOTE]
+> Version 0.25.0 deprecates `LLMRails`, with removal planned no earlier than 0.27.0. Use `Guardrails` for new integrations and follow the [migration guide](./docs/migration/0.25.mdx).
+
 ## What You Can Build
 
 - **AI agents and coding assistants:** Check proposed tool calls and returned results with [tool rails](./docs/configure-rails/guardrail-catalog/tool-calling.mdx), or connect an agent through the [hooks server](./docs/run-rails/using-hooks-server/index.mdx).

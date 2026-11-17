@@ -120,6 +120,7 @@ key that LiteLLM's open dictionaries could contain.
 | Choice extension `native_finish_reason` | Opaque provider termination metadata. It is not used to select or end stream events. |
 | Buffered and streaming root `access_programs`, `billing`, `frequency_penalty`, `presence_penalty`, `tool_usage` | Reviewed opaque metadata retained by Responses-to-Chat translation. |
 | Stream root extension bag | Optional nullable closed object accepting the reviewed root metadata above and `service_tier`. Other members are rejected. |
+| Buffered root, stream root, and stream root extension `input_transformations` | Optional nullable list of closed objects with required string `id`, `action: removed`, `type: reasoning`, and one of the five documented removal reasons. Uses the native Responses declaration; message and delta locations remain unsupported. Fresh NGR-1099 reproduction captures confirm empty lists at these locations on the captured `openai/openai/gpt-5-mini` route. |
 | Stream delta extension bag | Absent, null, or empty objects only. Root metadata permissions do not apply here. |
 | Stream delta `images`, `thinking_blocks`, `annotations` | Explicit empty-only arrays. Typed `reasoning_items` follow the separate policy above. |
 | Root response/stream identity, usage and other existing opaque fields | Preserve unchanged. Reasoning-token counts and cost inside usage are not reasoning text. |

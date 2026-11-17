@@ -43,6 +43,14 @@ You can also use the `--help` flag to learn more about each of the `nemoguardrai
 
 ## `chat`
 
+<Warning>
+
+Chat with a Colang 2.x configuration, including its debugger commands, is deprecated in 0.25.0; removal is planned no earlier than 0.27.0.
+`nemoguardrails chat` prints this notice to standard error when it loads a Colang 2.x configuration.
+For the steps, refer to [Migrating to 0.25](/reference/0-25#colang-configurations).
+
+</Warning>
+
 ```sh
 nemoguardrails chat --config examples/configs/content_safety [--verbose] [--streaming]
 ```

@@ -1,0 +1,26 @@
+---
+title: "Deprecations and Removals"
+sidebar-title: "Deprecations and Removals"
+description: "Features of the NVIDIA NeMo Guardrails library that are deprecated together with the LLMRails engine, the earliest release that can remove each one, and its replacement."
+keywords: ["deprecation", "removal", "LLMRailsRemovalWarning", "DeprecationWarning", "LLMRails", "Colang", "nemoguardrails 0.27"]
+content:
+  type: "reference"
+---
+
+The following table lists the features of the NVIDIA NeMo Guardrails library that are deprecated together with the `LLMRails` engine.
+A deprecated feature keeps working until a release removes it.
+The **Removal** column gives the earliest release that can remove the feature; the release that removes it is not decided yet.
+
+| Feature | Deprecated In | Removal | Reported Through | Replacement | Migration |
+|---|---|---|---|---|---|
+| `LLMRails`, constructed in your code | 0.25.0 | No earlier than 0.27.0 | `LLMRailsRemovalWarning` | `Guardrails`, which runs the `IORails` engine | [Replace LLMRails with Guardrails](/reference/0-25#replace-llmrails-with-guardrails) |
+| Colang 2.x runtime, including `nemoguardrails chat` and its debugger commands with a Colang 2.x configuration | 0.25.0 | No earlier than 0.27.0 | `LLMRailsRemovalWarning`, or a notice from `nemoguardrails chat` | None | [Colang Configurations](/reference/0-25#colang-configurations) |
+| `LLMRails` engine | 0.25.0 | No earlier than 0.27.0 | Documentation only | `Guardrails`, running the `IORails` engine | [Configurations That Fall Back to LLMRails](/reference/0-25#configurations-that-fall-back-to-llmrails) |
+| Colang 1.0 runtime, including dialog flows (`define user`, `define flow`) | 0.25.0 | No earlier than 0.27.0 | Documentation only | Input and output rails | [Colang Configurations](/reference/0-25#colang-configurations) |
+
+A feature that is reported through documentation only emits no Python warning when you use it.
+
+When `Guardrails` runs a configuration on the `IORails` engine, it also emits a `UserWarning` for Colang dialog flows, a custom refusal message, and `config.py`, which that engine ignores.
+This warning describes what the engine does today and carries no removal date.
+
+For the exact messages and how to silence them, refer to [Migrating to 0.25](/reference/0-25).

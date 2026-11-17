@@ -106,6 +106,32 @@ $ export DISABLE_NEST_ASYNCIO=True
 
 Restart the Python process to discard any patch already applied.
 
+### `LLMRailsRemovalWarning` Says a Feature Will Be Removed
+
+```text
+app.py:4: LLMRailsRemovalWarning: LLMRails is deprecated since NeMo Guardrails 0.25.0 and will be removed no earlier than 0.27.0. Use Guardrails(config), which runs the IORails engine when it supports the config.
+  rails = LLMRails(config)
+```
+
+Your code constructs `LLMRails`, or runs a Colang 2.x configuration.
+Both are deprecated in 0.25.0, and their removal is planned no earlier than 0.27.0.
+The warning is a `DeprecationWarning`, names the feature at the start of the message, and points at the line in your code that triggered it.
+`nemoguardrails chat` prints the Colang 2.x message to standard error instead.
+
+Look up the message in [Migrating to 0.25: Messages You Can Receive](/reference/0-25#messages-you-can-receive) and apply the matching change.
+To hide the warning, or to turn it into an error in your tests, refer to [Silence or Escalate the Warnings](/reference/0-25#silence-or-escalate-the-warnings).
+
+### `UserWarning` Says IORails Ignores Part of the Configuration
+
+```text
+app.py:4: UserWarning: IORails ignores the following in this config (path/to/config): Colang flows (define user, define flow). Guardrails(config, use_iorails=False) runs the LLMRails engine, which uses all of it.
+  rails = Guardrails(config)
+```
+
+`Guardrails` runs the configuration on the IORails engine, which ignores its Colang dialog flows, its custom refusal message, its `config.py`, or several of them.
+The warning describes what the engine does today and carries no removal date.
+For what to move where, refer to [Migrating to 0.25: What IORails Ignores in a Configuration](/reference/0-25#what-iorails-ignores-in-a-configuration).
+
 ## LLM Framework Routing
 
 Starting with 0.22, two controls select whether an engine is handled by the built-in OpenAI-compatible client or by LangChain:
