@@ -141,6 +141,12 @@ class TestSources:
             f"agent '$/agents/researcher' comes from a source {RULE}.allowed_sources doesn't list"
         )
 
+    @pytest.mark.parametrize("kind", ["skill", "plugin", "connector", "hook", "package", "policy", "agent"])
+    def test_every_part_type_is_checked(self, kind):
+        body = _start(parts=[{**APPROVED_PART, "type": kind, "source": OTHER}])
+        reason = _decision(_config(allowed_sources=[APPROVED]), body)["reason"]
+        assert reason.startswith(f"{kind} '$/skills/release-checklist' comes from a source")
+
     def test_a_called_agent_from_a_listed_source_is_allowed(self):
         body = _start(parts=[APPROVED_PART, CALLED_AGENT])
         assert _decision(_config(allowed_sources=[APPROVED]), body) == ALLOWED
@@ -254,7 +260,7 @@ class TestMalformedRequests:
             ({k: v for k, v in START.items() if k != "agent_name"}, "agent_name"),
             (_start(agent_name=""), "agent_name"),
             (_start(parts="all"), "parts"),
-            (_start(parts=[{**APPROVED_PART, "type": "hook"}]), "parts.0.type"),
+            (_start(parts=[{**APPROVED_PART, "type": "model"}]), "parts.0.type"),
             (_start(parts=[{k: v for k, v in APPROVED_PART.items() if k != "local"}]), "parts.0.local"),
             (_start(parts=[{**APPROVED_PART, "local": "no"}]), "parts.0.local"),
             (_start(parts=[{**APPROVED_PART, "local": 0}]), "parts.0.local"),

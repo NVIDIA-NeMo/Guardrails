@@ -76,7 +76,7 @@ class AgentPart(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1, description="What a deny reason names the part by, such as its path in the package.")
-    type: Literal["skill", "plugin", "connector", "policy", "agent"] = Field(
+    type: Literal["skill", "plugin", "connector", "hook", "package", "policy", "agent"] = Field(
         description="The kind of part; `agent` is an agent this agent calls."
     )
     source: str = Field(min_length=1, description="Where the part came from, as the caller states it.")

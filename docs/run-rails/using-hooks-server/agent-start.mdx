@@ -54,7 +54,7 @@ A configuration with no `agent_start` section answers `/v1/hooks/agent-start` th
 | `agent_name` | string | The agent's name. Not empty. |
 | `parts` | array | Every part the agent starts with, including the agents it calls and their parts. Can be empty. |
 | `parts[].id` | string | What a deny reason names the part by, such as its path in the package. |
-| `parts[].type` | string | `skill`, `plugin`, `connector`, `policy`, or `agent` for an agent this agent calls. |
+| `parts[].type` | string | `skill`, `plugin`, `connector`, `hook`, `package`, `policy`, or `agent` for an agent this agent calls. |
 | `parts[].source` | string | Where the part came from, as the caller states it. |
 | `parts[].version` | string or null | The part's version. |
 | `parts[].digest` | string or null | A digest of the part's bytes, such as `sha256:...`. |
