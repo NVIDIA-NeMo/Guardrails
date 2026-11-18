@@ -1,7 +1,0 @@
-[INFO] Initializing environment for https://github.com/pre-commit/pre-commit-hooks.
-An unexpected error has occurred: CalledProcessError: command: ('/usr/bin/git', 'fetch', 'origin', '--tags')
-return code: 128
-stdout: (none)
-stderr:
-    fatal: unable to access 'https://github.com/pre-commit/pre-commit-hooks/': The requested URL returned error: 503
-Check the log at /home/miyoungc/.cache/pre-commit/pre-commit.log

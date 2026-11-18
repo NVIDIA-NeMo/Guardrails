@@ -1,5 +1,0 @@
-PASS: all release-note link targets and explicit anchors preserved.
-PASS: Fern config, CLI pin, navigation, and redirects unchanged.
-PASS: all version display-name/ref/path/slug entries match README example.
-PASS: exactly one 0.25.0 release section.
-status=0
