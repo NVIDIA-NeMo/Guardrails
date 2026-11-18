@@ -201,6 +201,7 @@ exclude = [
 [tool.ty.analysis]
 allowed-unresolved-imports = [
   "aioredis",
+  "cedarpy",
   "cohere",
   "google.genai",
 ]
