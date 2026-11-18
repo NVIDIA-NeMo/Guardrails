@@ -6,7 +6,7 @@ content:
   type: "concept"
 ---
 
-A provider binding connects an API operation to the content the proxy can inspect.
+A provider binding connects an API operation to the content the gateway can inspect.
 It identifies request and response text, accounts for other fields, and describes
 stream events. You choose that binding independently of the upstream URL and
 the Rails configuration that checks its content.
@@ -56,7 +56,7 @@ and [bound exports](/run-guardrailed-inference/using-gateway/guard-contracts#ins
 
 Every guarded Responses creation request must include `"store": false`, in
 buffered and streaming modes. Omitted, `true`, `null`, or non-boolean values reject
-before dispatch. The proxy forwards the original body; projection defaults do
+before dispatch. The gateway forwards the original body; projection defaults do
 not insert this field. Input-item arrays, additional `instructions`, stored
 conversation references, and background execution remain unsupported.
 
@@ -65,11 +65,11 @@ not a guarantee about provider logging or data retention. Blocking output cannot
 undo upstream storage. `GET /v1/responses/{response_id}` remains unguarded
 passthrough, including for responses created elsewhere or previously stored.
 Restrict exposed unguarded routes and direct upstream access before using the
-proxy as a policy boundary, especially with application-owned credentials.
+gateway as a policy boundary, especially with application-owned credentials.
 
 ## Generation Parameters
 
-The proxy forwards supported generation parameters to the upstream service.
+The gateway forwards supported generation parameters to the upstream service.
 Available parameters and values depend on your provider and model. Configure
 input and output checks separately in Rails.
 
@@ -105,12 +105,12 @@ for buffered and streaming responses. The
 describes lower-level unknown-field overrides and their limits.
 
 Reviewed source revisions describe the field-policy baseline. Select the binding
-for your gateway's protocol and version, including whether the operation uses a
-native or bridged API. Compatibility can vary between model routes.
+for your upstream gateway's protocol and version, including whether the operation
+uses a native or bridged API. Compatibility can vary between model routes.
 
 ## Streaming Windows
 
-When output inspection is enabled, the proxy accumulates text deltas, checks a
+When output inspection is enabled, the gateway accumulates text deltas, checks a
 window, and releases its approved bytes in provider order. It does not reconstruct
 SSE from validated models. Pending snapshots and keepalives cannot overtake
 content still waiting for a check.
@@ -128,7 +128,7 @@ rails:
 ```
 
 This is a streaming-settings excerpt, not a complete Rails configuration.
-In this proxy, the sizes count nonempty text deltas, not tokens, bytes, or all
+In this gateway, the sizes count nonempty text deltas, not tokens, bytes, or all
 SSE events. A final partial window is checked at completion, so short answers
 can be held until the end. Smaller windows can reduce delay while increasing
 check frequency. Tune against your provider and checks.
@@ -148,7 +148,7 @@ Chat uses its completion/error handling and `[DONE]` sentinel. Responses require
 a native terminal event; an optional `[DONE]` is not a replacement for it. Responses
 snapshots must agree with the accumulated text where declared.
 
-Before response headers are sent, a proxy failure can return an HTTP error.
+Before response headers are sent, a gateway failure can return an HTTP error.
 After streaming begins, failures use the operation's error-event format and
 withhold pending content. Already released windows remain delivered. Upstream
 HTTP errors and supported error events follow the provider-aware forwarding path.

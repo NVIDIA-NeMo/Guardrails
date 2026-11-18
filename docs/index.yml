@@ -480,54 +480,54 @@ navigation:
             path: run-rails/using-fastapi-server/actions-server.mdx
             slug: actions-server
       - section: NeMo Guardrails Gateway
-        path: run-rails/using-proxy/index.mdx
+        path: run-rails/using-gateway/index.mdx
         slug: using-gateway
         contents:
           - page: Quickstart
-            path: run-rails/using-proxy/quickstart.mdx
+            path: run-rails/using-gateway/quickstart.mdx
             slug: quickstart
           - page: Configuration
-            path: run-rails/using-proxy/configuration.mdx
+            path: run-rails/using-gateway/configuration.mdx
             slug: configuration
           - page: Providers and Streaming
-            path: run-rails/using-proxy/providers-and-streaming.mdx
+            path: run-rails/using-gateway/providers-and-streaming.mdx
             slug: providers-and-streaming
           - page: Guard Contracts
-            path: run-rails/using-proxy/guard-contracts.mdx
+            path: run-rails/using-gateway/guard-contracts.mdx
             slug: guard-contracts
           - page: Python Integration
-            path: run-rails/using-proxy/python-integration.mdx
+            path: run-rails/using-gateway/python-integration.mdx
             slug: python-integration
           - page: Deployment
-            path: run-rails/using-proxy/deployment.mdx
+            path: run-rails/using-gateway/deployment.mdx
             slug: deployment
           - page: Troubleshooting
-            path: run-rails/using-proxy/troubleshooting.mdx
+            path: run-rails/using-gateway/troubleshooting.mdx
             slug: troubleshooting
           - section: Advanced Configuration
             slug: advanced
             contents:
               - page: Rails Configuration Resolution
-                path: run-rails/using-proxy/advanced/configuration-resolution.mdx
+                path: run-rails/using-gateway/advanced/configuration-resolution.mdx
                 slug: configuration-resolution
               - page: HTTP Transport Customization
-                path: run-rails/using-proxy/advanced/http-transport.mdx
+                path: run-rails/using-gateway/advanced/http-transport.mdx
                 slug: http-transport
               - page: Multiple Provider Instances and Routing
-                path: run-rails/using-proxy/advanced/multiple-provider-instances.mdx
+                path: run-rails/using-gateway/advanced/multiple-provider-instances.mdx
                 slug: multiple-provider-instances
               - page: Request and Response Policies
-                path: run-rails/using-proxy/advanced/extend-provider-bindings.mdx
+                path: run-rails/using-gateway/advanced/extend-provider-bindings.mdx
                 slug: extend-provider-bindings
           - section: Architecture
-            path: run-rails/using-proxy/architecture/index.mdx
+            path: run-rails/using-gateway/architecture/index.mdx
             slug: architecture
             contents:
               - page: Request Lifecycle
-                path: run-rails/using-proxy/architecture/request-lifecycle.mdx
+                path: run-rails/using-gateway/architecture/request-lifecycle.mdx
                 slug: request-lifecycle
               - page: Framework Internals
-                path: run-rails/using-proxy/architecture/framework-internals.mdx
+                path: run-rails/using-gateway/architecture/framework-internals.mdx
                 slug: framework-internals
       - section: Hooks Server
         path: run-rails/using-hooks-server/index.mdx

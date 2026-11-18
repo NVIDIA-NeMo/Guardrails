@@ -60,7 +60,7 @@ def describe_guard_fields(schema: dict) -> None:
             else "Container leading to text selected for input checks when enabled in the Rails configuration."
         )
     elif classification == "constrained":
-        explanation = "The proxy enforces the declared value and shape restrictions."
+        explanation = "The gateway enforces the declared value and shape restrictions."
     else:
         explanation = ""
     if explanation:
@@ -92,7 +92,7 @@ def reference_openapi() -> dict:
         for operation in path.values():
             schema = operation["requestBody"]["content"]["application/json"]["schema"]
             schema["description"] = (
-                "Request fields describe the proxy guard boundary. Provider requirements apply separately."
+                "Request fields describe the gateway guard boundary. Provider requirements apply separately."
             )
             describe_guard_fields(schema)
     return document

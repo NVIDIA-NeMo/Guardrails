@@ -157,7 +157,7 @@ Connect NeMo Guardrails where your application or agent can enforce its checks.
 | What are you building? | How to connect |
 | --- | --- |
 | **A shared guardrails service** for multiple applications or teams | Use the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx) (`/v1/checks`) to request verdicts while each application manages its model and execution loop. |
-| **A guardrails layer** for existing model APIs | Use the [gateway server](./docs/run-rails/using-proxy/quickstart.mdx) to check supported requests and responses while preserving provider formats. |
+| **A guardrails layer** for existing model APIs | Use the [gateway server](./docs/run-rails/using-gateway/quickstart.mdx) to check supported requests and responses while preserving provider formats. |
 | **A coding assistant or agent harness** | Use [native hooks](./docs/run-rails/using-hooks-server/run-hooks-server.mdx) or [NeMo Relay](./docs/run-rails/using-hooks-server/nemo-relay-plugin.mdx) to check tool calls before execution. |
 | **An agent platform, framework integration, or custom loop** | Embed the [Python SDK](./docs/run-rails/using-python-apis/check-messages.mdx), call the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx), or use a supported [framework integration](./docs/integration/langchain/langgraph-integration.mdx). |
 
