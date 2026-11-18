@@ -60,7 +60,9 @@ A configuration with no `agent_start` section answers `/v1/hooks/agent-start` th
 | `parts[].version` | string or null | The part's version. |
 | `parts[].digest` | string or null | A digest of the part's bytes, such as `sha256:...`. |
 | `parts[].local` | boolean | Whether the source is a folder on the machine that starts the agent. |
-| `models` | array of strings | Every model the agent and the agents it calls name. |
+| `models` | array of strings | Every model the run may use: the models the agent and the agents it calls declare, and the model the caller's config binds the run to. Each rule judges every one. |
+| `declared_models` | array of strings, optional | Of `models`, the ones the agent's package declares. |
+| `bound_model` | string, optional | Of `models`, the one the caller's config binds the run to: the model that will run. A model named here or in `declared_models` and missing from `models` is added to it. |
 | `policies` | array | Optional. The policies the agent brings: `id`, `required` (default `true`), and `enforcers`, the enforcers each needs. |
 | `enforcers_present` | array of strings | Optional. The enforcers the caller says run where the agent starts. |
 

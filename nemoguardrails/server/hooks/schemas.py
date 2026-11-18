@@ -18,7 +18,7 @@
 from enum import Enum
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 
 class HookErrorCode(str, Enum):
@@ -113,11 +113,29 @@ class AgentStartRequest(BaseModel):
         "identity a quarantine holds. Without it, a quarantine of any version of the agent denies the start.",
     )
     parts: list[AgentPart]
-    models: list[str] = Field(description="Every model the agent and the agents it calls name.")
+    models: list[str] = Field(
+        description="Every model the run may use: the models the agent and the agents it calls declare, and the model "
+        "the caller binds the run to. The rules judge each."
+    )
+    declared_models: Optional[list[str]] = Field(
+        default=None, description="Of `models`, the ones the agent's package declares, when the caller says."
+    )
+    bound_model: Optional[str] = Field(
+        default=None,
+        description="Of `models`, the one the caller's config binds the run to, which is the model that will run.",
+    )
     policies: list[AgentPolicy] = Field(default_factory=list)
     enforcers_present: list[str] = Field(
         default_factory=list, description="The enforcers the caller says run where the agent starts."
     )
+
+    @model_validator(mode="after")
+    def judge_every_model(self) -> "AgentStartRequest":
+        """A declared or bound model the caller left out of `models` is added, so the rules judge it too."""
+        for model in [*(self.declared_models or []), self.bound_model]:
+            if model and model not in self.models:
+                self.models.append(model)
+        return self
 
 
 class ModelCallRequest(BaseModel):

@@ -344,3 +344,22 @@ def test_each_check_logs_one_line_without_sources(caplog):
     assert len(lines) == 1
     assert "agent_name='release-reviewer' parts=1 models=1 policies=0 outcome=deny" in lines[0]
     assert OTHER not in lines[0]
+
+
+class TestBoundModel:
+    """The caller says which model the run is bound to; the rules judge it with the declared ones."""
+
+    def test_a_bound_model_that_is_not_allowed_is_refused(self):
+        body = {**START, "models": [MODEL], "declared_models": [MODEL], "bound_model": "anthropic::claude-haiku"}
+        answer = _ask(_config(allowed_models=[MODEL]), body)
+        assert answer.status_code == 200
+        assert answer.json()["decision"] == "deny"
+        assert "anthropic::claude-haiku" in answer.json()["reason"]
+
+    def test_a_bound_model_missing_from_models_is_still_judged(self):
+        body = {**START, "models": [MODEL], "bound_model": "anthropic::claude-haiku"}
+        assert _ask(_config(allowed_models=[MODEL]), body).json()["decision"] == "deny"
+
+    def test_the_declared_and_bound_model_both_allowed_is_an_allow(self):
+        body = {**START, "models": [MODEL], "declared_models": [MODEL], "bound_model": MODEL}
+        assert _ask(_config(allowed_models=[MODEL]), body).json() == {"decision": "allow"}
