@@ -34,15 +34,43 @@ Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvid
 
 ## How It Works
 
-- **Define your policy.** Configure rails, models, and prompts in YAML. Use Python actions for custom logic.
-- **Run the checks.** Invoke rails at the points where your application needs a policy decision.
-- **Read the result.** Handle blocked or modified content before executing a tool or returning a response. You can also route generation through Guardrails.
+Use the NVIDIA NeMo Guardrails library to define your policy in configuration files that specify the rails, models, and prompts to use.
+Run the library in your Python application or deploy it as a server.
+Choose check mode or proxy mode based on how your application manages model requests.
 
-![Agent runtime connected to NeMo Guardrails: configurable checks for prompts, tool calls, tool results, and answers, with policy rules, optional guard models, and integration options.](./docs/_static/images/agent-runtime-guardrails-overview.png)
+### Check Mode
 
-Tool-call checks run before execution, while tool-result checks run after the tool has executed. Latency depends on the configured rules, models, and services.
+Your application or agent harness calls the LLM and executes tools directly.
+At each point that requires a policy decision, send the relevant prompt, model response, tool call, or tool result to the library for checking.
+Use the result to handle blocked or modified content before you execute a tool, return a response, or pass a tool result to the model.
 
-Integrations support different checks. Rail support varies by engine; refer to [rail engine support](./docs/reference/rail-engine-support.mdx) and [configuration](./docs/configure-rails/configuration-reference.mdx).
+Use [`check_async()`](./docs/run-rails/using-python-apis/check-messages.mdx) in Python, `POST /v1/checks` on the Guardrails server, or the [hooks server](./docs/run-rails/using-hooks-server/index.mdx) for coding agents.
+For tool checks with `check_async()`, use the IORails engine and specify `RailType.TOOL_CALL` or `RailType.TOOL_RESULT` in `rail_types`.
+Check tool calls before execution and tool results after execution.
+
+![Check mode: your application calls the LLM and tools directly and requests checks through the Python SDK, Guardrails server, or hooks server. Configured rails return a result and can call a guardrail model.](./docs/_static/images/guardrails-check-mode.png)
+
+### Proxy Mode
+
+Route model requests through the library to apply the configured input and output rails.
+Input rails can block a request before it reaches the application LLM.
+For non-streaming requests, output rails check the response before the library returns it.
+Blocked content produces a refusal or an error, depending on the integration and configuration.
+
+Use `generate_async()` or `stream_async()` in Python, or `POST /v1/chat/completions` on the Guardrails server.
+Your application executes tools; supported integrations can check tool calls in model responses and tool results in subsequent requests.
+The [gateway server](./docs/run-rails/using-proxy/providers-and-streaming.mdx) also supports `POST /v1/chat/completions` and `POST /v1/responses`, but its built-in profiles do not support tool content.
+Each gateway `/v1/responses` request must include `"store": false`.
+
+When output streaming is enabled for `stream_async()`, the default `stream_first: true` setting delivers chunks before checking them.
+To check each chunk before delivery, set `rails.output.streaming.stream_first: false`.
+For configuration details, refer to [output rail streaming](./docs/configure-rails/yaml-schema/streaming/output-rail-streaming.mdx).
+
+![Proxy mode: your application routes model requests through the library, which applies configured rails and forwards allowed requests to the LLM. Rails can call a guardrail model. Your application executes tools.](./docs/_static/images/guardrails-proxy-mode.png)
+
+Latency depends on the configured rules, models, and services.
+Rail support varies by engine and integration.
+Refer to [rail engine support](./docs/reference/rail-engine-support.mdx), [configuration](./docs/configure-rails/configuration-reference.mdx), and [Choose Your Integration](#choose-your-integration).
 
 ## Why NeMo Guardrails
 
