@@ -34,15 +34,28 @@ Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvid
 
 ## How It Works
 
-- **Define your policy.** Configure rails, models, and prompts in YAML. Use Python actions for custom logic.
-- **Run the checks.** Invoke rails at the points where your application needs a policy decision.
-- **Read the result.** Handle blocked or modified content before executing a tool or returning a response. You can also route generation through Guardrails.
+Guardrails uses configuration files to define a policy.
+The configuration defines which rails to run, along with any models and prompts they use.
+You can import the library into a Python application or run it as a server.
 
-![Agent runtime connected to NeMo Guardrails: configurable checks for prompts, tool calls, tool results, and answers, with policy rules, optional guard models, and integration options.](./docs/_static/images/agent-runtime-guardrails-overview.png)
+In check mode, your application or agent harness communicates with the application LLM directly.
+It sends Guardrails the user prompt, application LLM response, tool calls, and tool results at every point requiring a policy decision.
+It then acts on the verdict, handling blocked or modified content before it executes a tool or returns a response.
+Tool-call checks run before the tool executes, and tool-result checks run after.
+Use `check_async()` in Python, `POST /v1/checks` on the Guardrails server, or the hooks server for coding agents.
 
-Tool-call checks run before execution, while tool-result checks run after the tool has executed. Latency depends on the configured rules, models, and services.
+![Check mode: the application or agent harness calls the LLM and tools directly. It sends content to the NeMo Guardrails service through the Python SDK, the Guardrails server, or the hooks server, and receives a verdict. The service calls a guardrail model when a rail needs one.](./docs/_static/images/guardrails-check-mode.png)
 
-Integrations support different checks. Rail support varies by engine; refer to [rail engine support](./docs/reference/rail-engine-support.mdx) and [configuration](./docs/configure-rails/configuration-reference.mdx).
+In proxy mode, your application sends requests to Guardrails rather than the application LLM.
+Guardrails checks each request, forwards it to the application LLM, and checks the response before returning it.
+By default, a blocked request never reaches the application LLM, and a blocked response comes back as a refusal or an error.
+Your application still executes tools, and Guardrails can check the tool calls in a response and the tool results in the next request.
+Use `generate_async()` or `stream_async()` in Python, or send `/v1/chat/completions` requests to the Guardrails server, or `/v1/chat/completions` and `/v1/responses` requests to the gateway server.
+
+![Proxy mode: the application sends /v1/chat/completions or /v1/responses requests to the NeMo Guardrails service, which checks them and forwards allowed requests to the LLM. The service calls a guardrail model when a rail needs one. The application calls tools directly.](./docs/_static/images/guardrails-proxy-mode.png)
+
+Latency depends on the configured rules, models, and services.
+Rail support varies by engine and integration; refer to [rail engine support](./docs/reference/rail-engine-support.mdx), [configuration](./docs/configure-rails/configuration-reference.mdx), and [Choose Your Integration](#choose-your-integration).
 
 ## Why NeMo Guardrails
 
