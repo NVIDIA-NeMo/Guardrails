@@ -602,6 +602,12 @@ class HooksServerConfig(BaseModel):
         description="The file that keeps quarantined agents, one JSON event per line, across restarts. Relative to "
         "the directory the server runs in. Unset, the server quarantines nothing.",
     )
+    decision_record: Optional[str] = Field(
+        default=None,
+        description="The file that keeps every decision the server gives (agent starts, tool calls, model calls), one "
+        "JSON entry per line, each chained to the one before by hash. Relative to the directory the server runs in. "
+        "Unset, decisions are only logged.",
+    )
     cedar: Optional[CedarRules] = Field(
         default=None,
         description="Cedar policies that decide each tool call instead of the tool lists above. Set, no tool list and "

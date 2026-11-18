@@ -78,6 +78,9 @@ def test_export_is_fresh_and_routes_are_complete(exported):
         "/v1/quarantines",
         "/v1/quarantines/release",
         "/v1/runs/{run_id}",
+        "/v1/hooks/model-call",
+        "/v1/decisions",
+        "/v1/decisions/check",
         "/v1/health",
         "/healthz",
     }

@@ -30,6 +30,7 @@ class HookErrorCode(str, Enum):
     CHECK_NOT_CONFIGURED = "check_not_configured"
     NOT_QUARANTINED = "not_quarantined"
     QUARANTINE_STORE_FAILED = "quarantine_store_failed"
+    DECISION_RECORD_FAILED = "decision_record_failed"
 
 
 class ClaudeCodePreToolUseRequest(BaseModel):
@@ -117,6 +118,18 @@ class AgentStartRequest(BaseModel):
     enforcers_present: list[str] = Field(
         default_factory=list, description="The enforcers the caller says run where the agent starts."
     )
+
+
+class ModelCallRequest(BaseModel):
+    """One model call an agent is about to make: which agent, and which model it calls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hook_event_name: Literal["ModelCall"]
+    agent_name: str = Field(min_length=1)
+    agent_digest: Optional[str] = Field(default=None, min_length=1)
+    model: str = Field(min_length=1, description="The model, named as the agent-start facts name models.")
+    id: Optional[str] = Field(default=None, description="The caller's id for this call, kept in the record.")
 
 
 class QuarantineRequest(BaseModel):

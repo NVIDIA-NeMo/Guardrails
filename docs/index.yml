@@ -560,6 +560,9 @@ navigation:
           - page: Rules in Cedar
             path: run-rails/using-hooks-server/cedar.mdx
             slug: cedar
+          - page: Decision Record and Model Calls
+            path: run-rails/using-hooks-server/decisions.mdx
+            slug: decisions
           - page: Results and Errors
             path: run-rails/using-hooks-server/results-and-errors.mdx
             slug: results-and-errors

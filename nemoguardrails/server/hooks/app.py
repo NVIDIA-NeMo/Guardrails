@@ -19,6 +19,7 @@ import json
 import logging
 from collections import OrderedDict
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,6 +48,7 @@ from nemoguardrails.server.exception_handlers import (
     queue_full_error_handler,
     validation_error_handler,
 )
+from nemoguardrails.server.hooks import decision_record
 from nemoguardrails.server.hooks.adapters import ADAPTERS, HookAdapter, HookAgent, UnsupportedHookEventError
 from nemoguardrails.server.hooks.agent_start import AgentStartPolicy
 from nemoguardrails.server.hooks.cedar_policy import (
@@ -62,11 +64,13 @@ from nemoguardrails.server.hooks.checking import (
     check_tools,
     outcome_from_result,
 )
+from nemoguardrails.server.hooks.decision_record import DecisionRecord, DecisionRecordError
 from nemoguardrails.server.hooks.quarantine import QuarantineEvent, QuarantineStore, QuarantineStoreError
 from nemoguardrails.server.hooks.schemas import (
     AgentStartRequest,
     HookBody,
     HookErrorCode,
+    ModelCallRequest,
     QuarantineReleaseRequest,
     QuarantineRequest,
 )
@@ -87,6 +91,15 @@ _CEDAR_POLICY = "cedar policy"
 
 # The one event `/v1/hooks/agent-start` handles.
 _AGENT_START_EVENT = "AgentStart"
+# The one event `/v1/hooks/model-call` handles.
+_MODEL_CALL_EVENT = "ModelCall"
+# What the decision record names as deciding an agent start or a model call.
+_AGENT_START_RULES = "hooks_server.agent_start"
+_QUARANTINE = "quarantine"
+# Who the record and the run stops name as giving the decision.
+_BY = "nemoguardrails hooks-server"
+# The rule or rail that decided the tool call being checked, as its log line names it, for the decision record.
+_decided_by: ContextVar[Optional[str]] = ContextVar("_decided_by", default=None)
 
 # The headers that name the agent a tool call comes from, so a quarantine of it can deny the call. Whatever runs the
 # agent sets them, such as the Relay plugin's `headers` or a hook's command; a call without them can't be matched.
@@ -193,7 +206,8 @@ def _check_agent_start_can_deny(config: RailsConfig) -> None:
 
 def _checks_tool_calls(config: RailsConfig) -> bool:
     """Whether *config*'s tool policy or a per-tool rail can deny a tool call."""
-    tool_lists_set = bool(config.hooks_server.model_fields_set - {"agent_start"})
+    # The decision record keeps decisions; it decides none, so it doesn't make a config check tool calls.
+    tool_lists_set = bool(config.hooks_server.model_fields_set - {"agent_start", "decision_record"})
     return config.hooks_server.can_deny or _has_per_tool_rails(config) or tool_lists_set
 
 
@@ -264,6 +278,7 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     app.state.agent_start_policy = agent_start_policy
     app.state.quarantine = _quarantine_store(config)
     app.state.run_stops = OrderedDict()
+    app.state.decision_record = _decision_record(config)
     for exc_type, handler in _EXCEPTION_HANDLERS:
         # Handlers are typed with their specific exception; Starlette's stub expects
         # (Request, Exception), so ty flags the narrower signature as a false positive.
@@ -326,6 +341,17 @@ def _quarantine_store(config: RailsConfig) -> Optional[QuarantineStore]:
     try:
         return QuarantineStore(Path(path))
     except QuarantineStoreError as exc:
+        raise HooksConfigError(str(exc)) from exc
+
+
+def _decision_record(config: RailsConfig) -> Optional[DecisionRecord]:
+    """The record hooks_server.decision_record names, checked once to refuse a record whose chain is broken."""
+    path = config.hooks_server.decision_record
+    if path is None:
+        return None
+    try:
+        return DecisionRecord(Path(path))
+    except DecisionRecordError as exc:
         raise HooksConfigError(str(exc)) from exc
 
 
@@ -453,18 +479,175 @@ async def handle_agent_start_hook(request: Request) -> Response:
         )
     start = _parse_agent_start(await _read_json(request))
     try:
-        held = None if quarantine is None else quarantine.find(start.agent_name, start.agent_digest)
+        outcome, rule = _decide_start(policy, quarantine, start)
     except QuarantineStoreError as exc:
         return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
-    if held is not None:
-        reason: Optional[str] = _quarantined_reason(held)
-    else:
-        reason = None if policy is None else policy.decide(start)
-    outcome = HookOutcome.allow() if reason is None else HookOutcome.deny(reason)
     _log_agent_start(start, outcome)
+    failed = _record_decision(
+        request,
+        kind="agent_start",
+        agent=(start.agent_name, start.agent_digest),
+        asked=start.model_dump(exclude={"hook_event_name"}, exclude_none=True),
+        outcome=outcome,
+        rule=rule,
+    )
+    if failed is not None:
+        return failed
     if outcome.kind == "allow":
         return JSONResponse({"decision": "allow"})
     return JSONResponse({"decision": "deny", "reason": outcome.reason})
+
+
+def _decide_start(
+    policy: Optional["AgentStartRules"], quarantine: Optional[QuarantineStore], start: AgentStartRequest
+) -> tuple[HookOutcome, Optional[str]]:
+    """The answer to an agent start, and the rule that gave it: a quarantine first, then the agent-start rules."""
+    held = None if quarantine is None else quarantine.find(start.agent_name, start.agent_digest)
+    if held is not None:
+        return HookOutcome.deny(_quarantined_reason(held)), _QUARANTINE
+    rule = _CEDAR_POLICY if isinstance(policy, CedarAgentStartRules) else _AGENT_START_RULES
+    reason = None if policy is None else policy.decide(start)
+    return (HookOutcome.allow() if reason is None else HookOutcome.deny(reason)), (None if policy is None else rule)
+
+
+@_router.post(
+    "/v1/hooks/model-call",
+    name="handleModelCallHook",
+    summary="Check whether an agent may call a model, during its run",
+    tags=["Hooks"],
+)
+async def handle_model_call_hook(request: Request) -> Response:
+    """Answer whether the agent may call the model, by the same rules that decide the models it may start with.
+
+    The call is decided as an agent start that names only this model: a quarantine of the agent, then
+    `allowed_models` or the agent-start Cedar policies on its `Model`. So a model outside the list is refused during
+    the run, not only at start."""
+    policy: Optional[AgentStartRules] = request.app.state.agent_start_policy
+    quarantine: Optional[QuarantineStore] = request.app.state.quarantine
+    if policy is None and quarantine is None:
+        return _error_response(
+            404,
+            "this hooks server's config has no hooks_server.agent_start section, so it checks no model calls",
+            code=HookErrorCode.CHECK_NOT_CONFIGURED,
+        )
+    body = await _read_json(request)
+    try:
+        event = HookBody.model_validate(body).hook_event_name
+        if event != _MODEL_CALL_EVENT:
+            raise UnsupportedHookEventError("model-call", event, _MODEL_CALL_EVENT)
+        call = ModelCallRequest.model_validate(body)
+    except ValidationError as exc:
+        errors = exc.errors(include_url=False, include_input=False)
+        raise RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in errors]) from None
+    start = AgentStartRequest(
+        hook_event_name=_AGENT_START_EVENT,
+        agent_name=call.agent_name,
+        agent_digest=call.agent_digest,
+        parts=[],
+        models=[call.model],
+    )
+    try:
+        outcome, rule = _decide_start(policy, quarantine, start)
+    except QuarantineStoreError as exc:
+        return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
+    log.info(
+        "Hook check on /v1/hooks/model-call: event=%s agent_name=%r model=%r outcome=%s reason=%r",
+        _MODEL_CALL_EVENT,
+        quoted_identity(call.agent_name),
+        quoted_identity(call.model),
+        outcome.kind,
+        outcome.reason,
+    )
+    failed = _record_decision(
+        request,
+        kind="model_call",
+        agent=(call.agent_name, call.agent_digest),
+        asked=call.model_dump(exclude={"hook_event_name", "agent_name", "agent_digest"}, exclude_none=True),
+        outcome=outcome,
+        rule=rule,
+    )
+    if failed is not None:
+        return failed
+    if outcome.kind == "allow":
+        return JSONResponse({"decision": "allow", "rule": rule})
+    return JSONResponse({"decision": "deny", "reason": outcome.reason, "rule": rule})
+
+
+@_router.get("/v1/decisions", name="listDecisions", summary="The decision record", tags=["Decisions"])
+async def list_decisions(request: Request) -> Response:
+    """Every recorded decision, oldest first, filtered by `kind`, `outcome`, `run_id` and `agent_name`."""
+    record: Optional[DecisionRecord] = request.app.state.decision_record
+    if record is None:
+        return _no_decision_record()
+    query = request.query_params
+    try:
+        entries = decision_record.read(record.path)
+    except DecisionRecordError as exc:
+        return _error_response(500, str(exc), code=HookErrorCode.DECISION_RECORD_FAILED)
+    selected = decision_record.select(
+        entries,
+        kind=query.get("kind"),
+        outcome=query.get("outcome"),
+        run_id=query.get("run_id"),
+        agent_name=query.get("agent_name"),
+    )
+    return JSONResponse({"decisions": selected})
+
+
+@_router.get(
+    "/v1/decisions/check",
+    name="checkDecisions",
+    summary="Whether the decision record's chain holds",
+    tags=["Decisions"],
+)
+async def check_decisions(request: Request) -> Response:
+    """Whether every entry's hash is its own and chains to the one before; with `head`, that the last one is it."""
+    record: Optional[DecisionRecord] = request.app.state.decision_record
+    if record is None:
+        return _no_decision_record()
+    return JSONResponse(decision_record.check(record.path, head=request.query_params.get("head")))
+
+
+def _no_decision_record() -> Response:
+    return _error_response(
+        404,
+        "this hooks server's config sets no hooks_server.decision_record, so it keeps no record",
+        code=HookErrorCode.CHECK_NOT_CONFIGURED,
+    )
+
+
+def _record_decision(
+    request: Request,
+    *,
+    kind: str,
+    agent: tuple[Optional[str], Optional[str]],
+    asked: dict,
+    outcome: HookOutcome,
+    rule: Optional[str],
+) -> Optional[Response]:
+    """Add the decision to the record, when the config keeps one; an error response when it can't be written, so no
+    decision is given that the record doesn't hold."""
+    record: Optional[DecisionRecord] = request.app.state.decision_record
+    if record is None:
+        return None
+    try:
+        record.append(
+            {
+                "kind": kind,
+                "agent_name": agent[0],
+                "agent_digest": agent[1],
+                "run_id": request.headers.get(RUN_ID_HEADER),
+                "asked": asked,
+                "outcome": outcome.kind,
+                "reason": outcome.reason if outcome.kind != "error" else outcome.message,
+                "rule": rule,
+                "by": _BY,
+            }
+        )
+    except DecisionRecordError as exc:
+        log.error("%s", exc)
+        return _error_response(500, str(exc), code=HookErrorCode.DECISION_RECORD_FAILED)
+    return None
 
 
 @_router.get("/v1/runs/{run_id}", name="getRunStop", summary="Whether a rule stopped a run", tags=["Runs"])
@@ -556,6 +739,7 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
         )
     call = _parse_hook(adapter, await _read_json(request))
     identity = (request.headers.get(AGENT_NAME_HEADER), request.headers.get(AGENT_DIGEST_HEADER))
+    _decided_by.set(None)
     try:
         outcome = await _check_tool_call(
             request.app.state.engine,
@@ -571,6 +755,19 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
     run_id = request.headers.get(RUN_ID_HEADER)
     if run_id and outcome.kind in ("stop", "quarantine"):
         _record_run_stop(request.app.state.run_stops, run_id, outcome, call, identity)
+    arguments = sorted(call.arguments) if isinstance(call.arguments, dict) else []
+    failed = _record_decision(
+        request,
+        kind="tool_call",
+        agent=identity,
+        # The tool's input stays out of the record, as it stays out of the log: only the names of its arguments.
+        asked={"hook": agent, "tool_name": call.name, "argument_names": arguments, "call_id": call.call_id},
+        outcome=outcome,
+        # The rule or rail that decided; none for a call nothing denied.
+        rule=_decided_by.get(),
+    )
+    if failed is not None:
+        return failed
     if outcome.kind == "error":
         return _error_response(500, outcome.message or "", code=outcome.code)
     return JSONResponse(adapter.response_body(outcome))
@@ -728,7 +925,7 @@ def _record_run_stop(
         "tool_name": quoted_identity(call.name),
         "agent_name": identity[0],
         "agent_digest": identity[1],
-        "by": "nemoguardrails hooks-server",
+        "by": _BY,
         "at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
     }
     while len(run_stops) > _MAX_RUN_STOPS:
@@ -761,6 +958,7 @@ def _quarantined_reason(held: QuarantineEvent) -> str:
 
 def _log_check(adapter: HookAdapter, call: ToolInvocation, outcome: HookOutcome, rail: Optional[str]) -> None:
     """Log one line for a check, without the tool's input; an error, which no rail decided, as a warning."""
+    _decided_by.set(rail)
     log.log(
         logging.WARNING if outcome.kind == "error" else logging.INFO,
         "Hook check on /v1/hooks/%s: event=%s tool_name=%r tool_use_id=%r outcome=%s code=%s rail=%r",

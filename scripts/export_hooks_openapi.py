@@ -29,7 +29,12 @@ from fastapi.openapi.utils import get_openapi
 
 from nemoguardrails.server.hooks.adapters import ADAPTERS
 from nemoguardrails.server.hooks.app import _router
-from nemoguardrails.server.hooks.schemas import AgentStartRequest, QuarantineReleaseRequest, QuarantineRequest
+from nemoguardrails.server.hooks.schemas import (
+    AgentStartRequest,
+    ModelCallRequest,
+    QuarantineReleaseRequest,
+    QuarantineRequest,
+)
 
 SPEC_PATH = Path(__file__).resolve().parents[1] / "fern" / "hooks-openapi.yml"
 HEALTH_DOCS_PATH = Path(__file__).resolve().parents[1] / "docs" / "reference" / "hooks-server-api" / "_generated"
@@ -213,6 +218,30 @@ def hooks_openapi() -> dict:
         },
         "404": {"description": "No quarantine store", **error},
     }
+    model_call_schema = ModelCallRequest.model_json_schema(ref_template="#/components/schemas/{model}")
+    schemas[ModelCallRequest.__name__] = model_call_schema
+    operation = spec["paths"]["/v1/hooks/model-call"]["post"]
+    operation["requestBody"] = {
+        "required": True,
+        "content": {"application/json": {"schema": {"$ref": f"#/components/schemas/{ModelCallRequest.__name__}"}}},
+    }
+    operation["responses"] = {
+        "200": {
+            "description": "Allow or deny decision, with the rule that gave it",
+            "content": {"application/json": {"schema": {"type": "object"}}},
+        },
+        "404": {"description": "The config has no hooks_server.agent_start section", **error},
+        "422": {"description": "Invalid request or unsupported event", **error},
+        "500": {"description": "The quarantine store or the decision record failed", **error},
+    }
+    for path, answer in (
+        ("/v1/decisions", "The recorded decisions, oldest first"),
+        ("/v1/decisions/check", "Whether the record's chain holds"),
+    ):
+        spec["paths"][path]["get"]["responses"] = {
+            "200": {"description": answer, "content": {"application/json": {"schema": {"type": "object"}}}},
+            "404": {"description": "No decision record", **error},
+        }
     spec["paths"]["/v1/runs/{run_id}"]["get"]["responses"] = {
         "200": {
             "description": "The stop or quarantine a rule chose for the run, or null",
