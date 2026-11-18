@@ -68,6 +68,22 @@ def hooks_openapi() -> dict:
                 "additionalProperties": False,
                 "properties": {"decision": {"type": "string", "const": "allow"}},
             },
+            "RelayStop": {
+                "type": "object",
+                "required": ["decision", "reason"],
+                "additionalProperties": False,
+                "properties": {"decision": {"type": "string", "const": "stop"}, "reason": {"type": "string"}},
+            },
+            "ClaudeCodeStop": {
+                "type": "object",
+                "required": ["continue", "stopReason", "hookSpecificOutput"],
+                "additionalProperties": False,
+                "properties": {
+                    "continue": {"type": "boolean", "const": False},
+                    "stopReason": {"type": "string"},
+                    "hookSpecificOutput": {"$ref": "#/components/schemas/PreToolUseDeny/properties/hookSpecificOutput"},
+                },
+            },
             "RelayDeny": {
                 "type": "object",
                 "required": ["decision", "reason"],
@@ -100,12 +116,12 @@ def hooks_openapi() -> dict:
     error = {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/HookError"}}}}
     empty_allow = {"type": "object", "properties": {}, "additionalProperties": False}
     response_schemas = {
-        "claude-code": (empty_allow, "PreToolUseDeny"),
-        "codex": (empty_allow, "PreToolUseDeny"),
-        "nemo-relay": ({"$ref": "#/components/schemas/RelayAllow"}, "RelayDeny"),
+        "claude-code": (empty_allow, "PreToolUseDeny", "ClaudeCodeStop"),
+        "codex": (empty_allow, "PreToolUseDeny", None),
+        "nemo-relay": ({"$ref": "#/components/schemas/RelayAllow"}, "RelayDeny", "RelayStop"),
     }
     for agent, adapter in ADAPTERS.items():
-        allowed, deny_name = response_schemas[agent]
+        allowed, deny_name, stop_name = response_schemas[agent]
         model = adapter.request_model
         model_schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
         schemas.update(model_schema.pop("$defs", {}))
@@ -126,10 +142,12 @@ def hooks_openapi() -> dict:
             "content": {"application/json": {"schema": {"$ref": f"#/components/schemas/{model.__name__}"}}},
         }
         denied = {"$ref": f"#/components/schemas/{deny_name}"}
+        # A stop is a deny for Codex, so its deny shape covers it.
+        stopped = [] if stop_name is None else [{"$ref": f"#/components/schemas/{stop_name}"}]
         operation["responses"] = {
             "200": {
                 "description": "Allow or deny decision",
-                "content": {"application/json": {"schema": {"oneOf": [allowed, denied]}}},
+                "content": {"application/json": {"schema": {"oneOf": [allowed, denied, *stopped]}}},
             },
             "404": {
                 "description": "The config sets only hooks_server.agent_start, so no tool call is checked",

@@ -542,11 +542,22 @@ class HooksServerConfig(BaseModel):
         default=True,
         description="Whether a call to a tool `allowed_tools` doesn't name is allowed.",
     )
+    stop_tools: List[Union[str, ToolEntry]] = Field(
+        default_factory=list,
+        description="Tools a call to which ends the run, not only the call: a name, which stops on every call to the "
+        "tool, or a `{name, arguments}` entry, which stops on a call that passes any of those arguments. A stop "
+        "denies the call too.",
+    )
+    stop_rails: List[str] = Field(
+        default_factory=list,
+        description="Per-tool rails, by the name a deny reports, whose block ends the run rather than only "
+        "denying the call.",
+    )
 
     @model_validator(mode="after")
     def check_tool_lists(self) -> "HooksServerConfig":
         """Refuse tool lists that name a tool twice, or that allow a tool they block by name."""
-        for list_name in ("allowed_tools", "blocked_tools"):
+        for list_name in ("allowed_tools", "blocked_tools", "stop_tools"):
             repeated = _first_repeated_tool_name(getattr(self, list_name))
             if repeated is not None:
                 raise InvalidRailsConfigurationError(
@@ -565,9 +576,10 @@ class HooksServerConfig(BaseModel):
 
     @property
     def can_deny(self) -> bool:
-        """Whether the policy can deny a call: it blocks something, denies unlisted tools, or limits a tool's arguments."""
+        """Whether the policy can deny a call: it blocks or stops something, denies unlisted tools, or limits a tool's
+        arguments."""
         # Bare names in allowed_tools deny nothing while unlisted tools are allowed.
-        if self.blocked_tools or not self.allow_unlisted_tools:
+        if self.blocked_tools or self.stop_tools or not self.allow_unlisted_tools:
             return True
         return any(isinstance(entry, ToolEntry) for entry in self.allowed_tools)
 

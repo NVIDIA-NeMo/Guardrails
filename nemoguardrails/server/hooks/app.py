@@ -89,6 +89,7 @@ def check_hooks_config(config: RailsConfig) -> None:
     if reason is not None:
         raise HooksConfigError(f"The hooks server runs on IORails, which can't serve this config: {reason}")
     _check_no_global_tool_call_rails(config)
+    _check_stop_rails_are_configured(config)
     _check_agent_start_can_deny(config)
     if config.hooks_server.agent_start is None or _checks_tool_calls(config):
         # A config for agent starts alone checks no tool calls; its tool-call paths answer an error, never an allow.
@@ -125,6 +126,17 @@ def _check_something_can_deny(config: RailsConfig) -> None:
         "The hooks server needs a tool policy in the hooks_server section, or per-tool rails under "
         "rails.tool_call.per_tool; this config has neither, so every tool call would be allowed."
     )
+
+
+def _check_stop_rails_are_configured(config: RailsConfig) -> None:
+    """Raise when hooks_server.stop_rails names a rail no per-tool flow runs, since it would never stop a run."""
+    rails = {flow.split(" $", 1)[0] for flows in config.rails.tool_call.per_tool.values() for flow in flows}
+    for rail in config.hooks_server.stop_rails:
+        if rail not in rails:
+            raise HooksConfigError(
+                f"hooks_server.stop_rails names rail '{rail}', which no rails.tool_call.per_tool flow runs, so it "
+                "would never stop a run; name a per-tool rail without its $ arguments, such as 'regex check tool call'."
+            )
 
 
 def _check_agent_start_can_deny(config: RailsConfig) -> None:
@@ -426,6 +438,12 @@ async def _check_tool_call(
         outcome = HookOutcome.deny(f"tool call '{quoted_identity(call.name)}' has arguments that aren't a JSON object")
         _log_check(adapter, call, outcome, rail=None)
         return outcome
+    # A stop is checked first: a call that ends the run is denied too, whatever else the policy says about it.
+    reason = policy.stops(call.name, call.arguments)
+    if reason is not None:
+        outcome = HookOutcome.stop(reason)
+        _log_check(adapter, call, outcome, rail=_TOOL_POLICY)
+        return outcome
     reason = policy.decide(call.name, call.arguments)
     if reason is not None:
         outcome = HookOutcome.deny(reason)
@@ -445,6 +463,8 @@ async def _check_tool_call(
         _log_check(adapter, call, outcome, rail=None)
         return outcome
     outcome = outcome_from_result(result)
+    if outcome.kind == "deny" and result.rail in engine.config.hooks_server.stop_rails:
+        outcome = HookOutcome.stop(outcome.reason or result.rail)
     _log_check(adapter, call, outcome, rail=result.rail)
     return outcome
 

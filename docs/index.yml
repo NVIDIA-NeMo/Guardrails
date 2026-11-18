@@ -554,6 +554,9 @@ navigation:
           - page: Agent Start Endpoint
             path: run-rails/using-hooks-server/agent-start.mdx
             slug: agent-start
+          - page: Stop a Run
+            path: run-rails/using-hooks-server/stop.mdx
+            slug: stop
           - page: Results and Errors
             path: run-rails/using-hooks-server/results-and-errors.mdx
             slug: results-and-errors

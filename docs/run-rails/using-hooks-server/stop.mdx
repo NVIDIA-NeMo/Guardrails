@@ -1,0 +1,63 @@
+---
+title: "Stop a Run from the Hooks Server"
+sidebar-title: "Stop a Run"
+description: "The stop outcome of the Guardrails hooks server: a rule that ends the run, not only the tool call, and what each agent path does with it."
+keywords: ["stop", "stop_tools", "stop_rails", "continue", "stopReason", "nemoguardrails hooks-server", "NeMo Relay"]
+content:
+  type: "reference"
+---
+
+A deny blocks one tool call, and the agent can try another way.
+A stop is a third outcome next to allow and deny: the rule asks that the run end.
+A stop always denies the call too, so an agent that does not act on a stop still never runs the call.
+No model is called to decide it.
+
+## Configure a Stop
+
+Two rules in the `hooks_server` section select a stop, in the style of `blocked_tools`:
+
+```yaml
+hooks_server:
+  stop_tools:
+    - delete_index
+    - name: search
+      arguments: [admin_override]
+  stop_rails:
+    - regex check tool call
+```
+
+| Rule | A Call Stops the Run When |
+|---|---|
+| `stop_tools` | It calls a tool the list names bare, or passes an argument a `{name, arguments}` entry lists. It is checked before `allowed_tools` and `blocked_tools`. |
+| `stop_rails` | A per-tool rail the list names blocks it. Name the rail as a deny reports it, without its `$` arguments. A name that no `rails.tool_call.per_tool` flow runs is refused when the server starts. |
+
+The [stop example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/stop) uses both.
+
+## What Each Path Answers
+
+| Path | Answer for a Stop | What the Agent Does |
+|---|---|---|
+| `/v1/hooks/claude-code` | The deny, with `"continue": false` and `"stopReason"` | Claude Code denies the call and ends its turn. |
+| `/v1/hooks/codex` | The deny alone | Codex denies the call. Codex's hook output has a `continue` field, but what Codex does with it for a `PreToolUse` hook is not established, so the server does not send it. |
+| `/v1/hooks/nemo-relay` | `{"decision": "stop", "reason": ...}` | The NeMo Relay plugin rejects the call with the reason and emits the mark `nemo_guardrails.stop` on Relay's event stream, with the tool name and the reason. |
+
+A Claude Code stop has the following shape:
+
+```json
+{
+  "continue": false,
+  "stopReason": "NeMo Guardrails: tool call 'delete_index' is a stop tool",
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "NeMo Guardrails: tool call 'delete_index' is a stop tool"
+  }
+}
+```
+
+## What NeMo Relay Cannot Do Yet
+
+NeMo Relay's tool conditional-execution guardrail returns one of three results: run the call, reject it with a reason, or fail.
+None of them ends a run, and Relay passes the guardrail no run or session identifier.
+So the plugin rejects the call and emits the stop mark; ending the run is the job of whatever owns it and subscribes to Relay's events.
+A plugin built before the stop outcome does not know `"decision": "stop"`, fails the check, and Relay blocks the call.

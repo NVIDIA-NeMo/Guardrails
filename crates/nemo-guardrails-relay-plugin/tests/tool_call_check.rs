@@ -91,6 +91,55 @@ async fn denied_call_is_rejected_with_the_server_reason() {
     }
 }
 
+/// A stop rejects the call with the service's reason, the tool never runs, and the plugin emits
+/// its stop mark on Relay's event stream with the tool name and the reason.
+#[tokio::test]
+async fn stopped_call_is_rejected_and_the_stop_mark_is_emitted() {
+    let _host = HOST.lock().await;
+    let server = hooks_server(decision(
+        json!({"decision": "stop", "reason": "tool call 'search' is a stop tool"}),
+    ))
+    .await;
+    let bundle = Bundle::new();
+    let plugin = activate(&bundle, json!({"endpoint": server.uri()})).await;
+    let marks: Arc<Mutex<Vec<(String, Option<Json>)>>> = Arc::default();
+    let seen = Arc::clone(&marks);
+    nemo_relay::api::subscriber::register_subscriber(
+        "stop-test",
+        Arc::new(move |event: &nemo_relay::api::event::Event| {
+            if event.kind() == "mark" {
+                seen.lock()
+                    .expect("marks")
+                    .push((event.name().to_string(), event.data().cloned()));
+            }
+        }),
+    )
+    .expect("a subscriber registers");
+    let runs = Arc::new(AtomicUsize::new(0));
+
+    let result = run_search(&runs).await;
+    let _ = nemo_relay::api::subscriber::flush_subscribers();
+    nemo_relay::api::subscriber::deregister_subscriber("stop-test").expect("deregistered");
+
+    match result {
+        Err(FlowError::GuardrailRejected(reason)) => assert_eq!(
+            reason,
+            "NeMo Guardrails stopped the run at tool call 'search': tool call 'search' is a stop tool"
+        ),
+        other => panic!("expected a guardrail rejection, got {other:?}"),
+    }
+    assert_eq!(runs.load(Ordering::SeqCst), 0);
+    let marks = marks.lock().expect("marks");
+    assert!(
+        marks.contains(&(
+            "nemo_guardrails.stop".to_string(),
+            Some(json!({"tool_name": "search", "reason": "tool call 'search' is a stop tool"}))
+        )),
+        "{marks:?}"
+    );
+    drop(plugin);
+}
+
 /// A failed check blocks the call with an internal error, not a rejection or an upstream HTTP
 /// error, and the tool never runs.
 #[tokio::test]

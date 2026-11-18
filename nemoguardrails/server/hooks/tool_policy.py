@@ -40,10 +40,12 @@ def _entries(tool_list: Iterable[Union[str, ToolEntry]]) -> Mapping[str, ToolArg
 
 @dataclass(frozen=True)
 class ToolPolicy:
-    """`hooks_server.allowed_tools`, `blocked_tools` and `allow_unlisted_tools`, read once when the server starts."""
+    """`hooks_server.allowed_tools`, `blocked_tools`, `allow_unlisted_tools` and `stop_tools`, read once when the
+    server starts."""
 
     allowed: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
     blocked: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
+    stopping: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
     # A tool is unlisted when `allowed_tools` doesn't name it, whatever `blocked_tools` says about its arguments.
     allow_unlisted: bool = True
 
@@ -54,7 +56,21 @@ class ToolPolicy:
             allowed=_entries(hooks_server.allowed_tools),
             blocked=_entries(hooks_server.blocked_tools),
             allow_unlisted=hooks_server.allow_unlisted_tools,
+            stopping=_entries(hooks_server.stop_tools),
         )
+
+    def stops(self, name: str, arguments: Mapping[str, Any]) -> Optional[str]:
+        """Why a call to *name* with *arguments* ends the run, or None when `stop_tools` doesn't stop it."""
+        if name not in self.stopping:
+            return None
+        stopping = self.stopping[name]
+        if stopping is None:
+            return f"tool call '{quoted_identity(name)}' is a stop tool"
+        passed = next((argument for argument in stopping if argument in arguments), None)
+        if passed is None:
+            return None
+        # The argument's name comes from the config, so the reason can state it.
+        return f"tool call '{quoted_identity(name)}' passes argument '{passed}', which stops the run"
 
     def blocked_by_name(self, name: str) -> bool:
         """Whether `blocked_tools` names *name* bare, which blocks every call to it."""

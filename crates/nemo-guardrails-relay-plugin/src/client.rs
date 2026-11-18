@@ -50,6 +50,12 @@ pub enum Verdict {
         #[serde(default, deserialize_with = "non_empty")]
         reason: Option<String>,
     },
+    /// The call must not run, and the service asks that the run end.
+    Stop {
+        /// The service's reason, unless it gave none or an empty one.
+        #[serde(default, deserialize_with = "non_empty")]
+        reason: Option<String>,
+    },
 }
 
 /// Reads an optional string, taking an empty one as none.

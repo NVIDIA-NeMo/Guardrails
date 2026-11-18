@@ -75,7 +75,9 @@ def _relay_invocation(request: NemoRelayToolConditionalExecutionGuardrailRequest
 
 
 def _pre_tool_use_output(outcome: HookOutcome) -> dict:
-    """Claude Code's and Codex's `PreToolUse` output: no decision for an allow, the deny shape for a deny."""
+    """Codex's `PreToolUse` output, and the base of Claude Code's: no decision for an allow, the deny shape for a deny
+    or a stop. A stop is only a deny here: Codex's hook output has `continue`, but what Codex does with it for a
+    `PreToolUse` hook isn't established, and a field it doesn't act on mustn't let the call run."""
     _require_decision(outcome)
     if outcome.kind == "allow":
         # No decision rather than "allow", which would skip Claude Code's permission prompt.
@@ -89,12 +91,22 @@ def _pre_tool_use_output(outcome: HookOutcome) -> dict:
     }
 
 
+def _claude_code_output(outcome: HookOutcome) -> dict:
+    """Claude Code's `PreToolUse` output: as Codex's, and for a stop also `continue: false` with a `stopReason`, which
+    ends Claude Code's turn after the hook, besides denying the call."""
+    output = _pre_tool_use_output(outcome)
+    if outcome.kind == "stop":
+        output = {"continue": False, "stopReason": f"{DENY_REASON_PREFIX}{outcome.reason}", **output}
+    return output
+
+
 def _relay_decision(outcome: HookOutcome) -> dict:
-    """The verdict the Relay plugin turns into its guardrail callback's `Ok(None)` or `Ok(Some(reason))`."""
+    """The verdict the Relay plugin turns into its guardrail callback's `Ok(None)` or `Ok(Some(reason))`; a stop is
+    carried as its own decision, which a plugin that doesn't know it fails on, and Relay then blocks the call."""
     _require_decision(outcome)
     if outcome.kind == "allow":
         return {"decision": "allow"}
-    return {"decision": "deny", "reason": outcome.reason}
+    return {"decision": outcome.kind, "reason": outcome.reason}
 
 
 def _require_decision(outcome: HookOutcome) -> None:
@@ -111,7 +123,7 @@ ADAPTERS: dict[HookAgent, HookAdapter] = {
             event="PreToolUse",
             request_model=ClaudeCodePreToolUseRequest,
             invocation=_pre_tool_use_invocation,
-            response_body=_pre_tool_use_output,
+            response_body=_claude_code_output,
         ),
         HookAdapter(
             agent="codex",

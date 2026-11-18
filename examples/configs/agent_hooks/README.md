@@ -12,6 +12,7 @@ There is one configuration for each agent:
 | `codex` | Codex | `/v1/hooks/codex` | 0.124.0; from 0.129.0, Codex runs a hook only after you trust it |
 | `nemo_relay` | A NeMo Relay plugin's tool guardrail | `/v1/hooks/nemo-relay` | NeMo Relay 0.10.1 |
 | `agent_start` | Whatever starts an agent, before the start | `/v1/hooks/agent-start` | None |
+| `stop` | A NeMo Relay plugin's tool guardrail, with rules that end the run | `/v1/hooks/nemo-relay` | NeMo Relay 0.11.0 for the stop mark |
 
 The `agent_start` configuration decides whether an agent may start, rather than a tool call; see [Check an Agent Before It Starts](./../../../docs/run-rails/using-hooks-server/agent-start.mdx).
 Each tool-call `config.yml` has `models: []`, a `hooks_server` section that lists the agent's tools with `allow_unlisted_tools: false`, and regular-expression rails under `rails.tool_call.per_tool`.
