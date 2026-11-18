@@ -1,6 +1,6 @@
 [project]
 name = "nemoguardrails"
-version = "0.25.0-rc1"
+version = "0.25.0"
 description = "NeMo Guardrails is an open-source library for applying programmable safety and security controls to LLM and agentic applications."
 license = "Apache-2.0"
 license-files = ["LICENSE*", "LICENCES*"]
