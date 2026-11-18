@@ -208,7 +208,6 @@ The following chart shows the added latency at concurrency 64, where each LLMRai
 
 Each value is the request-latency percentile minus the 5,000 ms of model calls.
 It includes the server's three HTTP calls to the mock models, about 2.5 ms each.
-At concurrency 128, the server reaches its throughput limit on this laptop, about 24 requests per second for IORails and 22 for LLMRails, so these values also include time that requests wait to be served.
 
 To reproduce these numbers, follow the [benchmarking guide](./benchmark/README.md) with two changes:
 
