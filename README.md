@@ -205,13 +205,15 @@ The following chart shows the added latency at concurrency 64, where each LLMRai
 | 32 | 13 | 19 | 106 | 88 | 274 | 860 |
 | 64 | 13 | 22 | 126 | 93 | 669 | 2,094 |
 | 128 | 17 | 774 | 2,880 | 430 | 1,422 | 5,182 |
-| 256 | 3,007 | 14,904 | 16,043 | 7,291 | 12,473 | 15,035 |
 
 Each value is the request-latency percentile minus the 5,000 ms of model calls.
 It includes the server's three HTTP calls to the mock models, about 2.5 ms each.
-At concurrency 128 and above, the server reaches its throughput limit on this laptop, about 24 requests per second for IORails and 22 for LLMRails, so these values also include time that requests wait to be served.
-The server runs LLMRails by default; set `NEMO_GUARDRAILS_IORAILS_ENGINE=true` to run IORails.
-To reproduce these numbers, refer to the [benchmarking guide](./benchmark/README.md).
+At concurrency 128, the server reaches its throughput limit on this laptop, about 24 requests per second for IORails and 22 for LLMRails, so these values also include time that requests wait to be served.
+
+To reproduce these numbers, follow the [benchmarking guide](./benchmark/README.md) with two changes:
+
+- Set `benchmark_duration: 180` in the AIPerf config; the shipped configs use 60 seconds.
+- For the IORails columns, start the server with `NEMO_GUARDRAILS_IORAILS_ENGINE=true`; the guide's Procfile starts the server without it, so the server runs LLMRails by default.
 
 ## Community Usage
 
