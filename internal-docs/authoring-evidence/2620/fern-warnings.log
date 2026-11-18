@@ -1,0 +1,4 @@
+[docs] 1 warning
+    [warning] Missing redirects check skipped: not authenticated. Run 'fern login' or set the FERN_TOKEN environment variable to enable this check.
+
+Found 0 errors and 1 warning in 0.001 seconds.
