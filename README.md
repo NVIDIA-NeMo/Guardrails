@@ -34,28 +34,43 @@ Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvid
 
 ## How It Works
 
-Guardrails uses configuration files to define a policy.
-The configuration defines which rails to run, along with any models and prompts they use.
-You can import the library into a Python application or run it as a server.
+Use the NVIDIA NeMo Guardrails library to define your policy in configuration files that specify the rails, models, and prompts to use.
+Run the library in your Python application or deploy it as a server.
+Choose check mode or proxy mode based on how your application manages model requests.
 
-In check mode, your application or agent harness communicates with the application LLM directly.
-It sends Guardrails the user prompt, application LLM response, tool calls, and tool results at every point requiring a policy decision.
-It then acts on the verdict, handling blocked or modified content before it executes a tool or returns a response.
-Tool-call checks run before the tool executes, and tool-result checks run after.
-Use `check_async()` in Python, `POST /v1/checks` on the Guardrails server, or the hooks server for coding agents.
+### Check Mode
 
-![Check mode: the application or agent harness calls the LLM and tools directly. It sends content to the NeMo Guardrails service through the Python SDK, the Guardrails server, or the hooks server, and receives a verdict. The service calls a guardrail model when a rail needs one.](./docs/_static/images/guardrails-check-mode.png)
+Your application or agent harness calls the LLM and executes tools directly.
+At each point that requires a policy decision, send the relevant prompt, model response, tool call, or tool result to the library for checking.
+Use the result to handle blocked or modified content before you execute a tool, return a response, or pass a tool result to the model.
 
-In proxy mode, your application sends requests to Guardrails rather than the application LLM.
-Guardrails checks each request, forwards it to the application LLM, and checks the response before returning it.
-By default, a blocked request never reaches the application LLM, and a blocked response comes back as a refusal or an error.
-Your application still executes tools, and Guardrails can check the tool calls in a response and the tool results in the next request.
-Use `generate_async()` or `stream_async()` in Python, or send `/v1/chat/completions` requests to the Guardrails server, or `/v1/chat/completions` and `/v1/responses` requests to the gateway server.
+Use [`check_async()`](./docs/run-rails/using-python-apis/check-messages.mdx) in Python, `POST /v1/checks` on the Guardrails server, or the [hooks server](./docs/run-rails/using-hooks-server/index.mdx) for coding agents.
+For tool checks with `check_async()`, use the IORails engine and specify `RailType.TOOL_CALL` or `RailType.TOOL_RESULT` in `rail_types`.
+Check tool calls before execution and tool results after execution.
 
-![Proxy mode: the application sends /v1/chat/completions or /v1/responses requests to the NeMo Guardrails service, which checks them and forwards allowed requests to the LLM. The service calls a guardrail model when a rail needs one. The application calls tools directly.](./docs/_static/images/guardrails-proxy-mode.png)
+![Check mode: your application calls the LLM and tools directly and requests checks through the Python SDK, Guardrails server, or hooks server. Configured rails return a result and can call a guardrail model.](./docs/_static/images/guardrails-check-mode.png)
+
+### Proxy Mode
+
+Route model requests through the library to apply the configured input and output rails.
+Input rails can block a request before it reaches the application LLM.
+For non-streaming requests, output rails check the response before the library returns it.
+Blocked content produces a refusal or an error, depending on the integration and configuration.
+
+Use `generate_async()` or `stream_async()` in Python, or `POST /v1/chat/completions` on the Guardrails server.
+Your application executes tools; supported integrations can check tool calls in model responses and tool results in subsequent requests.
+The [gateway server](./docs/run-rails/using-proxy/providers-and-streaming.mdx) also supports `POST /v1/chat/completions` and `POST /v1/responses`, but its built-in profiles do not support tool content.
+Each gateway `/v1/responses` request must include `"store": false`.
+
+When output streaming is enabled for `stream_async()`, the default `stream_first: true` setting delivers chunks before checking them.
+To check each chunk before delivery, set `rails.output.streaming.stream_first: false`.
+For configuration details, refer to [output rail streaming](./docs/configure-rails/yaml-schema/streaming/output-rail-streaming.mdx).
+
+![Proxy mode: your application routes model requests through the library, which applies configured rails and forwards allowed requests to the LLM. Rails can call a guardrail model. Your application executes tools.](./docs/_static/images/guardrails-proxy-mode.png)
 
 Latency depends on the configured rules, models, and services.
-Rail support varies by engine and integration; refer to [rail engine support](./docs/reference/rail-engine-support.mdx), [configuration](./docs/configure-rails/configuration-reference.mdx), and [Choose Your Integration](#choose-your-integration).
+Rail support varies by engine and integration.
+Refer to [rail engine support](./docs/reference/rail-engine-support.mdx), [configuration](./docs/configure-rails/configuration-reference.mdx), and [Choose Your Integration](#choose-your-integration).
 
 ## Why NeMo Guardrails
 
