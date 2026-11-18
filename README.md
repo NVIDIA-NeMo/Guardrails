@@ -184,7 +184,7 @@ NVIDIA Nemotron Safety models include [Nemotron 3.5 Content Safety](./examples/c
 
 Use the [evaluation tools](https://docs.nvidia.com/nemo/guardrails/latest/evaluation/evaluate-guardrails) to assess your policies and [garak](https://github.com/NVIDIA/garak) to scan LLM applications for vulnerabilities. Refer to the [vulnerability-scanning guide](./docs/evaluation/llm-vulnerability-scanning.mdx) for an example.
 
-## Performance
+## Benchmarking Guardrails Performance
 
 The following numbers show the latency that the Guardrails API server adds to each request, measured on a 14-inch MacBook Pro with an Apple M4 (10 cores, 24 GB).
 The server runs the [`content_safety_local`](./examples/configs/content_safety_local) configuration, which checks each request with an input rail and an output rail.
@@ -214,6 +214,9 @@ To reproduce these numbers, follow the [benchmarking guide](./benchmark/README.m
 
 - Set `benchmark_duration: 180` in the AIPerf config; the shipped configs use 60 seconds.
 - For the IORails columns, start the server with `NEMO_GUARDRAILS_IORAILS_ENGINE=true`; the guide's Procfile starts the server without it, so the server runs LLMRails by default.
+
+The same tooling can be used to benchmark production Guardrails deployments using real models instead of mock LLMs.
+For this use-case the Guardrails configuration should point to production LLMs, and AIPerf should run with representative production datasets.
 
 ## Community Usage
 
