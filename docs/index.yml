@@ -557,6 +557,9 @@ navigation:
           - page: Stop a Run
             path: run-rails/using-hooks-server/stop.mdx
             slug: stop
+          - page: Rules in Cedar
+            path: run-rails/using-hooks-server/cedar.mdx
+            slug: cedar
           - page: Results and Errors
             path: run-rails/using-hooks-server/results-and-errors.mdx
             slug: results-and-errors

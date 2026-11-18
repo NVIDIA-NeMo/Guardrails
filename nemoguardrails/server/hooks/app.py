@@ -22,7 +22,7 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import AsyncIterator, Mapping, Optional
+from typing import AsyncIterator, Mapping, Optional, Union
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -49,6 +49,12 @@ from nemoguardrails.server.exception_handlers import (
 )
 from nemoguardrails.server.hooks.adapters import ADAPTERS, HookAdapter, HookAgent, UnsupportedHookEventError
 from nemoguardrails.server.hooks.agent_start import AgentStartPolicy
+from nemoguardrails.server.hooks.cedar_policy import (
+    CedarAgentStartRules,
+    CedarPolicyError,
+    CedarPolicySet,
+    CedarToolRules,
+)
 from nemoguardrails.server.hooks.checking import (
     HookOutcome,
     ToolInvocation,
@@ -76,6 +82,8 @@ _MODEL_CALL_ERRORS = (LLMCallException, ModelEngineError, HTTPClientError)
 
 # What the log line names as deciding a call the tool policy denies, in place of a rail.
 _TOOL_POLICY = "tool policy"
+# The same, when the config's Cedar policies decide the call.
+_CEDAR_POLICY = "cedar policy"
 
 # The one event `/v1/hooks/agent-start` handles.
 _AGENT_START_EVENT = "AgentStart"
@@ -178,8 +186,8 @@ def _check_agent_start_can_deny(config: RailsConfig) -> None:
     if agent_start is not None and not agent_start.can_deny:
         raise HooksConfigError(
             "hooks_server.agent_start sets no rule that can deny a start, so every agent would be allowed to start; "
-            "set allowed_sources, allowed_models, allow_local_sources: false, require_digests: true or "
-            "require_policy_enforcers: true, or remove the section."
+            "set allowed_sources, allowed_models, allow_local_sources: false, require_digests: true, "
+            "require_policy_enforcers: true or cedar, or remove the section."
         )
 
 
@@ -235,6 +243,7 @@ def _check_main_model(config: RailsConfig) -> None:
 def create_hooks_app(config: RailsConfig) -> FastAPI:
     """Build the hooks server for *config*, with its own engine; raises `HooksConfigError` if it can't serve hooks."""
     check_hooks_config(config)
+    cedar_tool_rules, agent_start_policy = _load_rules(config)
     _warn_about_ignored_main_model_tools(config)
     # IORails reports usage when it is built, so the deployment type is claimed before that.
     set_deployment_type(DeploymentTypeEnum.API.value)
@@ -250,9 +259,9 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     )
     app.state.engine = engine
     app.state.tool_policy = ToolPolicy.from_config(config.hooks_server)
+    app.state.cedar_tool_rules = cedar_tool_rules
     app.state.checks_tool_calls = config.hooks_server.agent_start is None or _checks_tool_calls(config)
-    agent_start = config.hooks_server.agent_start
-    app.state.agent_start_policy = None if agent_start is None else AgentStartPolicy.from_config(agent_start)
+    app.state.agent_start_policy = agent_start_policy
     app.state.quarantine = _quarantine_store(config)
     app.state.run_stops = OrderedDict()
     for exc_type, handler in _EXCEPTION_HANDLERS:
@@ -262,6 +271,51 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     app.add_middleware(ExceptionMiddleware, handlers={Exception: internal_error_handler})
     app.include_router(_router)
     return app
+
+
+AgentStartRules = Union[AgentStartPolicy, CedarAgentStartRules]
+
+
+def _load_rules(config: RailsConfig) -> tuple[Optional[CedarToolRules], Optional[AgentStartRules]]:
+    """The tool-call Cedar rules and the agent-start rules the config sets, read once; a Cedar policy set that can't be
+    read or parsed, or that needs `cedarpy` where it isn't installed, stops the server from starting."""
+    hooks_server = config.hooks_server
+    base = _config_folder(config)
+    try:
+        cedar_tool_rules = None
+        if hooks_server.cedar is not None:
+            policies = _load_cedar(hooks_server.cedar, base, "hooks_server", outcomes_allowed=True)
+            if policies.quarantines and not hooks_server.quarantine_store:
+                raise HooksConfigError(
+                    'hooks_server.cedar has a forbid with @outcome("quarantine"), but no hooks_server.quarantine_store '
+                    "keeps the quarantine; set quarantine_store to a file."
+                )
+            cedar_tool_rules = CedarToolRules(policies)
+        agent_start = hooks_server.agent_start
+        agent_start_policy: Optional[AgentStartRules] = None
+        if agent_start is not None and agent_start.cedar is not None:
+            policies = _load_cedar(agent_start.cedar, base, "hooks_server.agent_start", outcomes_allowed=False)
+            agent_start_policy = CedarAgentStartRules(policies)
+        elif agent_start is not None:
+            agent_start_policy = AgentStartPolicy.from_config(agent_start)
+    except CedarPolicyError as exc:
+        raise HooksConfigError(str(exc)) from None
+    return cedar_tool_rules, agent_start_policy
+
+
+def _config_folder(config: RailsConfig) -> Path:
+    """The folder a config's relative Cedar paths start from: the config's own, else the directory the server runs
+    in."""
+    if not config.config_path or "," in config.config_path:
+        return Path.cwd()
+    path = Path(config.config_path)
+    return path if path.is_dir() else path.parent
+
+
+def _load_cedar(rules, base: Path, section: str, *, outcomes_allowed: bool) -> CedarPolicySet:
+    """The policy set one `cedar` section names."""
+    schema = None if rules.schema_file is None else base / rules.schema_file
+    return CedarPolicySet.load(base / rules.policies, schema, section=section, outcomes_allowed=outcomes_allowed)
 
 
 def _quarantine_store(config: RailsConfig) -> Optional[QuarantineStore]:
@@ -389,7 +443,7 @@ async def handle_nemo_relay_hook(request: Request) -> Response:
 )
 async def handle_agent_start_hook(request: Request) -> Response:
     """Answer whether the agent the facts describe may start, with the same decision body as NeMo Relay's path."""
-    policy: Optional[AgentStartPolicy] = request.app.state.agent_start_policy
+    policy: Optional[AgentStartRules] = request.app.state.agent_start_policy
     quarantine: Optional[QuarantineStore] = request.app.state.quarantine
     if policy is None and quarantine is None:
         return _error_response(
@@ -510,6 +564,7 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
             call,
             request.app.state.quarantine,
             identity,
+            request.app.state.cedar_tool_rules,
         )
     except QuarantineStoreError as exc:
         return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
@@ -576,6 +631,7 @@ async def _check_tool_call(
     call: ToolInvocation,
     quarantine: Optional[QuarantineStore] = None,
     identity: tuple[Optional[str], Optional[str]] = (None, None),
+    cedar: Optional[CedarToolRules] = None,
 ) -> HookOutcome:
     """Decide the hook's call with the tool policy, then run its tool's per-tool rails on it, and log the verdict.
 
@@ -593,6 +649,18 @@ async def _check_tool_call(
         outcome = HookOutcome.deny(f"tool call '{quoted_identity(call.name)}' has arguments that aren't a JSON object")
         _log_check(adapter, call, outcome, rail=None)
         return outcome
+    if cedar is not None:
+        # Cedar alone decides the call; its forbid's @outcome selects a stop or a quarantine.
+        kind, reason = cedar.decide(call.name, call.arguments, *identity)
+        if kind != "allow":
+            reason = reason or kind
+            if kind == "quarantine":
+                outcome = _quarantine_by_rule(quarantine, identity, reason)
+            else:
+                outcome = HookOutcome.stop(reason) if kind == "stop" else HookOutcome.deny(reason)
+            _log_check(adapter, call, outcome, rail=_CEDAR_POLICY)
+            return outcome
+        return await _run_per_tool_rails(engine, policy, adapter, call, quarantine, identity)
     # A quarantine, then a stop, are checked first: a call that ends the run is denied too, whatever else the policy
     # says about it.
     reason = policy.quarantines(call.name, call.arguments)
@@ -610,6 +678,18 @@ async def _check_tool_call(
         outcome = HookOutcome.deny(reason)
         _log_check(adapter, call, outcome, rail=_TOOL_POLICY)
         return outcome
+    return await _run_per_tool_rails(engine, policy, adapter, call, quarantine, identity)
+
+
+async def _run_per_tool_rails(
+    engine: Guardrails,
+    policy: ToolPolicy,
+    adapter: HookAdapter,
+    call: ToolInvocation,
+    quarantine: Optional[QuarantineStore],
+    identity: tuple[Optional[str], Optional[str]],
+) -> HookOutcome:
+    """Run the per-tool rails of a call the rules allowed, and log the verdict."""
     # Only a tool with per-tool rails needs the check: it would run nothing else, and would take a queue slot.
     if not engine.config.rails.tool_call.per_tool.get(call.name):
         outcome = HookOutcome.allow()

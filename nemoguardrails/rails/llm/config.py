@@ -465,6 +465,24 @@ class ToolEntry(BaseModel):
         return arguments
 
 
+class CedarRules(BaseModel):
+    """A check's rules written in Cedar rather than YAML: a folder of `.cedar` policies, and an optional schema."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    policies: str = Field(
+        min_length=1,
+        description="A folder of `.cedar` policy files, read with its subfolders in name order. Relative to the "
+        "config's folder.",
+    )
+    schema_file: Optional[str] = Field(
+        default=None,
+        alias="schema",
+        description="A `.cedarschema` file the policies are checked against when the server starts. Relative to the "
+        "config's folder. Unset, the policies are only parsed.",
+    )
+
+
 class AgentStartConfig(BaseModel):
     """The rules `nemoguardrails hooks-server` applies to an agent before it starts, on `/v1/hooks/agent-start`."""
 
@@ -492,6 +510,22 @@ class AgentStartConfig(BaseModel):
         default=False,
         description="Whether every enforcer a required policy needs must be present where the agent starts.",
     )
+    cedar: Optional[CedarRules] = Field(
+        default=None,
+        description="Cedar policies that decide the start instead of the rules above. Set, no other rule in this "
+        "section may be set: a start is decided by Cedar alone. Needs the `cedar` extra.",
+    )
+
+    @model_validator(mode="after")
+    def check_one_rule_language(self) -> "AgentStartConfig":
+        """Refuse YAML rules beside Cedar ones: a check is decided by one rule language."""
+        yaml_rules = sorted(self.model_fields_set - {"cedar"})
+        if self.cedar is not None and yaml_rules:
+            raise InvalidRailsConfigurationError(
+                f"hooks_server.agent_start sets cedar and {yaml_rules[0]}; a start is decided by Cedar alone, so "
+                "write that rule as a Cedar policy, or remove cedar."
+            )
+        return self
 
     @field_validator("allowed_sources")
     @classmethod
@@ -509,7 +543,8 @@ class AgentStartConfig(BaseModel):
     def can_deny(self) -> bool:
         """Whether any rule can deny a start."""
         return (
-            self.allowed_sources is not None
+            self.cedar is not None
+            or self.allowed_sources is not None
             or not self.allow_local_sources
             or self.require_digests
             or self.allowed_models is not None
@@ -567,6 +602,11 @@ class HooksServerConfig(BaseModel):
         description="The file that keeps quarantined agents, one JSON event per line, across restarts. Relative to "
         "the directory the server runs in. Unset, the server quarantines nothing.",
     )
+    cedar: Optional[CedarRules] = Field(
+        default=None,
+        description="Cedar policies that decide each tool call instead of the tool lists above. Set, no tool list and "
+        "no `allow_unlisted_tools` may be set: a call is decided by Cedar alone. Needs the `cedar` extra.",
+    )
 
     @model_validator(mode="after")
     def check_tool_lists(self) -> "HooksServerConfig":
@@ -576,6 +616,16 @@ class HooksServerConfig(BaseModel):
             if repeated is not None:
                 raise InvalidRailsConfigurationError(
                     f"hooks_server.{list_name} names tool '{repeated}' more than once; list each tool once."
+                )
+        if self.cedar is not None:
+            yaml_rules = sorted(
+                self.model_fields_set
+                & {"allowed_tools", "blocked_tools", "allow_unlisted_tools", "stop_tools", "quarantine_tools"}
+            )
+            if yaml_rules:
+                raise InvalidRailsConfigurationError(
+                    f"hooks_server sets cedar and {yaml_rules[0]}; a tool call is decided by Cedar alone, so write "
+                    "that rule as a Cedar policy, or remove cedar."
                 )
         blocked_by_name = {entry for entry in self.blocked_tools if isinstance(entry, str)}
         contradicted = [
@@ -593,6 +643,8 @@ class HooksServerConfig(BaseModel):
         """Whether the policy can deny a call: it blocks or stops something, denies unlisted tools, or limits a tool's
         arguments."""
         # Bare names in allowed_tools deny nothing while unlisted tools are allowed.
+        if self.cedar is not None:
+            return True
         if self.blocked_tools or self.stop_tools or self.quarantine_tools or not self.allow_unlisted_tools:
             return True
         return any(isinstance(entry, ToolEntry) for entry in self.allowed_tools)

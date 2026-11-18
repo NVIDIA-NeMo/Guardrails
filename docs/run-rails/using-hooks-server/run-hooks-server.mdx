@@ -85,6 +85,8 @@ Three settings in the `hooks_server` section make up the tool policy:
 | `blocked_tools` | `[]` | The tools a call may not use. A name blocks every call to the tool. A `{name, arguments}` entry blocks a call that passes any of the listed arguments. |
 | `allow_unlisted_tools` | `true` | Whether a call to a tool that `allowed_tools` does not name is allowed. Set it whenever `allowed_tools` lists a tool: the server refuses to start an allowlist that leaves it unset. |
 
+To write the tool policy in Cedar instead, set `hooks_server.cedar` and none of these settings; see [Write Hooks Server Rules in Cedar](./cedar.mdx).
+
 Set `allow_unlisted_tools: false` to deny every tool you have not listed, including tools that a later agent release adds.
 With `allow_unlisted_tools: true`, unlisted tools are allowed too, so a name in `allowed_tools` has no effect, and an entry only limits its tool's arguments.
 The default, `true`, suits a policy of `blocked_tools` or per-tool rails alone.

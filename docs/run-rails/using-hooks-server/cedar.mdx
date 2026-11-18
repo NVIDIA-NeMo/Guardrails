@@ -1,0 +1,159 @@
+---
+title: "Write Hooks Server Rules in Cedar"
+sidebar-title: "Rules in Cedar"
+description: "Decide agent starts and tool calls with Cedar policies instead of YAML lists: the vocabulary the hooks server asks with, how decisions map to allow, deny, stop and quarantine, and the same rule in both languages."
+keywords: ["cedar", "cedarpy", "policy", "hooks_server.cedar", "agent_start.cedar", "@outcome", "@id", "nemoguardrails hooks-server"]
+content:
+  type: "reference"
+---
+
+The hooks server's rules are YAML by default: `allowed_tools`, `stop_tools`, `agent_start.allowed_sources` and the rest.
+A check can instead be written in [Cedar](https://www.cedarpolicy.com/), a policy language whose policies can be read, tested and analyzed on their own.
+Cedar is optional and chosen per check in the config.
+A config without Cedar works as before and does not need Cedar installed.
+A check that names Cedar is decided by Cedar alone: no YAML rule may be set beside it, and the server refuses a config that sets both.
+
+This is the same idea as OpenShell's proposal to accept Cedar as an alternative to YAML for sandbox policies (RFC 0020): chosen once, with YAML users unaffected.
+
+## Install
+
+Cedar needs the `cedar` extra, which installs [`cedarpy`](https://pypi.org/project/cedarpy/), the Python binding of the Cedar engine:
+
+```bash
+pip install "nemoguardrails[server,cedar]"
+```
+
+A config that names Cedar without `cedarpy` installed stops the server at start with a message that names the extra.
+
+## Configure
+
+Each check takes a `cedar` section that names a folder of `.cedar` files and, optionally, a schema:
+
+```yaml
+hooks_server:
+  cedar:                          # each tool call, on every hook path
+    policies: policies/tool_call
+    schema: hooks.cedarschema
+  agent_start:
+    cedar:                        # each agent start, on /v1/hooks/agent-start
+      policies: policies/agent_start
+      schema: hooks.cedarschema
+```
+
+| Field | Meaning |
+|---|---|
+| `policies` | A folder of `.cedar` files, read with its subfolders in name order. Relative to the config's folder. |
+| `schema` | A `.cedarschema` file. The policies are checked against it when the server starts, so a misspelled attribute stops the server rather than failing a request. Optional. |
+
+The server stops at start when a file does not parse, a policy fails the schema check, the folder is missing or holds no `.cedar` file, or an `@outcome` annotation is wrong.
+The [Cedar example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/cedar) has both checks and the schema.
+
+## How a Request Is Decided
+
+Cedar's own rules apply:
+
+- Nothing is allowed unless a `permit` matches. A policy set with no `permit` denies everything.
+- A matching `forbid` wins over any `permit`.
+- A policy that fails to evaluate, such as one that reads an optional attribute without `has`, denies the request. Cedar itself would skip that policy; the server does not, so a `forbid` that fails never lets a request through.
+
+A deny reason names the deciding policy by its `@id` annotation, or by its file and position when it has none, such as `start.cedar#2`.
+
+## The Vocabulary
+
+Everything is in the `Hooks` namespace.
+The full schema is `examples/configs/agent_hooks/cedar/hooks.cedarschema`.
+
+| Entity | Attributes |
+|---|---|
+| `Hooks::Agent` | `name`, and `digest` when the request carries one. On a tool call, `name` is empty when the request names no agent. |
+| `Hooks::Part`, in its `Agent` | `id`, `type` (skill, plugin, connector, hook, package, policy or agent), `source`, `local`, and `version` and `digest` when present |
+| `Hooks::Model`, in its `Agent` | `name` |
+| `Hooks::Policy`, in its `Agent` | `id`, `required`, `enforcers` (a set) |
+| `Hooks::Tool` | `name` |
+
+### Agent Start: `Hooks::Action::"start"`
+
+Cedar has no "for every" over a set, so the server asks once for the agent itself and once for each part, model and policy, each as the request's `resource`, with the agent as the `principal`.
+The start is allowed only when Cedar allows every one; the deny reason names the first one denied.
+So a policy is written about one part, one model or one policy at a time, with `resource is Hooks::Part` and the like, and the permit that lets the rest through is usually `permit(principal, action == Hooks::Action::"start", resource);`.
+The context is `enforcers_present`, the set of enforcers the caller says run where the agent starts.
+An agent-start policy cannot carry `@outcome`: there is no run yet to stop.
+
+### Tool Call: `Hooks::Action::"call_tool"`
+
+The server asks once for each call, with the agent as the `principal` (from the `X-NeMo-Agent-Name` and `X-NeMo-Agent-Digest` headers) and the tool as the `resource`.
+The context has two attributes:
+
+| Context | Meaning |
+|---|---|
+| `arguments` | The call's arguments as a Cedar record. A value Cedar cannot hold, such as null, a fractional number or an integer beyond 64 bits, is left out. |
+| `argument_names` | The name of every argument the call passes, including those left out of `arguments`. |
+
+A call whose arguments are not a JSON object is denied before Cedar is asked, as with YAML rules.
+Per-tool rails under `rails.tool_call.per_tool` still run on a call Cedar allows; they check content, not which calls are allowed.
+
+## Allow, Deny, Stop and Quarantine
+
+`permit` and `forbid` decide allow and deny.
+A `forbid` on a tool call can instead end the run, or quarantine the agent, with an `@outcome` annotation:
+
+```cedar
+@id("stop/delete-index")
+@outcome("stop")
+forbid(principal, action == Hooks::Action::"call_tool", resource == Hooks::Tool::"delete_index");
+```
+
+| Annotation | Outcome |
+|---|---|
+| None | Deny the call. |
+| `@outcome("stop")` | Stop the run; see [Stop and Quarantine](./stop.mdx). |
+| `@outcome("quarantine")` | Stop the run and quarantine the agent. Needs `hooks_server.quarantine_store`; the server refuses to start without one. |
+
+When several `forbid` policies match, quarantine wins over stop, and stop over deny, as with the YAML lists.
+`@outcome` on a `permit`, or with another value, stops the server at start.
+
+## The Same Rule in YAML and in Cedar
+
+Parts may come only from the approved repository, and a local folder is not that repository.
+
+In YAML:
+
+```yaml
+hooks_server:
+  agent_start:
+    allowed_sources:
+      - git::https://git.example.com/workshop/agent-parts.git//
+    allow_local_sources: false
+```
+
+In Cedar, with `agent_start.cedar.policies` naming the folder that holds this file:
+
+```cedar
+@id("start/permit")
+permit(principal, action == Hooks::Action::"start", resource);
+
+@id("parts/approved-source")
+forbid(principal, action == Hooks::Action::"start", resource is Hooks::Part)
+unless { !resource.local && resource.source like "git::https://git.example.com/workshop/agent-parts.git//*" };
+```
+
+Both allow a package whose parts all come from the approved repository and deny one with a part from anywhere else:
+
+```text
+YAML:  skill '$/skills/release-checklist' comes from a source hooks_server.agent_start.allowed_sources doesn't list
+Cedar: skill '$/skills/release-checklist' is denied by Cedar policy 'parts/approved-source'
+```
+
+The two configurations are `examples/agent_start_oadl/configs/approved_source_only` and `approved_source_only_cedar`.
+
+A tool call follows the same pattern.
+Only `search` with only its `query` argument, as `allowed_tools: [{name: search, arguments: [query]}]` with `allow_unlisted_tools: false`:
+
+```cedar
+@id("search/permit")
+permit(principal, action == Hooks::Action::"call_tool", resource == Hooks::Tool::"search")
+when { ["query"].containsAll(context.argument_names) };
+```
+
+Cedar's `like` matches `*` across any characters, so a source prefix ending in `*` matches the YAML prefix rule.
+A literal `*` in a pattern is written `\*`.
