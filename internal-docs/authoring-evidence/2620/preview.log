@@ -5,7 +5,7 @@
 [docs]:docs.yml declares global-theme "nvidia" but FERN_TOKEN is not set — theme will not be applied in dev mode. Set FERN_TOKEN or run 'fern login' to enable it.
 [docs]:
        [warning] Missing redirects check skipped: not authenticated. Run 'fern login' or set the FERN_TOKEN environment variable to enable this check.
-       
+
 [docs]:Uploading 21 files...
 [docs]:Uploaded 21 files in 0ms
 [docs]:Reload completed in 12032ms
