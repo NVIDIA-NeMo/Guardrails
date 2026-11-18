@@ -213,6 +213,12 @@ def hooks_openapi() -> dict:
         },
         "404": {"description": "No quarantine store", **error},
     }
+    spec["paths"]["/v1/runs/{run_id}"]["get"]["responses"] = {
+        "200": {
+            "description": "The stop or quarantine a rule chose for the run, or null",
+            "content": {"application/json": {"schema": {"type": "object"}}},
+        }
+    }
     for path in ("/v1/health", "/healthz"):
         spec["paths"][path]["get"]["responses"] = {
             "200": {

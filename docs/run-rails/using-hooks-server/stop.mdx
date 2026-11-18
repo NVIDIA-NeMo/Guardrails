@@ -105,3 +105,20 @@ Only a release ends a quarantine: there is no timer.
 Releasing an agent that is not quarantined answers `404` with the code `not_quarantined`.
 A store that cannot be read or written answers `500` with the code `quarantine_store_failed`, never an allow.
 The hooks server has no authentication of its own: keep it on a loopback address, or behind a proxy that authenticates, since anyone who can reach it can release an agent.
+
+## Let the Owner of the Run End It
+
+A stop or quarantine denies the call; ending the run is the job of whatever started the harness.
+A tool call names its run in the `x-nemo-run-id` header, and the server keeps the first stop or quarantine of each run.
+The owner of the run reads it, and ends the run with the agents it called:
+
+```bash
+curl -s http://localhost:8100/v1/runs/RUN_ID
+```
+
+```json
+{"run_id": "RUN_ID", "stop": {"outcome": "stop", "reason": "tool call 'delete_index' is a stop tool", "tool_name": "delete_index", "agent_name": null, "agent_digest": null, "by": "nemoguardrails hooks-server", "at": "2026-11-18T14:00:00.000+00:00"}}
+```
+
+`stop` is `null` until a rule stops the run.
+The server keeps the last 1,024 runs in memory, so a restart forgets them; a quarantine stays in its store.

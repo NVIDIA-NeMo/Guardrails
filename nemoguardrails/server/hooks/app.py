@@ -17,8 +17,10 @@
 
 import json
 import logging
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncIterator, Mapping, Optional
 
@@ -82,6 +84,10 @@ _AGENT_START_EVENT = "AgentStart"
 # agent sets them, such as the Relay plugin's `headers` or a hook's command; a call without them can't be matched.
 AGENT_NAME_HEADER = "x-nemo-agent-name"
 AGENT_DIGEST_HEADER = "x-nemo-agent-digest"
+# The header that names the run a tool call belongs to, so the owner of the run can ask whether a rule stopped it.
+RUN_ID_HEADER = "x-nemo-run-id"
+# The most runs whose stop the server keeps; the oldest is forgotten first.
+_MAX_RUN_STOPS = 1024
 
 # A port and service name of its own, so it exports beside the main server on one host, and loopback, like its API.
 _METRICS_DEFAULTS = MetricsExporterSettings(host="127.0.0.1", port=9465, service_name="nemoguardrails-hooks-server")
@@ -248,6 +254,7 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     agent_start = config.hooks_server.agent_start
     app.state.agent_start_policy = None if agent_start is None else AgentStartPolicy.from_config(agent_start)
     app.state.quarantine = _quarantine_store(config)
+    app.state.run_stops = OrderedDict()
     for exc_type, handler in _EXCEPTION_HANDLERS:
         # Handlers are typed with their specific exception; Starlette's stub expects
         # (Request, Exception), so ty flags the narrower signature as a false positive.
@@ -406,6 +413,14 @@ async def handle_agent_start_hook(request: Request) -> Response:
     return JSONResponse({"decision": "deny", "reason": outcome.reason})
 
 
+@_router.get("/v1/runs/{run_id}", name="getRunStop", summary="Whether a rule stopped a run", tags=["Runs"])
+async def get_run_stop(run_id: str, request: Request) -> Response:
+    """The stop or quarantine a rule chose for a tool call of the run, or `null`. The owner of the run, which started
+    the harness, reads it and ends the run with the agents it called. Kept in memory: a restart forgets it, while a
+    quarantine stays in its store."""
+    return JSONResponse({"run_id": run_id, "stop": request.app.state.run_stops.get(run_id)})
+
+
 _NO_QUARANTINE_STORE = "this hooks server's config sets no hooks_server.quarantine_store, so it quarantines nothing"
 
 
@@ -498,6 +513,9 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
         )
     except QuarantineStoreError as exc:
         return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
+    run_id = request.headers.get(RUN_ID_HEADER)
+    if run_id and outcome.kind in ("stop", "quarantine"):
+        _record_run_stop(request.app.state.run_stops, run_id, outcome, call, identity)
     if outcome.kind == "error":
         return _error_response(500, outcome.message or "", code=outcome.code)
     return JSONResponse(adapter.response_body(outcome))
@@ -612,6 +630,29 @@ async def _check_tool_call(
         outcome = HookOutcome.stop(outcome.reason or result.rail)
     _log_check(adapter, call, outcome, rail=result.rail)
     return outcome
+
+
+def _record_run_stop(
+    run_stops: "OrderedDict[str, dict]",
+    run_id: str,
+    outcome: HookOutcome,
+    call: ToolInvocation,
+    identity: tuple[Optional[str], Optional[str]],
+) -> None:
+    """Keep the first stop or quarantine of a run, for the owner of the run to read at `/v1/runs/{run_id}`."""
+    if run_id in run_stops:
+        return
+    run_stops[run_id] = {
+        "outcome": outcome.kind,
+        "reason": outcome.reason,
+        "tool_name": quoted_identity(call.name),
+        "agent_name": identity[0],
+        "agent_digest": identity[1],
+        "by": "nemoguardrails hooks-server",
+        "at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+    }
+    while len(run_stops) > _MAX_RUN_STOPS:
+        run_stops.popitem(last=False)
 
 
 def _quarantine_by_rule(

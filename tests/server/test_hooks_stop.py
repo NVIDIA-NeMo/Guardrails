@@ -182,3 +182,43 @@ def test_the_exported_contract_describes_a_stop(agent):
     spec = exporter["hooks_openapi"]()
     schema = spec["paths"][f"/v1/hooks/{agent}"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
     validate(spec, schema, _answer(agent, "drop_database", {}))
+
+
+class TestRunStops:
+    """The owner of a run reads whether a rule stopped it, by the run id the tool call sent."""
+
+    def test_a_stop_is_kept_for_the_run_that_sent_it(self):
+        with TestClient(create_hooks_app(RailsConfig.from_content(config=STOP_CONFIG))) as client:
+            run = {"x-nemo-run-id": "run-1"}
+            assert client.get("/v1/runs/run-1").json() == {"run_id": "run-1", "stop": None}
+            client.post("/v1/hooks/nemo-relay", json=_hook("nemo-relay", "search", {"query": "x"}), headers=run)
+            assert client.get("/v1/runs/run-1").json()["stop"] is None
+            client.post("/v1/hooks/nemo-relay", json=_hook("nemo-relay", "drop_database", {}), headers=run)
+            client.post("/v1/hooks/nemo-relay", json=_hook("nemo-relay", "Bash", {"command": "rm -rf /"}), headers=run)
+            stop = client.get("/v1/runs/run-1").json()["stop"]
+            assert {key: stop[key] for key in ("outcome", "reason", "tool_name", "by")} == {
+                "outcome": "stop",
+                "reason": "tool call 'drop_database' is a stop tool",
+                "tool_name": "drop_database",
+                "by": "nemoguardrails hooks-server",
+            }
+            assert stop["at"]
+            # Another run is not stopped, and a call that names no run records nothing.
+            assert client.get("/v1/runs/run-2").json()["stop"] is None
+
+    @pytest.mark.parametrize("agent", AGENTS)
+    def test_every_hook_path_records_the_stop(self, agent):
+        with TestClient(create_hooks_app(RailsConfig.from_content(config=STOP_CONFIG))) as client:
+            client.post(f"/v1/hooks/{agent}", json=_hook(agent, "drop_database", {}), headers={"x-nemo-run-id": "r"})
+            assert client.get("/v1/runs/r").json()["stop"]["outcome"] == "stop"
+
+    def test_a_quarantine_is_recorded_as_one(self, tmp_path):
+        config = {
+            "models": [],
+            "hooks_server": {"quarantine_store": str(tmp_path / "q.jsonl"), "quarantine_tools": ["exfiltrate"]},
+        }
+        headers = {"x-nemo-run-id": "r", "x-nemo-agent-name": "a", "x-nemo-agent-digest": "sha256:1"}
+        with TestClient(create_hooks_app(RailsConfig.from_content(config=config))) as client:
+            client.post("/v1/hooks/nemo-relay", json=_hook("nemo-relay", "exfiltrate", {}), headers=headers)
+            stop = client.get("/v1/runs/r").json()["stop"]
+            assert (stop["outcome"], stop["agent_name"], stop["agent_digest"]) == ("quarantine", "a", "sha256:1")
