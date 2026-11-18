@@ -397,6 +397,22 @@ async fn stop_decision_carries_the_server_reason() {
     }
 }
 
+/// A quarantine carries the server's reason.
+#[tokio::test]
+async fn quarantine_decision_carries_the_server_reason() {
+    let verdict = check_search(
+        ResponseTemplate::new(200)
+            .set_body_json(json!({"decision": "quarantine", "reason": "agent is quarantined"})),
+    )
+    .await;
+    assert_eq!(
+        verdict,
+        Ok(Verdict::Quarantine {
+            reason: Some("agent is quarantined".to_string())
+        })
+    );
+}
+
 /// A 200 answer that isn't an allow or a deny fails the check.
 #[tokio::test]
 async fn unexpected_200_answer_fails_the_check() {

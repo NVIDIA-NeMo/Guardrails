@@ -28,6 +28,8 @@ class HookErrorCode(str, Enum):
     RAIL_FAILED = "rail_failed"
     QUEUE_FULL = "queue_full"
     CHECK_NOT_CONFIGURED = "check_not_configured"
+    NOT_QUARANTINED = "not_quarantined"
+    QUARANTINE_STORE_FAILED = "quarantine_store_failed"
 
 
 class ClaudeCodePreToolUseRequest(BaseModel):
@@ -103,12 +105,40 @@ class AgentStartRequest(BaseModel):
 
     hook_event_name: Literal["AgentStart"]
     agent_name: str = Field(min_length=1)
+    agent_digest: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="The digest of the agent's package, such as the sha256 of its lock. With the name, it is the "
+        "identity a quarantine holds. Without it, a quarantine of any version of the agent denies the start.",
+    )
     parts: list[AgentPart]
     models: list[str] = Field(description="Every model the agent and the agents it calls name.")
     policies: list[AgentPolicy] = Field(default_factory=list)
     enforcers_present: list[str] = Field(
         default_factory=list, description="The enforcers the caller says run where the agent starts."
     )
+
+
+class QuarantineRequest(BaseModel):
+    """A person's or the platform's request to quarantine an agent, with no violation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    agent_name: str = Field(min_length=1)
+    agent_digest: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+
+
+class QuarantineReleaseRequest(BaseModel):
+    """A release of a quarantined agent: who releases it and why."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    agent_name: str = Field(min_length=1)
+    agent_digest: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    released_by: str = Field(min_length=1)
 
 
 # Not underscored: pydantic quotes the class name in the error for a body that isn't an object.

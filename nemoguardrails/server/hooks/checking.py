@@ -78,7 +78,7 @@ def check_tools(call: ToolInvocation, policy: ToolPolicy) -> list[dict]:
 class HookOutcome:
     """A check's verdict on a tool call, before it becomes the agent's response."""
 
-    kind: Literal["allow", "deny", "stop", "error"]
+    kind: Literal["allow", "deny", "stop", "quarantine", "error"]
     reason: Optional[str] = None
     code: Optional[HookErrorCode] = None
     message: Optional[str] = None
@@ -89,14 +89,14 @@ class HookOutcome:
             object.__setattr__(self, "code", HookErrorCode(self.code))
         if self.kind == "allow":
             self._require_unset("reason", "code", "message")
-        elif self.kind in ("deny", "stop"):
+        elif self.kind in ("deny", "stop", "quarantine"):
             self._require_text("reason")
             self._require_unset("code", "message")
         elif self.kind == "error":
             self._require_text("message")
             self._require_unset("reason")
         else:
-            raise ValueError(f"kind must be 'allow', 'deny', 'stop' or 'error', got {self.kind!r}")
+            raise ValueError(f"kind must be 'allow', 'deny', 'stop', 'quarantine' or 'error', got {self.kind!r}")
 
     def _require_text(self, name: str) -> None:
         """Raise unless the field *name* holds a non-empty string."""
@@ -124,6 +124,11 @@ class HookOutcome:
     def stop(cls, reason: str) -> "HookOutcome":
         """A deny of the call that also asks the caller to end the run."""
         return cls(kind="stop", reason=reason)
+
+    @classmethod
+    def quarantine(cls, reason: str) -> "HookOutcome":
+        """A stop that also keeps the agent from starting or running again until it is released."""
+        return cls(kind="quarantine", reason=reason)
 
     @classmethod
     def error(cls, message: str, code: Optional[HookErrorCode] = None) -> "HookOutcome":

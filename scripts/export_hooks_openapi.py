@@ -29,7 +29,7 @@ from fastapi.openapi.utils import get_openapi
 
 from nemoguardrails.server.hooks.adapters import ADAPTERS
 from nemoguardrails.server.hooks.app import _router
-from nemoguardrails.server.hooks.schemas import AgentStartRequest
+from nemoguardrails.server.hooks.schemas import AgentStartRequest, QuarantineReleaseRequest, QuarantineRequest
 
 SPEC_PATH = Path(__file__).resolve().parents[1] / "fern" / "hooks-openapi.yml"
 HEALTH_DOCS_PATH = Path(__file__).resolve().parents[1] / "docs" / "reference" / "hooks-server-api" / "_generated"
@@ -72,7 +72,10 @@ def hooks_openapi() -> dict:
                 "type": "object",
                 "required": ["decision", "reason"],
                 "additionalProperties": False,
-                "properties": {"decision": {"type": "string", "const": "stop"}, "reason": {"type": "string"}},
+                "properties": {
+                    "decision": {"type": "string", "enum": ["stop", "quarantine"]},
+                    "reason": {"type": "string"},
+                },
             },
             "ClaudeCodeStop": {
                 "type": "object",
@@ -185,6 +188,30 @@ def hooks_openapi() -> dict:
         },
         "404": {"description": "The config has no hooks_server.agent_start section", **error},
         "422": {"description": "Invalid request or unsupported event", **error},
+    }
+    for model, path, answer in (
+        (QuarantineRequest, "/v1/quarantines", "The quarantine in force"),
+        (QuarantineReleaseRequest, "/v1/quarantines/release", "The release, recorded"),
+    ):
+        model_schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
+        schemas[model.__name__] = model_schema
+        operation = spec["paths"][path]["post"]
+        operation["requestBody"] = {
+            "required": True,
+            "content": {"application/json": {"schema": {"$ref": f"#/components/schemas/{model.__name__}"}}},
+        }
+        operation["responses"] = {
+            "200": {"description": answer, "content": {"application/json": {"schema": {"type": "object"}}}},
+            "404": {"description": "No quarantine store, or the agent is not quarantined", **error},
+            "422": {"description": "Invalid request", **error},
+            "500": {"description": "The quarantine store failed", **error},
+        }
+    spec["paths"]["/v1/quarantines"]["get"]["responses"] = {
+        "200": {
+            "description": "Every quarantine in force",
+            "content": {"application/json": {"schema": {"type": "object"}}},
+        },
+        "404": {"description": "No quarantine store", **error},
     }
     for path in ("/v1/health", "/healthz"):
         spec["paths"][path]["get"]["responses"] = {

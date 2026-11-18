@@ -52,6 +52,7 @@ A configuration with no `agent_start` section answers `/v1/hooks/agent-start` th
 |---|---|---|
 | `hook_event_name` | string | Always `AgentStart`. |
 | `agent_name` | string | The agent's name. Not empty. |
+| `agent_digest` | string or null | Optional. The digest of the agent's package, such as the sha256 of its lock. With the name, it is the identity a quarantine holds. |
 | `parts` | array | Every part the agent starts with, including the agents it calls and their parts. Can be empty. |
 | `parts[].id` | string | What a deny reason names the part by, such as its path in the package. |
 | `parts[].type` | string | `skill`, `plugin`, `connector`, `hook`, `package`, `policy`, or `agent` for an agent this agent calls. |

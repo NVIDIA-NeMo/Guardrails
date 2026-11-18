@@ -56,6 +56,13 @@ pub enum Verdict {
         #[serde(default, deserialize_with = "non_empty")]
         reason: Option<String>,
     },
+    /// The call must not run, the run must end, and the agent is quarantined: it can't start or
+    /// run again until someone releases it.
+    Quarantine {
+        /// The service's reason, unless it gave none or an empty one.
+        #[serde(default, deserialize_with = "non_empty")]
+        reason: Option<String>,
+    },
 }
 
 /// Reads an optional string, taking an empty one as none.

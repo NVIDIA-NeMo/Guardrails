@@ -95,7 +95,7 @@ def _claude_code_output(outcome: HookOutcome) -> dict:
     """Claude Code's `PreToolUse` output: as Codex's, and for a stop also `continue: false` with a `stopReason`, which
     ends Claude Code's turn after the hook, besides denying the call."""
     output = _pre_tool_use_output(outcome)
-    if outcome.kind == "stop":
+    if outcome.kind in ("stop", "quarantine"):
         output = {"continue": False, "stopReason": f"{DENY_REASON_PREFIX}{outcome.reason}", **output}
     return output
 

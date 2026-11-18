@@ -1,8 +1,8 @@
 ---
-title: "Stop a Run from the Hooks Server"
-sidebar-title: "Stop a Run"
+title: "Stop or Quarantine a Run from the Hooks Server"
+sidebar-title: "Stop and Quarantine"
 description: "The stop outcome of the Guardrails hooks server: a rule that ends the run, not only the tool call, and what each agent path does with it."
-keywords: ["stop", "stop_tools", "stop_rails", "continue", "stopReason", "nemoguardrails hooks-server", "NeMo Relay"]
+keywords: ["stop", "quarantine", "quarantine_store", "/v1/quarantines", "stop_tools", "stop_rails", "continue", "stopReason", "nemoguardrails hooks-server", "NeMo Relay"]
 content:
   type: "reference"
 ---
@@ -61,3 +61,47 @@ NeMo Relay's tool conditional-execution guardrail returns one of three results: 
 None of them ends a run, and Relay passes the guardrail no run or session identifier.
 So the plugin rejects the call and emits the stop mark; ending the run is the job of whatever owns it and subscribes to Relay's events.
 A plugin built before the stop outcome does not know `"decision": "stop"`, fails the check, and Relay blocks the call.
+
+## Quarantine an Agent
+
+A quarantine is a stop that lasts: the run ends, and the agent cannot start or run again until someone releases it.
+The server keeps it under the agent's name and the digest of its package, so a new version with another digest can start while the old one stays blocked.
+
+```yaml
+hooks_server:
+  quarantine_store: /var/lib/nemoguardrails/quarantine.jsonl
+  quarantine_tools:
+    - exfiltrate
+  quarantine_rails:
+    - regex check tool call
+  agent_start:
+    allowed_models: [bedrock::nvidia.nemotron-super-3-120b]
+```
+
+| Setting | What It Does |
+|---|---|
+| `quarantine_store` | The file that keeps quarantines: one JSON event per line, `quarantined` or `released`, with the agent's name and digest, the reason, who asked and when. Nothing is removed, so the file is the history, and a server that restarts reads it again. Servers on one host can share it: each write takes a file lock, and each check reads the file again when it changed. Servers on several hosts need a shared store instead. A relative path is relative to the directory the server runs in. |
+| `quarantine_tools`, `quarantine_rails` | Rules that quarantine, in the style of `stop_tools` and `stop_rails`. They need `quarantine_store`. |
+
+A tool call names its agent in two headers, `x-nemo-agent-name` and `x-nemo-agent-digest`, which whatever runs the agent sets, such as the NeMo Relay plugin's `headers`.
+A rule that quarantines stores the quarantine under those headers. Without them, the run still ends, and nothing is stored.
+
+While an agent is quarantined:
+
+- `/v1/hooks/agent-start` denies it with the quarantine's reason. A request that sends no `agent_digest` is denied while any version of the agent is quarantined.
+- Every tool call that names it in the headers is answered with the quarantine: the deny, with `continue: false` for Claude Code, the deny alone for Codex, and `{"decision": "quarantine", "reason": ...}` for NeMo Relay, whose plugin rejects the call and emits the mark `nemo_guardrails.quarantine`.
+
+A person or the platform can quarantine and release an agent, with no violation:
+
+```bash
+curl -s http://localhost:8100/v1/quarantines -H "Content-Type: application/json" \
+  -d '{"agent_name": "release-reviewer", "agent_digest": "sha256:a795...", "reason": "under review", "requested_by": "platform"}'
+curl -s http://localhost:8100/v1/quarantines
+curl -s http://localhost:8100/v1/quarantines/release -H "Content-Type: application/json" \
+  -d '{"agent_name": "release-reviewer", "agent_digest": "sha256:a795...", "reason": "reviewed", "released_by": "kevon"}'
+```
+
+Only a release ends a quarantine: there is no timer.
+Releasing an agent that is not quarantined answers `404` with the code `not_quarantined`.
+A store that cannot be read or written answers `500` with the code `quarantine_store_failed`, never an allow.
+The hooks server has no authentication of its own: keep it on a loopback address, or behind a proxy that authenticates, since anyone who can reach it can release an agent.

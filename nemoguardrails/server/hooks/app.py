@@ -18,6 +18,8 @@
 import json
 import logging
 from contextlib import asynccontextmanager
+from dataclasses import asdict
+from pathlib import Path
 from typing import AsyncIterator, Mapping, Optional
 
 from fastapi import APIRouter, FastAPI, Request
@@ -52,7 +54,14 @@ from nemoguardrails.server.hooks.checking import (
     check_tools,
     outcome_from_result,
 )
-from nemoguardrails.server.hooks.schemas import AgentStartRequest, HookBody, HookErrorCode
+from nemoguardrails.server.hooks.quarantine import QuarantineEvent, QuarantineStore, QuarantineStoreError
+from nemoguardrails.server.hooks.schemas import (
+    AgentStartRequest,
+    HookBody,
+    HookErrorCode,
+    QuarantineReleaseRequest,
+    QuarantineRequest,
+)
 from nemoguardrails.server.hooks.tool_policy import ToolPolicy
 from nemoguardrails.server.metrics import MetricsExporterSettings, running_metrics_exporter
 from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
@@ -68,6 +77,11 @@ _TOOL_POLICY = "tool policy"
 
 # The one event `/v1/hooks/agent-start` handles.
 _AGENT_START_EVENT = "AgentStart"
+
+# The headers that name the agent a tool call comes from, so a quarantine of it can deny the call. Whatever runs the
+# agent sets them, such as the Relay plugin's `headers` or a hook's command; a call without them can't be matched.
+AGENT_NAME_HEADER = "x-nemo-agent-name"
+AGENT_DIGEST_HEADER = "x-nemo-agent-digest"
 
 # A port and service name of its own, so it exports beside the main server on one host, and loopback, like its API.
 _METRICS_DEFAULTS = MetricsExporterSettings(host="127.0.0.1", port=9465, service_name="nemoguardrails-hooks-server")
@@ -90,6 +104,7 @@ def check_hooks_config(config: RailsConfig) -> None:
         raise HooksConfigError(f"The hooks server runs on IORails, which can't serve this config: {reason}")
     _check_no_global_tool_call_rails(config)
     _check_stop_rails_are_configured(config)
+    _check_quarantine_has_a_store(config)
     _check_agent_start_can_deny(config)
     if config.hooks_server.agent_start is None or _checks_tool_calls(config):
         # A config for agent starts alone checks no tool calls; its tool-call paths answer an error, never an allow.
@@ -114,7 +129,7 @@ def _check_no_global_tool_call_rails(config: RailsConfig) -> None:
 
 def _check_something_can_deny(config: RailsConfig) -> None:
     """Raise unless the tool policy or a per-tool rail can deny a call, since otherwise every call is allowed."""
-    if config.hooks_server.can_deny or _has_per_tool_rails(config):
+    if config.hooks_server.can_deny or _has_per_tool_rails(config) or config.hooks_server.quarantine_store:
         return
     if config.hooks_server.allowed_tools:
         raise HooksConfigError(
@@ -129,14 +144,26 @@ def _check_something_can_deny(config: RailsConfig) -> None:
 
 
 def _check_stop_rails_are_configured(config: RailsConfig) -> None:
-    """Raise when hooks_server.stop_rails names a rail no per-tool flow runs, since it would never stop a run."""
+    """Raise when hooks_server.stop_rails or quarantine_rails names a rail no per-tool flow runs, since it would never
+    select its outcome."""
     rails = {flow.split(" $", 1)[0] for flows in config.rails.tool_call.per_tool.values() for flow in flows}
-    for rail in config.hooks_server.stop_rails:
-        if rail not in rails:
-            raise HooksConfigError(
-                f"hooks_server.stop_rails names rail '{rail}', which no rails.tool_call.per_tool flow runs, so it "
-                "would never stop a run; name a per-tool rail without its $ arguments, such as 'regex check tool call'."
-            )
+    for list_name in ("stop_rails", "quarantine_rails"):
+        for rail in getattr(config.hooks_server, list_name):
+            if rail not in rails:
+                raise HooksConfigError(
+                    f"hooks_server.{list_name} names rail '{rail}', which no rails.tool_call.per_tool flow runs, so it "
+                    "would never apply; name a per-tool rail without its $ arguments, such as 'regex check tool call'."
+                )
+
+
+def _check_quarantine_has_a_store(config: RailsConfig) -> None:
+    """Raise when a rule can quarantine an agent but no store keeps the quarantine."""
+    hooks_server = config.hooks_server
+    if (hooks_server.quarantine_tools or hooks_server.quarantine_rails) and not hooks_server.quarantine_store:
+        raise HooksConfigError(
+            "hooks_server.quarantine_tools or quarantine_rails can quarantine an agent, but no "
+            "hooks_server.quarantine_store keeps the quarantine; set quarantine_store to a file."
+        )
 
 
 def _check_agent_start_can_deny(config: RailsConfig) -> None:
@@ -220,6 +247,7 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     app.state.checks_tool_calls = config.hooks_server.agent_start is None or _checks_tool_calls(config)
     agent_start = config.hooks_server.agent_start
     app.state.agent_start_policy = None if agent_start is None else AgentStartPolicy.from_config(agent_start)
+    app.state.quarantine = _quarantine_store(config)
     for exc_type, handler in _EXCEPTION_HANDLERS:
         # Handlers are typed with their specific exception; Starlette's stub expects
         # (Request, Exception), so ty flags the narrower signature as a false positive.
@@ -227,6 +255,17 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     app.add_middleware(ExceptionMiddleware, handlers={Exception: internal_error_handler})
     app.include_router(_router)
     return app
+
+
+def _quarantine_store(config: RailsConfig) -> Optional[QuarantineStore]:
+    """The store hooks_server.quarantine_store names, read once to refuse a store that can't be read."""
+    path = config.hooks_server.quarantine_store
+    if path is None:
+        return None
+    try:
+        return QuarantineStore(Path(path))
+    except QuarantineStoreError as exc:
+        raise HooksConfigError(str(exc)) from exc
 
 
 def _build_engine(config: RailsConfig) -> Guardrails:
@@ -344,19 +383,90 @@ async def handle_nemo_relay_hook(request: Request) -> Response:
 async def handle_agent_start_hook(request: Request) -> Response:
     """Answer whether the agent the facts describe may start, with the same decision body as NeMo Relay's path."""
     policy: Optional[AgentStartPolicy] = request.app.state.agent_start_policy
-    if policy is None:
+    quarantine: Optional[QuarantineStore] = request.app.state.quarantine
+    if policy is None and quarantine is None:
         return _error_response(
             404,
             "this hooks server's config has no hooks_server.agent_start section, so it checks no agent starts",
             code=HookErrorCode.CHECK_NOT_CONFIGURED,
         )
     start = _parse_agent_start(await _read_json(request))
-    reason = policy.decide(start)
+    try:
+        held = None if quarantine is None else quarantine.find(start.agent_name, start.agent_digest)
+    except QuarantineStoreError as exc:
+        return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
+    if held is not None:
+        reason: Optional[str] = _quarantined_reason(held)
+    else:
+        reason = None if policy is None else policy.decide(start)
     outcome = HookOutcome.allow() if reason is None else HookOutcome.deny(reason)
     _log_agent_start(start, outcome)
     if outcome.kind == "allow":
         return JSONResponse({"decision": "allow"})
     return JSONResponse({"decision": "deny", "reason": outcome.reason})
+
+
+_NO_QUARANTINE_STORE = "this hooks server's config sets no hooks_server.quarantine_store, so it quarantines nothing"
+
+
+@_router.post("/v1/quarantines", name="quarantineAgent", summary="Quarantine an agent", tags=["Quarantine"])
+async def quarantine_agent(request: Request) -> Response:
+    """Quarantine an agent at a person's or the platform's request, with no violation. Its runs still alive are
+    denied every tool call that names it, and it can't start until it is released."""
+    store: Optional[QuarantineStore] = request.app.state.quarantine
+    if store is None:
+        return _error_response(404, _NO_QUARANTINE_STORE, code=HookErrorCode.CHECK_NOT_CONFIGURED)
+    body = _parse_model(QuarantineRequest, await _read_json(request))
+    try:
+        event = store.quarantine(body.agent_name, body.agent_digest, body.reason, body.requested_by, source="request")
+    except QuarantineStoreError as exc:
+        return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
+    log.info("Quarantine: agent_name=%r agent_digest=%r by=%r", event.agent_name, event.agent_digest, event.by)
+    return JSONResponse({"quarantine": asdict(event)})
+
+
+@_router.get("/v1/quarantines", name="listQuarantines", summary="List quarantined agents", tags=["Quarantine"])
+async def list_quarantines(request: Request) -> Response:
+    """Every quarantine in force. Released ones stay in the store's file, which is the history."""
+    store: Optional[QuarantineStore] = request.app.state.quarantine
+    if store is None:
+        return _error_response(404, _NO_QUARANTINE_STORE, code=HookErrorCode.CHECK_NOT_CONFIGURED)
+    try:
+        return JSONResponse({"quarantines": [asdict(event) for event in store.active()]})
+    except QuarantineStoreError as exc:
+        return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
+
+
+@_router.post(
+    "/v1/quarantines/release", name="releaseAgent", summary="Release a quarantined agent", tags=["Quarantine"]
+)
+async def release_agent(request: Request) -> Response:
+    """Release a quarantined agent, recording who released it and why. Nothing else releases one."""
+    store: Optional[QuarantineStore] = request.app.state.quarantine
+    if store is None:
+        return _error_response(404, _NO_QUARANTINE_STORE, code=HookErrorCode.CHECK_NOT_CONFIGURED)
+    body = _parse_model(QuarantineReleaseRequest, await _read_json(request))
+    try:
+        event = store.release(body.agent_name, body.agent_digest, body.reason, body.released_by)
+    except QuarantineStoreError as exc:
+        return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
+    if event is None:
+        return _error_response(
+            404,
+            f"agent '{quoted_identity(body.agent_name)}' with that digest is not quarantined",
+            code=HookErrorCode.NOT_QUARANTINED,
+        )
+    log.info("Quarantine released: agent_name=%r agent_digest=%r by=%r", event.agent_name, event.agent_digest, event.by)
+    return JSONResponse({"released": asdict(event)})
+
+
+def _parse_model(model, body: object):
+    """*body* as *model*, raising a failure for the shared `422` handler."""
+    try:
+        return model.model_validate(body)
+    except ValidationError as exc:
+        errors = exc.errors(include_url=False, include_input=False)
+        raise RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in errors]) from None
 
 
 @_router.get("/v1/health", summary="Liveness health check.", tags=["Health"])
@@ -376,7 +486,18 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
             code=HookErrorCode.CHECK_NOT_CONFIGURED,
         )
     call = _parse_hook(adapter, await _read_json(request))
-    outcome = await _check_tool_call(request.app.state.engine, request.app.state.tool_policy, adapter, call)
+    identity = (request.headers.get(AGENT_NAME_HEADER), request.headers.get(AGENT_DIGEST_HEADER))
+    try:
+        outcome = await _check_tool_call(
+            request.app.state.engine,
+            request.app.state.tool_policy,
+            adapter,
+            call,
+            request.app.state.quarantine,
+            identity,
+        )
+    except QuarantineStoreError as exc:
+        return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
     if outcome.kind == "error":
         return _error_response(500, outcome.message or "", code=outcome.code)
     return JSONResponse(adapter.response_body(outcome))
@@ -431,14 +552,36 @@ def _log_agent_start(start: AgentStartRequest, outcome: HookOutcome) -> None:
 
 
 async def _check_tool_call(
-    engine: Guardrails, policy: ToolPolicy, adapter: HookAdapter, call: ToolInvocation
+    engine: Guardrails,
+    policy: ToolPolicy,
+    adapter: HookAdapter,
+    call: ToolInvocation,
+    quarantine: Optional[QuarantineStore] = None,
+    identity: tuple[Optional[str], Optional[str]] = (None, None),
 ) -> HookOutcome:
-    """Decide the hook's call with the tool policy, then run its tool's per-tool rails on it, and log the verdict."""
+    """Decide the hook's call with the tool policy, then run its tool's per-tool rails on it, and log the verdict.
+
+    A call from a quarantined agent is answered with the quarantine before anything else. A rule that quarantines
+    stores the quarantine under the agent the headers name; without them the run is still ended, and nothing is
+    stored."""
+    agent_name, agent_digest = identity
+    if quarantine is not None and agent_name:
+        held = quarantine.find(agent_name, agent_digest)
+        if held is not None:
+            outcome = HookOutcome.quarantine(_quarantined_reason(held))
+            _log_check(adapter, call, outcome, rail="quarantine")
+            return outcome
     if not isinstance(call.arguments, dict):
         outcome = HookOutcome.deny(f"tool call '{quoted_identity(call.name)}' has arguments that aren't a JSON object")
         _log_check(adapter, call, outcome, rail=None)
         return outcome
-    # A stop is checked first: a call that ends the run is denied too, whatever else the policy says about it.
+    # A quarantine, then a stop, are checked first: a call that ends the run is denied too, whatever else the policy
+    # says about it.
+    reason = policy.quarantines(call.name, call.arguments)
+    if reason is not None:
+        outcome = _quarantine_by_rule(quarantine, identity, reason)
+        _log_check(adapter, call, outcome, rail=_TOOL_POLICY)
+        return outcome
     reason = policy.stops(call.name, call.arguments)
     if reason is not None:
         outcome = HookOutcome.stop(reason)
@@ -463,10 +606,36 @@ async def _check_tool_call(
         _log_check(adapter, call, outcome, rail=None)
         return outcome
     outcome = outcome_from_result(result)
-    if outcome.kind == "deny" and result.rail in engine.config.hooks_server.stop_rails:
+    if outcome.kind == "deny" and result.rail in engine.config.hooks_server.quarantine_rails:
+        outcome = _quarantine_by_rule(quarantine, identity, outcome.reason or result.rail)
+    elif outcome.kind == "deny" and result.rail in engine.config.hooks_server.stop_rails:
         outcome = HookOutcome.stop(outcome.reason or result.rail)
     _log_check(adapter, call, outcome, rail=result.rail)
     return outcome
+
+
+def _quarantine_by_rule(
+    quarantine: Optional[QuarantineStore], identity: tuple[Optional[str], Optional[str]], reason: str
+) -> HookOutcome:
+    """The quarantine a rule selected, stored under the agent the call's headers name, when they name one."""
+    agent_name, agent_digest = identity
+    if quarantine is not None and agent_name and agent_digest:
+        quarantine.quarantine(
+            agent_name, agent_digest, reason, by="nemoguardrails hooks-server", source="rule", rule=reason
+        )
+    else:
+        log.warning(
+            "A rule quarantined the agent of a tool call that names no agent in the %s and %s headers: the run is "
+            "ended, but no quarantine is stored.",
+            AGENT_NAME_HEADER,
+            AGENT_DIGEST_HEADER,
+        )
+    return HookOutcome.quarantine(reason)
+
+
+def _quarantined_reason(held: QuarantineEvent) -> str:
+    """The reason a quarantined agent's start or call is denied: the quarantine's own reason."""
+    return f"agent '{quoted_identity(held.agent_name)}' is quarantined: {held.reason}"
 
 
 def _log_check(adapter: HookAdapter, call: ToolInvocation, outcome: HookOutcome, rail: Optional[str]) -> None:
