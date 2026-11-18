@@ -37,7 +37,7 @@ python -c 'from importlib.resources import files; from shutil import copytree; c
 cd proxy-example
 ```
 
-A separate proxy distribution is not required. An older library release might
+A separate gateway distribution is not required. An older library release might
 not include this module. The `server` extra includes the OpenAI
 Python SDK used in the Python request examples.
 
@@ -65,7 +65,7 @@ when connecting a different service; its hostname does not establish its dialect
 
 The Rails configuration enables input and output regex checks for common
 email-address patterns. Generation credentials belong in client request headers,
-outside the manifest. The proxy forwards generation over HTTP; it does not use
+outside the manifest. The gateway forwards generation over HTTP; it does not use
 the library's model framework to generate answers. Model-backed or service-backed Rails
 checks have their own dependencies and credentials.
 
@@ -102,7 +102,7 @@ export OPENAI_API_KEY="<your OpenAI API key>"
 Choose a shell or Python for each request. Each Python block is a standalone
 script; save it and run it with `python`. The Python client reads
 `OPENAI_API_KEY` and uses `max_retries=0` so these examples do not automatically
-repeat failed requests. Both clients call the proxy, which forwards the bearer
+repeat failed requests. Both clients call the gateway, which forwards the bearer
 credential to OpenAI. The bundled Rails checks do not need a server-side key.
 
 ### Chat Completions
@@ -129,7 +129,7 @@ with OpenAI(base_url="http://127.0.0.1:8000/v1", max_retries=0) as client:
 
 </CodeBlocks>
 
-The proxy checks the user text, forwards the accepted request to OpenAI,
+The gateway checks the user text, forwards the accepted request to OpenAI,
 checks the assistant text, and returns the accepted response. The generated
 wording varies.
 
@@ -163,7 +163,7 @@ with OpenAI(base_url="http://127.0.0.1:8000/v1", max_retries=0) as client:
 
 ## Stream Output
 
-Both selected operations also support server-sent event (SSE) streaming. The proxy
+Both selected operations also support server-sent event (SSE) streaming. The gateway
 checks output in windows before release. The bundled settings can hold short answers until
 completion; refer to [streaming windows](/run-guardrailed-inference/using-gateway/providers-and-streaming#streaming-windows).
 
@@ -266,7 +266,7 @@ withheld, or its pending stream window is blocked.
 
 Regex checks illustrate configuration and ordering. They do not provide
 comprehensive protection for personally identifiable information. Choose supported
-Rails checks for your application. Stop the proxy with Ctrl-C when finished.
+Rails checks for your application. Stop the gateway with Ctrl-C when finished.
 
 ## Troubleshoot the First Request
 
@@ -274,12 +274,12 @@ Rails checks for your application. Stop the proxy with Ctrl-C when finished.
 | --- | --- |
 | Startup cannot find a Rails directory | `config_path` resolves against the manifest, not your shell directory. Copy the Rails directory with the manifest. |
 | Validation passes but startup fails | Rails contents, actions, dependencies, and engines load during startup. Declaration validation does not execute them. |
-| OpenAI returns an authentication or model error | Check `OPENAI_API_KEY` in the client terminal and access to the model. The proxy does not create credentials or grant model access. |
+| OpenAI returns an authentication or model error | Check `OPENAI_API_KEY` in the client terminal and access to the model. The gateway does not create credentials or grant model access. |
 | A guarded request or response is rejected | Compare its shape with the selected binding. The provider can support content that the binding does not inspect. |
 | Streaming output arrives late | Inspect the Rails window size and any gateway buffering. Final partial windows release only after checking. |
 
 For error codes, disconnects, and cleanup warnings, use the
 [troubleshooting guide](/run-guardrailed-inference/using-gateway/troubleshooting).
-Next, [configure the proxy](/run-guardrailed-inference/using-gateway/configuration),
+Next, [configure the gateway](/run-guardrailed-inference/using-gateway/configuration),
 [compose a Python application](/run-guardrailed-inference/using-gateway/python-integration),
 or inspect its [guard contract](/run-guardrailed-inference/using-gateway/guard-contracts).

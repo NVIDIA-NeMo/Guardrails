@@ -9,16 +9,16 @@ content:
 NeMo Guardrails Gateway adds content inspection around an existing provider HTTP
 exchange. Provider bindings define the inspection coverage, the NVIDIA NeMo
 Guardrails library runs configured checks, and the upstream service generates
-the answer. The proxy preserves accepted provider JSON bodies and server-sent
+the answer. The gateway preserves accepted provider JSON bodies and server-sent
 events (SSE) while applying its HTTP path and header forwarding rules.
 
 ## What Changes in Your Application
 
-Point your provider client's base URL at the chosen proxy mount, including its
+Point your provider client's base URL at the chosen gateway mount, including its
 API prefix; the [quickstart](/run-guardrailed-inference/using-gateway/quickstart) shows the request URL. Continue to
 send the selected provider operation's JSON shape. Check the
 [shipped coverage](/run-guardrailed-inference/using-gateway/providers-and-streaming#coverage-of-the-shipped-profiles)
-first: a working upstream request can still be outside the proxy's guarded
+first: a working upstream request can still be outside the gateway's guarded
 profile, such as a Chat request containing conversation history or tools.
 
 For a supported Chat request, the binding selects the user message string for
@@ -27,7 +27,7 @@ input checks. It constrains the message role and shape, while metadata such as
 that user input as context. The original JSON bytes travel to the provider or
 caller only when the relevant validation and checks allow them.
 
-Handle proxy errors as well as upstream errors. A blocked input prevents the
+Handle gateway errors as well as upstream errors. A blocked input prevents the
 inference call; a blocked buffered output withholds the answer. During streaming,
 a later error can follow already delivered text, so consume the stream's error
 format as well as its HTTP status. Refer to [caller-visible outcomes](/run-guardrailed-inference/using-gateway/architecture/request-lifecycle#caller-visible-outcomes).
@@ -38,16 +38,16 @@ Choose the guide that matches your role:
 
 | You Are | Read |
 | --- | --- |
-| Using the proxy in an application | Start with [system context](#system-context) and [inspection and forwarding](#inspection-and-forwarding), then follow the [request lifecycle](/run-guardrailed-inference/using-gateway/architecture/request-lifecycle). |
+| Using the gateway in an application | Start with [system context](#system-context) and [inspection and forwarding](#inspection-and-forwarding), then follow the [request lifecycle](/run-guardrailed-inference/using-gateway/architecture/request-lifecycle). |
 | Extending the framework | Read [framework internals](/run-guardrailed-inference/using-gateway/architecture/framework-internals) for dependency boundaries, policy selection, state ownership, and implementation/test locations. |
 | Operating or embedding a deployment | Read [operating the gateway](#operating-the-gateway), then use the [configuration](/run-guardrailed-inference/using-gateway/configuration), [deployment](/run-guardrailed-inference/using-gateway/deployment), and [Python integration](/run-guardrailed-inference/using-gateway/python-integration) guides. |
 
 ## System Context
 
-This view shows the proxy as one software system and its external interactions.
+This view shows the gateway as one software system and its external interactions.
 Rectangles represent systems or application-owned responsibilities. Solid
 arrows describe provider traffic; dotted arrows describe optional checking-service
-calls. Access controls belong to your application or gateway.
+calls. Access controls belong to your application or ingress gateway.
 
 ```mermaid
 flowchart TB
@@ -73,14 +73,14 @@ Checking-service calls serve a separate role from answer generation; the same
 backend can serve both roles. External services are needed only when your Rails
 checks use them.
 
-The proxy is included in the NVIDIA NeMo Guardrails library under
+The gateway is included in the NVIDIA NeMo Guardrails library under
 `nemoguardrails.server.experimental` and requires the library's `server` extra.
 The library's existing API server remains a separate application. YAML and Python entry points assemble the same
-proxy factory and lifespan; refer to [application assembly](/run-guardrailed-inference/using-gateway/architecture/framework-internals#application-assembly).
+gateway factory and lifespan; refer to [application assembly](/run-guardrailed-inference/using-gateway/architecture/framework-internals#application-assembly).
 
 ## Inspection and Forwarding
 
-Inspection uses a selected view of the payload. The proxy retains the original
+Inspection uses a selected view of the payload. The gateway retains the original
 body or event bytes alongside that view and uses check decisions to control
 their release. It does not serialize an accepted response from a validation
 model.
@@ -159,7 +159,7 @@ Construction, startup, request handling, and shutdown have different owners:
 | Failed startup or shutdown | Runtime and Rails repository; host drives the lifespan | Attempt checker cleanup and HTTP cleanup independently with bounded, shielded cooperative budgets. |
 
 Timeouts do not establish that uncooperative owners released all resources.
-Embedding applications must explicitly enter the proxy lifespan; mounting alone
+Embedding applications must explicitly enter the gateway lifespan; mounting alone
 does not initialize it. Follow [lifespan and embedding](/run-guardrailed-inference/using-gateway/python-integration#lifespan-and-embedding)
 and retain the [compatibility validation](/run-guardrailed-inference/using-gateway/deployment#streaming-and-resource-ownership)
 requirements.
@@ -170,13 +170,13 @@ can be combined:
 | Decision | Choices and Consequences |
 | --- | --- |
 | Destination routing | Use a fixed upstream, an inference gateway, distinct provider mounts, or a trusted application transport. The selected upstream must match the bound operation and dialect. |
-| Replication | Equivalent replicas each own independent client pools and Rails engines. An established stream stays with its handling replica. Replicas can front either a fixed upstream or a gateway. |
+| Replication | Equivalent replicas each own independent client pools and Rails engines. An established stream stays with its handling replica. Replicas can front either a fixed upstream or an inference gateway. |
 | Placement | Run a standalone service, local companion, or embedded ASGI application. Embedding transfers lifespan coordination to the host application. |
-| Access and credentials | Your application or gateway owns inbound authentication and authorization. The default transport forwards caller upstream credentials under its header rules. Destination-aware routing must remove inappropriate caller credentials and supply credentials for the selected destination. |
+| Access and credentials | Your application or ingress gateway owns inbound authentication and authorization. The default transport forwards caller upstream credentials under its header rules. Destination-aware routing must remove inappropriate caller credentials and supply credentials for the selected destination. |
 
-For example, a standalone proxy can use an inference gateway as its fixed
-upstream and run as several equivalent replicas behind an ingress. Choosing a
-gateway does not determine replica count or require embedding.
+For example, NeMo Guardrails Gateway can use an inference gateway as its fixed
+upstream and run as several equivalent replicas behind an ingress. Choosing an
+inference gateway does not determine replica count or require embedding.
 
 Several provider mounts in one process share its HTTP client and transport and do
 not provide process isolation. The [deployment guide](/run-guardrailed-inference/using-gateway/deployment) supplies

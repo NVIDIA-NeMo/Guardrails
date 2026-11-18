@@ -29,9 +29,9 @@ Use the command result to identify the failing startup phase:
 | --- | --- |
 | `validate` fails | Read its error and check manifest fields, distinct mounts, upstream URL, and Rails paths. Relative Rails paths resolve against the manifest directory. |
 | `validate` passes but `serve` fails | Inspect the startup exception. Rails contents, actions, model dependencies, and credentials are initialized only during startup. Every catalog entry loads, including unused entries. |
-| An embedded request reports `The experimental proxy runtime is not available.` | Enter the proxy lifespan from the parent lifespan. Mounting the application alone does not initialize its owners. |
+| An embedded request reports `The experimental proxy runtime is not available.` | Enter the gateway lifespan from the parent lifespan. Mounting the application alone does not initialize its owners. |
 | Startup gets slower as the catalog grows | Account for every Rails ID in every replica. Different IDs create separate engines even when they use the same directory. |
-| Startup rejects a rail or engine configuration | The current proxy requires IORails-compatible Colang 1.0 input and output checks; it does not fall back to LLMRails. Retrieval/tool rails and nonempty per-tool checks are unsupported. Refer to [Rails compatibility](/run-guardrailed-inference/using-gateway/configuration#choose-compatible-rails-checks). |
+| Startup rejects a rail or engine configuration | The current gateway requires IORails-compatible Colang 1.0 input and output checks; it does not fall back to LLMRails. Retrieval/tool rails and nonempty per-tool checks are unsupported. Refer to [Rails compatibility](/run-guardrailed-inference/using-gateway/configuration#choose-compatible-rails-checks). |
 
 `inspect` describes routes, profiles, and fixed Rails selections. It does not
 execute checks or establish upstream compatibility. Compare its output with the
@@ -73,7 +73,7 @@ when you have established how the new field should be handled.
 Reproduce with `curl -N -i` using the [streaming request](/run-guardrailed-inference/using-gateway/quickstart#stream-output).
 `-N` disables curl's output buffering; `-i` shows when response headers arrive.
 If your deployment permits direct access, compare the same synthetic request
-through the ingress and directly to the proxy to isolate gateway buffering.
+through the ingress and directly to NeMo Guardrails Gateway to isolate ingress buffering.
 
 Use the following observations to locate the failure:
 
@@ -95,7 +95,7 @@ for release and cleanup ordering.
 
 Exercise disconnect behavior through the actual ingress using a stream long
 enough to interrupt. Start the request with `curl -N`, interrupt it, and observe
-the upstream connection and proxy cleanup diagnostics.
+the upstream connection and gateway cleanup diagnostics.
 
 These warning messages identify different cleanup owners:
 

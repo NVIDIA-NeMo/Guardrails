@@ -10,7 +10,7 @@ a fixed `rails_config_id` when every request to a provider instance should use
 the same policy.
 
 Use a Python resolver when the choice depends on the operation or authenticated
-user. A resolver is a function the proxy calls for each request to choose a
+user. A resolver is a function the gateway calls for each request to choose a
 configuration. The application loads the named configurations at startup. The
 resolver chooses one of their IDs rather than loading configuration files.
 
@@ -148,7 +148,7 @@ look up already-started checkers without parsing files or creating engines.
 The catalog is fixed for a lifespan; hot reload, request-time discovery, and
 configuration-management endpoints are not implemented.
 
-The proxy requires [compatible input and output checks](/run-guardrailed-inference/using-gateway/configuration#choose-compatible-rails-checks).
+The gateway requires [compatible input and output checks](/run-guardrailed-inference/using-gateway/configuration#choose-compatible-rails-checks).
 It validates each adapter before engine startup. Unsupported retrieval, tool-call, or tool-result
 rails prevent readiness even if no request would select that entry. A valid
 configuration still needs operation-specific validation, including streaming

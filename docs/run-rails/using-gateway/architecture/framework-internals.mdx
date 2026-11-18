@@ -1,13 +1,13 @@
 ---
 title: "Framework Internals"
 sidebar-title: "Framework Internals"
-description: "Understand provider-neutral execution, composition hooks, trusted policy selection, and ownership when extending the proxy."
+description: "Understand provider-neutral execution, composition hooks, trusted policy selection, and ownership when extending the gateway."
 content:
   type: "concept"
 ---
 
 This page is for framework authors and application integrators who extend the
-proxy. Read the [architecture overview](/run-guardrailed-inference/using-gateway/architecture) for system context and
+gateway. Read the [architecture overview](/run-guardrailed-inference/using-gateway/architecture) for system context and
 the [request lifecycle](/run-guardrailed-inference/using-gateway/architecture/request-lifecycle) for execution behavior.
 
 ## Application Assembly
@@ -37,7 +37,7 @@ and transport behavior require review beyond the export. Refer to
 
 ## Execution Dependencies
 
-This dependency view is scoped to one proxy process. Rectangles are components
+This dependency view is scoped to one gateway process. Rectangles are components
 or declarations; hexagons are internal callable or protocol interfaces. Solid arrows
 show invocation; dotted arrows describe declaration, protocol, and implementation
 dependencies. Interfaces describe dependencies, not extra runtime services.

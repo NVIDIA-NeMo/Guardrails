@@ -17,12 +17,12 @@ Use these artifacts for distinct configuration and review tasks:
 
 | Artifact | Purpose |
 | --- | --- |
-| Proxy manifest or Python application config | Select upstreams, operations, dialects, and Rails configurations. |
+| Gateway manifest or Python application config | Select upstreams, operations, dialects, and Rails configurations. |
 | Rails configuration | Define the checks that run on selected content. |
 | Guard contract | Review the bound operation's content coverage and declared stream behavior. |
 
 Typed Python projections, bindings, and endpoint declarations are authoritative.
-The contract is exported from those bound declarations. The running proxy does
+The contract is exported from those bound declarations. The running gateway does
 not load it to create policy, and changing the YAML does not change execution.
 
 ## Read the Field Policy

@@ -6,10 +6,10 @@ content:
   type: "how_to"
 ---
 
-Each provider binding defines which fields and values the proxy accepts and
+Each provider binding defines which fields and values the gateway accepts and
 which text reaches Rails checks. Use the built-in binding for its documented
 request and response shapes. Customize it in Python when you need stricter
-request values or your gateway adds metadata that the binding rejects.
+request values or your upstream gateway adds metadata that the binding rejects.
 
 This guide restricts `reasoning_effort` and allows a diagnostic
 `gateway_trace_id` on buffered Chat Completions responses and streamed chunks.
@@ -168,8 +168,8 @@ The new classifier uses the extended model for chunk validation and derives its
 text path and field coverage from that model. Content at
 `choices[0].delta.content` stays guarded. Metadata-only chunks, errors, keepalives,
 and `[DONE]` retain their existing roles. The unchanged OpenAI lifecycle hooks
-still enforce completion and ordering. Reuse them only when your gateway follows
-those protocol semantics; other event formats need corresponding rules and hooks.
+still enforce completion and ordering. Reuse them only when your upstream gateway
+follows those protocol semantics; other event formats need corresponding rules and hooks.
 
 ## Select the Customized Endpoint
 
@@ -195,7 +195,7 @@ app = create_proxy_application(
 )
 ```
 
-Replace `https://gateway.example/v1` with your gateway's API base, then run
+Replace `https://gateway.example/v1` with your upstream gateway's API base, then run
 `uvicorn custom_app:app --host 127.0.0.1 --port 8000` from that directory.
 This app guards only Chat Completions. Responses requests pass through without
 Rails checks.
@@ -203,10 +203,11 @@ Rails checks.
 Send the quickstart's
 [buffered Chat Completions request](/run-guardrailed-inference/using-gateway/quickstart#chat-completions)
 or [streaming Chat Completions request](/run-guardrailed-inference/using-gateway/quickstart#stream-chat-completions)
-using your gateway's model ID and authorization header. The endpoint accepts the
-optional `gateway_trace_id` in both response modes; ordinary OpenAI does not
-return that field. The proxy needs no gateway SDK; any configured detector
-services retain their own dependencies and credentials.
+using your upstream gateway's model ID and authorization header. The endpoint
+accepts the optional `gateway_trace_id` in both response modes; ordinary OpenAI does not
+return that field. NeMo Guardrails Gateway does not require an upstream gateway
+SDK; any configured detector services retain their own dependencies and
+credentials.
 
 When output checks are disabled, successful upstream response bodies pass through
 without these response-policy checks.
@@ -229,7 +230,7 @@ from the current export. Regenerate it after changing the Python declaration
 and review the diff.
 
 The Python bindings remain authoritative. The export does not configure the
-proxy, enable additional content handling, or serialize arbitrary Python
+gateway, enable additional content handling, or serialize arbitrary Python
 validators, stateful stream hooks, or transport behavior. Refer to
 [guard contracts](/run-guardrailed-inference/using-gateway/guard-contracts) for the
 format's limits and the

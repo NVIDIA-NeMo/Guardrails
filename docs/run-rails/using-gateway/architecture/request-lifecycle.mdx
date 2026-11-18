@@ -17,7 +17,7 @@ The sequence is scoped to one buffered provider operation. The binding validates
 provider shapes and locates selected text. The runtime selects a preloaded
 checker and validates its policy. Request and response bodies retain their
 original bytes on accepted paths. Client and Upstream are external participants;
-the other lifelines are responsibilities inside the proxy process. Solid arrows
+the other lifelines are responsibilities inside the gateway process. Solid arrows
 are calls or requests; dashed arrows are returns. The `alt` frames show mutually
 exclusive paths, and `opt` marks conditional output checking.
 
@@ -73,13 +73,13 @@ the [Chat integration tests](https://github.com/NVIDIA-NeMo/Guardrails/blob/deve
 
 ## Caller-Visible Outcomes
 
-For the shipped OpenAI bindings, the following outcomes describe the proxy's
+For the shipped OpenAI bindings, the following outcomes describe the gateway's
 error mapping. HTTP statuses below apply before downstream response headers
 are committed.
 
 <Warning>
 
-Some execution failures handled internally by Rails currently reach the proxy as
+Some execution failures handled internally by Rails currently reach the gateway as
 `BLOCKED` results and are reported as `content_blocked`. A 400 response alone
 does not establish that a policy detected a violation. Inspect checking-service
 and application diagnostics before classifying an outage as a policy block.
@@ -102,13 +102,13 @@ The [error mapping](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemog
 additional validation, routing, and limit failures. The
 [Chat integration tests](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/tests/server/experimental/test_openai_chat_integration.py)
 assert blocked and replacement outcomes. Provider-shaped errors describe a wire
-format; applications must still handle these proxy-specific codes. In particular,
+format; applications must still handle these gateway-specific codes. In particular,
 an HTTP success status alone does not establish that a stream completed.
 
 ## Streaming Inspection
 
 Streaming uses the same prepared input and input check. With output inspection
-enabled, the proxy parses server-sent event (SSE) boundaries, classifies provider
+enabled, the gateway parses server-sent event (SSE) boundaries, classifies provider
 events, and retains their original bytes while checking selected text windows.
 The streaming kernel validates text snapshots against observed deltas.
 Request-local hooks enforce provider ordering, completion, and error framing.
@@ -188,7 +188,7 @@ stateDiagram-v2
     Finished --> [*]
 ```
 
-Before returning a pre-header HTTP error, the proxy attempts cleanup of any
+Before returning a pre-header HTTP error, the gateway attempts cleanup of any
 acquired upstream owner. Accepting upstream response headers does not validate
 SSE events: event parsing and protocol checks run during body iteration, after
 downstream headers are sent. A malformed first event therefore produces a

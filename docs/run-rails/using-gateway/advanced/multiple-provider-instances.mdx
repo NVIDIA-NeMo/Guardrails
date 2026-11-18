@@ -5,7 +5,7 @@ content:
   type: "how_to"
 ---
 
-A provider instance defines how the proxy handles requests under one local path:
+A provider instance defines how the gateway handles requests under one local path:
 where to send them, which provider binding to use, and which Rails configuration
 to apply. Configure multiple instances when different paths need different
 upstreams or policies. The instances can use the same provider and run in one
@@ -98,8 +98,9 @@ email-address input blocks before dispatch through either mount.
 
 ## Keep One Public Route
 
-Clients can keep using `/v1/chat/completions` while an inbound gateway chooses
-the Rails policy and forwards each request to the corresponding proxy mount:
+Clients can keep using `/v1/chat/completions` while an ingress gateway chooses
+the Rails policy and forwards each request to the corresponding Guardrails
+gateway mount:
 
 ```mermaid
 flowchart LR
@@ -114,14 +115,14 @@ flowchart LR
     Strict --> OpenAI
 ```
 
-Each request follows one branch. The gateway rewrites the path to
-`/standard/v1/chat/completions` or `/strict/v1/chat/completions`; both proxy
-instances forward allowed requests to OpenAI. Your gateway supplies the
+Each request follows one branch. The ingress gateway rewrites the path to
+`/standard/v1/chat/completions` or `/strict/v1/chat/completions`; both mounts
+forward allowed requests to OpenAI. Your ingress gateway supplies the
 selection rule, such as a policy based on the authenticated caller.
 
-Alternatively, each destination can have a separate proxy deployment exposing
-`/v1/chat/completions`. The gateway chooses the deployment, then optionally
-balances across its equivalent replicas.
+Alternatively, each destination can have a separate NeMo Guardrails Gateway
+deployment exposing `/v1/chat/completions`. The ingress gateway chooses the
+deployment, then optionally balances across its equivalent replicas.
 
 A basic connection balancer does not infer model selection from JSON. If routing
 requires a model field or authenticated tenant, use infrastructure that supports
@@ -183,4 +184,4 @@ Use the [deployment guide](/run-guardrailed-inference/using-gateway/deployment) 
 replicas, sidecars, embedding, access controls, and readiness. Validate concurrent
 traffic through each mount and check the selected upstream and policy, including
 one slow stream beside buffered traffic on another instance. Measure your own
-capacity; the proxy does not establish a universal throughput guarantee.
+capacity; the gateway does not establish a universal throughput guarantee.

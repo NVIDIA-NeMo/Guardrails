@@ -1,5 +1,5 @@
 ---
-title: "Configure the Proxy"
+title: "Configure the Gateway"
 sidebar-title: "Configuration"
 description: "Choose provider instances, operations, dialects, and Rails configurations without coupling routing to inspection policy."
 content:
@@ -14,7 +14,7 @@ The following artifacts control routing, checks, and coverage review:
 
 | Configuration | Purpose |
 | --- | --- |
-| Proxy manifest or Python `ProxyConfig` | Select instances, upstreams, bound operations, dialects, and Rails IDs. |
+| Gateway manifest or Python `ProxyConfig` | Select instances, upstreams, bound operations, dialects, and Rails IDs. |
 | Rails directory | Define the input and output checks and their models, actions, and streaming settings. |
 | Exported guard contract | Describe the selected binding's coverage for review. It is not loaded as runtime configuration. |
 
@@ -104,14 +104,14 @@ configuration discovery are not implemented by this interface.
 
 ## Choose Compatible Rails Checks
 
-The proxy currently constructs `Guardrails` with `require_iorails=True`. Use
+The gateway currently constructs `Guardrails` with `require_iorails=True`. Use
 Colang 1.0 configurations whose input and output flows the
 [IORails engine supports](/reference/rail-engine-support).
 An incompatible flow prevents startup rather than falling back to LLMRails.
-The library's top-level engine environment switch does not change the proxy's
+The library's top-level engine environment switch does not change the gateway's
 construction path.
 
-The proxy adapter rejects configured retrieval, tool-call, and tool-result rails,
+The gateway adapter rejects configured retrieval, tool-call, and tool-result rails,
 including nonempty per-tool checks. Do not assume that every rail supported by
 another library interface works here. The bundled local regex example requires
 no model, optional integration, or API key. Model-backed or service-backed checks require
@@ -121,7 +121,7 @@ provider-generation authorization forwarded in the HTTP request.
 Only configured input and output flow lists activate their checks. Even with input
 checks disabled, the current binding still requires the supported user input
 shape to supply context to output checks. Modification decisions, such as
-masking, are rejected by the proxy rather than applied to the provider body.
+masking, are rejected by the gateway rather than applied to the provider body.
 
 ## Inspect Before Serving
 

@@ -29,7 +29,7 @@ actions:
       See [field-policy meanings](/run-guardrailed-inference/using-gateway/guard-contracts#read-the-field-policy),
       [supported input and output](/run-guardrailed-inference/using-gateway/providers-and-streaming#coverage-of-the-shipped-profiles),
       and [streaming completion and errors](/run-guardrailed-inference/using-gateway/providers-and-streaming#completion-and-errors).
-      Field types describe proxy validation; consult the
+      Field types describe gateway validation; consult the
       [provider reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
       for upstream requirements. Replace `example-model` with a model available
       from your provider.
@@ -91,7 +91,7 @@ actions:
       See [field-policy meanings](/run-guardrailed-inference/using-gateway/guard-contracts#read-the-field-policy),
       [supported input and output](/run-guardrailed-inference/using-gateway/providers-and-streaming#coverage-of-the-shipped-profiles),
       and [streaming completion and errors](/run-guardrailed-inference/using-gateway/providers-and-streaming#completion-and-errors).
-      Field types describe proxy validation; consult the
+      Field types describe gateway validation; consult the
       [provider reference](https://developers.openai.com/api/reference/resources/responses/methods/create)
       for upstream requirements. Replace `example-model` with a model available
       from your provider.

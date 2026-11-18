@@ -5,20 +5,20 @@ content:
   type: "how_to"
 ---
 
-The HTTP transport sends requests from the proxy to the upstream model service.
+The HTTP transport sends requests from the gateway to the upstream model service.
 The default transport handles ordinary HTTP and HTTPS connections. Set
 `base_url` to choose an upstream; use a custom transport when you need different
 connection settings, custom TLS, or routing based on the requested model.
 
 A transport changes how requests reach the upstream. Provider bindings still
 define the accepted payloads, and Rails still supplies the checks. This hook
-applies to the proxy's outgoing provider requests; Rails models and checking
+applies to the gateway's outgoing provider requests; Rails models and checking
 services use their own clients.
 
 ## Inject a Transport
 
 Pass an `http_transport_factory` to the application factory. This is a function
-that creates the transport when the application starts. The proxy shares it
+that creates the transport when the application starts. The gateway shares it
 across provider instances and closes it during shutdown.
 
 Complete the [Python setup](/run-guardrailed-inference/using-gateway/python-integration#create-an-application),
@@ -112,8 +112,8 @@ The example removes caller `Authorization`, `api-key`, `x-api-key`, and `Cookie`
 headers and supplies the destination's bearer credential. Review any additional
 credential headers used by your environment. Model translation changes request
 serialization and removes stale body signatures; this is an explicit exception
-to the default proxy's byte-preserving forwarding. The response is still streamed
-through the selected binding and output checks. Every destination must match
+to NeMo Guardrails Gateway's default byte-preserving forwarding. The response is
+still streamed through the selected binding and output checks. Every destination must match
 that binding; routing never switches dialects automatically.
 
 <Warning>
@@ -156,7 +156,7 @@ transport for each application lifespan; the runtime owns and closes it.
 `ProviderTransport` builds outbound requests before the HTTPX transport sees
 them. It removes hop-by-hop headers and the integration's declared control
 headers. Provider authentication and API-version headers follow the forwarding
-rules; they are not automatically classified as proxy control headers.
+rules; they are not automatically classified as gateway control headers.
 
 The shared client pools connections, not caller sessions. It does not persist
 upstream cookies or apply client-level default authentication/headers to outgoing
@@ -218,4 +218,4 @@ Follow these constraints when implementing a custom transport:
 - `httpx.ASGITransport` buffers ASGI responses and is not the production choice for guarded streaming.
 - Dynamic destinations must come from trusted configuration. Arbitrary client-provided URLs can enable server-side request forgery (SSRF).
 - Cross-origin routing must apply the credential belonging to the selected origin.
-- Keep Rails checks and provider field validation in the proxy pipeline; the transport implements egress policy.
+- Keep Rails checks and provider field validation in the gateway pipeline; the transport implements egress policy.

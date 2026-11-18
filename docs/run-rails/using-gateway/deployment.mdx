@@ -6,8 +6,8 @@ content:
   type: "how_to"
 ---
 
-Choose where requests enter the proxy, where inference runs, and which checks
-apply as separate decisions. The proxy can serve a fixed upstream, compose
+Choose where requests enter the gateway, where inference runs, and which checks
+apply as separate decisions. The gateway can serve a fixed upstream, compose
 several provider instances, or sit alongside infrastructure that owns routing.
 
 ## Choose a Topology
@@ -16,12 +16,12 @@ Choose a topology based on your routing and resource requirements:
 
 | Need | Topology |
 | --- | --- |
-| Add checks to one model endpoint | One proxy instance with one configured upstream. |
-| Scale equivalent proxy capacity | A load balancer in front of equivalent replicas. |
+| Add checks to one model endpoint | One gateway instance with one configured upstream. |
+| Scale equivalent gateway capacity | A load balancer in front of equivalent replicas. |
 | Address several upstreams through one process | Unique provider mounts in one application. |
-| Keep one public path for several destinations | A gateway choosing internal mounts/deployments, or a custom outbound transport. |
+| Keep one public path for several destinations | An ingress gateway choosing internal mounts/deployments, or a custom outbound transport. |
 | Reuse an inference gateway's routing | Set that gateway as the provider's fixed `base_url`. |
-| Separate teams, credentials, regions, or rollout schedules | Independent proxy deployments, each optionally replicated. |
+| Separate teams, credentials, regions, or rollout schedules | Independent gateway deployments, each optionally replicated. |
 | Integrate with an existing service | Python application composition with explicit lifespan ownership. |
 
 These are deployment patterns, not built-in retry, service-discovery, quota,
@@ -30,7 +30,7 @@ infrastructure.
 
 ## Start With One Upstream
 
-The client sends a request to the proxy's `/v1/chat/completions` route. The proxy
+The client sends a request to the gateway's `/v1/chat/completions` route. The gateway
 applies its configured checks and forwards allowed requests to the upstream's
 `/v1/chat/completions` route.
 
@@ -62,20 +62,20 @@ against your deployed model route.
 
 Let the upstream inference gateway own its model aliases, destination credentials,
 balancing, and any retry policy it implements.
-The proxy continues to check the content selected by its bindings on the way
+NeMo Guardrails Gateway continues to check the content selected by its bindings on the way
 in and out. This can keep one public endpoint in front of many model services
-without implementing routing inside the proxy.
+without implementing routing inside NeMo Guardrails Gateway.
 
 ## Replicas, Embedding, and Sidecars
 
 Equivalent replicas can share public paths and configuration while keeping
 independent client pools and preloaded Rails resources. An established stream
-stays with its handling replica; the proxy does not migrate or resume it on
+stays with its handling replica; the gateway does not migrate or resume it on
 another replica.
 
-Use a local companion or sidecar when each workload owns its proxy configuration.
+Use a local companion or sidecar when each workload owns its gateway configuration.
 That multiplies client pools and initialized Rails resources across deployments.
-The proxy does not automatically intercept network traffic.
+The gateway does not automatically intercept network traffic.
 
 For an embedded FastAPI application, connect startup and shutdown to the actual
 parent lifespan. Mounting an ASGI application alone does not establish that its
@@ -137,7 +137,7 @@ blocking custom code.
 
 Configure any fronting gateway's buffering, timeouts, and disconnect handling
 for the delivery behavior you need. Its buffering can delay SSE even when the
-proxy releases events incrementally.
+Guardrails gateway releases events incrementally.
 
 Budget startup time and resources for every declared Rails config in each
 replica. A failed configuration prevents that replica from serving.
