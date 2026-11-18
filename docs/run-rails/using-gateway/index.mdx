@@ -12,8 +12,9 @@ applications and model services while preserving supported provider formats and
 keeping your existing inference infrastructure.
 
 The gateway runs as an HTTP reverse proxy. Provider bindings select the content
-to inspect, and Rails supplies the checks. It forwards accepted provider JSON and
-server-sent event (SSE) bytes without rebuilding them from the validation models.
+to inspect, and Rails supplies the checks. The proxy layer forwards accepted
+provider JSON and server-sent event (SSE) bytes without rebuilding them from the
+validation models.
 Your application or surrounding infrastructure owns access controls, model
 routing, budgets, and retry policies.
 

@@ -9,8 +9,8 @@ content:
 NeMo Guardrails Gateway adds content inspection around an existing provider HTTP
 exchange. Provider bindings define the inspection coverage, the NVIDIA NeMo
 Guardrails library runs configured checks, and the upstream service generates
-the answer. The gateway preserves accepted provider JSON bodies and server-sent
-events (SSE) while applying its HTTP path and header forwarding rules.
+the answer. Its HTTP proxy layer preserves accepted provider JSON bodies and
+server-sent events (SSE) while applying its path and header forwarding rules.
 
 ## What Changes in Your Application
 
@@ -75,8 +75,9 @@ checks use them.
 
 The gateway is included in the NVIDIA NeMo Guardrails library under
 `nemoguardrails.server.experimental` and requires the library's `server` extra.
-The library's existing API server remains a separate application. YAML and Python entry points assemble the same
-gateway factory and lifespan; refer to [application assembly](/run-guardrailed-inference/using-gateway/architecture/framework-internals#application-assembly).
+The library's existing API server remains a separate application. YAML and Python
+entry points use the same proxy application factory and lifespan; refer to
+[application assembly](/run-guardrailed-inference/using-gateway/architecture/framework-internals#application-assembly).
 
 ## Inspection and Forwarding
 
@@ -159,8 +160,8 @@ Construction, startup, request handling, and shutdown have different owners:
 | Failed startup or shutdown | Runtime and Rails repository; host drives the lifespan | Attempt checker cleanup and HTTP cleanup independently with bounded, shielded cooperative budgets. |
 
 Timeouts do not establish that uncooperative owners released all resources.
-Embedding applications must explicitly enter the gateway lifespan; mounting alone
-does not initialize it. Follow [lifespan and embedding](/run-guardrailed-inference/using-gateway/python-integration#lifespan-and-embedding)
+Embedding applications must explicitly enter the proxy application's lifespan;
+mounting alone does not initialize it. Follow [lifespan and embedding](/run-guardrailed-inference/using-gateway/python-integration#lifespan-and-embedding)
 and retain the [compatibility validation](/run-guardrailed-inference/using-gateway/deployment#streaming-and-resource-ownership)
 requirements.
 

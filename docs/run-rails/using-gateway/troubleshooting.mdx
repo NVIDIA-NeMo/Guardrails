@@ -29,7 +29,7 @@ Use the command result to identify the failing startup phase:
 | --- | --- |
 | `validate` fails | Read its error and check manifest fields, distinct mounts, upstream URL, and Rails paths. Relative Rails paths resolve against the manifest directory. |
 | `validate` passes but `serve` fails | Inspect the startup exception. Rails contents, actions, model dependencies, and credentials are initialized only during startup. Every catalog entry loads, including unused entries. |
-| An embedded request reports `The experimental proxy runtime is not available.` | Enter the gateway lifespan from the parent lifespan. Mounting the application alone does not initialize its owners. |
+| An embedded request reports `The experimental proxy runtime is not available.` | Enter the proxy application's lifespan from the parent lifespan. Mounting the application alone does not initialize its owners. |
 | Startup gets slower as the catalog grows | Account for every Rails ID in every replica. Different IDs create separate engines even when they use the same directory. |
 | Startup rejects a rail or engine configuration | The current gateway requires IORails-compatible Colang 1.0 input and output checks; it does not fall back to LLMRails. Retrieval/tool rails and nonempty per-tool checks are unsupported. Refer to [Rails compatibility](/run-guardrailed-inference/using-gateway/configuration#choose-compatible-rails-checks). |
 

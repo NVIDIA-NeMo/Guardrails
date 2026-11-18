@@ -70,10 +70,10 @@ assembly supplies those dependencies. Provider declarations carry the API
 semantics; reusable kernels control check outcomes and byte release. This lets
 tests exercise execution with deterministic checkers and dispatch functions.
 
-`ProviderTransport` adapts outbound HTTP requests and applies forwarding and
-representation rules. The HTTPX transport performs the final exchange. A custom
-HTTP transport does not select a new provider binding or Rails policy after
-inspection.
+The HTTP proxy layer uses `ProviderTransport` to adapt outbound requests and apply
+forwarding and representation rules. The HTTPX transport performs the final
+exchange. A custom HTTP transport does not select a new provider binding or Rails
+policy after inspection.
 
 ## Composition Hooks and Internal Interfaces
 

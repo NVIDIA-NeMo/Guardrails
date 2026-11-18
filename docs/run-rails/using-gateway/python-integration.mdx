@@ -1,7 +1,7 @@
 ---
 title: "Compose and Extend in Python"
 sidebar-title: "Python Integration"
-description: "Build the gateway application, select Rails from trusted context, and extend HTTP dispatch or provider bindings."
+description: "Build the gateway's HTTP proxy application, select Rails from trusted context, and extend HTTP dispatch or provider bindings."
 content:
   type: "how_to"
 ---
@@ -76,9 +76,9 @@ Choose a customization guide for your application requirements:
 
 ## Lifespan and Embedding
 
-The factory returns a FastAPI application. When embedding it, run its lifespan
-from the actual parent application's lifespan, rather than assuming that a mount
-initializes its resources. Save this complete recipe as `embedded_app.py`
+The factory returns the gateway's FastAPI proxy application. When embedding it,
+run its lifespan from the actual parent application's lifespan, rather than
+assuming that a mount initializes its resources. Save this complete recipe as `embedded_app.py`
 beside `proxy_config.py`:
 
 ```python
@@ -104,7 +104,7 @@ application.mount("/guarded", proxy)
 ```
 
 Run `uvicorn embedded_app:application`
-from the repository root. This exposes the gateway beneath `/guarded`. Coordinate
+from the repository root. This mounts the proxy application beneath `/guarded`. Coordinate
 parent authentication,
 route ownership, startup failure, and shutdown with your application's other
 resources.
@@ -112,7 +112,7 @@ resources.
 ### Local Application Routes
 
 To serve a local health endpoint, define its router before constructing the
-gateway, then pass it to the factory:
+proxy application, then pass it to the factory:
 
 ```python
 from fastapi import APIRouter
