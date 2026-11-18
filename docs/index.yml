@@ -551,6 +551,9 @@ navigation:
           - page: NeMo Relay Endpoint
             path: run-rails/using-hooks-server/nemo-relay.mdx
             slug: nemo-relay
+          - page: Agent Start Endpoint
+            path: run-rails/using-hooks-server/agent-start.mdx
+            slug: agent-start
           - page: Results and Errors
             path: run-rails/using-hooks-server/results-and-errors.mdx
             slug: results-and-errors
