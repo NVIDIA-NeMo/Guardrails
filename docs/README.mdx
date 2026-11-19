@@ -3,17 +3,24 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Documentation"
 ---
+
+This contributor guide covers documentation builds, previews, and version snapshots.
+
 ## Product Documentation
 
-Product documentation for the NVIDIA NeMo Guardrails library is available at
-[https://docs.nvidia.com/nemo/guardrails](https://docs.nvidia.com/nemo/guardrails).
+Product documentation for the NVIDIA NeMo Guardrails library is available at the
+[NVIDIA documentation site](https://docs.nvidia.com/nemo/guardrails).
 
 ## Building the Documentation
 
-1. Make sure Node.js 22 is installed.
+Run the build from the repository root. It validates the Fern configuration and documentation.
 
-1. Install Python 3.11 through 3.13 and [uv](https://docs.astral.sh/uv/getting-started/installation/)
-   for OpenAPI generation. The first generation run installs the locked Python dependencies.
+1. Ensure Node.js 22 is installed.
+
+1. Install Python 3.11, 3.12, or 3.13 for OpenAPI generation.
+
+1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
+   The first generation run installs the locked Python dependencies.
 
 1. Install the documentation dependencies:
 
@@ -33,8 +40,7 @@ Product documentation for the NVIDIA NeMo Guardrails library is available at
 
 `fern/openapi.yml` is a build artifact generated from the stable FastAPI server
 routes and Pydantic models. It is ignored by Git, just like the generated Python
-SDK reference. Commit source and documentation changes; do not commit the generated
-specification.
+SDK reference. Commit source and documentation changes, not the generated specification.
 
 `make docs-fern`, `make docs-fern-live`, and both publish targets generate the
 OpenAPI specification and Python SDK reference through
@@ -43,16 +49,16 @@ OpenAPI specification and Python SDK reference through
 imports the application without starting its lifespan or calling model providers.
 It disables the optional chat UI so installed extras do not change the contract.
 
-Keep API reference summaries, examples, and streaming or error documentation in
-`fern/openapi-overlay.yml`. Fern applies this overlay to the generated specification
-through `fern/generators.yml`. Change request and response model fields in Python
-instead of overriding them in the overlay.
+Fern applies `fern/openapi-overlay.yml` to the generated specification through
+`fern/generators.yml`. To update the stable server API reference:
 
-Validate your source and documentation changes with:
+1. Edit summaries, examples, and streaming or error documentation in `fern/openapi-overlay.yml`.
+1. Change request and response model fields in Python instead of overriding them in the overlay, if needed.
+1. Validate the source and documentation changes:
 
-```bash
-make docs-fern
-```
+   ```bash
+   make docs-fern
+   ```
 
 The `Guardrails API specification` workflow in `.github/workflows/guardrails-api-spec.yml`
 generates the specification and tests the exporter on pull requests and `develop`
@@ -78,40 +84,72 @@ For local development with automatic rebuilding on file changes, use one of the 
 
 ### Option 1: Local Fern Server
 
-```bash
-make docs-fern-live
-```
+The local server updates the preview as you edit documentation files.
 
-The Fern development server starts locally and updates as you edit docs files.
+1. Start the server from the repository root:
+
+   ```bash
+   make docs-fern-live
+   ```
+
+1. Open the local URL printed by Fern.
+1. Edit a documentation file or Fern configuration file.
+1. Save the file.
+
+   The browser automatically refreshes with the updated content.
+
+1. Press `Ctrl+C` in the terminal to stop the server.
 
 ### Option 2: Published Branch Preview
 
-```bash
-make docs-fern-preview-watch
-```
+The preview watcher publishes a preview for the current Git branch. It watches
+documentation, Fern configuration, server source, and dependency changes.
+Source changes regenerate the OpenAPI and SDK references before publishing.
 
-This watches local docs, Fern configuration, server source, and dependency changes
-and publishes a preview for the current Git branch. Source changes regenerate the
-OpenAPI and SDK references before publishing.
+1. Start the preview watcher from the repository root:
+
+   ```bash
+   make docs-fern-preview-watch
+   ```
+
+1. Open the preview URL printed by the watcher.
+1. Edit a watched file.
+1. Save the file.
+
+   The watcher republishes the preview.
+
+1. Refresh the browser to view the updated content.
+1. Press `Ctrl+C` in the terminal to stop the watcher.
 
 ### Option 3: Direct Fern Command
 
-Generate the references before invoking Fern directly:
+Direct invocation requires generated references and the pinned Fern CLI version.
 
-```bash
-make docs-fern-generate-references
-cd fern
-npx --yes fern-api@$(node -p "require('./fern.config.json').version") docs dev
-```
+1. Generate the references from the repository root:
 
-Once the server is running:
+   ```bash
+   make docs-fern-generate-references
+   ```
 
-- Open the local URL printed by Fern
-- Edit documentation files or Fern configuration
-- Save the file
-- The browser will automatically refresh with the updated content
+1. Change to the Fern configuration directory:
 
-Press `Ctrl+C` to stop the server.
+   ```bash
+   cd fern
+   ```
+
+1. Start the server with the pinned CLI:
+
+   ```bash
+   npx --yes fern-api@$(node -p "require('./fern.config.json').version") docs dev
+   ```
+
+1. Open the local URL printed by Fern.
+1. Edit a documentation file or Fern configuration file.
+1. Save the file.
+
+   The browser automatically refreshes with the updated content.
+
+1. Press `Ctrl+C` in the terminal to stop the server.
 
 ## Publishing the Documentation
 
@@ -122,14 +160,28 @@ preview job use the same preparation target. OpenAPI generation runs without Fer
 publishing credentials. Generated references remain local build artifacts and are
 never committed.
 
-Tag the commit to publish with `docs-v<semver>`.
-Push the tag to GitHub.
+The existing tag-based publishing convention requires these safeguards.
 
-To avoid publishing the documentation as the latest, ensure the commit has `/not-latest` on a single line, tag that commit, and push to GitHub.
+<Warning>
+The checked-in `.github/workflows/docs-build.yaml` listens for `docs-v*` and `v*`
+tags, but defines no public tag-publishing job or `/not-latest` handling.
+The active publishing automation requires maintainer confirmation before a
+publishing tag is pushed. Do not rely on `/not-latest` alone to prevent a latest-version update.
+</Warning>
+
+1. Confirm the active tag-publishing automation with a maintainer.
+1. Include `/not-latest` on a line by itself in the commit message if the
+   documentation must not become the latest version.
+1. Tag the commit to publish with `docs-v<semver>`.
+1. Push the tag to GitHub.
 
 ### Publishing a Version from a Git Ref
 
-Historical versions are declared in `fern/docs.yml` with a Git `ref` that points to an immutable tag. When you publish, Fern builds the version's pages, navigation, assets, and API references from that ref while applying the current theme and version selector. See [Build a version from a Git ref](https://buildwithfern.com/learn/docs/configuration/versions#build-a-version-from-a-git-ref) in the Fern documentation.
+Historical versions are declared in `fern/docs.yml` with a Git `ref` that points
+to an immutable tag. Fern builds each version's pages, navigation, assets, and API
+references from that ref. It applies the current theme and version selector.
+Refer to [Build a version from a Git ref](https://buildwithfern.com/learn/docs/configuration/versions#build-a-version-from-a-git-ref)
+in the Fern documentation.
 
 The repository uses two tag types for documentation:
 
@@ -138,15 +190,21 @@ The repository uses two tag types for documentation:
 | `docs-v<semver>` | Triggers the documentation publishing workflow. | Follow the existing publishing process. |
 | `fern-docs-snapshot-v<semver>[-r<number>]` | Keeps a curated historical source commit reachable for a Fern version. | Permanent and immutable. |
 
-Pushing a snapshot tag makes the source commit available to Fern and CI, but does not publish the documentation. Only tags matching `docs-v*` trigger the tag-based documentation publishing workflow.
+Pushing a snapshot tag makes the source commit available to Fern and CI, but does
+not publish the documentation. Snapshot tags match neither the `docs-v*` nor the
+`v*` tag trigger in the checked-in workflow.
 
-The referenced commit must contain the `fern/` directory at the same repository path. Add the version after you identify the frozen snapshot:
+The referenced commit must contain the `fern/` directory at the same repository path.
+The following example declares frozen snapshots alongside the working-tree version:
 
 ```yaml
 versions:
   - display-name: Latest
     path: ../docs/index.yml
     slug: latest
+  - display-name: v0.25.0
+    ref: fern-docs-snapshot-v0.25.0
+    slug: v0.25.0
   - display-name: v0.24.1
     ref: fern-docs-snapshot-v0.24.1
     slug: v0.24.1
@@ -161,52 +219,109 @@ versions:
     slug: v0.22.0
 ```
 
-Use the existing release tag directly when it contains the exact documentation snapshot and required Fern configuration. When the historical source needs a documentation-only correction or compatibility update, create a curated snapshot commit and tag it with `fern-docs-snapshot-v<semver>`. Do not use a bare commit SHA that is reachable only from a pull request or temporary branch. The commit can become unavailable after a squash merge and branch deletion. Avoid release branches for frozen versions because republishing from a branch can change historical content.
+An existing release tag is suitable when it contains the exact documentation
+snapshot and required Fern configuration. A documentation-only correction or
+compatibility update requires a curated snapshot, as described below.
+
+Do not use a bare commit SHA reachable only from a pull request or temporary branch.
+The commit can become unavailable after a squash merge and branch deletion.
+Avoid release branches for frozen versions because republishing from a branch can
+change historical content.
 
 #### Creating a Curated Snapshot
 
-Prepare the snapshot from the release tag in a temporary branch and worktree. For example:
+A curated snapshot starts from a release tag in a temporary branch and worktree.
+Keep it on the temporary branch until review and validation are complete.
 
-```bash
-VERSION=v0.24.0
-SNAPSHOT_BRANCH=docs/${VERSION}-fern-snapshot
-SNAPSHOT_WORKTREE=../Guardrails-${VERSION}-fern-snapshot
-SNAPSHOT_TAG=fern-docs-snapshot-${VERSION}
+<Warning>
+Do not commit generated SDK reference pages or `fern/openapi.yml`. The build
+creates references from the snapshot source, including OpenAPI when the snapshot
+contains the exporter. Older snapshots keep their handwritten specification.
+</Warning>
 
-git worktree add -b "$SNAPSHOT_BRANCH" "$SNAPSHOT_WORKTREE" "$VERSION"
-```
+1. Set the snapshot variables in the main worktree. This example uses `v0.24.0`:
 
-In the snapshot worktree:
+   ```bash
+   VERSION=v0.24.0
+   SNAPSHOT_BRANCH=docs/${VERSION}-fern-snapshot
+   SNAPSHOT_WORKTREE=../Guardrails-${VERSION}-fern-snapshot
+   SNAPSHOT_TAG=fern-docs-snapshot-${VERSION}
+   ```
 
-1. Make only the changes required to render that historical version.
-1. Do not commit generated SDK reference pages or `fern/openapi.yml`. The documentation build generates references from the snapshot source, including OpenAPI for snapshots that contain the exporter. Older snapshots keep their existing handwritten specification.
-1. Run pre-commit on the changed files.
-1. Create a DCO-signed snapshot commit.
+1. Create the snapshot worktree from the release tag:
 
-After you commit the snapshot, create an annotated tag from the main worktree:
+   ```bash
+   git worktree add -b "$SNAPSHOT_BRANCH" "$SNAPSHOT_WORKTREE" "$VERSION"
+   ```
 
-```bash
-SNAPSHOT_COMMIT=$(git -C "$SNAPSHOT_WORKTREE" rev-parse HEAD)
-git tag -a "$SNAPSHOT_TAG" "$SNAPSHOT_COMMIT" -m "Fern docs snapshot for ${VERSION}"
-```
+1. Make only the changes required to render that historical version in the snapshot worktree.
+1. Run pre-commit on the changed files in the snapshot worktree.
+1. Create a DCO-signed snapshot commit in the snapshot worktree.
+1. Obtain review of the snapshot before creating its permanent tag.
+1. Create an annotated tag from the main worktree:
 
-Add or update the version entry in `fern/docs.yml` so its `ref` matches `SNAPSHOT_TAG`. Run `make docs-fern`, then use `make docs-fern-preview-watch` to inspect the ref-backed version in a published preview. Confirm its navigation, links, assets, and generated SDK reference.
+   ```bash
+   SNAPSHOT_COMMIT=$(git -C "$SNAPSHOT_WORKTREE" rev-parse HEAD)
+   git tag -a "$SNAPSHOT_TAG" "$SNAPSHOT_COMMIT" -m "Fern docs snapshot for ${VERSION}"
+   ```
 
-Push the snapshot tag before you push the branch update that references it. Otherwise, remote CI cannot resolve the ref.
+1. Add or update the version entry in the main worktree's `fern/docs.yml` so its
+   `ref` matches `SNAPSHOT_TAG`.
+1. Validate the documentation from the main worktree:
 
-```bash
-git push origin "refs/tags/${SNAPSHOT_TAG}"
-git ls-remote --tags origin "refs/tags/${SNAPSHOT_TAG}" "refs/tags/${SNAPSHOT_TAG}^{}"
-```
+   ```bash
+   make docs-fern
+   ```
 
-For an annotated tag, the verification output includes the tag object and a `^{}` entry for the commit it references. After you verify the remote tag, follow the normal pull request workflow for the `fern/docs.yml` change.
+1. Start a published preview from the main worktree:
 
-The permanent tag, not the temporary branch, keeps the snapshot commit reachable. The snapshot commit does not need to be part of `develop`. It remains available after the feature pull request is squash-merged and its branches are deleted.
+   ```bash
+   make docs-fern-preview-watch
+   ```
+
+1. Open the preview URL.
+1. Select the ref-backed version.
+1. Check the historical version's navigation.
+1. Test its links.
+1. Check its assets.
+1. Check its generated SDK reference.
+1. Push the snapshot tag:
+
+   ```bash
+   git push origin "refs/tags/${SNAPSHOT_TAG}"
+   ```
+
+   The tag must be available before you push the branch update that references it.
+   Otherwise, remote CI cannot resolve the ref.
+
+1. Verify the remote tag:
+
+   ```bash
+   git ls-remote --tags origin "refs/tags/${SNAPSHOT_TAG}" "refs/tags/${SNAPSHOT_TAG}^{}"
+   ```
+
+   For an annotated tag, the output includes the tag object and a `^{}` entry for
+   the commit it references.
+
+1. Follow the normal pull request workflow for the `fern/docs.yml` change.
+
+The permanent tag, not the temporary branch, keeps the snapshot commit reachable.
+The snapshot commit does not need to be part of `develop`. It remains available
+after the feature pull request is squash-merged and its branches are deleted.
 
 #### Revising a Published Snapshot Tag
 
-Do not move, overwrite, or delete a snapshot tag. If you find a correction after pushing `fern-docs-snapshot-v<semver>`, create a new commit and use `fern-docs-snapshot-v<semver>-r2`. Continue with `-r3`, `-r4`, and so on for later corrections, and update `fern/docs.yml` to the new tag.
+Snapshot tags are permanent. Do not move, overwrite, or delete them.
+For a correction after pushing `fern-docs-snapshot-v<semver>`:
 
-Keep the snapshot on a temporary branch until it passes review and validation so that the initial permanent tag usually represents the final content. The revision suffix is only for corrections discovered after a snapshot tag has been pushed.
+1. Create a new snapshot commit with the correction.
+1. Validate the snapshot on its temporary branch.
+1. Obtain review of the snapshot.
+1. Create a new tag with the suffix `-r2`, such as `fern-docs-snapshot-v<semver>-r2`.
+   Use `-r3`, `-r4`, and so on for later corrections.
+1. Update `fern/docs.yml` to reference the new tag.
+1. Complete the validation and publication steps in [Creating a Curated Snapshot](#creating-a-curated-snapshot).
 
-The local Fern development server renders only versions backed by a working-tree `path`; use a published Fern preview to verify a `ref`-backed version.
+The revision suffix is only for corrections discovered after a snapshot tag has
+been pushed. The local Fern development server renders only versions backed by a
+working-tree `path`. A `ref`-backed version requires a published Fern preview.
