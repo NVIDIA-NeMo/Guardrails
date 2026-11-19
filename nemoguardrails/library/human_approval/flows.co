@@ -1,0 +1,19 @@
+
+# OUTPUT RAILS (Colang 2.x)
+
+flow human approval on bot output $output_text
+  """Require human approval for bot output matching restricted patterns."""
+  $result = await HumanApprovalCheckAction(text=$output_text)
+  if $result.needs_approval
+    $patterns = $result.matched_patterns
+    bot say "{$system.config.rails.config.human_approval.approval_message} (matched: {$patterns})"
+    $response = await user said something
+    $approved = await HumanApprovalMatchesKeywordsAction(text=$response)
+    global $bot_message
+    if $approved
+      $bot_message = $output_text
+    else
+      $bot_message = $system.config.rails.config.human_approval.rejection_message
+  else
+    global $bot_message
+    $bot_message = $output_text
