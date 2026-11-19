@@ -1,0 +1,44 @@
+# Ends the run, not only the call, with `nemoguardrails hooks-server`:
+#
+#   nemoguardrails hooks-server --config examples/configs/agent_hooks/stop
+#
+# A rule can deny a call, which the agent can work around, or stop the run. A stop denies the call too, so an agent
+# that doesn't know a stop still never runs it. What each path answers for a stop:
+#
+#   /v1/hooks/claude-code  the deny, with `continue: false` and a `stopReason`, which ends Claude Code's turn
+#   /v1/hooks/codex        the deny alone
+#   /v1/hooks/nemo-relay   {"decision": "stop", "reason": ...}
+#
+# This example is for NeMo Relay's application tool `search`, as in the `nemo_relay` example. No model is called.
+
+models: []
+
+hooks_server:
+  allowed_tools:
+    - name: search
+      arguments: [query]
+  allow_unlisted_tools: false
+  # A call to `delete_index` ends the run, and so does a call that passes `admin_override` to any listed tool. A stop is
+  # checked before the allowlist.
+  stop_tools:
+    - delete_index
+    - name: search
+      arguments: [admin_override]
+  # A per-tool rail named here ends the run when it blocks; other rails only deny. None is named in this example:
+  # an empty query is denied, not stopped.
+  stop_rails: []
+
+rails:
+  tool_call:
+    per_tool:
+      search:
+        - regex check tool call $argument=query
+
+  config:
+    regex_detection:
+      tool_call:
+        search:
+          patterns:
+            - '^\{"query": ""\}$'
+            - '^\{"query": [^"]'
+            - '^\{\}$'

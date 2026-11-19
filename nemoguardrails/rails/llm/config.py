@@ -465,10 +465,68 @@ class ToolEntry(BaseModel):
         return arguments
 
 
+class AgentStartConfig(BaseModel):
+    """The rules `nemoguardrails hooks-server` applies to an agent before it starts, on `/v1/hooks/agent-start`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    allowed_sources: Optional[List[str]] = Field(
+        default=None,
+        description="Source prefixes a part may come from. Unset, a part's source isn't checked; an empty list "
+        "allows no source. A local folder is decided by `allow_local_sources` instead.",
+    )
+    allow_local_sources: bool = Field(
+        default=True,
+        description="Whether a part may come from a local folder.",
+    )
+    require_digests: bool = Field(
+        default=False,
+        description="Whether every part must carry a digest of its bytes.",
+    )
+    allowed_models: Optional[List[str]] = Field(
+        default=None,
+        description="Models the agent may name, matched exactly. Unset, models aren't checked; an empty list allows "
+        "no model.",
+    )
+    require_policy_enforcers: bool = Field(
+        default=False,
+        description="Whether every enforcer a required policy needs must be present where the agent starts.",
+    )
+
+    @field_validator("allowed_sources")
+    @classmethod
+    def check_sources_end_a_path(cls, sources: Optional[List[str]]) -> Optional[List[str]]:
+        """Refuse a source prefix that doesn't end in `/`, which would match a longer host or name too."""
+        for source in sources or ():
+            if not source.endswith("/"):
+                raise ValueError(
+                    f"allowed_sources entry '{source}' doesn't end in '/', so it would also allow a source whose host "
+                    "or path only starts with it; end it in '/'"
+                )
+        return sources
+
+    @property
+    def can_deny(self) -> bool:
+        """Whether any rule can deny a start."""
+        return (
+            self.allowed_sources is not None
+            or not self.allow_local_sources
+            or self.require_digests
+            or self.allowed_models is not None
+            or self.require_policy_enforcers
+        )
+
+
 class HooksServerConfig(BaseModel):
     """The tool policy `nemoguardrails hooks-server` applies to each hook's call; no engine reads it."""
 
     model_config = ConfigDict(extra="forbid")
+
+    agent_start: Optional[AgentStartConfig] = Field(
+        default=None,
+        description="Rules for `/v1/hooks/agent-start`, which asks whether an agent may start. Unset, the server "
+        "checks no agent starts.",
+    )
 
     allowed_tools: List[Union[str, ToolEntry]] = Field(
         default_factory=list,
@@ -484,11 +542,36 @@ class HooksServerConfig(BaseModel):
         default=True,
         description="Whether a call to a tool `allowed_tools` doesn't name is allowed.",
     )
+    stop_tools: List[Union[str, ToolEntry]] = Field(
+        default_factory=list,
+        description="Tools a call to which ends the run, not only the call: a name, which stops on every call to the "
+        "tool, or a `{name, arguments}` entry, which stops on a call that passes any of those arguments. A stop "
+        "denies the call too.",
+    )
+    stop_rails: List[str] = Field(
+        default_factory=list,
+        description="Per-tool rails, by the name a deny reports, whose block ends the run rather than only "
+        "denying the call.",
+    )
+    quarantine_tools: List[Union[str, ToolEntry]] = Field(
+        default_factory=list,
+        description="Tools, as in `stop_tools`, a call to which ends the run and quarantines the agent: it can't "
+        "start again until someone releases it. Needs `quarantine_store`.",
+    )
+    quarantine_rails: List[str] = Field(
+        default_factory=list,
+        description="Per-tool rails, as in `stop_rails`, whose block quarantines the agent. Needs `quarantine_store`.",
+    )
+    quarantine_store: Optional[str] = Field(
+        default=None,
+        description="The file that keeps quarantined agents, one JSON event per line, across restarts. Relative to "
+        "the directory the server runs in. Unset, the server quarantines nothing.",
+    )
 
     @model_validator(mode="after")
     def check_tool_lists(self) -> "HooksServerConfig":
         """Refuse tool lists that name a tool twice, or that allow a tool they block by name."""
-        for list_name in ("allowed_tools", "blocked_tools"):
+        for list_name in ("allowed_tools", "blocked_tools", "stop_tools", "quarantine_tools"):
             repeated = _first_repeated_tool_name(getattr(self, list_name))
             if repeated is not None:
                 raise InvalidRailsConfigurationError(
@@ -507,9 +590,10 @@ class HooksServerConfig(BaseModel):
 
     @property
     def can_deny(self) -> bool:
-        """Whether the policy can deny a call: it blocks something, denies unlisted tools, or limits a tool's arguments."""
+        """Whether the policy can deny a call: it blocks or stops something, denies unlisted tools, or limits a tool's
+        arguments."""
         # Bare names in allowed_tools deny nothing while unlisted tools are allowed.
-        if self.blocked_tools or not self.allow_unlisted_tools:
+        if self.blocked_tools or self.stop_tools or self.quarantine_tools or not self.allow_unlisted_tools:
             return True
         return any(isinstance(entry, ToolEntry) for entry in self.allowed_tools)
 
