@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+id: api-reference-v0.1
+document_type: api-reference
+pass_threshold: 92
+allow_conditional_pass: false
+dimensions:
+  technical_accuracy: 35
+  completeness: 25
+  task_success: 10
+  source_grounding: 20
+  clarity: 5
+  style_compliance: 5
+hard_gates:
+  - critical_factual_errors
+  - unsupported_critical_claims
+  - broken_required_examples
+  - missing_mandatory_content
+  - security_compliance_violations
+  - invalid_required_artifacts

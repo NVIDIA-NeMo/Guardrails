@@ -1,0 +1,188 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Docs / Review Documentation
+
+on:
+  # zizmor: ignore[dangerous-triggers] -- the workflow checks out executable
+  # code only from the trusted base revision. Pull request content is mounted
+  # read-only in an isolated sandbox without GitHub or provider credentials.
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "AGENTS.md"
+      - "AI_POLICY.md"
+      - "CONTRIBUTING.md"
+      - ".github/workflows/docs-build.yaml"
+      - ".github/workflows/post-merge-documentation.yaml"
+      - ".github/workflows/release-documentation.yaml"
+      - ".github/workflows/review-documentation.yaml"
+      - "Makefile"
+      - "docs/**"
+      - "fern/**"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/*fern*"
+      - "scripts/fern-ref-sdk-hooks/**"
+      - "scripts/tests/**"
+      - "scripts/watch-fern-preview.mjs"
+      - "scripts/install-doc-agent-openshell.sh"
+      - "tools/docs-agent/**"
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to review
+        required: true
+        type: number
+
+permissions: {}
+
+concurrency:
+  group: review-documentation-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  select:
+    name: Select documentation pull request revision
+    if: >-
+      ${{ github.repository == 'NVIDIA-NeMo/Guardrails'
+        && (github.event_name != 'issue_comment'
+          || (github.event.issue.pull_request != null
+            && github.event.comment.body == '/review-doc')) }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      eligible: ${{ steps.select.outputs.eligible }}
+      base_repository: ${{ steps.select.outputs.base_repository }}
+      base_sha: ${{ steps.select.outputs.base_sha }}
+      head_repository: ${{ steps.select.outputs.head_repository }}
+      head_sha: ${{ steps.select.outputs.head_sha }}
+      pull_request: ${{ steps.select.outputs.pull_request }}
+    steps:
+      - name: Checkout trusted automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted
+          persist-credentials: false
+          lfs: false
+          submodules: false
+
+      - name: Authorize and select review
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        run: node trusted/tools/docs-agent/select-review.mjs
+
+  analyze:
+    name: Run short-lived Pi documentation review
+    needs: select
+    if: ${{ needs.select.outputs.eligible == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: docs-agent-inference
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    env:
+      DOCS_AGENT_ARTIFACT_DIR: ${{ github.workspace }}/review-artifact
+      DOCS_AGENT_WORKDIR: ${{ github.workspace }}/docs-agent-work
+      OPENSHELL_GATEWAY_ENDPOINT: http://127.0.0.1:8080
+      PI_IMAGE: ghcr.io/nvidia/openshell-community/sandboxes/pi@sha256:00d0c5e9e733f94f6db3eaa2ab70d4fd75bcc4aace6b13a54535cbf2dd20dfcd
+      PR_BASE_SHA: ${{ needs.select.outputs.base_sha }}
+      PR_HEAD_SHA: ${{ needs.select.outputs.head_sha }}
+      PR_NUMBER: ${{ needs.select.outputs.pull_request }}
+      TARGET_CHECKOUT: ${{ github.workspace }}/target
+      TRUSTED_CHECKOUT: ${{ github.workspace }}/trusted
+    steps:
+      - name: Checkout trusted reviewer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted
+          persist-credentials: false
+          lfs: false
+          submodules: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Prepare pull request as inert analysis data
+        env:
+          BASE_REPOSITORY: ${{ needs.select.outputs.base_repository }}
+          BASE_SHA: ${{ needs.select.outputs.base_sha }}
+          CHECKOUT_SHA: ${{ needs.select.outputs.head_sha }}
+          HEAD_REPOSITORY: ${{ needs.select.outputs.head_repository }}
+          HEAD_SHA: ${{ needs.select.outputs.head_sha }}
+        run: node "$TRUSTED_CHECKOUT/tools/docs-agent/prepare-target.mjs"
+
+      - name: Install pinned OpenShell runtime
+        run: env -u GITHUB_TOKEN -u GH_TOKEN -u OPENAI_API_KEY bash "$TRUSTED_CHECKOUT/scripts/install-doc-agent-openshell.sh"
+
+      - name: Configure isolated inference
+        env:
+          OPENAI_API_KEY: ${{ secrets.DOCS_AGENT_API_KEY }}
+        run: node "$TRUSTED_CHECKOUT/tools/docs-agent/agent.mjs" configure
+
+      - name: Review documentation in a read-only sandbox
+        run: node "$TRUSTED_CHECKOUT/tools/docs-agent/agent.mjs" review-pr
+
+      - name: Tear down isolated inference
+        if: ${{ always() }}
+        run: node "$TRUSTED_CHECKOUT/tools/docs-agent/agent.mjs" cleanup
+
+      - name: Upload revision-bound review
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: documentation-review-${{ needs.select.outputs.pull_request }}-${{ needs.select.outputs.head_sha }}
+          path: ${{ env.DOCS_AGENT_ARTIFACT_DIR }}/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish documentation review
+    needs: [select, analyze]
+    if: ${{ needs.analyze.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: read
+    env:
+      DOCS_AGENT_ARTIFACT_DIR: ${{ github.workspace }}/review-artifact
+      PR_HEAD_SHA: ${{ needs.select.outputs.head_sha }}
+      PR_NUMBER: ${{ needs.select.outputs.pull_request }}
+      TRUSTED_CHECKOUT: ${{ github.workspace }}/trusted
+    steps:
+      - name: Checkout trusted publisher
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted
+          persist-credentials: false
+          lfs: false
+          submodules: false
+
+      - name: Download documentation review
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.analyze.outputs.artifact_id }}
+          path: review-artifact
+
+      - name: Post revision-bound documentation review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node "$TRUSTED_CHECKOUT/tools/docs-agent/publish-review.mjs"
