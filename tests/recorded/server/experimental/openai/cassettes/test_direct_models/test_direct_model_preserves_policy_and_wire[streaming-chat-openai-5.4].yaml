@@ -1,0 +1,126 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      accept-encoding:
+      - identity
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-5.4
+      stream: true
+      store: false
+      messages:
+      - role: user
+        content: 'Reply with exactly: Hello.'
+      max_completion_tokens: 1024
+      stream_options:
+        include_usage: true
+      reasoning_effort: low
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - text/event-stream; charset=utf-8
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-2026-03-05
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta:
+            role: assistant
+            content: ''
+            refusal: null
+          finish_reason: null
+        usage: null
+        obfuscation: 2yCk3IR7
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-2026-03-05
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta:
+            content: Hello
+          finish_reason: null
+        usage: null
+        obfuscation: m4Xjq
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-2026-03-05
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta:
+            content: .
+          finish_reason: null
+        usage: null
+        obfuscation: 9hZN8sAJ3
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-2026-03-05
+        service_tier: default
+        system_fingerprint: null
+        choices:
+        - index: 0
+          delta: {}
+          finish_reason: stop
+        usage: null
+        obfuscation: Btyw
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: gpt-5.4-2026-03-05
+        service_tier: default
+        system_fingerprint: null
+        choices: []
+        usage:
+          prompt_tokens: 12
+          completion_tokens: 15
+          total_tokens: 27
+          prompt_tokens_details:
+            cached_tokens: 0
+            audio_tokens: 0
+          completion_tokens_details:
+            reasoning_tokens: 4
+            audio_tokens: 0
+            accepted_prediction_tokens: 0
+            rejected_prediction_tokens: 0
+        obfuscation: b0ThSJWBJ
+      - '[DONE]'
