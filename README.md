@@ -15,7 +15,7 @@
 
 NeMo Guardrails is an open-source library for applying programmable safety and security controls to LLM and agentic applications. Agents run commands, call APIs, query your data, and read the web. Conversational applications apply input and output checks; retrieval-augmented generation (RAG) systems filter retrieved content and check answers against evidence.
 
-You use the NeMo Guardrails library to declare what each agent may do in a policy, combining low-latency local rules with model-backed checks for jailbreaks, injected instructions, and unsafe tool calls. Your application or agent harness runs these checks and uses their results to decide whether to continue.
+You use the NeMo Guardrails library to define policies for model interactions and tool use, combining low-latency local rules with model-backed checks for jailbreaks, prompt injection, and unsafe tool calls. Your application or agent harness runs these checks and uses their results to decide whether to continue.
 
 ```bash
 pip install nemoguardrails
@@ -36,21 +36,20 @@ Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvid
 
 Use the NVIDIA NeMo Guardrails library to define your policy in configuration files that specify the rails, models, and prompts to use.
 Run the library in your Python application or deploy it as a server.
-Choose check mode or proxy mode based on how your application manages model requests.
+Choose an integration based on where your application needs checks and which component enforces their results.
+Checks and model generation are separate API capabilities; the gateway uses checks internally to enforce policies on supported model API requests and responses.
 
-### Check Mode
+### Check Content in Your Application
 
 Your application or agent harness calls the LLM and executes tools directly.
 At each point that requires a policy decision, send the relevant prompt, model response, tool call, or tool result to the library for checking.
 Use the result to handle blocked or modified content before you execute a tool, return a response, or pass a tool result to the model.
 
 Use [`check_async()`](./docs/run-rails/using-python-apis/check-messages.mdx) in Python, `POST /v1/checks` on the Guardrails server, or the [hooks server](./docs/run-rails/using-hooks-server/index.mdx) for coding agents.
-For tool checks with `check_async()`, use the IORails engine and specify `RailType.TOOL_CALL` or `RailType.TOOL_RESULT` in `rail_types`.
-Check tool calls before execution and tool results after execution.
+Check tool calls before execution and tool results before returning them to the model. Refer to [tool calling](./docs/configure-rails/guardrail-catalog/tool-calling.mdx) for setup and examples.
+Your application handles check failures and enforces the result; support for modified content depends on the engine and integration.
 
-![Check mode: your application calls the LLM and tools directly and requests checks through the Python SDK, Guardrails server, or hooks server. Configured rails return a result and can call a guardrail model.](./docs/_static/images/guardrails-check-mode.png)
-
-### Proxy Mode
+### Generate Responses with Guardrails
 
 Route model requests through the library to apply the configured input and output rails.
 Input rails can block a request before it reaches the application LLM.
@@ -59,14 +58,18 @@ Blocked content produces a refusal or an error, depending on the integration and
 
 Use `generate_async()` or `stream_async()` in Python, or `POST /v1/chat/completions` on the Guardrails server.
 Your application executes tools; supported integrations can check tool calls in model responses and tool results in subsequent requests.
-The [gateway server](./docs/run-rails/using-proxy/providers-and-streaming.mdx) also supports `POST /v1/chat/completions` and `POST /v1/responses`, but its built-in profiles do not support tool content.
-Each gateway `/v1/responses` request must include `"store": false`.
 
-When output streaming is enabled for `stream_async()`, the default `stream_first: true` setting delivers chunks before checking them.
-To check each chunk before delivery, set `rails.output.streaming.stream_first: false`.
-For configuration details, refer to [output rail streaming](./docs/configure-rails/yaml-schema/streaming/output-rail-streaming.mdx).
+With output streaming enabled, `stream_async()` releases chunks before checking them by default. Configure [output buffering](./docs/configure-rails/yaml-schema/streaming/output-rail-streaming.mdx) to check output before delivery.
 
-![Proxy mode: your application routes model requests through the library, which applies configured rails and forwards allowed requests to the LLM. Rails can call a guardrail model. Your application executes tools.](./docs/_static/images/guardrails-proxy-mode.png)
+### Apply Guardrails to Existing Model APIs
+
+Deploy [NeMo Guardrails Gateway](./docs/run-rails/using-gateway/quickstart.mdx) to apply configured input and output checks while keeping your existing inference infrastructure.
+The gateway handles provider request and response parsing, invokes the library's checks, and controls forwarding and response release, including supported streaming exchanges.
+It preserves supported provider formats; model generation remains with the upstream model service or gateway.
+
+The gateway supports selected OpenAI Chat Completions and Responses formats. See [provider coverage and streaming requirements](./docs/run-rails/using-gateway/providers-and-streaming.mdx) for supported payloads and limitations.
+
+These approaches can be used within the same application. Choose the integration for each interaction based on its supported content and enforcement requirements.
 
 Latency depends on the configured rules, models, and services.
 Rail support varies by engine and integration.
@@ -185,7 +188,7 @@ Connect NeMo Guardrails where your application or agent can enforce its checks.
 | What are you building? | How to connect |
 | --- | --- |
 | **A shared guardrails service** for multiple applications or teams | Use the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx) (`/v1/checks`) to request verdicts while each application manages its model and execution loop. |
-| **A guardrails layer** for existing model APIs | Use the [gateway server](./docs/run-rails/using-gateway/quickstart.mdx) to check supported requests and responses while preserving provider formats. |
+| **A guardrails layer** for existing model APIs | Use [NeMo Guardrails Gateway](./docs/run-rails/using-gateway/quickstart.mdx) to check supported requests and responses while preserving provider formats. |
 | **A coding assistant or agent harness** | Use [native hooks](./docs/run-rails/using-hooks-server/run-hooks-server.mdx) or [NeMo Relay](./docs/run-rails/using-hooks-server/nemo-relay-plugin.mdx) to check tool calls before execution. |
 | **An agent platform, framework integration, or custom loop** | Embed the [Python SDK](./docs/run-rails/using-python-apis/check-messages.mdx), call the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx), or use a supported [framework integration](./docs/integration/langchain/langgraph-integration.mdx). |
 
@@ -214,36 +217,13 @@ Use the [evaluation tools](https://docs.nvidia.com/nemo/guardrails/latest/evalua
 
 ## Benchmarking Guardrails Performance
 
-The following numbers show the latency that the Guardrails API server adds to each request, measured on a 14-inch MacBook Pro with an Apple M4 (10 cores, 24 GB).
-The server runs the [`content_safety_local`](./examples/configs/content_safety_local) configuration, which checks each request with an input rail and an output rail.
-Mock LLMs replace the main model and the content-safety model with fixed latencies, so each request spends 5,000 ms in model calls: 500 ms for each content-safety check and 4,000 ms for the main model.
-AIPerf sends non-streaming requests for 180 seconds at each concurrency level, with prompts of about 100 input tokens.
-
-The following chart shows the added latency at concurrency 64, where each LLMRails label also gives its multiple of the IORails value.
+In a local benchmark with 64 concurrent requests, the Guardrails API server added **13 ms median latency with IORails**, compared with **93 ms with LLMRails**. The chart shows median and tail latency for both engines.
 
 ![Latency added by IORails and LLMRails at concurrency 64](./docs/_static/images/benchmark/added-latency-concurrency-64.png)
 
-| Concurrency | IORails p50 (ms) | IORails p90 (ms) | IORails p99 (ms) | LLMRails p50 (ms) | LLMRails p90 (ms) | LLMRails p99 (ms) |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 11 | 13 | 30 | 39 | 40 | 53 |
-| 2 | 13 | 15 | 20 | 62 | 70 | 104 |
-| 4 | 13 | 15 | 19 | 85 | 100 | 127 |
-| 8 | 13 | 19 | 68 | 136 | 179 | 208 |
-| 16 | 15 | 21 | 30 | 97 | 289 | 416 |
-| 32 | 13 | 19 | 106 | 88 | 274 | 860 |
-| 64 | 13 | 22 | 126 | 93 | 669 | 2,094 |
-| 128 | 17 | 774 | 2,880 | 430 | 1,422 | 5,182 |
+These results used non-streaming requests with input and output content-safety checks on an Apple M4 MacBook Pro (10 cores, 24 GB). Added latency excludes 5 seconds of simulated model time but includes HTTP overhead to the mock models. Actual latency depends on your workload, configuration, and model services.
 
-Each value is the request-latency percentile minus the 5,000 ms of model calls.
-It includes the server's three HTTP calls to the mock models, about 2.5 ms each.
-
-To reproduce these numbers, follow the [benchmarking guide](./benchmark/README.md) with two changes:
-
-- Set `benchmark_duration: 180` in the AIPerf config; the shipped configs use 60 seconds.
-- For the IORails columns, start the server with `NEMO_GUARDRAILS_IORAILS_ENGINE=true`; the guide's Procfile starts the server without it, so the server runs LLMRails by default.
-
-The same tooling can be used to benchmark production Guardrails deployments using real models instead of mock LLMs.
-For this use-case the Guardrails configuration should point to production LLMs, and AIPerf should run with representative production datasets.
+See the [full results and methodology](./benchmark/README.md#published-benchmark-results) for all concurrency levels and reproduction instructions, or use the [benchmarking tools](./benchmark/README.md) to measure your own deployment.
 
 ## Community Usage
 
