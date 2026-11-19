@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "guardrails-server",
+      "runtimeExecutable": "nemoguardrails",
+      "runtimeArgs": ["server", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "actions-server",
+      "runtimeExecutable": "nemoguardrails",
+      "runtimeArgs": ["actions-server", "--port", "8001"],
+      "port": 8001
+    },
+    {
+      "name": "docs-server",
+      "runtimeExecutable": "poetry",
+      "runtimeArgs": ["run", "sphinx-autobuild", "docs", "_build/html", "--port", "8002", "--open-browser"],
+      "port": 8002
+    }
+  ]
+}
