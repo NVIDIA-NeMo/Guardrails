@@ -29,6 +29,7 @@ from fastapi.openapi.utils import get_openapi
 
 from nemoguardrails.server.hooks.adapters import ADAPTERS
 from nemoguardrails.server.hooks.app import _router
+from nemoguardrails.server.hooks.schemas import AgentStartRequest
 
 SPEC_PATH = Path(__file__).resolve().parents[1] / "fern" / "hooks-openapi.yml"
 HEALTH_DOCS_PATH = Path(__file__).resolve().parents[1] / "docs" / "reference" / "hooks-server-api" / "_generated"
@@ -130,6 +131,10 @@ def hooks_openapi() -> dict:
                 "description": "Allow or deny decision",
                 "content": {"application/json": {"schema": {"oneOf": [allowed, denied]}}},
             },
+            "404": {
+                "description": "The config sets only hooks_server.agent_start, so no tool call is checked",
+                **error,
+            },
             "422": {"description": "Invalid request or unsupported event", **error},
             "500": {"description": "Check failed", **error},
             "503": {
@@ -138,6 +143,31 @@ def hooks_openapi() -> dict:
                 **error,
             },
         }
+    start_schema = AgentStartRequest.model_json_schema(ref_template="#/components/schemas/{model}")
+    schemas.update(start_schema.pop("$defs", {}))
+    schemas[AgentStartRequest.__name__] = start_schema
+    operation = spec["paths"]["/v1/hooks/agent-start"]["post"]
+    operation["requestBody"] = {
+        "required": True,
+        "content": {"application/json": {"schema": {"$ref": f"#/components/schemas/{AgentStartRequest.__name__}"}}},
+    }
+    operation["responses"] = {
+        "200": {
+            "description": "Allow or deny decision",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "oneOf": [
+                            {"$ref": "#/components/schemas/RelayAllow"},
+                            {"$ref": "#/components/schemas/RelayDeny"},
+                        ]
+                    }
+                }
+            },
+        },
+        "404": {"description": "The config has no hooks_server.agent_start section", **error},
+        "422": {"description": "Invalid request or unsupported event", **error},
+    }
     for path in ("/v1/health", "/healthz"):
         spec["paths"][path]["get"]["responses"] = {
             "200": {

@@ -44,6 +44,7 @@ from nemoguardrails.server.exception_handlers import (
     validation_error_handler,
 )
 from nemoguardrails.server.hooks.adapters import ADAPTERS, HookAdapter, HookAgent, UnsupportedHookEventError
+from nemoguardrails.server.hooks.agent_start import AgentStartPolicy
 from nemoguardrails.server.hooks.checking import (
     HookOutcome,
     ToolInvocation,
@@ -51,7 +52,7 @@ from nemoguardrails.server.hooks.checking import (
     check_tools,
     outcome_from_result,
 )
-from nemoguardrails.server.hooks.schemas import HookErrorCode
+from nemoguardrails.server.hooks.schemas import AgentStartRequest, HookBody, HookErrorCode
 from nemoguardrails.server.hooks.tool_policy import ToolPolicy
 from nemoguardrails.server.metrics import MetricsExporterSettings, running_metrics_exporter
 from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
@@ -64,6 +65,9 @@ _MODEL_CALL_ERRORS = (LLMCallException, ModelEngineError, HTTPClientError)
 
 # What the log line names as deciding a call the tool policy denies, in place of a rail.
 _TOOL_POLICY = "tool policy"
+
+# The one event `/v1/hooks/agent-start` handles.
+_AGENT_START_EVENT = "AgentStart"
 
 # A port and service name of its own, so it exports beside the main server on one host, and loopback, like its API.
 _METRICS_DEFAULTS = MetricsExporterSettings(host="127.0.0.1", port=9465, service_name="nemoguardrails-hooks-server")
@@ -85,7 +89,10 @@ def check_hooks_config(config: RailsConfig) -> None:
     if reason is not None:
         raise HooksConfigError(f"The hooks server runs on IORails, which can't serve this config: {reason}")
     _check_no_global_tool_call_rails(config)
-    _check_something_can_deny(config)
+    _check_agent_start_can_deny(config)
+    if config.hooks_server.agent_start is None or _checks_tool_calls(config):
+        # A config for agent starts alone checks no tool calls; its tool-call paths answer an error, never an allow.
+        _check_something_can_deny(config)
     _check_per_tool_rails_can_run(config, ToolPolicy.from_config(config.hooks_server))
     _check_main_model(config)
     _check_allowlist_sets_unlisted_tools_choice(config)
@@ -118,6 +125,23 @@ def _check_something_can_deny(config: RailsConfig) -> None:
         "The hooks server needs a tool policy in the hooks_server section, or per-tool rails under "
         "rails.tool_call.per_tool; this config has neither, so every tool call would be allowed."
     )
+
+
+def _check_agent_start_can_deny(config: RailsConfig) -> None:
+    """Raise when hooks_server.agent_start is set but sets no rule, since then every agent would start."""
+    agent_start = config.hooks_server.agent_start
+    if agent_start is not None and not agent_start.can_deny:
+        raise HooksConfigError(
+            "hooks_server.agent_start sets no rule that can deny a start, so every agent would be allowed to start; "
+            "set allowed_sources, allowed_models, allow_local_sources: false, require_digests: true or "
+            "require_policy_enforcers: true, or remove the section."
+        )
+
+
+def _checks_tool_calls(config: RailsConfig) -> bool:
+    """Whether *config*'s tool policy or a per-tool rail can deny a tool call."""
+    tool_lists_set = bool(config.hooks_server.model_fields_set - {"agent_start"})
+    return config.hooks_server.can_deny or _has_per_tool_rails(config) or tool_lists_set
 
 
 def _has_per_tool_rails(config: RailsConfig) -> bool:
@@ -181,6 +205,9 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     )
     app.state.engine = engine
     app.state.tool_policy = ToolPolicy.from_config(config.hooks_server)
+    app.state.checks_tool_calls = config.hooks_server.agent_start is None or _checks_tool_calls(config)
+    agent_start = config.hooks_server.agent_start
+    app.state.agent_start_policy = None if agent_start is None else AgentStartPolicy.from_config(agent_start)
     for exc_type, handler in _EXCEPTION_HANDLERS:
         # Handlers are typed with their specific exception; Starlette's stub expects
         # (Request, Exception), so ty flags the narrower signature as a false positive.
@@ -296,6 +323,30 @@ async def handle_nemo_relay_hook(request: Request) -> Response:
     return await _answer_hook("nemo-relay", request)
 
 
+@_router.post(
+    "/v1/hooks/agent-start",
+    name="handleAgentStartHook",
+    summary="Check whether an agent may start",
+    tags=["Hooks"],
+)
+async def handle_agent_start_hook(request: Request) -> Response:
+    """Answer whether the agent the facts describe may start, with the same decision body as NeMo Relay's path."""
+    policy: Optional[AgentStartPolicy] = request.app.state.agent_start_policy
+    if policy is None:
+        return _error_response(
+            404,
+            "this hooks server's config has no hooks_server.agent_start section, so it checks no agent starts",
+            code=HookErrorCode.CHECK_NOT_CONFIGURED,
+        )
+    start = _parse_agent_start(await _read_json(request))
+    reason = policy.decide(start)
+    outcome = HookOutcome.allow() if reason is None else HookOutcome.deny(reason)
+    _log_agent_start(start, outcome)
+    if outcome.kind == "allow":
+        return JSONResponse({"decision": "allow"})
+    return JSONResponse({"decision": "deny", "reason": outcome.reason})
+
+
 @_router.get("/v1/health", summary="Liveness health check.", tags=["Health"])
 @_router.get("/healthz", summary="Liveness health check.", tags=["Health"])
 async def health() -> Response:
@@ -306,6 +357,12 @@ async def health() -> Response:
 async def _answer_hook(agent: HookAgent, request: Request) -> Response:
     """Check the tool call the hook carries, and answer with the agent's allow or deny, or an error status."""
     adapter = ADAPTERS[agent]
+    if not request.app.state.checks_tool_calls:
+        return _error_response(
+            404,
+            "this hooks server's config sets only hooks_server.agent_start, so it checks no tool calls",
+            code=HookErrorCode.CHECK_NOT_CONFIGURED,
+        )
     call = _parse_hook(adapter, await _read_json(request))
     outcome = await _check_tool_call(request.app.state.engine, request.app.state.tool_policy, adapter, call)
     if outcome.kind == "error":
@@ -332,6 +389,33 @@ def _parse_hook(adapter: HookAdapter, body: object) -> ToolInvocation:
         # Without the errors' `input`, and raised from None: the raw values, `tool_input` among them, stay out of logs.
         errors = exc.errors(include_url=False, include_input=False)
         raise RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in errors]) from None
+
+
+def _parse_agent_start(body: object) -> AgentStartRequest:
+    """The facts an agent-start body carries, raising a failure for the shared `422` handler."""
+    try:
+        event = HookBody.model_validate(body).hook_event_name
+        if event != _AGENT_START_EVENT:
+            raise UnsupportedHookEventError("agent-start", event, _AGENT_START_EVENT)
+        return AgentStartRequest.model_validate(body)
+    except ValidationError as exc:
+        errors = exc.errors(include_url=False, include_input=False)
+        raise RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in errors]) from None
+
+
+def _log_agent_start(start: AgentStartRequest, outcome: HookOutcome) -> None:
+    """Log one line for an agent-start check: the agent, how many facts it carried, and the verdict."""
+    log.info(
+        "Hook check on /v1/hooks/agent-start: event=%s agent_name=%r parts=%d models=%d policies=%d outcome=%s "
+        "reason=%r",
+        _AGENT_START_EVENT,
+        quoted_identity(start.agent_name),
+        len(start.parts),
+        len(start.models),
+        len(start.policies),
+        outcome.kind,
+        outcome.reason,
+    )
 
 
 async def _check_tool_call(

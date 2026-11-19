@@ -38,7 +38,7 @@ DENY_REASON_PREFIX = "NeMo Guardrails: "
 class UnsupportedHookEventError(Exception):
     """A `hook_event_name` that the agent's path doesn't handle."""
 
-    def __init__(self, agent: HookAgent, event: str, handled_event: str) -> None:
+    def __init__(self, agent: str, event: str, handled_event: str) -> None:
         self.agent = agent
         self.event = event
         super().__init__(

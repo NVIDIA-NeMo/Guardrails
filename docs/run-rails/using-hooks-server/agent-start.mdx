@@ -1,0 +1,97 @@
+---
+title: "Check an Agent Before It Starts"
+sidebar-title: "Agent Start Endpoint"
+description: "The /v1/hooks/agent-start endpoint of the Guardrails hooks server, which decides whether an agent may start from plain facts about its parts, models, and policies."
+keywords: ["agent start", "nemoguardrails hooks-server", "/v1/hooks/agent-start", "AgentStart", "allowed_sources", "allowed_models"]
+content:
+  type: "reference"
+---
+
+The Guardrails hooks server (`nemoguardrails hooks-server`) can decide a second question besides "may this tool call run": "may this agent start".
+Whatever starts the agent, such as a runtime's loader, sends `POST /v1/hooks/agent-start` before the start, with plain facts about the agent.
+The server applies the rules in the `hooks_server.agent_start` section of its configuration and answers allow or deny.
+It calls no model, so the same facts always get the same answer.
+
+The server reads no agent package format.
+The caller reads the package, gathers the facts, and sends them; the server applies rules to the facts.
+
+## Configure the Rules
+
+Add an `agent_start` section under `hooks_server`.
+The [agent start example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/agent_start) sets every rule:
+
+```yaml
+models: []
+
+hooks_server:
+  agent_start:
+    allowed_sources:
+      - git::https://git.example.com/workshop/agent-parts.git//
+    allow_local_sources: false
+    require_digests: true
+    allowed_models:
+      - bedrock::nvidia.nemotron-super-3-120b
+    require_policy_enforcers: true
+```
+
+| Rule | Default | A Start Is Denied When |
+|---|---|---|
+| `allowed_sources` | Unset: sources are not checked | A part that is not local has a source that no entry starts. Each entry is a prefix and must end in `/`, so an entry does not also match a longer host name. An empty list allows no source. |
+| `allow_local_sources` | `true` | It is `false` and a part comes from a local folder. A local part is decided by this rule, not by `allowed_sources`. |
+| `require_digests` | `false` | It is `true` and a part has no digest. |
+| `allowed_models` | Unset: models are not checked | The agent, or an agent it calls, names a model that the list does not contain. Models match exactly. An empty list allows no model. |
+| `require_policy_enforcers` | `false` | It is `true` and a required policy needs an enforcer that is not present. |
+
+The server refuses to start with an `agent_start` section that sets no rule, since every agent would start.
+A configuration that sets only `agent_start` checks no tool calls: its tool-call paths answer `404` with the code `check_not_configured`.
+A configuration with no `agent_start` section answers `/v1/hooks/agent-start` the same way.
+
+## Request
+
+| Field | Type | Description |
+|---|---|---|
+| `hook_event_name` | string | Always `AgentStart`. |
+| `agent_name` | string | The agent's name. Not empty. |
+| `parts` | array | Every part the agent starts with, including the agents it calls and their parts. Can be empty. |
+| `parts[].id` | string | What a deny reason names the part by, such as its path in the package. |
+| `parts[].type` | string | `skill`, `plugin`, `connector`, `hook`, `package`, `policy`, or `agent` for an agent this agent calls. |
+| `parts[].source` | string | Where the part came from, as the caller states it. |
+| `parts[].version` | string or null | The part's version. |
+| `parts[].digest` | string or null | A digest of the part's bytes, such as `sha256:...`. |
+| `parts[].local` | boolean | Whether the source is a folder on the machine that starts the agent. |
+| `models` | array of strings | Every model the agent and the agents it calls name. |
+| `policies` | array | Optional. The policies the agent brings: `id`, `required` (default `true`), and `enforcers`, the enforcers each needs. |
+| `enforcers_present` | array of strings | Optional. The enforcers the caller says run where the agent starts. |
+
+The endpoint rejects any other field, and a value of the wrong type, with HTTP `422`.
+A malformed request is never allowed.
+
+```bash
+curl -s http://localhost:8100/v1/hooks/agent-start \
+  -H "Content-Type: application/json" \
+  -d '{"hook_event_name": "AgentStart", "agent_name": "release-reviewer", "models": ["bedrock::nvidia.nemotron-super-3-120b"],
+       "parts": [{"id": "$/skills/release-checklist", "type": "skill", "source": "./skills/release-checklist",
+                  "version": null, "digest": "sha256:9afb37ee2535c419d84e11883c8c5e687ef2d729bbfe0dde07e010d3d4814aa8", "local": true}]}'
+```
+
+## Response
+
+The response has the same shape as the NeMo Relay endpoint's.
+An allowed start returns `{"decision": "allow"}`.
+A denied start returns the reason, which names the first part, model, or policy that a rule denies, and the rule:
+
+```json
+{"decision": "deny", "reason": "skill '$/skills/release-checklist' comes from a local folder, and hooks_server.agent_start.allow_local_sources is false"}
+```
+
+| Denied By | Reason |
+|---|---|
+| `allowed_sources` | `skill '$/skills/release-checklist' comes from a source hooks_server.agent_start.allowed_sources doesn't list` |
+| `allow_local_sources` | `skill '$/skills/release-checklist' comes from a local folder, and hooks_server.agent_start.allow_local_sources is false` |
+| `require_digests` | `agent '$/agents/researcher' has no digest, and hooks_server.agent_start.require_digests is true` |
+| `allowed_models` | `model 'bedrock::meta.llama3-70b-instruct-v1:0' is not in hooks_server.agent_start.allowed_models` |
+| `require_policy_enforcers` | `policy '$/policies/net' needs enforcer 'openshell', which is not present, and hooks_server.agent_start.require_policy_enforcers is true` |
+
+A deny reason does not quote a part's source, which the caller chose.
+Treat any status other than `200`, a timeout, or a failed connection as "do not start", never as an allow.
+For the error body, refer to [Hooks Server Results and Errors](/run-guardrailed-inference/using-hooks-server/results-and-errors).

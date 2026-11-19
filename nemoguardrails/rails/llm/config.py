@@ -465,10 +465,68 @@ class ToolEntry(BaseModel):
         return arguments
 
 
+class AgentStartConfig(BaseModel):
+    """The rules `nemoguardrails hooks-server` applies to an agent before it starts, on `/v1/hooks/agent-start`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    allowed_sources: Optional[List[str]] = Field(
+        default=None,
+        description="Source prefixes a part may come from. Unset, a part's source isn't checked; an empty list "
+        "allows no source. A local folder is decided by `allow_local_sources` instead.",
+    )
+    allow_local_sources: bool = Field(
+        default=True,
+        description="Whether a part may come from a local folder.",
+    )
+    require_digests: bool = Field(
+        default=False,
+        description="Whether every part must carry a digest of its bytes.",
+    )
+    allowed_models: Optional[List[str]] = Field(
+        default=None,
+        description="Models the agent may name, matched exactly. Unset, models aren't checked; an empty list allows "
+        "no model.",
+    )
+    require_policy_enforcers: bool = Field(
+        default=False,
+        description="Whether every enforcer a required policy needs must be present where the agent starts.",
+    )
+
+    @field_validator("allowed_sources")
+    @classmethod
+    def check_sources_end_a_path(cls, sources: Optional[List[str]]) -> Optional[List[str]]:
+        """Refuse a source prefix that doesn't end in `/`, which would match a longer host or name too."""
+        for source in sources or ():
+            if not source.endswith("/"):
+                raise ValueError(
+                    f"allowed_sources entry '{source}' doesn't end in '/', so it would also allow a source whose host "
+                    "or path only starts with it; end it in '/'"
+                )
+        return sources
+
+    @property
+    def can_deny(self) -> bool:
+        """Whether any rule can deny a start."""
+        return (
+            self.allowed_sources is not None
+            or not self.allow_local_sources
+            or self.require_digests
+            or self.allowed_models is not None
+            or self.require_policy_enforcers
+        )
+
+
 class HooksServerConfig(BaseModel):
     """The tool policy `nemoguardrails hooks-server` applies to each hook's call; no engine reads it."""
 
     model_config = ConfigDict(extra="forbid")
+
+    agent_start: Optional[AgentStartConfig] = Field(
+        default=None,
+        description="Rules for `/v1/hooks/agent-start`, which asks whether an agent may start. Unset, the server "
+        "checks no agent starts.",
+    )
 
     allowed_tools: List[Union[str, ToolEntry]] = Field(
         default_factory=list,
