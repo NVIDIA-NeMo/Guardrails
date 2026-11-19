@@ -471,6 +471,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
             "LocalHFClassifierConfig",
             "RemoteHFClassifierConfig",
         ),
+        "atr": ("ATRDetection",),
         "injection_detection": ("InjectionDetection",),
         "jailbreak_detection": ("JailbreakDetectionConfig",),
         "language_detector": ("LanguageDetectorConfig",),
@@ -508,6 +509,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
     }
     expected_config_keys = {
         "ai_defense",
+        "atr",
         "autoalign",
         "cel",
         "clavata",

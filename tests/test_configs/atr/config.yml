@@ -1,0 +1,10 @@
+rails:
+  config:
+    atr:
+      block_severities:
+        - critical
+        - high
+
+  input:
+    flows:
+      - atr detection
