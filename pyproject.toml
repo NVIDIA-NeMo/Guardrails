@@ -134,6 +134,7 @@ test_integration = [
   "streamlit>=1.37.0",
   "yara-python>=4.5.1,<5.0.0",
   "common-expression-language>=0.10.0,<0.11.0",
+  "cedarpy>=4.8,<5",
   "opentelemetry-api>=1.34.1,<2.0.0",
   "opentelemetry-sdk>=1.34.1,<2.0.0",
   "opentelemetry-exporter-prometheus>=0.63b0,<1.0.0",

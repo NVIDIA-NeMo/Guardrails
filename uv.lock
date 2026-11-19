@@ -2092,6 +2092,7 @@ tracing = [
 [package.dev-dependencies]
 dev = [
     { name = "aioresponses" },
+    { name = "cedarpy" },
     { name = "chainlit" },
     { name = "common-expression-language" },
     { name = "fast-langdetect" },
@@ -2140,6 +2141,7 @@ test = [
 ]
 test-integration = [
     { name = "aioresponses" },
+    { name = "cedarpy" },
     { name = "chainlit" },
     { name = "common-expression-language" },
     { name = "fast-langdetect" },
@@ -2244,6 +2246,7 @@ provides-extras = ["nest-asyncio", "tracing", "server", "sdd", "gcp", "jailbreak
 [package.metadata.requires-dev]
 dev = [
     { name = "aioresponses", specifier = ">=0.7.6" },
+    { name = "cedarpy", specifier = ">=4.8,<5" },
     { name = "chainlit", specifier = ">=2.11.0,<3.0.0" },
     { name = "common-expression-language", specifier = ">=0.10.0,<0.11.0" },
     { name = "fast-langdetect", specifier = ">=1.0.0" },
@@ -2290,6 +2293,7 @@ test = [
 ]
 test-integration = [
     { name = "aioresponses", specifier = ">=0.7.6" },
+    { name = "cedarpy", specifier = ">=4.8,<5" },
     { name = "chainlit", specifier = ">=2.11.0,<3.0.0" },
     { name = "common-expression-language", specifier = ">=0.10.0,<0.11.0" },
     { name = "fast-langdetect", specifier = ">=1.0.0" },
