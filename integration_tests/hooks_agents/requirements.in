@@ -8,4 +8,4 @@
 #   uv pip compile --universal --python-version 3.11 --generate-hashes integration_tests/hooks_agents/requirements.in \
 #     -o integration_tests/hooks_agents/requirements.txt
 claude-agent-sdk==0.2.168
-openai-codex-cli-bin==0.163.0
+openai-codex-cli-bin==0.167.0
