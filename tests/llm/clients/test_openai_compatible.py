@@ -89,6 +89,67 @@ class TestChatCompletion:
         assert "stream" not in payload
 
     @pytest.mark.asyncio
+    async def test_config_stream_does_not_force_a_streaming_body(self):
+        """parameters.stream=true must not make chat_completion request SSE."""
+        client = make_client()
+        captured = {}
+
+        async def capturing_post(*args, **kwargs):
+            captured.update(kwargs)
+            return httpx.Response(200, json=ok_response(), request=httpx.Request("POST", "url"))
+
+        client._client = type("MockClient", (), {"post": capturing_post})()
+        await client.chat_completion(
+            "gpt-4o",
+            [{"role": "user", "content": "Hi"}],
+            temperature=0.2,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+
+        payload = captured["json"]
+        assert payload["temperature"] == 0.2
+        assert "stream" not in payload
+        assert "stream_options" not in payload
+
+    @pytest.mark.asyncio
+    async def test_config_stream_false_does_not_disable_streaming(self):
+        """A leftover stream=false must not turn stream_chat_completion into JSON."""
+        client = make_client()
+        captured = {}
+
+        @asynccontextmanager
+        async def capturing_stream(*args, **kwargs):
+            captured.update(kwargs)
+
+            class FakeResponse:
+                status_code = 200
+                headers = {}
+
+                async def aread(self):
+                    pass
+
+                async def aiter_lines(self):
+                    yield 'data: {"id":"c","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}'
+                    yield ""
+                    yield "data: [DONE]"
+                    yield ""
+
+            yield FakeResponse()
+
+        client._client = type("MockClient", (), {"stream": capturing_stream})()
+        async for _ in client.stream_chat_completion(
+            "gpt-4o",
+            [{"role": "user", "content": "Hi"}],
+            stream=False,
+        ):
+            pass
+
+        payload = captured["json"]
+        assert payload["stream"] is True
+        assert payload["stream_options"] == {"include_usage": True}
+
+    @pytest.mark.asyncio
     async def test_stream_sets_stream_options(self):
         client = make_client()
         captured = {}
