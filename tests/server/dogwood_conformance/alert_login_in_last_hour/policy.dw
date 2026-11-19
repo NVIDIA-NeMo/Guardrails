@@ -1,0 +1,17 @@
+// Counting over HISTORY: a `formerly within 1h` body inside the aggregation
+// makes the count range over the whole window, not just the current
+// timepoint. Permit an Alert if at least one Login to this server occurred in
+// the last hour.
+@id("alert_login_in_last_hour")
+permit (
+    principal,
+    action == Drupe::Action::"Alert",
+    resource
+)
+when temporal {
+    exists (n: Long). (
+        (count for (t: Timepoint). where (
+            formerly within 1h (Drupe::Action::"Login"::request{ input.user: _, input.server: context.input.server } && tp(t))
+        )) == n && n > 0
+    )
+};

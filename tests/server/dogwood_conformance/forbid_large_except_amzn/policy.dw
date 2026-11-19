@@ -1,0 +1,5 @@
+// Forbid large sells except for AMZN (when + unless on a forbid rule).
+@id("forbid_large_except_amzn")
+forbid ( principal, action == Drupe::Action::"SellShares", resource )
+when   { context.input.shares > 100 }
+unless { context.input.stock == "AMZN" };

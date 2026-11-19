@@ -1,0 +1,14 @@
+// Permit Read only if the same user successfully logged in within the last
+// hour. The `when temporal { … }` clause reads the accumulated event history;
+// the `{ input.user: context.input.user }` pin correlates the past login's
+// user with the current request's user. This is what makes the authorizer
+// stateful.
+@id("read_after_login")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when temporal {
+    formerly within 1h Drupe::Action::"Login"::response{ input.user: context.input.user }
+};

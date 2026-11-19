@@ -1,0 +1,9 @@
+// if/then/else at the top of a when reads like a conditional rule: a stricter
+// share cap for AMZN than for everything else.
+@id("sell_threshold_by_stock")
+permit ( principal, action == Drupe::Action::"SellShares", resource )
+when {
+    if context.input.stock == "AMZN"
+    then context.input.shares <= 10
+    else context.input.shares <= 1000
+};

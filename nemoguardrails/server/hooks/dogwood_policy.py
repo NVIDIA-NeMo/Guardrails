@@ -99,15 +99,17 @@ class Pattern:
     action: str
     kind: str
     constraints: tuple[tuple[str, _Value], ...]
+    namespace: str = "AgentCore"
 
     def matches(self, event: "Event", inputs: Mapping[str, Any]) -> bool:
-        if event.kind != self.kind or event.action != self.action:
+        if event.kind != self.kind or event.action != self.action or event.namespace != self.namespace:
             return False
         for name, (source, value) in self.constraints:
             if name not in event.inputs:
                 return False
             if source == "input" and (value not in inputs or event.inputs[name] != inputs[value]):
                 return False
+            # `_` asks only that the field is there.
             if source == "literal" and event.inputs[name] != value:
                 return False
             if source == "bound" and (not isinstance(event.inputs[name], int) or isinstance(event.inputs[name], bool)):
@@ -169,14 +171,20 @@ class Event:
     action: str
     at: datetime
     inputs: Mapping[str, Any] = field(default_factory=dict)
+    namespace: str = "AgentCore"
 
 
 # --- Parsing a temporal block -------------------------------------------------------------------------------------
 
 
 class _Parser:
-    def __init__(self, tokens: list[_Token], where: str) -> None:
+    def __init__(
+        self, tokens: list[_Token], where: str, namespace: Optional[str] = "AgentCore", require_scope: bool = True
+    ) -> None:
+        # AgentCore's actions and its rule that every pattern says `eventResource: resource`, unless the caller, such as
+        # a conformance check over the reference examples, reads another namespace with the language's own rules.
         self.tokens, self.position, self.where = tokens, 0, where
+        self.namespace, self.require_scope = namespace, require_scope
         self.bound: set[str] = set()
 
     def fail(self, message: str) -> DogwoodPolicyError:
@@ -234,7 +242,7 @@ class _Parser:
         return window
 
     def pattern(self) -> Pattern:
-        self.take("AgentCore")
+        namespace = self.word() if self.namespace is None else self.take(self.namespace)
         self.take("::")
         self.take("Action")
         self.take("::")
@@ -265,9 +273,9 @@ class _Parser:
             if self.peek() == ",":
                 self.take(",")
         self.take("}")
-        if not scoped:
+        if not scoped and self.require_scope:
             raise self.fail("every event pattern must say eventResource: resource")
-        return Pattern(action, kind, tuple(constraints))
+        return Pattern(action, kind, tuple(constraints), namespace)
 
     def value(self) -> _Value:
         token = self.take()
@@ -276,6 +284,8 @@ class _Parser:
             self.take("input")
             self.take(".")
             return ("input", self.word())
+        if token == "_":
+            return ("any", None)
         if token in ("true", "false"):
             return ("literal", token == "true")
         if token.startswith('"'):
@@ -296,6 +306,10 @@ class _Parser:
         self.take("Long")
         self.take(")")
         self.take(".")
+        # The body may be wrapped in one more pair of parentheses, as the language's own examples write it.
+        wrapped = self.peek() == "(" and self.peek(1) == "("
+        if wrapped:
+            self.take("(")
         self.take("(")
         function = self.take("count", "sum")
         summed = None
@@ -337,6 +351,8 @@ class _Parser:
         self.take(result)
         operator = self.take(*_COMPARE)
         limit = self.value()
+        if wrapped:
+            self.take(")")
         if limit[0] != "literal" or not isinstance(limit[1], int) or isinstance(limit[1], bool):
             raise self.fail("an aggregate is compared with a whole number")
         self.bound.discard(summed or "")
@@ -364,7 +380,9 @@ class _Block:
         return all(condition.holds(events, inputs, now) for condition in self.conditions)
 
 
-def rewrite(text: str, name: str, first_slot: int) -> tuple[str, list[_Block]]:
+def rewrite(
+    text: str, name: str, first_slot: int, *, namespace: Optional[str] = "AgentCore", require_scope: bool = True
+) -> tuple[str, list[_Block]]:
     """*text* with each `when temporal { ... }` block replaced by `when { context.temporal.pN }`, and the blocks."""
     tokens = _tokens(text, name)
     blocks: list[_Block] = []
@@ -397,7 +415,9 @@ def rewrite(text: str, name: str, first_slot: int) -> tuple[str, list[_Block]]:
             if depth != 0:
                 raise DogwoodPolicyError(f"'{name}': a `when temporal` block is not closed")
             slot = f"p{first_slot + len(blocks)}"
-            parser = _Parser(tokens[index + 2 : end], f"'{name}', temporal block {len(blocks) + 1}")
+            parser = _Parser(
+                tokens[index + 2 : end], f"'{name}', temporal block {len(blocks) + 1}", namespace, require_scope
+            )
             conditions = parser.conjunction()
             if len(conditions) > MAX_OPERATORS:
                 raise DogwoodPolicyError(
