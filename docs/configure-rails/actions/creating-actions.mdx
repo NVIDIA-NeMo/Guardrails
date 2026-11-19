@@ -198,6 +198,97 @@ if not $is_safe
   stop
 ```
 
+### ActionResult and Context Updates
+
+Return an `ActionResult` when the action must write dialogue state rather than only hand a value back to the flow. Use it to fill slots such as a user's name, an order ID, or a shipping address, and then read them back as `$variables` later in the conversation.
+
+`ActionResult` carries three fields:
+
+| Field | Type | Description |
+| ----------------- | ------------ | ------------------------------------------------------------------------------------------------ |
+| `return_value`    | `Any`        | The value the flow receives, the same as a plain return                                            |
+| `context_updates` | `Optional[dict]` | Keys merged into the conversation context and readable as `$variables`. Must be a dict or omitted; Colang 1.0 raises if it is explicitly `None`, Colang 2.0 does not |
+| `events`          | `List[dict]` | Extra events added to the stream. Colang 1.0 only; Colang 2.0 attaches them to the action's `ActionFinished` event and never applies them |
+
+<Tabs>
+
+<Tab title="Colang 2.0">
+
+Declare the variable as `global` in the flow that reads it, otherwise the flow sees a local variable that the action never touched:
+
+~~~python
+from nemoguardrails.actions import action
+from nemoguardrails.actions.actions import ActionResult
+
+
+@action(name="RememberSlotAction")
+async def remember_slot(value: str):
+    return ActionResult(context_updates={"user_name": value})
+~~~
+
+~~~text
+flow bot say $text
+  await UtteranceBotAction(script=$text)
+
+flow main
+  global $user_name
+  match UtteranceUserActionFinished(final_transcript="hi")
+  await RememberSlotAction(value="Ngoc")
+  bot say "Hello {$user_name}"
+  match UtteranceUserActionFinished(final_transcript="again")
+  bot say "Still {$user_name}"
+~~~
+
+The value survives the turn that wrote it, so the second turn also says `Still Ngoc`.
+
+</Tab>
+
+<Tab title="Colang 1.0">
+
+The runtime merges `context_updates` into a single `ContextUpdate` event, so the keys are available to the rest of the flow and to bot message templates:
+
+~~~python
+from nemoguardrails.actions import action
+from nemoguardrails.actions.actions import ActionResult
+
+
+@action()
+async def remember_slot():
+    return ActionResult(context_updates={"user_name": "Ngoc"})
+~~~
+
+~~~text
+define bot name user
+  "Got it $user_name"
+
+define flow
+  user express greeting
+  execute remember_slot
+  bot name user
+~~~
+
+<Warning>
+
+Never return a module-level mutable object, such as a dict you keep between calls and update in place. Colang 1.0 stores the action result by reference and re-runs the flow from its first element on every internal event, so an object you mutate changes underneath that replay and the `if` guards that read it flip. Later slots stay `unknown` and render blank, and once enough of them do, the whole reply comes back empty. Nothing is raised.
+
+Return a copy instead:
+
+~~~python
+@action()
+async def update_user_info(value: str, key: str):
+    user_info[key] = value
+    snapshot = dict(user_info)
+    return ActionResult(return_value=snapshot, context_updates={"user_info": snapshot})
+~~~
+
+</Warning>
+
+</Tab>
+
+</Tabs>
+
+To have the LLM extract the value before you store it, see [Extract User-Provided Values](/configure-guardrails/colang/usage-examples/extract-user-provided-values).
+
 ## Error Handling
 
 Handle errors gracefully within actions:
