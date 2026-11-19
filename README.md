@@ -15,7 +15,7 @@
 
 NeMo Guardrails is an open-source library for applying programmable safety and security controls to LLM and agentic applications. Agents run commands, call APIs, query your data, and read the web. Conversational applications apply input and output checks; retrieval-augmented generation (RAG) systems filter retrieved content and check answers against evidence.
 
-You use the NeMo Guardrails library to declare what each agent may do in a policy, combining low-latency local rules with model-backed checks for jailbreaks, injected instructions, and unsafe tool calls. Your application or agent harness runs these checks and uses their results to decide whether to continue.
+You use the NeMo Guardrails library to define policies for model interactions and tool use, combining low-latency local rules with model-backed checks for jailbreaks, prompt injection, and unsafe tool calls. Your application or agent harness runs these checks and uses their results to decide whether to continue.
 
 ```bash
 pip install nemoguardrails
@@ -36,9 +36,10 @@ Requires Python 3.11–3.13. Refer to the [installation guide](https://docs.nvid
 
 Use the NVIDIA NeMo Guardrails library to define your policy in configuration files that specify the rails, models, and prompts to use.
 Run the library in your Python application or deploy it as a server.
-Choose check mode or proxy mode based on how your application manages model requests.
+Choose an integration based on where your application needs checks and which component enforces their results.
+Checks and model generation are separate API capabilities; the gateway uses checks internally to enforce policies on supported model API requests and responses.
 
-### Check Mode
+### Check Content in Your Application
 
 Your application or agent harness calls the LLM and executes tools directly.
 At each point that requires a policy decision, send the relevant prompt, model response, tool call, or tool result to the library for checking.
@@ -46,11 +47,10 @@ Use the result to handle blocked or modified content before you execute a tool, 
 
 Use [`check_async()`](./docs/run-rails/using-python-apis/check-messages.mdx) in Python, `POST /v1/checks` on the Guardrails server, or the [hooks server](./docs/run-rails/using-hooks-server/index.mdx) for coding agents.
 For tool checks with `check_async()`, use the IORails engine and specify `RailType.TOOL_CALL` or `RailType.TOOL_RESULT` in `rail_types`.
-Check tool calls before execution and tool results after execution.
+Check tool calls before execution and tool results before returning them to the model.
+Your application handles check failures and enforces the result; support for modified content depends on the engine and integration.
 
-![Check mode: your application calls the LLM and tools directly and requests checks through the Python SDK, Guardrails server, or hooks server. Configured rails return a result and can call a guardrail model.](./docs/_static/images/guardrails-check-mode.png)
-
-### Proxy Mode
+### Generate Responses with Guardrails
 
 Route model requests through the library to apply the configured input and output rails.
 Input rails can block a request before it reaches the application LLM.
@@ -59,14 +59,21 @@ Blocked content produces a refusal or an error, depending on the integration and
 
 Use `generate_async()` or `stream_async()` in Python, or `POST /v1/chat/completions` on the Guardrails server.
 Your application executes tools; supported integrations can check tool calls in model responses and tool results in subsequent requests.
-The [gateway server](./docs/run-rails/using-proxy/providers-and-streaming.mdx) also supports `POST /v1/chat/completions` and `POST /v1/responses`, but its built-in profiles do not support tool content.
-Each gateway `/v1/responses` request must include `"store": false`.
 
 When output streaming is enabled for `stream_async()`, the default `stream_first: true` setting delivers chunks before checking them.
-To check each chunk before delivery, set `rails.output.streaming.stream_first: false`.
+To check buffered output before delivery, set `rails.output.streaming.stream_first: false`.
 For configuration details, refer to [output rail streaming](./docs/configure-rails/yaml-schema/streaming/output-rail-streaming.mdx).
 
-![Proxy mode: your application routes model requests through the library, which applies configured rails and forwards allowed requests to the LLM. Rails can call a guardrail model. Your application executes tools.](./docs/_static/images/guardrails-proxy-mode.png)
+### Apply Guardrails to Existing Model APIs
+
+Deploy [NeMo Guardrails Gateway](./docs/run-rails/using-gateway/quickstart.mdx) to apply configured input and output checks while keeping your existing inference infrastructure.
+The gateway handles provider request and response parsing, invokes the library's checks, and controls forwarding and response release, including supported streaming exchanges.
+It preserves supported provider formats; model generation remains with the upstream model service or gateway.
+
+The built-in profiles support constrained single-text exchanges through OpenAI Chat Completions and Responses, including explicit LiteLLM dialects. They do not support tool content or content replacement, and guarded Responses requests require `"store": false`.
+Review [provider coverage and streaming requirements](./docs/run-rails/using-gateway/providers-and-streaming.mdx) before connecting an application.
+
+These approaches can be combined: for example, use the gateway for model input and output checks and call tool checks from your application before execution.
 
 Latency depends on the configured rules, models, and services.
 Rail support varies by engine and integration.
@@ -185,7 +192,7 @@ Connect NeMo Guardrails where your application or agent can enforce its checks.
 | What are you building? | How to connect |
 | --- | --- |
 | **A shared guardrails service** for multiple applications or teams | Use the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx) (`/v1/checks`) to request verdicts while each application manages its model and execution loop. |
-| **A guardrails layer** for existing model APIs | Use the [gateway server](./docs/run-rails/using-gateway/quickstart.mdx) to check supported requests and responses while preserving provider formats. |
+| **A guardrails layer** for existing model APIs | Use [NeMo Guardrails Gateway](./docs/run-rails/using-gateway/quickstart.mdx) to check supported requests and responses while preserving provider formats. |
 | **A coding assistant or agent harness** | Use [native hooks](./docs/run-rails/using-hooks-server/run-hooks-server.mdx) or [NeMo Relay](./docs/run-rails/using-hooks-server/nemo-relay-plugin.mdx) to check tool calls before execution. |
 | **An agent platform, framework integration, or custom loop** | Embed the [Python SDK](./docs/run-rails/using-python-apis/check-messages.mdx), call the [Checks API](./docs/run-rails/using-fastapi-server/overview.mdx), or use a supported [framework integration](./docs/integration/langchain/langgraph-integration.mdx). |
 
