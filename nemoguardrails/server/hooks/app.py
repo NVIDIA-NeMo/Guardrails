@@ -65,9 +65,11 @@ from nemoguardrails.server.hooks.checking import (
     outcome_from_result,
 )
 from nemoguardrails.server.hooks.decision_record import DecisionRecord, DecisionRecordError
+from nemoguardrails.server.hooks.dogwood_policy import MAX_WINDOW, DogwoodToolRules, Event, tool_action
 from nemoguardrails.server.hooks.quarantine import QuarantineEvent, QuarantineStore, QuarantineStoreError
 from nemoguardrails.server.hooks.schemas import (
     AgentStartRequest,
+    ClaudeCodeToolResultRequest,
     HookBody,
     HookErrorCode,
     ModelCallRequest,
@@ -88,9 +90,13 @@ _MODEL_CALL_ERRORS = (LLMCallException, ModelEngineError, HTTPClientError)
 _TOOL_POLICY = "tool policy"
 # The same, when the config's Cedar policies decide the call.
 _CEDAR_POLICY = "cedar policy"
+# The same, when the config's Dogwood policies decide the call.
+_DOGWOOD_POLICY = "dogwood policy"
 
 # The one event `/v1/hooks/agent-start` handles.
 _AGENT_START_EVENT = "AgentStart"
+# The events a Claude Code hook sends after a tool ran, which a Dogwood rule reads as `::response` and `::error`.
+_TOOL_RESULT_EVENTS = {"PostToolUse": "response", "PostToolUseFailure": "error"}
 # The one event `/v1/hooks/model-call` handles.
 _MODEL_CALL_EVENT = "ModelCall"
 # What the decision record names as deciding an agent start or a model call.
@@ -258,6 +264,7 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     """Build the hooks server for *config*, with its own engine; raises `HooksConfigError` if it can't serve hooks."""
     check_hooks_config(config)
     cedar_tool_rules, agent_start_policy = _load_rules(config)
+    dogwood_tool_rules = _load_dogwood(config)
     _warn_about_ignored_main_model_tools(config)
     # IORails reports usage when it is built, so the deployment type is claimed before that.
     set_deployment_type(DeploymentTypeEnum.API.value)
@@ -274,6 +281,7 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     app.state.engine = engine
     app.state.tool_policy = ToolPolicy.from_config(config.hooks_server)
     app.state.cedar_tool_rules = cedar_tool_rules
+    app.state.dogwood_tool_rules = dogwood_tool_rules
     app.state.checks_tool_calls = config.hooks_server.agent_start is None or _checks_tool_calls(config)
     app.state.agent_start_policy = agent_start_policy
     app.state.quarantine = _quarantine_store(config)
@@ -316,6 +324,24 @@ def _load_rules(config: RailsConfig) -> tuple[Optional[CedarToolRules], Optional
     except CedarPolicyError as exc:
         raise HooksConfigError(str(exc)) from None
     return cedar_tool_rules, agent_start_policy
+
+
+def _load_dogwood(config: RailsConfig) -> Optional[DogwoodToolRules]:
+    """The Dogwood tool-call rules the config sets, read once; a policy outside the supported subset stops the server
+    from starting."""
+    rules = config.hooks_server.dogwood
+    if rules is None:
+        return None
+    try:
+        loaded = DogwoodToolRules.load(_config_folder(config) / rules.policies, rules.gateway)
+    except CedarPolicyError as exc:
+        raise HooksConfigError(str(exc)) from None
+    if loaded.quarantines and not config.hooks_server.quarantine_store:
+        raise HooksConfigError(
+            'hooks_server.dogwood has a forbid with @outcome("quarantine"), but no hooks_server.quarantine_store keeps '
+            "the quarantine; set quarantine_store to a file."
+        )
+    return loaded
 
 
 def _config_folder(config: RailsConfig) -> Path:
@@ -435,8 +461,55 @@ _router = APIRouter()
     tags=["Hooks"],
 )
 async def handle_claude_code_hook(request: Request) -> Response:
-    """Answer a Claude Code hook in Claude Code's hook output format."""
+    """Answer a Claude Code hook in Claude Code's hook output format: a tool call, or with Dogwood rules a tool's
+    result, which is recorded."""
+    body = await _read_json(request)
+    if (
+        isinstance(body, dict)
+        and body.get("hook_event_name") in _TOOL_RESULT_EVENTS
+        and request.app.state.dogwood_tool_rules is not None
+    ):
+        return _record_tool_result(request, body)
     return await _answer_hook("claude-code", request)
+
+
+def _record_tool_result(request: Request, body: dict) -> Response:
+    """Record that a tool call completed (`PostToolUse`) or failed (`PostToolUseFailure`), for the Dogwood rules that
+    read `::response` and `::error` events. Nothing is decided; Claude Code is answered with no decision."""
+    try:
+        result = ClaudeCodeToolResultRequest.model_validate(body)
+    except ValidationError as exc:
+        errors = exc.errors(include_url=False, include_input=False)
+        raise RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in errors]) from None
+    rules: DogwoodToolRules = request.app.state.dogwood_tool_rules
+    arguments = result.tool_input if isinstance(result.tool_input, dict) else {}
+    record: DecisionRecord = request.app.state.decision_record
+    try:
+        record.append(
+            {
+                "kind": "tool_result",
+                "agent_name": request.headers.get(AGENT_NAME_HEADER),
+                "agent_digest": request.headers.get(AGENT_DIGEST_HEADER),
+                "run_id": request.headers.get(RUN_ID_HEADER),
+                # As for a tool call: the names of its arguments, and only the values a Dogwood policy reads.
+                "asked": {
+                    "hook": "claude-code",
+                    "event": result.hook_event_name,
+                    "tool_name": result.tool_name,
+                    "argument_names": sorted(arguments),
+                    "call_id": result.tool_use_id,
+                    "inputs": rules.kept_inputs(result.tool_name, arguments),
+                },
+                "outcome": _TOOL_RESULT_EVENTS[result.hook_event_name],
+                "reason": None,
+                "rule": None,
+                "by": _BY,
+            }
+        )
+    except DecisionRecordError as exc:
+        log.error("%s", exc)
+        return _error_response(500, str(exc), code=HookErrorCode.DECISION_RECORD_FAILED)
+    return JSONResponse({})
 
 
 @_router.post(
@@ -740,6 +813,7 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
     call = _parse_hook(adapter, await _read_json(request))
     identity = (request.headers.get(AGENT_NAME_HEADER), request.headers.get(AGENT_DIGEST_HEADER))
     _decided_by.set(None)
+    dogwood: Optional[DogwoodToolRules] = request.app.state.dogwood_tool_rules
     try:
         outcome = await _check_tool_call(
             request.app.state.engine,
@@ -749,6 +823,7 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
             request.app.state.quarantine,
             identity,
             request.app.state.cedar_tool_rules,
+            dogwood=None if dogwood is None else (dogwood, *_run_history(request, identity)),
         )
     except QuarantineStoreError as exc:
         return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
@@ -761,7 +836,18 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
         kind="tool_call",
         agent=identity,
         # The tool's input stays out of the record, as it stays out of the log: only the names of its arguments.
-        asked={"hook": agent, "tool_name": call.name, "argument_names": arguments, "call_id": call.call_id},
+        asked={
+            "hook": agent,
+            "tool_name": call.name,
+            "argument_names": arguments,
+            "call_id": call.call_id,
+            # A Dogwood policy that reads an input of earlier calls, in a sum or a match, needs its value: only those.
+            **(
+                {"inputs": dogwood.kept_inputs(call.name, call.arguments)}
+                if dogwood is not None and isinstance(call.arguments, dict)
+                else {}
+            ),
+        },
         outcome=outcome,
         # The rule or rail that decided; none for a call nothing denied.
         rule=_decided_by.get(),
@@ -771,6 +857,39 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
     if outcome.kind == "error":
         return _error_response(500, outcome.message or "", code=outcome.code)
     return JSONResponse(adapter.response_body(outcome))
+
+
+def _run_history(request: Request, identity: tuple[Optional[str], Optional[str]]) -> tuple[Optional[list[Event]], str]:
+    """The events of the run the request belongs to, from the decision record, and why there are none when they can't
+    be had. A run is its `x-nemo-run-id` under one agent name and digest; events older than 24 hours are not read."""
+    run_id = request.headers.get(RUN_ID_HEADER)
+    if not run_id:
+        return None, f"the request has no {RUN_ID_HEADER} header, so it belongs to no run"
+    record: DecisionRecord = request.app.state.decision_record
+    try:
+        entries = decision_record.read(record.path)
+    except DecisionRecordError as exc:
+        log.error("%s", exc)
+        return None, "the decision record, which holds the run's history, can't be read"
+    now = datetime.now(timezone.utc)
+    events: list[Event] = []
+    for entry in entries:
+        if (entry.get("run_id"), entry.get("agent_name"), entry.get("agent_digest")) != (run_id, *identity):
+            continue
+        asked = entry.get("asked") or {}
+        if entry.get("kind") == "tool_call":
+            kind = "request" if entry.get("outcome") == "allow" else "error"
+        elif entry.get("kind") == "tool_result":
+            kind = entry.get("outcome")
+        else:
+            continue
+        try:
+            at = datetime.fromisoformat(entry["at"])
+        except (KeyError, TypeError, ValueError):
+            return None, "the decision record has an entry without a time"
+        if now - at <= MAX_WINDOW and isinstance(asked.get("tool_name"), str):
+            events.append(Event(str(kind), tool_action(asked["tool_name"]), at, asked.get("inputs") or {}))
+    return events, ""
 
 
 async def _read_json(request: Request) -> object:
@@ -829,6 +948,7 @@ async def _check_tool_call(
     quarantine: Optional[QuarantineStore] = None,
     identity: tuple[Optional[str], Optional[str]] = (None, None),
     cedar: Optional[CedarToolRules] = None,
+    dogwood: Optional[tuple[DogwoodToolRules, Optional[list[Event]], str]] = None,
 ) -> HookOutcome:
     """Decide the hook's call with the tool policy, then run its tool's per-tool rails on it, and log the verdict.
 
@@ -846,16 +966,24 @@ async def _check_tool_call(
         outcome = HookOutcome.deny(f"tool call '{quoted_identity(call.name)}' has arguments that aren't a JSON object")
         _log_check(adapter, call, outcome, rail=None)
         return outcome
-    if cedar is not None:
-        # Cedar alone decides the call; its forbid's @outcome selects a stop or a quarantine.
-        kind, reason = cedar.decide(call.name, call.arguments, *identity)
+    if cedar is not None or dogwood is not None:
+        # Cedar or Dogwood alone decides the call; a forbid's @outcome selects a stop or a quarantine.
+        if dogwood is not None:
+            rules, history, unavailable = dogwood
+            now = datetime.now(timezone.utc)
+            kind, reason = rules.decide(call.name, call.arguments, *identity, history, now, unavailable)
+            rail = _DOGWOOD_POLICY
+        else:
+            assert cedar is not None
+            kind, reason = cedar.decide(call.name, call.arguments, *identity)
+            rail = _CEDAR_POLICY
         if kind != "allow":
             reason = reason or kind
             if kind == "quarantine":
                 outcome = _quarantine_by_rule(quarantine, identity, reason)
             else:
                 outcome = HookOutcome.stop(reason) if kind == "stop" else HookOutcome.deny(reason)
-            _log_check(adapter, call, outcome, rail=_CEDAR_POLICY)
+            _log_check(adapter, call, outcome, rail=rail)
             return outcome
         return await _run_per_tool_rails(engine, policy, adapter, call, quarantine, identity)
     # A quarantine, then a stop, are checked first: a call that ends the run is denied too, whatever else the policy

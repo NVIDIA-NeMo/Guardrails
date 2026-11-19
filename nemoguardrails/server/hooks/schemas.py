@@ -48,6 +48,19 @@ class ClaudeCodePreToolUseRequest(BaseModel):
     tool_use_id: str
 
 
+class ClaudeCodeToolResultRequest(BaseModel):
+    """Claude Code's `PostToolUse` or `PostToolUseFailure` hook input: a tool call that completed or failed."""
+
+    # Undeclared fields, `tool_response` and `error` among them, are kept as extras and never read or recorded.
+    model_config = ConfigDict(extra="allow")
+
+    # Claude Code PostToolUse input fields (https://code.claude.com/docs/en/hooks#posttooluse-input)
+    hook_event_name: Literal["PostToolUse", "PostToolUseFailure"]
+    tool_name: str = Field(min_length=1)
+    tool_input: Any = None
+    tool_use_id: Optional[str] = None
+
+
 class CodexPreToolUseRequest(BaseModel):
     """Codex's `PreToolUse` hook input, requiring only the fields the server reads."""
 

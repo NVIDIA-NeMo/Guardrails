@@ -483,6 +483,25 @@ class CedarRules(BaseModel):
     )
 
 
+class DogwoodRules(BaseModel):
+    """Tool-call rules written in Dogwood: Cedar policies whose `when temporal` block reads what already happened in
+    the run, as AgentCore Gateway's temporal policies do."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    policies: str = Field(
+        min_length=1,
+        description="A folder of `.dw` or `.dogwood` policy files, read with its subfolders in name order. Relative to "
+        "the config's folder.",
+    )
+    gateway: str = Field(
+        default="__GATEWAY_ARN__",
+        min_length=1,
+        description="The `AgentCore::Gateway` the policies name as their resource. The default is the placeholder "
+        "Agentform's Dogwood renderer writes when it is given no gateway ARN.",
+    )
+
+
 class AgentStartConfig(BaseModel):
     """The rules `nemoguardrails hooks-server` applies to an agent before it starts, on `/v1/hooks/agent-start`."""
 
@@ -613,6 +632,12 @@ class HooksServerConfig(BaseModel):
         description="Cedar policies that decide each tool call instead of the tool lists above. Set, no tool list and "
         "no `allow_unlisted_tools` may be set: a call is decided by Cedar alone. Needs the `cedar` extra.",
     )
+    dogwood: Optional[DogwoodRules] = Field(
+        default=None,
+        description="Dogwood policies that decide each tool call from the call and from what already happened in the "
+        "run. Set, no tool list, no `allow_unlisted_tools` and no `cedar` may be set: a call is decided by Dogwood "
+        "alone. Needs `decision_record`, which is where the run's history comes from, and the `cedar` extra.",
+    )
 
     @model_validator(mode="after")
     def check_tool_lists(self) -> "HooksServerConfig":
@@ -633,6 +658,21 @@ class HooksServerConfig(BaseModel):
                     f"hooks_server sets cedar and {yaml_rules[0]}; a tool call is decided by Cedar alone, so write "
                     "that rule as a Cedar policy, or remove cedar."
                 )
+        if self.dogwood is not None:
+            other_rules = sorted(
+                self.model_fields_set
+                & {"allowed_tools", "blocked_tools", "allow_unlisted_tools", "stop_tools", "quarantine_tools", "cedar"}
+            )
+            if other_rules:
+                raise InvalidRailsConfigurationError(
+                    f"hooks_server sets dogwood and {other_rules[0]}; a tool call is decided by Dogwood alone, so "
+                    "write that rule as a Dogwood policy, or remove dogwood."
+                )
+            if self.decision_record is None:
+                raise InvalidRailsConfigurationError(
+                    "hooks_server sets dogwood but no decision_record; a Dogwood rule reads the run's history from the "
+                    "decision record, so set decision_record."
+                )
         blocked_by_name = {entry for entry in self.blocked_tools if isinstance(entry, str)}
         contradicted = [
             _tool_entry_name(entry) for entry in self.allowed_tools if _tool_entry_name(entry) in blocked_by_name
@@ -649,7 +689,7 @@ class HooksServerConfig(BaseModel):
         """Whether the policy can deny a call: it blocks or stops something, denies unlisted tools, or limits a tool's
         arguments."""
         # Bare names in allowed_tools deny nothing while unlisted tools are allowed.
-        if self.cedar is not None:
+        if self.cedar is not None or self.dogwood is not None:
             return True
         if self.blocked_tools or self.stop_tools or self.quarantine_tools or not self.allow_unlisted_tools:
             return True

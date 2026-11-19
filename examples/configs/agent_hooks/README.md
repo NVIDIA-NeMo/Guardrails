@@ -14,9 +14,11 @@ There is one configuration for each agent:
 | `agent_start` | Whatever starts an agent, before the start | `/v1/hooks/agent-start` | None |
 | `stop` | A NeMo Relay plugin's tool guardrail, with rules that end the run | `/v1/hooks/nemo-relay` | NeMo Relay 0.11.0 for the stop mark |
 | `cedar` | Any agent path and agent starts, with rules written in Cedar | Every path | None; needs the `cedar` extra |
+| `dogwood` | Claude Code, with rules that read what already happened in the run, written in Dogwood | `/v1/hooks/claude-code` | None; needs the `cedar` extra |
 
 The `agent_start` configuration decides whether an agent may start, rather than a tool call; see [Check an Agent Before It Starts](./../../../docs/run-rails/using-hooks-server/agent-start.mdx).
 The `cedar` configuration says what `agent_start` and `stop` say, in Cedar policies instead of YAML lists; see [Write Hooks Server Rules in Cedar](./../../../docs/run-rails/using-hooks-server/cedar.mdx).
+The `dogwood` configuration caps how often a tool runs in a run, and allows a call only after another completed; see [Write Rules over a Run's History in Dogwood](./../../../docs/run-rails/using-hooks-server/dogwood.mdx).
 Each tool-call `config.yml` has `models: []`, a `hooks_server` section that lists the agent's tools with `allow_unlisted_tools: false`, and regular-expression rails under `rails.tool_call.per_tool`.
 None calls a model, so none needs an API key.
 The patterns illustrate a policy structure and do not provide complete protection.

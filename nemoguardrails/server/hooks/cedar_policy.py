@@ -72,6 +72,8 @@ class CedarDecision:
     # "deny", "stop" or "quarantine": the strongest `@outcome` among the matching `forbid` policies.
     outcome: str = "deny"
     failed: tuple[str, ...] = ()
+    # The policy language the reason names: "Cedar", or "Dogwood" for policies that read the run's history.
+    language: str = "Cedar"
 
     def reason(self, subject: str) -> Optional[str]:
         """Why *subject* is denied, naming the deciding policies; None when it is allowed."""
@@ -79,12 +81,12 @@ class CedarDecision:
             return None
         if self.failed:
             labels = ", ".join(f"'{label}'" for label in self.failed)
-            return f"{subject} is denied: Cedar policy {labels} failed to evaluate"
+            return f"{subject} is denied: {self.language} policy {labels} failed to evaluate"
         if self.denied_by:
             labels = ", ".join(f"'{label}'" for label in self.denied_by)
             verb = {"stop": "stopped", "quarantine": "quarantined"}.get(self.outcome, "denied")
-            return f"{subject} is {verb} by Cedar policy {labels}"
-        return f"no Cedar policy permits {subject}"
+            return f"{subject} is {verb} by {self.language} policy {labels}"
+        return f"no {self.language} policy permits {subject}"
 
 
 @dataclass(frozen=True)
@@ -94,29 +96,43 @@ class CedarPolicySet:
     text: str
     labels: Mapping[str, str]
     outcomes: Mapping[str, str]
+    language: str = "Cedar"
 
     @classmethod
     def load(cls, folder: Path, schema: Optional[Path], *, section: str, outcomes_allowed: bool) -> "CedarPolicySet":
         """Read and check every `.cedar` file under *folder*; raise `CedarPolicyError` naming what is wrong."""
-        cedarpy = _cedarpy()
+        _cedarpy()
         if not folder.is_dir():
             raise CedarPolicyError(f"{section}.cedar.policies names '{folder}', which is not a folder")
         files = sorted(path for path in folder.rglob("*.cedar") if path.is_file())
         if not files:
             raise CedarPolicyError(f"{section}.cedar.policies names '{folder}', which has no .cedar file")
+        named = [(path.relative_to(folder).as_posix(), path.read_text(encoding="utf-8")) for path in files]
+        return cls.parse(named, schema, section=f"{section}.cedar", outcomes_allowed=outcomes_allowed)
+
+    @classmethod
+    def parse(
+        cls,
+        named_texts: Sequence[tuple[str, str]],
+        schema: Optional[Path],
+        *,
+        section: str,
+        outcomes_allowed: bool,
+        language: str = "Cedar",
+    ) -> "CedarPolicySet":
+        """Parse and check each `(file name, Cedar text)`; raise `CedarPolicyError` naming what is wrong."""
+        cedarpy = _cedarpy()
         texts: list[str] = []
         labels: dict[str, str] = {}
         outcomes: dict[str, str] = {}
-        for path in files:
-            text = path.read_text(encoding="utf-8")
-            name = path.relative_to(folder).as_posix()
+        for name, text in named_texts:
             try:
                 parsed = json.loads(cedarpy.policies_to_json_str(text))
             except ValueError as exc:
-                raise CedarPolicyError(f"{section}.cedar: '{name}' doesn't parse as Cedar: {exc}") from None
+                raise CedarPolicyError(f"{section}: '{name}' doesn't parse as Cedar: {exc}") from None
             if parsed.get("templates"):
                 raise CedarPolicyError(
-                    f"{section}.cedar: '{name}' has a template; the hooks server reads static policies only"
+                    f"{section}: '{name}' has a template; the hooks server reads static policies only"
                 )
             # Cedar numbers the policies of the joined text in order, so file order fixes each policy's id.
             for position, policy in enumerate(_in_order(parsed.get("staticPolicies", {}))):
@@ -126,7 +142,7 @@ class CedarPolicySet:
                 outcome = annotations.get(OUTCOME_ANNOTATION)
                 if outcome is None:
                     continue
-                where = f"{section}.cedar: policy '{labels[cedar_id]}' in '{name}'"
+                where = f"{section}: policy '{labels[cedar_id]}' in '{name}'"
                 if not outcomes_allowed:
                     raise CedarPolicyError(
                         f"{where} has @{OUTCOME_ANNOTATION}, which only a tool call's policy can have"
@@ -142,12 +158,12 @@ class CedarPolicySet:
         joined = "\n".join(texts)
         if schema is not None:
             if not schema.is_file():
-                raise CedarPolicyError(f"{section}.cedar.schema names '{schema}', which is not a file")
+                raise CedarPolicyError(f"{section}.schema names '{schema}', which is not a file")
             result = cedarpy.validate_policies(joined, schema.read_text(encoding="utf-8"))
             if not result.validation_passed:
                 errors = "; ".join(str(error) for error in result.errors)
-                raise CedarPolicyError(f"{section}.cedar: the policies fail the check against the schema: {errors}")
-        return cls(text=joined, labels=labels, outcomes=outcomes)
+                raise CedarPolicyError(f"{section}: the policies fail the check against the schema: {errors}")
+        return cls(text=joined, labels=labels, outcomes=outcomes, language=language)
 
     @property
     def quarantines(self) -> bool:
@@ -161,11 +177,13 @@ class CedarPolicySet:
         resource: Mapping[str, Any],
         context: Mapping[str, Any],
         entities: Sequence[Mapping[str, Any]],
+        *,
+        action_type: str = f"{NAMESPACE}::Action",
     ) -> CedarDecision:
         """Ask Cedar about one request; an engine error or a policy that fails to evaluate denies it."""
         request = {
             "principal": principal,
-            "action": {"type": f"{NAMESPACE}::Action", "id": action},
+            "action": {"type": action_type, "id": action},
             "resource": resource,
             "context": dict(context),
         }
@@ -176,18 +194,21 @@ class CedarPolicySet:
             errors = [str(error) for error in result.diagnostics.errors]
         except Exception as exc:  # Whatever the engine raises, the request is denied, never allowed.
             log.warning("Cedar couldn't decide a %s request: %s", action, type(exc).__name__)
-            return CedarDecision(allowed=False, failed=("the engine",))
+            return CedarDecision(allowed=False, failed=("the engine",), language=self.language)
         if errors:
             # The error names the policy and the attribute, never a request's values.
             log.warning("A Cedar policy failed to evaluate on a %s request: %s", action, "; ".join(errors))
             failed = tuple(label for cedar_id, label in self.labels.items() if f"`{cedar_id}`" in " ".join(errors))
-            return CedarDecision(allowed=False, failed=failed or ("unknown",))
+            return CedarDecision(allowed=False, failed=failed or ("unknown",), language=self.language)
         if decision == "Allow":
             return CedarDecision(allowed=True)
         selected = {self.outcomes.get(reason) for reason in reasons}
         outcome = "quarantine" if "quarantine" in selected else "stop" if "stop" in selected else "deny"
         return CedarDecision(
-            allowed=False, denied_by=tuple(self.labels.get(reason, reason) for reason in reasons), outcome=outcome
+            allowed=False,
+            denied_by=tuple(self.labels.get(reason, reason) for reason in reasons),
+            outcome=outcome,
+            language=self.language,
         )
 
 

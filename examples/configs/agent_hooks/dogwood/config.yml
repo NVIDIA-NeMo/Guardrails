@@ -1,0 +1,22 @@
+# Decides tool calls from what already happened in the run, with Dogwood (temporal) policies, with
+# `nemoguardrails hooks-server`:
+#
+#   pip install "nemoguardrails[server,cedar]"
+#   nemoguardrails hooks-server --config examples/configs/agent_hooks/dogwood
+#
+# The policies use AgentCore Gateway's vocabulary, so a policy written for AgentCore, or rendered by Agentform's
+# Dogwood renderer, loads unchanged. Each call must carry `x-nemo-run-id`: the run is the session whose history the
+# policies read. The history comes from the decision record, so `decision_record` is required. A check that names
+# Dogwood is decided by Dogwood alone, and nothing is allowed unless a policy permits it. No model is called.
+
+models: []
+
+hooks_server:
+  # The run's history: every decision, and each PostToolUse and PostToolUseFailure Claude Code reports. Relative to
+  # the directory the server runs in.
+  decision_record: decisions.jsonl
+  dogwood:
+    # Relative to this folder.
+    policies: policies
+    # The resource the policies name. This is the placeholder Agentform's renderer writes without a gateway ARN.
+    gateway: __GATEWAY_ARN__

@@ -928,7 +928,7 @@ class TestExampleConfig:
         """Each agent path has an example config of its own, `/v1/hooks/agent-start`, stop, Cedar and the decision record have one, and there's no other."""
         examples = sorted(path.name for path in EXAMPLE_CONFIGS_PATH.iterdir() if path.is_dir())
 
-        assert examples == sorted([*EXAMPLE_CONFIGS.values(), "agent_start", "cedar", "decisions", "stop"])
+        assert examples == sorted([*EXAMPLE_CONFIGS.values(), "agent_start", "cedar", "decisions", "dogwood", "stop"])
 
     @pytest.mark.parametrize("agent", AGENTS)
     def test_example_config_starts_without_warnings(self, caplog, agent):

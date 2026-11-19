@@ -1,0 +1,98 @@
+---
+title: "Write Rules over a Run's History in Dogwood"
+sidebar-title: "Rules over a Run's History"
+description: "Decide a tool call from what already happened in the same run with Dogwood temporal policies, in the vocabulary of AgentCore Gateway: which forms the hooks server evaluates, where the history comes from, and what it refuses."
+keywords: ["dogwood", "temporal", "formerly within", "count", "sum", "since", "hooks_server.dogwood", "AgentCore", "x-nemo-run-id"]
+content:
+  type: "reference"
+---
+
+A YAML or Cedar rule decides a tool call from the call alone.
+Some rules depend on what already happened in the run: at most three deploys in five minutes, no deletion after a payment was requested, a restart only after a status lookup completed.
+[Dogwood](https://github.com/dogwood-policy/dogwood) writes such rules as Cedar policies with a `when temporal { ... }` block, and Amazon Bedrock AgentCore Gateway evaluates them as temporal policies.
+The hooks server evaluates the same policy text itself, so a rule written for AgentCore also decides calls that never pass through a gateway.
+
+## Configure
+
+```yaml
+hooks_server:
+  decision_record: decisions.jsonl
+  dogwood:
+    policies: policies                # a folder of .dw or .dogwood files, relative to the config's folder
+    gateway: __GATEWAY_ARN__          # the AgentCore::Gateway the policies name as their resource
+```
+
+Dogwood needs the `cedar` extra: `pip install "nemoguardrails[server,cedar]"`.
+A call is decided by Dogwood alone: no tool list, `allow_unlisted_tools` or `cedar` may be set beside it.
+`decision_record` is required, because the run's history is read from it.
+The [Dogwood example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/dogwood) caps deploys and requires a status lookup before a restart.
+
+## The Vocabulary
+
+Policies use AgentCore Gateway's names, so they load unchanged:
+
+| In a policy | What the server supplies |
+|---|---|
+| `AgentCore::Action::"<target>___<tool>"` | The hook's tool name. A Claude Code MCP tool `mcp__ops__deploy` is `ops___deploy`; any other name, such as `Bash`, is used as it is. |
+| `AgentCore::Gateway::"<id>"` | `hooks_server.dogwood.gateway`. Its default is `__GATEWAY_ARN__`, which Agentform's Dogwood renderer writes when it is given no gateway. |
+| `principal` | `Hooks::Agent::"<name>"`, from the `X-NeMo-Agent-Name` header. |
+| `context.input.<name>` | The call's arguments. |
+
+`@id` names a policy in a deny reason, and `@outcome("stop")` or `@outcome("quarantine")` on a `forbid` ends the run or quarantines the agent, as with [Cedar rules](./cedar.mdx).
+
+## The Run's History
+
+A run is the `X-NeMo-Run-Id` header under one agent name and digest: another agent with the same run id has a history of its own.
+Its events come from the decision record:
+
+| Event | Recorded when |
+|---|---|
+| `::request` | A call is allowed. The call being decided counts as one, as AgentCore counts it. |
+| `::response` | Claude Code sends `PostToolUse` for the call on `/v1/hooks/claude-code`. |
+| `::error` | A call is denied, stopped or quarantined, or Claude Code sends `PostToolUseFailure`. |
+
+A configuration with Dogwood records `PostToolUse` and `PostToolUseFailure` and answers them with no decision; without Dogwood the path refuses them as before.
+The record keeps a call's argument names and, for the inputs a Dogwood policy reads from earlier events, such as `input.amountCents`, their values. No other argument value, and nothing of a tool's output, is recorded.
+Events older than 24 hours are not read.
+
+When there is no history to read, the call is denied, never allowed:
+
+- A call without `X-NeMo-Run-Id` belongs to no run and is denied.
+- A decision record that can't be read denies the call.
+- A configuration with `dogwood` and no `decision_record` is refused at start.
+
+## The Forms the Server Evaluates
+
+A policy is a `permit` or `forbid` with a Cedar scope, optional `when` and `unless` conditions, and one `when temporal { ... }` block of at most three of these conditions, joined with `&&`:
+
+| Form | Holds when |
+|---|---|
+| `formerly within W P` | An event matching `P` happened within the last `W`. |
+| `!P since within W Q` | An event matching `Q` happened within `W`, and none matching `P` since. |
+| `exists (n: Long). (count for (t: Timepoint). where (formerly within W (P && tp(t)))) == n && n > N` | The number of events matching `P` within `W` compares with `N` as written (`==`, `!=`, `>`, `>=`, `<`, `<=`). |
+| `exists (s: Long). (sum v for (v: Long), (t: Timepoint). where (formerly within W (P && tp(t)))) == s && s > N` | The total of the input `P` binds to `v`, over the events within `W`, compares with `N`. |
+
+An event pattern `P` is `AgentCore::Action::"<action>"::request`, `::response` or `::error`, with `{ eventResource: resource }` and any number of `input.<name>: <value>` fields. A value is `context.input.<name>` of the current call, a string, a whole number, `true` or `false`, or the name a `sum` binds.
+A window `W` is a whole number of seconds, minutes or hours, such as `90s`, `15m` or `2h`, up to 24 hours.
+
+The server computes each temporal block from the history and Cedar decides the rest, so deny by default, `forbid` over `permit`, and a policy that fails to evaluate denying all hold as with Cedar rules.
+
+## What Is Not Supported
+
+A policy that uses any of these stops the server at start:
+
+- `output.<name>` fields: the server never sees a tool's output.
+- `eventPrincipal`, `||` or other nesting inside the temporal block, and a negated `formerly`.
+- A window longer than 24 hours, or more than three conditions in one block.
+
+And these behave differently from AgentCore:
+
+- Only Claude Code reports `::response` events. On `/v1/hooks/codex` and `/v1/hooks/nemo-relay`, a `permit` that needs a response denies, and a `forbid` that reads one never matches. The server logs a warning when it loads such a `forbid`.
+- A `::response` shows that the call completed, not what it returned or that its result was checked.
+- A limit applies within one run: a caller that sends a new run id starts a new count.
+- The policies are read at start. Changing them doesn't end the runs already recorded, as AgentCore's 409 does; restart with a new record to start over.
+
+## Load Agentform's Dogwood Output
+
+Copy `renders/dogwood/policies.dogwood` into the `policies` folder, and set `gateway` to the ARN the render used, or keep the default when the render wrote `__GATEWAY_ARN__`.
+Add a plain `permit` for each tool the rendered policies need allowed, such as each prerequisite, in a `.dw` file beside it: Agentform renders plain permits to its Cedar output, and here Dogwood decides alone.
