@@ -46,8 +46,7 @@ At each point that requires a policy decision, send the relevant prompt, model r
 Use the result to handle blocked or modified content before you execute a tool, return a response, or pass a tool result to the model.
 
 Use [`check_async()`](./docs/run-rails/using-python-apis/check-messages.mdx) in Python, `POST /v1/checks` on the Guardrails server, or the [hooks server](./docs/run-rails/using-hooks-server/index.mdx) for coding agents.
-For tool checks with `check_async()`, use the IORails engine and specify `RailType.TOOL_CALL` or `RailType.TOOL_RESULT` in `rail_types`.
-Check tool calls before execution and tool results before returning them to the model.
+Check tool calls before execution and tool results before returning them to the model. Refer to [tool calling](./docs/configure-rails/guardrail-catalog/tool-calling.mdx) for setup and examples.
 Your application handles check failures and enforces the result; support for modified content depends on the engine and integration.
 
 ### Generate Responses with Guardrails
@@ -60,9 +59,7 @@ Blocked content produces a refusal or an error, depending on the integration and
 Use `generate_async()` or `stream_async()` in Python, or `POST /v1/chat/completions` on the Guardrails server.
 Your application executes tools; supported integrations can check tool calls in model responses and tool results in subsequent requests.
 
-When output streaming is enabled for `stream_async()`, the default `stream_first: true` setting delivers chunks before checking them.
-To check buffered output before delivery, set `rails.output.streaming.stream_first: false`.
-For configuration details, refer to [output rail streaming](./docs/configure-rails/yaml-schema/streaming/output-rail-streaming.mdx).
+With output streaming enabled, `stream_async()` releases chunks before checking them by default. Configure [output buffering](./docs/configure-rails/yaml-schema/streaming/output-rail-streaming.mdx) to check output before delivery.
 
 ### Apply Guardrails to Existing Model APIs
 
