@@ -106,6 +106,15 @@ def validate_build(repository, version, run_id):
     artifact = matching[0]
     if artifact["expired"]:
         raise ArtifactUnavailable("Build artifact has expired; select a new successful build.")
+    latest_run = api(repository, f"actions/runs/{run_id}")
+    require(
+        latest_run["run_attempt"] == run["run_attempt"],
+        "Build was rerun during validation; start validation again.",
+    )
+    require(
+        latest_run["status"] == "completed" and latest_run["conclusion"] == "success",
+        "Build is no longer successful; start validation again.",
+    )
     return {"artifact_id": str(artifact["id"]), "sha": sha, "tag": f"v{version}"}
 
 

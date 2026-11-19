@@ -284,6 +284,36 @@ def test_rejects_invalid_latest_job_execution(responses, problem):
         release.validate_build(REPOSITORY, VERSION, RUN_ID)
 
 
+@pytest.mark.parametrize(
+    "attempt,status,conclusion",
+    [
+        (3, "in_progress", None),
+        (3, "completed", "success"),
+        (2, "in_progress", None),
+        (2, "completed", "failure"),
+    ],
+)
+def test_rejects_run_changes_after_artifact_selection(responses, monkeypatch, attempt, status, conclusion):
+    original_api = release.api
+    artifact_selected = False
+    run_reads = []
+
+    def api(repository, endpoint, *, paginate=False):
+        nonlocal artifact_selected
+        if endpoint == f"actions/runs/{RUN_ID}":
+            run_reads.append(artifact_selected)
+        payload = deepcopy(original_api(repository, endpoint, paginate=paginate))
+        if endpoint == f"actions/runs/{RUN_ID}/artifacts?per_page=100":
+            artifact_selected = True
+            responses[f"actions/runs/{RUN_ID}"].update(run_attempt=attempt, status=status, conclusion=conclusion)
+        return payload
+
+    monkeypatch.setattr(release, "api", api)
+    with pytest.raises(ValueError, match="start validation again"):
+        release.validate_build(REPOSITORY, VERSION, RUN_ID)
+    assert run_reads == [False, True]
+
+
 @pytest.mark.parametrize("problem", ["expired", "missing", "duplicate", "wrong-name"])
 def test_rejects_unavailable_or_ambiguous_artifacts(responses, problem):
     artifacts = responses[f"actions/runs/{RUN_ID}/artifacts?per_page=100"][1]["artifacts"]
