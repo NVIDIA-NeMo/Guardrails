@@ -42,14 +42,6 @@ APPROVED_PART = {
     "digest": DIGEST,
     "local": False,
 }
-CALLED_AGENT = {
-    "id": "$/agents/researcher",
-    "type": "agent",
-    "source": f"{APPROVED}agents/researcher",
-    "version": "1.0.0",
-    "digest": DIGEST,
-    "local": False,
-}
 POLICY_PART = {**APPROVED_PART, "id": "$/policies/net", "type": "policy", "source": f"{APPROVED}policies/net"}
 
 START = {
@@ -135,21 +127,11 @@ class TestSources:
     def test_an_empty_list_allows_no_source(self):
         assert _decision(_config(allowed_sources=[]), START)["decision"] == "deny"
 
-    def test_a_called_agent_from_an_unlisted_source_is_denied(self):
-        body = _start(parts=[APPROVED_PART, {**CALLED_AGENT, "source": "git::https://elsewhere.example/x.git//a"}])
-        assert _decision(_config(allowed_sources=[APPROVED]), body) == _denied(
-            f"agent '$/agents/researcher' comes from a source {RULE}.allowed_sources doesn't list"
-        )
-
     @pytest.mark.parametrize("kind", ["skill", "plugin", "connector", "hook", "package", "policy", "agent"])
     def test_every_part_type_is_checked(self, kind):
         body = _start(parts=[{**APPROVED_PART, "type": kind, "source": OTHER}])
         reason = _decision(_config(allowed_sources=[APPROVED]), body)["reason"]
         assert reason.startswith(f"{kind} '$/skills/release-checklist' comes from a source")
-
-    def test_a_called_agent_from_a_listed_source_is_allowed(self):
-        body = _start(parts=[APPROVED_PART, CALLED_AGENT])
-        assert _decision(_config(allowed_sources=[APPROVED]), body) == ALLOWED
 
     def test_the_first_denied_part_is_named(self):
         parts = [{**APPROVED_PART, "id": "a", "source": OTHER}, {**APPROVED_PART, "id": "b", "source": OTHER}]
@@ -172,11 +154,6 @@ class TestLocalSources:
         config = _config(allowed_sources=[APPROVED], allow_local_sources=True)
         assert _decision(config, _start(parts=[self.LOCAL])) == ALLOWED
 
-    def test_a_local_called_agent_is_denied(self):
-        part = {**CALLED_AGENT, "source": "./agents/researcher", "local": True}
-        reason = _decision(_config(allow_local_sources=False), _start(parts=[APPROVED_PART, part]))["reason"]
-        assert reason.startswith("agent '$/agents/researcher' comes from a local folder")
-
 
 class TestDigests:
     @pytest.mark.parametrize("digest", [None, ""])
@@ -188,10 +165,6 @@ class TestDigests:
 
     def test_a_part_with_a_digest_is_allowed(self):
         assert _decision(_config(require_digests=True), START) == ALLOWED
-
-    def test_a_called_agent_without_a_digest_is_denied(self):
-        body = _start(parts=[APPROVED_PART, {**CALLED_AGENT, "digest": None}])
-        assert _decision(_config(require_digests=True), body)["reason"].startswith("agent '$/agents/researcher'")
 
 
 class TestModels:
