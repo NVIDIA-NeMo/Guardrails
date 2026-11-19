@@ -1,0 +1,16 @@
+# Records every decision and checks each model call during a run, with `nemoguardrails hooks-server`:
+#
+#   nemoguardrails hooks-server --config examples/configs/agent_hooks/decisions
+#   nemoguardrails hooks-record check decisions.jsonl
+#
+# The record is relative to the folder the server runs in. No model is called.
+
+models: []
+
+hooks_server:
+  decision_record: decisions.jsonl
+  agent_start:
+    # The models an agent may start with, and call during its run (/v1/hooks/model-call).
+    allowed_models:
+      - bedrock::nvidia.nemotron-super-3-120b
+  stop_tools: [delete_index]

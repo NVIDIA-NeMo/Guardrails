@@ -25,6 +25,10 @@
 //! `relay-plugin.toml` names. The plugin registers one tool conditional-execution guardrail,
 //! which posts each tool call to the service: a deny rejects the call, and a check that fails
 //! returns an error, on which Relay also blocks the call.
+//!
+//! A stop rejects the call as a deny does, and emits the mark [`STOP_MARK`] on Relay's event
+//! stream, which Relay's subscribers and exporters receive. Relay's guardrail interface has no
+//! result that ends a run, so the plugin cannot end it: whatever owns the run must act on the mark.
 
 pub mod client;
 pub mod config;
@@ -50,6 +54,12 @@ pub const GUARDRAIL_NAME: &str = "nemo_guardrails_tool_call_check";
 
 /// `event` field of the warning that a failed check logs.
 pub const CHECK_FAILED_EVENT: &str = "nemo_guardrails_check_failed";
+
+/// Name of the mark the plugin emits when the service stops a run.
+pub const STOP_MARK: &str = "nemo_guardrails.stop";
+
+/// Name of the mark the plugin emits when the service quarantines the agent of a run.
+pub const QUARANTINE_MARK: &str = "nemo_guardrails.quarantine";
 
 /// The NVIDIA NeMo Guardrails plugin: Relay's client of the NeMo Guardrails service.
 #[derive(Debug, Default)]
@@ -115,7 +125,24 @@ impl ToolCallCheck {
             .check_tool_call(tool_name, tool_input)
             .await
             .map_err(|failure| self.report_failure(tool_name, &failure))?;
+        match &verdict {
+            Verdict::Stop { reason } => self.report_stop(STOP_MARK, tool_name, reason.as_deref()),
+            Verdict::Quarantine { reason } => {
+                self.report_stop(QUARANTINE_MARK, tool_name, reason.as_deref())
+            }
+            Verdict::Allow | Verdict::Deny { .. } => {}
+        }
         Ok(rejection(tool_name, &verdict))
+    }
+
+    /// Emits the stop mark, and logs a warning when the host can't take it. The call is
+    /// rejected either way.
+    fn report_stop(&self, mark: &str, tool_name: &str, reason: Option<&str>) {
+        let data = json!({"tool_name": tool_name, "reason": reason});
+        if let Err(error) = self.runtime.emit_mark(mark, Some(&data), None) {
+            let message = format!("NeMo Guardrails could not emit its stop mark: {error}");
+            let _ = self.runtime.warn(PLUGIN_KIND, &message, Some(&data));
+        }
     }
 
     /// Logs a warning for the failed check and returns the guardrail's error for it.
@@ -148,6 +175,22 @@ fn rejection(tool_name: &str, verdict: &Verdict) -> Option<String> {
         Verdict::Deny { reason: None } => {
             Some(format!("NeMo Guardrails blocked tool call '{tool_name}'"))
         }
+        Verdict::Stop {
+            reason: Some(reason),
+        } => Some(format!(
+            "NeMo Guardrails stopped the run at tool call '{tool_name}': {reason}"
+        )),
+        Verdict::Stop { reason: None } => Some(format!(
+            "NeMo Guardrails stopped the run at tool call '{tool_name}'"
+        )),
+        Verdict::Quarantine {
+            reason: Some(reason),
+        } => Some(format!(
+            "NeMo Guardrails quarantined the agent at tool call '{tool_name}': {reason}"
+        )),
+        Verdict::Quarantine { reason: None } => Some(format!(
+            "NeMo Guardrails quarantined the agent at tool call '{tool_name}'"
+        )),
     }
 }
 

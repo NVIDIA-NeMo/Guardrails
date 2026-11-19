@@ -74,6 +74,13 @@ def test_export_is_fresh_and_routes_are_complete(exported):
         "/v1/hooks/claude-code",
         "/v1/hooks/codex",
         "/v1/hooks/nemo-relay",
+        "/v1/hooks/agent-start",
+        "/v1/quarantines",
+        "/v1/quarantines/release",
+        "/v1/runs/{run_id}",
+        "/v1/hooks/model-call",
+        "/v1/decisions",
+        "/v1/decisions/check",
         "/v1/health",
         "/healthz",
     }
@@ -170,3 +177,28 @@ def test_documented_examples_match_example_config(agent, folder):
         for name in ("allow", "deny"):
             response = client.post(f"/v1/hooks/{agent}", json=requests[name]["value"])
             assert (response.status_code, response.json()) == (200, responses[name]["value"])
+
+
+def test_generated_agent_start_schema_describes_real_requests_and_responses(exported):
+    from tests.server.test_hooks_agent_start import APPROVED_PART, START, _start
+
+    _, spec = exported
+    operation = spec["paths"]["/v1/hooks/agent-start"]["post"]
+    request_schema = operation["requestBody"]["content"]["application/json"]["schema"]
+    decision_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    config = RailsConfig.from_content(
+        config={"models": [], "hooks_server": {"agent_start": {"allow_local_sources": False}}}
+    )
+    with TestClient(create_hooks_app(config)) as client:
+        for body in (START, _start(parts=[{**APPROVED_PART, "local": True}])):
+            validate(spec, request_schema, body)
+            response = client.post("/v1/hooks/agent-start", json=body)
+            assert response.status_code == 200
+            validate(spec, decision_schema, response.json())
+        invalid = client.post("/v1/hooks/agent-start", json={})
+        assert invalid.status_code == 422
+        validate(spec, operation["responses"]["422"]["content"]["application/json"]["schema"], invalid.json())
+        not_configured = client.post("/v1/hooks/codex", json=_hook("codex", "Bash", {"command": "ls"}))
+        assert not_configured.status_code == 404
+    tool_operation = spec["paths"]["/v1/hooks/codex"]["post"]
+    validate(spec, tool_operation["responses"]["404"]["content"]["application/json"]["schema"], not_configured.json())

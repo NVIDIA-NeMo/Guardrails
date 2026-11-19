@@ -40,10 +40,13 @@ def _entries(tool_list: Iterable[Union[str, ToolEntry]]) -> Mapping[str, ToolArg
 
 @dataclass(frozen=True)
 class ToolPolicy:
-    """`hooks_server.allowed_tools`, `blocked_tools` and `allow_unlisted_tools`, read once when the server starts."""
+    """`hooks_server.allowed_tools`, `blocked_tools`, `allow_unlisted_tools` and `stop_tools`, read once when the
+    server starts."""
 
     allowed: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
     blocked: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
+    stopping: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
+    quarantining: Mapping[str, ToolArguments] = field(default_factory=lambda: MappingProxyType({}))
     # A tool is unlisted when `allowed_tools` doesn't name it, whatever `blocked_tools` says about its arguments.
     allow_unlisted: bool = True
 
@@ -54,7 +57,17 @@ class ToolPolicy:
             allowed=_entries(hooks_server.allowed_tools),
             blocked=_entries(hooks_server.blocked_tools),
             allow_unlisted=hooks_server.allow_unlisted_tools,
+            stopping=_entries(hooks_server.stop_tools),
+            quarantining=_entries(hooks_server.quarantine_tools),
         )
+
+    def stops(self, name: str, arguments: Mapping[str, Any]) -> Optional[str]:
+        """Why a call to *name* with *arguments* ends the run, or None when `stop_tools` doesn't stop it."""
+        return _selects(self.stopping, name, arguments, "a stop tool", "stops the run")
+
+    def quarantines(self, name: str, arguments: Mapping[str, Any]) -> Optional[str]:
+        """Why a call to *name* with *arguments* quarantines the agent, or None when `quarantine_tools` doesn't."""
+        return _selects(self.quarantining, name, arguments, "a quarantine tool", "quarantines the agent")
 
     def blocked_by_name(self, name: str) -> bool:
         """Whether `blocked_tools` names *name* bare, which blocks every call to it."""
@@ -90,3 +103,19 @@ class ToolPolicy:
         # A count, not the names: the agent chose them, so they can carry data.
         noun = "argument" if len(unlisted) == 1 else "arguments"
         return f"tool call '{quoted_identity(name)}' passes {len(unlisted)} {noun} its allowed_tools entry doesn't list"
+
+
+def _selects(
+    entries: Mapping[str, ToolArguments], name: str, arguments: Mapping[str, Any], tool_noun: str, effect: str
+) -> Optional[str]:
+    """Why *entries* select a call to *name* with *arguments*: by the tool's name, or by an argument it passes."""
+    if name not in entries:
+        return None
+    listed = entries[name]
+    if listed is None:
+        return f"tool call '{quoted_identity(name)}' is {tool_noun}"
+    passed = next((argument for argument in listed if argument in arguments), None)
+    if passed is None:
+        return None
+    # The argument's name comes from the config, so the reason can state it.
+    return f"tool call '{quoted_identity(name)}' passes argument '{passed}', which {effect}"

@@ -25,6 +25,7 @@ import yaml
 from pydantic import ValidationError
 
 from nemoguardrails import RailsConfig, __version__
+from nemoguardrails.cli import hooks_record
 from nemoguardrails.cli.chat import run_chat
 from nemoguardrails.cli.migration import migrate
 from nemoguardrails.cli.providers import _list_providers, select_provider_with_type
@@ -44,6 +45,8 @@ _COLANG_VERSIONS = [version.value for version in ColangVersions]
 app = typer.Typer()
 
 app.add_typer(eval_cli.app, name="eval", short_help="Evaluation a guardrail configuration.")
+app.add_typer(hooks_record.app, name="hooks-record", short_help="Show or check the hooks server's decision record.")
+app.command("hooks-decide")(hooks_record.decide)
 app.pretty_exceptions_enable = False
 
 logging.getLogger().setLevel(logging.WARNING)
