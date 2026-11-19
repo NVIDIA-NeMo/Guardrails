@@ -10,6 +10,7 @@
 !/tests/**/*.egg
 /*.egg-info
 /dist/*
+/readme-preview/
 node_modules/
 build
 _build
