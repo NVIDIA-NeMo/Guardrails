@@ -69,7 +69,7 @@ It preserves supported provider formats; model generation remains with the upstr
 
 The gateway supports selected OpenAI Chat Completions and Responses formats. See [provider coverage and streaming requirements](./docs/run-rails/using-gateway/providers-and-streaming.mdx) for supported payloads and limitations.
 
-These approaches can be combined: for example, use the gateway for model input and output checks and call tool checks from your application before execution.
+These approaches can be used within the same application. Choose the integration for each interaction based on its supported content and enforcement requirements.
 
 Latency depends on the configured rules, models, and services.
 Rail support varies by engine and integration.
