@@ -1,128 +1,155 @@
 name: Publish to PyPI (with Approval)
 
 on:
-  # zizmor: ignore[dangerous-triggers] -- workflow_run fires only after the
-  # trusted "Build and Test Distribution" workflow succeeds; the head_branch is
-  # validated against a strict vX.Y.Z regex before any checkout, and checkout
-  # uses that validated tag, not attacker-controlled head code.
-  workflow_run:
-    workflows: ["Build and Test Distribution"]
-    types:
-      - completed
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (X.Y.Z, without v)"
+        required: true
+        type: string
+      build_run_id:
+        description: "Optional build run ID override; otherwise select automatically"
+        required: false
+        type: string
+      validate_only:
+        description: "Validate artifacts only; do not publish or create a release"
+        required: true
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: pypi-${{ inputs.version }}
+  cancel-in-progress: false
 
 jobs:
+  validate:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run_id: ${{ steps.build.outputs.run_id }}
+      artifact_id: ${{ steps.build.outputs.artifact_id }}
+      sha: ${{ steps.build.outputs.sha }}
+      tag: ${{ steps.build.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Validate build provenance
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+        run: python .github/scripts/validate_pypi_release.py build
+
+      - name: Download selected distributions
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ steps.build.outputs.artifact_id }}
+          path: dist
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.build.outputs.run_id }}
+
+      - name: Validate distribution metadata
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: python .github/scripts/validate_pypi_release.py distributions
+
+      - name: Summarize requested operation
+        env:
+          VALIDATE_ONLY: ${{ inputs.validate_only }}
+        run: |
+          if [ "$VALIDATE_ONLY" = "true" ]; then
+            echo "Validation only: PyPI upload and GitHub release creation are skipped." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Live publication requested: review the selected build before approving pypi-production." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   publish-pypi:
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: validate
+    if: ${{ !inputs.validate_only }}
     runs-on: ubuntu-latest
     environment:
       name: pypi-production
       url: https://pypi.org/project/nemoguardrails/
     permissions:
-      contents: write
+      actions: read
+      contents: read
       id-token: write
-
     steps:
-      - name: Detect version tag from workflow event
-        id: version
-        env:
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-        run: |
-          echo "Workflow triggered by: $HEAD_BRANCH"
-
-          if [[ "$HEAD_BRANCH" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            TAG_NAME="$HEAD_BRANCH"
-            VERSION="${TAG_NAME#v}"
-
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-            echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
-            echo "artifact_name=${TAG_NAME}-build" >> $GITHUB_OUTPUT
-
-            echo "✅ Detected version tag: $TAG_NAME"
-            echo "   Version: $VERSION"
-            echo "   Artifact: ${TAG_NAME}-build"
-          else
-            echo "❌ Not triggered by a version tag: $HEAD_BRANCH"
-            echo "This workflow should only run for version tags (vX.Y.Z)"
-            exit 1
-          fi
-
-      - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
-          ref: ${{ steps.version.outputs.tag }}
-          fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate version matches tag
-        run: |
-          VERSION_IN_FILE=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          TAG_VERSION="${STEPS_VERSION_OUTPUTS_VERSION}"
-          if [ "$VERSION_IN_FILE" != "$TAG_VERSION" ]; then
-            echo "❌ Version mismatch: pyproject.toml=$VERSION_IN_FILE, tag=$TAG_VERSION"
-            exit 1
-          fi
-          echo "✅ Version validated: $VERSION_IN_FILE matches tag $TAG_VERSION"
-        env:
-          STEPS_VERSION_OUTPUTS_VERSION: ${{ steps.version.outputs.version }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
 
-      - name: Download artifact
+      - name: Check release tag after approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+        run: python .github/scripts/validate_pypi_release.py tag
+
+      - name: Download validated distributions
         uses: actions/download-artifact@v8
         with:
-          name: ${{ steps.version.outputs.artifact_name }}
+          artifact-ids: ${{ needs.validate.outputs.artifact_id }}
           path: dist
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: ${{ github.event.workflow_run.id }}
-
-      - name: List files
-        run: ls -la dist/
+          run-id: ${{ needs.validate.outputs.run_id }}
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
-          verbose: true
           packages-dir: dist/
           attestations: true
 
-      - name: Create GitHub Release
+  github-release:
+    needs: [validate, publish-pypi]
+    if: ${{ !inputs.validate_only }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
+
+      - name: Create GitHub release draft
         env:
           GH_TOKEN: ${{ github.token }}
-          STEPS_VERSION_OUTPUTS_TAG: ${{ steps.version.outputs.tag }}
-          STEPS_VERSION_OUTPUTS_VERSION: ${{ steps.version.outputs.version }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          TAG_NAME="${STEPS_VERSION_OUTPUTS_TAG}"
-
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          CHANGELOG_SECTION=$(awk -v version="${STEPS_VERSION_OUTPUTS_VERSION}" '
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; leaving it unchanged."
+            exit 0
+          fi
+          awk -v version="$RELEASE_VERSION" '
             /^## \[/ {
               if (found) exit
-              if ($0 ~ "\\[" version "\\]") {
+              if (index($0, "[" version "]")) {
                 found=1
                 next
               }
             }
-            found && /^## \[/ { exit }
             found { print }
-          ' CHANGELOG.md || echo "No changelog entry found for this version.")
-
-          echo "$CHANGELOG_SECTION" > release_notes.md
-
-          if gh release view "$TAG_NAME" --repo ${{ github.repository }} >/dev/null 2>&1; then
-            echo "ℹ️ Release $TAG_NAME already exists, skipping creation"
-          else
-            if gh release create "$TAG_NAME" \
-              --draft \
-              --title "$TAG_NAME" \
-              --notes-file release_notes.md \
-              --repo ${{ github.repository }}; then
-              echo "✅ Release $TAG_NAME created successfully"
-            else
-              echo "❌ Failed to create release $TAG_NAME" >&2
-              rm -f release_notes.md
-              exit 1
-            fi
-          fi
-
-          rm -f release_notes.md
+          ' CHANGELOG.md > "$RUNNER_TEMP/release_notes.md"
+          gh release create "$RELEASE_TAG" --verify-tag --draft \
+            --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release_notes.md"
