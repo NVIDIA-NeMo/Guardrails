@@ -51,6 +51,52 @@ def _mask_pii_outcome(source: str, original_text: str, masked_text: str) -> Rail
     return RailOutcome.allow(metadata=metadata)
 
 
+def _resolve_overlapping_entities(entities: List[dict]) -> List[dict]:
+    """
+    Resolve overlapping and nested entity spans to an offset-safe set.
+
+    GLiNER can return spans that overlap or nest (e.g., a full name covering
+    a first name). Replacing such spans against the same string corrupts the
+    offsets of the substitutions that follow and can leak raw PII. Candidates
+    are ordered by start position ascending and span length (then score)
+    descending, and a span is kept only if it does not overlap a previously
+    kept span.
+
+    Args:
+        entities: List of entity dictionaries with 'start_position' and
+                 'end_position' keys
+
+    Returns:
+        Non-overlapping entities sorted by start position ascending
+    """
+    candidates = sorted(
+        entities,
+        key=lambda x: (
+            x["start_position"],
+            -(x["end_position"] - x["start_position"]),
+            -float(x.get("score") or 0.0),
+        ),
+    )
+
+    resolved: List[dict] = []
+    last_end = -1
+    for entity in candidates:
+        start = entity["start_position"]
+        end = entity["end_position"]
+
+        # Empty, reversed, or negative-offset spans cannot be replaced safely.
+        if start < 0 or start >= end:
+            continue
+
+        # Candidates are sorted by start ascending, so comparing against the
+        # last kept end is enough to detect an overlap with any kept span.
+        if start >= last_end:
+            resolved.append(entity)
+            last_end = end
+
+    return resolved
+
+
 def _mask_text_with_entities(text: str, entities: List[dict]) -> str:
     """
     Mask detected entities in text with their labels.
@@ -66,11 +112,12 @@ def _mask_text_with_entities(text: str, entities: List[dict]) -> str:
     if not entities:
         return text
 
-    # Sort entities by start position in reverse order to replace from end to start
-    sorted_entities = sorted(entities, key=lambda x: x["start_position"], reverse=True)
+    # Drop overlapping/nested spans first, then replace from end to start so
+    # earlier substitutions don't shift the offsets used by later ones.
+    resolved_entities = _resolve_overlapping_entities(entities)
 
     masked_text = text
-    for entity in sorted_entities:
+    for entity in reversed(resolved_entities):
         start = entity["start_position"]
         end = entity["end_position"]
         label = entity["suggested_label"].upper()

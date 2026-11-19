@@ -167,6 +167,38 @@ def _classify_entities(
     return safe_spans, has_malformed_selected
 
 
+def _resolve_overlapping_spans(
+    spans: List[Tuple[int, int, str]],
+) -> List[Tuple[int, int, str]]:
+    """Resolve overlapping and nested spans to an offset-safe set.
+
+    Polygraf can return spans that overlap or nest. Replacing such spans
+    against the same string corrupts the offsets of the substitutions that
+    follow and can leak raw PII. Candidates are ordered by start ascending
+    and span length descending, and a span is kept only if it does not
+    overlap a previously kept span.
+
+    Args:
+        spans: ``(start, end, entity_type)`` triples with validated offsets
+            (``0 <= start < end``), as produced by ``_classify_entities``.
+
+    Returns:
+        Non-overlapping spans sorted by start position ascending.
+    """
+    candidates = sorted(spans, key=lambda span: (span[0], -(span[1] - span[0])))
+
+    resolved: List[Tuple[int, int, str]] = []
+    last_end = -1
+    for start, end, entity_type in candidates:
+        # Candidates are sorted by start ascending, so comparing against the
+        # last kept end is enough to detect an overlap with any kept span.
+        if start >= last_end:
+            resolved.append((start, end, entity_type))
+            last_end = end
+
+    return resolved
+
+
 def _resolve_source_config(config: RailsConfig, source: str) -> Tuple[PolygrafDetection, Any, Optional[List[str]]]:
     """Resolve the Polygraf config and per-source entity filter, validating ``source``."""
     polygraf_config: PolygrafDetection = getattr(config.rails.config, "polygraf")
@@ -287,8 +319,10 @@ async def polygraf_mask_pii(
         log.warning("Polygraf returned a malformed selected entity; replacing payload with redaction placeholder.")
         return _mask_outcome(source, text, FAILSAFE_MASK_PLACEHOLDER)
 
+    # Drop overlapping/nested spans first, then replace from end to start so
+    # earlier substitutions don't shift the offsets used by later ones.
     masked_text = text
-    for start, end, entity_type in sorted(safe_spans, key=lambda x: x[0], reverse=True):
+    for start, end, entity_type in reversed(_resolve_overlapping_spans(safe_spans)):
         masked_text = masked_text[:start] + f"<{entity_type}>" + masked_text[end:]
 
     return _mask_outcome(source, text, masked_text)
