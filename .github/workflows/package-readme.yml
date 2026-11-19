@@ -1,0 +1,47 @@
+name: Package README
+
+on:
+  pull_request:
+    paths:
+      - README.md
+      - pyproject.toml
+      - uv.lock
+      - scripts/validate_package_readme.py
+      - scripts/tests/test_package_readme.py
+      - .github/workflows/package-readme.yml
+      - .github/workflows/test-and-build-wheel.yml
+      - .github/scripts/build.sh
+      - .github/actions/setup-uv/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - uses: ./.github/actions/setup-uv
+        with:
+          enable-cache: "false"
+      - name: Test description validation
+        run: uv run --no-project --with 'readme-renderer[md]==46.0' python -m unittest discover -s scripts/tests -p test_package_readme.py
+      - name: Build distributions
+        run: bash .github/scripts/build.sh
+      - name: Validate packaged descriptions
+        run: uv run --script scripts/validate_package_readme.py
+      - name: Upload description previews
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-readme-preview
+          path: readme-preview/*.html
+          if-no-files-found: warn
+          retention-days: 14

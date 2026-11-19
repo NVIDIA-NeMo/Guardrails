@@ -191,6 +191,14 @@ Run Python commands through uv.
 | Docs check | `make docs-fern` |
 | Package coverage | `make test-coverage` |
 
+For changes to the packaged README, build distributions with `uv build`, then run
+`uv run --script scripts/validate_package_readme.py`. This checks both artifact
+descriptions with Twine and PyPI's Markdown renderer, rejects relative URLs and
+missing internal anchors, and writes HTML previews to `readme-preview/`.
+The Package README PR workflow uploads these previews; the distribution build
+also runs the check before uploading release artifacts. Remote URL availability
+and PyPI's exact page styling are not checked. No TestPyPI account is required.
+
 Run the smallest meaningful test set first, then broaden validation when the
 change touches shared runtime behavior, public APIs, packaging, server behavior,
 tracing, or docs.
