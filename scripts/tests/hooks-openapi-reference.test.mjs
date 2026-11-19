@@ -38,7 +38,9 @@ test("Fern retains all hooks routes and the object-valued request examples", { t
     const endpoints = new Map(Object.values(ir.services).flatMap(({ endpoints }) => endpoints.map((e) => [e.id, e])));
     assert.deepEqual([...endpoints.keys()].sort(), [
       "endpoint_hooks.checkClaudeCodeToolCall",
-      "endpoint_hooks.checkCodexToolCall", "endpoint_hooks.checkNemoRelayToolCall",
+      "endpoint_hooks.checkCodexToolCall",
+      "endpoint_hooks.checkNemoRelayToolCall",
+      "endpoint_hooks.handleAgentStartHook",
     ].sort());
     for (const [id, input, deny, allow] of [
       ["endpoint_hooks.checkClaudeCodeToolCall", { command: "git push --force origin main" },
