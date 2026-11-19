@@ -4,6 +4,125 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] - 2026-11-18
+
+### 🚀 Features
+
+- *(gateway)* Add the experimental NeMo Guardrails Gateway for buffered OpenAI Chat Completions, preserving accepted provider payloads while inspecting one user text input and one assistant text output ([#2404](https://github.com/NVIDIA-NeMo/Guardrails/pull/2404), [#2405](https://github.com/NVIDIA-NeMo/Guardrails/pull/2405), [#2406](https://github.com/NVIDIA-NeMo/Guardrails/pull/2406), [#2407](https://github.com/NVIDIA-NeMo/Guardrails/pull/2407), [#2413](https://github.com/NVIDIA-NeMo/Guardrails/pull/2413), [#2414](https://github.com/NVIDIA-NeMo/Guardrails/pull/2414), [#2453](https://github.com/NVIDIA-NeMo/Guardrails/pull/2453))
+- *(gateway)* Describe provider inspection boundaries in exportable guard contracts ([#2411](https://github.com/NVIDIA-NeMo/Guardrails/pull/2411))
+- *(gateway)* Guard OpenAI Chat Completions streams through windowed text inspection while preserving accepted SSE bytes ([#2434](https://github.com/NVIDIA-NeMo/Guardrails/pull/2434), [#2435](https://github.com/NVIDIA-NeMo/Guardrails/pull/2435), [#2436](https://github.com/NVIDIA-NeMo/Guardrails/pull/2436), [#2437](https://github.com/NVIDIA-NeMo/Guardrails/pull/2437))
+- *(gateway)* Add an explicitly selected LiteLLM Chat Completions dialect for reviewed provider extensions ([#2454](https://github.com/NVIDIA-NeMo/Guardrails/pull/2454))
+- *(gateway)* Compose multiple provider instances with distinct routes and upstreams ([#2456](https://github.com/NVIDIA-NeMo/Guardrails/pull/2456))
+- *(gateway)* Allow applications to supply gateway HTTP transports and local routes ([#2457](https://github.com/NVIDIA-NeMo/Guardrails/pull/2457))
+- *(gateway)* Preload declared Rails configurations and select them through trusted request-context resolution ([#2458](https://github.com/NVIDIA-NeMo/Guardrails/pull/2458))
+- *(gateway)* Add buffered and streaming OpenAI Responses inspection for the supported single-text profile ([#2465](https://github.com/NVIDIA-NeMo/Guardrails/pull/2465))
+- *(gateway)* Add an explicitly selected LiteLLM Responses dialect with reviewed streaming metadata ([#2466](https://github.com/NVIDIA-NeMo/Guardrails/pull/2466))
+- *(gateway)* Compose gateway providers, operations, dialects, and Rails configurations through typed Python declarations ([#2467](https://github.com/NVIDIA-NeMo/Guardrails/pull/2467))
+- *(gateway)* Validate, inspect, and serve gateway applications from YAML manifests ([#2468](https://github.com/NVIDIA-NeMo/Guardrails/pull/2468))
+- *(hooks)* Add a hooks server for pre-tool-use checks through configured Claude Code and Codex hooks, and NeMo Relay plugins ([#2472](https://github.com/NVIDIA-NeMo/Guardrails/pull/2472), [#2473](https://github.com/NVIDIA-NeMo/Guardrails/pull/2473))
+- *(hooks)* Add tool and argument allowlists and blocklists, with model-free policy and per-tool checks ([#2482](https://github.com/NVIDIA-NeMo/Guardrails/pull/2482))
+- *(hooks)* Export hooks-server admission-queue metrics through Prometheus ([#2483](https://github.com/NVIDIA-NeMo/Guardrails/pull/2483))
+- *(relay)* Add a native NeMo Relay plugin that checks Relay-managed tool calls through the hooks server ([#2489](https://github.com/NVIDIA-NeMo/Guardrails/pull/2489), [#2493](https://github.com/NVIDIA-NeMo/Guardrails/pull/2493))
+- *(benchmark)* Add a content-safety parity benchmark for direct NIM and guarded evaluation ([#2520](https://github.com/NVIDIA-NeMo/Guardrails/pull/2520))
+- *(cel)* Add CEL expressions for per-tool argument and result checks ([#2430](https://github.com/NVIDIA-NeMo/Guardrails/pull/2430))
+- *(checks)* Return IORails block reasons from `/v1/checks` ([#2418](https://github.com/NVIDIA-NeMo/Guardrails/pull/2418))
+- *(checks)* Add explicit tool-call and tool-result checks with structured `tool_violations` from `/v1/checks` on IORails ([#2420](https://github.com/NVIDIA-NeMo/Guardrails/pull/2420))
+- *(config)* Validate model references in global and per-tool rails when loading configuration ([#2460](https://github.com/NVIDIA-NeMo/Guardrails/pull/2460))
+- *(iorails)* Scope tool-call and tool-result rails to individual tools, including regex-based checks ([#2377](https://github.com/NVIDIA-NeMo/Guardrails/pull/2377))
+- *(iorails)* Honor parallel execution settings for per-tool call and result rails ([#2393](https://github.com/NVIDIA-NeMo/Guardrails/pull/2393))
+- *(language-detector)* Add an input rail that allows or blocks detected languages and supports localized refusals ([#2470](https://github.com/NVIDIA-NeMo/Guardrails/pull/2470))
+- *(library)* Restore Zscaler AI Guard input and output moderation through the shared rail contract ([#2376](https://github.com/NVIDIA-NeMo/Guardrails/pull/2376))
+- *(llmrails)* Support tool-call round trips without passthrough mode ([#2188](https://github.com/NVIDIA-NeMo/Guardrails/pull/2188))
+- *(server)* Expose IORails non-streaming admission-queue metrics through a Prometheus scrape endpoint ([#2366](https://github.com/NVIDIA-NeMo/Guardrails/pull/2366))
+- *(streaming)* Add completed and incremental structured tool-call events; LLMRails supports incremental delivery, but rejects streamed tool calls when output or tool-call rails are enabled ([#2278](https://github.com/NVIDIA-NeMo/Guardrails/pull/2278))
+- *(tool-safety-check)* Add LLM-judged checks for individual tools' arguments and results ([#2386](https://github.com/NVIDIA-NeMo/Guardrails/pull/2386))
+
+### 🐛 Bug Fixes
+
+- *(gateway)* Preserve reviewed LiteLLM translated metadata and encrypted reasoning items in Chat Completions responses and streams ([#2529](https://github.com/NVIDIA-NeMo/Guardrails/pull/2529))
+- *(gateway)* Accept reviewed response image metadata without enabling image inspection, and reject unsupported prompt-cache prewarming before dispatch ([#2561](https://github.com/NVIDIA-NeMo/Guardrails/pull/2561))
+- *(gateway)* Preserve reviewed `input_transformations` response metadata in Responses and LiteLLM contracts ([#2603](https://github.com/NVIDIA-NeMo/Guardrails/pull/2603))
+- *(hooks)* Keep LLM-judge tool arguments out of hooks-server default logs ([#2556](https://github.com/NVIDIA-NeMo/Guardrails/pull/2556))
+- *(hooks)* Refuse hooks-server allowlists without an explicit `allow_unlisted_tools` choice; set it to false to deny unlisted tools or true to allow them ([#2592](https://github.com/NVIDIA-NeMo/Guardrails/pull/2592))
+- *(relay)* Require NeMo Relay 0.11.0-rc.1 or later 0.x releases for the native plugin so permission prompts do not trigger duplicate checks ([#2538](https://github.com/NVIDIA-NeMo/Guardrails/pull/2538))
+- *(checks)* Record transformed check messages on the OpenTelemetry request span ([#2440](https://github.com/NVIDIA-NeMo/Guardrails/pull/2440))
+- *(config)* Warn about unsupported configuration keys and suggest supported names ([#2587](https://github.com/NVIDIA-NeMo/Guardrails/pull/2587))
+- *(dependencies)* [**breaking**] Make `nest-asyncio` an optional compatibility extra; install `nemoguardrails[nest-asyncio]` when enabling automatic event-loop patching, or use async APIs inside a running loop ([#2557](https://github.com/NVIDIA-NeMo/Guardrails/pull/2557))
+- *(docs)* Update Fern for compatible image rendering ([#2480](https://github.com/NVIDIA-NeMo/Guardrails/pull/2480))
+- *(docs)* Upgrade Fern for image-title compatibility ([#2503](https://github.com/NVIDIA-NeMo/Guardrails/pull/2503))
+- *(docs)* Correct streaming-marker rendering in the SDK reference ([#2540](https://github.com/NVIDIA-NeMo/Guardrails/pull/2540))
+- *(generation-log)* Handle missing durations when printing generation summaries ([#2338](https://github.com/NVIDIA-NeMo/Guardrails/pull/2338))
+- *(hf-classifier)* Evaluate oversized local text-classification inputs through overlapping token windows when truncation is not configured ([#2545](https://github.com/NVIDIA-NeMo/Guardrails/pull/2545))
+- *(injection-detection)* Block injection detections when configured omission cannot safely remove all matches ([#2558](https://github.com/NVIDIA-NeMo/Guardrails/pull/2558))
+- *(injection-detection)* Prevent occurrence-order bypasses in Python, Jinja, and XSS detection and recheck omitted text before allowing it ([#2559](https://github.com/NVIDIA-NeMo/Guardrails/pull/2559))
+- *(iorails)* Accept tool results without a name when their call ID links to the original tool call ([#2417](https://github.com/NVIDIA-NeMo/Guardrails/pull/2417))
+- *(iorails)* Retain resources for retryable cleanup after interrupted startup or shutdown ([#2459](https://github.com/NVIDIA-NeMo/Guardrails/pull/2459))
+- *(iorails)* [**breaking**] Emit completed streaming tool calls as `ToolCallChunk` objects instead of JSON text; update stream consumers to handle structured events ([#2512](https://github.com/NVIDIA-NeMo/Guardrails/pull/2512))
+- *(iorails)* Honor explicitly configured model `parameters.api_key` values ([#2531](https://github.com/NVIDIA-NeMo/Guardrails/pull/2531))
+- *(jailbreak)* [**breaking**] Reject model-detector inputs over 2,048 tokens including special tokens; keep messages within this limit and provide `tokenizers` for coverage validation ([#2560](https://github.com/NVIDIA-NeMo/Guardrails/pull/2560))
+- *(jailbreak)* [**breaking**] Stop requests with an internal-error response when jailbreak detection is unavailable or returns invalid results; handle detector failures instead of continuing unchecked ([#2588](https://github.com/NVIDIA-NeMo/Guardrails/pull/2588))
+- *(llmrails)* Terminate streaming when parallel output rails fail to execute ([#2562](https://github.com/NVIDIA-NeMo/Guardrails/pull/2562))
+- *(llmrails)* Report unchanged content lists as passed rather than modified in check results ([#2604](https://github.com/NVIDIA-NeMo/Guardrails/pull/2604))
+- *(sensitive-data-detection)* Run blocking Presidio detection work outside the async event loop ([#2400](https://github.com/NVIDIA-NeMo/Guardrails/pull/2400))
+- *(server)* Support streaming tool-call requests with rail validation before SSE delivery ([#2507](https://github.com/NVIDIA-NeMo/Guardrails/pull/2507))
+- *(server)* Emit terminal SSE error frames when rail execution fails ([#2513](https://github.com/NVIDIA-NeMo/Guardrails/pull/2513))
+- *(server)* Forward `max_completion_tokens` to the main LLM ([#2551](https://github.com/NVIDIA-NeMo/Guardrails/pull/2551))
+
+### 💼 Other
+
+- *(dependencies)* [**breaking**] Drop Python 3.10 support; upgrade to a supported Python version from 3.11 through 3.13 ([#2573](https://github.com/NVIDIA-NeMo/Guardrails/pull/2573))
+- *(llmrails)* Deprecate direct LLMRails use and Colang 2.x with removal no earlier than 0.27.0, and warn about configuration that IORails ignores ([#2593](https://github.com/NVIDIA-NeMo/Guardrails/pull/2593))
+
+### 🚜 Refactor
+
+- *(generation)* Decompose LLM generation into focused helpers while preserving generation behavior ([#2168](https://github.com/NVIDIA-NeMo/Guardrails/pull/2168))
+- *(rails)* Rename `tool_output` and `tool_input` configuration and generation-option fields to `tool_call` and `tool_result`, retaining deprecated aliases ([#2312](https://github.com/NVIDIA-NeMo/Guardrails/pull/2312))
+
+### 📚 Documentation
+
+- *(gateway)* Document gateway setup, supported provider profiles, and deployment boundaries ([#2508](https://github.com/NVIDIA-NeMo/Guardrails/pull/2508))
+- *(gateway)* Generate the gateway API and guard-contract references ([#2542](https://github.com/NVIDIA-NeMo/Guardrails/pull/2542))
+- *(gateway)* Name the experimental HTTP proxy NeMo Guardrails Gateway in documentation ([#2610](https://github.com/NVIDIA-NeMo/Guardrails/pull/2610))
+- *(hooks)* Document hooks-server configuration, agent integration, and tool-policy enforcement ([#2488](https://github.com/NVIDIA-NeMo/Guardrails/pull/2488))
+- *(hooks)* Generate the hooks-server API reference ([#2541](https://github.com/NVIDIA-NeMo/Guardrails/pull/2541))
+- *(relay)* Document installation and configuration of the native NeMo Relay plugin ([#2523](https://github.com/NVIDIA-NeMo/Guardrails/pull/2523))
+- *(checks)* Document `/v1/checks` tool-call and tool-result requests and structured violations ([#2548](https://github.com/NVIDIA-NeMo/Guardrails/pull/2548))
+- *(docs)* Publish the 0.24.1 documentation snapshot and update documentation tooling ([#2390](https://github.com/NVIDIA-NeMo/Guardrails/pull/2390))
+- *(docs)* Expand configuration, onboarding, model-selection, and troubleshooting guidance ([#2452](https://github.com/NVIDIA-NeMo/Guardrails/pull/2452))
+- *(docs)* Correct rail-action examples, model configuration, and server guidance ([#2585](https://github.com/NVIDIA-NeMo/Guardrails/pull/2585))
+- *(docs)* Use library terminology consistently in package and documentation descriptions ([#2605](https://github.com/NVIDIA-NeMo/Guardrails/pull/2605))
+- *(docs)* Organize README and documentation entry points around agent workflows ([#2522](https://github.com/NVIDIA-NeMo/Guardrails/pull/2522))
+- *(eval)* Replace obsolete evaluation commands with the supported rail-evaluation CLI ([#2594](https://github.com/NVIDIA-NeMo/Guardrails/pull/2594))
+- *(examples)* Update content-safety tutorials and notebooks for Nemotron 3.5 Content Safety, including text and image examples ([#2442](https://github.com/NVIDIA-NeMo/Guardrails/pull/2442))
+- *(examples)* Replace retired OpenAI model references in examples with chat models ([#2550](https://github.com/NVIDIA-NeMo/Guardrails/pull/2550))
+- *(langchain)* Clarify LangChain and LangGraph setup, tool-call protection, and integration examples ([#2361](https://github.com/NVIDIA-NeMo/Guardrails/pull/2361))
+- *(llmrails)* Document the 0.25 migration to Guardrails and IORails, including LLMRails and Colang runtime deprecations and unsupported capabilities ([#2595](https://github.com/NVIDIA-NeMo/Guardrails/pull/2595))
+- *(skills)* Add guidance for contributing and reviewing library rails and recorded tests ([#2223](https://github.com/NVIDIA-NeMo/Guardrails/pull/2223))
+
+### 🧪 Testing
+
+- *(gateway)* Replay Chat Completions recordings against the explicit LiteLLM dialect ([#2455](https://github.com/NVIDIA-NeMo/Guardrails/pull/2455))
+- *(gateway)* Add Chat Completions and Responses protocol conformance coverage ([#2463](https://github.com/NVIDIA-NeMo/Guardrails/pull/2463))
+- *(hooks)* Integration-test Claude Code and Codex hooks against the hooks server ([#2505](https://github.com/NVIDIA-NeMo/Guardrails/pull/2505))
+- *(relay)* Integration-test the native plugin and LangChain client against the hooks server ([#2504](https://github.com/NVIDIA-NeMo/Guardrails/pull/2504))
+- *(relay)* Consolidate agent and Relay integration suites under `integration_tests/` ([#2533](https://github.com/NVIDIA-NeMo/Guardrails/pull/2533))
+- *(cache)* Make LFU cache tests deterministic ([#2530](https://github.com/NVIDIA-NeMo/Guardrails/pull/2530))
+- *(iorails)* Cover per-tool rail execution during streaming ([#2443](https://github.com/NVIDIA-NeMo/Guardrails/pull/2443))
+- *(langchain)* Refresh the LangChain provider drift snapshot for LangSmith and Bedrock Mantle providers ([#2589](https://github.com/NVIDIA-NeMo/Guardrails/pull/2589))
+- *(skills)* Normalize skill-reference paths on Windows ([#2534](https://github.com/NVIDIA-NeMo/Guardrails/pull/2534))
+- *(tool-safety-check)* Add recorded judge-based per-tool checks and failure coverage ([#2479](https://github.com/NVIDIA-NeMo/Guardrails/pull/2479))
+
+### ⚙️ CI
+
+- *(relay)* Run plugin packaging, hooks-agent, and Relay integration suites in CI ([#2536](https://github.com/NVIDIA-NeMo/Guardrails/pull/2536))
+- *(relay)* Update the Rust cache action in plugin and integration workflows ([#2555](https://github.com/NVIDIA-NeMo/Guardrails/pull/2555))
+- *(relay)* Restore the allow-listed Rust cache action version ([#2582](https://github.com/NVIDIA-NeMo/Guardrails/pull/2582))
+- *(dependencies)* Schedule grouped root Python dependency updates with a cooldown ([#2567](https://github.com/NVIDIA-NeMo/Guardrails/pull/2567))
+- *(docs)* Generate the Guardrails server OpenAPI reference during documentation builds ([#2475](https://github.com/NVIDIA-NeMo/Guardrails/pull/2475))
+- Refresh GitHub Actions dependencies ([#2544](https://github.com/NVIDIA-NeMo/Guardrails/pull/2544))
+- Replace the retired macOS CI runner ([#2576](https://github.com/NVIDIA-NeMo/Guardrails/pull/2576))
+
+
 ## [0.24.1] - 2026-09-16
 
 ### 🐛 Bug Fixes
