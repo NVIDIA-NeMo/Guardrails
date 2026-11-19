@@ -15,149 +15,99 @@ For a complete record of changes in a release, refer to the
 
 ---
 
-<a id="v0-24-1"></a>
-## 0.24.1
+<a id="v0-25-0"></a>
+## 0.25.0
 
-This patch release includes the following fixes:
+Version 0.25.0 expands input, output, and tool checks. It also changes Python
+requirements and deprecates the `LLMRails` engine and Colang runtimes.
 
-- Content-safety rails parse Nemotron 3.5 responses.
-- The server returns an overload response when IORails sheds a request through
-  admission control.
-- Combined configurations load their `config.py` files.
-- Locust benchmarks correct concurrency measurements and support concurrency
-  sweeps.
-
-For the complete list of changes, refer to the
-[v0.24.1 release](https://github.com/NVIDIA-NeMo/Guardrails/releases/tag/v0.24.1).
-
----
-
-<a id="v0-24-0"></a>
-## 0.24.0
-
-<a id="v0-24-0-features"></a>
+<a id="v0-25-0-features"></a>
 ### Key Features
 
-- Rail actions can use `RailOutcome` to return explicit allow, block, and
-  transform decisions. Built-in rails now use declarative rail manifests to
-  describe their configuration, actions, flows, supported surfaces,
-  dependencies, and privacy behavior. For more information, refer to
-  [Rail Outcomes](/configure-guardrails/actions/rail-outcomes) and
-  [Rail Manifests](/reference/rail-manifests).
+New integrations and rails extend checks to model requests, tool calls, and languages.
 
-- `IORails` adds `check()` and `check_async()` for running input and output
-  rails without generating a model response. For non-streaming generation, it
-  returns a structured `GenerationResponse` when you pass `GenerationOptions`
-  or an options dictionary; when you omit generation options, it continues to
-  return a role-content message dictionary. For more information, refer to
-  [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages),
-  [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options),
-  and [Engine Feature Support](/reference/engine-feature-support).
+- The experimental [NeMo Guardrails Gateway](/run-guardrailed-inference/using-gateway)
+  applies input and output rails to supported OpenAI Chat Completions and
+  Responses requests. It inspects one user text input and one assistant text
+  output and supports both buffered and streaming responses.
+- The [hooks server](/run-guardrailed-inference/using-hooks-server/overview)
+  checks tool calls before Claude Code, Codex, or NeMo Relay executes them.
+  You can allow or block tools by name and check their arguments before execution.
+- With `IORails`, you can run [per-tool checks](/configure-guardrails/guardrail-catalog/tool-calling)
+  on arguments and results using regular expressions, Common Expression Language
+  (CEL) expressions, or a large language model (LLM) judge.
+- The `/v1/checks` endpoint can run per-tool checks independently of generation.
+  It reports which tools violated a policy in `tool_violations`.
+- The [Language Detector](/configure-guardrails/guardrail-catalog/language-detector)
+  input rail can allow or block messages by language and return a localized
+  refusal.
+- The library restores input and output moderation with
+  [Zscaler AI Guard](/configure-guardrails/guardrail-catalog/third-party/zscaler-aiguard).
 
-- `IORails` can run all built-in rail actions whose manifests do not require
-  Colang-specific context variables. For the complete per-rail compatibility
-  matrix, refer to [Rail Engine Support](/reference/rail-engine-support).
-
-- OpenAI-compatible model configurations can set per-model custom headers and
-  query parameters with `parameters.default_headers` and
-  `parameters.default_query`. The settings apply to both `IORails` and
-  `LLMRails`. For more information, refer to
-  [Custom HTTP Headers](/configure-guardrails/yaml-schema/model-configuration#custom-http-headers)
-  and [Model-Level Query Parameters](/configure-guardrails/yaml-schema/model-configuration#model-level-query-parameters).
-
-- You can configure multiple self-check input and output rails, each with its
-  own prompt and model selection. The rails run in configuration order and stop
-  when a rail blocks the content. For more information, refer to
-  [LLM Self-Check](/configure-guardrails/guardrail-catalog/self-check).
-
-- Actions and built-in integrations can use a canonical asynchronous HTTP
-  boundary with shared client ownership, retries, metrics, tracing, and
-  deterministic testing support. For more information, refer to
-  [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http).
-
-- The Guardrails server adds `GET /v1/health` and `GET /healthz` liveness
-  endpoints. The `/v1/checks` endpoint can also validate assistant messages
-  against output rails without running generation. For more information, refer
-  to [Run the Guardrails Server](/run-guardrailed-inference/using-fastapi-server/run-guardrails-server)
-  and [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages).
-
-- The guardrail catalog adds an F5 AI Guardrails integration for scanning input
-  and output content. It supports configurable retry behavior and fail-open or
-  fail-closed handling for provider errors.
-
-<a id="v0-24-0-breaking-changes"></a>
+<a id="v0-25-0-breaking-changes"></a>
 ### Breaking Changes
 
-- The `output_mapping` parameter and its implicit boolean and numeric mappings
-  have been removed from `@action`. Passing `output_mapping` now raises
-  `TypeError`. Return a `RailOutcome` from rail actions and inspect the outcome
-  explicitly in the consuming flow. For migration examples, refer to
-  [Rail Outcomes](/configure-guardrails/actions/rail-outcomes).
+Existing applications can require environment, streaming, or error-handling updates.
 
-- When you pass `GenerationOptions` or an options dictionary to non-streaming
-  `IORails.generate()` or `IORails.generate_async()`, the methods return a
-  `GenerationResponse`. When you omit generation options, they continue to
-  return a role-content message dictionary. Their signatures now accept
-  `prompt` as the first parameter. Pass message lists with the `messages=`
-  keyword instead of as the first positional argument.
+- **Python support.** Upgrade Python 3.10 environments to Python 3.11, 3.12,
+  or 3.13 before installing this release. Refer to [Installation](/get-started/installation-guide).
+- **Event-loop patching.** If your application enables automatic event-loop
+  patching, install `nemoguardrails[nest-asyncio]`. In an application or
+  notebook with a running event loop, you can use `await rails.generate_async(...)`.
+- **Streaming tool calls.** Python consumers of `IORails` streams now receive
+  completed tool calls as `ToolCallChunk` objects. To update a stream consumer:
 
-- The `/v1/checks` endpoint no longer accepts inline configurations. Select a
-  server-loaded configuration with `config_id`, or omit `config_id` to use the
-  server default.
+  1. Read completed calls from `chunk.tool_calls`.
+  1. Handle text chunks separately.
+- **Jailbreak detection.** The model-based rail rejects messages longer than
+  2,048 tokens, including special tokens. If a detector is unavailable or returns
+  an invalid result, the request stops with an internal error. To update an
+  application that uses this rail:
 
-- The Chat Completions endpoint now validates role-specific messages at the
-  HTTP boundary. It rejects internal event messages, unexpected fields,
-  unsupported audio requests, and invalid role or content combinations before
-  loading a configuration or dispatching an action. For more information,
-  refer to [Chat Completions](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model).
+  1. Keep each message within the token limit.
+  1. Ensure the `tokenizers` package is installed for input validation.
+  1. Enforce blocked results when using check-only APIs.
 
-- Custom Colang 1.0 flows that call the previous space-separated Cleanlab,
-  Fiddler, or GCP action names must use the corresponding snake_case action
-  names. The packaged flows have already been updated for both Colang 1.0 and
-  Colang 2.x.
+  Refer to [Jailbreak Protection](/configure-guardrails/guardrail-catalog/jailbreak-protection).
 
-- The `hf-classifier` installation extra has been removed, and its packages are
-  no longer included in the `all` extra. Install `transformers` and `torch`
-  directly to use the local classifier backend. For more information, refer to
-  [HuggingFace Classifier Integration](/configure-guardrails/guardrail-catalog/third-party/hf-classifier).
+<a id="v0-25-0-deprecations"></a>
+### Deprecations
 
-<a id="v0-24-0-enhancements"></a>
-### Enhancements
+The following engines, runtimes, and configuration names remain available but are deprecated.
 
-- IORails generation logs include activated rails, model calls, timing, token
-  usage, and provider metadata when requested. Streaming responses preserve
-  usage metadata on the final chunk, and the default logger no longer emits
-  verbose operational output.
+- The `LLMRails` engine and the Colang 1.0 and 2.x runtimes are deprecated.
+  Removal is planned no earlier than 0.27.0. Before migrating:
 
-- Server responses use OpenAI-compatible error envelopes more consistently,
-  preserve configured main-model fields when a request selects a model, and
-  support `developer`, multimodal, tool, refusal, context, and function
-  messages where the Chat Completions contract allows them.
+  1. Review engine coverage in [Migrating to 0.25](/reference/0-25), especially
+     for dialog flows or a Colang 2.x application.
+  1. Use `Guardrails(config)` to run supported configurations on `IORails`.
 
-- The documentation site adds immutable, Git-ref-backed versions so you can
-  switch between the latest documentation and stable release snapshots.
+- The `tool_output` and `tool_input` names remain available as deprecated aliases.
+  To update rail configuration and generation options:
 
-<a id="v0-24-0-doc-and-behavior-fixes"></a>
-### Documentation and Behavior Fixes
+  1. Rename `tool_output` to `tool_call`.
+  1. Rename `tool_input` to `tool_result`.
 
-- IORails now distinguishes a policy block from a rail execution failure, and
-  streaming output rails fail closed when an action fails. Content-safety
-  response parsing errors are surfaced instead of being treated as successful
-  checks.
+<a id="v0-25-0-fixes"></a>
+### Fixes and Enhancements
 
-- The `/v1/checks` endpoint returns HTTP `422` when the requested rail types
-  cannot run for the supplied messages instead of silently returning a passing
-  result.
+Streaming errors, injection handling, and configuration validation have the following updates.
 
-- Reasoning-only non-streaming responses are handled correctly, reasoning
-  content is inlined consistently for server responses, and model-level query
-  parameters propagate through IORails requests.
-
-- Colang argument parsing now raises `ValueError` for an unbalanced closing
-  bracket instead of accepting malformed input.
+- When the API server encounters a rail execution failure during streaming,
+  it sends a terminal server-sent error event. Clients can distinguish a failed
+  check from a completed response.
+- Injection detection rechecks the text after removing a match and blocks the
+  request if it cannot safely remove all matches.
+- Configuration loading validates model references in global and per-tool rails.
+- Configuration loading suggests supported names when it encounters an unknown
+  configuration key.
 
 ## Previous Releases
 
+Release-specific documentation preserves the notes for earlier versions.
+
+- [0.24.1](/nemo/guardrails/v0.24.1/about-nemo-guardrails-library/release-notes)
+- [0.24.0](/nemo/guardrails/v0.24.0/about-nemo-guardrails-library/release-notes)
 - [0.23.0](/nemo/guardrails/v0.23.0/about-nemo-guardrails-library/release-notes)
 - [0.22.0](/nemo/guardrails/v0.22.0/about-nemo-guardrails-library/release-notes)
 - [0.21.0](https://archive.docs.nvidia.com/nemo/guardrails/0.21.0/index.html)
