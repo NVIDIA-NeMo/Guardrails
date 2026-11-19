@@ -1,0 +1,22 @@
+define bot refuse to respond
+  "I'm sorry, I can't respond to that."
+
+define flow embedding topic check
+  $result = execute embedding_topic_check
+
+  if not $result["on_topic"]
+    if $config.enable_rails_exceptions
+      create event OffTopicRailException(message="Off-topic input blocked.")
+    else
+      bot refuse to respond
+    stop
+
+define flow embedding topic check output
+  $result = execute embedding_topic_check_output
+
+  if not $result["on_topic"]
+    if $config.enable_rails_exceptions
+      create event OffTopicOutputRailException(message="Off-topic output blocked.")
+    else
+      bot refuse to respond
+    stop
