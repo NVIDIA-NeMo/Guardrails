@@ -131,6 +131,26 @@ async def test_llama_guard_actions_fail_before_call_without_model(action_func):
         )
 
 
+@pytest.mark.asyncio
+async def test_llama_guard_check_output_tolerates_extra_runtime_kwargs():
+    """Regression: the streaming output-rails path passes extra keywords such as
+    `config` and `llm` (LLMRails._run_output_rails_in_streaming -> _prepare_params
+    -> ActionDispatcher.execute_action), so the action must tolerate them, like
+    llama_guard_check_input already does."""
+    task_manager = cast(LLMTaskManager, _LlamaGuardTaskManager())
+
+    outcome = await llama_guard_check_output(
+        llm_task_manager=task_manager,
+        context={"user_message": "hello", "bot_message": "hello"},
+        llms={"llama_guard": FakeLLMModel(responses=["safe"])},
+        model_name="llama_guard",
+        config=object(),
+        llm=None,
+    )
+
+    assert outcome.is_blocked is False
+
+
 def test_llama_guard_output_action_metadata_is_registration_only():
     assert set(getattr(llama_guard_check_output, "action_meta")) == {
         "name",
