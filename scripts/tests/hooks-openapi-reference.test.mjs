@@ -41,6 +41,10 @@ test("Fern retains all hooks routes and the object-valued request examples", { t
       "endpoint_hooks.checkCodexToolCall",
       "endpoint_hooks.checkNemoRelayToolCall",
       "endpoint_hooks.handleAgentStartHook",
+      "endpoint_quarantine.listQuarantines",
+      "endpoint_quarantine.quarantineAgent",
+      "endpoint_quarantine.releaseAgent",
+      "endpoint_runs.getRunStop",
     ].sort());
     for (const [id, input, deny, allow] of [
       ["endpoint_hooks.checkClaudeCodeToolCall", { command: "git push --force origin main" },
