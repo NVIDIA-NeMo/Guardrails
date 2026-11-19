@@ -15,7 +15,6 @@
 
 """Commands for the hooks server's decision record, and for asking it about model calls from a file."""
 
-import hashlib
 import json
 import urllib.error
 import urllib.request
@@ -59,17 +58,18 @@ def check(
 
 
 def decide(
-    package: Path = typer.Argument(..., exists=True, file_okay=False, help="The agent package folder."),
+    agent_name: str = typer.Option(..., "--agent-name", help="The name of the agent that makes the calls."),
+    agent_digest: Optional[str] = typer.Option(
+        None, "--agent-digest", help="The digest of the agent's package, such as `sha256:...`, if it has one."
+    ),
     action: Path = typer.Option(..., "--action", exists=True, help="A JSON list of the calls to decide."),
     url: str = typer.Option("http://127.0.0.1:8100", "--url", help="The hooks server."),
 ):
-    """Ask a running hooks server about each model call in a file, as the agent of PACKAGE would during its run.
+    """Ask a running hooks server about each model call in a file, as the named agent would during its run.
 
     Each action is an object with `kind` `call_model`, `model`, and optionally `id` and `run` (the run id). The agent
-    is named by the package's `agent.json` and its digest is the sha256 of `oadl.lock.json`, as NeMo Fabric names
-    it. Prints one JSON object; exits 0 when every call is allowed, 2 when one is denied, 1 on an error."""
-    agent_name = json.loads((package / "agent.json").read_text(encoding="utf-8"))["name"]
-    agent_digest = "sha256:" + hashlib.sha256((package / "oadl.lock.json").read_bytes()).hexdigest()
+    is given as plain facts, its name and digest; the command reads no agent package. Prints one JSON object; exits 0
+    when every call is allowed, 2 when one is denied, 1 on an error."""
     actions = json.loads(action.read_text(encoding="utf-8"))
     decisions, reasons = [], []
     for item in actions:
@@ -87,14 +87,14 @@ def decide(
         body = {
             "hook_event_name": "ModelCall",
             "agent_name": agent_name,
-            "agent_digest": agent_digest,
+            **({"agent_digest": agent_digest} if agent_digest else {}),
             "model": item["model"],
             **({"id": item["id"]} if item.get("id") else {}),
         }
         headers = {
             "content-type": "application/json",
             "x-nemo-agent-name": agent_name,
-            "x-nemo-agent-digest": agent_digest,
+            **({"x-nemo-agent-digest": agent_digest} if agent_digest else {}),
             **({"x-nemo-run-id": item["run"]} if item.get("run") else {}),
         }
         request = urllib.request.Request(f"{url.rstrip('/')}/v1/hooks/model-call", json.dumps(body).encode(), headers)

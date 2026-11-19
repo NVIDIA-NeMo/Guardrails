@@ -15,7 +15,6 @@
 
 """The decision record, chained by hash, and the check of a model call during a run."""
 
-import hashlib
 import io
 import json
 from pathlib import Path
@@ -247,11 +246,7 @@ class TestCommands:
         assert broken.exit_code == 1 and json.loads(broken.stdout)["intact"] is False
 
     def test_decide_asks_each_model_call_of_a_file(self, tmp_path, monkeypatch):
-        package = tmp_path / "package"
-        package.mkdir()
-        (package / "agent.json").write_text(json.dumps({"name": "release-reviewer"}))
-        (package / "oadl.lock.json").write_text("{}")
-        digest = "sha256:" + hashlib.sha256(b"{}").hexdigest()
+        digest = "sha256:aaaa"
         actions = tmp_path / "model-calls.json"
         actions.write_text(json.dumps([
             {"id": "model-1", "kind": "call_model", "agent": "$", "depth": 0, "model": MODEL, "run": "govern-lab-3"},
@@ -268,7 +263,18 @@ class TestCommands:
                 return io.BytesIO(answer.content)
 
             monkeypatch.setattr(hooks_record.urllib.request, "urlopen", urlopen)
-            result = CliRunner().invoke(cli_app, ["hooks-decide", str(package), "--action", str(actions)])
+            result = CliRunner().invoke(
+                cli_app,
+                [
+                    "hooks-decide",
+                    "--agent-name",
+                    "release-reviewer",
+                    "--agent-digest",
+                    digest,
+                    "--action",
+                    str(actions),
+                ],
+            )
             entries = client.get("/v1/decisions", params={"run_id": "govern-lab-3"}).json()["decisions"]
         assert result.exit_code == 2
         answer = json.loads(result.stdout)

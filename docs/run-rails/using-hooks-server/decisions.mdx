@@ -47,13 +47,15 @@ A model outside the list is refused during the run, not only at start.
 The answer is `{"decision": "allow", "rule": ...}` or `{"decision": "deny", "reason": ..., "rule": ...}`.
 The rule is `quarantine`, `hooks_server.agent_start` or `cedar policy`.
 
-To ask about the calls in a file, as the agent of a package would, run `nemoguardrails hooks-decide`:
+To ask about the calls in a file, as a given agent would, run `nemoguardrails hooks-decide`:
 
 ```bash
-nemoguardrails hooks-decide PACKAGE --action model-calls.json --url http://127.0.0.1:8100
+nemoguardrails hooks-decide --agent-name release-reviewer --agent-digest sha256:... \
+  --action model-calls.json --url http://127.0.0.1:8100
 ```
 
 Each action is an object with `kind` `call_model`, `model`, and optionally `id` and `run`.
-The agent is named by the package's `agent.json`, and its digest is the sha256 of `oadl.lock.json`.
+The agent is given as plain facts, its name and the digest of its package; the command reads no agent package, so
+whatever loads the agent states them, as it does for `/v1/hooks/agent-start`.
 The command prints `decision`, `reasons` and one entry per call (`id`, `subject`, `decision`, `reason`, `rule`).
 It exits 0 when every call is allowed, 2 when one is denied, and 1 on an error.
