@@ -127,55 +127,36 @@ class TestLFUCache(unittest.TestCase):
         self.assertEqual(self.cache.get("c"), 3)
         self.assertEqual(self.cache.get("d"), 4)
 
-    def test_complex_eviction_scenario(self):
-        """Test complex eviction scenario with multiple frequency levels."""
-        # Create a new cache for this test
+    def _cache_with_multiple_frequency_levels(self):
+        """Build a cache with frequencies a=3, b=c=2 and d=1."""
         cache = LFUCache(4)
-
-        # Add items and create different frequency levels
         cache.put("a", 1)
         cache.put("b", 2)
         cache.put("c", 3)
         cache.put("d", 4)
-
-        # Create frequency pattern:
-        # a: freq 3 (accessed 2 more times)
-        # b: freq 2 (accessed 1 more time)
-        # c: freq 2 (accessed 1 more time)
-        # d: freq 1 (not accessed)
-
         cache.get("a")
         cache.get("a")
         cache.get("b")
         cache.get("c")
+        return cache
 
-        # Add new item - should evict 'd' (freq 1)
+    def test_complex_eviction_removes_lowest_frequency(self):
+        """Evict d, the only item with frequency 1."""
+        cache = self._cache_with_multiple_frequency_levels()
         cache.put("e", 5)
         self.assertIsNone(cache.get("d"))
-
-        # Add another item - should evict one of the least frequently used
-        cache.put("f", 6)
-
-        # After eviction, we should have:
-        # - 'a' (freq 3) - definitely kept
-        # - 'b' (freq 2) and 'c' (freq 2) - higher frequency, both kept
-        # - 'f' (freq 1) - just added
-        # - 'e' (freq 1) was evicted as it was least recently used among freq 1 items
-
-        # Check that we're at maxsize
         self.assertEqual(cache.size(), 4)
 
-        # 'a' should definitely still be there (highest frequency)
+    def test_complex_eviction_preserves_higher_frequencies(self):
+        """A second eviction removes e and keeps the more frequent items."""
+        cache = self._cache_with_multiple_frequency_levels()
+        cache.put("e", 5)
+        cache.put("f", 6)
+        self.assertEqual(cache.size(), 4)
         self.assertEqual(cache.get("a"), 1)
-
-        # 'b' and 'c' should both be there (freq 2)
         self.assertEqual(cache.get("b"), 2)
         self.assertEqual(cache.get("c"), 3)
-
-        # 'f' should be there (just added)
         self.assertEqual(cache.get("f"), 6)
-
-        # 'e' should have been evicted (freq 1, LRU among freq 1 items)
         self.assertIsNone(cache.get("e"))
 
     def test_zero_maxsize_cache(self):
@@ -285,11 +266,9 @@ class TestLFUCache(unittest.TestCase):
 
     def test_repeated_puts_same_key(self):
         """Test repeated puts with the same key maintain size=1 and update frequency."""
+        self.cache = LFUCache(3, track_stats=True)
         self.cache.put("key", "value1")
         self.assertEqual(self.cache.size(), 1)
-
-        # Track initial state
-        initial_stats = self.cache.get_stats() if self.cache.track_stats else None
 
         # Update same key multiple times
         for i in range(10):
@@ -299,11 +278,8 @@ class TestLFUCache(unittest.TestCase):
         # Final value should be the last one
         self.assertEqual(self.cache.get("key"), "value9")
 
-        # Verify stats if tracking enabled
-        if self.cache.track_stats:
-            final_stats = self.cache.get_stats()
-            # Should have 10 updates (after initial put)
-            self.assertEqual(final_stats["updates"], 10)
+        # Should have 10 updates (after initial put)
+        self.assertEqual(self.cache.get_stats()["updates"], 10)
 
     def test_access_pattern_preserves_frequently_used(self):
         """Test that frequently accessed items are preserved during evictions."""
@@ -600,14 +576,15 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
             (99, 1, "99.00%"),  # High hit rate
         ]
 
+        # Populate the hit key before resetting the counters for each scenario.
+        cache.put("hit_key", "value")
+
         for hits, misses, expected_rate in test_cases:
             cache.reset_stats()
 
             # Generate hits
-            if hits > 0:
-                cache.put("hit_key", "value")
-                for _ in range(hits):
-                    cache.get("hit_key")
+            for _ in range(hits):
+                cache.get("hit_key")
 
             # Generate misses
             for i in range(misses):
@@ -616,9 +593,9 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
             with patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log:
                 cache.log_stats_now()
 
-                if hits > 0 or misses > 0:
-                    log_message = mock_log.call_args[0][1]
-                    self.assertIn(f"Hit Rate: {expected_rate}", log_message)
+                mock_log.assert_called_once()
+                log_message = mock_log.call_args[0][1]
+                self.assertIn(f"Hit Rate: {expected_rate}", log_message)
 
 
 class TestContentSafetyCacheStatsConfig(unittest.TestCase):
@@ -739,6 +716,20 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         """Set up test fixtures."""
         self.cache = LFUCache(100, track_stats=True)
 
+    def _read_write_worker(self, cache, errors, thread_id, operations_per_thread):
+        """Exercise private and shared keys in one concurrent worker."""
+        for i in range(operations_per_thread):
+            key = f"thread_{thread_id}_key_{i}"
+            value = f"thread_{thread_id}_value_{i}"
+            cache.put(key, value)
+            retrieved = cache.get(key)
+            if retrieved != value:
+                errors.append(f"Data corruption for {key}: expected {value}, got {retrieved}")
+
+            shared_key = f"shared_key_{i % 10}"
+            cache.put(shared_key, f"shared_value_{thread_id}_{i}")
+            cache.get(shared_key)
+
     def test_concurrent_reads_writes(self):
         """Test that concurrent reads and writes don't corrupt the cache."""
         num_threads = 10
@@ -746,31 +737,11 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         # Use a larger cache to avoid evictions during the test
         large_cache = LFUCache(2000, track_stats=True)
         errors = []
-
-        def worker(thread_id):
-            """Worker function that performs cache operations."""
-            for i in range(operations_per_thread):
-                key = f"thread_{thread_id}_key_{i}"
-                value = f"thread_{thread_id}_value_{i}"
-
-                # Put operation
-                large_cache.put(key, value)
-
-                # Get operation - should always succeed with large cache
-                retrieved = large_cache.get(key)
-
-                # Verify data integrity
-                if retrieved != value:
-                    errors.append(f"Data corruption for {key}: expected {value}, got {retrieved}")
-
-                # Access some shared keys
-                shared_key = f"shared_key_{i % 10}"
-                large_cache.put(shared_key, f"shared_value_{thread_id}_{i}")
-                large_cache.get(shared_key)
-
-        # Run threads
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = [executor.submit(worker, i) for i in range(num_threads)]
+            futures = [
+                executor.submit(self._read_write_worker, large_cache, errors, i, operations_per_thread)
+                for i in range(num_threads)
+            ]
             for future in futures:
                 future.result()  # Wait for completion and raise any exceptions
 
@@ -865,13 +836,11 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
                 self.cache.get(key)  # Hit
                 self.cache.get(f"nonexistent_{thread_id}_{i}")  # Miss
 
-                # Periodically check stats
-                if i % 10 == 0:
-                    stats = self.cache.get_stats()
-                    # Just verify we can get stats without error
-                    self.assertIsInstance(stats, dict)
-                    self.assertIn("hits", stats)
-                    self.assertIn("misses", stats)
+                # Check the statistics structure after every group of operations.
+                stats = self.cache.get_stats()
+                self.assertIsInstance(stats, dict)
+                self.assertIn("hits", stats)
+                self.assertIn("misses", stats)
 
         # Run threads
         with ThreadPoolExecutor(max_workers=5) as executor:
@@ -885,8 +854,8 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         self.assertGreater(final_stats["misses"], 0)
         self.assertGreater(final_stats["puts"], 0)
 
-    def test_get_or_compute_thread_safety(self):
-        """Test thread safety of get_or_compute method."""
+    async def _compute_shared_key_concurrently(self):
+        """Run ten requests for the same key and return results and computations."""
         compute_count = threading.local()
         compute_count.value = 0
         total_computes = []
@@ -906,35 +875,24 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
             await asyncio.sleep(0.1)
             return f"computed_value_{len(total_computes)}"
 
-        async def worker(thread_id):
-            """Worker that tries to get or compute the same key."""
-            result = await self.cache.get_or_compute("shared_compute_key", expensive_compute, default="default")
-            return result
+        tasks = [
+            self.cache.get_or_compute("shared_compute_key", expensive_compute, default="default") for _ in range(10)
+        ]
+        return await asyncio.gather(*tasks), total_computes
 
-        async def run_test():
-            """Run the async test."""
-            # Run multiple workers concurrently
-            tasks = [worker(i) for i in range(10)]
-            results = await asyncio.gather(*tasks)
-
-            # All should get the same value
-            self.assertTrue(
-                all(r == results[0] for r in results),
-                f"All threads should get same value, got: {results}",
-            )
-
-            # Compute should have been called only once
-            self.assertEqual(
-                len(total_computes),
-                1,
-                f"Compute should be called once, called {len(total_computes)} times",
-            )
-
-            return results[0]
-
-        # Run the async test
-        result = asyncio.run(run_test())
-        self.assertEqual(result, "computed_value_1")
+    def test_get_or_compute_thread_safety(self):
+        """Test thread safety of get_or_compute method."""
+        results, total_computes = asyncio.run(self._compute_shared_key_concurrently())
+        self.assertTrue(
+            all(r == results[0] for r in results),
+            f"All threads should get same value, got: {results}",
+        )
+        self.assertEqual(
+            len(total_computes),
+            1,
+            f"Compute should be called once, called {len(total_computes)} times",
+        )
+        self.assertEqual(results[0], "computed_value_1")
 
     def test_get_or_compute_exception_handling(self):
         """Test get_or_compute handles exceptions properly.
@@ -976,7 +934,6 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
 
     def test_thread_safe_size_operations(self):
         """Test that size-related operations are thread-safe."""
-        results = []
 
         def worker(thread_id):
             """Worker that checks size consistency."""
@@ -989,21 +946,17 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
                 is_empty = self.cache.is_empty()
 
                 # Size should never be negative or exceed maxsize
-                if size < 0 or size > 100:
-                    results.append(f"Invalid size: {size}")
+                self.assertGreaterEqual(size, 0, f"Thread {thread_id}: Invalid size: {size}")
+                self.assertLessEqual(size, 100, f"Thread {thread_id}: Invalid size: {size}")
 
                 # is_empty should match size
-                if (size == 0) != is_empty:
-                    results.append(f"Size {size} but is_empty={is_empty}")
+                self.assertEqual(size == 0, is_empty, f"Thread {thread_id}: Size {size} but is_empty={is_empty}")
 
         # Run workers
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [executor.submit(worker, i) for i in range(10)]
             for future in futures:
                 future.result()
-
-        # Check for any inconsistencies
-        self.assertEqual(len(results), 0, f"Inconsistencies found: {results}")
 
     def test_concurrent_contains_operations(self):
         """Test thread safety of contains method."""
@@ -1015,30 +968,25 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         for i in range(50):
             large_cache.put(f"existing_key_{i}", f"value_{i}")
 
-        results = []
-        eviction_warnings = []
-
         def worker(thread_id):
             """Worker that checks contains and manipulates cache."""
             for i in range(100):
                 # Check existing keys
                 key = f"existing_key_{i % 50}"
-                if not large_cache.contains(key):
-                    results.append(f"Thread {thread_id}: Missing key {key}")
+                self.assertTrue(large_cache.contains(key), f"Thread {thread_id}: Missing key {key}")
 
                 # Add new keys
                 new_key = f"new_key_{thread_id}_{i}"
                 large_cache.put(new_key, f"value_{thread_id}_{i}")
 
-                # Check new key immediately
-                if not large_cache.contains(new_key):
-                    # This could happen if cache is full and eviction occurred
-                    # Track it separately as it's not a thread safety issue
-                    eviction_warnings.append(f"Thread {thread_id}: Key {new_key} possibly evicted")
+                # The cache holds all 550 keys, so a new key must remain present.
+                self.assertTrue(large_cache.contains(new_key), f"Thread {thread_id}: Missing new key {new_key}")
 
                 # Check non-existent keys
-                if large_cache.contains(f"non_existent_{thread_id}_{i}"):
-                    results.append(f"Thread {thread_id}: Found non-existent key")
+                self.assertFalse(
+                    large_cache.contains(f"non_existent_{thread_id}_{i}"),
+                    f"Thread {thread_id}: Found non-existent key at operation {i}",
+                )
 
         # Run workers
         with ThreadPoolExecutor(max_workers=5) as executor:
@@ -1046,16 +994,8 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
             for future in futures:
                 future.result()
 
-        # Check for any errors (not counting eviction warnings)
-        self.assertEqual(len(results), 0, f"Errors found: {results}")
-
-        # Eviction warnings should be minimal with large cache
-        if eviction_warnings:
-            print(f"Note: {len(eviction_warnings)} keys were evicted during test")
-
     def test_concurrent_reset_stats(self):
         """Test thread safety of reset_stats operations."""
-        errors = []
 
         def worker(thread_id):
             """Worker that performs operations and resets stats."""
@@ -1071,17 +1011,13 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
 
                 # Check stats integrity
                 stats = self.cache.get_stats()
-                if any(v < 0 for v in stats.values() if isinstance(v, (int, float))):
-                    errors.append(f"Thread {thread_id}: Negative stat value: {stats}")
+                self.assertGreaterEqual(min(stats.values()), 0, f"Thread {thread_id}: Negative stat value: {stats}")
 
         # Run workers
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(worker, i) for i in range(5)]
             for future in futures:
                 future.result()
-
-        # Verify no errors
-        self.assertEqual(len(errors), 0, f"Stats errors: {errors[:5]}")
 
     def test_get_or_compute_concurrent_different_keys(self):
         """Test get_or_compute with different keys being computed concurrently."""
@@ -1127,38 +1063,32 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
 
         asyncio.run(run_test())
 
+    def _evicting_worker(self, cache, data_integrity_errors, thread_id):
+        """Exercise evictions while allowing keys to disappear between operations."""
+        for i in range(100):
+            key = f"t{thread_id}_k{i}"
+            value = f"t{thread_id}_v{i}"
+            cache.put(key, value)
+            retrieved = cache.get(key)
+
+            # Value might be None if evicted immediately (unlikely but possible)
+            if retrieved is not None and retrieved != value:
+                # This would indicate actual data corruption
+                data_integrity_errors.append(f"Wrong value for {key}: expected {value}, got {retrieved}")
+
+            # Also work with some high-frequency keys (access multiple times)
+            high_freq_key = f"high_freq_{thread_id % 5}"
+            for _ in range(3):  # Access 3 times to increase frequency
+                cache.put(high_freq_key, f"high_freq_value_{thread_id}")
+                cache.get(high_freq_key)
+
     def test_concurrent_operations_with_evictions(self):
         """Test thread safety when cache is at maxsize and evictions occur."""
         # Small cache to force evictions
         small_cache = LFUCache(50, track_stats=True)
         data_integrity_errors = []
-
-        def worker(thread_id):
-            """Worker that handles potential evictions gracefully."""
-            for i in range(100):
-                key = f"t{thread_id}_k{i}"
-                value = f"t{thread_id}_v{i}"
-
-                # Put value
-                small_cache.put(key, value)
-
-                # Immediately access to increase frequency
-                retrieved = small_cache.get(key)
-
-                # Value might be None if evicted immediately (unlikely but possible)
-                if retrieved is not None and retrieved != value:
-                    # This would indicate actual data corruption
-                    data_integrity_errors.append(f"Wrong value for {key}: expected {value}, got {retrieved}")
-
-                # Also work with some high-frequency keys (access multiple times)
-                high_freq_key = f"high_freq_{thread_id % 5}"
-                for _ in range(3):  # Access 3 times to increase frequency
-                    small_cache.put(high_freq_key, f"high_freq_value_{thread_id}")
-                    small_cache.get(high_freq_key)
-
-        # Run workers
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(worker, i) for i in range(10)]
+            futures = [executor.submit(self._evicting_worker, small_cache, data_integrity_errors, i) for i in range(10)]
             for future in futures:
                 future.result()
 

@@ -54,33 +54,34 @@ def retrieve_relevant_chunks():
     )
 
 
-@pytest.mark.asyncio
-def test_patronus_evaluate_api_success_strategy_all_pass(monkeypatch):
-    """
-    Test that the "all_pass" success strategy passes when all evaluators pass
-    """
+def _create_patronus_evaluate_chat(monkeypatch, success_strategy="all_pass"):
     monkeypatch.setenv("PATRONUS_API_KEY", "xxx")
-    yaml_evaluate_config = """
+
+    strategy_config = f'          success_strategy: "{success_strategy}"\n' if success_strategy is not None else ""
+    yaml_evaluate_config = f"""
   config:
     patronus:
       output:
         evaluate_config:
-          success_strategy: "all_pass"
-          params:
-              {
+{strategy_config}          params:
+              {{
                 evaluators:
                     [
-                      { "evaluator": "lynx" },
-                      {
+                      {{ "evaluator": "lynx" }},
+                      {{
                           "evaluator": "answer-relevance",
                           "explain_strategy": "on-fail",
-                      },
+                      }},
                     ],
-                tags: { "hello": "world" },
-              }
+                tags: {{ "hello": "world" }},
+              }}
     """
-    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
-    chat = TestChat(
+
+    config = RailsConfig.from_content(
+        colang_content=COLANG_CONFIG,
+        yaml_content=YAML_PREFIX + yaml_evaluate_config,
+    )
+    return TestChat(
         config,
         llm_completions=[
             "Mock generated user intent",
@@ -89,9 +90,18 @@ def test_patronus_evaluate_api_success_strategy_all_pass(monkeypatch):
         ],
     )
 
+
+@pytest.mark.asyncio
+def test_patronus_evaluate_api_success_strategy_all_pass(monkeypatch):
+    """Verify that the request passes when all evaluators pass."""
+    chat = _create_patronus_evaluate_chat(monkeypatch)
+
     with RecordedHTTPResponses() as m:
         chat.app.register_action_param("http_client", m.client)
-        chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+        chat.app.register_action(
+            retrieve_relevant_chunks,
+            "retrieve_relevant_chunks",
+        )
         m.post(
             PATRONUS_EVALUATE_API_URL,
             payload={
@@ -100,17 +110,13 @@ def test_patronus_evaluate_api_success_strategy_all_pass(monkeypatch):
                         "evaluator_id": "lynx-large-2024-07-23",
                         "criteria": "patronus:hallucination",
                         "status": "success",
-                        "evaluation_result": {
-                            "pass": True,
-                        },
+                        "evaluation_result": {"pass": True},
                     },
                     {
                         "evaluator_id": "answer-relevance-large-2024-07-23",
                         "criteria": "patronus:answer-relevance",
                         "status": "success",
-                        "evaluation_result": {
-                            "pass": True,
-                        },
+                        "evaluation_result": {"pass": True},
                     },
                 ]
             },

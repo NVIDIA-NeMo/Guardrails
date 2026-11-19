@@ -1006,41 +1006,47 @@ def test_api_key_environment_variable_logic_without_rails_init():
     assert kwargs["temperature"] == 0.3
 
 
-def test_register_methods_return_self():
-    """Test that all register_* methods return self for method chaining."""
+@pytest.fixture
+def rails_for_registration():
     config = RailsConfig.from_content(config={"models": []})
-    rails = LLMRails(config=config, llm=FakeLLMModel(responses=[]))
+    return LLMRails(config=config, llm=FakeLLMModel(responses=[]))
 
-    # Test register_action returns self
+
+def test_register_action_returns_self(rails_for_registration):
     def dummy_action():
         pass
 
-    result = rails.register_action(dummy_action, "test_action")
-    assert result is rails, "register_action should return self"
+    result = rails_for_registration.register_action(dummy_action, "test_action")
+    assert result is rails_for_registration, "register_action should return self"
 
-    # Test register_action_param returns self
-    result = rails.register_action_param("test_param", "test_value")
-    assert result is rails, "register_action_param should return self"
 
-    # Test register_filter returns self
+def test_register_action_param_returns_self(rails_for_registration):
+    result = rails_for_registration.register_action_param("test_param", "test_value")
+    assert result is rails_for_registration, "register_action_param should return self"
+
+
+def test_register_filter_returns_self(rails_for_registration):
     def dummy_filter(text):
         return text
 
-    result = rails.register_filter(dummy_filter, "test_filter")
-    assert result is rails, "register_filter should return self"
+    result = rails_for_registration.register_filter(dummy_filter, "test_filter")
+    assert result is rails_for_registration, "register_filter should return self"
 
-    # Test register_output_parser returns self
+
+def test_register_output_parser_returns_self(rails_for_registration):
     def dummy_parser(text):
         return text
 
-    result = rails.register_output_parser(dummy_parser, "test_parser")
-    assert result is rails, "register_output_parser should return self"
+    result = rails_for_registration.register_output_parser(dummy_parser, "test_parser")
+    assert result is rails_for_registration, "register_output_parser should return self"
 
-    # Test register_prompt_context returns self
-    result = rails.register_prompt_context("test_context", "test_value")
-    assert result is rails, "register_prompt_context should return self"
 
-    # Test register_embedding_search_provider returns self
+def test_register_prompt_context_returns_self(rails_for_registration):
+    result = rails_for_registration.register_prompt_context("test_context", "test_value")
+    assert result is rails_for_registration, "register_prompt_context should return self"
+
+
+def test_register_embedding_search_provider_returns_self(rails_for_registration):
     from nemoguardrails.embeddings.index import EmbeddingsIndex
 
     class DummyEmbeddingProvider(EmbeddingsIndex):
@@ -1053,18 +1059,19 @@ def test_register_methods_return_self():
         def search(self, text, max_results=5):
             return []
 
-    result = rails.register_embedding_search_provider("dummy_provider", DummyEmbeddingProvider)
-    assert result is rails, "register_embedding_search_provider should return self"
+    result = rails_for_registration.register_embedding_search_provider("dummy_provider", DummyEmbeddingProvider)
+    assert result is rails_for_registration, "register_embedding_search_provider should return self"
 
-    # Test register_embedding_provider returns self
+
+def test_register_embedding_provider_returns_self(rails_for_registration):
     from nemoguardrails.embeddings.providers.base import EmbeddingModel
 
     class DummyEmbeddingModel(EmbeddingModel):
         def encode(self, texts):
             return []
 
-    result = rails.register_embedding_provider(DummyEmbeddingModel, "dummy_embedding")
-    assert result is rails, "register_embedding_provider should return self"
+    result = rails_for_registration.register_embedding_provider(DummyEmbeddingModel, "dummy_embedding")
+    assert result is rails_for_registration, "register_embedding_provider should return self"
 
 
 def test_method_chaining():

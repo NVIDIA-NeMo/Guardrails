@@ -369,31 +369,30 @@ class TestGenerateChunkLatencies:
             a_max=streaming_settings.ttft_max_seconds,
         )
 
-    @patch("benchmark.mock_llm_server.response_data.np.random.seed")
-    @patch("benchmark.mock_llm_server.response_data.np.random.normal")
-    @patch("benchmark.mock_llm_server.response_data.np.clip")
-    def test_generate_latencies_multiple_chunks_no_seed(
-        self,
-        mock_clip: MagicMock,
-        mock_normal: MagicMock,
-        mock_seed: MagicMock,
-        streaming_settings: ModelSettings,
-    ):
-        """Test multiple chunks calls TTFT then ITL normal and clip."""
-        num_chunks = 5
+    @pytest.fixture
+    def multiple_chunk_generation_no_seed(self, streaming_settings: ModelSettings):
+        """Generate five mocked latencies for independent distribution and clipping checks."""
         ttft_value = np.array([streaming_settings.ttft_mean_seconds])
         chunk_values = np.array([0.01, 0.02, 0.03, 0.04])
+        with (
+            patch("benchmark.mock_llm_server.response_data.np.random.seed") as mock_seed,
+            patch("benchmark.mock_llm_server.response_data.np.random.normal") as mock_normal,
+            patch("benchmark.mock_llm_server.response_data.np.clip") as mock_clip,
+        ):
+            # First call returns TTFT, second call returns ITL values
+            mock_normal.side_effect = [ttft_value, chunk_values]
+            mock_clip.side_effect = [ttft_value, chunk_values]
+            latencies = generate_chunk_latencies(streaming_settings, 5)
+        return latencies, mock_seed, mock_normal, mock_clip, ttft_value, chunk_values
 
-        # First call returns TTFT, second call returns ITL values
-        mock_normal.side_effect = [ttft_value, chunk_values]
-        mock_clip.side_effect = [ttft_value, chunk_values]
-
-        latencies = generate_chunk_latencies(streaming_settings, num_chunks)
-
-        assert len(latencies) == num_chunks
+    def test_generate_latencies_multiple_chunks_no_seed(
+        self, streaming_settings: ModelSettings, multiple_chunk_generation_no_seed
+    ):
+        """Use the configured TTFT and ITL normal distributions without seeding."""
+        latencies, mock_seed, mock_normal, _, _, _ = multiple_chunk_generation_no_seed
+        assert len(latencies) == 5
         assert mock_seed.call_count == 0
         assert mock_normal.call_count == 2
-        assert mock_clip.call_count == 2
 
         # Check the TTFT Normal distribution
         ttft_normal_call_args, ttft_normal_call_kwargs = mock_normal.call_args_list[0]
@@ -407,7 +406,14 @@ class TestGenerateChunkLatencies:
         assert chunk_normal_call_args == ()  # All arguments are passed as kwargs, so args list is empty
         assert chunk_normal_call_kwargs["loc"] == streaming_settings.chunk_latency_mean_seconds
         assert chunk_normal_call_kwargs["scale"] == streaming_settings.chunk_latency_std_seconds
-        assert chunk_normal_call_kwargs["size"] == num_chunks - 1
+        assert chunk_normal_call_kwargs["size"] == 4
+
+    def test_generate_latencies_multiple_chunks_clips_ttft_and_itl(
+        self, streaming_settings: ModelSettings, multiple_chunk_generation_no_seed
+    ):
+        """Clip TTFT and ITL samples using their respective configured limits."""
+        _, _, _, mock_clip, ttft_value, chunk_values = multiple_chunk_generation_no_seed
+        assert mock_clip.call_count == 2
 
         # Check TTFT clip calls
         ttft_clip_call_args, ttft_clip_call_kwargs = mock_clip.call_args_list[0]
