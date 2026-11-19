@@ -217,36 +217,13 @@ Use the [evaluation tools](https://docs.nvidia.com/nemo/guardrails/latest/evalua
 
 ## Benchmarking Guardrails Performance
 
-The following numbers show the latency that the Guardrails API server adds to each request, measured on a 14-inch MacBook Pro with an Apple M4 (10 cores, 24 GB).
-The server runs the [`content_safety_local`](./examples/configs/content_safety_local) configuration, which checks each request with an input rail and an output rail.
-Mock LLMs replace the main model and the content-safety model with fixed latencies, so each request spends 5,000 ms in model calls: 500 ms for each content-safety check and 4,000 ms for the main model.
-AIPerf sends non-streaming requests for 180 seconds at each concurrency level, with prompts of about 100 input tokens.
-
-The following chart shows the added latency at concurrency 64, where each LLMRails label also gives its multiple of the IORails value.
+In a local benchmark with 64 concurrent requests, the Guardrails API server added **13 ms median latency with IORails**, compared with **93 ms with LLMRails**. The chart shows median and tail latency for both engines.
 
 ![Latency added by IORails and LLMRails at concurrency 64](./docs/_static/images/benchmark/added-latency-concurrency-64.png)
 
-| Concurrency | IORails p50 (ms) | IORails p90 (ms) | IORails p99 (ms) | LLMRails p50 (ms) | LLMRails p90 (ms) | LLMRails p99 (ms) |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 11 | 13 | 30 | 39 | 40 | 53 |
-| 2 | 13 | 15 | 20 | 62 | 70 | 104 |
-| 4 | 13 | 15 | 19 | 85 | 100 | 127 |
-| 8 | 13 | 19 | 68 | 136 | 179 | 208 |
-| 16 | 15 | 21 | 30 | 97 | 289 | 416 |
-| 32 | 13 | 19 | 106 | 88 | 274 | 860 |
-| 64 | 13 | 22 | 126 | 93 | 669 | 2,094 |
-| 128 | 17 | 774 | 2,880 | 430 | 1,422 | 5,182 |
+These results used non-streaming requests with input and output content-safety checks on an Apple M4 MacBook Pro (10 cores, 24 GB). Added latency excludes 5 seconds of simulated model time but includes HTTP overhead to the mock models. Actual latency depends on your workload, configuration, and model services.
 
-Each value is the request-latency percentile minus the 5,000 ms of model calls.
-It includes the server's three HTTP calls to the mock models, about 2.5 ms each.
-
-To reproduce these numbers, follow the [benchmarking guide](./benchmark/README.md) with two changes:
-
-- Set `benchmark_duration: 180` in the AIPerf config; the shipped configs use 60 seconds.
-- For the IORails columns, start the server with `NEMO_GUARDRAILS_IORAILS_ENGINE=true`; the guide's Procfile starts the server without it, so the server runs LLMRails by default.
-
-The same tooling can be used to benchmark production Guardrails deployments using real models instead of mock LLMs.
-For this use-case the Guardrails configuration should point to production LLMs, and AIPerf should run with representative production datasets.
+See the [full results and methodology](./benchmark/README.md#published-benchmark-results) for all concurrency levels and reproduction instructions, or use the [benchmarking tools](./benchmark/README.md) to measure your own deployment.
 
 ## Community Usage
 
