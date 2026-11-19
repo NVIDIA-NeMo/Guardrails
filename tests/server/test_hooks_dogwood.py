@@ -60,7 +60,9 @@ def _count_cap(action: str, window: str, limit: int) -> str:
     )
 
 
-def _server(tmp_path: Path, policies: dict[str, str], gateway: str = GATEWAY, **hooks_server) -> TestClient:
+def _server(
+    tmp_path: Path, policies: dict[str, str], gateway: str = GATEWAY, denied_calls: str = "request", **hooks_server
+) -> TestClient:
     folder = tmp_path / "policies"
     folder.mkdir(exist_ok=True)
     for name, text in policies.items():
@@ -69,7 +71,7 @@ def _server(tmp_path: Path, policies: dict[str, str], gateway: str = GATEWAY, **
         "models": [],
         "hooks_server": {
             "decision_record": str(tmp_path / "decisions.jsonl"),
-            "dogwood": {"policies": str(folder), "gateway": gateway},
+            "dogwood": {"policies": str(folder), "gateway": gateway, "denied_calls": denied_calls},
             **hooks_server,
         },
     }
@@ -208,18 +210,23 @@ def test_an_agentform_prerequisite_is_met_by_a_completed_call_and_not_by_a_faile
         assert _call(client, "mcp__ops__restart_service")[0]
 
 
-def test_a_running_total_is_capped_and_the_record_keeps_only_the_summed_input(tmp_path):
+@pytest.mark.parametrize(
+    ("denied_calls", "third_allowed"),
+    # By default a denied call is an attempt and its amount still counts, as the Dogwood language keeps it; read as
+    # AgentCore describes a denied request, it is an error event and its amount does not.
+    [("request", False), ("error", True)],
+)
+def test_a_running_total_is_capped_and_the_record_keeps_only_the_summed_input(tmp_path, denied_calls, third_allowed):
     total = (
         "exists (total: Long).\n        (sum amt for (amt: Long), (t: Timepoint).\n"
         '            where (formerly within 5m (AgentCore::Action::"pay___disburse"::request{ eventResource: resource, '
         "input.amountCents: amt } && tp(t)))) == total\n        && total > 150"
     )
-    with _server(
-        tmp_path, {"permit.dw": PERMIT_ALL, "sum.dw": _policy("forbid", "pay___disburse", total, policy_id="s")}
-    ) as client:
+    policies = {"permit.dw": PERMIT_ALL, "sum.dw": _policy("forbid", "pay___disburse", total, policy_id="s")}
+    with _server(tmp_path, policies, denied_calls=denied_calls) as client:
         assert _call(client, "mcp__pay__disburse", amountCents=100, note="first")[0]
         assert not _call(client, "mcp__pay__disburse", amountCents=100, note="second")[0]
-        assert _call(client, "mcp__pay__disburse", amountCents=50, note="third")[0]
+        assert _call(client, "mcp__pay__disburse", amountCents=50, note="third")[0] == third_allowed
     entries = [json.loads(line) for line in (tmp_path / "decisions.jsonl").read_text().splitlines()]
     assert [entry["asked"]["inputs"] for entry in entries] == [{"amountCents": 100}] * 2 + [{"amountCents": 50}]
     assert "first" not in (tmp_path / "decisions.jsonl").read_text()

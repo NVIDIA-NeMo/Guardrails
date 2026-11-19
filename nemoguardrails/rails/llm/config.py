@@ -500,6 +500,12 @@ class DogwoodRules(BaseModel):
         description="The `AgentCore::Gateway` the policies name as their resource. The default is the placeholder "
         "Agentform's Dogwood renderer writes when it is given no gateway ARN.",
     )
+    denied_calls: Literal["request", "error"] = Field(
+        default="request",
+        description="What a denied call is in the run's history. `request` (the default) counts it as an attempt, "
+        "as the Dogwood language does: a `::request` pattern matches it. `error` records it only as an `::error` "
+        "event, as AgentCore's documentation describes a denied request.",
+    )
 
 
 class AgentStartConfig(BaseModel):

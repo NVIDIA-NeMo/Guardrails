@@ -333,7 +333,7 @@ def _load_dogwood(config: RailsConfig) -> Optional[DogwoodToolRules]:
     if rules is None:
         return None
     try:
-        loaded = DogwoodToolRules.load(_config_folder(config) / rules.policies, rules.gateway)
+        loaded = DogwoodToolRules.load(_config_folder(config) / rules.policies, rules.gateway, rules.denied_calls)
     except CedarPolicyError as exc:
         raise HooksConfigError(str(exc)) from None
     if loaded.quarantines and not config.hooks_server.quarantine_store:
@@ -878,7 +878,9 @@ def _run_history(request: Request, identity: tuple[Optional[str], Optional[str]]
             continue
         asked = entry.get("asked") or {}
         if entry.get("kind") == "tool_call":
-            kind = "request" if entry.get("outcome") == "allow" else "error"
+            # A denied call is an attempt, a `::request`, as the Dogwood language keeps it, unless the config asks for
+            # AgentCore's reading, an `::error`.
+            kind = "request" if entry.get("outcome") == "allow" else request.app.state.dogwood_tool_rules.denied_calls
         elif entry.get("kind") == "tool_result":
             kind = entry.get("outcome")
         else:

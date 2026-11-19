@@ -20,6 +20,7 @@ hooks_server:
   dogwood:
     policies: policies                # a folder of .dw or .dogwood files, relative to the config's folder
     gateway: __GATEWAY_ARN__          # the AgentCore::Gateway the policies name as their resource
+    denied_calls: request             # a denied call is an attempt in the history; or `error`, see below
 ```
 
 Dogwood needs the `cedar` extra: `pip install "nemoguardrails[server,cedar]"`.
@@ -47,10 +48,12 @@ Its events come from the decision record:
 
 | Event | Recorded when |
 |---|---|
-| `::request` | A call is allowed. The call being decided counts as one, as AgentCore counts it. |
+| `::request` | A call is asked about, allowed or denied: an attempt. The call being decided counts as one. |
 | `::response` | Claude Code sends `PostToolUse` for the call on `/v1/hooks/claude-code`. |
-| `::error` | A call is denied, stopped or quarantined, or Claude Code sends `PostToolUseFailure`. |
+| `::error` | Claude Code sends `PostToolUseFailure`; with `denied_calls: error`, also a call that is denied, stopped or quarantined. |
 
+A denied call counts as a `::request` attempt by default, as the Dogwood language keeps it, so a cap keeps counting calls that were refused.
+AgentCore's documentation describes a denied request as recorded only as an `error` event; `denied_calls: error` gives that reading, where a denied call is an `::error` event and never matches a `::request` pattern.
 A configuration with Dogwood records `PostToolUse` and `PostToolUseFailure` and answers them with no decision; without Dogwood the path refuses them as before.
 The record keeps a call's argument names and, for the inputs a Dogwood policy reads from earlier events, such as `input.amountCents`, their values. No other argument value, and nothing of a tool's output, is recorded.
 Events older than 24 hours are not read.

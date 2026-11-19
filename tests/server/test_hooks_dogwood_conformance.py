@@ -19,9 +19,9 @@ Each bundle under `dogwood_conformance/` is a policy, an event trace and the ver
 CLI gives for it (see its README). The trace is replayed through this server's evaluator, with history kept per
 principal as the reference's default event schema does, and the verdicts compared.
 
-One difference is known and kept: the reference keeps a denied `request` in history, while AgentCore's documentation
-says a denied request is recorded as an `error` event, which this server follows. `alert_login_in_last_hour` is the
-one bundle whose verdicts depend on it.
+A denied call stays in history as a `request`, an attempt, as the reference keeps it; that is the server's default
+(`hooks_server.dogwood.denied_calls: request`). With `denied_calls: error`, AgentCore's documented reading, a denied call
+is an `error` event instead, and `alert_login_in_last_hour` is the one bundle whose verdicts change.
 """
 
 import json
@@ -196,12 +196,12 @@ DENIED_REQUEST_MATTERS = {"alert_login_in_last_hour"}
 
 
 @pytest.mark.parametrize("bundle", BUNDLES, ids=lambda p: p.name)
-def test_the_reference_verdicts_with_the_reference_rule_for_a_denied_request(bundle):
+def test_the_default_gives_the_reference_verdicts(bundle):
     got, want = replay(bundle, denied_request_stays=True)
     assert want and got == want
 
 
 @pytest.mark.parametrize("bundle", BUNDLES, ids=lambda p: p.name)
-def test_the_server_rule_for_a_denied_request_differs_only_where_known(bundle):
+def test_denied_calls_as_errors_differ_only_where_known(bundle):
     got, want = replay(bundle, denied_request_stays=False)
     assert (got != want) == (bundle.name in DENIED_REQUEST_MATTERS), (got, want)

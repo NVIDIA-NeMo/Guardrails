@@ -464,9 +464,11 @@ class DogwoodToolRules:
     gateway: str
     # For each action, the input fields some policy reads from its events: the only values the record keeps.
     read_inputs: Mapping[str, frozenset[str]]
+    # What a denied call is in history: "request", an attempt, as the Dogwood language keeps it; or "error".
+    denied_calls: str = "request"
 
     @classmethod
-    def load(cls, folder: Path, gateway: str) -> "DogwoodToolRules":
+    def load(cls, folder: Path, gateway: str, denied_calls: str = "request") -> "DogwoodToolRules":
         section = "hooks_server.dogwood"
         if not folder.is_dir():
             raise DogwoodPolicyError(f"{section}.policies names '{folder}', which is not a folder")
@@ -486,7 +488,8 @@ class DogwoodToolRules:
             for condition in block.conditions:
                 for pattern in _patterns(condition):
                     read.setdefault(pattern.action, set()).update(name for name, _ in pattern.constraints)
-        return cls(policies, tuple(blocks), gateway, {action: frozenset(names) for action, names in read.items()})
+        read_inputs = {action: frozenset(names) for action, names in read.items()}
+        return cls(policies, tuple(blocks), gateway, read_inputs, denied_calls)
 
     @property
     def quarantines(self) -> bool:
