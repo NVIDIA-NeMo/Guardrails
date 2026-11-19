@@ -1,0 +1,30 @@
+// The hooks server's Cedar vocabulary. The server asks with these types; it checks the policies against this schema
+// when the config names it under `schema`.
+namespace Hooks {
+  // The agent that starts or calls a tool. On a tool call, `name` is empty when the request names no agent.
+  entity Agent = { "name": String, "digest"?: String };
+
+  // What an agent starts with, as the caller states it. `type` is skill, plugin, connector, hook, package, policy or
+  // agent.
+  entity Part in [Agent] = {
+    "id": String, "type": String, "source": String, "version"?: String, "digest"?: String, "local": Bool
+  };
+  entity Model in [Agent] = { "name": String };
+  entity Policy in [Agent] = { "id": String, "required": Bool, "enforcers": Set<String> };
+  entity Tool = { "name": String };
+
+  // Asked once for the agent itself and once for each part, model and policy; the start is allowed when all are.
+  action start appliesTo {
+    principal: [Agent],
+    resource: [Agent, Part, Model, Policy],
+    context: { "enforcers_present": Set<String> }
+  };
+
+  // Asked once for each tool call. `arguments` holds the call's arguments that Cedar can hold; declare the ones your
+  // policies read, as optional attributes. `argument_names` names every argument the call passes.
+  action call_tool appliesTo {
+    principal: [Agent],
+    resource: [Tool],
+    context: { "arguments": { "query"?: String }, "argument_names": Set<String> }
+  };
+}

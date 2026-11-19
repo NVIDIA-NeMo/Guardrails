@@ -376,6 +376,43 @@ async fn long_server_message_is_cut() {
     );
 }
 
+/// A stop carries the server's reason, or none.
+#[tokio::test]
+async fn stop_decision_carries_the_server_reason() {
+    for (body, reason) in [
+        (
+            json!({"decision": "stop", "reason": "drop_database ends the run"}),
+            Some("drop_database ends the run"),
+        ),
+        (json!({"decision": "stop", "reason": ""}), None),
+        (json!({"decision": "stop"}), None),
+    ] {
+        let verdict = check_search(ResponseTemplate::new(200).set_body_json(body)).await;
+        assert_eq!(
+            verdict,
+            Ok(Verdict::Stop {
+                reason: reason.map(str::to_string)
+            })
+        );
+    }
+}
+
+/// A quarantine carries the server's reason.
+#[tokio::test]
+async fn quarantine_decision_carries_the_server_reason() {
+    let verdict = check_search(
+        ResponseTemplate::new(200)
+            .set_body_json(json!({"decision": "quarantine", "reason": "agent is quarantined"})),
+    )
+    .await;
+    assert_eq!(
+        verdict,
+        Ok(Verdict::Quarantine {
+            reason: Some("agent is quarantined".to_string())
+        })
+    );
+}
+
 /// A 200 answer that isn't an allow or a deny fails the check.
 #[tokio::test]
 async fn unexpected_200_answer_fails_the_check() {
