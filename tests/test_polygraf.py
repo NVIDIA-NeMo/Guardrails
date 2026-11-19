@@ -531,6 +531,29 @@ async def test_polygraf_mask_pii_skips_unselected_malformed_entity(monkeypatch, 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "spans, expected",
+    [
+        pytest.param([(13, 24, "Person"), (17, 19, "Email")], "SSN on file: <Person> (call back)", id="nested"),
+        pytest.param([(13, 19, "Email"), (17, 24, "Person")], "SSN on file: <Person> (call back)", id="partial"),
+        pytest.param([(13, 24, "Person"), (13, 24, "Person")], "SSN on file: <Person> (call back)", id="duplicate"),
+    ],
+)
+async def test_polygraf_mask_pii_overlapping_spans_do_not_leak(monkeypatch, spans, expected):
+    """Nested or overlapping spans must not leave original characters behind."""
+
+    async def mock_request(text, server_endpoint, api_key, http_client=None):
+        return [{"entity_type": t, "start": s, "end": e} for s, e, t in spans]
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+
+    result = await polygraf_mask_pii("input", "SSN on file: 123-45-6789 (call back)", _polygraf_config())
+
+    assert result.transform_text["user_message"] == expected
+
+
+@pytest.mark.asyncio
 async def test_polygraf_mask_pii_fails_closed_on_missing_entity_type(monkeypatch, caplog):
     """An entity with no entity_type cannot be safely classified -> fail closed even with a filter set."""
 

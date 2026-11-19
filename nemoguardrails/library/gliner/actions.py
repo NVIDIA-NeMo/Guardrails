@@ -62,18 +62,31 @@ def _mask_text_with_entities(text: str, entities: List[dict]) -> str:
 
     Returns:
         Text with entities replaced by [LABEL] placeholders
+
+    Overlapping or nested spans (possible when ``flat_ner`` is False or when
+    chunked inference reports the same region twice) are merged first, so every
+    detected character is masked exactly once. The merged region takes the
+    label of its longest span.
     """
     if not entities:
         return text
 
-    # Sort entities by start position in reverse order to replace from end to start
-    sorted_entities = sorted(entities, key=lambda x: x["start_position"], reverse=True)
-
-    masked_text = text
-    for entity in sorted_entities:
+    merged: List[List] = []  # [start, end, label, label_span_length]
+    for entity in sorted(entities, key=lambda x: (x["start_position"], -x["end_position"])):
         start = entity["start_position"]
         end = entity["end_position"]
         label = entity["suggested_label"].upper()
+        if merged and start < merged[-1][1]:
+            region = merged[-1]
+            region[1] = max(region[1], end)
+            if end - start > region[3]:
+                region[2], region[3] = label, end - start
+        else:
+            merged.append([start, end, label, end - start])
+
+    masked_text = text
+    # Replace from end to start so earlier offsets stay valid.
+    for start, end, label, _ in reversed(merged):
         masked_text = masked_text[:start] + f"[{label}]" + masked_text[end:]
 
     return masked_text
