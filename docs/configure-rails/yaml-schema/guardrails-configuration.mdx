@@ -325,6 +325,43 @@ rails:
             stream_first: True
 ```
 
+#### Which Rail Blocks the Request
+
+Parallel input rails all start at the same time. The first rail whose action reports a match stops the request and is the one marked as stopped, while the remaining rails can still be running when the response returns. In sequential mode, the order of the `flows` list decides instead.
+
+The following example defines two input rails. Both call the same local action, which returns `True` after a short delay that depends on the `name` argument.
+
+```colang
+define bot block by alpha
+  "alpha blocked"
+
+define bot block by beta
+  "beta blocked"
+
+define subflow check alpha
+  $blocked = execute flag(name="alpha")
+  if $blocked
+    bot block by alpha
+    stop
+
+define subflow check beta
+  $blocked = execute flag(name="beta")
+  if $blocked
+    bot block by beta
+    stop
+```
+
+With `check alpha` listed first in `rails.input.flows`, the result depends on the mode and on which check finishes first.
+
+| Mode       | Faster check | Returned response | Rail marked stopped |
+| --- | --- | --- | --- |
+| Sequential | alpha        | alpha blocked     | check alpha         |
+| Sequential | beta         | alpha blocked     | check alpha         |
+| Parallel   | alpha        | alpha blocked     | check alpha         |
+| Parallel   | beta         | beta blocked      | check beta          |
+
+The values above come from running this example locally on NeMo Guardrails 0.24.1 with 10 ms and 50 ms delays. They describe which rail blocks in this `LLMRails` configuration, not a priority guarantee for every engine.
+
 ## Speculative Generation
 
 Speculative generation runs input-rail and main LLM response generation in parallel, rather than sequentially.
