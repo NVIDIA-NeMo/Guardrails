@@ -1,5 +1,6 @@
 flow guardrailsai check input $validator
   """Check input text using relevant Guardrails AI validators."""
+  global $user_message
   $result = await ValidateGuardrailsAiInputAction(validator=$validator, text=$user_message)
   if $result.is_blocked
     if $system.config.enable_rails_exceptions
@@ -11,6 +12,7 @@ flow guardrailsai check input $validator
 
 flow guardrailsai check output $validator
   """Check output text using relevant Guardrails AI validators."""
+  global $bot_message
   $result = await ValidateGuardrailsAiOutputAction(validator=$validator, text=$bot_message)
   if $result.is_blocked
     if $system.config.enable_rails_exceptions

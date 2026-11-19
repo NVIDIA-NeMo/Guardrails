@@ -17,6 +17,7 @@ flow clavata check for $text $policy $labels=""
 
 flow clavata check input
   """Check if the user input is benign."""
+  global $user_message
   $is_match = await ClavataCheckAction(text=$user_message, rail="input")
 
   if $is_match.is_blocked
@@ -28,6 +29,7 @@ flow clavata check input
 
 flow clavata check output
   """Check if the bot output is benign."""
+  global $bot_message
   $is_match = await ClavataCheckAction(text=$bot_message, rail="output")
 
   if $is_match.is_blocked

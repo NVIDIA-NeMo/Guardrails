@@ -2,6 +2,7 @@
 
 flow protect prompt
   """Check if the prompt is valid according to Prompt Security."""
+  global $user_message
   $response = await ProtectTextAction(user_prompt=$user_message)
   if $response.is_blocked
     if $system.config.enable_rails_exceptions
@@ -17,6 +18,7 @@ flow protect prompt
 
 flow protect response
   """Check if the response is valid according to Prompt Security."""
+  global $bot_message
   $response = await ProtectTextAction(bot_response=$bot_message)
   if $response.is_blocked
     if $system.config.enable_rails_exceptions

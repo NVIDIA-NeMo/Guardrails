@@ -12,6 +12,7 @@ Supported features:
 
 flow policyai moderation on input
   """Guardrail based on PolicyAI assessment."""
+  global $user_message
   $result = await CallPolicyaiApiAction(text=$user_message)
 
   if $result.is_blocked
@@ -23,6 +24,7 @@ flow policyai moderation on input
 
 flow policyai moderation on output
   """Guardrail based on PolicyAI assessment."""
+  global $bot_message
   $result = await CallPolicyaiApiAction(text=$bot_message)
 
   if $result.is_blocked
