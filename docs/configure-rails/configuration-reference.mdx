@@ -438,6 +438,7 @@ rails:
                     - CREDIT_CARD
                 mask_token: "*"
                 score_threshold: 0.2
+                masking_strategy: per_type
             output:
                 entities:
                     - PERSON
@@ -451,6 +452,7 @@ rails:
 | `rails.config.sensitive_data_detection.input/output/retrieval.entities`        | list   | `[]`    | Entity types to detect         |
 | `rails.config.sensitive_data_detection.input/output/retrieval.mask_token`      | string | `"*"`   | Token for masking              |
 | `rails.config.sensitive_data_detection.input/output/retrieval.score_threshold` | float  | `0.2`   | Detection confidence threshold |
+| `rails.config.sensitive_data_detection.input/output/retrieval.masking_strategy` | string | `per_type` | `per_type` or `per_value`; `per_value` numbers distinct values, e.g. `<PERSON_1>` |
 | `rails.config.sensitive_data_detection.recognizers`                            | list   | `[]`    | Custom Presidio recognizers    |
 
 #### Injection Detection

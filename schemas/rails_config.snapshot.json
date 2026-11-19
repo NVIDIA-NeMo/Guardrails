@@ -1194,6 +1194,16 @@
           "title": "Mask Token",
           "type": "string"
         },
+        "masking_strategy": {
+          "default": "per_type",
+          "description": "How placeholders are allocated. `per_type` replaces every detected value of an entity type with the same token, e.g. `<PERSON>`. `per_value` numbers the distinct values of a type in order of appearance, so two people become `<PERSON_1>` and `<PERSON_2>` while one person mentioned twice stays `<PERSON_1>`.",
+          "enum": [
+            "per_type",
+            "per_value"
+          ],
+          "title": "Masking Strategy",
+          "type": "string"
+        },
         "score_threshold": {
           "default": 0.2,
           "description": "The score threshold that should be used to detect the sensitive data.",
