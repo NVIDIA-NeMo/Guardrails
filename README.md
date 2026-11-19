@@ -70,8 +70,7 @@ Deploy [NeMo Guardrails Gateway](./docs/run-rails/using-gateway/quickstart.mdx) 
 The gateway handles provider request and response parsing, invokes the library's checks, and controls forwarding and response release, including supported streaming exchanges.
 It preserves supported provider formats; model generation remains with the upstream model service or gateway.
 
-The built-in profiles support constrained single-text exchanges through OpenAI Chat Completions and Responses, including explicit LiteLLM dialects. They do not support tool content or content replacement, and guarded Responses requests require `"store": false`.
-Review [provider coverage and streaming requirements](./docs/run-rails/using-gateway/providers-and-streaming.mdx) before connecting an application.
+The gateway supports selected OpenAI Chat Completions and Responses formats. See [provider coverage and streaming requirements](./docs/run-rails/using-gateway/providers-and-streaming.mdx) for supported payloads and limitations.
 
 These approaches can be combined: for example, use the gateway for model input and output checks and call tool checks from your application before execution.
 
