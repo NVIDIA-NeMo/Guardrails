@@ -358,6 +358,25 @@ async def test_instrumentation_is_idempotent_and_does_not_own_model(span_exporte
     assert not hasattr(first, "aclose")
 
 
+def test_api_key_delegates_to_wrapped_model_when_supported():
+    class KeyedModel(RecordingModel):
+        api_key = "sk-initial"
+
+    model = KeyedModel()
+    instrumented = InstrumentedLLMModel(model, metrics_enabled=True)
+
+    assert instrumented.api_key == "sk-initial"
+
+    instrumented.api_key = "sk-rotated"
+    assert model.api_key == "sk-rotated"
+
+
+def test_api_key_hasattr_false_when_wrapped_model_lacks_it():
+    instrumented = InstrumentedLLMModel(RecordingModel(), metrics_enabled=True)
+
+    assert not hasattr(instrumented, "api_key")
+
+
 @pytest.mark.asyncio
 async def test_stream_cleanup_runs_outside_duration_metric(metric_reader):
     close_delay = 0.2

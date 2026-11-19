@@ -101,6 +101,26 @@ class TestCustomQuery:
             assert client._custom_query == {"api-version": "2024-02-01"}
 
 
+class TestApiKey:
+    @pytest.mark.asyncio
+    async def test_getter_returns_constructor_value(self):
+        async with _make_client() as client:
+            assert client.api_key == "sk-test"
+
+    @pytest.mark.asyncio
+    async def test_setter_updates_value(self):
+        async with _make_client() as client:
+            client.api_key = "sk-rotated"
+            assert client.api_key == "sk-rotated"
+
+    @pytest.mark.asyncio
+    async def test_setter_reflected_in_next_request_headers(self):
+        async with _make_client() as client:
+            client.api_key = "sk-rotated"
+            headers = client._build_headers()
+            assert headers["Authorization"] == "Bearer sk-rotated"
+
+
 class TestHttpClientInjection:
     @pytest.mark.asyncio
     async def test_uses_injected_client(self):
