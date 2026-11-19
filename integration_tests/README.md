@@ -44,7 +44,7 @@ To change an agent's version, edit its pin in `requirements.in`, then recompile 
 
 ## NeMo Relay Plugin (`relay_plugin/`)
 
-The suite builds the plugin's release library with Cargo, loads it into Relay's Python plugin host, and checks tool calls against a real NeMo Guardrails hooks server: calls that Relay manages, and a LangChain agent through Relay's middleware.
+The suite builds the plugin's release library with Cargo, loads it into Relay's Python plugin host, and checks tool calls against a real NeMo Guardrails hooks server: calls that Relay manages, a LangChain agent through Relay's middleware, and the Deep Agents agent of the example in [`examples/scripts/nemo_relay`](../examples/scripts/nemo_relay/).
 A call the hooks server allows runs, and a call that the tool policy or a rail denies never runs, with the plugin rejecting it with the server's reason.
 A call also never runs when the judge model gives no verdict, when the check outlasts the plugin's `timeout_millis`, or when the hooks server can't be reached.
 A scripted chat model drives the LangChain agent, and a stand-in judge answers the configurations that use a judge model.

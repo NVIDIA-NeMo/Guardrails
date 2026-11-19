@@ -1,0 +1,5 @@
+# Install NeMo Guardrails from this repository first, from its root: pip install -e ".[server,cel]"
+# Tested with nemo-relay 0.11.0 and 0.11.1, and deepagents 0.7.34.
+nemo-relay[deepagents,langchain-nvidia]>=0.11.0,<0.12.0
+deepagents>=0.7.4,<0.8.0
+langchain-nvidia-ai-endpoints>=1.4.2,<2.0.0
