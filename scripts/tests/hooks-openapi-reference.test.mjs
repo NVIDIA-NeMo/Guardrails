@@ -37,10 +37,13 @@ test("Fern retains all hooks routes and the object-valued request examples", { t
     assert.match(errorFields.get("code"), /unsupported_hook_event.*rail_failed.*queue_full/);
     const endpoints = new Map(Object.values(ir.services).flatMap(({ endpoints }) => endpoints.map((e) => [e.id, e])));
     assert.deepEqual([...endpoints.keys()].sort(), [
+      "endpoint_decisions.checkDecisions",
+      "endpoint_decisions.listDecisions",
       "endpoint_hooks.checkClaudeCodeToolCall",
       "endpoint_hooks.checkCodexToolCall",
       "endpoint_hooks.checkNemoRelayToolCall",
       "endpoint_hooks.handleAgentStartHook",
+      "endpoint_hooks.handleModelCallHook",
       "endpoint_quarantine.listQuarantines",
       "endpoint_quarantine.quarantineAgent",
       "endpoint_quarantine.releaseAgent",
