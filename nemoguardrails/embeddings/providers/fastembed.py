@@ -19,6 +19,13 @@ from typing import List
 from .base import EmbeddingModel
 
 
+def _is_missing_onnx_model_error(ex: Exception) -> bool:
+    message = str(ex)
+    return "model.onnx" in message and (
+        "Could not find model.onnx in" in message or "NO_SUCHFILE" in message or "File doesn't exist" in message
+    )
+
+
 def get_executor():
     from . import embeddings_executor
 
@@ -51,14 +58,16 @@ class FastEmbedEmbeddingModel(EmbeddingModel):
 
         try:
             self.model = Embedding(embedding_model, **kwargs)
-        except ValueError as ex:
+        except Exception as ex:
             # Sometimes the cached model in the temporary folder gets removed,
             # but the folder still exists, which causes an error. In this case,
             # we fall back to an explicit cache directory.
-            if "Could not find model.onnx in" in str(ex):
-                self.model = Embedding(embedding_model, cache_dir=".cache", **kwargs)
+            if _is_missing_onnx_model_error(ex):
+                fallback_kwargs = dict(kwargs)
+                fallback_kwargs["cache_dir"] = ".cache"
+                self.model = Embedding(embedding_model, **fallback_kwargs)
             else:
-                raise ex
+                raise
 
         # Get the embedding dimension of the model
         self.embedding_size = len(list(self.model.embed("test"))[0].tolist())
