@@ -25,7 +25,7 @@
     },
     "endpoint_chatCompletions.createGuardrailsChatCompletion": {
       "displayName": "Create a guarded chat completion",
-      "docs": "Generate a chat completion with guardrails applied.\n\nThe request shape is compatible with the OpenAI Chat Completions API and\naccepts Guardrails-specific options in the `guardrails` object.",
+      "docs": "Generate a chat completion with guardrails applied.\n\nThe request shape is compatible with the OpenAI Chat Completions API and\naccepts Guardrails-specific options in the `guardrails` object.\n\nTo use Try it with a local server, follow\n[Try the API Locally](/reference/guardrails-api-server/try-it).",
       "errors": [
         "UnprocessableEntityError"
       ],
@@ -33,15 +33,23 @@
         {
           "request": {
             "guardrails": {
-              "config_id": "content_safety"
+              "config_id": "nemotron-3.5-content-safety",
+              "options": {
+                "llm_params": {
+                  "chat_template_kwargs": {
+                    "enable_thinking": false
+                  }
+                }
+              }
             },
+            "max_tokens": 128,
             "messages": [
               {
                 "content": "What is the capital of France?",
                 "role": "user"
               }
             ],
-            "model": "meta/llama-3.1-8b-instruct"
+            "model": "nvidia/nemotron-3.5-lightning-30b-a3b"
           },
           "response": {
             "choices": [
@@ -56,25 +64,33 @@
             ],
             "created": 1709424000,
             "guardrails": {
-              "config_id": "content_safety"
+              "config_id": "nemotron-3.5-content-safety"
             },
             "id": "chatcmpl-abc123",
-            "model": "meta/llama-3.1-8b-instruct",
+            "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
             "object": "chat.completion"
           }
         },
         {
           "request": {
             "guardrails": {
-              "config_id": "content_safety"
+              "config_id": "nemotron-3.5-content-safety",
+              "options": {
+                "llm_params": {
+                  "chat_template_kwargs": {
+                    "enable_thinking": false
+                  }
+                }
+              }
             },
+            "max_tokens": 128,
             "messages": [
               {
                 "content": "Tell me a short story.",
                 "role": "user"
               }
             ],
-            "model": "meta/llama-3.1-8b-instruct",
+            "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
             "stream": true
           },
           "response": {
@@ -90,10 +106,10 @@
             ],
             "created": 1709424000,
             "guardrails": {
-              "config_id": "content_safety"
+              "config_id": "nemotron-3.5-content-safety"
             },
             "id": "chatcmpl-abc123",
-            "model": "meta/llama-3.1-8b-instruct",
+            "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
             "object": "chat.completion"
           }
         }
@@ -114,7 +130,7 @@
           "request": null,
           "response": [
             {
-              "id": "content_safety"
+              "id": "nemotron-3.5-content-safety"
             },
             {
               "id": "customer-service"
@@ -199,7 +215,7 @@
             "data": [
               {
                 "created": 1700000000,
-                "id": "meta/llama-3.1-8b-instruct",
+                "id": "nvidia/nemotron-3.5-lightning-30b-a3b",
                 "object": "model",
                 "owned_by": "system"
               }
