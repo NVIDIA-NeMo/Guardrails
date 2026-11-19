@@ -35,6 +35,9 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use common::{Bundle, HOST};
 
+/// The marks a test's subscriber saw: each mark's name and its data.
+type Marks = Arc<Mutex<Vec<(String, Option<Json>)>>>;
+
 /// The log target of the plugin's records, as the host emits them.
 const LOG_TARGET: &str = "nemo_relay.plugin.native.nvidia.nemo_guardrails";
 
@@ -102,7 +105,7 @@ async fn stopped_call_is_rejected_and_the_stop_mark_is_emitted() {
     .await;
     let bundle = Bundle::new();
     let plugin = activate(&bundle, json!({"endpoint": server.uri()})).await;
-    let marks: Arc<Mutex<Vec<(String, Option<Json>)>>> = Arc::default();
+    let marks: Marks = Arc::default();
     let seen = Arc::clone(&marks);
     nemo_relay::api::subscriber::register_subscriber(
         "stop-test",
@@ -151,7 +154,7 @@ async fn quarantined_call_is_rejected_and_the_quarantine_mark_is_emitted() {
     .await;
     let bundle = Bundle::new();
     let plugin = activate(&bundle, json!({"endpoint": server.uri()})).await;
-    let marks: Arc<Mutex<Vec<(String, Option<Json>)>>> = Arc::default();
+    let marks: Marks = Arc::default();
     let seen = Arc::clone(&marks);
     nemo_relay::api::subscriber::register_subscriber(
         "quarantine-test",
