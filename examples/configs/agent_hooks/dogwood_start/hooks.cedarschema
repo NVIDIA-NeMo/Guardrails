@@ -1,0 +1,17 @@
+// The start vocabulary: a start is asked once for the agent and once for each of its parts, models and policies,
+// each a child of the agent. `scan` is the event a pipeline's scan stage records with POST /v1/events.
+// A part's digest is required: a part without one, such as a local draft, does not conform and is refused.
+namespace Hooks {
+  entity Agent = { "name": String, "digest"?: String };
+  entity Part in [Agent] = {
+    "id": String, "type": String, "source": String, "local": Bool, "version"?: String, "digest": String
+  };
+  entity Model in [Agent] = { "name": String };
+  entity Policy in [Agent] = { "id": String, "required": Bool, "enforcers": Set<String> };
+  action "start" appliesTo {
+    principal: [Agent], resource: [Agent, Part, Model, Policy], context: { "enforcers_present": Set<String> }
+  };
+  action "scan" appliesTo {
+    principal: [Agent], resource: [Part], context: { "input": { "digest": String, "result": String } }
+  };
+}

@@ -520,6 +520,34 @@ class DogwoodRules(BaseModel):
     )
 
 
+class DogwoodStartRules(BaseModel):
+    """Agent-start rules written in Dogwood, decided by Dogwood's own library: start policies that may also read
+    events recorded from outside a run, such as a scan of a part's digest."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    policies: str = Field(
+        min_length=1,
+        description="A folder of `.dw` or `.dogwood` policy files, read with its subfolders in name order. Relative to "
+        "the config's folder.",
+    )
+    schema_file: str = Field(
+        alias="schema",
+        min_length=1,
+        description="The Cedar action schema (`.cedarschema`) in the `Hooks` vocabulary: `start` on `Agent`, `Part`, "
+        "`Model` and `Policy`, and each recorded event's action with its inputs. Relative to the config's folder.",
+    )
+    event_schema: Optional[str] = Field(
+        default=None,
+        description="A Dogwood event schema (`.dwschema`). Unset, events have no principal pin, so an event recorded "
+        "from outside a run is every start's history.",
+    )
+    providers: Optional[str] = Field(
+        default=None, description="Dogwood information-provider declarations (`providers.json`). Optional."
+    )
+    macros: Optional[str] = Field(default=None, description="A Dogwood macro library (`.dw`). Optional.")
+
+
 class AgentStartConfig(BaseModel):
     """The rules `nemoguardrails hooks-server` applies to an agent before it starts, on `/v1/hooks/agent-start`."""
 
@@ -552,10 +580,23 @@ class AgentStartConfig(BaseModel):
         description="Cedar policies that decide the start instead of the rules above. Set, no other rule in this "
         "section may be set: a start is decided by Cedar alone. Needs the `cedar` extra.",
     )
+    dogwood: Optional[DogwoodStartRules] = Field(
+        default=None,
+        description="Dogwood policies that decide each start, and may read events recorded from outside a run with "
+        "`POST /v1/events`, such as a scan of a part's digest. Set, no other rule of this section may be set. Needs "
+        "`hooks_server.decision_record` and the `cedar` extra.",
+    )
 
     @model_validator(mode="after")
     def check_one_rule_language(self) -> "AgentStartConfig":
         """Refuse YAML rules beside Cedar ones: a check is decided by one rule language."""
+        if self.dogwood is not None:
+            other_rules = sorted(self.model_fields_set - {"dogwood"})
+            if other_rules:
+                raise InvalidRailsConfigurationError(
+                    f"hooks_server.agent_start sets dogwood and {other_rules[0]}; a start is decided by Dogwood alone, "
+                    "so write that rule as a Dogwood policy, or remove dogwood."
+                )
         yaml_rules = sorted(self.model_fields_set - {"cedar"})
         if self.cedar is not None and yaml_rules:
             raise InvalidRailsConfigurationError(
@@ -581,6 +622,7 @@ class AgentStartConfig(BaseModel):
         """Whether any rule can deny a start."""
         return (
             self.cedar is not None
+            or self.dogwood is not None
             or self.allowed_sources is not None
             or not self.allow_local_sources
             or self.require_digests
@@ -650,6 +692,12 @@ class HooksServerConfig(BaseModel):
         description="Cedar policies that decide each tool call instead of the tool lists above. Set, no tool list and "
         "no `allow_unlisted_tools` may be set: a call is decided by Cedar alone. Needs the `cedar` extra.",
     )
+    event_writers: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Who may record an event from outside a run with `POST /v1/events`, such as a pipeline's scan "
+        "stage: each writer's name, and the name of the environment variable that holds its token. The writer sends "
+        "`Authorization: Bearer <token>`. Empty, the server records no such event.",
+    )
     dogwood: Optional[DogwoodRules] = Field(
         default=None,
         description="Dogwood policies that decide each tool call from the call and from what already happened in the "
@@ -691,6 +739,16 @@ class HooksServerConfig(BaseModel):
                     "hooks_server sets dogwood but no decision_record; a Dogwood rule reads the run's history from the "
                     "decision record, so set decision_record."
                 )
+        if self.agent_start is not None and self.agent_start.dogwood is not None and self.decision_record is None:
+            raise InvalidRailsConfigurationError(
+                "hooks_server.agent_start sets dogwood but hooks_server sets no decision_record; a Dogwood start rule "
+                "reads recorded events from the decision record, so set decision_record."
+            )
+        if self.event_writers and self.decision_record is None:
+            raise InvalidRailsConfigurationError(
+                "hooks_server sets event_writers but no decision_record; an event is recorded in the decision record, "
+                "so set decision_record."
+            )
         blocked_by_name = {entry for entry in self.blocked_tools if isinstance(entry, str)}
         contradicted = [
             _tool_entry_name(entry) for entry in self.allowed_tools if _tool_entry_name(entry) in blocked_by_name

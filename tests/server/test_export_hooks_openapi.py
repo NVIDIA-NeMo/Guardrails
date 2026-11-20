@@ -77,6 +77,7 @@ def test_export_is_fresh_and_routes_are_complete(exported):
         "/v1/hooks/agent-start",
         "/v1/quarantines",
         "/v1/quarantines/release",
+        "/v1/events",
         "/v1/runs/{run_id}",
         "/v1/hooks/model-call",
         "/v1/decisions",

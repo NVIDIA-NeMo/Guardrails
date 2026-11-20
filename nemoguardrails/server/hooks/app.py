@@ -15,8 +15,10 @@
 
 """The hooks server: checks the tool call in each agent hook with one config's tool-call rails, on IORails."""
 
+import hmac
 import json
 import logging
+import os
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -65,7 +67,12 @@ from nemoguardrails.server.hooks.checking import (
     outcome_from_result,
 )
 from nemoguardrails.server.hooks.decision_record import DecisionRecord, DecisionRecordError
-from nemoguardrails.server.hooks.dogwood_engine import DogwoodToolRules, Event, tool_action
+from nemoguardrails.server.hooks.dogwood_engine import (
+    DogwoodStartRules,
+    DogwoodToolRules,
+    Event,
+    tool_action,
+)
 from nemoguardrails.server.hooks.quarantine import QuarantineEvent, QuarantineStore, QuarantineStoreError
 from nemoguardrails.server.hooks.schemas import (
     AgentStartRequest,
@@ -75,6 +82,7 @@ from nemoguardrails.server.hooks.schemas import (
     ModelCallRequest,
     QuarantineReleaseRequest,
     QuarantineRequest,
+    RecordedEventRequest,
 )
 from nemoguardrails.server.hooks.tool_policy import ToolPolicy
 from nemoguardrails.server.metrics import MetricsExporterSettings, running_metrics_exporter
@@ -213,7 +221,7 @@ def _check_agent_start_can_deny(config: RailsConfig) -> None:
 def _checks_tool_calls(config: RailsConfig) -> bool:
     """Whether *config*'s tool policy or a per-tool rail can deny a tool call."""
     # The decision record keeps decisions; it decides none, so it doesn't make a config check tool calls.
-    tool_lists_set = bool(config.hooks_server.model_fields_set - {"agent_start", "decision_record"})
+    tool_lists_set = bool(config.hooks_server.model_fields_set - {"agent_start", "decision_record", "event_writers"})
     return config.hooks_server.can_deny or _has_per_tool_rails(config) or tool_lists_set
 
 
@@ -282,6 +290,7 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     app.state.tool_policy = ToolPolicy.from_config(config.hooks_server)
     app.state.cedar_tool_rules = cedar_tool_rules
     app.state.dogwood_tool_rules = dogwood_tool_rules
+    app.state.event_writers = dict(config.hooks_server.event_writers)
     app.state.checks_tool_calls = config.hooks_server.agent_start is None or _checks_tool_calls(config)
     app.state.agent_start_policy = agent_start_policy
     app.state.quarantine = _quarantine_store(config)
@@ -296,7 +305,7 @@ def create_hooks_app(config: RailsConfig) -> FastAPI:
     return app
 
 
-AgentStartRules = Union[AgentStartPolicy, CedarAgentStartRules]
+AgentStartRules = Union[AgentStartPolicy, CedarAgentStartRules, DogwoodStartRules]
 
 
 def _load_rules(config: RailsConfig) -> tuple[Optional[CedarToolRules], Optional[AgentStartRules]]:
@@ -319,6 +328,15 @@ def _load_rules(config: RailsConfig) -> tuple[Optional[CedarToolRules], Optional
         if agent_start is not None and agent_start.cedar is not None:
             policies = _load_cedar(agent_start.cedar, base, "hooks_server.agent_start", outcomes_allowed=False)
             agent_start_policy = CedarAgentStartRules(policies)
+        elif agent_start is not None and agent_start.dogwood is not None:
+            rules = agent_start.dogwood
+            agent_start_policy = DogwoodStartRules.load(
+                base / rules.policies,
+                base / rules.schema_file,
+                event_schema=None if rules.event_schema is None else base / rules.event_schema,
+                providers=None if rules.providers is None else base / rules.providers,
+                macros=None if rules.macros is None else base / rules.macros,
+            )
         elif agent_start is not None:
             agent_start_policy = AgentStartPolicy.from_config(agent_start)
     except CedarPolicyError as exc:
@@ -560,7 +578,7 @@ async def handle_agent_start_hook(request: Request) -> Response:
         )
     start = _parse_agent_start(await _read_json(request))
     try:
-        outcome, rule = _decide_start(policy, quarantine, start)
+        outcome, rule = _decide_start(policy, quarantine, start, request.app.state.decision_record)
     except QuarantineStoreError as exc:
         return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
     _log_agent_start(start, outcome)
@@ -580,15 +598,45 @@ async def handle_agent_start_hook(request: Request) -> Response:
 
 
 def _decide_start(
-    policy: Optional["AgentStartRules"], quarantine: Optional[QuarantineStore], start: AgentStartRequest
+    policy: Optional["AgentStartRules"],
+    quarantine: Optional[QuarantineStore],
+    start: AgentStartRequest,
+    record: Optional[DecisionRecord] = None,
 ) -> tuple[HookOutcome, Optional[str]]:
     """The answer to an agent start, and the rule that gave it: a quarantine first, then the agent-start rules."""
     held = None if quarantine is None else quarantine.find(start.agent_name, start.agent_digest)
     if held is not None:
         return HookOutcome.deny(_quarantined_reason(held)), _QUARANTINE
+    if isinstance(policy, DogwoodStartRules):
+        history, unavailable = _recorded_events(record)
+        reason = policy.decide(start, history, datetime.now(timezone.utc), unavailable)
+        return (HookOutcome.allow() if reason is None else HookOutcome.deny(reason)), _DOGWOOD_POLICY
     rule = _CEDAR_POLICY if isinstance(policy, CedarAgentStartRules) else _AGENT_START_RULES
     reason = None if policy is None else policy.decide(start)
     return (HookOutcome.allow() if reason is None else HookOutcome.deny(reason)), (None if policy is None else rule)
+
+
+def _recorded_events(record: Optional[DecisionRecord]) -> tuple[Optional[list[Event]], str]:
+    """The events recorded from outside a run with `POST /v1/events`, and why there are none
+    when they can't be read."""
+    if record is None:
+        return None, "the config keeps no decision record"
+    try:
+        entries = decision_record.read(record.path)
+    except DecisionRecordError as exc:
+        log.error("%s", exc)
+        return None, "the decision record, which holds the recorded events, can't be read"
+    events: list[Event] = []
+    for entry in entries:
+        if entry.get("kind") != "event":
+            continue
+        asked = entry.get("asked") or {}
+        try:
+            at = datetime.fromisoformat(entry["at"])
+        except (KeyError, TypeError, ValueError):
+            return None, "the decision record has an entry without a time"
+        events.append(Event(str(asked.get("kind")), str(asked.get("action")), at, asked.get("input") or {}))
+    return events, ""
 
 
 @_router.post(
@@ -628,7 +676,7 @@ async def handle_model_call_hook(request: Request) -> Response:
         models=[call.model],
     )
     try:
-        outcome, rule = _decide_start(policy, quarantine, start)
+        outcome, rule = _decide_start(policy, quarantine, start, request.app.state.decision_record)
     except QuarantineStoreError as exc:
         return _error_response(500, str(exc), code=HookErrorCode.QUARANTINE_STORE_FAILED)
     log.info(
@@ -740,6 +788,59 @@ async def get_run_stop(run_id: str, request: Request) -> Response:
 
 
 _NO_QUARANTINE_STORE = "this hooks server's config sets no hooks_server.quarantine_store, so it quarantines nothing"
+
+
+@_router.post("/v1/events", name="recordEvent", summary="Record an event from outside a run", tags=["Events"])
+async def record_event(request: Request) -> Response:
+    """Record an event from outside a run, such as a pipeline's scan of a part's digest, for Dogwood start rules to
+    read. Only a writer named in `hooks_server.event_writers` may, with its token; the entry names the writer."""
+    writers: Mapping[str, str] = request.app.state.event_writers
+    record: Optional[DecisionRecord] = request.app.state.decision_record
+    if not writers or record is None:
+        return _error_response(
+            404,
+            "this hooks server's config names no hooks_server.event_writers, so it records no events",
+            code=HookErrorCode.CHECK_NOT_CONFIGURED,
+        )
+    writer = _event_writer(writers, request.headers.get("authorization", ""))
+    if writer is None:
+        return _error_response(
+            401, "the request names no event writer's token; nothing was recorded", code=HookErrorCode.UNAUTHORIZED
+        )
+    body = _parse_model(RecordedEventRequest, await _read_json(request))
+    try:
+        written = record.append(
+            {
+                "kind": "event",
+                "agent_name": None,
+                "agent_digest": None,
+                "run_id": None,
+                "asked": {"action": body.action, "kind": body.kind, "input": body.input},
+                "outcome": "recorded",
+                "reason": None,
+                "rule": None,
+                "by": writer,
+            }
+        )
+    except DecisionRecordError as exc:
+        log.error("%s", exc)
+        return _error_response(500, str(exc), code=HookErrorCode.DECISION_RECORD_FAILED)
+    log.info("Recorded event: action=%r kind=%r by=%r", body.action, body.kind, writer)
+    return JSONResponse({"recorded": {"seq": written["seq"], "at": written["at"], "by": writer}})
+
+
+def _event_writer(writers: Mapping[str, str], authorization: str) -> Optional[str]:
+    """The writer whose token the `Authorization: Bearer` header carries, compared in constant time; None for none.
+    A writer whose environment variable is unset or empty has no token and can't write."""
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+    found = None
+    for name, variable in writers.items():
+        expected = os.environ.get(variable, "")
+        if expected and hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8")):
+            found = name
+    return found
 
 
 @_router.post("/v1/quarantines", name="quarantineAgent", summary="Quarantine an agent", tags=["Quarantine"])

@@ -39,6 +39,7 @@ test("Fern retains all hooks routes and the object-valued request examples", { t
     assert.deepEqual([...endpoints.keys()].sort(), [
       "endpoint_decisions.checkDecisions",
       "endpoint_decisions.listDecisions",
+      "endpoint_events.recordEvent",
       "endpoint_hooks.checkClaudeCodeToolCall",
       "endpoint_hooks.checkCodexToolCall",
       "endpoint_hooks.checkNemoRelayToolCall",

@@ -23,7 +23,7 @@ history.
 
 The policy language is Dogwood's whole language: temporal conditions, macros, and information providers. The
 vocabulary of tool-call rules is AgentCore Gateway's, and their event schema is the one AgentCore documents
-(`AGENTCORE_EVENT_SCHEMA`).
+(`AGENTCORE_EVENT_SCHEMA`); start rules use the `Hooks` vocabulary, with an event schema the config supplies.
 """
 
 import json
@@ -36,7 +36,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from nemoguardrails.guardrails.guardrails_types import quoted_identity
-from nemoguardrails.server.hooks.cedar_policy import CedarPolicyError
+from nemoguardrails.server.hooks.cedar_policy import CedarPolicyError, start_resources
+from nemoguardrails.server.hooks.schemas import AgentStartRequest
 
 log = logging.getLogger(__name__)
 
@@ -388,3 +389,100 @@ class DogwoodToolRules:
         if verdicts[-1]["verdict"] == "allow":
             return "allow", None
         return self.policies.reason(verdicts[-1], subject)
+
+
+# --- Agent starts -------------------------------------------------------------------------------------------------
+
+# The event schema of start rules when the config names none: no principal pin, so an event recorded from outside any
+# run, such as a scan, is every start's history; a rule ties it to a part by its fields.
+START_EVENT_SCHEMA = """decision event <A>::request {
+    ...inputs(A),
+}
+event <A>::response {
+    ...inputs(A),
+    ...outputs(A),
+}
+event <A>::error {
+    ...inputs(A),
+}
+"""
+
+
+@dataclass(frozen=True)
+class DogwoodStartRules:
+    """`hooks_server.agent_start.dogwood`: a start is asked as `Hooks::Action::"start"` for the agent and each of its
+    parts, models and policies, after the events recorded from outside a run, and allowed only when every answer is
+    allow."""
+
+    policies: _PolicySet
+
+    @classmethod
+    def load(
+        cls,
+        folder: Path,
+        schema: Path,
+        event_schema: Optional[Path] = None,
+        providers: Optional[Path] = None,
+        macros: Optional[Path] = None,
+    ) -> "DogwoodStartRules":
+        section = "hooks_server.agent_start.dogwood"
+        if event_schema is not None and not event_schema.is_file():
+            raise DogwoodPolicyError(f"{section}.event_schema names '{event_schema}', which is not a file")
+        policies = _PolicySet.load(
+            folder,
+            schema,
+            section=section,
+            event_schema=START_EVENT_SCHEMA if event_schema is None else event_schema.read_text(encoding="utf-8"),
+            providers=providers,
+            macros=macros,
+            outcomes_allowed=False,
+        )
+        return cls(policies)
+
+    def decide(
+        self,
+        request: AgentStartRequest,
+        history: Optional[Sequence[Event]],
+        now: datetime,
+        unavailable: str = "the recorded events are unavailable",
+    ) -> Optional[str]:
+        """Why Dogwood denies the start, naming the first resource it denies; None to allow. Without the recorded
+        events the start is denied, never allowed."""
+        agent, asked = start_resources(request)
+        if history is None:
+            return (
+                f"agent '{quoted_identity(request.agent_name)}' is denied: {unavailable}, and Dogwood rules need them"
+            )
+        timeline = _Timeline()
+        lines = []
+        for event in history:
+            if event.action in self.policies.declared_inputs:
+                inputs = _record(self.policies.inputs(event.action, event.inputs))
+                lines.append(
+                    f"@{timeline.at(event.at)} Hooks::Action::{_string(event.action)}::{event.kind}(input: {inputs})"
+                )
+        agent_uid = _uid(agent["uid"]["type"], agent["uid"]["id"])
+        agent_entity = f"{agent_uid}: {_record(agent['attrs'])}"
+        enforcers = _literal(sorted(set(request.enforcers_present)))
+        start = timeline.at(now)
+        for entity, _ in asked:
+            uid = _uid(entity["uid"]["type"], entity["uid"]["id"])
+            entities = (
+                agent_entity
+                if entity is agent
+                else f"{agent_entity}, {uid}: {_record(entity['attrs'])} in [{agent_uid}]"
+            )
+            lines.append(
+                f"@{start} scope(principal: {agent_uid}, resource: {uid}) entities({entities}) "
+                f'request_context(enforcers_present: {enforcers}) Hooks::Action::"start"::request()'
+            )
+        try:
+            verdicts = self.policies.verdicts(lines)
+        except ValueError as exc:
+            return f"agent '{quoted_identity(request.agent_name)}' is denied: Dogwood could not decide: {_message(exc)}"
+        if len(verdicts) != len(asked):
+            return f"agent '{quoted_identity(request.agent_name)}' is denied: Dogwood gave {len(verdicts)} decisions for {len(asked)} requests"
+        for verdict, (_, subject) in zip(verdicts, asked):
+            if verdict["verdict"] != "allow":
+                return self.policies.reason(verdict, subject)[1]
+        return None

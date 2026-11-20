@@ -31,6 +31,7 @@ class HookErrorCode(str, Enum):
     NOT_QUARANTINED = "not_quarantined"
     QUARANTINE_STORE_FAILED = "quarantine_store_failed"
     DECISION_RECORD_FAILED = "decision_record_failed"
+    UNAUTHORIZED = "unauthorized"
 
 
 class ClaudeCodePreToolUseRequest(BaseModel):
@@ -161,6 +162,21 @@ class ModelCallRequest(BaseModel):
     agent_digest: Optional[str] = Field(default=None, min_length=1)
     model: str = Field(min_length=1, description="The model, named as the agent-start facts name models.")
     id: Optional[str] = Field(default=None, description="The caller's id for this call, kept in the record.")
+
+
+class RecordedEventRequest(BaseModel):
+    """An event from outside a run, such as a pipeline's scan of a part, that Dogwood start rules can read."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: str = Field(min_length=1, description='The event\'s action, read as `Hooks::Action::"<action>"`.')
+    kind: Literal["request", "response", "error"] = Field(
+        description="`response` for an action that completed, such as a scan that ran; `error` for one that failed."
+    )
+    input: dict[str, Any] = Field(
+        default_factory=dict,
+        description="The event's fields, read as `input.<name>`, such as the scanned part's `digest` and the `result`.",
+    )
 
 
 class QuarantineRequest(BaseModel):

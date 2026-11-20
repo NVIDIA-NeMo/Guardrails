@@ -276,6 +276,29 @@ class CedarToolRules:
         return decision.outcome, decision.reason(f"tool call '{quoted_identity(name)}'")
 
 
+def start_resources(request: AgentStartRequest) -> tuple[dict[str, Any], list[tuple[dict[str, Any], str]]]:
+    """The agent of a start, and each resource a start is asked about with the subject a reason names: the agent, then
+    each part, model and policy, as children of the agent."""
+    agent = _agent_entity(request.agent_name, request.agent_digest)
+    asked: list[tuple[dict[str, Any], str]] = [(agent, f"agent '{quoted_identity(request.agent_name)}'")]
+    for part in request.parts:
+        attrs: dict[str, Any] = {"id": part.id, "type": part.type, "source": part.source, "local": part.local}
+        if part.version is not None:
+            attrs["version"] = part.version
+        if part.digest:
+            attrs["digest"] = part.digest
+        entity = {"uid": _uid("Part", part.id), "attrs": attrs, "parents": [agent["uid"]]}
+        asked.append((entity, f"{part.type} '{quoted_identity(part.id)}'"))
+    for model in request.models:
+        entity = {"uid": _uid("Model", model), "attrs": {"name": model}, "parents": [agent["uid"]]}
+        asked.append((entity, f"model '{quoted_identity(model)}'"))
+    for policy in request.policies:
+        attrs = {"id": policy.id, "required": policy.required, "enforcers": sorted(set(policy.enforcers))}
+        entity = {"uid": _uid("Policy", policy.id), "attrs": attrs, "parents": [agent["uid"]]}
+        asked.append((entity, f"policy '{quoted_identity(policy.id)}'"))
+    return agent, asked
+
+
 @dataclass(frozen=True)
 class CedarAgentStartRules:
     """`hooks_server.agent_start.cedar`: a start is asked as `Hooks::Action::"start"` for the agent and each of its
@@ -285,24 +308,8 @@ class CedarAgentStartRules:
 
     def decide(self, request: AgentStartRequest) -> Optional[str]:
         """Why Cedar denies the start, naming the first resource it denies; None to allow."""
-        agent = _agent_entity(request.agent_name, request.agent_digest)
+        agent, asked = start_resources(request)
         context = {"enforcers_present": sorted(set(request.enforcers_present))}
-        asked: list[tuple[dict[str, Any], str]] = [(agent, f"agent '{quoted_identity(request.agent_name)}'")]
-        for part in request.parts:
-            attrs: dict[str, Any] = {"id": part.id, "type": part.type, "source": part.source, "local": part.local}
-            if part.version is not None:
-                attrs["version"] = part.version
-            if part.digest:
-                attrs["digest"] = part.digest
-            entity = {"uid": _uid("Part", part.id), "attrs": attrs, "parents": [agent["uid"]]}
-            asked.append((entity, f"{part.type} '{quoted_identity(part.id)}'"))
-        for model in request.models:
-            entity = {"uid": _uid("Model", model), "attrs": {"name": model}, "parents": [agent["uid"]]}
-            asked.append((entity, f"model '{quoted_identity(model)}'"))
-        for policy in request.policies:
-            attrs = {"id": policy.id, "required": policy.required, "enforcers": sorted(set(policy.enforcers))}
-            entity = {"uid": _uid("Policy", policy.id), "attrs": attrs, "parents": [agent["uid"]]}
-            asked.append((entity, f"policy '{quoted_identity(policy.id)}'"))
         for entity, subject in asked:
             entities = [agent] if entity is agent else [agent, entity]
             decision = self.policies.decide(agent["uid"], START, entity["uid"], context, entities)

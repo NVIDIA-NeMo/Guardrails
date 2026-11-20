@@ -34,6 +34,7 @@ from nemoguardrails.server.hooks.schemas import (
     ModelCallRequest,
     QuarantineReleaseRequest,
     QuarantineRequest,
+    RecordedEventRequest,
 )
 
 SPEC_PATH = Path(__file__).resolve().parents[1] / "fern" / "hooks-openapi.yml"
@@ -211,6 +212,21 @@ def hooks_openapi() -> dict:
             "422": {"description": "Invalid request", **error},
             "500": {"description": "The quarantine store failed", **error},
         }
+    schemas[RecordedEventRequest.__name__] = RecordedEventRequest.model_json_schema(
+        ref_template="#/components/schemas/{model}"
+    )
+    operation = spec["paths"]["/v1/events"]["post"]
+    operation["requestBody"] = {
+        "required": True,
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordedEventRequest"}}},
+    }
+    operation["responses"] = {
+        "200": {"description": "The event, recorded", "content": {"application/json": {"schema": {"type": "object"}}}},
+        "401": {"description": "No event writer's token", **error},
+        "404": {"description": "No hooks_server.event_writers", **error},
+        "422": {"description": "Invalid request", **error},
+        "500": {"description": "The decision record failed", **error},
+    }
     spec["paths"]["/v1/quarantines"]["get"]["responses"] = {
         "200": {
             "description": "Every quarantine in force",

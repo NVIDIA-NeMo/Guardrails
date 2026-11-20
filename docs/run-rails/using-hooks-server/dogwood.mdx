@@ -102,3 +102,51 @@ Behaviors that differ from AgentCore Gateway:
 
 Copy `renders/dogwood/policies.dogwood` into the `policies` folder, and set `gateway` to the ARN the render used, or keep the default when the render wrote `__GATEWAY_ARN__`.
 Add a plain `permit` for each tool the rendered policies need allowed, such as each prerequisite, in a `.dw` file beside it: Agentform renders plain permits to its Cedar output, and here Dogwood decides alone.
+
+## Agent Starts and Events from Outside a Run
+
+A start can also be decided by Dogwood: "start the agent only if its skill passed a scan in the last 6 hours".
+The scan happened before any run, so a start rule reads **events recorded from outside a run**, not a run's history.
+
+```yaml
+hooks_server:
+  decision_record: decisions.jsonl
+  event_writers:
+    scan-stage: SCAN_STAGE_TOKEN      # the writer's name, and the environment variable holding its token
+  agent_start:
+    dogwood:
+      policies: policies
+      schema: hooks.cedarschema       # the start vocabulary and each recorded event's action
+      # event_schema: events.dwschema # optional; unset, events have no principal pin
+```
+
+The start is asked as with [Cedar start rules](./cedar.mdx): `Hooks::Action::"start"`, once for the agent and once for each part, model and policy, and allowed only when every answer is allow.
+A start is decided by Dogwood alone.
+A pattern ties an event to the part being asked about with `resource.<attribute>`, and `unless temporal` expresses "unless such an event happened":
+
+```cedar
+@id("permit-start")
+permit (principal, action == Hooks::Action::"start", resource);
+
+@id("skills/scanned-within-6h")
+forbid (principal, action == Hooks::Action::"start", resource is Hooks::Part)
+when { resource.type == "skill" }
+unless temporal {
+    formerly within 6h Hooks::Action::"scan"::response{ input.digest: resource.digest, input.result: "passed" }
+};
+```
+
+The scan stage records each scan, keyed by the digest it scanned:
+
+```bash
+curl -s localhost:8100/v1/events -H "Authorization: Bearer $SCAN_STAGE_TOKEN" -H 'content-type: application/json' \
+  -d '{"action": "scan", "kind": "response", "input": {"digest": "sha256:...", "result": "passed"}}'
+```
+
+Only a writer named in `event_writers` can record an event, with the token in its environment variable. The tokens are compared in constant time, and each entry records the writer's name.
+A request without a writer's token is answered `401` and records nothing. With no `event_writers`, the path answers `404`.
+A token is a shared secret: whoever holds it can claim a scan. Keep it in the scan stage's secret store.
+
+A skill whose digest has no passed scan in the window is refused, naming the rule. In the example schema a part's `digest` is required, so a part without one, such as a local draft, does not conform and the start is refused.
+A decision record that can't be read refuses the start.
+The [Dogwood start example](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/dogwood_start) has this rule.
