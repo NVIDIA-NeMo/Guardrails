@@ -1,0 +1,13 @@
+// `previous` looks ONLY at the immediately preceding timepoint (i-1), not the
+// whole window. Permit a Read only if the same user logged in at the event
+// directly before this one, and that event was within the last hour. At the
+// first timepoint `previous` is always false.
+@id("read_after_prev_login")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when temporal {
+    previous within 1h Drupe::Action::"Login"::request{ input.user: context.input.user }
+};

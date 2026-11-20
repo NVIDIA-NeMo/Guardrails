@@ -1,0 +1,16 @@
+// Permit a Write only if the same user successfully read the same document
+// within the last hour (the canonical write-after-read policy). `formerly
+// within 1h` is the existential past operator; `input.user`/`input.document`
+// pin the past Read to the CURRENT request via context.* correlation.
+@id("write_after_read")
+permit (
+    principal,
+    action == Drupe::Action::"Write",
+    resource
+)
+when temporal {
+    formerly within 1h Drupe::Action::"Read"::response{
+        input.user: context.input.user,
+        input.document: context.input.document
+    }
+};

@@ -1,0 +1,25 @@
+# Decides agent starts with a Dogwood rule that reads an event recorded from outside any run: a skill may start
+# only if its digest passed a scan in the last 6 hours. With `nemoguardrails hooks-server`:
+#
+#   pip install "nemoguardrails[server,dogwood]"
+#   export SCAN_STAGE_TOKEN=...   # the scan stage's token, kept in its secret store
+#   nemoguardrails hooks-server --config examples/configs/agent_hooks/dogwood_start
+#
+# The scan stage records each scan with `POST /v1/events` and `Authorization: Bearer $SCAN_STAGE_TOKEN`; nothing
+# else can record one. A start with a skill whose digest has no passed scan in the window is refused, naming the rule.
+# No model is called.
+
+models: []
+
+hooks_server:
+  # Where recorded events are kept, chained by hash with every decision. Relative to the directory the server runs in.
+  decision_record: decisions.jsonl
+  # Who may record an event: the writer's name, and the environment variable that holds its token.
+  event_writers:
+    scan-stage: SCAN_STAGE_TOKEN
+  agent_start:
+    dogwood:
+      # Relative to this folder.
+      policies: policies
+      # The start vocabulary and the scan event, with the fields a policy may read.
+      schema: hooks.cedarschema

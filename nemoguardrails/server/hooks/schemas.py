@@ -16,9 +16,9 @@
 """Request models for the agent hooks the hooks server checks, one interface per agent path."""
 
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 
 class HookErrorCode(str, Enum):
@@ -27,6 +27,11 @@ class HookErrorCode(str, Enum):
     UNSUPPORTED_HOOK_EVENT = "unsupported_hook_event"
     RAIL_FAILED = "rail_failed"
     QUEUE_FULL = "queue_full"
+    CHECK_NOT_CONFIGURED = "check_not_configured"
+    NOT_QUARANTINED = "not_quarantined"
+    QUARANTINE_STORE_FAILED = "quarantine_store_failed"
+    DECISION_RECORD_FAILED = "decision_record_failed"
+    UNAUTHORIZED = "unauthorized"
 
 
 class ClaudeCodePreToolUseRequest(BaseModel):
@@ -42,6 +47,19 @@ class ClaudeCodePreToolUseRequest(BaseModel):
     tool_name: str = Field(min_length=1)
     tool_input: Any
     tool_use_id: str
+
+
+class ClaudeCodeToolResultRequest(BaseModel):
+    """Claude Code's `PostToolUse` or `PostToolUseFailure` hook input: a tool call that completed or failed."""
+
+    # Undeclared fields, `tool_response` and `error` among them, are kept as extras and never read or recorded.
+    model_config = ConfigDict(extra="allow")
+
+    # Claude Code PostToolUse input fields (https://code.claude.com/docs/en/hooks#posttooluse-input)
+    hook_event_name: Literal["PostToolUse", "PostToolUseFailure"]
+    tool_name: str = Field(min_length=1)
+    tool_input: Any = None
+    tool_use_id: Optional[str] = None
 
 
 class CodexPreToolUseRequest(BaseModel):
@@ -67,6 +85,120 @@ class NemoRelayToolConditionalExecutionGuardrailRequest(BaseModel):
     hook_event_name: Literal["NemoRelayToolConditionalExecutionGuardrail"]
     tool_name: str = Field(min_length=1)
     tool_input: Any
+
+
+class AgentPart(BaseModel):
+    """One part an agent starts with, as plain facts the caller gathered; the server reads no package format."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, description="What a deny reason names the part by, such as its path in the package.")
+    type: Literal["skill", "plugin", "connector", "hook", "package", "policy", "agent"] = Field(
+        description="The kind of part; `agent` is an agent this agent calls."
+    )
+    source: str = Field(min_length=1, description="Where the part came from, as the caller states it.")
+    version: Optional[str] = None
+    digest: Optional[str] = Field(default=None, description="A digest of the part's bytes, such as `sha256:...`.")
+    # Strict, so a text such as "no" is refused rather than read as a boolean.
+    local: StrictBool = Field(description="Whether the source is a folder on the machine that starts the agent.")
+
+
+class AgentPolicy(BaseModel):
+    """A policy the agent brings, and the enforcers that must apply it where the agent runs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1)
+    required: StrictBool = True
+    enforcers: list[str] = Field(description="The enforcers the policy needs, such as `openshell`.")
+
+
+class AgentStartRequest(BaseModel):
+    """The facts about an agent that is about to start: its parts, the models it names, and its policies."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hook_event_name: Literal["AgentStart"]
+    agent_name: str = Field(min_length=1)
+    agent_digest: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="The digest of the agent's package, such as the sha256 of its lock. With the name, it is the "
+        "identity a quarantine holds. Without it, a quarantine of any version of the agent denies the start.",
+    )
+    parts: list[AgentPart]
+    models: list[str] = Field(
+        description="Every model the run may use: the models the agent and the agents it calls declare, and the model "
+        "the caller binds the run to. The rules judge each."
+    )
+    declared_models: Optional[list[str]] = Field(
+        default=None, description="Of `models`, the ones the agent's package declares, when the caller says."
+    )
+    bound_model: Optional[str] = Field(
+        default=None,
+        description="Of `models`, the one the caller's config binds the run to, which is the model that will run.",
+    )
+    policies: list[AgentPolicy] = Field(default_factory=list)
+    enforcers_present: list[str] = Field(
+        default_factory=list, description="The enforcers the caller says run where the agent starts."
+    )
+
+    @model_validator(mode="after")
+    def judge_every_model(self) -> "AgentStartRequest":
+        """A declared or bound model the caller left out of `models` is added, so the rules judge it too."""
+        for model in [*(self.declared_models or []), self.bound_model]:
+            if model and model not in self.models:
+                self.models.append(model)
+        return self
+
+
+class ModelCallRequest(BaseModel):
+    """One model call an agent is about to make: which agent, and which model it calls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hook_event_name: Literal["ModelCall"]
+    agent_name: str = Field(min_length=1)
+    agent_digest: Optional[str] = Field(default=None, min_length=1)
+    model: str = Field(min_length=1, description="The model, named as the agent-start facts name models.")
+    id: Optional[str] = Field(default=None, description="The caller's id for this call, kept in the record.")
+
+
+class RecordedEventRequest(BaseModel):
+    """An event from outside a run, such as a pipeline's scan of a part, that Dogwood start rules can read."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: str = Field(min_length=1, description='The event\'s action, read as `Hooks::Action::"<action>"`.')
+    kind: Literal["request", "response", "error"] = Field(
+        description="`response` for an action that completed, such as a scan that ran; `error` for one that failed."
+    )
+    input: dict[str, Any] = Field(
+        default_factory=dict,
+        description="The event's fields, read as `input.<name>`, such as the scanned part's `digest` and the `result`.",
+    )
+
+
+class QuarantineRequest(BaseModel):
+    """A person's or the platform's request to quarantine an agent, with no violation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    agent_name: str = Field(min_length=1)
+    agent_digest: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    requested_by: str = Field(min_length=1)
+
+
+class QuarantineReleaseRequest(BaseModel):
+    """A release of a quarantined agent: who releases it and why."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    agent_name: str = Field(min_length=1)
+    agent_digest: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    released_by: str = Field(min_length=1)
 
 
 # Not underscored: pydantic quotes the class name in the error for a body that isn't an object.

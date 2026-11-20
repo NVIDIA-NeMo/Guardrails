@@ -1,0 +1,117 @@
+namespace Drupe {
+  type ContentFilterFinding = {
+    severityScore: decimal
+  };
+
+  type LoginInput = {
+    server: String,
+    user: String
+  };
+
+  type LoginOutput = {
+    result: Bool
+  };
+
+  type PromptAttackFinding = {
+    severityScore: decimal
+  };
+
+  type ReadInput = {
+    document: String,
+    user: String
+  };
+
+  type ReadOutput = {
+    result: Bool
+  };
+
+  type SensitiveInfoFinding = {
+    confidenceScore: decimal
+  };
+
+  type SystemContext = {
+    now: datetime
+  };
+
+  entity Gateway;
+
+  entity IamEntity = {
+    id: String
+  };
+
+  entity OAuthUser = {
+    id: String
+  } tags String;
+
+  entity UnauthenticatedUser;
+
+  action "CallTool" in [Action::"Mcp"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "Http" appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "InvokeAgent" in [Action::"Http"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input?: {      },
+      system: SystemContext
+    }
+  };
+
+  action "InvokeLLM" in [Action::"Http"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input?: {      },
+      system: SystemContext
+    }
+  };
+
+  action "Login" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: LoginInput,
+      output?: LoginOutput,
+      system: SystemContext
+    }
+  };
+
+  action "Mcp" appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "Read" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: ReadInput,
+      output?: ReadOutput,
+      system: SystemContext
+    }
+  };
+
+  action "UnknownTool" in [Action::"CallTool"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+}

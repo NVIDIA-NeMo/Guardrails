@@ -1,0 +1,16 @@
+// A shared `exists` variable JOINS two different predicates: the SAME user
+// both logged in and transferred. A broken join that accepted "some login AND
+// some (other-user) transfer" would wrongly permit. Permit an Alert if one
+// user did both within the last hour.
+@id("alert_same_user_login_and_transfer")
+permit (
+    principal,
+    action == Drupe::Action::"Alert",
+    resource
+)
+when temporal {
+    exists (u: String). (
+        formerly within 1h Drupe::Action::"Login"::request{ input.user: u }
+        && formerly within 1h Drupe::Action::"Transfer"::request{ input.user: u }
+    )
+};

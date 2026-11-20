@@ -1,0 +1,11 @@
+@id("permit_read")
+permit (principal, action == Drupe::Action::"Read", resource);
+
+// Block high and critical threats. `Vendor::Severity::"HIGH"` is checked
+// against the declared values: a typo such as "HIHG" is a validation error.
+@id("forbid_severe")
+forbid (principal, action == Drupe::Action::"Read", resource)
+when {
+    Vendor::ThreatScan(context.input.document).severity
+        in [Vendor::Severity::"HIGH", Vendor::Severity::"CRITICAL"]
+};

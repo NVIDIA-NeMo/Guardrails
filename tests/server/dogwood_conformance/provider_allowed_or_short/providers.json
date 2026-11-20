@@ -1,0 +1,48 @@
+{
+  "availableProviders": {
+    "Lists::Allowed": {
+      "argumentTypes": [
+        {
+          "paramType": "string"
+        }
+      ],
+      "outputType": {
+        "paramType": "record",
+        "fields": {
+          "allowed": {
+            "paramType": "bool"
+          }
+        },
+        "required": [
+          "allowed"
+        ]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "fn evaluate(text) {\n    // Defensive per the provider contract: a provider may be evaluated\n    // for ANY decision event, so any argument may be absent (unit).\n    // Return a conforming sentinel instead of erroring (errors are UB).\n    if type_of(text) == \"()\" {\n        return #{ allowed: false };\n    }\n\n    let allow = text == \"readme\" || text == \"manifest\";\n    #{ allowed: allow }\n}\n"
+      }
+    },
+    "Strings::Length": {
+      "argumentTypes": [
+        {
+          "paramType": "string"
+        }
+      ],
+      "outputType": {
+        "paramType": "record",
+        "fields": {
+          "length": {
+            "paramType": "integer"
+          }
+        },
+        "required": [
+          "length"
+        ]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "fn evaluate(text) {\n    // Defensive per the provider contract: a provider may be evaluated\n    // for ANY decision event, so any argument may be absent (unit).\n    // Return a conforming sentinel instead of erroring (errors are UB).\n    if type_of(text) == \"()\" {\n        return #{ length: -1 };\n    }\n\n    #{ length: text.len() }\n}\n"
+      }
+    }
+  }
+}

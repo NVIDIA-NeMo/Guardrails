@@ -1,0 +1,24 @@
+// A refund budget counting settled refunds plus the current request: permit
+// a Refund only when the amounts already paid out (response events) in the
+// window, plus the amount being requested right now, stay at or under 100.
+//
+// The `+ context.input.amount` term is the arithmetic this bundle exists to
+// exercise. A sum over the SAME request kind the policy decides would not
+// need it: windows are closed and reflexive, so such a sum already includes
+// the in-flight amount, and adding the term would double-count. Here the
+// sum matches `Refund::response` events and the request being decided is a
+// `request`, so nothing else puts its amount into the total. Counting
+// responses is also the more accurate accounting — a denied or failed
+// refund does not consume budget.
+
+@id("refund_budget_settled_plus_current")
+permit (
+    principal,
+    action == Drupe::Action::"Refund",
+    resource
+)
+when temporal {
+    (sum a for (a: Long), (t: Timepoint). where (
+        formerly within 24h (Drupe::Action::"Refund"::response{ output.amount: a } && tp(t))
+    )) + context.input.amount <= 100
+};

@@ -1,0 +1,33 @@
+// Unpinned event schema.
+//
+// Same structure as the pinned default but WITHOUT pins. Temporal
+// predicates use global-trace semantics: a policy can match events
+// from any principal unless it explicitly constrains callerPrincipal.
+//
+// Use this to see the behavioral difference vs the pinned default:
+//   dogwood replay --event-schema configuration/event-schemas/unpinned.dwschema ...
+
+decision event <A>::request {
+    ...inputs(A),
+    callerPrincipal:   principalType(A),
+    callerResource:    resourceType(A),
+    requestId:         String,
+    sessionId:         String,
+}
+
+event <A>::response {
+    ...inputs(A),
+    ...outputs(A),
+    callerPrincipal:   principalType(A),
+    callerResource:    resourceType(A),
+    requestId:         String,
+    sessionId:         String,
+}
+
+event <A>::error {
+    ...inputs(A),
+    callerPrincipal:   principalType(A),
+    callerResource:    resourceType(A),
+    requestId:         String,
+    sessionId:         String,
+}

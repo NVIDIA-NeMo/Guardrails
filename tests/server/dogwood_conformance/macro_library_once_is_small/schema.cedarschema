@@ -1,0 +1,135 @@
+namespace Drupe {
+  type ApproveSaleInput = {
+    shares: Long,
+    stock: String
+  };
+
+  type ApproveSaleOutput = {
+    approved: Bool
+  };
+
+  type ContentFilterFinding = {
+    severityScore: decimal
+  };
+
+  type GetStockInfoInput = {
+    stock: String
+  };
+
+  type GetStockInfoOutput = {
+    info: String
+  };
+
+  type PromptAttackFinding = {
+    severityScore: decimal
+  };
+
+  type SellSharesInput = {
+    shares: Long,
+    stock: String
+  };
+
+  type SellSharesOutput = {
+    proceeds: decimal
+  };
+
+  type SensitiveInfoFinding = {
+    confidenceScore: decimal
+  };
+
+  type SystemContext = {
+    now: datetime
+  };
+
+  entity Gateway;
+
+  entity IamEntity = {
+    id: String
+  };
+
+  entity OAuthUser = {
+    id: String
+  } tags String;
+
+  entity UnauthenticatedUser;
+
+  action "ApproveSale" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: ApproveSaleInput,
+      output?: ApproveSaleOutput,
+      system: SystemContext
+    }
+  };
+
+  action "CallTool" in [Action::"Mcp"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "GetStockInfo" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: GetStockInfoInput,
+      output?: GetStockInfoOutput,
+      system: SystemContext
+    }
+  };
+
+  action "Http" appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "InvokeAgent" in [Action::"Http"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input?: {      },
+      system: SystemContext
+    }
+  };
+
+  action "InvokeLLM" in [Action::"Http"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input?: {      },
+      system: SystemContext
+    }
+  };
+
+  action "Mcp" appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "SellShares" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: SellSharesInput,
+      output?: SellSharesOutput,
+      system: SystemContext
+    }
+  };
+
+  action "UnknownTool" in [Action::"CallTool"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+}

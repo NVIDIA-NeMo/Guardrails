@@ -1,0 +1,193 @@
+namespace Drupe {
+  type ApproveInput = {
+    approver: String,
+    request_id: String
+  };
+
+  type ApproveOutput = {
+    result: Bool
+  };
+
+  type ContentFilterFinding = {
+    severityScore: decimal
+  };
+
+  type LoginInput = {
+    server: String,
+    user: String
+  };
+
+  type LoginOutput = {
+    result: Bool
+  };
+
+  type LogoutInput = {
+    server: String,
+    user: String
+  };
+
+  type LogoutOutput = {
+    result: Bool
+  };
+
+  type PromptAttackFinding = {
+    severityScore: decimal
+  };
+
+  type ReadInput = {
+    document: String,
+    user: String
+  };
+
+  type ReadOutput = {
+    result: Bool
+  };
+
+  type SensitiveInfoFinding = {
+    confidenceScore: decimal
+  };
+
+  type SubmitInput = {
+    request_id: String,
+    user: String
+  };
+
+  type SubmitOutput = {
+    result: Bool
+  };
+
+  type SystemContext = {
+    now: datetime
+  };
+
+  type WriteInput = {
+    document: String,
+    user: String
+  };
+
+  type WriteOutput = {
+    result: Bool
+  };
+
+  entity Gateway;
+
+  entity IamEntity = {
+    id: String
+  };
+
+  entity OAuthUser = {
+    id: String
+  } tags String;
+
+  entity UnauthenticatedUser;
+
+  action "Approve" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: ApproveInput,
+      output?: ApproveOutput,
+      system: SystemContext
+    }
+  };
+
+  action "CallTool" in [Action::"Mcp"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "Http" appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "InvokeAgent" in [Action::"Http"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input?: {      },
+      system: SystemContext
+    }
+  };
+
+  action "InvokeLLM" in [Action::"Http"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input?: {      },
+      system: SystemContext
+    }
+  };
+
+  action "Login" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: LoginInput,
+      output?: LoginOutput,
+      system: SystemContext
+    }
+  };
+
+  action "Logout" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: LogoutInput,
+      output?: LogoutOutput,
+      system: SystemContext
+    }
+  };
+
+  action "Mcp" appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "Read" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: ReadInput,
+      output?: ReadOutput,
+      system: SystemContext
+    }
+  };
+
+  action "Submit" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: SubmitInput,
+      output?: SubmitOutput,
+      system: SystemContext
+    }
+  };
+
+  action "UnknownTool" in [Action::"CallTool"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "Write" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: WriteInput,
+      output?: WriteOutput,
+      system: SystemContext
+    }
+  };
+}

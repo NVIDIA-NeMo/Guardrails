@@ -1,0 +1,8 @@
+// Deny-overrides semantics: permit selling shares generally, but a forbid
+// carves out AMZN no matter the source order.
+@id("permit-sell-shares")
+permit ( principal, action == Drupe::Action::"SellShares", resource );
+
+@id("forbid-sell-amzn")
+forbid ( principal, action == Drupe::Action::"SellShares", resource )
+when { context.input.stock == "AMZN" };

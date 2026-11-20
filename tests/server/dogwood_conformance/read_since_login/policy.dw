@@ -1,0 +1,15 @@
+// `since` is a suffix on a conjunct: `left since within W right` holds when an
+// anchor `right` occurred in the window and `left` held continuously from just
+// after it through now. Permit a Read only if a Login by the same user has
+// held continuously since a Login by that user within the last hour.
+@id("read_since_login")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when temporal {
+    Drupe::Action::"Login"::request{ input.user: context.input.user }
+    since within 1h
+    Drupe::Action::"Login"::request{ input.user: context.input.user }
+};

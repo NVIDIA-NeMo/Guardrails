@@ -18,6 +18,7 @@ The following table describes the response for each outcome:
 |---|---|---|---|
 | Allow | The call passed the tool policy and every per-tool rail | `200` with `{}` | `200` with `{"decision": "allow"}` |
 | Deny | The call's shape, the tool policy, or a per-tool rail blocked the call | `200` with `permissionDecision: "deny"` and the reason | `200` with `{"decision": "deny", "reason": ...}` |
+| Stop | `stop_tools` or a rail in `stop_rails` ended the run; the call is denied too | The deny; for Claude Code also `continue: false` and `stopReason`. Refer to [Stop a Run](/run-guardrailed-inference/using-hooks-server/stop) | `200` with `{"decision": "stop", "reason": ...}` |
 | Error | The check could not finish, so the call's safety is unknown | A non-`2xx` status | A non-`2xx` status |
 
 For Claude Code and Codex, an allow carries no permission decision.

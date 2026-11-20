@@ -1,0 +1,10 @@
+// As Agentform's Dogwood renderer writes `requires: [{tool: ops.get_status, within: 15m}]` on ops.restart_service:
+// a restart only after a status lookup completed in the last 15 minutes of the run.
+permit (
+    principal,
+    action == AgentCore::Action::"ops___restart_service",
+    resource == AgentCore::Gateway::"__GATEWAY_ARN__"
+)
+when temporal {
+    formerly within 15m AgentCore::Action::"ops___get_status"::response{ eventResource: resource }
+};

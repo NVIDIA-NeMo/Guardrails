@@ -1,0 +1,13 @@
+// `exists` is the sole quantifier: it asserts at least one satisfying
+// assignment, with candidate values coming only from the atom that binds the
+// variable. Permit an Alert if SOME user logged in to this Alert's server
+// within the last hour (the bound `u` is range-restricted by the Login field).
+@id("alert_some_login")
+permit (
+    principal,
+    action == Drupe::Action::"Alert",
+    resource
+)
+when temporal {
+    exists (u: String). formerly within 1h Drupe::Action::"Login"::request{ input.user: u, input.server: context.input.server }
+};

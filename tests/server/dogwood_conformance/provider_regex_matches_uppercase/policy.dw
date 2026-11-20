@@ -1,0 +1,14 @@
+// Permit Read only when the requested document is all-uppercase letters,
+// as decided by the Strings::Matches information provider (a regex matcher,
+// implemented in matches.rhai). The provider call sits in an ordinary
+// when { ... }; the projection (.matched) and comparison (== true) are
+// plain Cedar.
+@id("read_uppercase_only")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when {
+    Strings::Matches(context.input.document, "^[A-Z]+$").matched == true
+};

@@ -1,0 +1,10 @@
+@id("permit_all")
+permit (principal, action, resource);
+
+// One unscoped guardrail for every action, in both namespaces.
+@id("forbid_severe")
+forbid (principal, action, resource)
+when {
+    Vendor::ThreatScan(context.input.document).severity
+        in [Vendor::Severity::"HIGH", Vendor::Severity::"CRITICAL"]
+};

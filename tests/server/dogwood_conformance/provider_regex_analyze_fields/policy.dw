@@ -1,0 +1,15 @@
+// Permit Read only when the document starts with an uppercase letter, has at
+// least three digit characters, and its first run of digits is exactly "42".
+// Three calls to one Regex::Analyze provider, each projecting a different
+// output field, combined with && as plain Cedar.
+@id("read_regex_analyze")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when {
+    Regex::Analyze(context.input.document, "^[A-Z]").is_match == true
+    && Regex::Analyze(context.input.document, "[0-9]").count >= 3
+    && Regex::Analyze(context.input.document, "[0-9]+").first_match == "42"
+};

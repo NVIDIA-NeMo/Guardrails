@@ -1,0 +1,5 @@
+// The `temporal { ... }` marker is also a primary expression, so it can
+// appear inside an ordinary Cedar expression (here && with a share threshold).
+@id("sell_shares_and_prior_sell")
+permit ( principal, action == Drupe::Action::"SellShares", resource )
+when { context.input.shares > 5 && temporal { formerly within 1h Drupe::Action::"SellShares"::request{} } };

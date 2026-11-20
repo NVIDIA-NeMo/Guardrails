@@ -1,0 +1,45 @@
+namespace Procure {
+  type CreatePurchaseOrderInput = {
+    po_id: String,
+    amount: Long
+  };
+
+  type CreatePurchaseOrderOutput = {  };
+
+  type PayInvoiceInput = {
+    po_id: String,
+    amount: Long
+  };
+
+  type PayInvoiceOutput = {  };
+
+  type SystemContext = {
+    now: datetime
+  };
+
+  entity Gateway;
+
+  entity OAuthUser = {
+    id: String
+  } tags String;
+
+  action "CreatePurchaseOrder" appliesTo {
+    principal: [OAuthUser],
+    resource: [Gateway],
+    context: {
+      input: CreatePurchaseOrderInput,
+      output?: CreatePurchaseOrderOutput,
+      system: SystemContext
+    }
+  };
+
+  action "PayInvoice" appliesTo {
+    principal: [OAuthUser],
+    resource: [Gateway],
+    context: {
+      input: PayInvoiceInput,
+      output?: PayInvoiceOutput,
+      system: SystemContext
+    }
+  };
+}

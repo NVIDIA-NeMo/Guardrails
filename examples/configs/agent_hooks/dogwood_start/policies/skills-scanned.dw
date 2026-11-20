@@ -1,0 +1,11 @@
+@id("permit-start")
+permit (principal, action == Hooks::Action::"start", resource);
+
+// A skill may start only if its digest passed a scan in the last 6 hours. A skill with no digest, such as a local
+// draft, has none to look up, and is refused too.
+@id("skills/scanned-within-6h")
+forbid (principal, action == Hooks::Action::"start", resource is Hooks::Part)
+when { resource.type == "skill" }
+unless temporal {
+    formerly within 6h Hooks::Action::"scan"::response{ input.digest: resource.digest, input.result: "passed" }
+};

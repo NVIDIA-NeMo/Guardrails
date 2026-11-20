@@ -1,0 +1,26 @@
+{
+  "availableProviders": {
+    "Access::Allowed": {
+      "argumentTypes": [
+        {
+          "paramType": "string"
+        }
+      ],
+      "outputType": {
+        "paramType": "record",
+        "fields": {
+          "allowed": {
+            "paramType": "bool"
+          }
+        },
+        "required": [
+          "allowed"
+        ]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "// Access::Allowed(principalId) -> { allowed: bool }. A tiny hardcoded\n// allowlist stands in for a real membership lookup: alice is allowed,\n// everyone else is not. Mirrors allowed.rhai (inlined because the CLI loads\n// providers.json via from_json, which does not resolve scriptFile).\nfn evaluate(principal_id) {\n    // Defensive per the provider contract: a provider may be evaluated\n    // for ANY decision event, so any argument may be absent (unit).\n    // Return a conforming sentinel instead of erroring (errors are UB).\n    if type_of(principal_id) == \"()\" {\n        return #{ allowed: false };\n    }\n\n    let allowed = principal_id == \"alice\";\n    #{ allowed: allowed }\n}\n"
+      }
+    }
+  }
+}

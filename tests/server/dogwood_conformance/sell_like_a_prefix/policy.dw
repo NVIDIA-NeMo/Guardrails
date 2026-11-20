@@ -1,0 +1,4 @@
+// `like` matches a string against a wildcard pattern: only stocks starting A.
+@id("sell_a_prefixed")
+permit ( principal, action == Drupe::Action::"SellShares", resource )
+when { context.input.stock like "A*" };

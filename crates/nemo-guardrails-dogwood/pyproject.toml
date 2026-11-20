@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "nemoguardrails-dogwood"
+version = "0.1.0"
+description = "The Dogwood policy language for the NeMo Guardrails hooks server, through Dogwood's own library"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+
+[tool.maturin]
+module-name = "nemoguardrails_dogwood"
+features = ["pyo3/extension-module"]

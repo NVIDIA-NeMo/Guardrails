@@ -29,6 +29,13 @@ from fastapi.openapi.utils import get_openapi
 
 from nemoguardrails.server.hooks.adapters import ADAPTERS
 from nemoguardrails.server.hooks.app import _router
+from nemoguardrails.server.hooks.schemas import (
+    AgentStartRequest,
+    ModelCallRequest,
+    QuarantineReleaseRequest,
+    QuarantineRequest,
+    RecordedEventRequest,
+)
 
 SPEC_PATH = Path(__file__).resolve().parents[1] / "fern" / "hooks-openapi.yml"
 HEALTH_DOCS_PATH = Path(__file__).resolve().parents[1] / "docs" / "reference" / "hooks-server-api" / "_generated"
@@ -67,6 +74,25 @@ def hooks_openapi() -> dict:
                 "additionalProperties": False,
                 "properties": {"decision": {"type": "string", "const": "allow"}},
             },
+            "RelayStop": {
+                "type": "object",
+                "required": ["decision", "reason"],
+                "additionalProperties": False,
+                "properties": {
+                    "decision": {"type": "string", "enum": ["stop", "quarantine"]},
+                    "reason": {"type": "string"},
+                },
+            },
+            "ClaudeCodeStop": {
+                "type": "object",
+                "required": ["continue", "stopReason", "hookSpecificOutput"],
+                "additionalProperties": False,
+                "properties": {
+                    "continue": {"type": "boolean", "const": False},
+                    "stopReason": {"type": "string"},
+                    "hookSpecificOutput": {"$ref": "#/components/schemas/PreToolUseDeny/properties/hookSpecificOutput"},
+                },
+            },
             "RelayDeny": {
                 "type": "object",
                 "required": ["decision", "reason"],
@@ -99,12 +125,12 @@ def hooks_openapi() -> dict:
     error = {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/HookError"}}}}
     empty_allow = {"type": "object", "properties": {}, "additionalProperties": False}
     response_schemas = {
-        "claude-code": (empty_allow, "PreToolUseDeny"),
-        "codex": (empty_allow, "PreToolUseDeny"),
-        "nemo-relay": ({"$ref": "#/components/schemas/RelayAllow"}, "RelayDeny"),
+        "claude-code": (empty_allow, "PreToolUseDeny", "ClaudeCodeStop"),
+        "codex": (empty_allow, "PreToolUseDeny", None),
+        "nemo-relay": ({"$ref": "#/components/schemas/RelayAllow"}, "RelayDeny", "RelayStop"),
     }
     for agent, adapter in ADAPTERS.items():
-        allowed, deny_name = response_schemas[agent]
+        allowed, deny_name, stop_name = response_schemas[agent]
         model = adapter.request_model
         model_schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
         schemas.update(model_schema.pop("$defs", {}))
@@ -125,10 +151,16 @@ def hooks_openapi() -> dict:
             "content": {"application/json": {"schema": {"$ref": f"#/components/schemas/{model.__name__}"}}},
         }
         denied = {"$ref": f"#/components/schemas/{deny_name}"}
+        # A stop is a deny for Codex, so its deny shape covers it.
+        stopped = [] if stop_name is None else [{"$ref": f"#/components/schemas/{stop_name}"}]
         operation["responses"] = {
             "200": {
                 "description": "Allow or deny decision",
-                "content": {"application/json": {"schema": {"oneOf": [allowed, denied]}}},
+                "content": {"application/json": {"schema": {"oneOf": [allowed, denied, *stopped]}}},
+            },
+            "404": {
+                "description": "The config sets only hooks_server.agent_start, so no tool call is checked",
+                **error,
             },
             "422": {"description": "Invalid request or unsupported event", **error},
             "500": {"description": "Check failed", **error},
@@ -138,6 +170,100 @@ def hooks_openapi() -> dict:
                 **error,
             },
         }
+    start_schema = AgentStartRequest.model_json_schema(ref_template="#/components/schemas/{model}")
+    schemas.update(start_schema.pop("$defs", {}))
+    schemas[AgentStartRequest.__name__] = start_schema
+    operation = spec["paths"]["/v1/hooks/agent-start"]["post"]
+    operation["requestBody"] = {
+        "required": True,
+        "content": {"application/json": {"schema": {"$ref": f"#/components/schemas/{AgentStartRequest.__name__}"}}},
+    }
+    operation["responses"] = {
+        "200": {
+            "description": "Allow or deny decision",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "oneOf": [
+                            {"$ref": "#/components/schemas/RelayAllow"},
+                            {"$ref": "#/components/schemas/RelayDeny"},
+                        ]
+                    }
+                }
+            },
+        },
+        "404": {"description": "The config has no hooks_server.agent_start section", **error},
+        "422": {"description": "Invalid request or unsupported event", **error},
+    }
+    for model, path, answer in (
+        (QuarantineRequest, "/v1/quarantines", "The quarantine in force"),
+        (QuarantineReleaseRequest, "/v1/quarantines/release", "The release, recorded"),
+    ):
+        model_schema = model.model_json_schema(ref_template="#/components/schemas/{model}")
+        schemas[model.__name__] = model_schema
+        operation = spec["paths"][path]["post"]
+        operation["requestBody"] = {
+            "required": True,
+            "content": {"application/json": {"schema": {"$ref": f"#/components/schemas/{model.__name__}"}}},
+        }
+        operation["responses"] = {
+            "200": {"description": answer, "content": {"application/json": {"schema": {"type": "object"}}}},
+            "404": {"description": "No quarantine store, or the agent is not quarantined", **error},
+            "422": {"description": "Invalid request", **error},
+            "500": {"description": "The quarantine store failed", **error},
+        }
+    schemas[RecordedEventRequest.__name__] = RecordedEventRequest.model_json_schema(
+        ref_template="#/components/schemas/{model}"
+    )
+    operation = spec["paths"]["/v1/events"]["post"]
+    operation["requestBody"] = {
+        "required": True,
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordedEventRequest"}}},
+    }
+    operation["responses"] = {
+        "200": {"description": "The event, recorded", "content": {"application/json": {"schema": {"type": "object"}}}},
+        "401": {"description": "No event writer's token", **error},
+        "404": {"description": "No hooks_server.event_writers", **error},
+        "422": {"description": "Invalid request", **error},
+        "500": {"description": "The decision record failed", **error},
+    }
+    spec["paths"]["/v1/quarantines"]["get"]["responses"] = {
+        "200": {
+            "description": "Every quarantine in force",
+            "content": {"application/json": {"schema": {"type": "object"}}},
+        },
+        "404": {"description": "No quarantine store", **error},
+    }
+    model_call_schema = ModelCallRequest.model_json_schema(ref_template="#/components/schemas/{model}")
+    schemas[ModelCallRequest.__name__] = model_call_schema
+    operation = spec["paths"]["/v1/hooks/model-call"]["post"]
+    operation["requestBody"] = {
+        "required": True,
+        "content": {"application/json": {"schema": {"$ref": f"#/components/schemas/{ModelCallRequest.__name__}"}}},
+    }
+    operation["responses"] = {
+        "200": {
+            "description": "Allow or deny decision, with the rule that gave it",
+            "content": {"application/json": {"schema": {"type": "object"}}},
+        },
+        "404": {"description": "The config has no hooks_server.agent_start section", **error},
+        "422": {"description": "Invalid request or unsupported event", **error},
+        "500": {"description": "The quarantine store or the decision record failed", **error},
+    }
+    for path, answer in (
+        ("/v1/decisions", "The recorded decisions, oldest first"),
+        ("/v1/decisions/check", "Whether the record's chain holds"),
+    ):
+        spec["paths"][path]["get"]["responses"] = {
+            "200": {"description": answer, "content": {"application/json": {"schema": {"type": "object"}}}},
+            "404": {"description": "No decision record", **error},
+        }
+    spec["paths"]["/v1/runs/{run_id}"]["get"]["responses"] = {
+        "200": {
+            "description": "The stop or quarantine a rule chose for the run, or null",
+            "content": {"application/json": {"schema": {"type": "object"}}},
+        }
+    }
     for path in ("/v1/health", "/healthz"):
         spec["paths"][path]["get"]["responses"] = {
             "200": {

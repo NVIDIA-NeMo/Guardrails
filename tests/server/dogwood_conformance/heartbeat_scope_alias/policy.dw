@@ -1,0 +1,18 @@
+// Scope correlation: `principal`/`resource` are the request's scope entities
+// (first-class temporal term roots, matching Cedar) and pin against the
+// reserved event fields callerPrincipal / callerResource. Permit an Alert
+// only if a Heartbeat for the same server, principal, and resource fired within
+// the last hour.
+@id("alert_recent_heartbeat")
+permit (
+    principal,
+    action == Drupe::Action::"Alert",
+    resource
+)
+when temporal {
+    formerly within 1h Drupe::Action::"Heartbeat"::request{
+        input.server: context.input.server,
+        callerPrincipal: principal,
+        callerResource: resource
+    }
+};

@@ -1,0 +1,22 @@
+// A FORBID rule with a `sum` over a (value, timepoint) domain and a filtered
+// temporal body. The two-binder domain `for (a: Long), (t: Timepoint).` keeps
+// equal amounts made at different timepoints from being deduplicated. Forbid a
+// Read if the same user's resolved positive Transfers in the last hour total
+// more than 1000.
+@id("forbid_read_when_transfers_over_1000")
+forbid (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when temporal {
+    exists (total: Long). (
+        (sum a for (a: Long), (t: Timepoint). where (
+            formerly within 1h (
+                Drupe::Action::"Transfer"::response{ input.user: context.input.user, output.amount: a }
+                && a > 0 && tp(t)
+            )
+        )) == total
+        && total > 1000
+    )
+};

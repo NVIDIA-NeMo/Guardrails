@@ -1,0 +1,43 @@
+namespace Repo {
+  type OpenPullRequestInput = {
+    repo: String
+  };
+
+  type OpenPullRequestOutput = {  };
+
+  type CompleteReviewInput = {
+    repo: String
+  };
+
+  type CompleteReviewOutput = {  };
+
+  type SystemContext = {
+    now: datetime
+  };
+
+  entity Gateway;
+
+  entity OAuthUser = {
+    id: String
+  } tags String;
+
+  action "OpenPullRequest" appliesTo {
+    principal: [OAuthUser],
+    resource: [Gateway],
+    context: {
+      input: OpenPullRequestInput,
+      output?: OpenPullRequestOutput,
+      system: SystemContext
+    }
+  };
+
+  action "CompleteReview" appliesTo {
+    principal: [OAuthUser],
+    resource: [Gateway],
+    context: {
+      input: CompleteReviewInput,
+      output?: CompleteReviewOutput,
+      system: SystemContext
+    }
+  };
+}

@@ -1,0 +1,13 @@
+// At most 2 deploys in any 5 minutes of a run. The call being decided counts, so the third is the first denied.
+@id("deploy/at-most-2-in-5m")
+forbid (
+    principal,
+    action == AgentCore::Action::"ops___deploy",
+    resource == AgentCore::Gateway::"__GATEWAY_ARN__"
+)
+when temporal {
+    exists (n: Long).
+        (count for (t: Timepoint).
+            where (formerly within 5m (AgentCore::Action::"ops___deploy"::request{ eventResource: resource } && tp(t)))) == n
+        && n > 2
+};

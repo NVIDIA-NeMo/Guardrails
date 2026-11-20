@@ -1,0 +1,85 @@
+namespace Drupe {
+  type ApproveSaleInput = {
+    shares: Long,
+    stock: String
+  };
+
+  type ApproveSaleOutput = {
+    approved: Bool
+  };
+
+  type GetStockInfoInput = {
+    stock: String
+  };
+
+  type GetStockInfoOutput = {
+    info: String
+  };
+
+  type SellSharesInput = {
+    shares: Long,
+    stock: String
+  };
+
+  type SellSharesOutput = {
+    proceeds: decimal
+  };
+
+  type SystemContext = {
+    now: datetime
+  };
+
+  entity Gateway;
+
+  entity User;
+
+  action "ApproveSale" in [Action::"CallTool"] appliesTo {
+    principal: [User],
+    resource: [Gateway],
+    context: {
+      input: ApproveSaleInput,
+      output?: ApproveSaleOutput,
+      system: SystemContext
+    }
+  };
+
+  action "CallTool" in [Action::"Mcp"] appliesTo {
+    principal: [User],
+    resource: [Gateway],
+    context: {
+      isOutput: Bool,
+      output?: {      },
+      system: SystemContext
+    }
+  };
+
+  action "GetStockInfo" in [Action::"CallTool"] appliesTo {
+    principal: [User],
+    resource: [Gateway],
+    context: {
+      input: GetStockInfoInput,
+      output?: GetStockInfoOutput,
+      system: SystemContext
+    }
+  };
+
+  action "Mcp" appliesTo {
+    principal: [User],
+    resource: [Gateway],
+    context: {
+      isOutput: Bool,
+      output?: {      },
+      system: SystemContext
+    }
+  };
+
+  action "SellShares" in [Action::"CallTool"] appliesTo {
+    principal: [User],
+    resource: [Gateway],
+    context: {
+      input: SellSharesInput,
+      output?: SellSharesOutput,
+      system: SystemContext
+    }
+  };
+}

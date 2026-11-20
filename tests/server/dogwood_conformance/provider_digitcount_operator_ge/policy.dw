@@ -1,0 +1,12 @@
+// Permit Read only when the document contains 2 or more digits, as counted by
+// the Strings::DigitCount provider. Demonstrates the OPERATOR comparison form
+// (>=) on an integer provider output.
+@id("read_digits_gte_two")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when {
+    Strings::DigitCount(context.input.document).count >= 2
+};

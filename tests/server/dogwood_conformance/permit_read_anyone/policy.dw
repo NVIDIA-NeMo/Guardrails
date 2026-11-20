@@ -1,0 +1,9 @@
+// Permit Read for anyone, on any resource. No `when` clause means no extra
+// condition: this rule applies whenever its scope matches (the Read action).
+// A pure-Cedar rule with no history dependence.
+@id("permit_read_anyone")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+);
