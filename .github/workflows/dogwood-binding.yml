@@ -1,0 +1,132 @@
+name: Dogwood Binding
+
+# The Dogwood binding in crates/nemo-guardrails-dogwood (a PyO3 module over dogwood-ops) and the hooks server's Dogwood
+# tests, which need it. The binding is behind the optional `dogwood` extra, so the main test jobs skip those tests;
+# this job builds it and runs them, and fails if any of them skips.
+
+on:
+  pull_request:
+    paths:
+      - "crates/nemo-guardrails-dogwood/**"
+      - "rust-toolchain.toml"
+      - "nemoguardrails/server/hooks/**"
+      - "nemoguardrails/rails/llm/config.py"
+      - "tests/server/test_hooks_dogwood*.py"
+      - "tests/server/dogwood_conformance/**"
+      - "examples/configs/agent_hooks/dogwood*/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/dogwood-binding.yml"
+  push:
+    branches:
+      - develop
+    paths:
+      - "crates/nemo-guardrails-dogwood/**"
+      - "rust-toolchain.toml"
+      - "nemoguardrails/server/hooks/**"
+      - "nemoguardrails/rails/llm/config.py"
+      - "tests/server/test_hooks_dogwood*.py"
+      - "tests/server/dogwood_conformance/**"
+      - "examples/configs/agent_hooks/dogwood*/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/dogwood-binding.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: crates/nemo-guardrails-dogwood
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # With no arguments, rustup installs the channel and components that rust-toolchain.toml pins.
+      - name: Install the Rust toolchain
+        run: rustup toolchain install
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: crates/nemo-guardrails-dogwood
+          save-if: ${{ github.ref == 'refs/heads/develop' }}
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+  tests:
+    name: Dogwood tests with the binding
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: ./.github/actions/setup-uv
+        with:
+          cache-suffix: "dogwood-3.11"
+
+      - name: Install the Rust toolchain
+        run: rustup toolchain install
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: crates/nemo-guardrails-dogwood
+          save-if: ${{ github.ref == 'refs/heads/develop' }}
+
+      # The `dogwood` extra builds the binding from its crate with maturin (the uv source in pyproject.toml).
+      - name: Install dependencies with the binding
+        run: uv sync --locked --group dev --extra server --extra dogwood
+
+      - name: Check the binding imports
+        run: uv run --no-sync python -c "import nemoguardrails_dogwood"
+
+      - name: Run the Dogwood tests, none skipped
+        run: |
+          set -o pipefail
+          uv run --no-sync pytest -p no:cacheprovider -rs tests/server/test_hooks_dogwood*.py | tee pytest.log
+          if grep -q "SKIPPED" pytest.log; then
+            echo "::error::A Dogwood test was skipped although the binding is installed."
+            exit 1
+          fi
+
+      # The wheel the job built, for a reviewer or a workshop bundle to install on Linux x86_64.
+      - name: Build the binding wheel
+        run: uvx --from "maturin>=1.7,<2.0" maturin build --release -m crates/nemo-guardrails-dogwood/Cargo.toml -o dist
+
+      - name: Upload the binding wheel
+        uses: actions/upload-artifact@v6
+        with:
+          name: nemoguardrails-dogwood-linux-x86_64
+          path: dist/*.whl
+          if-no-files-found: error
