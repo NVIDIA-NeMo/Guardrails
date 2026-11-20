@@ -1,0 +1,26 @@
+{
+  "availableProviders": {
+    "Strings::DigitCount": {
+      "argumentTypes": [
+        {
+          "paramType": "string"
+        }
+      ],
+      "outputType": {
+        "paramType": "record",
+        "fields": {
+          "count": {
+            "paramType": "integer"
+          }
+        },
+        "required": [
+          "count"
+        ]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "// `Strings::DigitCount(text) -> { count: Long }`.\n//\n// Counts digit characters via the `regex_count` host function. In the\n// policy the integer output is used inside arithmetic (`count + 1 <= 3`),\n// which only the unwrapped form allows.\nfn evaluate(text) {\n    // Defensive per the provider contract: a provider may be evaluated\n    // for ANY decision event, so any argument may be absent (unit).\n    // Return a conforming sentinel instead of erroring (errors are UB).\n    if type_of(text) == \"()\" {\n        return #{ count: -1 };\n    }\n\n    #{ count: regex_count(\"[0-9]\", text) }\n}\n"
+      }
+    }
+  }
+}

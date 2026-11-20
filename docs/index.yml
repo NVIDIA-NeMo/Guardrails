@@ -551,6 +551,21 @@ navigation:
           - page: NeMo Relay Endpoint
             path: run-rails/using-hooks-server/nemo-relay.mdx
             slug: nemo-relay
+          - page: Agent Start Endpoint
+            path: run-rails/using-hooks-server/agent-start.mdx
+            slug: agent-start
+          - page: Stop a Run
+            path: run-rails/using-hooks-server/stop.mdx
+            slug: stop
+          - page: Rules in Cedar
+            path: run-rails/using-hooks-server/cedar.mdx
+            slug: cedar
+          - page: Rules over a Run's History
+            path: run-rails/using-hooks-server/dogwood.mdx
+            slug: dogwood
+          - page: Decision Record and Model Calls
+            path: run-rails/using-hooks-server/decisions.mdx
+            slug: decisions
           - page: Results and Errors
             path: run-rails/using-hooks-server/results-and-errors.mdx
             slug: results-and-errors

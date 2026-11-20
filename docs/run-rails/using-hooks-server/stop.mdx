@@ -1,0 +1,124 @@
+---
+title: "Stop or Quarantine a Run from the Hooks Server"
+sidebar-title: "Stop and Quarantine"
+description: "The stop outcome of the Guardrails hooks server: a rule that ends the run, not only the tool call, and what each agent path does with it."
+keywords: ["stop", "quarantine", "quarantine_store", "/v1/quarantines", "stop_tools", "stop_rails", "continue", "stopReason", "nemoguardrails hooks-server", "NeMo Relay"]
+content:
+  type: "reference"
+---
+
+A deny blocks one tool call, and the agent can try another way.
+A stop is a third outcome next to allow and deny: the rule asks that the run end.
+A stop always denies the call too, so an agent that does not act on a stop still never runs the call.
+No model is called to decide it.
+
+## Configure a Stop
+
+Two rules in the `hooks_server` section select a stop, in the style of `blocked_tools`:
+
+```yaml
+hooks_server:
+  stop_tools:
+    - delete_index
+    - name: search
+      arguments: [admin_override]
+  stop_rails:
+    - regex check tool call
+```
+
+| Rule | A Call Stops the Run When |
+|---|---|
+| `stop_tools` | It calls a tool the list names bare, or passes an argument a `{name, arguments}` entry lists. It is checked before `allowed_tools` and `blocked_tools`. |
+| `stop_rails` | A per-tool rail the list names blocks it. Name the rail as a deny reports it, without its `$` arguments. A name that no `rails.tool_call.per_tool` flow runs is refused when the server starts. |
+
+The [stop example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/stop) uses both.
+
+## What Each Path Answers
+
+| Path | Answer for a Stop | What the Agent Does |
+|---|---|---|
+| `/v1/hooks/claude-code` | The deny, with `"continue": false` and `"stopReason"` | Claude Code denies the call and ends its turn. |
+| `/v1/hooks/codex` | The deny alone | Codex denies the call. Codex's hook output has a `continue` field, but what Codex does with it for a `PreToolUse` hook is not established, so the server does not send it. |
+| `/v1/hooks/nemo-relay` | `{"decision": "stop", "reason": ...}` | The NeMo Relay plugin rejects the call with the reason and emits the mark `nemo_guardrails.stop` on Relay's event stream, with the tool name and the reason. |
+
+A Claude Code stop has the following shape:
+
+```json
+{
+  "continue": false,
+  "stopReason": "NeMo Guardrails: tool call 'delete_index' is a stop tool",
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "NeMo Guardrails: tool call 'delete_index' is a stop tool"
+  }
+}
+```
+
+## What NeMo Relay Cannot Do Yet
+
+NeMo Relay's tool conditional-execution guardrail returns one of three results: run the call, reject it with a reason, or fail.
+None of them ends a run, and Relay passes the guardrail no run or session identifier.
+So the plugin rejects the call and emits the stop mark; ending the run is the job of whatever owns it and subscribes to Relay's events.
+A plugin built before the stop outcome does not know `"decision": "stop"`, fails the check, and Relay blocks the call.
+
+## Quarantine an Agent
+
+A quarantine is a stop that lasts: the run ends, and the agent cannot start or run again until someone releases it.
+The server keeps it under the agent's name and the digest of its package, so a new version with another digest can start while the old one stays blocked.
+
+```yaml
+hooks_server:
+  quarantine_store: /var/lib/nemoguardrails/quarantine.jsonl
+  quarantine_tools:
+    - exfiltrate
+  quarantine_rails:
+    - regex check tool call
+  agent_start:
+    allowed_models: [bedrock::nvidia.nemotron-super-3-120b]
+```
+
+| Setting | What It Does |
+|---|---|
+| `quarantine_store` | The file that keeps quarantines: one JSON event per line, `quarantined` or `released`, with the agent's name and digest, the reason, who asked and when. Nothing is removed, so the file is the history, and a server that restarts reads it again. Servers on one host can share it: each write takes a file lock, and each check reads the file again when it changed. Servers on several hosts need a shared store instead. A relative path is relative to the directory the server runs in. |
+| `quarantine_tools`, `quarantine_rails` | Rules that quarantine, in the style of `stop_tools` and `stop_rails`. They need `quarantine_store`. |
+
+A tool call names its agent in two headers, `x-nemo-agent-name` and `x-nemo-agent-digest`, which whatever runs the agent sets, such as the NeMo Relay plugin's `headers`.
+A rule that quarantines stores the quarantine under those headers. Without them, the run still ends, and nothing is stored.
+
+While an agent is quarantined:
+
+- `/v1/hooks/agent-start` denies it with the quarantine's reason. A request that sends no `agent_digest` is denied while any version of the agent is quarantined.
+- Every tool call that names it in the headers is answered with the quarantine: the deny, with `continue: false` for Claude Code, the deny alone for Codex, and `{"decision": "quarantine", "reason": ...}` for NeMo Relay, whose plugin rejects the call and emits the mark `nemo_guardrails.quarantine`.
+
+A person or the platform can quarantine and release an agent, with no violation:
+
+```bash
+curl -s http://localhost:8100/v1/quarantines -H "Content-Type: application/json" \
+  -d '{"agent_name": "release-reviewer", "agent_digest": "sha256:a795...", "reason": "under review", "requested_by": "platform"}'
+curl -s http://localhost:8100/v1/quarantines
+curl -s http://localhost:8100/v1/quarantines/release -H "Content-Type: application/json" \
+  -d '{"agent_name": "release-reviewer", "agent_digest": "sha256:a795...", "reason": "reviewed", "released_by": "kevon"}'
+```
+
+Only a release ends a quarantine: there is no timer.
+Releasing an agent that is not quarantined answers `404` with the code `not_quarantined`.
+A store that cannot be read or written answers `500` with the code `quarantine_store_failed`, never an allow.
+The hooks server has no authentication of its own: keep it on a loopback address, or behind a proxy that authenticates, since anyone who can reach it can release an agent.
+
+## Let the Owner of the Run End It
+
+A stop or quarantine denies the call; ending the run is the job of whatever started the harness.
+A tool call names its run in the `x-nemo-run-id` header, and the server keeps the first stop or quarantine of each run.
+The owner of the run reads it, and ends the run with the agents it called:
+
+```bash
+curl -s http://localhost:8100/v1/runs/RUN_ID
+```
+
+```json
+{"run_id": "RUN_ID", "stop": {"outcome": "stop", "reason": "tool call 'delete_index' is a stop tool", "tool_name": "delete_index", "agent_name": null, "agent_digest": null, "by": "nemoguardrails hooks-server", "at": "2026-11-18T14:00:00.000+00:00"}}
+```
+
+`stop` is `null` until a rule stops the run.
+The server keeps the last 1,024 runs in memory, so a restart forgets them; a quarantine stays in its store.

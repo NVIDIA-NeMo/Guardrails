@@ -1,0 +1,22 @@
+// A `def temporal` macro whose predicate-valued parameter `?s` is REFINED in
+// the macro body with an injected field (`?s{ input.status: "approved" }`),
+// forcing that filter onto whatever event the caller passes -- the caller
+// never writes input.status. The call site fills `?w` with a bare interval
+// literal (no `within`). Permit a Submit only if the same user was formerly
+// Approved (within 1h) WITH status "approved".
+def temporal approved_recently(?w, ?s) {
+    formerly within ?w (?s{ input.status: "approved" })
+};
+
+@id("submit_after_approval")
+permit (
+    principal,
+    action == Drupe::Action::"Submit",
+    resource
+)
+when temporal {
+    approved_recently(
+        1h,
+        Drupe::Action::"Approve"::request{ input.user: context.input.user }
+    )
+};

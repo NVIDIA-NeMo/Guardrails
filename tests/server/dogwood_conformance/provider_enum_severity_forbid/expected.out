@@ -1,0 +1,6 @@
+@0 (time point 0): ALLOW  [rules: 0]
+@10 (time point 1): ALLOW  [rules: 0]
+@20 (time point 2): DENY  [rules: 1]
+@30 (time point 3): DENY  [rules: 1]
+@40 (time point 4): DENY
+    error: provider `Vendor::ThreatScan`.severity: `SEVERE` is not a member of `Vendor::Severity`

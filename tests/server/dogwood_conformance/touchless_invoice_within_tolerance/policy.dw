@@ -1,0 +1,26 @@
+// Two-way invoice match with a tolerance: an invoice is auto-payable only
+// when a completed purchase-order creation (a `CreatePurchaseOrder`
+// response, not just a request that may have failed) with the same id
+// exists in the look-back window and the invoice amount is at most the PO
+// amount plus 50.
+//
+// The `po_amount + 50` term is the arithmetic this bundle exists to
+// exercise: without it, two correlated event fields can only be compared
+// exactly (`invoice <= po`), and a tolerance constant has nowhere to go.
+//
+
+@id("touchless_invoice_within_tolerance")
+permit (
+    principal,
+    action == Procure::Action::"PayInvoice",
+    resource
+)
+when temporal {
+    exists (po_amount: Long). (
+        formerly within 24h Procure::Action::"CreatePurchaseOrder"::response{
+            input.po_id: context.input.po_id,
+            input.amount: po_amount
+        }
+        && context.input.amount <= po_amount + 50
+    )
+};

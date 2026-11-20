@@ -1,0 +1,44 @@
+namespace Drupe {
+  type ApproveInput = {
+    status: String,
+    user: String
+  };
+
+  type ApproveOutput = {  };
+
+  type SubmitInput = {
+    user: String
+  };
+
+  type SubmitOutput = {  };
+
+  type SystemContext = {
+    now: datetime
+  };
+
+  entity Gateway;
+
+  entity OAuthUser = {
+    id: String
+  };
+
+  action "Approve" appliesTo {
+    principal: [OAuthUser],
+    resource: [Gateway],
+    context: {
+      input: ApproveInput,
+      output?: ApproveOutput,
+      system: SystemContext
+    }
+  };
+
+  action "Submit" appliesTo {
+    principal: [OAuthUser],
+    resource: [Gateway],
+    context: {
+      input: SubmitInput,
+      output?: SubmitOutput,
+      system: SystemContext
+    }
+  };
+}

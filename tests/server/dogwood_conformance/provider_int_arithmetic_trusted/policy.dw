@@ -1,0 +1,14 @@
+// Permit Read when the request is flagged trusted AND the document has at most
+// two digits (expressed as digitCount + 1 <= 3). Shows a provider's integer
+// output used inside ARITHMETIC, mixed under && with a plain Cedar condition on
+// context.input -- something only the unwrapped form allows.
+@id("read_trusted_and_few_digits")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when {
+    context.input.trusted == true
+    && Strings::DigitCount(context.input.document).count + 1 <= 3
+};

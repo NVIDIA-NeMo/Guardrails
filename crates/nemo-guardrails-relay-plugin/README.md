@@ -17,6 +17,8 @@ It runs on the tool calls Relay manages: calls through the Relay SDK and its Lan
 
 - An allow lets the call run.
 - A deny rejects the call with `NeMo Guardrails blocked tool call '<tool>': <reason>`, or with the text ending at the tool name when the service gives no reason.
+- A stop rejects the call with `NeMo Guardrails stopped the run at tool call '<tool>': <reason>` and emits the mark `nemo_guardrails.stop` with `{"tool_name", "reason"}` on Relay's event stream. Relay's guardrail interface has no result that ends a run, so ending it is left to whatever owns the run and subscribes to the mark.
+- A quarantine rejects the call with `NeMo Guardrails quarantined the agent at tool call '<tool>': <reason>` and emits the mark `nemo_guardrails.quarantine`. For the service to quarantine the agent, and to deny the calls of a quarantined one, name the agent in `headers`: `x-nemo-agent-name` and `x-nemo-agent-digest`.
 - A failed check returns the error `NeMo Guardrails check failed for tool call '<tool>': <detail>`.
   The detail gives the HTTP status, the service's `error.code` and message, and a hint for the service's known errors, or says that the request timed out or couldn't be sent.
 - The plugin doesn't retry a failed check, not even when the service answers 503 with `Retry-After`.

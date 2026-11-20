@@ -1,0 +1,13 @@
+// `previous` with a response predicate and an output-field filter. Permit a
+// Read only if the immediately preceding event (within 1h) was the same
+// user's SUCCESSFUL Login (output.result: true). At timepoint 0 there is no
+// predecessor, so the rule never fires there.
+@id("read_after_prev_login_success")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when temporal {
+    previous within 1h Drupe::Action::"Login"::response{ input.user: context.input.user, output.result: true }
+};

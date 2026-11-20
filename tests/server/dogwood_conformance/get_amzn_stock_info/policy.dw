@@ -1,0 +1,12 @@
+// Permit reading stock info only for AMZN. The tool's `stock` argument comes
+// from the MCP manifest's inputSchema, so in the generated Drupe schema it
+// lands at `context.input.stock` — meaning a plain Cedar `when` clause validates
+// against it. This is the policy from guide chapter 11 ("What you get"),
+// promoted to a complete rule with an @id.
+@id("get_amzn_stock_info")
+permit (
+    principal,
+    action == Drupe::Action::"GetStockInfo",
+    resource
+)
+when { context.input.stock == "AMZN" };

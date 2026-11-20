@@ -70,6 +70,12 @@ jailbreak = ["yara-python (>=4.5.1,<5.0.0)"]
 
 cel = ["common-expression-language (>=0.10.0,<0.11.0)"]
 
+cedar = ["cedarpy (>=4.8,<5)"]
+
+# Dogwood rules for the hooks server, decided by Dogwood's own library through a compiled binding
+# (crates/nemo-guardrails-dogwood, one wheel per platform). Not part of the base install or `all`.
+dogwood = ["cedarpy (>=4.8,<5)", "nemoguardrails-dogwood (==0.1.0)"]
+
 multilingual = ["fast-langdetect (>=1.0.0)"]
 
 chat-ui = ["chainlit (>=2.11.0,<3.0.0)"]
@@ -110,6 +116,7 @@ all = [
   "prometheus-client (>=0.20.0,<2.0.0)",
   "chainlit (>=2.11.0,<3.0.0)",
   "common-expression-language (>=0.10.0,<0.11.0)",
+  "cedarpy (>=4.8,<5)",
 ]
 
 [dependency-groups]
@@ -131,6 +138,7 @@ test_integration = [
   "streamlit>=1.37.0",
   "yara-python>=4.5.1,<5.0.0",
   "common-expression-language>=0.10.0,<0.11.0",
+  "cedarpy>=4.8,<5",
   "opentelemetry-api>=1.34.1,<2.0.0",
   "opentelemetry-sdk>=1.34.1,<2.0.0",
   "opentelemetry-exporter-prometheus>=0.63b0,<1.0.0",
@@ -159,6 +167,10 @@ dev = [
 [tool.uv]
 package = true
 exclude-newer = "7 days"
+
+# Until it is published, the Dogwood binding builds from its crate (maturin; needs a Rust toolchain).
+[tool.uv.sources]
+nemoguardrails-dogwood = { path = "crates/nemo-guardrails-dogwood" }
 
 # Flat layout: the importable package is ./nemoguardrails (not under ./src).
 # uv_build ships everything under the module dir (Python plus the .co/.lark/.yml
@@ -198,7 +210,9 @@ exclude = [
 [tool.ty.analysis]
 allowed-unresolved-imports = [
   "aioredis",
+  "cedarpy",
   "cohere",
+  "nemoguardrails_dogwood",
   "google.genai",
 ]
 

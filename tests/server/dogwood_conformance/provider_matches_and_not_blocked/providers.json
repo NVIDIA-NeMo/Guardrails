@@ -1,0 +1,51 @@
+{
+  "availableProviders": {
+    "Strings::Matches": {
+      "argumentTypes": [
+        {
+          "paramType": "string"
+        },
+        {
+          "paramType": "string"
+        }
+      ],
+      "outputType": {
+        "paramType": "record",
+        "fields": {
+          "matched": {
+            "paramType": "bool"
+          }
+        },
+        "required": [
+          "matched"
+        ]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "fn evaluate(text, pattern) {\n    // Defensive per the provider contract: a provider may be evaluated\n    // for ANY decision event, so any argument may be absent (unit).\n    // Return a conforming sentinel instead of erroring (errors are UB).\n    if type_of(text) == \"()\" || type_of(pattern) == \"()\" {\n        return #{ matched: false };\n    }\n\n    #{ matched: regex_is_match(pattern, text) }\n}\n"
+      }
+    },
+    "Lists::Blocked": {
+      "argumentTypes": [
+        {
+          "paramType": "string"
+        }
+      ],
+      "outputType": {
+        "paramType": "record",
+        "fields": {
+          "blocked": {
+            "paramType": "bool"
+          }
+        },
+        "required": [
+          "blocked"
+        ]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "fn evaluate(text) {\n    // Defensive per the provider contract: a provider may be evaluated\n    // for ANY decision event, so any argument may be absent (unit).\n    // Return a conforming sentinel instead of erroring (errors are UB).\n    if type_of(text) == \"()\" {\n        return #{ blocked: false };\n    }\n\n    let denylist = [\"evil\", \"badword\"];\n    #{ blocked: denylist.contains(text) }\n}\n"
+      }
+    }
+  }
+}

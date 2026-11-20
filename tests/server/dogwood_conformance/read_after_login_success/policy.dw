@@ -1,0 +1,15 @@
+// A response predicate reads output.* fields. Permit a Read only if the
+// same user's Login SUCCEEDED (output.result: true) within the last hour --
+// a response predicate matches the result event, not the request event.
+@id("read_after_login_success")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when temporal {
+    formerly within 1h Drupe::Action::"Login"::response{
+        input.user: context.input.user,
+        output.result: true
+    }
+};

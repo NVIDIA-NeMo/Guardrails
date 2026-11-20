@@ -1,0 +1,9 @@
+// The tools the example's policies name, in AgentCore Gateway's vocabulary: each tool is an action of an
+// AgentCore::OAuthUser (the agent) on an AgentCore::Gateway, with the inputs a policy may read under context.input.
+// Dogwood type-checks the policies against this at start; a call's other arguments never reach a decision.
+namespace AgentCore {
+  entity OAuthUser;
+  entity Gateway;
+  action "ops___get_status", "ops___restart_service", "ops___deploy"
+    appliesTo { principal: [OAuthUser], resource: [Gateway], context: { input: {} } };
+}

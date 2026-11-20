@@ -1,0 +1,12 @@
+// Calling a `def temporal` CONDITION macro inside when temporal { … }.
+// `once` wraps a window + a predicate; the window arg is a BARE
+// interval literal (1h, no `within` keyword) and the predicate arg is
+// a Read response pattern.
+@id("write_after_recent_read")
+permit (principal, action == Drupe::Action::"Write", resource)
+when temporal {
+    once(1h, Drupe::Action::"Read"::response{
+        input.user: context.input.user,
+        input.document: context.input.document
+    })
+};

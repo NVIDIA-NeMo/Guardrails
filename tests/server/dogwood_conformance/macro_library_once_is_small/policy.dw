@@ -1,0 +1,17 @@
+// This policy calls `is_small` (a Cedar macro) and `once` (a temporal
+// condition macro) that are DEFINED in the attached macro LIBRARY
+// (macros.dw, supplied via --macros), not redeclared here.
+@id("sell_small_recent_approval")
+permit (
+    principal,
+    action == Drupe::Action::"SellShares",
+    resource
+)
+when {
+    is_small(context.input.shares)
+    && temporal {
+        once(1h, Drupe::Action::"ApproveSale"::request{
+            input.stock: context.input.stock
+        })
+    }
+};

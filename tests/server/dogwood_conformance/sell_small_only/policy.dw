@@ -1,0 +1,9 @@
+// The canonical five-part rule shape: annotation + effect + scope + one
+// when clause. Permits selling only small orders (50 shares or fewer).
+@id("sell_small_only")
+permit (
+    principal,
+    action == Drupe::Action::"SellShares",
+    resource
+)
+when { context.input.shares <= 50 };

@@ -1,0 +1,37 @@
+{
+  "availableProviders": {
+    "Regex::Analyze": {
+      "argumentTypes": [
+        {
+          "paramType": "string"
+        },
+        {
+          "paramType": "string"
+        }
+      ],
+      "outputType": {
+        "paramType": "record",
+        "fields": {
+          "is_match": {
+            "paramType": "bool"
+          },
+          "first_match": {
+            "paramType": "string"
+          },
+          "count": {
+            "paramType": "integer"
+          }
+        },
+        "required": [
+          "is_match",
+          "first_match",
+          "count"
+        ]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "// `Regex::Analyze(text, pattern) -> { is_match, first_match, count }`.\n//\n// One provider that exercises ALL THREE regex host functions Dogwood\n// exposes to provider scripts:\n//   * regex_is_match(pattern, text) -> bool   \u2014 does the pattern match?\n//   * regex_find(pattern, text)     -> string \u2014 the first match (\"\" if none)\n//   * regex_count(pattern, text)    -> i64     \u2014 number of matches\n//\n// The output record surfaces each result so the policy can project and\n// compare them independently.\nfn evaluate(text, pattern) {\n    // Defensive per the provider contract: a provider may be evaluated\n    // for ANY decision event, so any argument may be absent (unit).\n    // Return a conforming sentinel instead of erroring (errors are UB).\n    if type_of(text) == \"()\" || type_of(pattern) == \"()\" {\n        return #{ is_match: false, first_match: \"\", count: -1 };\n    }\n\n    #{\n        is_match:    regex_is_match(pattern, text),\n        first_match: regex_find(pattern, text),\n        count:       regex_count(pattern, text),\n    }\n}\n"
+      }
+    }
+  }
+}

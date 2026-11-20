@@ -1,0 +1,21 @@
+# Decides tool calls and agent starts with Cedar policies rather than YAML lists, with `nemoguardrails hooks-server`:
+#
+#   pip install "nemoguardrails[server,cedar]"
+#   nemoguardrails hooks-server --config examples/configs/agent_hooks/cedar
+#
+# The policies say what the `agent_start` and `stop` examples say in YAML. A check that names Cedar is decided by Cedar
+# alone: no YAML rule may sit beside it, and nothing is allowed unless a policy permits it. Paths are relative to
+# this folder. No model is called.
+
+models: []
+
+hooks_server:
+  # Each tool call, on every hook path.
+  cedar:
+    policies: policies/tool_call
+    schema: hooks.cedarschema
+  agent_start:
+    # Each agent start, on /v1/hooks/agent-start.
+    cedar:
+      policies: policies/agent_start
+      schema: hooks.cedarschema

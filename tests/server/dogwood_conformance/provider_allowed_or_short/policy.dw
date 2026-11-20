@@ -1,0 +1,13 @@
+// Permit Read when the document is EITHER explicitly allowlisted OR short
+// enough (A || B) -- showing the || operator and parentheses in a when body,
+// over two different providers.
+@id("read_allowed_or_short")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when {
+    (Lists::Allowed(context.input.document).allowed == true
+     || Strings::Length(context.input.document).length < 4)
+};

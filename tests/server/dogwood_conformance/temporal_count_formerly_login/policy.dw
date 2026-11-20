@@ -1,0 +1,22 @@
+// An aggregation-flavoured temporal macro: `count_formerly(?w, ?s)` counts
+// the timepoints in a window at which a predicate held. It is spliced into a
+// comparison inside `exists`, never called on its own. Note `$t` is a fresh
+// binder the macro introduces itself, hygienically renamed per call site.
+def temporal count_formerly(?w, ?s) {
+    count for ($t: Timepoint). where (formerly within ?w (?s && tp($t)))
+};
+
+@id("login_count_positive")
+permit (
+    principal,
+    action == Drupe::Action::"Alert",
+    resource
+)
+when temporal {
+    exists (n: Long). (
+        (count_formerly(1h, Drupe::Action::"Login"::request{
+            input.user: _, input.server: context.input.server
+        })) == n
+        && n > 0
+    )
+};

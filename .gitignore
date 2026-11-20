@@ -92,3 +92,4 @@ scratch.py
 
 # Rust build output
 /target/
+/crates/nemo-guardrails-dogwood/target/

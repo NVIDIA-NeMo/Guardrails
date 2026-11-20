@@ -1,0 +1,16 @@
+{
+  "availableProviders": {
+    "Text::Scan": {
+      "argumentTypes": [{ "paramType": "string" }],
+      "outputType": {
+        "paramType": "record",
+        "fields": { "flagged": { "paramType": "bool" } },
+        "required": ["flagged"]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "fn evaluate(text) { if type_of(text) == \"()\" { return #{ flagged: false }; } #{ flagged: regex_count(\"(?i)insider\", text) > 0 } }"
+      }
+    }
+  }
+}

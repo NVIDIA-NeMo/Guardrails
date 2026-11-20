@@ -1,0 +1,17 @@
+// A top-level && chain combining a `formerly` with an exists-guarded count.
+// Permit an Alert only if a Heartbeat for this server fired within the last
+// hour AND more than two Logins to this server occurred.
+@id("alert_heartbeat_and_login_rate")
+permit (
+    principal,
+    action == Drupe::Action::"Alert",
+    resource
+)
+when temporal {
+    formerly within 1h Drupe::Action::"Heartbeat"::request{ input.server: context.input.server }
+    && exists (n: Long). (
+        (count for (t: Timepoint). where (
+            Drupe::Action::"Login"::request{ input.user: _, input.server: context.input.server } && tp(t)
+        )) == n && n > 2
+    )
+};

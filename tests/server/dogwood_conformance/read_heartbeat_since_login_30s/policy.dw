@@ -1,0 +1,14 @@
+// `since` with a short (seconds) window: the anchor must be within 30s. Permit
+// a Read only if a Heartbeat by the same user has held continuously since a
+// Login anchor within the last 30 seconds.
+@id("read_heartbeat_since_login_30s")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when temporal {
+    Drupe::Action::"Heartbeat"::request{ input.user: context.input.user }
+    since within 30s
+    Drupe::Action::"Login"::request{ input.user: context.input.user }
+};

@@ -1,0 +1,26 @@
+{
+  "availableProviders": {
+    "Strings::DigitCount": {
+      "argumentTypes": [
+        {
+          "paramType": "string"
+        }
+      ],
+      "outputType": {
+        "paramType": "record",
+        "fields": {
+          "count": {
+            "paramType": "integer"
+          }
+        },
+        "required": [
+          "count"
+        ]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "// Strings::DigitCount(text) -> { count: Long }.\n// Counts the digit characters in the document via the regex_count host\n// function (non-overlapping matches of [0-9]).\n// (Kept in sync with digits.rhai; inlined here because the CLI reads\n// providers.json as text and does not resolve scriptFile references.)\nfn evaluate(text) {\n    // Defensive per the provider contract: a provider may be evaluated\n    // for ANY decision event, so any argument may be absent (unit).\n    // Return a conforming sentinel instead of erroring (errors are UB).\n    if type_of(text) == \"()\" {\n        return #{ count: -1 };\n    }\n\n    #{ count: regex_count(\"[0-9]\", text) }\n}\n"
+      }
+    }
+  }
+}

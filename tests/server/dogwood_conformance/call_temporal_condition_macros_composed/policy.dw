@@ -1,0 +1,9 @@
+// Two `def temporal` condition macros composed with `&&` inside one
+// when temporal { … } block — condition macros compose like the
+// built-in temporal operators.
+@id("write_after_login_and_read")
+permit (principal, action == Drupe::Action::"Write", resource)
+when temporal {
+    recently_logged_in(context.input.user)
+    && recently_read(context.input.user, context.input.document)
+};

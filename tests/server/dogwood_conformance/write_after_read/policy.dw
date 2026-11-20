@@ -1,0 +1,18 @@
+// Permit selling shares of a stock only if the same user had that sale
+// approved within the last hour. The `when temporal { … }` block is the
+// temporal marker; its body reads the accumulated event history.
+//
+// `input.stock: context.input.stock` PINS the approval to the same stock as
+// the current request — without the pin this would match an approval for any
+// stock.
+@id("sell_after_approval")
+permit (
+    principal,
+    action == Drupe::Action::"SellShares",
+    resource
+)
+when temporal {
+    formerly within 1h Drupe::Action::"ApproveSale"::response{
+        input.stock: context.input.stock
+    }
+};

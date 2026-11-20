@@ -1,0 +1,29 @@
+# Decides whether an agent may start, with `nemoguardrails hooks-server`:
+#
+#   nemoguardrails hooks-server --config examples/configs/agent_hooks/agent_start
+#
+# Whatever starts the agent posts plain facts about it to http://localhost:8100/v1/hooks/agent-start before the start:
+# the agent's name, each part it starts with (skill, plugin, connector, policy, or an agent it calls) with its source,
+# version, digest and whether the source is a local folder, the models it names, and the policies it brings with the
+# enforcers each needs. The server reads no agent package format: the caller gathers the facts, the server applies
+# the rules below and answers allow or deny. No model is called, so the config needs no model and no API key.
+#
+# This config sets only `agent_start`, so the server checks no tool calls: its tool-call paths answer an error.
+
+models: []
+
+hooks_server:
+  agent_start:
+    # Parts may come only from the approved repository. Each entry is a prefix of a part's source and ends in `/`,
+    # so `.../agent-parts.git//` doesn't also allow `.../agent-parts.git.example.org`.
+    allowed_sources:
+      - git::https://git.example.com/workshop/agent-parts.git//
+    # A local folder is a draft, not the approved repository.
+    allow_local_sources: false
+    # Every part must say which bytes it is.
+    require_digests: true
+    # The agent, and every agent it calls, may name only this model.
+    allowed_models:
+      - bedrock::nvidia.nemotron-super-3-120b
+    # A required policy starts only where every enforcer it needs runs.
+    require_policy_enforcers: true

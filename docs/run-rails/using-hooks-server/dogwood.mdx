@@ -1,0 +1,104 @@
+---
+title: "Write Rules over a Run's History in Dogwood"
+sidebar-title: "Rules over a Run's History"
+description: "Decide tool calls and agent starts with Dogwood policies, evaluated by Dogwood's own library: the whole language, including temporal conditions over what already happened, in the vocabulary of AgentCore Gateway."
+keywords: ["dogwood", "temporal", "formerly within", "count", "sum", "since", "hooks_server.dogwood", "AgentCore", "x-nemo-run-id", "nemoguardrails-dogwood"]
+content:
+  type: "reference"
+---
+
+A YAML or Cedar rule decides a tool call from the call alone.
+Some rules depend on what already happened in the run: at most three deploys in five minutes, no deletion after a payment was requested, a restart only after a status lookup completed.
+[Dogwood](https://github.com/dogwood-policy/dogwood) writes such rules as Cedar policies with a `when temporal { ... }` block, and Amazon Bedrock AgentCore Gateway evaluates them as temporal policies.
+The hooks server evaluates the same policy text with **Dogwood's own library** (`dogwood-ops` 1.2.0, through the `nemoguardrails-dogwood` binding), so the whole language is available: temporal conditions, macros, information providers, and arithmetic in comparisons.
+Dogwood itself parses, type-checks and decides; the server supplies the requests and the history.
+
+## Install and Configure
+
+```bash
+pip install "nemoguardrails[server,dogwood]"
+```
+
+The `dogwood` extra installs `nemoguardrails-dogwood`, a compiled binding with one wheel per platform; a platform without a wheel builds it from source, which needs a Rust toolchain. The base install has no native code.
+A config that names Dogwood without the binding installed stops the server at start, naming the extra.
+
+```yaml
+hooks_server:
+  decision_record: decisions.jsonl
+  dogwood:
+    policies: policies                # a folder of .dw or .dogwood files, relative to the config's folder
+    schema: hooks.cedarschema         # the tools as AgentCore actions, with the inputs a policy may read
+    gateway: __GATEWAY_ARN__          # the AgentCore::Gateway the policies name as their resource
+    denied_calls: request             # a denied call is an attempt in the history; or `error`, see below
+    # providers: providers.json       # optional: Dogwood information-provider declarations
+    # macros: macros.dw               # optional: a Dogwood macro library
+```
+
+At start, Dogwood parses the policies, lowers them and type-checks them against the schema. Any failure stops the server, with Dogwood's message.
+A call is decided by Dogwood alone: no tool list, `allow_unlisted_tools` or `cedar` may be set beside it.
+`decision_record` is required, because the run's history is read from it.
+The [Dogwood example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/agent_hooks/dogwood) caps deploys and requires a status lookup before a restart.
+
+## The Vocabulary and the Schema
+
+Policies use AgentCore Gateway's names, so they load unchanged. The schema declares each tool:
+
+```cedar
+namespace AgentCore {
+  entity OAuthUser;
+  entity Gateway;
+  action "Bash" appliesTo { principal: [OAuthUser], resource: [Gateway], context: { input: { command: String } } };
+  action "ops___deploy" appliesTo { principal: [OAuthUser], resource: [Gateway], context: { input: {} } };
+}
+```
+
+| In a policy | What the server supplies |
+|---|---|
+| `AgentCore::Action::"<target>___<tool>"` | The hook's tool name. A Claude Code MCP tool `mcp__ops__deploy` is `ops___deploy`; any other name, such as `Bash`, is used as it is. A tool the schema does not declare is denied. |
+| `AgentCore::Gateway::"<id>"` | `hooks_server.dogwood.gateway`. Its default is `__GATEWAY_ARN__`, which Agentform's Dogwood renderer writes when it is given no gateway. |
+| `principal` | `AgentCore::OAuthUser::"<name>"`, from the `X-NeMo-Agent-Name` header. |
+| `context.input.<name>` | The call's arguments that the schema declares for its action. Other arguments never reach Dogwood and are never recorded. |
+
+The event schema is the one AgentCore documents: `request`, `response` and `error` events with the call's inputs, `eventPrincipal` (pinned to the principal) and `eventResource`, so patterns say `eventResource: resource` as AgentCore requires.
+`@id` names a policy in a deny reason, and `@outcome("stop")` or `@outcome("quarantine")` on a `forbid` ends the run or quarantines the agent, as with [Cedar rules](./cedar.mdx).
+
+## The Run's History
+
+A run is the `X-NeMo-Run-Id` header under one agent name and digest: another agent with the same run id has a history of its own.
+Its events come from the decision record:
+
+| Event | Recorded when |
+|---|---|
+| `::request` | A call is asked about, allowed or denied: an attempt. The call being decided counts as one. |
+| `::response` | Claude Code sends `PostToolUse` for the call on `/v1/hooks/claude-code`. |
+| `::error` | Claude Code sends `PostToolUseFailure`; with `denied_calls: error`, also a call that is denied, stopped or quarantined. |
+
+A denied call counts as a `::request` attempt by default, as the Dogwood language keeps it, so a cap keeps counting calls that were refused.
+AgentCore's documentation describes a denied request as recorded only as an `error` event; `denied_calls: error` gives that reading, where a denied call is an `::error` event and never matches a `::request` pattern.
+A configuration with Dogwood records `PostToolUse` and `PostToolUseFailure` and answers them with no decision; without Dogwood the path refuses them as before.
+The record keeps a call's argument names and the values of the inputs the schema declares for its action, and nothing of a tool's output.
+The whole recorded history of the run is replayed into Dogwood, with the time each event was recorded, followed by the call being decided; the decision record stays the one history.
+
+When there is no history to read, the call is denied, never allowed:
+
+- A call without `X-NeMo-Run-Id` belongs to no run and is denied.
+- A decision record that can't be read denies the call.
+- A configuration with `dogwood` and no `decision_record` is refused at start.
+
+## The Language
+
+Every form of the Dogwood language is evaluated, by Dogwood: `formerly`, `previous` and `since` with their windows, negation, `count` and `sum`, macros (`def`), information providers (`when guardrails`), and arithmetic in comparisons, which Dogwood marks experimental and the binding turns on.
+`tests/server/test_hooks_dogwood_conformance.py` replays all 56 example bundles of the Dogwood repository through the binding and checks every verdict against the reference CLI's.
+
+Behaviors that differ from AgentCore Gateway:
+
+- Only Claude Code reports `::response` events. On `/v1/hooks/codex` and `/v1/hooks/nemo-relay`, a `permit` that needs a response denies, and a `forbid` that reads one never matches.
+- A `::response` shows that the call completed. Its `output.*` fields are empty: the server never sees a tool's output.
+- A limit applies within one run: a caller that sends a new run id starts a new count.
+- The policies are read at start. Changing them doesn't end the runs already recorded, as AgentCore's 409 does; restart with a new record to start over.
+- AgentCore keeps 24 hours of history; the server replays the whole run, so a window longer than 24 hours sees its events.
+
+## Load Agentform's Dogwood Output
+
+Copy `renders/dogwood/policies.dogwood` into the `policies` folder, and set `gateway` to the ARN the render used, or keep the default when the render wrote `__GATEWAY_ARN__`.
+Add a plain `permit` for each tool the rendered policies need allowed, such as each prerequisite, in a `.dw` file beside it: Agentform renders plain permits to its Cedar output, and here Dogwood decides alone.

@@ -1,0 +1,130 @@
+namespace Drupe {
+  type AccessInput = {
+    resource: String,
+    user: String
+  };
+
+  type AccessOutput = {  };
+
+  type ContentFilterFinding = {
+    severityScore: decimal
+  };
+
+  type GrantInput = {
+    resource: String,
+    user: String
+  };
+
+  type GrantOutput = {  };
+
+  type PromptAttackFinding = {
+    severityScore: decimal
+  };
+
+  type RevokeInput = {
+    resource: String,
+    user: String
+  };
+
+  type RevokeOutput = {  };
+
+  type SensitiveInfoFinding = {
+    confidenceScore: decimal
+  };
+
+  type SystemContext = {
+    now: datetime
+  };
+
+  entity Gateway;
+
+  entity IamEntity = {
+    id: String
+  };
+
+  entity OAuthUser = {
+    id: String
+  } tags String;
+
+  entity UnauthenticatedUser;
+
+  action "Access" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: AccessInput,
+      output?: AccessOutput,
+      system: SystemContext
+    }
+  };
+
+  action "CallTool" in [Action::"Mcp"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "Grant" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: GrantInput,
+      output?: GrantOutput,
+      system: SystemContext
+    }
+  };
+
+  action "Http" appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "InvokeAgent" in [Action::"Http"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input?: {      },
+      system: SystemContext
+    }
+  };
+
+  action "InvokeLLM" in [Action::"Http"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input?: {      },
+      system: SystemContext
+    }
+  };
+
+  action "Mcp" appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+
+  action "Revoke" in [Action::"CallTool"] appliesTo {
+    principal: [IamEntity, OAuthUser, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      input: RevokeInput,
+      output?: RevokeOutput,
+      system: SystemContext
+    }
+  };
+
+  action "UnknownTool" in [Action::"CallTool"] appliesTo {
+    principal: [OAuthUser, IamEntity, UnauthenticatedUser],
+    resource: [Gateway],
+    context: {
+      system: SystemContext
+    }
+  };
+}

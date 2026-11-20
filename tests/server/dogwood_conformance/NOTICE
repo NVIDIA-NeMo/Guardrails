@@ -1,0 +1,10 @@
+Dogwood
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+dogwood-lean/vendor/ holds unmodified source files of two Lean packages, each
+under the Apache License, Version 2.0, with its license (and notice) in its
+directory:
+- cedar-lean, of cedar-spec (https://github.com/cedar-policy/cedar-spec),
+  Copyright Cedar Contributors;
+- Batteries (https://github.com/leanprover-community/batteries), Copyright its
+  authors, as each file states.

@@ -465,10 +465,140 @@ class ToolEntry(BaseModel):
         return arguments
 
 
+class CedarRules(BaseModel):
+    """A check's rules written in Cedar rather than YAML: a folder of `.cedar` policies, and an optional schema."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    policies: str = Field(
+        min_length=1,
+        description="A folder of `.cedar` policy files, read with its subfolders in name order. Relative to the "
+        "config's folder.",
+    )
+    schema_file: Optional[str] = Field(
+        default=None,
+        alias="schema",
+        description="A `.cedarschema` file the policies are checked against when the server starts. Relative to the "
+        "config's folder. Unset, the policies are only parsed.",
+    )
+
+
+class DogwoodRules(BaseModel):
+    """Tool-call rules written in Dogwood, decided by Dogwood's own library: Cedar policies whose `when temporal` block
+    reads what already happened in the run, as AgentCore Gateway's temporal policies do."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    policies: str = Field(
+        min_length=1,
+        description="A folder of `.dw` or `.dogwood` policy files, read with its subfolders in name order. Relative to "
+        "the config's folder.",
+    )
+    schema_file: str = Field(
+        alias="schema",
+        min_length=1,
+        description="The Cedar action schema (`.cedarschema`) in AgentCore's vocabulary: each tool as an action of an "
+        "`AgentCore::OAuthUser` on an `AgentCore::Gateway`, with the inputs a policy may read under `context.input`. "
+        "Dogwood type-checks the policies against it at start, and only the inputs it declares reach a decision or "
+        "the record. Relative to the config's folder.",
+    )
+    providers: Optional[str] = Field(
+        default=None, description="Dogwood information-provider declarations (`providers.json`). Optional."
+    )
+    macros: Optional[str] = Field(default=None, description="A Dogwood macro library (`.dw`). Optional.")
+    gateway: str = Field(
+        default="__GATEWAY_ARN__",
+        min_length=1,
+        description="The `AgentCore::Gateway` the policies name as their resource. The default is the placeholder "
+        "Agentform's Dogwood renderer writes when it is given no gateway ARN.",
+    )
+    denied_calls: Literal["request", "error"] = Field(
+        default="request",
+        description="What a denied call is in the run's history. `request` (the default) counts it as an attempt, "
+        "as the Dogwood language does: a `::request` pattern matches it. `error` records it only as an `::error` "
+        "event, as AgentCore's documentation describes a denied request.",
+    )
+
+
+class AgentStartConfig(BaseModel):
+    """The rules `nemoguardrails hooks-server` applies to an agent before it starts, on `/v1/hooks/agent-start`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    allowed_sources: Optional[List[str]] = Field(
+        default=None,
+        description="Source prefixes a part may come from. Unset, a part's source isn't checked; an empty list "
+        "allows no source. A local folder is decided by `allow_local_sources` instead.",
+    )
+    allow_local_sources: bool = Field(
+        default=True,
+        description="Whether a part may come from a local folder.",
+    )
+    require_digests: bool = Field(
+        default=False,
+        description="Whether every part must carry a digest of its bytes.",
+    )
+    allowed_models: Optional[List[str]] = Field(
+        default=None,
+        description="Models the agent may name, matched exactly. Unset, models aren't checked; an empty list allows "
+        "no model.",
+    )
+    require_policy_enforcers: bool = Field(
+        default=False,
+        description="Whether every enforcer a required policy needs must be present where the agent starts.",
+    )
+    cedar: Optional[CedarRules] = Field(
+        default=None,
+        description="Cedar policies that decide the start instead of the rules above. Set, no other rule in this "
+        "section may be set: a start is decided by Cedar alone. Needs the `cedar` extra.",
+    )
+
+    @model_validator(mode="after")
+    def check_one_rule_language(self) -> "AgentStartConfig":
+        """Refuse YAML rules beside Cedar ones: a check is decided by one rule language."""
+        yaml_rules = sorted(self.model_fields_set - {"cedar"})
+        if self.cedar is not None and yaml_rules:
+            raise InvalidRailsConfigurationError(
+                f"hooks_server.agent_start sets cedar and {yaml_rules[0]}; a start is decided by Cedar alone, so "
+                "write that rule as a Cedar policy, or remove cedar."
+            )
+        return self
+
+    @field_validator("allowed_sources")
+    @classmethod
+    def check_sources_end_a_path(cls, sources: Optional[List[str]]) -> Optional[List[str]]:
+        """Refuse a source prefix that doesn't end in `/`, which would match a longer host or name too."""
+        for source in sources or ():
+            if not source.endswith("/"):
+                raise ValueError(
+                    f"allowed_sources entry '{source}' doesn't end in '/', so it would also allow a source whose host "
+                    "or path only starts with it; end it in '/'"
+                )
+        return sources
+
+    @property
+    def can_deny(self) -> bool:
+        """Whether any rule can deny a start."""
+        return (
+            self.cedar is not None
+            or self.allowed_sources is not None
+            or not self.allow_local_sources
+            or self.require_digests
+            or self.allowed_models is not None
+            or self.require_policy_enforcers
+        )
+
+
 class HooksServerConfig(BaseModel):
     """The tool policy `nemoguardrails hooks-server` applies to each hook's call; no engine reads it."""
 
     model_config = ConfigDict(extra="forbid")
+
+    agent_start: Optional[AgentStartConfig] = Field(
+        default=None,
+        description="Rules for `/v1/hooks/agent-start`, which asks whether an agent may start. Unset, the server "
+        "checks no agent starts.",
+    )
 
     allowed_tools: List[Union[str, ToolEntry]] = Field(
         default_factory=list,
@@ -484,15 +614,82 @@ class HooksServerConfig(BaseModel):
         default=True,
         description="Whether a call to a tool `allowed_tools` doesn't name is allowed.",
     )
+    stop_tools: List[Union[str, ToolEntry]] = Field(
+        default_factory=list,
+        description="Tools a call to which ends the run, not only the call: a name, which stops on every call to the "
+        "tool, or a `{name, arguments}` entry, which stops on a call that passes any of those arguments. A stop "
+        "denies the call too.",
+    )
+    stop_rails: List[str] = Field(
+        default_factory=list,
+        description="Per-tool rails, by the name a deny reports, whose block ends the run rather than only "
+        "denying the call.",
+    )
+    quarantine_tools: List[Union[str, ToolEntry]] = Field(
+        default_factory=list,
+        description="Tools, as in `stop_tools`, a call to which ends the run and quarantines the agent: it can't "
+        "start again until someone releases it. Needs `quarantine_store`.",
+    )
+    quarantine_rails: List[str] = Field(
+        default_factory=list,
+        description="Per-tool rails, as in `stop_rails`, whose block quarantines the agent. Needs `quarantine_store`.",
+    )
+    quarantine_store: Optional[str] = Field(
+        default=None,
+        description="The file that keeps quarantined agents, one JSON event per line, across restarts. Relative to "
+        "the directory the server runs in. Unset, the server quarantines nothing.",
+    )
+    decision_record: Optional[str] = Field(
+        default=None,
+        description="The file that keeps every decision the server gives (agent starts, tool calls, model calls), one "
+        "JSON entry per line, each chained to the one before by hash. Relative to the directory the server runs in. "
+        "Unset, decisions are only logged.",
+    )
+    cedar: Optional[CedarRules] = Field(
+        default=None,
+        description="Cedar policies that decide each tool call instead of the tool lists above. Set, no tool list and "
+        "no `allow_unlisted_tools` may be set: a call is decided by Cedar alone. Needs the `cedar` extra.",
+    )
+    dogwood: Optional[DogwoodRules] = Field(
+        default=None,
+        description="Dogwood policies that decide each tool call from the call and from what already happened in the "
+        "run. Set, no tool list, no `allow_unlisted_tools` and no `cedar` may be set: a call is decided by Dogwood "
+        "alone. Needs `decision_record`, which is where the run's history comes from, and the `cedar` extra.",
+    )
 
     @model_validator(mode="after")
     def check_tool_lists(self) -> "HooksServerConfig":
         """Refuse tool lists that name a tool twice, or that allow a tool they block by name."""
-        for list_name in ("allowed_tools", "blocked_tools"):
+        for list_name in ("allowed_tools", "blocked_tools", "stop_tools", "quarantine_tools"):
             repeated = _first_repeated_tool_name(getattr(self, list_name))
             if repeated is not None:
                 raise InvalidRailsConfigurationError(
                     f"hooks_server.{list_name} names tool '{repeated}' more than once; list each tool once."
+                )
+        if self.cedar is not None:
+            yaml_rules = sorted(
+                self.model_fields_set
+                & {"allowed_tools", "blocked_tools", "allow_unlisted_tools", "stop_tools", "quarantine_tools"}
+            )
+            if yaml_rules:
+                raise InvalidRailsConfigurationError(
+                    f"hooks_server sets cedar and {yaml_rules[0]}; a tool call is decided by Cedar alone, so write "
+                    "that rule as a Cedar policy, or remove cedar."
+                )
+        if self.dogwood is not None:
+            other_rules = sorted(
+                self.model_fields_set
+                & {"allowed_tools", "blocked_tools", "allow_unlisted_tools", "stop_tools", "quarantine_tools", "cedar"}
+            )
+            if other_rules:
+                raise InvalidRailsConfigurationError(
+                    f"hooks_server sets dogwood and {other_rules[0]}; a tool call is decided by Dogwood alone, so "
+                    "write that rule as a Dogwood policy, or remove dogwood."
+                )
+            if self.decision_record is None:
+                raise InvalidRailsConfigurationError(
+                    "hooks_server sets dogwood but no decision_record; a Dogwood rule reads the run's history from the "
+                    "decision record, so set decision_record."
                 )
         blocked_by_name = {entry for entry in self.blocked_tools if isinstance(entry, str)}
         contradicted = [
@@ -507,9 +704,12 @@ class HooksServerConfig(BaseModel):
 
     @property
     def can_deny(self) -> bool:
-        """Whether the policy can deny a call: it blocks something, denies unlisted tools, or limits a tool's arguments."""
+        """Whether the policy can deny a call: it blocks or stops something, denies unlisted tools, or limits a tool's
+        arguments."""
         # Bare names in allowed_tools deny nothing while unlisted tools are allowed.
-        if self.blocked_tools or not self.allow_unlisted_tools:
+        if self.cedar is not None or self.dogwood is not None:
+            return True
+        if self.blocked_tools or self.stop_tools or self.quarantine_tools or not self.allow_unlisted_tools:
             return True
         return any(isinstance(entry, ToolEntry) for entry in self.allowed_tools)
 

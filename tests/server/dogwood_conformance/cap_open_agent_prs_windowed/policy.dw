@@ -1,0 +1,28 @@
+// A cap on concurrently open PRs: a coding agent may hold at most 3 open
+// pull requests at once. A new open is allowed only while fewer than 3
+// are open, measured as opens minus completed reviews in the 24h window;
+// the guard runs before the new PR lands, so `< 3` now means at most 3
+// open afterwards.
+//
+// The `-` between the two counts is the arithmetic this bundle exists to
+// exercise. Without it only the exact comparison `reviewed < opened` is
+// writable, and the cap constant has nowhere to go.
+//
+// Both counts match `response` events (successful opens and completed
+// reviews), not requests. A denied open attempt stays in the trace, so
+// counting requests would let denials consume the cap.
+
+@id("cap_open_agent_prs_windowed")
+permit (
+    principal,
+    action == Repo::Action::"OpenPullRequest",
+    resource
+)
+when temporal {
+    (count for (t: Timepoint). where (
+        formerly within 24h (Repo::Action::"OpenPullRequest"::response{} && tp(t))
+    ))
+    - (count for (t: Timepoint). where (
+        formerly within 24h (Repo::Action::"CompleteReview"::response{} && tp(t))
+    )) < 3
+};

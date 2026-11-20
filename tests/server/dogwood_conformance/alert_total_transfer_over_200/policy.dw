@@ -1,0 +1,15 @@
+// `sum v` sums column v over the deduplicated matching rows; v must be a
+// for-declared variable. Permit an Alert only if the total transferred amount
+// exceeds 200.
+@id("alert_total_transfer_over_200")
+permit (
+    principal,
+    action == Drupe::Action::"Alert",
+    resource
+)
+when temporal {
+    exists (total: Long). (
+        (sum a for (a: Long). where Drupe::Action::"Transfer"::request{ input.amount: a }) == total
+        && total > 200
+    )
+};

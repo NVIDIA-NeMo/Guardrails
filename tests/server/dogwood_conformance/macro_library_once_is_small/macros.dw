@@ -1,0 +1,6 @@
+// Shareable macro library, attached to a schema via --macros. These
+// `def` definitions are merged into every policy set lowered against the
+// schema, so policies can call `once` and `is_small` without redeclaring
+// them.
+def temporal once(?w, ?s) { formerly within ?w ?s };
+def cedar    is_small(?n) { ?n < 100 };

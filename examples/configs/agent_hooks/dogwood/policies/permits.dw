@@ -1,0 +1,7 @@
+// Plain permits: a call that no permit allows is denied, and a prerequisite is recorded as a response only when its
+// own call was allowed.
+@id("permit/get-status")
+permit (principal, action == AgentCore::Action::"ops___get_status", resource);
+
+@id("permit/deploy")
+permit (principal, action == AgentCore::Action::"ops___deploy", resource);

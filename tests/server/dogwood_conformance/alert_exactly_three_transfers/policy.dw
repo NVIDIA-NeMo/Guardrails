@@ -1,0 +1,14 @@
+// Counting over a `*`-wildcard field (matches anything, binds nothing).
+// Permit an Alert only if EXACTLY three Transfers, regardless of amount,
+// occurred within the last hour.
+@id("alert_exactly_three_transfers")
+permit (
+    principal,
+    action == Drupe::Action::"Alert",
+    resource
+)
+when temporal {
+    (count for (t: Timepoint). where (
+        formerly within 1h (Drupe::Action::"Transfer"::request{ input.amount: * } && tp(t))
+    )) == 3
+};

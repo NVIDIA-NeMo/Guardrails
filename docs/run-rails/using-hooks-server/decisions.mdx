@@ -1,0 +1,61 @@
+---
+title: "Record Every Decision and Check Each Model Call"
+sidebar-title: "Decision Record and Model Calls"
+description: "The hooks server's decision record, chained by hash, and the model-call check that applies the agent-start model rules during a run."
+keywords: ["decision_record", "/v1/decisions", "/v1/decisions/check", "/v1/hooks/model-call", "hooks-record", "hooks-decide", "allowed_models"]
+content:
+  type: "reference"
+---
+
+## Keep a Record of Every Decision
+
+Set `hooks_server.decision_record` to a file, relative to the directory the server runs in:
+
+```yaml
+hooks_server:
+  decision_record: decisions.jsonl
+```
+
+The server then adds one JSON line to the file for every decision it gives: each agent start, each tool call and each model call.
+A line holds `seq`, `at`, `kind`, `agent_name`, `agent_digest`, `run_id` (from the `x-nemo-run-id` header), `asked`, `outcome`, `reason`, `rule` and `by`.
+For a tool call, `asked` names the tool and its argument names, never the argument values.
+The server writes the line before it answers. If the line can't be written, the server answers `500` with the code `decision_record_failed` and gives no decision.
+
+Each line also carries `prev`, the `hash` of the line before it, and its own `hash`, the sha256 of the line's canonical JSON without `hash`.
+A line changed, removed or moved after it was written breaks the chain.
+The server refuses to start on a record whose chain is broken.
+
+| Read it | How |
+|---|---|
+| Every decision, or some of them | `GET /v1/decisions?kind=&outcome=&run_id=&agent_name=`, or `nemoguardrails hooks-record show FILE --run ID --outcome deny --kind model_call` |
+| Whether the chain holds | `GET /v1/decisions/check?head=`, or `nemoguardrails hooks-record check FILE --head HASH` (exits 0 when it holds, 1 when not) |
+
+The chain shows that the file wasn't changed after it was written, as long as the last `hash` (`head`) is kept somewhere the writer of the file can't change.
+Without `head`, the chain doesn't show that the whole file was written again from the start.
+
+## Check Each Model Call During a Run
+
+`POST /v1/hooks/model-call` decides one model call an agent is about to make:
+
+```json
+{"hook_event_name": "ModelCall", "agent_name": "release-reviewer", "agent_digest": "sha256:...", "model": "bedrock::nvidia.nemotron-super-3-120b", "id": "call-1"}
+```
+
+It is decided by the same rules as an agent start that names only that model.
+The order is a quarantine of the agent first, then `hooks_server.agent_start.allowed_models`, or the agent-start Cedar policies on the `Hooks::Model` resource.
+A model outside the list is refused during the run, not only at start.
+The answer is `{"decision": "allow", "rule": ...}` or `{"decision": "deny", "reason": ..., "rule": ...}`.
+The rule is `quarantine`, `hooks_server.agent_start` or `cedar policy`.
+
+To ask about the calls in a file, as a given agent would, run `nemoguardrails hooks-decide`:
+
+```bash
+nemoguardrails hooks-decide --agent-name release-reviewer --agent-digest sha256:... \
+  --action model-calls.json --url http://127.0.0.1:8100
+```
+
+Each action is an object with `kind` `call_model`, `model`, and optionally `id` and `run`.
+The agent is given as plain facts, its name and the digest of its package; the command reads no agent package, so
+whatever loads the agent states them, as it does for `/v1/hooks/agent-start`.
+The command prints `decision`, `reasons` and one entry per call (`id`, `subject`, `decision`, `reason`, `rule`).
+It exits 0 when every call is allowed, 2 when one is denied, and 1 on an error.
