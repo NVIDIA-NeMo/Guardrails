@@ -1,0 +1,3 @@
+This bundle uses arithmetic in temporal comparison operands, gated behind
+the off-by-default `experimental-arithmetic` Cargo feature. The examples
+harness checks it only when compiled with that feature.

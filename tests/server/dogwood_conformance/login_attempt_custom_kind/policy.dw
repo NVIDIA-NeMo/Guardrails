@@ -1,0 +1,16 @@
+// Event kinds are author-defined. This event schema names `attempt` (the
+// decision kind) and `outcome` (history) instead of request/response, and
+// renames the injected principal field to `actor`. Permit a Read only if the
+// same actor formerly attempted a Login within the last hour.
+@id("read_after_login_attempt")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when temporal {
+    formerly within 1h Drupe::Action::"Login"::attempt{
+        input.user: context.input.user,
+        actor: principal
+    }
+};

@@ -65,7 +65,7 @@ from nemoguardrails.server.hooks.checking import (
     outcome_from_result,
 )
 from nemoguardrails.server.hooks.decision_record import DecisionRecord, DecisionRecordError
-from nemoguardrails.server.hooks.dogwood_policy import MAX_WINDOW, DogwoodToolRules, Event, tool_action
+from nemoguardrails.server.hooks.dogwood_engine import DogwoodToolRules, Event, tool_action
 from nemoguardrails.server.hooks.quarantine import QuarantineEvent, QuarantineStore, QuarantineStoreError
 from nemoguardrails.server.hooks.schemas import (
     AgentStartRequest,
@@ -333,7 +333,15 @@ def _load_dogwood(config: RailsConfig) -> Optional[DogwoodToolRules]:
     if rules is None:
         return None
     try:
-        loaded = DogwoodToolRules.load(_config_folder(config) / rules.policies, rules.gateway, rules.denied_calls)
+        base = _config_folder(config)
+        loaded = DogwoodToolRules.load(
+            base / rules.policies,
+            base / rules.schema_file,
+            rules.gateway,
+            rules.denied_calls,
+            providers=None if rules.providers is None else base / rules.providers,
+            macros=None if rules.macros is None else base / rules.macros,
+        )
     except CedarPolicyError as exc:
         raise HooksConfigError(str(exc)) from None
     if loaded.quarantines and not config.hooks_server.quarantine_store:
@@ -861,7 +869,7 @@ async def _answer_hook(agent: HookAgent, request: Request) -> Response:
 
 def _run_history(request: Request, identity: tuple[Optional[str], Optional[str]]) -> tuple[Optional[list[Event]], str]:
     """The events of the run the request belongs to, from the decision record, and why there are none when they can't
-    be had. A run is its `x-nemo-run-id` under one agent name and digest; events older than 24 hours are not read."""
+    be had. A run is its `x-nemo-run-id` under one agent name and digest."""
     run_id = request.headers.get(RUN_ID_HEADER)
     if not run_id:
         return None, f"the request has no {RUN_ID_HEADER} header, so it belongs to no run"
@@ -871,7 +879,6 @@ def _run_history(request: Request, identity: tuple[Optional[str], Optional[str]]
     except DecisionRecordError as exc:
         log.error("%s", exc)
         return None, "the decision record, which holds the run's history, can't be read"
-    now = datetime.now(timezone.utc)
     events: list[Event] = []
     for entry in entries:
         if (entry.get("run_id"), entry.get("agent_name"), entry.get("agent_digest")) != (run_id, *identity):
@@ -889,7 +896,7 @@ def _run_history(request: Request, identity: tuple[Optional[str], Optional[str]]
             at = datetime.fromisoformat(entry["at"])
         except (KeyError, TypeError, ValueError):
             return None, "the decision record has an entry without a time"
-        if now - at <= MAX_WINDOW and isinstance(asked.get("tool_name"), str):
+        if isinstance(asked.get("tool_name"), str):
             events.append(Event(str(kind), tool_action(asked["tool_name"]), at, asked.get("inputs") or {}))
     return events, ""
 

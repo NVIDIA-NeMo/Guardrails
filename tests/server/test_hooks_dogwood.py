@@ -30,12 +30,26 @@ from nemoguardrails.server.hooks import app as hooks_app
 from nemoguardrails.server.hooks.app import HooksConfigError, create_hooks_app
 
 pytest.importorskip("cedarpy")
+pytest.importorskip("nemoguardrails_dogwood")
 
 EXAMPLE_CONFIG = Path(__file__).parents[2] / "examples" / "configs" / "agent_hooks" / "dogwood"
 GATEWAY = "arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-1"
 SCOPE = 'resource == AgentCore::Gateway::"{gateway}"'
 PERMIT_ALL = '@id("permit-all")\npermit(principal, action, resource);\n'
 CLAUDE = "/v1/hooks/claude-code"
+# The tools these tests call, in AgentCore's vocabulary, with the inputs a policy may read.
+SCHEMA = """namespace AgentCore {
+  entity OAuthUser;
+  entity Gateway;
+  action "Bash" appliesTo { principal: [OAuthUser], resource: [Gateway], context: { input: { command: String } } };
+  action "ops___get_status", "ops___restart_service", "ops___deploy", "c___approve", "c___disburse",
+    "claims___delete_claim", "claims___disburse_payment"
+    appliesTo { principal: [OAuthUser], resource: [Gateway], context: { input: {} } };
+  action "pay___disburse" appliesTo {
+    principal: [OAuthUser], resource: [Gateway], context: { input: { amountCents: Long } }
+  };
+}
+"""
 
 
 @pytest.fixture(autouse=True)
@@ -67,11 +81,13 @@ def _server(
     folder.mkdir(exist_ok=True)
     for name, text in policies.items():
         (folder / name).write_text(text, encoding="utf-8")
+    (tmp_path / "hooks.cedarschema").write_text(SCHEMA, encoding="utf-8")
+    dogwood = {"policies": str(folder), "schema": str(tmp_path / "hooks.cedarschema"), "gateway": gateway}
     config = {
         "models": [],
         "hooks_server": {
             "decision_record": str(tmp_path / "decisions.jsonl"),
-            "dogwood": {"policies": str(folder), "gateway": gateway, "denied_calls": denied_calls},
+            "dogwood": {**dogwood, "denied_calls": denied_calls},
             **hooks_server,
         },
     }
@@ -189,7 +205,9 @@ class TestHistoryUnavailable:
 
     def test_a_config_without_a_decision_record_is_refused(self, tmp_path):
         with pytest.raises(ValidationError, match="no decision_record"):
-            RailsConfig.from_content(config={"models": [], "hooks_server": {"dogwood": {"policies": str(tmp_path)}}})
+            RailsConfig.from_content(
+                config={"models": [], "hooks_server": {"dogwood": {"policies": str(tmp_path), "schema": "s"}}}
+            )
 
 
 def test_an_agentform_prerequisite_is_met_by_a_completed_call_and_not_by_a_failed_one(tmp_path):
@@ -250,23 +268,32 @@ def test_an_approval_is_good_for_one_use(tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("temporal", "message"),
+    ("policy", "message"),
     [
-        ('formerly within 25h AgentCore::Action::"a"::request{ eventResource: resource }', "longer than 24 hours"),
+        ("permit (principal, action, resource) when temporal { formerly within };", "Dogwood refuses the policies"),
         (
-            'formerly within 1h AgentCore::Action::"a"::response{ eventResource: resource, output.id: "x" }',
-            "the field 'output' is not supported",
-        ),
-        ('formerly within 1h AgentCore::Action::"a"::request{ input.id: "x" }', "eventResource: resource"),
-        (
-            " || ".join(['formerly within 1h AgentCore::Action::"a"::request{ eventResource: resource }'] * 2),
-            "joined with &&",
+            'permit (principal, action == AgentCore::Action::"Bash", resource) when { context.input.nope == "x" };',
+            "fail Dogwood's type check",
         ),
     ],
 )
-def test_a_policy_outside_the_supported_forms_stops_the_server(tmp_path, temporal, message):
+def test_a_policy_dogwood_refuses_stops_the_server(tmp_path, policy, message):
     with pytest.raises(HooksConfigError, match=message):
-        _server(tmp_path, {"p.dw": _policy("forbid", "a", temporal, policy_id="p")})
+        _server(tmp_path, {"p.dw": policy})
+
+
+def test_a_call_to_a_tool_the_schema_does_not_declare_is_denied(tmp_path):
+    with _server(tmp_path, {"permit.dw": PERMIT_ALL}) as client:
+        allowed, reason = _call(client, "WebFetch", url="https://example.com")
+    assert not allowed
+    assert "declares no action 'WebFetch'" in reason
+
+
+def test_arguments_the_schema_does_not_declare_are_not_seen_or_recorded(tmp_path):
+    with _server(tmp_path, {"permit.dw": PERMIT_ALL}) as client:
+        assert _call(client, "Bash", command="ls", description="list the folder")[0]
+    entry = json.loads((tmp_path / "decisions.jsonl").read_text().splitlines()[0])
+    assert entry["asked"]["inputs"] == {"command": "ls"}
 
 
 def test_dogwood_beside_another_tool_rule_is_refused(tmp_path):
@@ -276,7 +303,7 @@ def test_dogwood_beside_another_tool_rule_is_refused(tmp_path):
                 "models": [],
                 "hooks_server": {
                     "decision_record": "d.jsonl",
-                    "dogwood": {"policies": str(tmp_path)},
+                    "dogwood": {"policies": str(tmp_path), "schema": "s.cedarschema"},
                     "blocked_tools": ["Bash"],
                 },
             }

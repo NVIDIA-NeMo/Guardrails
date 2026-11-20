@@ -1,0 +1,13 @@
+namespace App {
+  type ReadInput = { document: String };
+  entity User;
+  entity Doc;
+  action "Read" appliesTo { principal: [User], resource: [Doc], context: { input: ReadInput } };
+}
+
+namespace Audit {
+  type ReadInput = { document: String };
+  entity User;
+  entity Doc;
+  action "Inspect" appliesTo { principal: [User], resource: [Doc], context: { input: ReadInput } };
+}

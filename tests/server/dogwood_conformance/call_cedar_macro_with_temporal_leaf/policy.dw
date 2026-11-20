@@ -1,0 +1,12 @@
+// A `def cedar` macro conjoined mid-expression with a temporal { … }
+// leaf: the cedar macro expands BEFORE the expression is lowered, so
+// level_ok(...) && temporal { … } is well-formed. The guide shows the
+// temporal body as `/* … */`; promoted here to a recent-Login check.
+@id("alert_when_level_ok_and_logged_in")
+permit (principal, action == Drupe::Action::"Alert", resource)
+when {
+    level_ok(context.input.level)
+    && temporal {
+        formerly within 1h Drupe::Action::"Login"::request{ input.user: _, input.server: context.input.server }
+    }
+};

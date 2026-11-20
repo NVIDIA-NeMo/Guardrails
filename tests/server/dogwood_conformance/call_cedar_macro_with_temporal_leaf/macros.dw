@@ -1,0 +1,6 @@
+// A `def cedar` boolean macro: true when its numeric argument is at least 2.
+// It expands BEFORE the surrounding expression is lowered, so its call can be
+// conjoined mid-expression with a `temporal { … }` leaf.
+def cedar level_ok(?n) {
+    ?n >= 2
+};

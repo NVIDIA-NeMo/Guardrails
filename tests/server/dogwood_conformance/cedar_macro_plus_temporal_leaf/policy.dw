@@ -1,0 +1,20 @@
+// A Cedar macro conjoined with a temporal block mid-expression: the Cedar
+// macro `level_ok` is expanded BEFORE the surrounding expression is lowered
+// (which hoists the temporal leaf). Guide shows a `temporal { /* ... */ }`
+// placeholder; promoted here to a concrete recent-login leaf.
+def cedar level_ok(?n) { ?n >= 2 };
+
+@id("alert_level_and_recent_login")
+permit (
+    principal,
+    action == Drupe::Action::"Alert",
+    resource
+)
+when {
+    level_ok(context.input.level)
+    && temporal {
+        formerly within 1h Drupe::Action::"Login"::request{
+            input.user: _, input.server: context.input.server
+        }
+    }
+};

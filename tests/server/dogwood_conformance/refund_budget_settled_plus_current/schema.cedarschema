@@ -1,0 +1,30 @@
+namespace Drupe {
+  type RefundInput = {
+    user: String,
+    amount: Long
+  };
+
+  type RefundOutput = {
+    amount: Long
+  };
+
+  type SystemContext = {
+    now: datetime
+  };
+
+  entity Gateway;
+
+  entity OAuthUser = {
+    id: String
+  } tags String;
+
+  action "Refund" appliesTo {
+    principal: [OAuthUser],
+    resource: [Gateway],
+    context: {
+      input: RefundInput,
+      output?: RefundOutput,
+      system: SystemContext
+    }
+  };
+}

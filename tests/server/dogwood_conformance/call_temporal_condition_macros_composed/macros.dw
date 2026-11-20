@@ -1,0 +1,10 @@
+// Two temporal condition macros, each a "happened recently" check over the
+// accumulated event history. They are supplied as a macro library (`--macros`)
+// and called from policy.dw.
+def temporal recently_logged_in(?u) {
+    formerly within 1h Drupe::Action::"Login"::response{ input.user: ?u }
+};
+
+def temporal recently_read(?u, ?d) {
+    formerly within 1h Drupe::Action::"Read"::response{ input.user: ?u, input.document: ?d }
+};

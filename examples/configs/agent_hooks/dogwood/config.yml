@@ -1,7 +1,8 @@
-# Decides tool calls from what already happened in the run, with Dogwood (temporal) policies, with
+# Decides tool calls from what already happened in the run, with Dogwood (temporal) policies decided by Dogwood's
+# own library, with
 # `nemoguardrails hooks-server`:
 #
-#   pip install "nemoguardrails[server,cedar]"
+#   pip install "nemoguardrails[server,dogwood]"
 #   nemoguardrails hooks-server --config examples/configs/agent_hooks/dogwood
 #
 # The policies use AgentCore Gateway's vocabulary, so a policy written for AgentCore, or rendered by Agentform's
@@ -18,5 +19,7 @@ hooks_server:
   dogwood:
     # Relative to this folder.
     policies: policies
+    # The tools as AgentCore actions, with the inputs a policy may read.
+    schema: hooks.cedarschema
     # The resource the policies name. This is the placeholder Agentform's renderer writes without a gateway ARN.
     gateway: __GATEWAY_ARN__

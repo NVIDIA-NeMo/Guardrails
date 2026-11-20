@@ -1,0 +1,40 @@
+namespace Desk {
+  entity Gateway;
+  entity OAuthUser = { id: String, desk: String } tags String;
+  entity IamEntity = { id: String };
+
+  type LoginInput  = { user: String };
+  type LoginOutput = { result: Bool };
+
+  type LogoutInput = { user: String };
+
+  type ApproveInput  = { user: String, stock: String };
+  type ApproveOutput = { approved: Bool };
+
+  type SellInput  = { user: String, stock: String, shares: Long, notes: String };
+  type SellOutput = { proceeds: decimal };
+
+  action "Login" appliesTo {
+    principal: [OAuthUser, IamEntity],
+    resource: [Gateway],
+    context: { input: LoginInput, output?: LoginOutput }
+  };
+
+  action "Logout" appliesTo {
+    principal: [OAuthUser, IamEntity],
+    resource: [Gateway],
+    context: { input: LogoutInput }
+  };
+
+  action "ApproveSale" appliesTo {
+    principal: [OAuthUser, IamEntity],
+    resource: [Gateway],
+    context: { input: ApproveInput, output?: ApproveOutput }
+  };
+
+  action "SellShares" appliesTo {
+    principal: [OAuthUser, IamEntity],
+    resource: [Gateway],
+    context: { input: SellInput, output?: SellOutput }
+  };
+}

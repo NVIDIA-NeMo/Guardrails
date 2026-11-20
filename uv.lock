@@ -2048,6 +2048,10 @@ cel = [
 chat-ui = [
     { name = "chainlit" },
 ]
+dogwood = [
+    { name = "cedarpy" },
+    { name = "nemoguardrails-dogwood" },
+]
 eval = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -2175,6 +2179,7 @@ requires-dist = [
     { name = "aiohttp-retry", specifier = ">=2.9.0" },
     { name = "cedarpy", marker = "extra == 'all'", specifier = ">=4.8,<5" },
     { name = "cedarpy", marker = "extra == 'cedar'", specifier = ">=4.8,<5" },
+    { name = "cedarpy", marker = "extra == 'dogwood'", specifier = ">=4.8,<5" },
     { name = "chainlit", marker = "extra == 'all'", specifier = ">=2.11.0,<3.0.0" },
     { name = "chainlit", marker = "extra == 'chat-ui'", specifier = ">=2.11.0,<3.0.0" },
     { name = "common-expression-language", marker = "extra == 'all'", specifier = ">=0.10.0,<0.11.0" },
@@ -2191,6 +2196,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "jsonschema", specifier = ">=4.26.0,<5.0.0" },
     { name = "lark", specifier = ">=1.1.7" },
+    { name = "nemoguardrails-dogwood", marker = "extra == 'dogwood'", directory = "crates/nemo-guardrails-dogwood" },
     { name = "nest-asyncio", marker = "extra == 'nest-asyncio'", specifier = ">=1.5.6" },
     { name = "numpy", marker = "python_full_version < '3.12'", specifier = ">=1.21" },
     { name = "numpy", marker = "python_full_version == '3.12.*'", specifier = ">=1.26" },
@@ -2241,7 +2247,7 @@ requires-dist = [
     { name = "yara-python", marker = "extra == 'all'", specifier = ">=4.5.1,<5.0.0" },
     { name = "yara-python", marker = "extra == 'jailbreak'", specifier = ">=4.5.1,<5.0.0" },
 ]
-provides-extras = ["nest-asyncio", "tracing", "server", "sdd", "gcp", "jailbreak", "cel", "cedar", "multilingual", "chat-ui", "eval", "all"]
+provides-extras = ["nest-asyncio", "tracing", "server", "sdd", "gcp", "jailbreak", "cel", "cedar", "dogwood", "multilingual", "chat-ui", "eval", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2315,6 +2321,11 @@ test-integration = [
     { name = "yara-python", specifier = ">=4.5.1,<5.0.0" },
 ]
 typing = [{ name = "ty", specifier = "==0.0.56" }]
+
+[[package]]
+name = "nemoguardrails-dogwood"
+version = "0.1.0"
+source = { directory = "crates/nemo-guardrails-dogwood" }
 
 [[package]]
 name = "nest-asyncio"

@@ -1,0 +1,43 @@
+namespace PriorAuth {
+  type DecideInput = {
+    case: String
+  };
+
+  type DecideOutput = {  };
+
+  type TouchlessApproveInput = {
+    case: String
+  };
+
+  type TouchlessApproveOutput = {  };
+
+  type SystemContext = {
+    now: datetime
+  };
+
+  entity Gateway;
+
+  entity OAuthUser = {
+    id: String
+  } tags String;
+
+  action "Decide" appliesTo {
+    principal: [OAuthUser],
+    resource: [Gateway],
+    context: {
+      input: DecideInput,
+      output?: DecideOutput,
+      system: SystemContext
+    }
+  };
+
+  action "TouchlessApprove" appliesTo {
+    principal: [OAuthUser],
+    resource: [Gateway],
+    context: {
+      input: TouchlessApproveInput,
+      output?: TouchlessApproveOutput,
+      system: SystemContext
+    }
+  };
+}

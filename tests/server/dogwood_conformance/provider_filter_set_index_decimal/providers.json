@@ -1,0 +1,52 @@
+{
+  "availableProviders": {
+    "Content::Filter": {
+      "argumentTypes": [
+        {
+          "paramType": "string"
+        },
+        {
+          "paramType": "set",
+          "items": {
+            "paramType": "string"
+          }
+        }
+      ],
+      "outputType": {
+        "paramType": "record",
+        "fields": {
+          "VIOLENCE": {
+            "paramType": "record",
+            "fields": {
+              "severityScore": {
+                "paramType": "decimal"
+              }
+            },
+            "required": [
+              "severityScore"
+            ]
+          },
+          "HATE": {
+            "paramType": "record",
+            "fields": {
+              "severityScore": {
+                "paramType": "decimal"
+              }
+            },
+            "required": [
+              "severityScore"
+            ]
+          }
+        },
+        "required": [
+          "VIOLENCE",
+          "HATE"
+        ]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "// `Content::Filter(text, categories) -> { <CATEGORY>: { severityScore } }`.\n//\n// Takes a document and a SET of category names (the second declared\n// argument, `paramType: set`, arrives as a Rhai array). Returns a record\n// with every category that the output type declares (VIOLENCE and HATE),\n// each with a decimal `severityScore`, so the policy can project\n// `[\"VIOLENCE\"].severityScore` and compare it. Only the categories in the\n// set get a real score. Scores here are a fixed lookup per keyword; a real\n// provider would call a classifier.\nfn score_for(text, category) {\n    if text == \"violent\" && category == \"VIOLENCE\" {\n        parse_decimal(\"0.90\")\n    } else if text == \"hateful\" && category == \"HATE\" {\n        parse_decimal(\"0.90\")\n    } else {\n        parse_decimal(\"0.10\")\n    }\n}\n\nfn evaluate(text, categories) {\n    // Defensive per the provider contract: a provider may be evaluated\n    // for ANY decision event, so any argument may be absent (unit).\n    // Return a conforming sentinel instead of erroring (errors are UB).\n    if type_of(text) == \"()\" || type_of(categories) == \"()\" {\n        return #{ VIOLENCE: #{ severityScore: parse_decimal(\"-1.0\") }, HATE: #{ severityScore: parse_decimal(\"-1.0\") } };\n    }\n\n    // The output type requires every declared category. A category that is\n    // not in the set gets the score 1.0, so a policy that reads it sees a\n    // high severity instead of a low one.\n    let out = #{\n        VIOLENCE: #{ severityScore: parse_decimal(\"1.0\") },\n        HATE: #{ severityScore: parse_decimal(\"1.0\") }\n    };\n    for category in categories {\n        // The script ignores an undeclared category.\n        if out.contains(category) {\n            out[category] = #{ severityScore: score_for(text, category) };\n        }\n    }\n    out\n}\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+// Permit Read only when the document's VIOLENCE severity is below 0.5, via the
+// Content::Filter provider. Shows a SET argument (["VIOLENCE", "HATE"]), an
+// INDEX projection (["VIOLENCE"]) chained with a field access (.severityScore),
+// and a decimal extension-method comparison.
+@id("read_low_violence")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when {
+    Content::Filter(context.input.document, ["VIOLENCE", "HATE"])["VIOLENCE"].severityScore.lessThan(decimal("0.5"))
+};

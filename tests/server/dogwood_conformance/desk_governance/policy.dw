@@ -1,0 +1,48 @@
+// A trading-desk governance set. Deny-overrides: the forbids win over any permit.
+
+// 1. Permit a share sale only for a trader with an OPEN session (logged in and
+//    not since logged out) who has NOT sold more than 3 times in the last hour,
+//    and whose sale was approved for the same stock within the last hour.
+@id("permit_sell_open_session_rate_limited")
+permit ( principal is Desk::OAuthUser, action == Desk::Action::"SellShares", resource )
+when temporal {
+    !Desk::Action::"Logout"::request{ input.user: context.input.user }
+    since within 8h
+    Desk::Action::"Login"::response{ input.user: context.input.user, output.result: true }
+}
+when temporal {
+    formerly within 1h Desk::Action::"ApproveSale"::response{
+        input.user: context.input.user,
+        input.stock: context.input.stock,
+        output.approved: true
+    }
+}
+when temporal {
+    exists (n: Long). (
+        (count for (t: Timepoint). where (
+            formerly within 1h (Desk::Action::"SellShares"::request{ input.user: context.input.user } && tp(t))
+        )) == n
+        && n <= 3
+    )
+};
+
+// 2. Never permit a sale whose notes look like insider-trading chatter
+//    (computed by a content-scanning information provider).
+@id("forbid_insider_notes")
+forbid ( principal, action == Desk::Action::"SellShares", resource )
+when { Text::Scan(context.input.notes).flagged == true };
+
+// 3. Never permit selling AMZN, regardless of everything else.
+@id("forbid_sell_amzn")
+forbid ( principal, action == Desk::Action::"SellShares", resource )
+when { context.input.stock == "AMZN" };
+
+// 4. An admin (an IAM entity) may approve a sale for any stock except one they
+//    themselves requested to sell in the last hour.
+@id("permit_admin_approve")
+permit ( principal is Desk::IamEntity, action == Desk::Action::"ApproveSale", resource )
+when temporal {
+    !Desk::Action::"SellShares"::request{ input.user: context.input.user, input.stock: context.input.stock }
+    since within 1h
+    Desk::Action::"Login"::response{ input.user: context.input.user }
+};

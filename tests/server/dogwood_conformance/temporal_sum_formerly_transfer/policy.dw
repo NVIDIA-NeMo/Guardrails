@@ -1,0 +1,21 @@
+// `sum_formerly` uses a binder-position parameter `?a` (the sum's bound
+// variable, passed as the bare identifier `a`) plus a macro-introduced fresh
+// binder `$t`. The aggregate is compared inside an `exists (total: Long)`.
+def temporal sum_formerly(?a, ?w, ?body) {
+    sum ?a for (?a: Long), ($t: Timepoint). where (formerly within ?w (?body && tp($t)))
+};
+
+@id("transfer_sum_over_100")
+permit (
+    principal,
+    action == Drupe::Action::"Alert",
+    resource
+)
+when temporal {
+    exists (total: Long). (
+        (sum_formerly(a, 1h, Drupe::Action::"Transfer"::request{
+            input.user: _, input.amount: a
+        })) == total
+        && total > 100
+    )
+};

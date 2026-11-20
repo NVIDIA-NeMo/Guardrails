@@ -1,0 +1,20 @@
+// Forbid Read when the document contains 2 or more digits, as counted by the
+// Strings::DigitCount provider. Shows that a provider call is orthogonal to the
+// rule effect -- it works the same under forbid as under permit -- with a
+// catch-all permit alongside.
+@id("forbid_digits")
+forbid (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when {
+    Strings::DigitCount(context.input.document).count >= 2
+};
+
+@id("permit_read")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+);

@@ -1,0 +1,29 @@
+{
+  "availableProviders": {
+    "Strings::Matches": {
+      "argumentTypes": [
+        {
+          "paramType": "string"
+        },
+        {
+          "paramType": "string"
+        }
+      ],
+      "outputType": {
+        "paramType": "record",
+        "fields": {
+          "matched": {
+            "paramType": "bool"
+          }
+        },
+        "required": [
+          "matched"
+        ]
+      },
+      "implementation": {
+        "kind": "rhai",
+        "script": "// Information-provider implementation for `Strings::Matches`.\n//\n// A provider script defines `fn evaluate(arg0, arg1, \u2026)` whose parameters\n// correspond positionally to the declared `argumentTypes` in\n// providers.json \u2014 here `(text, pattern)`. It returns a record whose\n// shape matches the declared `outputType` (`{ matched: Bool }`).\n//\n// The engine runs this in a locked-down Rhai engine: no file/network/\n// process access, only the host functions Dogwood registers. Here we use\n// `regex_is_match(pattern, text) -> bool`.\nfn evaluate(text, pattern) {\n    // Defensive per the provider contract: a provider may be evaluated\n    // for ANY decision event, so any argument may be absent (unit).\n    // Return a conforming sentinel instead of erroring (errors are UB).\n    if type_of(text) == \"()\" || type_of(pattern) == \"()\" {\n        return #{ matched: false };\n    }\n\n    #{ matched: regex_is_match(pattern, text) }\n}\n"
+      }
+    }
+  }
+}

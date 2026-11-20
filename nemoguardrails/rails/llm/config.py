@@ -484,16 +484,28 @@ class CedarRules(BaseModel):
 
 
 class DogwoodRules(BaseModel):
-    """Tool-call rules written in Dogwood: Cedar policies whose `when temporal` block reads what already happened in
-    the run, as AgentCore Gateway's temporal policies do."""
+    """Tool-call rules written in Dogwood, decided by Dogwood's own library: Cedar policies whose `when temporal` block
+    reads what already happened in the run, as AgentCore Gateway's temporal policies do."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     policies: str = Field(
         min_length=1,
         description="A folder of `.dw` or `.dogwood` policy files, read with its subfolders in name order. Relative to "
         "the config's folder.",
     )
+    schema_file: str = Field(
+        alias="schema",
+        min_length=1,
+        description="The Cedar action schema (`.cedarschema`) in AgentCore's vocabulary: each tool as an action of an "
+        "`AgentCore::OAuthUser` on an `AgentCore::Gateway`, with the inputs a policy may read under `context.input`. "
+        "Dogwood type-checks the policies against it at start, and only the inputs it declares reach a decision or "
+        "the record. Relative to the config's folder.",
+    )
+    providers: Optional[str] = Field(
+        default=None, description="Dogwood information-provider declarations (`providers.json`). Optional."
+    )
+    macros: Optional[str] = Field(default=None, description="A Dogwood macro library (`.dw`). Optional.")
     gateway: str = Field(
         default="__GATEWAY_ARN__",
         min_length=1,

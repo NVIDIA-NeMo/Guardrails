@@ -1,0 +1,22 @@
+// A share-of-total cap: touchless (automated) approvals may proceed only
+// while they make up at most 85% of the human decisions seen in the window.
+//
+// The `*` on both sides is the arithmetic this bundle exists to exercise: a
+// percentage guard is written cross-multiplied (`100 * a <= 85 * b`), which
+// stays exact over integers — the language has no division, deliberately.
+//
+
+@id("touchless_share_capped")
+permit (
+    principal,
+    action == PriorAuth::Action::"TouchlessApprove",
+    resource
+)
+when temporal {
+    100 * (count for (t: Timepoint). where (
+        formerly within 24h (PriorAuth::Action::"TouchlessApprove"::response{} && tp(t))
+    ))
+    <= 85 * count for (t: Timepoint). where (
+        formerly within 24h (PriorAuth::Action::"Decide"::response{} && tp(t))
+    )
+};

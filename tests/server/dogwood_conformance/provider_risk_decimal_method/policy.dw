@@ -1,0 +1,12 @@
+// Permit Read only when the content-risk score is below 0.5, as decided by the
+// Content::Risk provider. The output is a Cedar decimal, so the comparison uses
+// the decimal extension method .lessThan(decimal("...")) rather than <.
+@id("read_low_risk")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when {
+    Content::Risk(context.input.document).severityScore.lessThan(decimal("0.5"))
+};

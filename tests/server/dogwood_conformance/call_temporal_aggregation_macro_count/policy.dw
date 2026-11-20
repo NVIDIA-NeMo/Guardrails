@@ -1,0 +1,14 @@
+// Calling a `def temporal` AGGREGATION macro: it produces a count, so
+// it is spliced into a comparison inside an `exists` binder (which
+// introduces the variable it is compared against) — never called on
+// its own. Permits Alert once at least one Login is in the window.
+@id("alert_after_a_login")
+permit (principal, action == Drupe::Action::"Alert", resource)
+when temporal {
+    exists (n: Long). (
+        (count_formerly(1h, Drupe::Action::"Login"::request{
+            input.user: _, input.server: context.input.server
+        })) == n
+        && n > 0
+    )
+};

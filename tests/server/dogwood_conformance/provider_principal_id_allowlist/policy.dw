@@ -1,0 +1,15 @@
+// Permit Read only when the requesting principal is on the provider's
+// allowlist. The distinctive shape is the ARGUMENT: the provider is passed
+// principal.id -- an attribute path rooted at principal, not context. Provider
+// arguments are resolved pre-Cedar against the request event, and principal /
+// resource roots resolve to the request scope entity (trailing .id reads the
+// entity's `id` attribute, as in Cedar).
+@id("read_principal_allowed")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when {
+    Access::Allowed(principal.id).allowed == true
+};

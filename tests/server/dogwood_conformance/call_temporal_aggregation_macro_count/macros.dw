@@ -1,0 +1,8 @@
+// Macro library supplied via --macros. `count_formerly(?w, ?s)` (?w a bare
+// interval, e.g. `1h`) desugars to
+//   count for ($t: Timepoint). where (formerly within ?w (?s && tp($t)))
+// so a call spliced into a comparison inside an `exists` counts how many
+// times the predicate ?s held anywhere within the window ?w.
+def temporal count_formerly(?w, ?s) {
+    count for ($t: Timepoint). where (formerly within ?w (?s && tp($t)))
+};

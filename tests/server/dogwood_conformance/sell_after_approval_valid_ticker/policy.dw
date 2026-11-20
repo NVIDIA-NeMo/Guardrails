@@ -1,0 +1,12 @@
+// Combined clauses on one rule: a `temporal` marker clause (a matching
+// ApproveSale for the same stock must precede this sell within the last hour)
+// AND a `guardrails` provider check (the ticker matches an uppercase regex).
+// The guardrails tag is sugar for a bare when; Strings::Matches is a provider.
+@id("sell_after_approval_valid_ticker")
+permit ( principal, action == Drupe::Action::"SellShares", resource )
+when temporal {
+    formerly within 1h Drupe::Action::"ApproveSale"::response{ input.stock: context.input.stock }
+}
+when guardrails {
+    Strings::Matches(context.input.stock, "^[A-Z]+$").matched == true
+};

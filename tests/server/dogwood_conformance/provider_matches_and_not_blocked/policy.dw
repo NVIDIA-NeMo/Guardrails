@@ -1,0 +1,13 @@
+// Permit Read only when the document matches an allowed-name pattern AND is
+// not on the blocklist. Two information providers combined with the boolean
+// spine (&& and !) inside one ordinary when { ... } clause.
+@id("read_allowed_and_not_blocked")
+permit (
+    principal,
+    action == Drupe::Action::"Read",
+    resource
+)
+when {
+    Strings::Matches(context.input.document, "^[a-z]+$").matched == true
+    && !(Lists::Blocked(context.input.document).blocked == true)
+};
