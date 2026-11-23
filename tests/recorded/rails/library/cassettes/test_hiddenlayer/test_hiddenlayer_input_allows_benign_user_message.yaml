@@ -28,12 +28,12 @@ interactions:
       - chunked
       connection:
       - keep-alive
+      ratelimit-reset:
+      - '59'
       ratelimit-remaining:
       - '24998'
       ratelimit-limit:
       - '25000'
-      ratelimit-reset:
-      - '1'
       server:
       - cloudflare
       vary:
@@ -42,7 +42,7 @@ interactions:
       cache-control:
       - no-store
       via:
-      - 1.1 3c43e000c50d5633eb558057710f3c54.cloudfront.net (CloudFront)
+      - 1.1 090bf7e9d88c922b92daac177304afaa.cloudfront.net (CloudFront)
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
     body:
@@ -80,12 +80,12 @@ interactions:
       - chunked
       connection:
       - keep-alive
-      ratelimit-reset:
-      - '60'
       ratelimit-remaining:
-      - '24998'
+      - '24999'
       ratelimit-limit:
       - '25000'
+      ratelimit-reset:
+      - '58'
       cache-control:
       - no-cache, no-store, must-revalidate, max-age=0
       hl-runtime-action:

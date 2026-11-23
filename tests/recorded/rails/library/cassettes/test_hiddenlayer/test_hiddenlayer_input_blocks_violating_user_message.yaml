@@ -29,7 +29,7 @@ interactions:
       connection:
       - keep-alive
       ratelimit-reset:
-      - '60'
+      - '58'
       ratelimit-remaining:
       - '24997'
       ratelimit-limit:
@@ -42,7 +42,7 @@ interactions:
       cache-control:
       - no-store
       via:
-      - 1.1 9c6666844f92bfc6b8685747b641abc6.cloudfront.net (CloudFront)
+      - 1.1 090bf7e9d88c922b92daac177304afaa.cloudfront.net (CloudFront)
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
     body:
@@ -81,12 +81,12 @@ interactions:
       - chunked
       connection:
       - keep-alive
-      ratelimit-reset:
-      - '59'
-      ratelimit-remaining:
-      - '24998'
       ratelimit-limit:
       - '25000'
+      ratelimit-reset:
+      - '57'
+      ratelimit-remaining:
+      - '24999'
       cache-control:
       - no-cache, no-store, must-revalidate, max-age=0
       hl-runtime-action:

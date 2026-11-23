@@ -29,9 +29,9 @@ interactions:
       connection:
       - keep-alive
       ratelimit-reset:
-      - '58'
+      - '56'
       ratelimit-remaining:
-      - '24999'
+      - '24993'
       ratelimit-limit:
       - '25000'
       vary:
@@ -44,7 +44,7 @@ interactions:
       cache-control:
       - no-store
       via:
-      - 1.1 1f133079dc1c94415e666e3b032459fe.cloudfront.net (CloudFront)
+      - 1.1 090bf7e9d88c922b92daac177304afaa.cloudfront.net (CloudFront)
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
     body:
