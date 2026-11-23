@@ -1,0 +1,54 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.us.hiddenlayer.ai/oauth2/token
+    body: grant_type=client_credentials
+    headers:
+      host:
+      - api.us.hiddenlayer.ai
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/x-www-form-urlencoded
+  response:
+    status:
+      code: 401
+      message: Unauthorized
+    headers:
+      content-type:
+      - application/json; charset=UTF-8
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      ratelimit-reset:
+      - '58'
+      ratelimit-remaining:
+      - '24999'
+      ratelimit-limit:
+      - '25000'
+      vary:
+      - Accept-Encoding
+      - Origin
+      server:
+      - cloudflare
+      www-authenticate:
+      - Basic
+      cache-control:
+      - no-store
+      via:
+      - 1.1 1f133079dc1c94415e666e3b032459fe.cloudfront.net (CloudFront)
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+    body:
+      parsed_body:
+        error: invalid_client
+        error_description: 'client_id: invalid-recorded-replay is not valid.'
+        error_reason: invalid_client_id
