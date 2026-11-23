@@ -46,7 +46,7 @@ def test_defaults():
     assert settings.api_url == DEFAULT_API_URL
     assert settings.project_id is None
     assert settings.requester_id == DEFAULT_REQUESTER_ID == "hiddenlayer-nemo"
-    assert settings.fail_open is False
+    assert settings.fail_open is True
     assert (settings.max_retries, settings.max_retry_after_seconds, settings.retry_backoff_seconds) == (2, 30.0, 1.0)
 
 

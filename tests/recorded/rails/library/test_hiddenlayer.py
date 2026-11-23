@@ -79,7 +79,7 @@ async def test_hiddenlayer_output_redacts_the_assistant_message(hiddenlayer_cred
 
 
 async def test_hiddenlayer_input_fails_closed_on_401(hiddenlayer_credentials, monkeypatch):
-    """A recorded 401 from the token exchange fails the HiddenLayer input rail closed."""
+    """A recorded 401 from the token exchange blocks the input when ``fail_open`` is off."""
     monkeypatch.setenv("HIDDENLAYER_CLIENT_ID", "invalid-recorded-replay")
     monkeypatch.setenv("HIDDENLAYER_CLIENT_SECRET", "invalid-recorded-replay")
 

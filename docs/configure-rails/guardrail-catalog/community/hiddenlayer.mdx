@@ -137,7 +137,7 @@ An unknown key fails the configuration load.
 | `api_url` | `HIDDENLAYER_BASE_URL` | `https://api.us.hiddenlayer.ai` | HiddenLayer API base URL. EU tenants use `https://api.eu.hiddenlayer.ai`. Must use `https://`, except on a loopback host |
 | `project_id` | `HIDDENLAYER_PROJECT_ID` | None | Project ID or alias whose policy evaluates the content |
 | `requester_id` | `HIDDENLAYER_REQUESTER_ID` | `hiddenlayer-nemo` | Requester ID recorded with each evaluation |
-| `fail_open` | | `false` | Allow content through when a check does not produce a verdict. It covers every non-success status, including a 401 or 403 from a revoked or misscoped credential, as well as timeouts, connection errors and an unreadable body. An operator whose key stops working gets an unguarded rail rather than an error |
+| `fail_open` | | `true` | Allow content through when a check does not produce a verdict. Set `false` to block instead. It covers every non-success status, including a 401 or 403 from a revoked or misscoped credential, as well as timeouts, connection errors and an unreadable body. An operator whose key stops working gets an unguarded rail rather than an error |
 | `max_retries` | | `2` | Additional attempts after HTTP 429, 502, 503, or 504 |
 | `max_retry_after_seconds` | | `30.0` | Cap on a `Retry-After` delay and on the backoff delay |
 | `retry_backoff_seconds` | | `1.0` | Base delay for exponential backoff with jitter |
@@ -161,8 +161,8 @@ On IORails this blocks each request with the internal-error response rather than
 The rail retries HTTP 429, 502, 503, and 504 up to `max_retries` times.
 It refreshes the access token once after an HTTP 401.
 It does not retry a timeout, a connection error, or HTTP 400, 403, 413, or 422. A rail runs inline, and the retry setting covers timeouts and connection errors together, so retrying either would cost another full request timeout before the caller hears anything.
-When the call still does not produce a verdict, the rail blocks the request, or allows it when `fail_open` is `true`.
-An allow under `fail_open` logs one warning; HiddenLayer has no record that the library allowed the request.
+When the call still does not produce a verdict, the rail allows the request, or blocks it when `fail_open` is `false`.
+An allow under `fail_open` logs one warning and is marked `fail_open` in the rail outcome's metadata. HiddenLayer has no record that the library allowed the request.
 
 `fail_open` covers every call that ends without a verdict, whatever ended it: a timeout, a connection failure, a rejection by the server such as an HTTP 400, 413, or 422, a response that is not valid JSON, and a 200 with no `HL-Runtime-Action` header.
 A 200 whose `HL-Runtime-Action` is not one the rail knows blocks, whatever `fail_open` says.
@@ -182,7 +182,7 @@ The library has no per-rail timeout, so set the retry fields lower when you need
 
 - A `tool_call` or `tool_result` check is never returned redacted. The engine honors a transform only on the conversational surfaces, so `_REDACTABLE` in `_verdict.py` covers `input` and `output` alone and a redaction on a tool surface is enforced as a block instead.
 - A timeout or connection error is not retried, by the `retry_transport_errors=False` in `_retry_policy`, for the inline-latency reason above.
-- With `fail_open` set, a revoked or misscoped credential leaves the rail unguarded rather than erroring, because a 401 and a 403 are covered like any other non-success status.
+- With `fail_open` at its default, a revoked or misscoped credential leaves the rail unguarded rather than erroring, because a 401 and a 403 are covered like any other non-success status.
 - A streamed output check requires the IORails engine. Run the output check without streaming on the default engine.
 - Each check is evaluated on its own. An output or tool-call check is judged without the request that produced it, a check is judged without earlier turns of the conversation, and HiddenLayer records each check as a separate interaction.
 

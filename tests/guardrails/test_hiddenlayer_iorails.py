@@ -73,6 +73,10 @@ TOOL_CONFIG = {
         "tool_result": {"per_tool": {"run_sql": ["hiddenlayer check tool result"]}},
     },
 }
+FAIL_CLOSED_TOOL_CONFIG = {
+    **TOOL_CONFIG,
+    "rails": {**TOOL_CONFIG["rails"], "config": {"hiddenlayer": {**RAIL_SETTINGS["hiddenlayer"], "fail_open": False}}},
+}
 IO_CONFIG = {
     "models": [MAIN_MODEL],
     "rails": {
@@ -169,6 +173,12 @@ def hl(monkeypatch) -> FakeHiddenLayer:
 @pytest_asyncio.fixture
 async def tool_iorails():
     async with started_iorails(TOOL_CONFIG) as engine:
+        yield engine
+
+
+@pytest_asyncio.fixture
+async def fail_closed_tool_iorails():
+    async with started_iorails(FAIL_CLOSED_TOOL_CONFIG) as engine:
         yield engine
 
 
@@ -280,11 +290,21 @@ class TestToolCall:
         assert hl.requests == []
 
     @pytest.mark.asyncio
-    async def test_hiddenlayer_failure_fails_closed(self, tool_iorails, hl):
+    async def test_hiddenlayer_failure_allows_the_call_by_default(self, tool_iorails, hl):
         hl.verdicts["tool_call"] = SERVER_ERROR
         _inject_json_response(tool_iorails, _tool_call_payload("run_sql", '{"query": "SELECT 1"}'))
 
         result = await tool_iorails.generate_async(messages=MESSAGES)
+
+        assert result["tool_calls"][0]["function"]["name"] == "run_sql"
+        assert hl.surfaces() == ["tool_call"]
+
+    @pytest.mark.asyncio
+    async def test_hiddenlayer_failure_fails_closed_when_fail_open_is_off(self, fail_closed_tool_iorails, hl):
+        hl.verdicts["tool_call"] = SERVER_ERROR
+        _inject_json_response(fail_closed_tool_iorails, _tool_call_payload("run_sql", '{"query": "SELECT 1"}'))
+
+        result = await fail_closed_tool_iorails.generate_async(messages=MESSAGES)
 
         assert result == {"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}
         assert hl.surfaces() == ["tool_call"]
@@ -352,11 +372,21 @@ class TestToolResult:
         assert sent["tool_result"]["content"] == "1"
 
     @pytest.mark.asyncio
-    async def test_hiddenlayer_failure_fails_closed(self, tool_iorails, hl):
+    async def test_hiddenlayer_failure_allows_the_result_by_default(self, tool_iorails, hl):
         hl.verdicts["tool_result"] = SERVER_ERROR
-        forbidden_post = _inject_forbidden_transport(tool_iorails)
+        _inject_json_response(tool_iorails, _text_payload("one row"))
 
         result = await tool_iorails.generate_async(messages=_sql_conversation("1"))
+
+        assert result == {"role": "assistant", "content": "one row"}
+        assert hl.surfaces() == ["tool_result"]
+
+    @pytest.mark.asyncio
+    async def test_hiddenlayer_failure_fails_closed_when_fail_open_is_off(self, fail_closed_tool_iorails, hl):
+        hl.verdicts["tool_result"] = SERVER_ERROR
+        forbidden_post = _inject_forbidden_transport(fail_closed_tool_iorails)
+
+        result = await fail_closed_tool_iorails.generate_async(messages=_sql_conversation("1"))
 
         assert result == {"role": "assistant", "content": INTERNAL_ERROR_MESSAGE}
         forbidden_post.assert_not_called()

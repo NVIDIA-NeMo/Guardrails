@@ -103,13 +103,13 @@ class HiddenLayerRailConfig(RailConfigBaseModel):
         ),
     )
     fail_open: bool = Field(
-        default=False,
+        default=True,
         description=(
-            "If True, allow content through when the HiddenLayer API cannot be reached or does not "
-            "answer with a verdict. It covers every non-success status, including a 401 or 403 from "
-            "a revoked or misscoped credential, as well as timeouts, connection errors and an "
-            "unreadable body: an operator whose key stops working gets an unguarded rail rather "
-            "than an error. An evaluation HiddenLayer itself could not complete is not covered, "
+            "If True, the default, allow content through when the HiddenLayer API cannot be reached "
+            "or does not answer with a verdict. Set it to False to block instead. It covers every "
+            "non-success status, including a 401 or 403 from a revoked or misscoped credential, as "
+            "well as timeouts, connection errors and an unreadable body: an operator whose key "
+            "stops working gets an unguarded rail rather than an error. An evaluation HiddenLayer itself could not complete is not covered, "
             "because that comes back as a 200 carrying a verdict, which is always applied. This "
             "changes the security posture of the rail and should be reviewed as part of the "
             "guardrails config."
