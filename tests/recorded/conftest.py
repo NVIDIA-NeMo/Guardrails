@@ -16,7 +16,7 @@
 import json
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import pytest
 import pytest_asyncio
@@ -38,6 +38,8 @@ from tests.recorded.sanitization import (
 )
 from tests.recorded.utils import (
     DUMMY_F5_GUARDRAILS_API_KEY,
+    DUMMY_HIDDENLAYER_CLIENT_ID,
+    DUMMY_HIDDENLAYER_CLIENT_SECRET,
     DUMMY_NVIDIA_API_KEY,
     DUMMY_OPENAI_API_KEY,
     set_api_key_for_record_mode,
@@ -430,6 +432,27 @@ def nvidia_inference_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> s
 def f5_api_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> str:
     monkeypatch.delenv("F5_GUARDRAILS_API_URL", raising=False)
     return set_api_key_for_record_mode(monkeypatch, "F5_GUARDRAILS_API_KEY", DUMMY_F5_GUARDRAILS_API_KEY, record_mode)
+
+
+@pytest.fixture
+def hiddenlayer_credentials(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> Tuple[str, str]:
+    """Install the HiddenLayer OAuth2 client credentials and start from an empty token cache.
+
+    The rail caches access tokens at module level, so without the reset only the first test of a
+    session exchanges one. The rest would replay against a cassette holding an exchange they never
+    make, and fail that exchange's cassette miss when run on their own.
+    """
+    from nemoguardrails.library.hiddenlayer._token import _reset_token_cache
+
+    monkeypatch.delenv("HIDDENLAYER_BASE_URL", raising=False)
+    _reset_token_cache()
+    client_id = set_api_key_for_record_mode(
+        monkeypatch, "HIDDENLAYER_CLIENT_ID", DUMMY_HIDDENLAYER_CLIENT_ID, record_mode
+    )
+    client_secret = set_api_key_for_record_mode(
+        monkeypatch, "HIDDENLAYER_CLIENT_SECRET", DUMMY_HIDDENLAYER_CLIENT_SECRET, record_mode
+    )
+    return client_id, _RedactedCredential(client_secret)
 
 
 @pytest.fixture

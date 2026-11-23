@@ -27,6 +27,11 @@ FILTERED_HEADERS = {
     "cookie",
     "set-cookie",
     "x-xet-access-token",
+    # HiddenLayer request headers that identify a tenant or a project, or that differ on every
+    # recording. The HL-Runtime-* response headers are deliberately absent: they carry the verdict.
+    "hl-project-id",
+    "hl-requester-id",
+    "hl-roundtrip-id",
 }
 
 FILTERED_QUERY_PARAMETERS = ("api_key", "key", "token")
