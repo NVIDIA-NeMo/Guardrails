@@ -497,3 +497,35 @@ def nemotron_content_safety_parse_response_safety(
         return [True]
 
     return [False] + _extract_safety_categories(response)
+
+
+def nemotron_35_parse_prompt_safety(response: str) -> Sequence[Union[bool, str]]:
+    """Parses prompt safety from nemotron-3.5-content-safety output.
+
+    The 2.0.5-variant and 2.1.x releases emit the same plain-text verdict format
+    as the base nemotron_content_safety models, so this delegates directly.
+
+    Args:
+        response (str): The response string to analyze.
+
+    Returns:
+        Sequence[Union[bool, str]]: True if safe, otherwise False followed by
+        any violated safety category strings.
+    """
+    return nemotron_content_safety_parse_prompt_safety(response)
+
+
+def nemotron_35_parse_response_safety(response: str) -> Sequence[Union[bool, str]]:
+    """Parses response safety from nemotron-3.5-content-safety output.
+
+    The 2.0.5-variant and 2.1.x releases emit the same plain-text verdict format
+    as the base nemotron_content_safety models, so this delegates directly.
+
+    Args:
+        response (str): The response string to analyze.
+
+    Returns:
+        Sequence[Union[bool, str]]: True if safe, otherwise False followed by
+        any violated safety category strings.
+    """
+    return nemotron_content_safety_parse_response_safety(response)

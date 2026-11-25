@@ -18,14 +18,14 @@ docker run -d --gpus '"device=0,1"' \
   -e NGC_API_KEY=$NVIDIA_API_KEY \
   -v /ephemeral/nim-cache:/opt/nim/.cache \
   -p 8000:8000 \
-  nvcr.io/nim/nvidia/nemotron-3-nano:2.0.10
+  nvcr.io/nim/nvidia/nemotron-3-nano:2.1.7
 
 # Content Safety — Nemotron 3.5 (GPU 2 → port 8001)
 docker run -d --gpus '"device=2"' \
   -e NGC_API_KEY=$NVIDIA_API_KEY \
   -v /ephemeral/nim-cache:/opt/nim/.cache \
   -p 8001:8001 \
-  nvcr.io/nim/nvidia/nemotron-3.5-content-safety:2.0.5-variant
+  nvcr.io/nim/nvidia/nemotron-3.5-content-safety:2.1.7
 ```
 
 NIM startup takes several minutes while weights load. Poll until both respond:
@@ -125,7 +125,7 @@ for i in 0 1 2 3 4 5; do
     -e NGC_API_KEY=$NVIDIA_API_KEY \
     -v /ephemeral/nim-cache:/opt/nim/.cache \
     -p $((8010 + i)):8000 \
-    nvcr.io/nim/nvidia/nemotron-3-nano:2.0.10
+    nvcr.io/nim/nvidia/nemotron-3-nano:2.1.7
 done
 # Replicas on ports 8010–8015
 ```
@@ -138,7 +138,7 @@ for i in 6 7; do
     -e NGC_API_KEY=$NVIDIA_API_KEY \
     -v /ephemeral/nim-cache:/opt/nim/.cache \
     -p $((8001 + i - 6)):8001 \
-    nvcr.io/nim/nvidia/nemotron-3.5-content-safety:2.0.5-variant
+    nvcr.io/nim/nvidia/nemotron-3.5-content-safety:2.1.7
 done
 # Replicas on ports 8001–8002
 ```

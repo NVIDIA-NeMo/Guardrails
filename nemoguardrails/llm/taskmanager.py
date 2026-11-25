@@ -45,6 +45,8 @@ from nemoguardrails.llm.output_parsers import (
     is_content_safe,
     nemoguard_parse_prompt_safety,
     nemoguard_parse_response_safety,
+    nemotron_35_parse_prompt_safety,
+    nemotron_35_parse_response_safety,
     nemotron_content_safety_parse_prompt_safety,
     nemotron_content_safety_parse_response_safety,
     nemotron_reasoning_parse_prompt_safety,

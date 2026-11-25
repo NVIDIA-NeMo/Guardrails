@@ -707,3 +707,16 @@ Guardrails server rejects all streaming requests unconditionally (api.py:625 —
 - OSL classification thresholds (1–5 = overload, 6–20 = blocked, >20 = safe) were validated against the OSL distribution: no records fall in the 12–20 range, confirming a clean natural separator
 - RAG/Agent cross-engine block rate comparisons are not reliable: aiperf regenerates the input corpus independently for each engine run, so different Shakespeare passages are sampled
 - `benchmark_duration: 300` per concurrency level (updated from 120s to amortize transient artifacts)
+
+---
+
+## Scenario Sweeps v6 (2026-11-24, NIM upgrade to 2.1.7) ← latest
+**Hardware:** 8× H100 80GB (Brev node brev-sax6j9j37)
+**NIMs:** 6× Nemotron 3 Nano 2.1.7 (GPUs 0–5, ports 8010–8015, nginx → port 8000) + 2× Nemotron 3.5 Content Safety 2.1.7 (GPUs 6–7, ports 8001–8002, nginx → port 8003)
+**Guardrails:** branch dev/schilton/iorails-vs-llmrails-benchmarking
+**Key changes vs v5:**
+- NIM upgrade: Nemotron 3 Nano 2.0.10 → 2.1.7; Nemotron 3.5 Content Safety 2.0.5-variant → 2.1.7
+- `-variant` suffix dropped for Content Safety in 2.1.x (single unified tag)
+- Same data-parallel layout, datasets, and aiperf config as v5 — this is a new baseline after the NIM upgrade
+
+**Results:** TBD — sweep not yet run as of 2026-11-24
