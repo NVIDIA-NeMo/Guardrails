@@ -90,6 +90,17 @@ Change into the benchmark directory:
 cd /ephemeral/Guardrails/benchmark
 ```
 
+Before the first sweep, sanity-check that Guardrails is responding and Nano returns real content (not null):
+
+```bash
+curl -s -X POST http://localhost:9000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"nvidia/nemotron-3-nano","messages":[{"role":"user","content":"What is 2+2?"}],"max_tokens":100}' \
+  | python3 -m json.tool | grep -A3 '"content"'
+```
+
+Expected: `"content": "4"` (or similar). Note: use the NIM model name `nvidia/nemotron-3-nano`, **not** the config ID `iorails_vs_llmrails_benchmark` — the server resolves the config via `--default-config-id` independently of the `model` field.
+
 Run all four scenarios against the active engine (replace `iorails` with `llmrails` as appropriate):
 
 ```bash
