@@ -24,7 +24,7 @@ docker run -d --gpus '"device=0,1"' \
 docker run -d --gpus '"device=2"' \
   -e NGC_API_KEY=$NVIDIA_API_KEY \
   -v /ephemeral/nim-cache:/opt/nim/.cache \
-  -p 8001:8001 \
+  -p 8001:8000 \
   nvcr.io/nim/nvidia/nemotron-3.5-content-safety:2.1.7
 ```
 
@@ -137,7 +137,7 @@ for i in 6 7; do
   docker run -d --gpus "\"device=$i\"" \
     -e NGC_API_KEY=$NVIDIA_API_KEY \
     -v /ephemeral/nim-cache:/opt/nim/.cache \
-    -p $((8001 + i - 6)):8001 \
+    -p $((8001 + i - 6)):8000 \
     nvcr.io/nim/nvidia/nemotron-3.5-content-safety:2.1.7
 done
 # Replicas on ports 8001–8002
