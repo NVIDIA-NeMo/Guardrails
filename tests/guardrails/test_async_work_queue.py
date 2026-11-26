@@ -26,6 +26,7 @@ These tests verify the async work queue implementation including:
 """
 
 import asyncio
+from contextvars import ContextVar
 from typing import Any
 
 import pytest
@@ -118,6 +119,95 @@ class TestBasicFunctionality:
             assert result1 == 4
             assert result2 == 9
             assert result3 == 16
+
+
+class TestContextPropagation:
+    """Each item runs in its submitter's context, not the worker's startup context."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("fail", [False, True])
+    async def test_context_isolated_across_reused_worker(self, fail):
+        value = ContextVar("value", default="unset")
+
+        async def read_and_modify():
+            before = value.get()
+            value.set("modified")
+            await asyncio.sleep(0)
+            if fail:
+                raise ValueError(before)
+            return before
+
+        async def read():
+            await asyncio.sleep(0)
+            return value.get()
+
+        queue = AsyncWorkQueue[str](name="context_queue", max_queue_size=10, max_concurrency=1)
+        token = value.set("startup")
+        try:
+            await queue.start()
+        finally:
+            value.reset(token)
+        try:
+            for expected in ("first", "second"):
+                token = value.set(expected)
+                try:
+                    if fail:
+                        with pytest.raises(ValueError, match=expected):
+                            await queue.submit(read_and_modify)
+                    else:
+                        assert await queue.submit(read_and_modify) == expected
+                    assert value.get() == expected
+                finally:
+                    value.reset(token)
+            assert await queue.submit(read) == "unset"
+        finally:
+            await queue.stop()
+
+    @pytest.mark.asyncio
+    async def test_concurrent_submitters_have_distinct_contexts(self):
+        value = ContextVar("value", default="unset")
+        release = asyncio.Event()
+
+        async def read_and_modify():
+            before = value.get()
+            value.set(f"{before}-modified")
+            await release.wait()
+            return before, value.get()
+
+        async def submit(queue, expected):
+            token = value.set(expected)
+            try:
+                result = await queue.submit(read_and_modify)
+                assert value.get() == expected
+                return result
+            finally:
+                value.reset(token)
+
+        async with AsyncWorkQueue[tuple[str, str]](name="context_queue", max_queue_size=10, max_concurrency=2) as queue:
+            tasks = [asyncio.create_task(submit(queue, expected)) for expected in ("first", "second", "third")]
+            try:
+                await wait_for_queue_state(queue, busy=2, pending=1)
+            finally:
+                release.set()
+            results = await asyncio.gather(*tasks)
+            assert results == [(expected, f"{expected}-modified") for expected in ("first", "second", "third")]
+        assert value.get() == "unset"
+
+    @pytest.mark.asyncio
+    async def test_callable_returning_future_runs_in_submitter_context(self):
+        value = ContextVar("value", default="unset")
+
+        def read():
+            future = asyncio.get_running_loop().create_future()
+            future.set_result(value.get())
+            return future
+
+        async with AsyncWorkQueue[str](name="context_queue", max_queue_size=10, max_concurrency=1) as queue:
+            token = value.set("request")
+            try:
+                assert await queue.submit(read) == "request"
+            finally:
+                value.reset(token)
 
 
 class TestConcurrency:
@@ -335,6 +425,33 @@ class TestCancellation:
             assert isinstance(results[2], asyncio.CancelledError)
             assert isinstance(results[3], asyncio.CancelledError)
             assert isinstance(results[4], asyncio.CancelledError)
+
+    @pytest.mark.asyncio
+    async def test_stop_cancels_running_item_and_waits_for_cleanup(self):
+        started = asyncio.Event()
+        cleaned_up = asyncio.Event()
+
+        async def blocking_task():
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                await asyncio.sleep(0)
+                cleaned_up.set()
+
+        queue = AsyncWorkQueue[None](name="test_queue", max_queue_size=10, max_concurrency=1)
+        await queue.start()
+        submission = asyncio.create_task(queue.submit(blocking_task))
+        try:
+            await asyncio.wait_for(started.wait(), timeout=5)
+            await queue.stop(wait_for_completion=False)
+            assert cleaned_up.is_set()
+            assert queue.num_busy_workers() == 0
+            await asyncio.wait_for(queue._queue.join(), timeout=5)
+        finally:
+            submission.cancel()
+            await asyncio.gather(submission, return_exceptions=True)
+            await queue.stop(wait_for_completion=False)
 
 
 class TestLifecycle:

@@ -402,6 +402,49 @@ class TestSpanHierarchy:
     """Tests that verify parent-child span relationships across the full pipeline."""
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("method_name", ["check_async", "generate_async"])
+    @pytest.mark.parametrize("lazy_start", [False, True])
+    @pytest.mark.parametrize("concurrent", [False, True])
+    async def test_requests_inherit_their_own_http_parent(
+        self, iorails_tracing, exporter, tracer_from_provider, method_name, lazy_start, concurrent
+    ):
+        """Reused workers must not detach requests or retain their first HTTP parent."""
+        await iorails_tracing._generate_async_queue.stop()
+        if not lazy_start:
+            await iorails_tracing._generate_async_queue.start()
+        _stub_deep_pipeline(iorails_tracing)
+        method = getattr(iorails_tracing, method_name)
+
+        async def request():
+            with tracer_from_provider.start_as_current_span("POST /v1/checks", kind=SpanKind.SERVER) as parent:
+                await method(messages=[{"role": "user", "content": "hi"}])
+                return parent.get_span_context()
+
+        parents = [await request()]
+        if concurrent:
+            parents.extend(await asyncio.gather(request(), request()))
+        else:
+            parents.extend([await request(), await request()])
+
+        spans = exporter.get_finished_spans()
+        assert len({parent.trace_id for parent in parents}) == 3
+        assert {span.context.trace_id for span in spans} == {parent.trace_id for parent in parents}
+        for parent in parents:
+            trace_spans = [span for span in spans if span.context.trace_id == parent.trace_id]
+            requests = [span for span in trace_spans if span.name == "guardrails.request"]
+            assert len(requests) == 1
+            assert requests[0].parent.span_id == parent.span_id
+            assert requests[0].attributes["request.id"] == format_trace_id(parent.trace_id)[-REQUEST_ID_HEX_CHARS:]
+            assert any(span.name == "guardrails.rail" for span in trace_spans)
+            assert any(span.name == "guardrails.action" for span in trace_spans)
+            assert any(span.kind == SpanKind.CLIENT for span in trace_spans)
+            by_id = {span.context.span_id: span for span in trace_spans}
+            for span in trace_spans:
+                if span.context.span_id != parent.span_id:
+                    assert span.parent is not None
+                    assert span.parent.span_id in by_id
+
+    @pytest.mark.asyncio
     async def test_span_hierarchy_on_safe_request(self, iorails_tracing, exporter):
         """Full safe request produces: request → rail → action → LLM/API spans."""
         _stub_deep_pipeline(iorails_tracing)
