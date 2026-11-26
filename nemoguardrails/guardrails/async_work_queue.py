@@ -15,6 +15,7 @@
 
 import asyncio
 import logging
+from contextvars import Context, copy_context
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, Generic, List, Tuple, TypeVar
 
@@ -32,6 +33,11 @@ class WorkItem(Generic[T]):
     args: Tuple[Any, ...]
     kwargs: Dict[str, Any]
     future: asyncio.Future[T]
+    context: Context
+
+    async def run(self) -> T:
+        """Invoke the callable inside the task's context, including non-coroutine awaitables."""
+        return await self.func(*self.args, **self.kwargs)
 
 
 class AsyncWorkQueue(Generic[T]):
@@ -120,6 +126,7 @@ class AsyncWorkQueue(Generic[T]):
             - self._reject_on_full=True  -> Raises asyncio.QueueFull
             - self._reject_on_full=False -> Blocks caller until slot opens
 
+        Captures the submitter's context for isolated execution on a worker.
         Note: Automatically starts the queue on first submission (lazy initialization).
         """
         # Lazy initialization: auto-start on first use
@@ -130,7 +137,7 @@ class AsyncWorkQueue(Generic[T]):
         loop = asyncio.get_running_loop()
         future = loop.create_future()
 
-        item = WorkItem(func, args, kwargs, future)
+        item = WorkItem(func, args, kwargs, future, copy_context())
 
         # If the queue is full, this will raise an asyncio.QueueFull exception to be caught
         # at a higher-level object (e.g. FastAPI to return a 429 or 503 error)
@@ -152,7 +159,8 @@ class AsyncWorkQueue(Generic[T]):
 
                 try:
                     self._busy_count += 1  # No race condition since it's not await'ed
-                    result = await item.func(*item.args, **item.kwargs)
+                    task = asyncio.create_task(item.run(), context=item.context)
+                    result = await task
                     if not item.future.cancelled():
                         item.future.set_result(result)
                 except Exception as e:

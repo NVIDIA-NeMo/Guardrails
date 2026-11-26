@@ -225,6 +225,7 @@ guardrails.request                  SERVER     one per generate_async(), stream_
 
 - The main generation call is a child of `guardrails.request`.
 - An LLM or API call made by a rail action is a child of that `guardrails.action` span.
+- Non-streaming `generate_async()` and `check_async()` calls propagate the caller's trace context through the admission queue. If you instrument the HTTP server, `guardrails.request` is a child of the active HTTP request span in the same trace. Reused workers preserve each caller's context separately. Without an active parent span, each call starts a new trace.
 - Streaming requests propagate trace context across the internal task boundary, so streamed spans keep the same parent.
 - A [rails-only check](/run-guardrailed-inference/using-python-apis/check-messages) produces the same tree without the top-level `chat {model}` span because the check makes no main-model call.
   LLM and API calls from rail actions still appear beneath those actions.
