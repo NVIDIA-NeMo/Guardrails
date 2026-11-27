@@ -27,7 +27,7 @@ from __future__ import annotations
 import importlib.metadata
 import inspect
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget, require_rail_outcome
@@ -51,6 +51,7 @@ from nemoguardrails.types import ToolCall
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
 
+    from nemoguardrails.decisions.model import DecisionModel
     from nemoguardrails.http import HTTPClient
     from nemoguardrails.logging.explain import LLMCallInfo
     from nemoguardrails.manifests import RailCatalog
@@ -81,6 +82,7 @@ class RailDependencies:
     model_caches: Optional[Mapping[str, Any]] = None
     http_client: Optional["HTTPClient"] = None
     tracer: Optional["Tracer"] = None
+    decision_models: Mapping[str, "DecisionModel"] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -302,6 +304,7 @@ class CompiledRail:
         """Every value injectable by parameter name; the caller filters against the signature."""
         return {
             "llms": self._deps.llms,
+            "decision_models": self._deps.decision_models,
             "llm": self._deps.llms.get("main"),
             "llm_task_manager": self._deps.llm_task_manager,
             "config": self._deps.config,
@@ -508,6 +511,9 @@ def _reject_unconfigured_models(bound: tuple[_BoundParameter, ...], deps: RailDe
     ``$model=`` and a model type baked into the manifest without coupling compilation to the
     action parameter's name.
     """
+    for param in bound:
+        if param.resource == "decision_model" and param.value not in deps.decision_models:
+            raise RailCompilationError(f"{flow!r} requires a native decision model named {param.value!r}")
     missing = sorted(
         {str(param.value) for param in bound if param.resource == "model" and param.value not in deps.llms}
     )

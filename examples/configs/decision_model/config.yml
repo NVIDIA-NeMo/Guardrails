@@ -1,0 +1,34 @@
+models:
+  - type: support_judge  # Referenced by $model in decision model checks
+    engine: system_one  # Native decision API for noul and choice questions
+    model: jev-latest
+    api_key_env_var: TYPESAFE_API_KEY
+    parameters:
+      base_url: https://api.typesafe.ai
+
+rails:
+  output:
+    flows:
+      - decision model check output $rule=password_request $model=support_judge
+      - decision model check output $rule=refund_promise $model=support_judge
+
+  config:
+    decision_model:
+      rules:
+        password_request:
+          question:
+            type: noul
+            instructions: Does the assistant ask the customer to share their password?
+          block_if:
+            probability_at_least: 0.90
+
+        refund_promise:
+          question:
+            type: choice
+            instructions: Which refund commitment does the assistant make?
+            choices:
+              promised: The reply guarantees a refund.
+              conditional: The reply offers to check eligibility.
+              neither: The reply makes neither commitment.
+          block_if:
+            choice_in: [promised]

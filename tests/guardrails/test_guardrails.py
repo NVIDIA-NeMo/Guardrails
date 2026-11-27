@@ -2230,6 +2230,7 @@ class TestScopeGateCharacterization:
             ("output", "cleanlab trustworthiness"),
             ("output", "content safety check output"),
             ("output", "crowdstrike aidr guard output"),
+            ("output", "decision model check output"),
             ("output", "detect pii on output"),
             ("output", "detect sensitive data on output"),
             ("output", "f5 guardrails scan output"),

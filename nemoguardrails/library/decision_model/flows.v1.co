@@ -1,0 +1,11 @@
+define bot refuse to respond
+  "I'm sorry, I can't respond to that."
+
+define subflow decision model check output
+  $response = execute decision_model_check_output(rule=$rule, model_name=$model, bot_message=$bot_message)
+  if $response.is_blocked
+    if $config.enable_rails_exceptions
+      create event OutputRailException(message="Output blocked by decision model check.")
+    else
+      bot refuse to respond
+    stop

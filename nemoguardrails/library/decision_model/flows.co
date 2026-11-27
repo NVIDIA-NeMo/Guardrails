@@ -1,0 +1,9 @@
+flow decision model check output $rule $model
+  global $bot_message
+  $response = await DecisionModelCheckOutputAction(rule=$rule, model_name=$model, bot_message=$bot_message)
+  if $response.is_blocked
+    if $system.config.enable_rails_exceptions
+      send OutputRailException(message="Output blocked by decision model check.")
+    else
+      bot refuse to respond
+    abort

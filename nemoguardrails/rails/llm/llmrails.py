@@ -64,6 +64,7 @@ from nemoguardrails.context import (
     raw_llm_request,
     streaming_handler_var,
 )
+from nemoguardrails.decisions.model import DECISION_ADAPTERS, decision_models
 from nemoguardrails.deprecation import COLANG_2_ALTERNATIVE, called_from_package, warn_llmrails_removal
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers import register_embedding_provider
@@ -608,9 +609,13 @@ class LLMRails(BaseGuardrails):
         from nemoguardrails._compat.langchain_kwargs import check_langchain_kwargs
         from nemoguardrails.llm.frameworks import get_default_framework
 
-        models_to_check = (
-            [model for model in self.config.models if model.type != "main"] if self.llm else self.config.models
-        )
+        native_models = decision_models(self.config.models)
+        self.runtime.register_action_param("decision_models", native_models)
+        models_to_check = [
+            model
+            for model in self.config.models
+            if model.engine not in DECISION_ADAPTERS and not (self.llm and model.type == "main")
+        ]
         check_langchain_kwargs(models_to_check, get_default_framework())
 
         # If the user supplied an already-constructed LLM via the constructor we
@@ -647,7 +652,7 @@ class LLMRails(BaseGuardrails):
         llms = dict()
 
         for llm_config in self.config.models:
-            if llm_config.type in ["embeddings", "jailbreak_detection"]:
+            if llm_config.type in ["embeddings", "jailbreak_detection"] or llm_config.engine in DECISION_ADAPTERS:
                 continue
 
             # If a constructor LLM is provided, skip initializing any 'main' model from config
@@ -1066,6 +1071,14 @@ class LLMRails(BaseGuardrails):
             log.warning("No main LLM specified in the config and no LLM provided via constructor.")
 
         if streaming_handler:
+            output_rails_enabled = gen_options is None or gen_options.rails.output is not False
+            if self._has_colang2_decision_output_rail() or (
+                output_rails_enabled
+                and any(
+                    _normalize_flow_id(flow) == "decision model check output" for flow in self.config.rails.output.flows
+                )
+            ):
+                raise StreamingNotSupportedError("Decision model checks require the complete assistant reply.")
             tool_call_rails_enabled = self.config.rails.tool_call.flows and (
                 gen_options is None or gen_options.rails.tool_call
             )
@@ -1430,7 +1443,18 @@ class LLMRails(BaseGuardrails):
                     new_message["tool_calls"] = tool_calls
                 return new_message
 
+    def _has_colang2_decision_output_rail(self) -> bool:
+        # Colang 2 dispatches the output flow (including subflows) independently of the YAML
+        # flow list and per-request rail options. Decide before passthrough can emit tokens.
+        return (
+            isinstance(self.runtime, RuntimeV2_x)
+            and "output rails" in self.runtime.flow_configs
+            and "decision model check output" in self.runtime.flow_configs
+        )
+
     def _validate_streaming_with_output_rails(self) -> None:
+        if self._has_colang2_decision_output_rail():
+            raise StreamingNotSupportedError("Decision model checks require the complete assistant reply.")
         if len(self.config.rails.output.flows) > 0 and (
             not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled
         ):

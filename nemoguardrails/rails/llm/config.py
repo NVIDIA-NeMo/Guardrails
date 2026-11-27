@@ -16,6 +16,7 @@
 """Module for the configuration of rails."""
 
 import importlib.metadata
+import json
 import logging
 import os
 import warnings
@@ -993,21 +994,17 @@ def _load_imported_paths(raw_config: dict, colang_files: List[Tuple[str, str]]):
             raw_config["imported_paths"][import_path] = actual_path
 
 
-def _parse_colang_files_recursively(
+def _parse_pending_colang_files(
     raw_config: dict,
     colang_files: List[Tuple[str, str]],
     parsed_colang_files: List[dict],
 ):
-    """Helper function to parse all the Colang files.
-
-    If there are imports, they will be imported recursively
-    """
+    """Parse queued files and any imports they add to the queue."""
     from nemoguardrails.colang import parse_colang_file
     from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
     from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
 
     colang_version = raw_config.get("colang_version", "1.0")
-    _rails_parsed_config = None
 
     # We start parsing the colang files one by one, and if we have
     # new import paths, we continue to update
@@ -1038,16 +1035,22 @@ def _parse_colang_files_recursively(
         if raw_config.get("import_paths"):
             _load_imported_paths(raw_config, colang_files)
 
-    if colang_version == "2.x" and _has_input_output_config_rails(raw_config):
-        rails_flows = _get_rails_flows(raw_config)
-        flow_definitions = "\n".join(_generate_rails_flows(rails_flows))
 
-        current_file = "INTRINSIC_FLOW_GENERATION"
+def _parse_colang_files_recursively(
+    raw_config: dict,
+    colang_files: List[Tuple[str, str]],
+    parsed_colang_files: List[dict],
+):
+    from nemoguardrails.colang import parse_colang_file
 
-        _rails_parsed_config = parse_colang_file(current_file, content=flow_definitions, version=colang_version)
-
-    if _rails_parsed_config:
-        parsed_colang_files.append(_rails_parsed_config)
+    _parse_pending_colang_files(raw_config, colang_files, parsed_colang_files)
+    if raw_config.get("colang_version") == "2.x" and _has_input_output_config_rails(raw_config):
+        definitions = "\n".join(_generate_rails_flows(_get_rails_flows(raw_config)))
+        generated = parse_colang_file("INTRINSIC_FLOW_GENERATION", definitions, version="2.x")
+        _join_config(raw_config, {"import_paths": generated["import_paths"]})
+        _load_imported_paths(raw_config, colang_files)
+        _parse_pending_colang_files(raw_config, colang_files, parsed_colang_files)
+        parsed_colang_files.append(generated)
     # To allow overriding of elements from imported paths, we need to merge the
     # parsed data in reverse order.
     for file_parsed_data in reversed(parsed_colang_files):
@@ -1253,6 +1256,35 @@ class RailsConfig(BaseModel):
                     f"Output flow '{flow_id}' references model type '{flow_model}' that is not defined in the configuration. Detected model types: {available_types}."
                 )
         return values
+
+    @model_validator(mode="after")
+    def validate_decision_models(self) -> "RailsConfig":
+        from nemoguardrails.decisions.model import DECISION_ADAPTERS, DecisionParameters
+        from nemoguardrails.manifests import parse_configured_surface
+
+        native_types = {model.type for model in self.models if model.engine in DECISION_ADAPTERS}
+        for model in self.models:
+            if model.engine not in DECISION_ADAPTERS:
+                continue
+            name = model.type
+            if name in {"main", "embeddings", "jailbreak_detection"} or sum(m.type == name for m in self.models) != 1:
+                raise ValueError("Native decision deployments require unique, non-reserved model types")
+            DecisionParameters.from_deployment(model)
+        for flow in self.rails.output.flows:
+            if _normalize_flow_id(flow) != "decision model check output":
+                continue
+            _, params = parse_configured_surface(flow)
+            if params.keys() != {"rule", "model"}:
+                raise ValueError("decision model check output requires $rule and $model")
+            if params["model"] not in native_types:
+                raise ValueError(f"Expected native decision model for {flow!r}")
+            if params["rule"] not in self.rails.config.decision_model.rules:
+                raise ValueError(
+                    f"Undefined decision rule {params['rule']!r}. Define it under rails.config.decision_model.rules."
+                )
+            if self.rails.output.streaming.enabled:
+                raise ValueError("Decision checks require the complete assistant reply; disable output rail streaming")
+        return self
 
     # An "after" validator, unlike its input/output twins, reads the typed `rails` fields,
     # so it also covers configs that still use the deprecated `tool_output`/`tool_input` keys.
@@ -1527,6 +1559,8 @@ class RailsConfig(BaseModel):
         if os.path.isfile(config_path) and config_path.endswith((".yaml", ".yml")):
             with open(config_path) as f:
                 raw_config = yaml.safe_load(f.read())
+            if raw_config.get("colang_version") == "2.x" and _has_input_output_config_rails(raw_config):
+                _parse_colang_files_recursively(raw_config, [], [])
 
         elif os.path.isdir(config_path):
             raw_config, colang_files = _load_path(config_path)
@@ -1732,35 +1766,36 @@ def _get_rails_flows(raw_config):
 
 
 def _generate_rails_flows(flows):
-    """Generates flow definitions from the list of flows.
-    Args:
-        flows (dict): The dictionary of flows.
-    Returns:
-        str: The flow definitions.
-    """
-    _MAPPING = {
-        "input": "flow input rails $input_text",
-        "output": "flow output rails $output_text",
-    }
+    """Generate the Colang 2 input and output flows configured in YAML."""
+    from nemoguardrails.manifests import default_rail_catalog, parse_configured_surface
 
-    _GUARDRAILS_IMPORT = "import guardrails"
-    _LIBRARY_IMPORT = "import nemoguardrails.library"
+    catalog = default_rail_catalog()
+    imports = {"guardrails"}
 
     flow_definitions = []
-    _INDENT = "    "  # 4 spaces for indentation
-    _NEWLINE = "\n"
+    for direction, references in flows.items():
+        if not references:
+            continue
+        if direction not in ("input", "output"):
+            raise ValueError(f"Colang 2 cannot generate a {direction} rail flow from YAML")
+        flow_definitions.append(f"flow {direction} rails ${direction}_text")
+        for reference in references:
+            name = _normalize_flow_id(reference)
+            owner = catalog.owner_for_flow(name)
+            if owner:
+                imports.add(catalog.records[owner].source.rsplit(".", 1)[0])
+            if name == "decision model check output":
+                _, params = parse_configured_surface(reference)
+                if params.keys() != {"rule", "model"}:
+                    raise ValueError("decision model check output requires $rule and $model")
+                # Colang expands $variables and {expressions} even inside quoted strings.
+                escapes = str.maketrans({"$": r"\u0024", "{": r"\u007b", "}": r"\u007d"})
+                args = [json.dumps(params[param], ensure_ascii=False).translate(escapes) for param in ("rule", "model")]
+                reference = f"{name}({', '.join(args)})"
+            flow_definitions.append(f"    {reference}")
+        flow_definitions.append("")
 
-    for key, value in flows.items():
-        flow_definitions.append(_MAPPING[key] + _NEWLINE)
-        for v in value:
-            flow_definitions.append(_INDENT + v + _NEWLINE)
-        flow_definitions.append(_NEWLINE)  # Add an empty line after each flow
-
-    if flow_definitions:
-        flow_definitions.insert(0, _GUARDRAILS_IMPORT + _NEWLINE)
-        flow_definitions.insert(1, _LIBRARY_IMPORT + _NEWLINE * 2)
-
-    return flow_definitions
+    return [f"import {module}" for module in sorted(imports)] + flow_definitions
 
 
 MODEL_PREFIX = "$model="

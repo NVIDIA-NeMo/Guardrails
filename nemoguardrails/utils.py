@@ -515,14 +515,7 @@ def _normalize_flow_id(flow_id: str) -> str:
         _normalize_flow_id(flow_id) -> "flow_id_v1"
 
     """
-    flow_id = flow_id.strip()
-    if "(" in flow_id:
-        flow_id = flow_id.split("(")[0]
-
-    elif "$" in flow_id:
-        flow_id = flow_id.split("$")[0]
-
-    return flow_id.strip()
+    return flow_id.partition("$")[0].partition("(")[0].strip()
 
 
 def _get_flow_params(flow_id: str) -> dict:
@@ -537,6 +530,14 @@ def _get_flow_params(flow_id: str) -> dict:
     flow_id = flow_id.strip()
     params = {}
 
+    if flow_id.count("$") > 1 and "$" in flow_id.partition("(")[0]:
+        from nemoguardrails.manifests.surface_reference import parse_configured_surface
+
+        try:
+            return parse_configured_surface(flow_id)[1]
+        except ValueError:
+            # Fall through to the legacy Colang argument syntax.
+            pass
     if "(" in flow_id and ")" in flow_id:
         arg_string = flow_id.split("(")[1].split(")")[0]
     elif "$" in flow_id:

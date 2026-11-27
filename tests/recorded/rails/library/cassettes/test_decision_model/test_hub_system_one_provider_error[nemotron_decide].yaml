@@ -1,0 +1,44 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/systemone
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-decide
+      state:
+        bot_message: I can check eligibility.
+      questions:
+        password_request:
+          type: noul
+          instructions: Does the assistant ask the customer to share their password?
+  response:
+    status:
+      code: 401
+      message: Unauthorized
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      cache-control:
+      - no-store
+      www-authenticate:
+      - Bearer realm="inference-hub", error="invalid_token", error_description="The credential is invalid or expired"
+    body:
+      parsed_body:
+        code: invalid_credential
+        message: The credential is invalid or expired. Obtain a new credential and retry.
+        request_id: 0c220c39-ea99-4932-a63d-1fdd460d5bc3

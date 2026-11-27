@@ -1,0 +1,107 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/systemone
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-decide
+      state:
+        bot_message: I can check whether you qualify.
+      questions:
+        password_request:
+          type: noul
+          instructions: Does the assistant ask the customer to share their password?
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+        model: nemotron-decide
+        answers:
+          password_request:
+            type: noul
+            noul: 0.005220126312597491
+        usage:
+          input_tokens: 144
+          output_tokens: 1
+        metrics:
+          seconds: 0.027452711015939713
+          questions: 1
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/v1/systemone
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: nvidia/nvidia/nemotron-decide
+      state:
+        bot_message: I can check whether you qualify.
+      questions:
+        refund_promise:
+          type: choice
+          instructions: Which refund commitment does the assistant make?
+          criteria:
+            promised: The reply guarantees a refund.
+            conditional: The reply offers to check eligibility.
+            neither: The reply makes neither commitment.
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+        model: nemotron-decide
+        answers:
+          refund_promise:
+            type: choice
+            choice: conditional
+            confidence: 0.9943991217155114
+            probabilities:
+              promised: 0.0009958970376056735
+              conditional: 0.9943991217155114
+              neither: 0.004604981246883089
+        usage:
+          input_tokens: 165
+          output_tokens: 1
+        metrics:
+          seconds: 0.03101372718811035
+          questions: 1

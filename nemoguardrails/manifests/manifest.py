@@ -55,7 +55,7 @@ RailCapability = Literal[
 ]
 RailLifecycle = Literal["stable", "experimental", "deprecated"]
 BindingKind = Literal["surface_param", "context", "literal"]
-BindingResource = Literal["model"]
+BindingResource = Literal["model", "decision_model"]
 
 
 class RailDirection(str, Enum):
@@ -186,7 +186,7 @@ class Binding(BaseModel):
             raise ValueError("Literal bindings cannot declare a source key.")
         if self.kind != "literal" and self.key is None:
             raise ValueError(f"{self.kind} bindings must declare a source key.")
-        if self.resource == "model" and self.kind == "context":
+        if self.resource is not None and self.kind == "context":
             raise ValueError("Model bindings cannot read the model type from request context.")
         return self
 
@@ -232,12 +232,14 @@ class Binding(BaseModel):
         return cls(kind="literal", action_param=action_param, value=value)
 
     @classmethod
-    def model_param(cls, action_param: str, name: str, *, required: bool = True) -> "Binding":
+    def model_param(
+        cls, action_param: str, name: str, *, required: bool = True, resource: BindingResource = "model"
+    ) -> "Binding":
         """Bind an action parameter to a configurable model type.
 
         The returned binding reads the model type from a configured surface
-        parameter and sets `resource="model"`, allowing the runtime to validate
-        the resolved model before invoking the action. For example,
+        parameter and identifies its resource family, allowing the runtime to
+        validate the resolved model before invoking the action. For example,
         `Binding.model_param("model_name", "model")` binds `$model=content_safety`
         to `model_name="content_safety"`.
 
@@ -245,6 +247,7 @@ class Binding(BaseModel):
             action_param: Name of the action parameter receiving the model type.
             name: Name of the surface parameter that selects the model type.
             required: Whether the surface parameter must be provided.
+            resource: Model family against which to resolve the supplied name.
 
         Returns:
             A model resource binding backed by a surface parameter.
@@ -254,7 +257,7 @@ class Binding(BaseModel):
             action_param=action_param,
             key=name,
             required=required,
-            resource="model",
+            resource=resource,
         )
 
     @classmethod

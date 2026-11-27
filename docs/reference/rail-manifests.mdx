@@ -158,13 +158,14 @@ Use binding constructors to identify where each action argument comes from:
 | `Binding.surface_param("threshold", "threshold")` | A generic parameter supplied with the configured surface. |
 | `Binding.literal("source", "input")` | A constant declared by the manifest. |
 | `Binding.model_param("model_name", "model")` | A model type selected by a configured surface parameter. |
+| `Binding.model_param("model_name", "model", resource="decision_model")` | A native decision deployment selected by the configured surface. |
 | `Binding.model("model_name", "llama_guard")` | A fixed model type declared by the manifest. |
 
-Use `Binding.model_param` or `Binding.model` whenever the resolved value identifies a configured model type. These helpers set `resource="model"` so the runtime validates the model before invoking the action. A model resource cannot read its type from request context.
+Use `Binding.model_param` or `Binding.model` whenever the resolved value identifies a configured model type. The default resource is `"model"`. The runtime validates the reference against its resource family before invoking the action. A model resource cannot read its type from request context.
 
 Manifest-driven IORails supplies conversation values only through explicit `Binding.context` entries. Declaring an action parameter named `context` does not inject the complete context dictionary on this execution path. Bind each conversation input the action requires.
 
-The manifest does not bind runtime-owned collaborators. IORails injects `llms`, `llm`, `llm_task_manager`, `config`, `http_client`, `model_caches`, and `events` into actions that declare those parameters.
+The manifest does not bind runtime-owned collaborators. IORails injects `llms`, `llm`, `decision_models`, `llm_task_manager`, `config`, `http_client`, `model_caches`, and `events` into actions that declare those parameters.
 
 Set `required=False` on a context or surface-parameter binding only when the action can operate without that value. A surface cannot bind the same action parameter more than once.
 

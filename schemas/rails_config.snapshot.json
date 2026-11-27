@@ -97,6 +97,59 @@
       "title": "CelOptions",
       "type": "object"
     },
+    "ChoiceQuestionConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "choices": {
+          "additionalProperties": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minProperties": 2,
+          "propertyNames": {
+            "minLength": 1
+          },
+          "title": "Choices",
+          "type": "object"
+        },
+        "instructions": {
+          "minLength": 1,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "type": {
+          "const": "choice",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "instructions",
+        "choices"
+      ],
+      "title": "ChoiceQuestionConfig",
+      "type": "object"
+    },
+    "ChoiceRule": {
+      "additionalProperties": false,
+      "properties": {
+        "choice_in": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Choice In",
+          "type": "array"
+        }
+      },
+      "required": [
+        "choice_in"
+      ],
+      "title": "ChoiceRule",
+      "type": "object"
+    },
     "ClavataRailConfig": {
       "description": "Configuration data for the Clavata API",
       "properties": {
@@ -262,6 +315,64 @@
         }
       },
       "title": "CrowdStrikeAIDRRailConfig",
+      "type": "object"
+    },
+    "DecisionModelConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DecisionRule"
+          },
+          "description": "Named rules selected by $rule in decision model flows.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "title": "Rules",
+          "type": "object"
+        }
+      },
+      "title": "DecisionModelConfig",
+      "type": "object"
+    },
+    "DecisionRule": {
+      "additionalProperties": false,
+      "properties": {
+        "block_if": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProbabilityRule"
+            },
+            {
+              "$ref": "#/$defs/ChoiceRule"
+            }
+          ],
+          "title": "Block If"
+        },
+        "question": {
+          "discriminator": {
+            "mapping": {
+              "choice": "#/$defs/ChoiceQuestionConfig",
+              "noul": "#/$defs/NoulQuestionConfig"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NoulQuestionConfig"
+            },
+            {
+              "$ref": "#/$defs/ChoiceQuestionConfig"
+            }
+          ],
+          "title": "Question"
+        }
+      },
+      "required": [
+        "question",
+        "block_if"
+      ],
+      "title": "DecisionRule",
       "type": "object"
     },
     "F5GuardrailsRailConfig": {
@@ -811,6 +922,27 @@
       "title": "MultilingualConfig",
       "type": "object"
     },
+    "NoulQuestionConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "instructions": {
+          "minLength": 1,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "type": {
+          "const": "noul",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "instructions"
+      ],
+      "title": "NoulQuestionConfig",
+      "type": "object"
+    },
     "PangeaRailConfig": {
       "description": "Configuration data for the Pangea AI Guard API",
       "properties": {
@@ -1011,6 +1143,22 @@
         }
       },
       "title": "PrivateAIDetectionOptions",
+      "type": "object"
+    },
+    "ProbabilityRule": {
+      "additionalProperties": false,
+      "properties": {
+        "probability_at_least": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Probability At Least",
+          "type": "number"
+        }
+      },
+      "required": [
+        "probability_at_least"
+      ],
+      "title": "ProbabilityRule",
       "type": "object"
     },
     "ReasoningConfig": {
@@ -1316,6 +1464,9 @@
         }
       ],
       "description": "Configuration for CrowdStrike AIDR."
+    },
+    "decision_model": {
+      "$ref": "#/$defs/DecisionModelConfig"
     },
     "f5": {
       "anyOf": [

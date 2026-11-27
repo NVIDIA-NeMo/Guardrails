@@ -1,0 +1,157 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/decisions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-6-luna
+      input:
+      - role: user
+        content:
+        - type: input_json
+          data:
+            bot_message: I can check whether you qualify.
+      questions:
+      - name: password_request
+        type: predicate
+        instructions: Does the assistant ask the customer to share their password?
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      vary:
+      - origin, access-control-request-method, access-control-request-headers
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - x-request-id,retry-after,server-timing-total
+      - CF-Ray
+      server-timing-total:
+      - '452.749'
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        model: gpt-6-luna
+        answers:
+        - type: predicate
+          name: password_request
+          probability: 0.0
+        usage:
+          input_tokens: 171
+          input_tokens_details:
+            cached_tokens: 0
+            cache_write_tokens: 0
+          output_tokens: 0
+          output_tokens_details:
+            reasoning_tokens: 0
+          total_tokens: 171
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/decisions
+    headers:
+      host:
+      - api.openai.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: gpt-6-luna
+      input:
+      - role: user
+        content:
+        - type: input_json
+          data:
+            bot_message: I can check whether you qualify.
+      questions:
+      - name: refund_promise
+        type: choice
+        instructions: Which refund commitment does the assistant make?
+        choices:
+        - value: promised
+          description: The reply guarantees a refund.
+        - value: conditional
+          description: The reply offers to check eligibility.
+        - value: neither
+          description: The reply makes neither commitment.
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      transfer-encoding:
+      - chunked
+      connection:
+      - keep-alive
+      vary:
+      - origin, access-control-request-method, access-control-request-headers
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - x-request-id,retry-after,server-timing-total
+      - CF-Ray
+      server-timing-total:
+      - '325.606'
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      alt-svc:
+      - h3=":443"; ma=86400
+    body:
+      parsed_body:
+        model: gpt-6-luna
+        answers:
+        - type: choice
+          name: refund_promise
+          choice: conditional
+          probabilities:
+          - value: promised
+            probability: 0.0
+          - value: conditional
+            probability: 0.99
+          - value: neither
+            probability: 0.01
+          confidence: 0.99
+        usage:
+          input_tokens: 144
+          input_tokens_details:
+            cached_tokens: 0
+            cache_write_tokens: 0
+          output_tokens: 0
+          output_tokens_details:
+            reasoning_tokens: 0
+          total_tokens: 144

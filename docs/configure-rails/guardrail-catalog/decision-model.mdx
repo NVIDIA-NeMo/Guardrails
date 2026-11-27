@@ -1,0 +1,68 @@
+---
+title: "Native Decision Model"
+description: "Evaluate an assistant reply with a native binary or multiclass decision model."
+---
+
+Use the experimental `decision model check output` rail to evaluate a complete text reply. Each invocation sends the reply as `bot_message` and the rule's question to the selected endpoint. Configure a separate generating model if your application also generates replies.
+
+Choose `engine: system_one` for the System One protocol or `engine: openai_decisions` for OpenAI Decisions. Both use the built-in HTTP client and require no extra Python packages. Select the credential with `api_key_env_var`. The default variables are `TYPESAFE_API_KEY` and `OPENAI_API_KEY`, respectively.
+
+Define each rule under `rails.config.decision_model.rules`. Enable a rule by referencing its name in an output flow. In the example, `$rule=refund` selects the `refund` entry and `$model=support_judge` selects the deployment that evaluates its question. The rail applies the selected rule’s `block_if` to the answer. For `self check input`, configure a generation model that can answer the self-check prompt.
+
+```yaml
+models:
+  - type: support_judge  # Referenced by $model in decision model checks
+    engine: openai_decisions
+    model: gpt-6-luna
+    api_key_env_var: OPENAI_API_KEY
+rails:
+  output:
+    flows:
+      - decision model check output $rule=refund $model=support_judge
+  config:
+    decision_model:
+      rules:
+        refund:
+          question:
+            type: choice
+            instructions: Which refund commitment does the assistant make?
+            choices:
+              promised: The reply guarantees a refund.
+              conditional: The reply offers to check eligibility.
+              neither: The reply makes neither commitment.
+          block_if:
+            choice_in: [promised]
+```
+
+For a binary question, set `question.type` to `noul`, supply `instructions`, and set `block_if.probability_at_least` to a number between 0 and 1. Equality blocks. For a choice question the rail tests the selected class against `choice_in`. Reevaluate thresholds when changing deployments.
+
+Use `parameters.base_url` to override the service root and `parameters.timeout` to set the HTTP timeout in seconds (default `30`). Use `api_key_env_var` on the deployment for the bearer credential. The adapter forwards provider-specific parameters as top-level JSON fields. The rail supplies the model, questions, and evidence (`state` for System One or `input` for OpenAI Decisions). The adapter rejects conflicting assignments and unsupported transport options at config load. Provider errors and unusable answers fail the check.
+
+The `system_one` adapter posts to `/v1/systemone` for hosted Jev and for vLLM serving a model that supports structured decisions. For Jev, the default service root is `https://api.typesafe.ai`. For an authenticated vLLM server, set `model` to its served model name and `api_key_env_var` to the variable holding its server key. For example, these deployment parameters send the request to `http://localhost:8000/v1/systemone` and pass `chat_template_kwargs` in its body. [TypeSafe quick start](https://docs.typesafe.ai/introduction/quickstart) · [vLLM structured decision models](https://docs.vllm.ai/en/stable/models/structured_decisions_models/)
+
+```yaml
+parameters:
+  base_url: http://localhost:8000/v1
+  timeout: 5
+  chat_template_kwargs:
+    enable_thinking: false
+```
+
+The `openai_decisions` adapter posts to `/v1/decisions`. For example, set `parameters.prompt_cache_options.ttl` to `30m` to send OpenAI's prompt cache option. Accepted request options depend on the endpoint. [OpenAI Decisions API](https://developers.openai.com/api/reference/resources/decisions/methods/create)
+
+For vLLM’s OpenAI Decisions-compatible endpoint, choose `openai_decisions` and set `parameters.input_format: text`. The adapter serializes the labeled evidence as a JSON string in the request’s `input` field. Hosted OpenAI uses `input_json` by default. Both formats support binary and choice rules. Use the model name and credential for your vLLM deployment. [vLLM Decisions API](https://docs.vllm.ai/en/stable/models/structured_decisions_models/#openai-decisions-api)
+
+```yaml
+models:
+  - type: support_judge
+    engine: openai_decisions
+    model: Qwen/Qwen3-0.6B
+    api_key_env_var: VLLM_API_KEY
+    parameters:
+      base_url: http://localhost:8000/v1
+      input_format: text
+```
+
+The decision rail evaluates the complete assistant reply before release. In Colang 1.0, you can stream text from the main LLM through `LLMRails.generate_async` when you explicitly disable output rails for that request with `options={"rails": {"output": False}}`.
+
+In Colang 2, the `output rails` flow controls which checks run. When your program defines that flow and loads `decision model check output`, use non-streaming generation. This also applies when you call the check from a handwritten subflow.

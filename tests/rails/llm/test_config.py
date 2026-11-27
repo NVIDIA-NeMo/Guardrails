@@ -454,6 +454,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
     )
 
     expected_exports = {
+        "decision_model": (),
         "ai_defense": ("AIDefenseRailConfig",),
         "autoalign": ("AutoAlignOptions", "AutoAlignRailConfig"),
         "cel": ("CelConfig", "CelOptions"),
@@ -507,6 +508,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
         "zscaler_aiguard",
     }
     expected_config_keys = {
+        "decision_model",
         "ai_defense",
         "autoalign",
         "cel",

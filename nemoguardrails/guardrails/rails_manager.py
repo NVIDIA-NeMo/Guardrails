@@ -23,6 +23,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Literal, Optional, TypeVar, Union
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.decisions.model import decision_models
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
 from nemoguardrails.guardrails.compiled_rail import CompiledRail, RailDependencies, compile_rail
@@ -489,6 +490,7 @@ class RailsManager:
         """Bundle the collaborators a compiled rail's action may declare as parameters."""
         return RailDependencies(
             llms=self.engine_registry.llms,
+            decision_models=decision_models(self.task_manager.config.models),
             llm_task_manager=self.task_manager,
             config=self.task_manager.config,
             tracer=self._tracer,

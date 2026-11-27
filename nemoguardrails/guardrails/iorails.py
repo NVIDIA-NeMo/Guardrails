@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
+from nemoguardrails.decisions.model import DECISION_ADAPTERS, decision_models
 from nemoguardrails.exceptions import (
     InvalidCheckRequestError,
     NonStreamingWorkQueueFullError,
@@ -753,11 +754,11 @@ def _compile_only_deps(config: RailsConfig) -> RailDependencies:
     ``llm_task_manager.output_parsers`` to reject a prompt naming an output parser the config
     never registers, catching that mistake at load time instead of the first request.
 
-    The key sets match by construction, since ``EngineRegistry`` is built from these same
-    models and registers each one.
+    Resolve native decision deployments separately, as during runtime construction.
     """
     return RailDependencies(
-        llms={model.type: None for model in config.models},
+        llms={model.type: None for model in config.models if model.engine not in DECISION_ADAPTERS},
+        decision_models=decision_models(config.models),
         llm_task_manager=LLMTaskManager(config),
         config=config,
     )
@@ -893,7 +894,7 @@ class IORails(BaseGuardrails):
         self._content_capture_enabled = self._tracing_enabled and is_content_capture_enabled(config.tracing)
 
         self.engine_registry = EngineRegistry(
-            config.models,
+            [model for model in config.models if model.engine not in DECISION_ADAPTERS],
             tracer=self._tracer,
             metrics_enabled=self._metrics_enabled,
             content_capture_enabled=self._content_capture_enabled,

@@ -114,6 +114,7 @@ class RailSpec:
     action: str
     interpret: Callable[[Any], FlowDecision] | None = None
     model_type: str | None = None
+    model_engine: str = "openai"
     task: str | None = None
     output_parser: str | None = None
     rails_config: dict[str, Any] | None = None
@@ -2602,6 +2603,27 @@ FIXTURES = [
         context={"check_hallucination": True},
     ),
     *_rail_outcome_cases(
+        RailSpec(
+            name="decision_model_output",
+            direction="output",
+            flow="decision model check output $rule=probe $model=judge",
+            action="decision_model_check_output",
+            model_type="judge",
+            model_engine="system_one",
+            rails_config={
+                "decision_model": {
+                    "rules": {
+                        "probe": {
+                            "question": {"type": "noul", "instructions": "Is it a promise?"},
+                            "block_if": {"probability_at_least": 0.9},
+                        }
+                    }
+                }
+            },
+        ),
+        include_exception_case=True,
+    ),
+    *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
         allow_return=RailOutcome.allow(metadata={"policy_violations": []}),
         block_return=RailOutcome.block(metadata={"policy_violations": ["violence"]}),
@@ -2637,7 +2659,7 @@ FIXTURES = [
 def _build_config(spec: RailSpec, *, enable_rails_exceptions: bool) -> dict[str, Any]:
     models = []
     if spec.model_type:
-        models.append({"type": spec.model_type, "engine": "openai", "model": "placeholder"})
+        models.append({"type": spec.model_type, "engine": spec.model_engine, "model": "placeholder"})
 
     if spec.direction == "tool_call":
         rails: dict[str, Any] = {"tool_call": {"per_tool": {PROBE_TOOL_NAME: [spec.flow]}}}
@@ -2951,7 +2973,9 @@ _IORAILS_MODELS = [
 def _iorails_config(spec: RailSpec, *, enable_rails_exceptions: bool) -> dict[str, Any]:
     """The flow-gate config with the model types IORails needs, shared by both callers."""
     config = copy.deepcopy(_build_config(spec, enable_rails_exceptions=enable_rails_exceptions))
-    config["models"] = _IORAILS_MODELS
+    config["models"] = _IORAILS_MODELS + [
+        m for m in config["models"] if m["type"] not in {entry["type"] for entry in _IORAILS_MODELS}
+    ]
     return config
 
 

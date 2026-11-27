@@ -1,0 +1,109 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/openjev/v1/systemone
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: openjev-4b
+      state:
+        bot_message: I can check whether you qualify.
+      questions:
+        password_request:
+          type: noul
+          instructions: Does the assistant ask the customer to share their password?
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      nvcf-status:
+      - fulfilled
+      access-control-expose-headers:
+      - nvcf-reqid
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+        model: openjev-4b
+        answers:
+          password_request:
+            type: noul
+            noul: 0.08463117666827018
+        usage:
+          input_tokens: 104
+          output_tokens: 0
+- request:
+    method: POST
+    uri: https://inference-api.nvidia.com/openjev/v1/systemone
+    headers:
+      host:
+      - inference-api.nvidia.com
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      user-agent:
+      - python-httpx/0.28.1
+      content-type:
+      - application/json
+    parsed_body:
+      model: openjev-4b
+      state:
+        bot_message: I can check whether you qualify.
+      questions:
+        refund_promise:
+          type: choice
+          instructions: Which refund commitment does the assistant make?
+          criteria:
+            promised: The reply guarantees a refund.
+            conditional: The reply offers to check eligibility.
+            neither: The reply makes neither commitment.
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      content-type:
+      - application/json
+      connection:
+      - keep-alive
+      nvcf-status:
+      - fulfilled
+      access-control-expose-headers:
+      - nvcf-reqid
+      content-security-policy:
+      - frame-ancestors 'none'
+    body:
+      parsed_body:
+        model: openjev-4b
+        answers:
+          refund_promise:
+            type: choice
+            probabilities:
+              promised: 0.0866358097399757
+              conditional: 0.8397899466190776
+              neither: 0.07357424364094671
+            confidence: 0.4988822237741528
+            choice: conditional
+        usage:
+          input_tokens: 118
+          output_tokens: 0

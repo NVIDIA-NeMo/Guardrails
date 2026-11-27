@@ -109,6 +109,9 @@ navigation:
           - page: Content Safety
             path: configure-rails/guardrail-catalog/content-safety.mdx
             slug: content-safety
+          - page: Native Decision Model
+            path: configure-rails/guardrail-catalog/decision-model.mdx
+            slug: decision-model
           - page: Jailbreak Protection
             path: configure-rails/guardrail-catalog/jailbreak-protection.mdx
             slug: jailbreak-protection
