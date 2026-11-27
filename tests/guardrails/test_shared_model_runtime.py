@@ -18,6 +18,7 @@
 from unittest.mock import Mock
 
 import pytest
+from pydantic import SecretStr
 
 from nemoguardrails import Guardrails, RailsConfig
 from nemoguardrails.guardrails.model_runtime import ModelRuntime
@@ -340,7 +341,7 @@ def test_registered_provider_preserves_constructor_parameters(monkeypatch, provi
     monkeypatch.setattr(registry, "_default_framework", "default")
     parameters = {
         "base_url": "https://custom.test/rpc",
-        "api_key": "test-only-key",
+        "api_key": SecretStr("test-only-key"),
         "stream": True,
         "stream_options": {"include_usage": False},
         "timeout_connect": 7,
@@ -372,7 +373,7 @@ def test_custom_framework_preserves_constructor_parameters(monkeypatch):
     monkeypatch.setattr(registry, "_default_framework", "custom-framework")
     parameters = {
         "base_url": "https://custom.test/rpc",
-        "api_key": "test-only-key",
+        "api_key": SecretStr("test-only-key"),
         "stream": True,
         "stream_options": {"include_usage": False},
         "timeout_connect": 7,
@@ -436,5 +437,35 @@ async def test_public_method_owns_configured_streaming_flags(httpx_mock, streami
             assert "stream" not in payload
             assert "stream_options" not in payload
         assert config.models[0].parameters == original
+    finally:
+        await rails.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_builtin_secret_key_is_unwrapped_without_mutating_config(httpx_mock):
+    api_key = SecretStr("test-only-key")
+    config = RailsConfig.from_content(
+        config={
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "openai",
+                    "model": "test-model",
+                    "parameters": {"base_url": "https://model.test", "api_key": api_key},
+                }
+            ]
+        }
+    )
+    httpx_mock.add_response(
+        json={"choices": [{"message": {"role": "assistant", "content": "hello"}, "finish_reason": "stop"}]}
+    )
+    rails = Guardrails(config, require_iorails=True)
+    try:
+        assert (await rails.generate_async(messages=[{"role": "user", "content": "Hi"}]))["content"] == "hello"
+        request = httpx_mock.get_request()
+        assert request.headers["Authorization"] == "Bearer test-only-key"
+        assert b"test-only-key" not in request.content
+        assert config.models[0].parameters["api_key"] == api_key
+        assert isinstance(config.models[0].parameters["api_key"], SecretStr)
     finally:
         await rails.shutdown()

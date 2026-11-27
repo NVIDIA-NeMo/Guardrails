@@ -25,6 +25,8 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, Optional
 
+from pydantic import SecretStr
+
 from nemoguardrails.guardrails.tool_parsing import (
     parse_tools,
 )
@@ -45,6 +47,9 @@ def _canonical_model_config(model: Model) -> Model:
     params = dict(model.parameters or {})
     params.pop("stream", None)
     params.pop("stream_options", None)
+    api_key = params.get("api_key")
+    if isinstance(api_key, SecretStr):
+        params["api_key"] = api_key.get_secret_value()
     if "timeout_connect" in params:
         value = params.pop("timeout_connect")
         if "connect_timeout" in params and params["connect_timeout"] != value:
